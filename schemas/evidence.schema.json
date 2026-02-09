@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "GateForge Evidence Schema v0.1.0",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "run_id",
+    "timestamp_utc",
+    "backend",
+    "status",
+    "failure_type",
+    "metrics",
+    "artifacts",
+    "gate"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string"
+    },
+    "run_id": {
+      "type": "string"
+    },
+    "timestamp_utc": {
+      "type": "string"
+    },
+    "backend": {
+      "type": "string",
+      "enum": ["mock", "openmodelica"]
+    },
+    "status": {
+      "type": "string",
+      "enum": ["success", "failed"]
+    },
+    "failure_type": {
+      "type": "string"
+    },
+    "metrics": {
+      "type": "object",
+      "required": ["runtime_seconds", "events"],
+      "properties": {
+        "runtime_seconds": {
+          "type": "number",
+          "minimum": 0
+        },
+        "events": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "artifacts": {
+      "type": "object",
+      "required": ["log_excerpt"],
+      "properties": {
+        "log_excerpt": {
+          "type": "string"
+        }
+      }
+    },
+    "gate": {
+      "type": "string",
+      "enum": ["PASS", "FAIL", "NEEDS_REVIEW"]
+    }
+  }
+}
+
