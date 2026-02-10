@@ -136,6 +136,21 @@ In GitHub Actions, the threshold is controlled by:
 
 `GATEFORGE_RUNTIME_THRESHOLD` (see `.github/workflows/ci.yml`).
 
+Strict mode is available for industrial-style comparability checks:
+
+```bash
+python -m gateforge.regress \
+  --baseline baselines/mock_baseline.json \
+  --candidate artifacts/candidate.json \
+  --strict \
+  --strict-model-script \
+  --out artifacts/regression.json
+```
+
+Strict checks:
+- `--strict`: fail if `schema_version` or `backend` mismatches
+- `--strict-model-script`: additionally fail if `model_script` mismatches
+
 ## Baseline governance
 
 The baseline is versioned in-repo:

@@ -31,6 +31,16 @@ def main() -> None:
         help="Where to write regression decision JSON",
     )
     parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="Enable strict comparability checks (schema_version/backend)",
+    )
+    parser.add_argument(
+        "--strict-model-script",
+        action="store_true",
+        help="When strict mode is enabled, also require model_script to match",
+    )
+    parser.add_argument(
         "--report",
         default=None,
         help="Where to write regression markdown report",
@@ -43,6 +53,8 @@ def main() -> None:
         baseline=baseline,
         candidate=candidate,
         runtime_regression_threshold=args.runtime_threshold,
+        strict=args.strict,
+        strict_model_script=args.strict_model_script,
     )
 
     write_json(args.out, result)
@@ -55,4 +67,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
