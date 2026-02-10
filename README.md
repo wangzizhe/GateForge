@@ -57,6 +57,13 @@ export GATEFORGE_OM_IMAGE=openmodelica/openmodelica:v1.26.1-minimal
 python -m gateforge.smoke --backend openmodelica_docker --out artifacts/evidence-docker.json
 ```
 
+You can also override which `.mos` script to run:
+
+```bash
+export GATEFORGE_OM_SCRIPT=examples/openmodelica/minimal_probe.mos
+python -m gateforge.smoke --backend openmodelica_docker --out artifacts/evidence-docker.json
+```
+
 Expected success signals:
 - `"status": "success"`
 - `"gate": "PASS"`
@@ -77,6 +84,26 @@ GateForge runs OpenModelica in a temporary workspace and deletes it after execut
 ```bash
 bash scripts/check_docker_backend.sh
 ```
+
+## Failure fixtures (taxonomy v0)
+
+Run these to validate failure classification:
+
+```bash
+export GATEFORGE_OM_SCRIPT=examples/openmodelica/failures/script_parse_error.mos
+python -m gateforge.smoke --backend openmodelica_docker --out artifacts/failure_script_parse.json
+
+export GATEFORGE_OM_SCRIPT=examples/openmodelica/failures/model_check_error.mos
+python -m gateforge.smoke --backend openmodelica_docker --out artifacts/failure_model_check.json
+
+export GATEFORGE_OM_SCRIPT=examples/openmodelica/failures/simulate_error.mos
+python -m gateforge.smoke --backend openmodelica_docker --out artifacts/failure_simulate.json
+```
+
+Expected `failure_type` values:
+- `script_parse_error`
+- `model_check_error`
+- `simulate_error`
 
 ## Repository layout
 

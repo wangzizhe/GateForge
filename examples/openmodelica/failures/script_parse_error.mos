@@ -1,0 +1,5 @@
+loadFile("examples/openmodelica/MinimalProbe.mo");
+checkModel(MinimalProbe);
+this_is_not_valid_syntax(
+simulate(MinimalProbe, stopTime = 1.0, numberOfIntervals = 20);
+getErrorString();
