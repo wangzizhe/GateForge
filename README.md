@@ -2,6 +2,18 @@
 
 Minimal `run -> evidence -> gate` pipeline for learning and bootstrapping CI/regression governance.
 
+## Goals
+
+- Provide a reproducible evidence pipeline for simulation-related changes.
+- Make gate decisions explainable via structured outputs (`json + md`).
+- Keep backend execution replaceable (OpenModelica now, FMU runner later).
+
+## Non-goals (current stage)
+
+- Building a modeling copilot/agent.
+- Supporting every simulation tool/backend.
+- Building UI/dashboard or SaaS infrastructure.
+
 ## Prerequisites
 
 - Python 3.10+

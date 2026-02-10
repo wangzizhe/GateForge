@@ -9,6 +9,7 @@ import tempfile
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Protocol
 
 
 DEFAULT_OM_DOCKER_IMAGE = "openmodelica/openmodelica:v1.26.1-minimal"
@@ -16,6 +17,37 @@ OM_DOCKER_IMAGE_ENV = "GATEFORGE_OM_IMAGE"
 OM_SCRIPT_ENV = "GATEFORGE_OM_SCRIPT"
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OM_SCRIPT = "examples/openmodelica/minimal_probe.mos"
+
+
+class Runner(Protocol):
+    """Execution backend contract. Future FMU backend should implement this."""
+
+    def run(self) -> dict:
+        ...
+
+
+class MockRunner:
+    def run(self) -> dict:
+        return {
+            "status": "success",
+            "failure_type": "none",
+            "events": 12,
+            "log_excerpt": "mock simulation completed",
+            "model_script": None,
+            "exit_code": 0,
+            "check_ok": True,
+            "simulate_ok": True,
+        }
+
+
+class OpenModelicaProbeRunner:
+    def run(self) -> dict:
+        return _run_openmodelica_probe()
+
+
+class OpenModelicaDockerRunner:
+    def run(self) -> dict:
+        return _run_openmodelica_docker_probe()
 
 
 def run_pipeline(
@@ -56,21 +88,17 @@ def run_pipeline(
 
 
 def _run_backend(backend: str) -> dict:
+    runner = _get_runner(backend)
+    return runner.run()
+
+
+def _get_runner(backend: str) -> Runner:
     if backend == "mock":
-        return {
-            "status": "success",
-            "failure_type": "none",
-            "events": 12,
-            "log_excerpt": "mock simulation completed",
-            "model_script": None,
-            "exit_code": 0,
-            "check_ok": True,
-            "simulate_ok": True,
-        }
+        return MockRunner()
     if backend == "openmodelica":
-        return _run_openmodelica_probe()
+        return OpenModelicaProbeRunner()
     if backend == "openmodelica_docker":
-        return _run_openmodelica_docker_probe()
+        return OpenModelicaDockerRunner()
     raise ValueError(f"Unsupported backend: {backend}")
 
 
