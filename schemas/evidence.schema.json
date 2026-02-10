@@ -11,6 +11,10 @@
     "failure_type",
     "metrics",
     "artifacts",
+    "model_script",
+    "exit_code",
+    "check_ok",
+    "simulate_ok",
     "gate"
   ],
   "properties": {
@@ -25,7 +29,7 @@
     },
     "backend": {
       "type": "string",
-      "enum": ["mock", "openmodelica"]
+      "enum": ["mock", "openmodelica", "openmodelica_docker"]
     },
     "status": {
       "type": "string",
@@ -57,10 +61,21 @@
         }
       }
     },
+    "model_script": {
+      "type": ["string", "null"]
+    },
+    "exit_code": {
+      "type": "integer"
+    },
+    "check_ok": {
+      "type": "boolean"
+    },
+    "simulate_ok": {
+      "type": "boolean"
+    },
     "gate": {
       "type": "string",
       "enum": ["PASS", "FAIL", "NEEDS_REVIEW"]
     }
   }
 }
-

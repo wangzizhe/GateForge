@@ -11,7 +11,7 @@ def main() -> None:
     parser.add_argument(
         "--backend",
         default="mock",
-        choices=["mock", "openmodelica"],
+        choices=["mock", "openmodelica", "openmodelica_docker"],
         help="Execution backend for smoke run",
     )
     parser.add_argument(
@@ -27,4 +27,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

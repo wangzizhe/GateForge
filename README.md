@@ -2,7 +2,17 @@
 
 Minimal `run -> evidence -> gate` pipeline for learning and bootstrapping CI/regression governance.
 
-## Step 1: Install and run locally
+## Prerequisites
+
+- Python 3.10+
+- Docker Desktop installed and running
+- OpenModelica Docker image:
+
+```bash
+docker pull openmodelica/openmodelica:v1.26.1-minimal
+```
+
+## Step 1: Install and run locally (mock backend)
 
 ```bash
 python -m venv .venv
@@ -21,14 +31,64 @@ cat artifacts/evidence.json
 
 This is intentionally small. It proves your governance layer can always produce machine-readable evidence before adding real simulation complexity.
 
-## Step 3: OpenModelica mode (probe for now)
+## Step 3: OpenModelica via Docker (recommended on macOS)
 
 ```bash
-python -m gateforge.smoke --backend openmodelica --out artifacts/evidence-om.json
+python -m gateforge.smoke --backend openmodelica_docker --out artifacts/evidence-docker.json
+cat artifacts/evidence-docker.json
 ```
 
-Current behavior:
-- If `omc` is available and returns version: `PASS`.
-- If `omc` is missing: `NEEDS_REVIEW`.
+This backend now runs a real `.mos` script:
 
-Next step is to replace the probe with real compile/simulate execution.
+`examples/openmodelica/minimal_probe.mos`
+
+The script loads:
+
+`examples/openmodelica/MinimalProbe.mo`
+
+By default this uses:
+
+`openmodelica/openmodelica:v1.26.1-minimal`
+
+You can override the image tag without changing code:
+
+```bash
+export GATEFORGE_OM_IMAGE=openmodelica/openmodelica:v1.26.1-minimal
+python -m gateforge.smoke --backend openmodelica_docker --out artifacts/evidence-docker.json
+```
+
+Expected success signals:
+- `"status": "success"`
+- `"gate": "PASS"`
+- `"check_ok": true`
+- `"simulate_ok": true`
+
+The generated evidence includes:
+- `failure_type`: classified failure reason (`none`, `script_parse_error`, `model_check_error`, `simulate_error`, `docker_error`, ...)
+- `model_script`: script executed by `omc`
+- `exit_code`: process exit code from the backend run
+- `check_ok`: whether model checking succeeded
+- `simulate_ok`: whether simulation succeeded
+
+GateForge runs OpenModelica in a temporary workspace and deletes it after execution, so compile/simulation artifacts do not pollute your project directory.
+
+## Step 4: One-command local Docker backend check
+
+```bash
+bash scripts/check_docker_backend.sh
+```
+
+## Repository layout
+
+- `gateforge/`: core pipeline and CLI entrypoint
+- `examples/openmodelica/`: `.mo` model and `.mos` script fixtures
+- `schemas/`: evidence schema
+- `tests/`: smoke/regression tests
+- `scripts/`: local helper scripts
+
+## Troubleshooting
+
+- `permission denied ... docker.sock`:
+  Docker Desktop is not running or current shell cannot access Docker daemon.
+- `Error: No viable alternative near token: model`:
+  `.mos` is a script file; keep class definitions in `.mo` and load them from `.mos`.
