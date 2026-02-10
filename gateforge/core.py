@@ -18,7 +18,11 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OM_SCRIPT = "examples/openmodelica/minimal_probe.mos"
 
 
-def run_pipeline(backend: str = "mock", out_path: str = "artifacts/evidence.json") -> dict:
+def run_pipeline(
+    backend: str = "mock",
+    out_path: str = "artifacts/evidence.json",
+    report_path: str | None = None,
+) -> dict:
     # Single entry point: execute backend, normalize outputs, emit evidence.
     started = time.time()
     result = _run_backend(backend)
@@ -47,6 +51,7 @@ def run_pipeline(backend: str = "mock", out_path: str = "artifacts/evidence.json
 
     validate_evidence(evidence)
     _write_json(out_path, evidence)
+    _write_markdown_report(_resolve_report_path(out_path, report_path), evidence)
     return evidence
 
 
@@ -310,3 +315,38 @@ def _write_json(path: str, payload: dict) -> None:
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+
+def _resolve_report_path(out_path: str, report_path: str | None) -> str:
+    if report_path:
+        return report_path
+    out = Path(out_path)
+    if out.suffix == ".json":
+        return str(out.with_suffix(".md"))
+    return f"{out_path}.md"
+
+
+def _write_markdown_report(path: str, evidence: dict) -> None:
+    p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    lines = [
+        "# GateForge Run Report",
+        "",
+        f"- gate: `{evidence['gate']}`",
+        f"- status: `{evidence['status']}`",
+        f"- failure_type: `{evidence['failure_type']}`",
+        f"- backend: `{evidence['backend']}`",
+        f"- model_script: `{evidence['model_script']}`",
+        f"- check_ok: `{evidence['check_ok']}`",
+        f"- simulate_ok: `{evidence['simulate_ok']}`",
+        f"- exit_code: `{evidence['exit_code']}`",
+        f"- runtime_seconds: `{evidence['metrics']['runtime_seconds']}`",
+        "",
+        "## Log Excerpt",
+        "",
+        "```text",
+        evidence["artifacts"]["log_excerpt"],
+        "```",
+        "",
+    ]
+    p.write_text("\n".join(lines), encoding="utf-8")
