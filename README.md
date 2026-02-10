@@ -21,13 +21,14 @@ pip install -e .
 python -m unittest discover -s tests -v
 python -m gateforge.smoke --backend mock --out artifacts/evidence.json
 cat artifacts/evidence.json
+cat artifacts/evidence.md
 ```
 
 ## Step 2: What this minimal CI does
 
 - Runs tests on each push/PR.
-- Runs a smoke pipeline that produces `artifacts/evidence.json`.
-- Uploads the evidence artifact in GitHub Actions.
+- Runs a smoke pipeline that produces `artifacts/evidence.json` and `artifacts/evidence.md`.
+- Uploads both evidence artifacts in GitHub Actions.
 
 This is intentionally small. It proves your governance layer can always produce machine-readable evidence before adding real simulation complexity.
 
@@ -76,6 +77,13 @@ The generated evidence includes:
 - `exit_code`: process exit code from the backend run
 - `check_ok`: whether model checking succeeded
 - `simulate_ok`: whether simulation succeeded
+
+Each run also writes a short markdown summary report (default: same path as `--out` with `.md`).
+You can override it with:
+
+```bash
+python -m gateforge.smoke --backend openmodelica_docker --out artifacts/evidence-docker.json --report artifacts/run-report.md
+```
 
 GateForge runs OpenModelica in a temporary workspace and deletes it after execution, so compile/simulation artifacts do not pollute your project directory.
 

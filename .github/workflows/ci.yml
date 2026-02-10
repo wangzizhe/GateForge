@@ -31,4 +31,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: evidence
-          path: artifacts/evidence.json
+          path: |
+            artifacts/evidence.json
+            artifacts/evidence.md

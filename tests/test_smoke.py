@@ -25,8 +25,10 @@ class SmokePipelineTests(unittest.TestCase):
     def test_mock_pipeline_writes_valid_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             out = Path(d) / "evidence.json"
+            report = Path(d) / "evidence.md"
             evidence = run_pipeline(backend="mock", out_path=str(out))
             self.assertTrue(out.exists())
+            self.assertTrue(report.exists())
             self.assertEqual(evidence["status"], "success")
             self.assertEqual(evidence["gate"], "PASS")
             self.assertEqual(evidence["backend"], "mock")
@@ -38,8 +40,10 @@ class SmokePipelineTests(unittest.TestCase):
     def test_openmodelica_probe_never_crashes(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             out = Path(d) / "evidence.json"
+            report = Path(d) / "evidence.md"
             evidence = run_pipeline(backend="openmodelica", out_path=str(out))
             self.assertTrue(out.exists())
+            self.assertTrue(report.exists())
             self.assertIn(evidence["gate"], {"PASS", "NEEDS_REVIEW", "FAIL"})
             self.assertIn("exit_code", evidence)
             self.assertIn("check_ok", evidence)
@@ -48,8 +52,10 @@ class SmokePipelineTests(unittest.TestCase):
     def test_openmodelica_docker_probe_never_crashes(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             out = Path(d) / "evidence.json"
+            report = Path(d) / "evidence.md"
             evidence = run_pipeline(backend="openmodelica_docker", out_path=str(out))
             self.assertTrue(out.exists())
+            self.assertTrue(report.exists())
             self.assertIn(evidence["gate"], {"PASS", "NEEDS_REVIEW", "FAIL"})
             self.assertEqual(evidence["model_script"], "examples/openmodelica/minimal_probe.mos")
             self.assertIn("exit_code", evidence)
@@ -79,6 +85,14 @@ class SmokePipelineTests(unittest.TestCase):
             self.skipTest("Docker/OpenModelica unavailable in this environment")
         self.assertEqual(evidence["gate"], "FAIL")
         self.assertEqual(evidence["failure_type"], "simulate_error")
+
+    def test_custom_report_path(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            out = Path(d) / "evidence.json"
+            report = Path(d) / "custom-report.md"
+            run_pipeline(backend="mock", out_path=str(out), report_path=str(report))
+            self.assertTrue(out.exists())
+            self.assertTrue(report.exists())
 
 
 if __name__ == "__main__":
