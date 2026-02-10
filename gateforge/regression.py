@@ -8,8 +8,18 @@ def compare_evidence(
     baseline: dict,
     candidate: dict,
     runtime_regression_threshold: float = 0.2,
+    strict: bool = False,
+    strict_model_script: bool = False,
 ) -> dict:
     reasons: list[str] = []
+
+    if strict:
+        if baseline.get("schema_version") != candidate.get("schema_version"):
+            reasons.append("strict_schema_version_mismatch")
+        if baseline.get("backend") != candidate.get("backend"):
+            reasons.append("strict_backend_mismatch")
+        if strict_model_script and baseline.get("model_script") != candidate.get("model_script"):
+            reasons.append("strict_model_script_mismatch")
 
     if candidate.get("status") != "success":
         reasons.append("candidate_status_not_success")
@@ -32,6 +42,8 @@ def compare_evidence(
     decision = "FAIL" if reasons else "PASS"
     return {
         "decision": decision,
+        "strict": strict,
+        "strict_model_script": strict_model_script,
         "baseline_run_id": baseline.get("run_id"),
         "candidate_run_id": candidate.get("run_id"),
         "runtime_threshold": runtime_regression_threshold,
@@ -58,6 +70,8 @@ def write_markdown(path: str, result: dict) -> None:
         "# GateForge Regression Report",
         "",
         f"- decision: `{result['decision']}`",
+        f"- strict: `{result['strict']}`",
+        f"- strict_model_script: `{result['strict_model_script']}`",
         f"- baseline_run_id: `{result['baseline_run_id']}`",
         f"- candidate_run_id: `{result['candidate_run_id']}`",
         f"- baseline_runtime_seconds: `{result['baseline_runtime_seconds']}`",
@@ -73,4 +87,3 @@ def write_markdown(path: str, result: dict) -> None:
         lines.append("- `none`")
     lines.append("")
     p.write_text("\n".join(lines), encoding="utf-8")
-
