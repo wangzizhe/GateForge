@@ -1,0 +1,20 @@
+{
+  "schema_version": "0.1.0",
+  "run_id": "run-1770734892",
+  "timestamp_utc": "2026-02-10T14:48:12.914019+00:00",
+  "backend": "mock",
+  "status": "success",
+  "failure_type": "none",
+  "metrics": {
+    "runtime_seconds": 0.0,
+    "events": 12
+  },
+  "artifacts": {
+    "log_excerpt": "mock simulation completed"
+  },
+  "model_script": null,
+  "exit_code": 0,
+  "check_ok": true,
+  "simulate_ok": true,
+  "gate": "PASS"
+}
