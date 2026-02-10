@@ -26,16 +26,13 @@ jobs:
       - name: Run tests
         run: python -m unittest discover -s tests -v
 
-      - name: Generate baseline evidence
-        run: python -m gateforge.smoke --backend mock --out artifacts/baseline.json
-
       - name: Generate candidate evidence
         run: python -m gateforge.smoke --backend mock --out artifacts/candidate.json
 
       - name: Run regression gate
         run: |
           python -m gateforge.regress \
-            --baseline artifacts/baseline.json \
+            --baseline baselines/mock_baseline.json \
             --candidate artifacts/candidate.json \
             --runtime-threshold "$GATEFORGE_RUNTIME_THRESHOLD" \
             --out artifacts/regression.json
@@ -45,8 +42,8 @@ jobs:
         with:
           name: evidence
           path: |
-            artifacts/baseline.json
-            artifacts/baseline.md
+            baselines/mock_baseline.json
+            baselines/mock_baseline.md
             artifacts/candidate.json
             artifacts/candidate.md
             artifacts/regression.json

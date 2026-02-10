@@ -27,7 +27,8 @@ cat artifacts/evidence.md
 ## Step 2: What this minimal CI does
 
 - Runs tests on each push/PR.
-- Generates `baseline` and `candidate` evidence (`.json + .md`).
+- Uses a versioned baseline from `baselines/mock_baseline.json`.
+- Generates `candidate` evidence (`.json + .md`).
 - Runs a regression gate (`artifacts/regression.json + artifacts/regression.md`).
 - Uploads all evidence and regression artifacts in GitHub Actions.
 
@@ -96,12 +97,11 @@ bash scripts/check_docker_backend.sh
 
 ## Step 5: Regression gate (baseline vs candidate)
 
-Generate two evidence files, then compare:
+Compare repository baseline against current candidate:
 
 ```bash
-python -m gateforge.smoke --backend mock --out artifacts/baseline.json
 python -m gateforge.smoke --backend mock --out artifacts/candidate.json
-python -m gateforge.regress --baseline artifacts/baseline.json --candidate artifacts/candidate.json --out artifacts/regression.json
+python -m gateforge.regress --baseline baselines/mock_baseline.json --candidate artifacts/candidate.json --out artifacts/regression.json
 cat artifacts/regression.json
 cat artifacts/regression.md
 ```
@@ -114,7 +114,7 @@ Runtime regression threshold can be tuned (default `0.20` = +20%):
 
 ```bash
 python -m gateforge.regress \
-  --baseline artifacts/baseline.json \
+  --baseline baselines/mock_baseline.json \
   --candidate artifacts/candidate.json \
   --runtime-threshold 0.10 \
   --out artifacts/regression.json
@@ -123,6 +123,20 @@ python -m gateforge.regress \
 In GitHub Actions, the threshold is controlled by:
 
 `GATEFORGE_RUNTIME_THRESHOLD` (see `.github/workflows/ci.yml`).
+
+## Baseline governance
+
+The baseline is versioned in-repo:
+
+- `baselines/mock_baseline.json`
+- `baselines/mock_baseline.md`
+
+Update baseline only when expected behavior changes and is explicitly reviewed.
+To refresh baseline files:
+
+```bash
+bash scripts/update_baseline.sh
+```
 
 ## Failure fixtures (taxonomy v0)
 
