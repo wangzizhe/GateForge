@@ -7,6 +7,8 @@ on:
 jobs:
   test-and-smoke:
     runs-on: ubuntu-latest
+    env:
+      GATEFORGE_RUNTIME_THRESHOLD: "0.20"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -24,13 +26,28 @@ jobs:
       - name: Run tests
         run: python -m unittest discover -s tests -v
 
-      - name: Run smoke pipeline
-        run: python -m gateforge.smoke --backend mock --out artifacts/evidence.json
+      - name: Generate baseline evidence
+        run: python -m gateforge.smoke --backend mock --out artifacts/baseline.json
+
+      - name: Generate candidate evidence
+        run: python -m gateforge.smoke --backend mock --out artifacts/candidate.json
+
+      - name: Run regression gate
+        run: |
+          python -m gateforge.regress \
+            --baseline artifacts/baseline.json \
+            --candidate artifacts/candidate.json \
+            --runtime-threshold "$GATEFORGE_RUNTIME_THRESHOLD" \
+            --out artifacts/regression.json
 
       - name: Upload evidence artifact
         uses: actions/upload-artifact@v4
         with:
           name: evidence
           path: |
-            artifacts/evidence.json
-            artifacts/evidence.md
+            artifacts/baseline.json
+            artifacts/baseline.md
+            artifacts/candidate.json
+            artifacts/candidate.md
+            artifacts/regression.json
+            artifacts/regression.md

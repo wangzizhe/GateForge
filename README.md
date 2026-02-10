@@ -27,8 +27,9 @@ cat artifacts/evidence.md
 ## Step 2: What this minimal CI does
 
 - Runs tests on each push/PR.
-- Runs a smoke pipeline that produces `artifacts/evidence.json` and `artifacts/evidence.md`.
-- Uploads both evidence artifacts in GitHub Actions.
+- Generates `baseline` and `candidate` evidence (`.json + .md`).
+- Runs a regression gate (`artifacts/regression.json + artifacts/regression.md`).
+- Uploads all evidence and regression artifacts in GitHub Actions.
 
 This is intentionally small. It proves your governance layer can always produce machine-readable evidence before adding real simulation complexity.
 
@@ -92,6 +93,36 @@ GateForge runs OpenModelica in a temporary workspace and deletes it after execut
 ```bash
 bash scripts/check_docker_backend.sh
 ```
+
+## Step 5: Regression gate (baseline vs candidate)
+
+Generate two evidence files, then compare:
+
+```bash
+python -m gateforge.smoke --backend mock --out artifacts/baseline.json
+python -m gateforge.smoke --backend mock --out artifacts/candidate.json
+python -m gateforge.regress --baseline artifacts/baseline.json --candidate artifacts/candidate.json --out artifacts/regression.json
+cat artifacts/regression.json
+cat artifacts/regression.md
+```
+
+Behavior:
+- `decision = PASS` -> command exits `0`
+- `decision = FAIL` -> command exits `1` (can be used as CI gate)
+
+Runtime regression threshold can be tuned (default `0.20` = +20%):
+
+```bash
+python -m gateforge.regress \
+  --baseline artifacts/baseline.json \
+  --candidate artifacts/candidate.json \
+  --runtime-threshold 0.10 \
+  --out artifacts/regression.json
+```
+
+In GitHub Actions, the threshold is controlled by:
+
+`GATEFORGE_RUNTIME_THRESHOLD` (see `.github/workflows/ci.yml`).
 
 ## Failure fixtures (taxonomy v0)
 
