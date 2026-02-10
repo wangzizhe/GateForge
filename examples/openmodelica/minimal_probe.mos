@@ -1,0 +1,4 @@
+loadFile("examples/openmodelica/MinimalProbe.mo");
+checkModel(MinimalProbe);
+simulate(MinimalProbe, stopTime = 1.0, numberOfIntervals = 20);
+getErrorString();
