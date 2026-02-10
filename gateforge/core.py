@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -12,6 +13,7 @@ from pathlib import Path
 
 DEFAULT_OM_DOCKER_IMAGE = "openmodelica/openmodelica:v1.26.1-minimal"
 OM_DOCKER_IMAGE_ENV = "GATEFORGE_OM_IMAGE"
+OM_SCRIPT_ENV = "GATEFORGE_OM_SCRIPT"
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OM_SCRIPT = "examples/openmodelica/minimal_probe.mos"
 
@@ -114,7 +116,7 @@ def _run_openmodelica_probe() -> dict:
 
 def _run_openmodelica_docker_probe(image: str = DEFAULT_OM_DOCKER_IMAGE) -> dict:
     selected_image = os.getenv(OM_DOCKER_IMAGE_ENV, image)
-    script_rel = DEFAULT_OM_SCRIPT
+    script_rel = os.getenv(OM_SCRIPT_ENV, DEFAULT_OM_SCRIPT)
     script_abs = PROJECT_ROOT / script_rel
     if not script_abs.exists():
         return {
@@ -171,11 +173,12 @@ def _run_openmodelica_docker_probe(image: str = DEFAULT_OM_DOCKER_IMAGE) -> dict
         # Keep parsing logic backend-agnostic by extracting booleans from raw logs.
         merged_output = (proc.stdout or "") + "\n" + (proc.stderr or "")
         check_ok, simulate_ok = _extract_om_success_flags(merged_output)
+        classified_failure = _classify_om_failure(merged_output, check_ok, simulate_ok)
 
-        if proc.returncode != 0:
+        if proc.returncode != 0 or classified_failure != "none":
             return {
                 "status": "failed",
-                "failure_type": _classify_om_failure(merged_output),
+                "failure_type": classified_failure,
                 "events": 0,
                 "log_excerpt": f"[{selected_image}] {(proc.stderr or proc.stdout).strip()[:170]}",
                 "model_script": script_rel,
@@ -200,20 +203,53 @@ def _extract_om_success_flags(output: str) -> tuple[bool, bool]:
     # Lightweight signal extraction for now; can be replaced by structured parser later.
     lower = output.lower()
     check_ok = "check of" in lower and "completed successfully" in lower
-    simulate_ok = "record simulationresult" in lower
+    has_sim_result = "record simulationresult" in lower
+    result_file_empty = 'resultfile = ""' in lower
+    sim_error_markers = (
+        "simulation execution failed" in lower
+        or "error occurred while solving" in lower
+        or "division by zero" in lower
+        or "assertion" in lower
+        or "integrator failed" in lower
+    )
+    simulate_ok = has_sim_result and not result_file_empty and not sim_error_markers
     return check_ok, simulate_ok
 
 
-def _classify_om_failure(output: str) -> str:
+def _classify_om_failure(output: str, check_ok: bool, simulate_ok: bool) -> str:
     # Failure taxonomy v0 from log patterns; conservative fallback keeps unknowns visible.
     lower = output.lower()
-    if "no viable alternative near token" in lower or "syntax error" in lower:
+    if (
+        "permission denied while trying to connect to the docker api" in lower
+        or "cannot connect to the docker daemon" in lower
+        or "docker daemon" in lower and "not running" in lower
+    ):
+        return "docker_error"
+    if (
+        "no viable alternative near token" in lower
+        or "syntax error" in lower
+        or "missing token" in lower
+    ):
         return "script_parse_error"
-    if "check of" in lower and "failed" in lower:
+    if "undeclared variable" in lower or "variable y not found" in lower:
         return "model_check_error"
-    if "simulation execution failed" in lower or "error occurred while solving" in lower:
+    # Only treat explicit model-check failures as model_check_error.
+    if re.search(r"check of .* failed", lower) is not None:
+        return "model_check_error"
+    if (
+        "simulation execution failed" in lower
+        or "error occurred while solving" in lower
+        or "division by zero" in lower
+        or "assertion" in lower
+    ):
         return "simulate_error"
-    return "docker_error"
+    if not check_ok:
+        return "model_check_error"
+    if not simulate_ok:
+        return "simulate_error"
+    if "error:" in lower:
+        return "docker_error"
+    return "none"
 
 
 def gate_decision(status: str, failure_type: str) -> str:

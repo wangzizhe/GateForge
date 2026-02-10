@@ -1,0 +1,5 @@
+loadFile("examples/openmodelica/failures/SimFail.mo");
+checkModel(SimFail);
+simulate(SimFail, stopTime = 1.0, numberOfIntervals = 100);
+getErrorString();
+

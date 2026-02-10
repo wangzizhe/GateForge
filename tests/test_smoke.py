@@ -1,8 +1,24 @@
+import os
 import tempfile
 import unittest
+from contextlib import contextmanager
 from pathlib import Path
 
 from gateforge.core import run_pipeline
+
+
+@contextmanager
+def temp_env(**changes: str):
+    old = {k: os.environ.get(k) for k in changes}
+    os.environ.update(changes)
+    try:
+        yield
+    finally:
+        for k, v in old.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
 
 
 class SmokePipelineTests(unittest.TestCase):
@@ -39,6 +55,30 @@ class SmokePipelineTests(unittest.TestCase):
             self.assertIn("exit_code", evidence)
             self.assertIn("check_ok", evidence)
             self.assertIn("simulate_ok", evidence)
+
+    def test_failure_fixture_script_parse_error(self) -> None:
+        with temp_env(GATEFORGE_OM_SCRIPT="examples/openmodelica/failures/script_parse_error.mos"):
+            evidence = run_pipeline(backend="openmodelica_docker", out_path="artifacts/failure_script_parse.json")
+        if evidence["failure_type"] in {"tool_missing", "docker_error"}:
+            self.skipTest("Docker/OpenModelica unavailable in this environment")
+        self.assertEqual(evidence["gate"], "FAIL")
+        self.assertEqual(evidence["failure_type"], "script_parse_error")
+
+    def test_failure_fixture_model_check_error(self) -> None:
+        with temp_env(GATEFORGE_OM_SCRIPT="examples/openmodelica/failures/model_check_error.mos"):
+            evidence = run_pipeline(backend="openmodelica_docker", out_path="artifacts/failure_model_check.json")
+        if evidence["failure_type"] in {"tool_missing", "docker_error"}:
+            self.skipTest("Docker/OpenModelica unavailable in this environment")
+        self.assertEqual(evidence["gate"], "FAIL")
+        self.assertEqual(evidence["failure_type"], "model_check_error")
+
+    def test_failure_fixture_simulate_error(self) -> None:
+        with temp_env(GATEFORGE_OM_SCRIPT="examples/openmodelica/failures/simulate_error.mos"):
+            evidence = run_pipeline(backend="openmodelica_docker", out_path="artifacts/failure_simulate.json")
+        if evidence["failure_type"] in {"tool_missing", "docker_error"}:
+            self.skipTest("Docker/OpenModelica unavailable in this environment")
+        self.assertEqual(evidence["gate"], "FAIL")
+        self.assertEqual(evidence["failure_type"], "simulate_error")
 
 
 if __name__ == "__main__":

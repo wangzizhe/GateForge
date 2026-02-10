@@ -1,0 +1,5 @@
+loadFile("examples/openmodelica/failures/BrokenCheck.mo");
+checkModel(BrokenCheck);
+simulate(BrokenCheck, stopTime = 1.0, numberOfIntervals = 20);
+getErrorString();
+
