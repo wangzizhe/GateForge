@@ -19,9 +19,14 @@ def main() -> None:
         default="artifacts/evidence.json",
         help="Where to write evidence JSON",
     )
+    parser.add_argument(
+        "--report",
+        default=None,
+        help="Where to write markdown report (default: same path as --out with .md)",
+    )
     args = parser.parse_args()
 
-    evidence = run_pipeline(backend=args.backend, out_path=args.out)
+    evidence = run_pipeline(backend=args.backend, out_path=args.out, report_path=args.report)
     print(json.dumps({"gate": evidence["gate"], "status": evidence["status"]}))
 
 

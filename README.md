@@ -113,6 +113,12 @@ Expected `failure_type` values:
 - `model_check_error`
 - `simulate_error`
 
+After running failure fixtures, reset to default:
+
+```bash
+unset GATEFORGE_OM_SCRIPT
+```
+
 ## Repository layout
 
 - `gateforge/`: core pipeline and CLI entrypoint

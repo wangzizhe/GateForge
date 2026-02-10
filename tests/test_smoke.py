@@ -53,7 +53,8 @@ class SmokePipelineTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             out = Path(d) / "evidence.json"
             report = Path(d) / "evidence.md"
-            evidence = run_pipeline(backend="openmodelica_docker", out_path=str(out))
+            with temp_env(GATEFORGE_OM_SCRIPT="examples/openmodelica/minimal_probe.mos"):
+                evidence = run_pipeline(backend="openmodelica_docker", out_path=str(out))
             self.assertTrue(out.exists())
             self.assertTrue(report.exists())
             self.assertIn(evidence["gate"], {"PASS", "NEEDS_REVIEW", "FAIL"})
