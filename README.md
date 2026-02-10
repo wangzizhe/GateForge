@@ -41,7 +41,7 @@ cat artifacts/evidence.md
 - Runs tests on each push/PR.
 - Uses a versioned baseline from `baselines/mock_baseline.json`.
 - Generates `candidate` evidence (`.json + .md`).
-- Runs a regression gate (`artifacts/regression.json + artifacts/regression.md`).
+- Runs a regression gate in strict mode (`artifacts/regression.json + artifacts/regression.md`).
 - Uploads all evidence and regression artifacts in GitHub Actions.
 
 This is intentionally small. It proves your governance layer can always produce machine-readable evidence before adding real simulation complexity.
@@ -132,9 +132,10 @@ python -m gateforge.regress \
   --out artifacts/regression.json
 ```
 
-In GitHub Actions, the threshold is controlled by:
+In GitHub Actions, strict mode is enabled by default and runtime/script strictness is controlled by:
 
 `GATEFORGE_RUNTIME_THRESHOLD` (see `.github/workflows/ci.yml`).
+`GATEFORGE_STRICT_MODEL_SCRIPT` (default `false` in `.github/workflows/ci.yml`).
 
 Strict mode is available for industrial-style comparability checks:
 

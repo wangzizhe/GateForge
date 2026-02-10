@@ -9,6 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GATEFORGE_RUNTIME_THRESHOLD: "0.20"
+      GATEFORGE_STRICT_MODEL_SCRIPT: "false"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -31,9 +32,15 @@ jobs:
 
       - name: Run regression gate
         run: |
+          EXTRA_FLAGS=""
+          if [ "$GATEFORGE_STRICT_MODEL_SCRIPT" = "true" ]; then
+            EXTRA_FLAGS="--strict-model-script"
+          fi
           python -m gateforge.regress \
             --baseline baselines/mock_baseline.json \
             --candidate artifacts/candidate.json \
+            --strict \
+            $EXTRA_FLAGS \
             --runtime-threshold "$GATEFORGE_RUNTIME_THRESHOLD" \
             --out artifacts/regression.json
 
