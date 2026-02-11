@@ -89,7 +89,13 @@ python -m gateforge.run \
   --baseline auto \
   --out artifacts/proposal_run.json
 cat artifacts/proposal_run.json
+
+# one-command demo (docker-independent)
+bash scripts/demo_proposal_flow.sh
 ```
+
+The demo script uses `examples/proposals/proposal_demo_mock.json` and writes an aligned
+temporary baseline to `artifacts/baseline_demo_mock.json`.
 
 Expected output shape:
 
