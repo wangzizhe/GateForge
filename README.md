@@ -43,6 +43,7 @@ cat artifacts/evidence.md
 - Generates `candidate` evidence (`.json + .md`).
 - Runs a regression gate in strict mode (`artifacts/regression.json + artifacts/regression.md`).
 - Uploads all evidence and regression artifacts in GitHub Actions.
+- Provides an optional benchmark job (`workflow_dispatch` with `run_benchmark=true`) that does not block the main job.
 
 This is intentionally small. It proves your governance layer can always produce machine-readable evidence before adding real simulation complexity.
 
@@ -151,6 +152,90 @@ python -m gateforge.regress \
 Strict checks:
 - `--strict`: fail if `schema_version` or `backend` mismatches
 - `--strict-model-script`: additionally fail if `model_script` mismatches
+
+## Step 6: Batch execution (multiple runs + summary)
+
+Run a batch and generate per-run evidence plus an aggregate report:
+
+```bash
+python -m gateforge.batch --backend mock --out-dir artifacts/batch --summary-out artifacts/batch/summary.json --report-out artifacts/batch/summary.md
+cat artifacts/batch/summary.json
+cat artifacts/batch/summary.md
+```
+
+For OpenModelica Docker, pass multiple scripts:
+
+```bash
+python -m gateforge.batch \
+  --backend openmodelica_docker \
+  --script examples/openmodelica/minimal_probe.mos \
+  --script examples/openmodelica/failures/simulate_error.mos \
+  --out-dir artifacts/batch-om \
+  --summary-out artifacts/batch-om/summary.json \
+  --report-out artifacts/batch-om/summary.md
+```
+
+Or use a pack file (no repeated `--script` needed):
+
+```bash
+python -m gateforge.batch \
+  --pack benchmarks/pack_v0.json \
+  --out-dir artifacts/bench-pack \
+  --summary-out artifacts/bench-pack/summary.json \
+  --report-out artifacts/bench-pack/summary.md
+```
+
+Batch behavior:
+- Default: stop on first failed run.
+- Use `--continue-on-fail` to execute all runs even if some fail.
+
+## Step 7: Benchmark Pack v0 (fixed cases + expected outcomes)
+
+Run benchmark pack and validate expected outcomes:
+
+```bash
+python -m gateforge.benchmark \
+  --pack benchmarks/pack_v0.json \
+  --out-dir artifacts/benchmark_v0 \
+  --summary-out artifacts/benchmark_v0/summary.json \
+  --report-out artifacts/benchmark_v0/summary.md
+```
+
+Pack `benchmarks/pack_v0.json` currently defines 8 fixed cases with expected:
+- 2 PASS cases
+- 2 `script_parse_error` cases
+- 2 `model_check_error` cases
+- 2 `simulate_error` cases
+
+Benchmark behavior:
+- case matches expected -> PASS
+- any mismatch -> FAIL (process exits `1`)
+
+CI optional benchmark:
+- Open GitHub Actions -> `ci` workflow -> `Run workflow`
+- Set `run_benchmark=true`
+- Benchmark job runs as non-blocking (`continue-on-error`) and uploads `benchmark-v0` artifacts.
+
+## Step 8: Proposal schema v0 + validator
+
+Validate a proposal before execution/gate:
+
+```bash
+python -m gateforge.proposal_validate --in examples/proposals/proposal_v0.json
+```
+
+Optional machine-readable validation result file:
+
+```bash
+python -m gateforge.proposal_validate \
+  --in examples/proposals/proposal_v0.json \
+  --out artifacts/proposal_validate.json
+cat artifacts/proposal_validate.json
+```
+
+Current proposal schema file:
+
+- `schemas/proposal.schema.json`
 
 ## Baseline governance
 
