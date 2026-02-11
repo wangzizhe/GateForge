@@ -6,6 +6,7 @@ import unittest
 from pathlib import Path
 
 from gateforge.proposal import load_proposal, validate_proposal
+from gateforge.proposal import execution_target_from_proposal
 
 
 class ProposalTests(unittest.TestCase):
@@ -80,6 +81,21 @@ class ProposalTests(unittest.TestCase):
             self.assertEqual(proc.returncode, 1)
             payload = json.loads(proc.stdout.strip())
             self.assertFalse(payload["valid"])
+
+    def test_execution_target_requires_check_or_simulate(self) -> None:
+        proposal = {
+            "schema_version": "0.1.0",
+            "proposal_id": "p2",
+            "timestamp_utc": "2026-02-11T10:00:00Z",
+            "author_type": "human",
+            "backend": "mock",
+            "model_script": "examples/openmodelica/minimal_probe.mos",
+            "change_summary": "regression-only request",
+            "requested_actions": ["regress"],
+            "risk_level": "low",
+        }
+        with self.assertRaises(ValueError):
+            execution_target_from_proposal(proposal)
 
 
 if __name__ == "__main__":

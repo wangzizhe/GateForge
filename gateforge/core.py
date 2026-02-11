@@ -27,13 +27,16 @@ class Runner(Protocol):
 
 
 class MockRunner:
+    def __init__(self, script_path: str | None = None):
+        self.script_path = script_path
+
     def run(self) -> dict:
         return {
             "status": "success",
             "failure_type": "none",
             "events": 12,
             "log_excerpt": "mock simulation completed",
-            "model_script": None,
+            "model_script": self.script_path,
             "exit_code": 0,
             "check_ok": True,
             "simulate_ok": True,
@@ -46,18 +49,22 @@ class OpenModelicaProbeRunner:
 
 
 class OpenModelicaDockerRunner:
+    def __init__(self, script_path: str | None = None):
+        self.script_path = script_path
+
     def run(self) -> dict:
-        return _run_openmodelica_docker_probe()
+        return _run_openmodelica_docker_probe(script_path=self.script_path)
 
 
 def run_pipeline(
     backend: str = "mock",
     out_path: str = "artifacts/evidence.json",
     report_path: str | None = None,
+    script_path: str | None = None,
 ) -> dict:
     # Single entry point: execute backend, normalize outputs, emit evidence.
     started = time.time()
-    result = _run_backend(backend)
+    result = _run_backend(backend, script_path=script_path)
     duration = time.time() - started
 
     evidence = {
@@ -87,18 +94,18 @@ def run_pipeline(
     return evidence
 
 
-def _run_backend(backend: str) -> dict:
-    runner = _get_runner(backend)
+def _run_backend(backend: str, script_path: str | None = None) -> dict:
+    runner = _get_runner(backend, script_path=script_path)
     return runner.run()
 
 
-def _get_runner(backend: str) -> Runner:
+def _get_runner(backend: str, script_path: str | None = None) -> Runner:
     if backend == "mock":
-        return MockRunner()
+        return MockRunner(script_path=script_path)
     if backend == "openmodelica":
         return OpenModelicaProbeRunner()
     if backend == "openmodelica_docker":
-        return OpenModelicaDockerRunner()
+        return OpenModelicaDockerRunner(script_path=script_path)
     raise ValueError(f"Unsupported backend: {backend}")
 
 
@@ -147,9 +154,12 @@ def _run_openmodelica_probe() -> dict:
     }
 
 
-def _run_openmodelica_docker_probe(image: str = DEFAULT_OM_DOCKER_IMAGE) -> dict:
+def _run_openmodelica_docker_probe(
+    image: str = DEFAULT_OM_DOCKER_IMAGE,
+    script_path: str | None = None,
+) -> dict:
     selected_image = os.getenv(OM_DOCKER_IMAGE_ENV, image)
-    script_rel = os.getenv(OM_SCRIPT_ENV, DEFAULT_OM_SCRIPT)
+    script_rel = script_path or os.getenv(OM_SCRIPT_ENV, DEFAULT_OM_SCRIPT)
     script_abs = PROJECT_ROOT / script_rel
     if not script_abs.exists():
         return {

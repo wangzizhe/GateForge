@@ -4,6 +4,7 @@ import argparse
 import json
 
 from .core import run_pipeline
+from .proposal import execution_target_from_proposal, load_proposal
 
 
 def main() -> None:
@@ -24,9 +25,25 @@ def main() -> None:
         default=None,
         help="Where to write markdown report (default: same path as --out with .md)",
     )
+    parser.add_argument(
+        "--proposal",
+        default=None,
+        help="Optional proposal JSON path. If set, backend/script are taken from proposal.",
+    )
     args = parser.parse_args()
 
-    evidence = run_pipeline(backend=args.backend, out_path=args.out, report_path=args.report)
+    backend = args.backend
+    script_path = None
+    if args.proposal:
+        proposal = load_proposal(args.proposal)
+        backend, script_path = execution_target_from_proposal(proposal)
+
+    evidence = run_pipeline(
+        backend=backend,
+        out_path=args.out,
+        report_path=args.report,
+        script_path=script_path,
+    )
     print(json.dumps({"gate": evidence["gate"], "status": evidence["status"]}))
 
 

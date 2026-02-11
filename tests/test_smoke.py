@@ -1,4 +1,7 @@
 import os
+import json
+import subprocess
+import sys
 import tempfile
 import unittest
 from contextlib import contextmanager
@@ -94,6 +97,48 @@ class SmokePipelineTests(unittest.TestCase):
             run_pipeline(backend="mock", out_path=str(out), report_path=str(report))
             self.assertTrue(out.exists())
             self.assertTrue(report.exists())
+
+    def test_smoke_cli_reads_mock_proposal(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            proposal = root / "proposal.json"
+            out = root / "evidence.json"
+            proposal.write_text(
+                json.dumps(
+                    {
+                        "schema_version": "0.1.0",
+                        "proposal_id": "proposal-test-1",
+                        "timestamp_utc": "2026-02-11T10:00:00Z",
+                        "author_type": "human",
+                        "backend": "mock",
+                        "model_script": "examples/openmodelica/minimal_probe.mos",
+                        "change_summary": "proposal-driven smoke",
+                        "requested_actions": ["check", "simulate"],
+                        "risk_level": "low",
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.smoke",
+                    "--proposal",
+                    str(proposal),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0)
+            evidence = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(evidence["backend"], "mock")
+            self.assertEqual(evidence["gate"], "PASS")
+            self.assertEqual(evidence["model_script"], "examples/openmodelica/minimal_probe.mos")
 
 
 if __name__ == "__main__":

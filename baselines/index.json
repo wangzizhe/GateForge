@@ -1,0 +1,15 @@
+{
+  "version": "0.1.0",
+  "entries": [
+    {
+      "backend": "mock",
+      "model_script": "examples/openmodelica/minimal_probe.mos",
+      "baseline": "baselines/mock_baseline.json"
+    },
+    {
+      "backend": "openmodelica_docker",
+      "model_script": "examples/openmodelica/minimal_probe.mos",
+      "baseline": "baselines/openmodelica_minimal_probe_baseline.json"
+    }
+  ]
+}

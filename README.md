@@ -2,19 +2,57 @@
 
 Minimal `run -> evidence -> gate` pipeline for learning and bootstrapping CI/regression governance.
 
-## Goals
+## I. Overview
+
+### 1. Goals
 
 - Provide a reproducible evidence pipeline for simulation-related changes.
 - Make gate decisions explainable via structured outputs (`json + md`).
 - Keep backend execution replaceable (OpenModelica now, FMU runner later).
 
-## Non-goals (current stage)
+### 2. End-to-End Flow
+
+```mermaid
+flowchart TD
+    A["Proposal JSON"] --> B["proposal_validate"]
+    B --> C["run / smoke / batch"]
+    C --> D["Evidence JSON + MD"]
+    D --> E["regress (strict + proposal constraints)"]
+    F["Baseline Resolver (auto via baselines/index.json)"] --> E
+    E --> G["Decision: PASS or FAIL"]
+    G --> H["Proposal Run Summary JSON + MD"]
+```
+
+### 3. Why Not Just Model Check?
+
+`Model Check` answers: "does this model compile/check right now?"
+
+GateForge answers additional governance questions needed in CI and long-lived projects:
+- Is candidate worse than baseline (regression)?
+- Is the comparison valid (same backend/model_script/schema)?
+- What failed, exactly (structured failure reason)?
+- Where is the evidence (json + markdown artifacts)?
+
+### 4. Current Gate Criteria (v0)
+
+A regression decision is `FAIL` if any of these is true:
+- Candidate `status` is not `success`
+- Candidate `gate` is not `PASS`
+- Baseline had `check_ok=true` but candidate has `check_ok=false` (`check_regression`)
+- Baseline had `simulate_ok=true` but candidate has `simulate_ok=false` (`simulate_regression`)
+- Runtime exceeds allowed threshold (`runtime_regression`)
+- In strict mode: schema/backend/model_script mismatch
+- In proposal-constrained mode: baseline/candidate must match proposal backend/model_script
+
+### 5. Non-goals (current stage)
 
 - Building a modeling copilot/agent.
 - Supporting every simulation tool/backend.
 - Building UI/dashboard or SaaS infrastructure.
 
-## Prerequisites
+## II. Setup
+
+### 1. Prerequisites
 
 - Python 3.10+
 - Docker Desktop installed and running
@@ -24,7 +62,7 @@ Minimal `run -> evidence -> gate` pipeline for learning and bootstrapping CI/reg
 docker pull openmodelica/openmodelica:v1.26.1-minimal
 ```
 
-## Step 1: Install and run locally (mock backend)
+### 2. Install and run locally (mock backend)
 
 ```bash
 python -m venv .venv
@@ -36,7 +74,70 @@ cat artifacts/evidence.json
 cat artifacts/evidence.md
 ```
 
-## Step 2: What this minimal CI does
+## III. Workflow
+
+### 1. Happy Path (quick start)
+
+```bash
+python -m gateforge.proposal_validate --in examples/proposals/proposal_v0.json
+python -m gateforge.run \
+  --proposal examples/proposals/proposal_v0.json \
+  --baseline auto \
+  --out artifacts/proposal_run.json
+cat artifacts/proposal_run.json
+```
+
+Expected output shape:
+
+```json
+{"proposal_id":"proposal-0001","status":"PASS"}
+```
+
+```json
+{
+  "proposal_id": "proposal-0001",
+  "actions": ["check", "simulate", "regress"],
+  "status": "PASS",
+  "smoke_executed": true,
+  "regress_executed": true,
+  "candidate_path": "artifacts/candidate_from_proposal.json",
+  "baseline_path": "baselines/openmodelica_minimal_probe_baseline.json",
+  "regression_path": "artifacts/regression_from_proposal.json",
+  "fail_reasons": []
+}
+```
+
+When gate fails, `status` becomes `FAIL` and `fail_reasons` is non-empty.
+
+### 2. Proposal schema v0 + validator
+
+Validate a proposal before execution/gate:
+
+```bash
+python -m gateforge.proposal_validate --in examples/proposals/proposal_v0.json
+```
+
+Optional machine-readable validation result file:
+
+```bash
+python -m gateforge.proposal_validate \
+  --in examples/proposals/proposal_v0.json \
+  --out artifacts/proposal_validate.json
+cat artifacts/proposal_validate.json
+```
+
+Current proposal schema file:
+
+- `schemas/proposal.schema.json`
+
+Drive smoke execution from proposal:
+
+```bash
+python -m gateforge.smoke --proposal examples/proposals/proposal_v0.json --out artifacts/evidence_from_proposal.json
+cat artifacts/evidence_from_proposal.json
+```
+
+### 3. What this minimal CI does
 
 - Runs tests on each push/PR.
 - Uses a versioned baseline from `baselines/mock_baseline.json`.
@@ -47,7 +148,7 @@ cat artifacts/evidence.md
 
 This is intentionally small. It proves your governance layer can always produce machine-readable evidence before adding real simulation complexity.
 
-## Step 3: OpenModelica via Docker (recommended on macOS)
+### 4. OpenModelica via Docker (recommended on macOS)
 
 ```bash
 python -m gateforge.smoke --backend openmodelica_docker --out artifacts/evidence-docker.json
@@ -102,13 +203,13 @@ python -m gateforge.smoke --backend openmodelica_docker --out artifacts/evidence
 
 GateForge runs OpenModelica in a temporary workspace and deletes it after execution, so compile/simulation artifacts do not pollute your project directory.
 
-## Step 4: One-command local Docker backend check
+### 5. One-command local Docker backend check
 
 ```bash
 bash scripts/check_docker_backend.sh
 ```
 
-## Step 5: Regression gate (baseline vs candidate)
+### 6. Regression gate (baseline vs candidate)
 
 Compare repository baseline against current candidate:
 
@@ -153,7 +254,36 @@ Strict checks:
 - `--strict`: fail if `schema_version` or `backend` mismatches
 - `--strict-model-script`: additionally fail if `model_script` mismatches
 
-## Step 6: Batch execution (multiple runs + summary)
+You can also constrain regression with a proposal:
+
+```bash
+python -m gateforge.regress \
+  --baseline baselines/mock_baseline.json \
+  --candidate artifacts/candidate.json \
+  --proposal examples/proposals/proposal_v0.json \
+  --out artifacts/regression_from_proposal.json
+```
+
+With `--proposal`, strict comparability is enabled automatically and baseline/candidate must align with proposal backend/model script.
+
+### 7. Unified proposal run (check/simulate/regress)
+
+Run multiple proposal actions through one command:
+
+```bash
+python -m gateforge.run \
+  --proposal examples/proposals/proposal_v0.json \
+  --baseline auto \
+  --candidate-out artifacts/candidate_from_proposal.json \
+  --regression-out artifacts/regression_from_proposal.json \
+  --out artifacts/proposal_run.json
+cat artifacts/proposal_run.json
+```
+
+`--baseline auto` resolves baseline using `baselines/index.json` by `(backend, model_script)`.
+You can override the index with `--baseline-index <path>`, or bypass auto-resolve with `--baseline <baseline.json>`.
+
+### 8. Batch execution (multiple runs + summary)
 
 Run a batch and generate per-run evidence plus an aggregate report:
 
@@ -189,7 +319,17 @@ Batch behavior:
 - Default: stop on first failed run.
 - Use `--continue-on-fail` to execute all runs even if some fail.
 
-## Step 7: Benchmark Pack v0 (fixed cases + expected outcomes)
+You can also drive batch from a proposal (single-run batch):
+
+```bash
+python -m gateforge.batch \
+  --proposal examples/proposals/proposal_v0.json \
+  --out-dir artifacts/batch-from-proposal \
+  --summary-out artifacts/batch-from-proposal/summary.json \
+  --report-out artifacts/batch-from-proposal/summary.md
+```
+
+### 9. Benchmark Pack v0 (fixed cases + expected outcomes)
 
 Run benchmark pack and validate expected outcomes:
 
@@ -216,33 +356,17 @@ CI optional benchmark:
 - Set `run_benchmark=true`
 - Benchmark job runs as non-blocking (`continue-on-error`) and uploads `benchmark-v0` artifacts.
 
-## Step 8: Proposal schema v0 + validator
+## IV. Governance
 
-Validate a proposal before execution/gate:
-
-```bash
-python -m gateforge.proposal_validate --in examples/proposals/proposal_v0.json
-```
-
-Optional machine-readable validation result file:
-
-```bash
-python -m gateforge.proposal_validate \
-  --in examples/proposals/proposal_v0.json \
-  --out artifacts/proposal_validate.json
-cat artifacts/proposal_validate.json
-```
-
-Current proposal schema file:
-
-- `schemas/proposal.schema.json`
-
-## Baseline governance
+### 1. Baseline governance
 
 The baseline is versioned in-repo:
 
 - `baselines/mock_baseline.json`
 - `baselines/mock_baseline.md`
+- `baselines/openmodelica_minimal_probe_baseline.json`
+- `baselines/openmodelica_minimal_probe_baseline.md`
+- `baselines/index.json` (mapping from `backend + model_script` to baseline path)
 
 Update baseline only when expected behavior changes and is explicitly reviewed.
 To refresh baseline files:
@@ -251,7 +375,7 @@ To refresh baseline files:
 bash scripts/update_baseline.sh
 ```
 
-## Failure fixtures (taxonomy v0)
+### 2. Failure fixtures (taxonomy v0)
 
 Run these to validate failure classification:
 
@@ -277,7 +401,9 @@ After running failure fixtures, reset to default:
 unset GATEFORGE_OM_SCRIPT
 ```
 
-## Repository layout
+## V. Reference
+
+### 1. Repository layout
 
 - `gateforge/`: core pipeline and CLI entrypoint
 - `examples/openmodelica/`: `.mo` model and `.mos` script fixtures
@@ -285,7 +411,7 @@ unset GATEFORGE_OM_SCRIPT
 - `tests/`: smoke/regression tests
 - `scripts/`: local helper scripts
 
-## Troubleshooting
+### 2. Troubleshooting
 
 - `permission denied ... docker.sock`:
   Docker Desktop is not running or current shell cannot access Docker daemon.
