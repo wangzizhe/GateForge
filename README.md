@@ -44,6 +44,10 @@ A regression decision is `FAIL` if any of these is true:
 - In strict mode: schema/backend/model_script mismatch
 - In proposal-constrained mode: baseline/candidate must match proposal backend/model_script
 
+Policy overlay (`policies/default_policy.json`):
+- Critical reasons -> `FAIL`
+- Runtime-only regression -> `NEEDS_REVIEW` for `low/medium`, `FAIL` for `high`
+
 ### 5. Non-goals (current stage)
 
 - Building a modeling copilot/agent.
@@ -265,6 +269,7 @@ python -m gateforge.regress \
 ```
 
 With `--proposal`, strict comparability is enabled automatically and baseline/candidate must align with proposal backend/model script.
+When `--proposal` is used, decision also goes through policy evaluation (`PASS` / `NEEDS_REVIEW` / `FAIL`).
 
 ### 7. Unified proposal run (check/simulate/regress)
 
@@ -282,6 +287,7 @@ cat artifacts/proposal_run.json
 
 `--baseline auto` resolves baseline using `baselines/index.json` by `(backend, model_script)`.
 You can override the index with `--baseline-index <path>`, or bypass auto-resolve with `--baseline <baseline.json>`.
+You can override policy with `--policy <path>` (default: `policies/default_policy.json`).
 
 ### 8. Batch execution (multiple runs + summary)
 
@@ -329,6 +335,8 @@ python -m gateforge.batch \
   --report-out artifacts/batch-from-proposal/summary.md
 ```
 
+When `--proposal` is used, `proposal_id` is propagated to per-run evidence and batch summary.
+
 ### 9. Benchmark Pack v0 (fixed cases + expected outcomes)
 
 Run benchmark pack and validate expected outcomes:
@@ -340,6 +348,18 @@ python -m gateforge.benchmark \
   --summary-out artifacts/benchmark_v0/summary.json \
   --report-out artifacts/benchmark_v0/summary.md
 ```
+
+Optional proposal linkage:
+
+```bash
+python -m gateforge.benchmark \
+  --pack benchmarks/pack_v0.json \
+  --proposal examples/proposals/proposal_v0.json \
+  --out-dir artifacts/benchmark_v0 \
+  --summary-out artifacts/benchmark_v0/summary.json
+```
+
+When `--proposal` is used, `proposal_id` is propagated to benchmark case outputs/summary.
 
 Pack `benchmarks/pack_v0.json` currently defines 8 fixed cases with expected:
 - 2 PASS cases

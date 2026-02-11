@@ -26,6 +26,7 @@ def _write_markdown(path: str, summary: dict) -> None:
     lines = [
         "# GateForge Batch Report",
         "",
+        f"- proposal_id: `{summary.get('proposal_id')}`",
         f"- backend: `{summary['backend']}`",
         f"- total_runs: `{summary['total_runs']}`",
         f"- pass_count: `{summary['pass_count']}`",
@@ -102,8 +103,10 @@ def main() -> None:
     pack: dict = _load_pack(args.pack) if args.pack else {}
     backend = args.backend
     proposal_script = None
+    proposal_id = None
     if args.proposal:
         proposal = load_proposal(args.proposal)
+        proposal_id = proposal.get("proposal_id")
         backend, proposal_script = execution_target_from_proposal(proposal)
     if args.pack and "backend" in pack and args.backend == parser.get_default("backend"):
         backend = pack["backend"]
@@ -131,11 +134,13 @@ def main() -> None:
             out_path=str(json_path),
             report_path=str(md_path),
             script_path=script,
+            proposal_id=proposal_id,
         )
         runs.append(
             {
                 "name": name,
                 "script": script,
+                "proposal_id": evidence.get("proposal_id"),
                 "status": evidence["status"],
                 "gate": evidence["gate"],
                 "failure_type": evidence["failure_type"],
@@ -149,6 +154,7 @@ def main() -> None:
 
     fail_count = sum(1 for r in runs if r["gate"] != "PASS")
     summary = {
+        "proposal_id": proposal_id,
         "backend": backend,
         "total_runs": len(runs),
         "pass_count": len(runs) - fail_count,

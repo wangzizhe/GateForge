@@ -21,6 +21,9 @@
     "schema_version": {
       "type": "string"
     },
+    "proposal_id": {
+      "type": ["string", "null"]
+    },
     "run_id": {
       "type": "string"
     },

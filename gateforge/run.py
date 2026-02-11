@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 from .core import run_pipeline
+from .policy import DEFAULT_POLICY_PATH, evaluate_policy, load_policy
 from .proposal import EXECUTION_ACTIONS, execution_target_from_proposal, load_proposal, validate_proposal
 from .regression import compare_evidence, load_json, write_json, write_markdown
 
@@ -20,6 +21,8 @@ def _write_run_markdown(path: str, summary: dict) -> None:
         "",
         f"- proposal_id: `{summary['proposal_id']}`",
         f"- status: `{summary['status']}`",
+        f"- risk_level: `{summary.get('risk_level')}`",
+        f"- policy_decision: `{summary.get('policy_decision')}`",
         f"- actions: `{','.join(summary['actions'])}`",
         f"- smoke_executed: `{summary['smoke_executed']}`",
         f"- regress_executed: `{summary['regress_executed']}`",
@@ -34,6 +37,12 @@ def _write_run_markdown(path: str, summary: dict) -> None:
     lines.extend(["", "## Fail Reasons", ""])
     if summary["fail_reasons"]:
         lines.extend([f"- `{r}`" for r in summary["fail_reasons"]])
+    else:
+        lines.append("- `none`")
+    lines.append("")
+    lines.extend(["## Policy Reasons", ""])
+    if summary.get("policy_reasons"):
+        lines.extend([f"- `{r}`" for r in summary["policy_reasons"]])
     else:
         lines.append("- `none`")
     lines.append("")
@@ -133,6 +142,11 @@ def main() -> None:
         default=0.2,
         help="Allowed runtime regression ratio (0.2 = +20%%)",
     )
+    parser.add_argument(
+        "--policy",
+        default=DEFAULT_POLICY_PATH,
+        help="Policy JSON path for proposal risk-based decision",
+    )
     args = parser.parse_args()
 
     proposal = load_proposal(args.proposal)
@@ -144,8 +158,12 @@ def main() -> None:
 
     summary = {
         "proposal_id": proposal["proposal_id"],
+        "risk_level": proposal["risk_level"],
         "actions": actions,
         "status": "PASS",
+        "policy_decision": "PASS",
+        "policy_reasons": [],
+        "policy_path": args.policy,
         "smoke_executed": False,
         "regress_executed": False,
         "candidate_path": None,
@@ -160,6 +178,7 @@ def main() -> None:
             backend=backend,
             out_path=args.candidate_out,
             script_path=script_path,
+            proposal_id=proposal["proposal_id"],
         )
         summary["smoke_executed"] = True
         summary["candidate_path"] = args.candidate_out
@@ -191,6 +210,7 @@ def main() -> None:
             strict_model_script=True,
         )
         _apply_proposal_constraints(result, baseline, candidate, backend=backend, script=script_path)
+        result["proposal_id"] = proposal["proposal_id"]
         result["proposal_expected_backend"] = backend
         result["proposal_expected_model_script"] = script_path
         write_json(args.regression_out, result)
@@ -201,8 +221,22 @@ def main() -> None:
         if result["decision"] != "PASS":
             summary["fail_reasons"].append("regression_fail")
 
-    if summary["fail_reasons"]:
-        summary["status"] = "FAIL"
+    combined_reasons: list[str] = []
+    if candidate is not None and candidate["gate"] != "PASS":
+        combined_reasons.append("candidate_gate_not_pass")
+    if summary.get("regression_path"):
+        regression_payload = load_json(summary["regression_path"])
+        combined_reasons.extend(regression_payload.get("reasons", []))
+
+    policy = load_policy(args.policy)
+    policy_result = evaluate_policy(
+        reasons=combined_reasons,
+        risk_level=proposal["risk_level"],
+        policy=policy,
+    )
+    summary["policy_decision"] = policy_result["policy_decision"]
+    summary["policy_reasons"] = policy_result["policy_reasons"]
+    summary["status"] = policy_result["policy_decision"]
 
     write_json(args.out, summary)
     _write_run_markdown(args.report or _default_md_path(args.out), summary)

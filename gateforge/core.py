@@ -61,6 +61,7 @@ def run_pipeline(
     out_path: str = "artifacts/evidence.json",
     report_path: str | None = None,
     script_path: str | None = None,
+    proposal_id: str | None = None,
 ) -> dict:
     # Single entry point: execute backend, normalize outputs, emit evidence.
     started = time.time()
@@ -69,6 +70,7 @@ def run_pipeline(
 
     evidence = {
         "schema_version": "0.1.0",
+        "proposal_id": proposal_id,
         "run_id": f"run-{int(started)}",
         "timestamp_utc": datetime.now(timezone.utc).isoformat(),
         "backend": backend,
@@ -307,6 +309,7 @@ def validate_evidence(evidence: dict) -> None:
     # Hard schema checks prevent silent drift in gate/checker inputs.
     required_top = {
         "schema_version",
+        "proposal_id",
         "run_id",
         "timestamp_utc",
         "backend",
@@ -332,6 +335,8 @@ def validate_evidence(evidence: dict) -> None:
         raise ValueError("gate must be PASS/FAIL/NEEDS_REVIEW")
     if evidence["model_script"] is not None and not isinstance(evidence["model_script"], str):
         raise ValueError("model_script must be string or null")
+    if evidence["proposal_id"] is not None and not isinstance(evidence["proposal_id"], str):
+        raise ValueError("proposal_id must be string or null")
     if not isinstance(evidence["exit_code"], int):
         raise ValueError("exit_code must be integer")
     if not isinstance(evidence["check_ok"], bool):
@@ -374,6 +379,7 @@ def _write_markdown_report(path: str, evidence: dict) -> None:
         f"- status: `{evidence['status']}`",
         f"- failure_type: `{evidence['failure_type']}`",
         f"- backend: `{evidence['backend']}`",
+        f"- proposal_id: `{evidence['proposal_id']}`",
         f"- model_script: `{evidence['model_script']}`",
         f"- check_ok: `{evidence['check_ok']}`",
         f"- simulate_ok: `{evidence['simulate_ok']}`",

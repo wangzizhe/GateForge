@@ -1,0 +1,18 @@
+{
+  "version": "0.1.0",
+  "critical_reason_prefixes": [
+    "candidate_status_not_success",
+    "candidate_gate_not_pass",
+    "check_regression",
+    "simulate_regression",
+    "strict_",
+    "proposal_"
+  ],
+  "needs_review_reason_prefixes": [
+    "runtime_regression"
+  ],
+  "fail_on_needs_review_risk_levels": [
+    "high"
+  ],
+  "fail_on_unknown_reasons": true
+}

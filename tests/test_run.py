@@ -80,6 +80,10 @@ class RunTests(unittest.TestCase):
             self.assertEqual(summary["status"], "PASS")
             self.assertTrue(summary["smoke_executed"])
             self.assertTrue(summary["regress_executed"])
+            candidate_payload = json.loads(candidate.read_text(encoding="utf-8"))
+            self.assertEqual(candidate_payload["proposal_id"], "proposal-run-1")
+            regression_payload = json.loads(regression.read_text(encoding="utf-8"))
+            self.assertEqual(regression_payload["proposal_id"], "proposal-run-1")
 
     def test_run_proposal_regress_fails_on_baseline_mismatch(self) -> None:
         with tempfile.TemporaryDirectory() as d:

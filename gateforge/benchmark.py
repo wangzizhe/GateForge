@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 from .core import run_pipeline
+from .proposal import load_proposal
 
 
 def _slug(s: str) -> str:
@@ -35,6 +36,7 @@ def _write_markdown(path: str, summary: dict) -> None:
     lines = [
         "# GateForge Benchmark Report",
         "",
+        f"- proposal_id: `{summary.get('proposal_id')}`",
         f"- pack_id: `{summary['pack_id']}`",
         f"- total_cases: `{summary['total_cases']}`",
         f"- pass_count: `{summary['pass_count']}`",
@@ -77,11 +79,22 @@ def main() -> None:
         default="artifacts/benchmark/summary.md",
         help="Where to write benchmark summary markdown",
     )
+    parser.add_argument(
+        "--proposal",
+        default=None,
+        help="Optional proposal JSON path; proposal_id is propagated and backend mismatch is treated as failure",
+    )
     args = parser.parse_args()
 
     pack = _load_pack(args.pack)
     pack_id = pack.get("pack_id", Path(args.pack).stem)
     cases = pack["cases"]
+    proposal_id = None
+    expected_backend = None
+    if args.proposal:
+        proposal = load_proposal(args.proposal)
+        proposal_id = proposal.get("proposal_id")
+        expected_backend = proposal.get("backend")
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -100,11 +113,17 @@ def main() -> None:
             out_path=str(json_path),
             report_path=str(md_path),
             script_path=script,
+            proposal_id=proposal_id,
         )
         mismatches = _compare_expected(evidence, expected)
+        if expected_backend is not None and backend != expected_backend:
+            mismatches.append(
+                f"proposal_backend_mismatch:expected={expected_backend},actual={backend}"
+            )
         case_results.append(
             {
                 "name": name,
+                "proposal_id": evidence.get("proposal_id"),
                 "backend": backend,
                 "script": script,
                 "result": "PASS" if not mismatches else "FAIL",
@@ -117,6 +136,7 @@ def main() -> None:
 
     fail_count = sum(1 for c in case_results if c["result"] == "FAIL")
     summary = {
+        "proposal_id": proposal_id,
         "pack_id": pack_id,
         "total_cases": len(case_results),
         "pass_count": len(case_results) - fail_count,
@@ -132,4 +152,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
