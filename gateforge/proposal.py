@@ -9,6 +9,7 @@ SUPPORTED_BACKENDS = {"mock", "openmodelica", "openmodelica_docker", "fmu_runner
 SUPPORTED_RISK_LEVELS = {"low", "medium", "high"}
 SUPPORTED_SCRIPT_SUFFIXES = (".mos", ".fmu")
 PROPOSAL_SCHEMA_VERSION = "0.1.0"
+EXECUTION_ACTIONS = {"check", "simulate"}
 
 
 def load_proposal(path: str) -> dict:
@@ -62,6 +63,16 @@ def validate_proposal(proposal: dict) -> None:
     if risk_level not in SUPPORTED_RISK_LEVELS:
         raise ValueError(f"risk_level must be one of {sorted(SUPPORTED_RISK_LEVELS)}")
 
+
+def execution_target_from_proposal(proposal: dict) -> tuple[str, str]:
+    # v0 contract: smoke execution is only valid when proposal requests check/simulate.
+    validate_proposal(proposal)
+    actions = set(proposal["requested_actions"])
+    if not actions.intersection(EXECUTION_ACTIONS):
+        raise ValueError(
+            f"proposal requested_actions must include at least one of {sorted(EXECUTION_ACTIONS)}"
+        )
+    return proposal["backend"], proposal["model_script"]
 
 
 def _require_non_empty_string(payload: dict, key: str) -> None:

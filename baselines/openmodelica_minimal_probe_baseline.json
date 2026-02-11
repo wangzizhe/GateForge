@@ -1,0 +1,20 @@
+{
+  "schema_version": "0.1.0",
+  "run_id": "baseline-openmodelica-minimal-probe-v1",
+  "timestamp_utc": "2026-02-11T00:00:00+00:00",
+  "backend": "openmodelica_docker",
+  "status": "success",
+  "failure_type": "none",
+  "metrics": {
+    "runtime_seconds": 0.0,
+    "events": 1
+  },
+  "artifacts": {
+    "log_excerpt": "OpenModelica baseline: MinimalProbe"
+  },
+  "model_script": "examples/openmodelica/minimal_probe.mos",
+  "exit_code": 0,
+  "check_ok": true,
+  "simulate_ok": true,
+  "gate": "PASS"
+}

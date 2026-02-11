@@ -1,3 +1,6 @@
+import json
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -95,6 +98,135 @@ class RegressionTests(unittest.TestCase):
             out = Path(d) / "regression.json"
             write_json(str(out), payload)
             self.assertTrue(out.exists())
+
+    def test_regress_cli_with_proposal_pass(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            baseline = root / "baseline.json"
+            candidate = root / "candidate.json"
+            proposal = root / "proposal.json"
+            out = root / "regression.json"
+
+            payload = _evidence(
+                "base",
+                backend="mock",
+                model_script="examples/openmodelica/minimal_probe.mos",
+                runtime_seconds=1.0,
+            )
+            baseline.write_text(json.dumps(payload), encoding="utf-8")
+            payload["run_id"] = "cand"
+            candidate.write_text(json.dumps(payload), encoding="utf-8")
+            proposal.write_text(
+                json.dumps(
+                    {
+                        "schema_version": "0.1.0",
+                        "proposal_id": "proposal-regress-1",
+                        "timestamp_utc": "2026-02-11T10:00:00Z",
+                        "author_type": "human",
+                        "backend": "mock",
+                        "model_script": "examples/openmodelica/minimal_probe.mos",
+                        "change_summary": "proposal constrained regress",
+                        "requested_actions": ["check", "regress"],
+                        "risk_level": "low",
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.regress",
+                    "--baseline",
+                    str(baseline),
+                    "--candidate",
+                    str(candidate),
+                    "--proposal",
+                    str(proposal),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            result = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(result["decision"], "PASS")
+            self.assertTrue(result["strict"])
+            self.assertTrue(result["strict_model_script"])
+
+    def test_regress_cli_with_proposal_fail_on_candidate_mismatch(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            baseline = root / "baseline.json"
+            candidate = root / "candidate.json"
+            proposal = root / "proposal.json"
+            out = root / "regression.json"
+
+            baseline.write_text(
+                json.dumps(
+                    _evidence(
+                        "base",
+                        backend="mock",
+                        model_script="examples/openmodelica/minimal_probe.mos",
+                        runtime_seconds=1.0,
+                    )
+                ),
+                encoding="utf-8",
+            )
+            candidate.write_text(
+                json.dumps(
+                    _evidence(
+                        "cand",
+                        backend="openmodelica_docker",
+                        model_script="examples/openmodelica/failures/simulate_error.mos",
+                        runtime_seconds=1.0,
+                    )
+                ),
+                encoding="utf-8",
+            )
+            proposal.write_text(
+                json.dumps(
+                    {
+                        "schema_version": "0.1.0",
+                        "proposal_id": "proposal-regress-2",
+                        "timestamp_utc": "2026-02-11T10:00:00Z",
+                        "author_type": "human",
+                        "backend": "mock",
+                        "model_script": "examples/openmodelica/minimal_probe.mos",
+                        "change_summary": "proposal mismatch test",
+                        "requested_actions": ["check", "regress"],
+                        "risk_level": "low",
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.regress",
+                    "--baseline",
+                    str(baseline),
+                    "--candidate",
+                    str(candidate),
+                    "--proposal",
+                    str(proposal),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertNotEqual(proc.returncode, 0)
+            result = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(result["decision"], "FAIL")
+            self.assertIn("proposal_backend_mismatch_candidate", result["reasons"])
+            self.assertIn("proposal_model_script_mismatch_candidate", result["reasons"])
 
 
 if __name__ == "__main__":
