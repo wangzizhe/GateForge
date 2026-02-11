@@ -139,6 +139,7 @@ class SmokePipelineTests(unittest.TestCase):
             self.assertEqual(evidence["backend"], "mock")
             self.assertEqual(evidence["gate"], "PASS")
             self.assertEqual(evidence["model_script"], "examples/openmodelica/minimal_probe.mos")
+            self.assertEqual(evidence["proposal_id"], "proposal-test-1")
 
 
 if __name__ == "__main__":

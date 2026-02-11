@@ -18,9 +18,11 @@ def _evidence(
     check_ok: bool = True,
     simulate_ok: bool = True,
     runtime_seconds: float = 1.0,
+    proposal_id: str | None = None,
 ) -> dict:
     return {
         "run_id": run_id,
+        "proposal_id": proposal_id,
         "schema_version": schema_version,
         "backend": backend,
         "model_script": model_script,
@@ -34,10 +36,11 @@ def _evidence(
 
 class RegressionTests(unittest.TestCase):
     def test_compare_pass(self) -> None:
-        baseline = _evidence("base", runtime_seconds=1.0)
-        candidate = _evidence("cand", runtime_seconds=1.1)
+        baseline = _evidence("base", runtime_seconds=1.0, proposal_id="p-1")
+        candidate = _evidence("cand", runtime_seconds=1.1, proposal_id="p-1")
         result = compare_evidence(baseline, candidate, runtime_regression_threshold=0.2)
         self.assertEqual(result["decision"], "PASS")
+        self.assertEqual(result["proposal_id"], "p-1")
         self.assertEqual(result["reasons"], [])
         self.assertFalse(result["strict"])
 
@@ -154,6 +157,7 @@ class RegressionTests(unittest.TestCase):
             self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
             result = json.loads(out.read_text(encoding="utf-8"))
             self.assertEqual(result["decision"], "PASS")
+            self.assertEqual(result["proposal_id"], "proposal-regress-1")
             self.assertTrue(result["strict"])
             self.assertTrue(result["strict_model_script"])
 
@@ -227,6 +231,146 @@ class RegressionTests(unittest.TestCase):
             self.assertEqual(result["decision"], "FAIL")
             self.assertIn("proposal_backend_mismatch_candidate", result["reasons"])
             self.assertIn("proposal_model_script_mismatch_candidate", result["reasons"])
+
+    def test_regress_cli_with_proposal_runtime_low_risk_needs_review(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            baseline = root / "baseline.json"
+            candidate = root / "candidate.json"
+            proposal = root / "proposal.json"
+            out = root / "regression.json"
+
+            baseline.write_text(
+                json.dumps(
+                    _evidence(
+                        "base",
+                        backend="mock",
+                        model_script="examples/openmodelica/minimal_probe.mos",
+                        runtime_seconds=1.0,
+                    )
+                ),
+                encoding="utf-8",
+            )
+            candidate.write_text(
+                json.dumps(
+                    _evidence(
+                        "cand",
+                        backend="mock",
+                        model_script="examples/openmodelica/minimal_probe.mos",
+                        runtime_seconds=1.5,
+                    )
+                ),
+                encoding="utf-8",
+            )
+            proposal.write_text(
+                json.dumps(
+                    {
+                        "schema_version": "0.1.0",
+                        "proposal_id": "proposal-regress-3",
+                        "timestamp_utc": "2026-02-11T10:00:00Z",
+                        "author_type": "human",
+                        "backend": "mock",
+                        "model_script": "examples/openmodelica/minimal_probe.mos",
+                        "change_summary": "runtime drift low risk",
+                        "requested_actions": ["check", "regress"],
+                        "risk_level": "low",
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.regress",
+                    "--baseline",
+                    str(baseline),
+                    "--candidate",
+                    str(candidate),
+                    "--proposal",
+                    str(proposal),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            result = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(result["decision"], "NEEDS_REVIEW")
+            self.assertEqual(result["policy_decision"], "NEEDS_REVIEW")
+
+    def test_regress_cli_with_proposal_runtime_high_risk_fail(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            baseline = root / "baseline.json"
+            candidate = root / "candidate.json"
+            proposal = root / "proposal.json"
+            out = root / "regression.json"
+
+            baseline.write_text(
+                json.dumps(
+                    _evidence(
+                        "base",
+                        backend="mock",
+                        model_script="examples/openmodelica/minimal_probe.mos",
+                        runtime_seconds=1.0,
+                    )
+                ),
+                encoding="utf-8",
+            )
+            candidate.write_text(
+                json.dumps(
+                    _evidence(
+                        "cand",
+                        backend="mock",
+                        model_script="examples/openmodelica/minimal_probe.mos",
+                        runtime_seconds=1.5,
+                    )
+                ),
+                encoding="utf-8",
+            )
+            proposal.write_text(
+                json.dumps(
+                    {
+                        "schema_version": "0.1.0",
+                        "proposal_id": "proposal-regress-4",
+                        "timestamp_utc": "2026-02-11T10:00:00Z",
+                        "author_type": "human",
+                        "backend": "mock",
+                        "model_script": "examples/openmodelica/minimal_probe.mos",
+                        "change_summary": "runtime drift high risk",
+                        "requested_actions": ["check", "regress"],
+                        "risk_level": "high",
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.regress",
+                    "--baseline",
+                    str(baseline),
+                    "--candidate",
+                    str(candidate),
+                    "--proposal",
+                    str(proposal),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertNotEqual(proc.returncode, 0)
+            result = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(result["decision"], "FAIL")
+            self.assertEqual(result["policy_decision"], "FAIL")
 
 
 if __name__ == "__main__":

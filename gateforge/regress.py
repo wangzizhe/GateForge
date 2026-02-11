@@ -5,6 +5,7 @@ import json
 import sys
 from pathlib import Path
 
+from .policy import DEFAULT_POLICY_PATH, evaluate_policy, load_policy
 from .proposal import execution_target_from_proposal, load_proposal
 from .regression import compare_evidence, load_json, write_json, write_markdown
 
@@ -51,6 +52,11 @@ def main() -> None:
         default=None,
         help="Where to write regression markdown report",
     )
+    parser.add_argument(
+        "--policy",
+        default=DEFAULT_POLICY_PATH,
+        help="Policy JSON path used when --proposal is provided",
+    )
     args = parser.parse_args()
 
     baseline = load_json(args.baseline)
@@ -62,8 +68,13 @@ def main() -> None:
     if args.proposal:
         proposal = load_proposal(args.proposal)
         expected_backend, expected_script = execution_target_from_proposal(proposal)
+        expected_proposal_id = proposal.get("proposal_id")
+        expected_risk_level = proposal.get("risk_level")
         strict = True
         strict_model_script = True
+    else:
+        expected_proposal_id = None
+        expected_risk_level = None
 
     result = compare_evidence(
         baseline=baseline,
@@ -87,6 +98,18 @@ def main() -> None:
     result["strict"] = strict
     result["strict_model_script"] = strict_model_script
     if args.proposal:
+        policy = load_policy(args.policy)
+        policy_result = evaluate_policy(
+            reasons=result["reasons"],
+            risk_level=expected_risk_level or "medium",
+            policy=policy,
+        )
+        result["decision"] = policy_result["policy_decision"]
+        result["policy_decision"] = policy_result["policy_decision"]
+        result["policy_reasons"] = policy_result["policy_reasons"]
+        result["risk_level"] = expected_risk_level
+        result["policy_path"] = args.policy
+        result["proposal_id"] = expected_proposal_id
         result["proposal_expected_backend"] = expected_backend
         result["proposal_expected_model_script"] = expected_script
 

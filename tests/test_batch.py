@@ -170,6 +170,8 @@ class BatchTests(unittest.TestCase):
             self.assertEqual(payload["backend"], "mock")
             self.assertEqual(payload["total_runs"], 1)
             self.assertEqual(payload["fail_count"], 0)
+            self.assertEqual(payload["proposal_id"], "proposal-batch-1")
+            self.assertEqual(payload["runs"][0]["proposal_id"], "proposal-batch-1")
 
     def test_batch_rejects_proposal_with_pack_or_script(self) -> None:
         with tempfile.TemporaryDirectory() as d:

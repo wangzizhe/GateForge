@@ -42,6 +42,7 @@ def compare_evidence(
     decision = "FAIL" if reasons else "PASS"
     return {
         "decision": decision,
+        "proposal_id": candidate.get("proposal_id") or baseline.get("proposal_id"),
         "strict": strict,
         "strict_model_script": strict_model_script,
         "baseline_run_id": baseline.get("run_id"),
@@ -70,6 +71,7 @@ def write_markdown(path: str, result: dict) -> None:
         "# GateForge Regression Report",
         "",
         f"- decision: `{result['decision']}`",
+        f"- proposal_id: `{result.get('proposal_id')}`",
         f"- strict: `{result['strict']}`",
         f"- strict_model_script: `{result['strict_model_script']}`",
         f"- baseline_run_id: `{result['baseline_run_id']}`",

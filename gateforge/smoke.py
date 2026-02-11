@@ -34,8 +34,10 @@ def main() -> None:
 
     backend = args.backend
     script_path = None
+    proposal_id = None
     if args.proposal:
         proposal = load_proposal(args.proposal)
+        proposal_id = proposal.get("proposal_id")
         backend, script_path = execution_target_from_proposal(proposal)
 
     evidence = run_pipeline(
@@ -43,6 +45,7 @@ def main() -> None:
         out_path=args.out,
         report_path=args.report,
         script_path=script_path,
+        proposal_id=proposal_id,
     )
     print(json.dumps({"gate": evidence["gate"], "status": evidence["status"]}))
 
