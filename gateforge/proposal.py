@@ -1,0 +1,70 @@
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+SUPPORTED_ACTIONS = {"check", "simulate", "regress", "benchmark"}
+SUPPORTED_AUTHOR_TYPES = {"human", "agent"}
+SUPPORTED_BACKENDS = {"mock", "openmodelica", "openmodelica_docker", "fmu_runner"}
+SUPPORTED_RISK_LEVELS = {"low", "medium", "high"}
+SUPPORTED_SCRIPT_SUFFIXES = (".mos", ".fmu")
+PROPOSAL_SCHEMA_VERSION = "0.1.0"
+
+
+def load_proposal(path: str) -> dict:
+    return json.loads(Path(path).read_text(encoding="utf-8"))
+
+
+def validate_proposal(proposal: dict) -> None:
+    required = {
+        "schema_version",
+        "proposal_id",
+        "timestamp_utc",
+        "author_type",
+        "backend",
+        "model_script",
+        "change_summary",
+        "requested_actions",
+        "risk_level",
+    }
+    missing = sorted(required - set(proposal.keys()))
+    if missing:
+        raise ValueError(f"Missing required proposal keys: {missing}")
+
+    if proposal["schema_version"] != PROPOSAL_SCHEMA_VERSION:
+        raise ValueError(f"schema_version must be {PROPOSAL_SCHEMA_VERSION}")
+
+    _require_non_empty_string(proposal, "proposal_id")
+    _require_non_empty_string(proposal, "timestamp_utc")
+    _require_non_empty_string(proposal, "change_summary")
+
+    author_type = proposal["author_type"]
+    if author_type not in SUPPORTED_AUTHOR_TYPES:
+        raise ValueError(f"author_type must be one of {sorted(SUPPORTED_AUTHOR_TYPES)}")
+
+    backend = proposal["backend"]
+    if backend not in SUPPORTED_BACKENDS:
+        raise ValueError(f"backend must be one of {sorted(SUPPORTED_BACKENDS)}")
+
+    model_script = proposal["model_script"]
+    _require_non_empty_string(proposal, "model_script")
+    if not model_script.endswith(SUPPORTED_SCRIPT_SUFFIXES):
+        raise ValueError("model_script must end with .mos or .fmu")
+
+    actions = proposal["requested_actions"]
+    if not isinstance(actions, list) or not actions:
+        raise ValueError("requested_actions must be a non-empty list")
+    for action in actions:
+        if action not in SUPPORTED_ACTIONS:
+            raise ValueError(f"unsupported requested action: {action}")
+
+    risk_level = proposal["risk_level"]
+    if risk_level not in SUPPORTED_RISK_LEVELS:
+        raise ValueError(f"risk_level must be one of {sorted(SUPPORTED_RISK_LEVELS)}")
+
+
+
+def _require_non_empty_string(payload: dict, key: str) -> None:
+    value = payload[key]
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{key} must be a non-empty string")
