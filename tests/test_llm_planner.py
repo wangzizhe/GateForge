@@ -1,4 +1,5 @@
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -176,6 +177,32 @@ class PlannerTests(unittest.TestCase):
             self.assertEqual(payload["overrides"]["risk_level"], "medium")
             self.assertEqual(payload["overrides"]["change_summary"], "Context-specified summary")
             self.assertEqual(payload["planner_inputs"]["prefer_backend"], "openmodelica_docker")
+
+    def test_planner_openai_backend_requires_api_key(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            out = Path(d) / "intent.json"
+            env = os.environ.copy()
+            env.pop("OPENAI_API_KEY", None)
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.llm_planner",
+                    "--goal",
+                    "run demo mock pass",
+                    "--planner-backend",
+                    "openai",
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+                env=env,
+            )
+            self.assertNotEqual(proc.returncode, 0)
+            self.assertIn("requires OPENAI_API_KEY", proc.stderr + proc.stdout)
+            self.assertFalse(out.exists())
 
 
 if __name__ == "__main__":
