@@ -222,6 +222,16 @@ python -m gateforge.agent_run \
   --out artifacts/agent/agent_run_from_planner.json
 ```
 
+Planner can also emit a `change_set_draft`:
+
+```bash
+python -m gateforge.llm_planner \
+  --goal "apply deterministic patch and run" \
+  --planner-backend rule \
+  --emit-change-set-draft \
+  --out artifacts/agent/intent_with_change_set_draft.json
+```
+
 One-command autopilot (goal -> planner -> agent_run):
 
 ```bash
@@ -234,6 +244,18 @@ python -m gateforge.autopilot \
   --out artifacts/autopilot/autopilot_summary.json
 cat artifacts/autopilot/autopilot_summary.json
 cat artifacts/autopilot/autopilot_summary.md
+```
+
+Autopilot can materialize planner `change_set_draft` and inject `change_set_path`:
+
+```bash
+python -m gateforge.autopilot \
+  --goal "apply deterministic patch and run" \
+  --planner-backend rule \
+  --materialize-change-set \
+  --proposal-id autopilot-changeset-001 \
+  --baseline baselines/mock_minimal_probe_baseline.json \
+  --out artifacts/autopilot/autopilot_changeset_summary.json
 ```
 
 Plan-only mode (no execution):

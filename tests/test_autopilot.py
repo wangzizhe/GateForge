@@ -84,6 +84,7 @@ class AutopilotTests(unittest.TestCase):
             self.assertEqual(payload["intent"], "demo_mock_pass")
             self.assertEqual(payload["save_run_under"], "autopilot")
             self.assertEqual(payload["planner_backend"], "rule")
+            self.assertFalse(payload["materialize_change_set"])
             self.assertEqual(payload["planner_exit_code"], 0)
             self.assertEqual(payload["agent_run_exit_code"], 0)
             self.assertEqual(payload["policy_decision"], "PASS")
@@ -144,6 +145,7 @@ class AutopilotTests(unittest.TestCase):
             payload = json.loads(out.read_text(encoding="utf-8"))
             self.assertEqual(payload["status"], "PASS")
             self.assertEqual(payload["planner_backend"], "rule")
+            self.assertFalse(payload["materialize_change_set"])
             intent_payload = json.loads(intent_out.read_text(encoding="utf-8"))
             self.assertEqual(intent_payload["overrides"]["risk_level"], "medium")
             self.assertEqual(intent_payload["overrides"]["change_summary"], "context override in autopilot")
@@ -177,6 +179,7 @@ class AutopilotTests(unittest.TestCase):
             payload = json.loads(out.read_text(encoding="utf-8"))
             self.assertEqual(payload["status"], "FAIL")
             self.assertEqual(payload["planner_backend"], "rule")
+            self.assertFalse(payload["materialize_change_set"])
             self.assertEqual(payload["policy_decision"], "FAIL")
             self.assertTrue(payload["fail_reasons"])
             self.assertTrue(payload["policy_reasons"])
@@ -214,6 +217,7 @@ class AutopilotTests(unittest.TestCase):
             payload = json.loads(out.read_text(encoding="utf-8"))
             self.assertEqual(payload["save_run_under"], "agent")
             self.assertEqual(payload["planner_backend"], "rule")
+            self.assertFalse(payload["materialize_change_set"])
             self.assertEqual(payload["run_path"], "artifacts/agent/run_summary.json")
             self.assertEqual(payload["run_report_path"], "artifacts/agent/run_summary.md")
 
@@ -253,6 +257,7 @@ class AutopilotTests(unittest.TestCase):
             payload = json.loads(out.read_text(encoding="utf-8"))
             self.assertEqual(payload["status"], "PLANNED")
             self.assertEqual(payload["planner_backend"], "rule")
+            self.assertFalse(payload["materialize_change_set"])
             self.assertTrue(payload["dry_run"])
             self.assertEqual(payload["agent_run_exit_code"], None)
             self.assertEqual(payload["proposal_id"], "autopilot-dry-run-1")
@@ -261,6 +266,47 @@ class AutopilotTests(unittest.TestCase):
             self.assertFalse(agent_run_out.exists())
             report_text = report.read_text(encoding="utf-8")
             self.assertIn("PLANNED", report_text)
+
+    def test_autopilot_materializes_change_set_from_planner(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            baseline = root / "baseline.json"
+            out = root / "summary.json"
+            intent_out = root / "intent.json"
+            self._write_baseline(baseline)
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.autopilot",
+                    "--goal",
+                    "apply deterministic patch and run",
+                    "--planner-backend",
+                    "rule",
+                    "--materialize-change-set",
+                    "--proposal-id",
+                    "autopilot-change-set-1",
+                    "--baseline",
+                    str(baseline),
+                    "--intent-out",
+                    str(intent_out),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            payload = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(payload["status"], "PASS")
+            self.assertTrue(payload["materialize_change_set"])
+            self.assertTrue(payload["generated_change_set_path"])
+            generated_path = Path(payload["generated_change_set_path"])
+            self.assertTrue(generated_path.exists())
+            intent_payload = json.loads(intent_out.read_text(encoding="utf-8"))
+            self.assertIn("change_set_path", intent_payload.get("overrides", {}))
 
 
 if __name__ == "__main__":

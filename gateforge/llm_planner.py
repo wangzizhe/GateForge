@@ -10,6 +10,8 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
+from .change_apply import validate_change_set
+
 
 def _write_json(path: str, payload: dict) -> None:
     p = Path(path)
@@ -72,6 +74,7 @@ def _plan_with_rule_backend(
     prefer_backend: str,
     proposal_id: str | None,
     context_json_path: str | None,
+    emit_change_set_draft: bool,
 ) -> dict:
     context_prefer_backend = context.get("prefer_backend")
     if context_prefer_backend in {"auto", "mock", "openmodelica_docker"}:
@@ -86,7 +89,7 @@ def _plan_with_rule_backend(
     if isinstance(context.get("change_summary"), str) and context["change_summary"].strip():
         overrides["change_summary"] = context["change_summary"]
 
-    return {
+    payload = {
         "intent": intent,
         "proposal_id": proposal_id,
         "overrides": overrides,
@@ -96,9 +99,23 @@ def _plan_with_rule_backend(
             "prefer_backend": effective_prefer_backend,
             "context_path": context_json_path,
             "planner_backend": "rule",
+            "emit_change_set_draft": emit_change_set_draft,
         },
         "context": context,
     }
+    if emit_change_set_draft:
+        payload["change_set_draft"] = {
+            "schema_version": "0.1.0",
+            "changes": [
+                {
+                    "op": "replace_text",
+                    "file": "examples/openmodelica/MinimalProbe.mo",
+                    "old": "der(x) = -x;",
+                    "new": "der(x) = -2*x;",
+                }
+            ],
+        }
+    return payload
 
 
 def _plan_with_openai_backend_placeholder(
@@ -108,6 +125,7 @@ def _plan_with_openai_backend_placeholder(
     prefer_backend: str,
     proposal_id: str | None,
     context_json_path: str | None,
+    emit_change_set_draft: bool,
 ) -> dict:
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
@@ -145,6 +163,7 @@ def _plan_with_gemini_backend(
     prefer_backend: str,
     proposal_id: str | None,
     context_json_path: str | None,
+    emit_change_set_draft: bool,
 ) -> dict:
     api_key = os.getenv("GOOGLE_API_KEY")
     if not api_key:
@@ -158,10 +177,12 @@ def _plan_with_gemini_backend(
         "runtime_regress_low_risk, runtime_regress_high_risk.\n"
         "proposal_id should be null if unknown.\n"
         "overrides must be an object and may include risk_level, change_summary.\n"
+        "If emit_change_set_draft is true, optionally add key change_set_draft with valid GateForge change_set JSON.\n"
         f"goal: {goal_text}\n"
         f"prefer_backend: {prefer_backend}\n"
         f"context_json: {json.dumps(context)}\n"
         f"user_proposal_id: {proposal_id}\n"
+        f"emit_change_set_draft: {emit_change_set_draft}\n"
     )
     req_payload = {
         "contents": [{"parts": [{"text": prompt}]}],
@@ -213,7 +234,7 @@ def _plan_with_gemini_backend(
     if "change_summary" not in overrides:
         overrides["change_summary"] = goal_text
     resolved_proposal_id = proposal_id if proposal_id is not None else parsed.get("proposal_id")
-    return {
+    payload = {
         "intent": intent,
         "proposal_id": resolved_proposal_id,
         "overrides": overrides,
@@ -224,6 +245,7 @@ def _plan_with_gemini_backend(
             "context_path": context_json_path,
             "planner_backend": "gemini",
             "model": model,
+            "emit_change_set_draft": emit_change_set_draft,
         },
         "context": context,
         "raw_response": {
@@ -232,6 +254,11 @@ def _plan_with_gemini_backend(
             "usageMetadata": response_payload.get("usageMetadata", {}),
         },
     }
+    draft = parsed.get("change_set_draft")
+    if draft is not None:
+        validate_change_set(draft)
+        payload["change_set_draft"] = draft
+    return payload
 
 
 def main() -> None:
@@ -255,6 +282,11 @@ def main() -> None:
         default=None,
         help="Optional context JSON path (can provide prefer_backend/risk_level/change_summary)",
     )
+    parser.add_argument(
+        "--emit-change-set-draft",
+        action="store_true",
+        help="Ask planner to include a change_set_draft in output",
+    )
     parser.add_argument("--proposal-id", default=None, help="Optional explicit proposal_id")
     parser.add_argument(
         "--out",
@@ -273,6 +305,7 @@ def main() -> None:
                 prefer_backend=args.prefer_backend,
                 proposal_id=args.proposal_id,
                 context_json_path=args.context_json,
+                emit_change_set_draft=args.emit_change_set_draft,
             )
         elif args.planner_backend == "gemini":
             payload = _plan_with_gemini_backend(
@@ -281,6 +314,7 @@ def main() -> None:
                 prefer_backend=args.prefer_backend,
                 proposal_id=args.proposal_id,
                 context_json_path=args.context_json,
+                emit_change_set_draft=args.emit_change_set_draft,
             )
         else:
             payload = _plan_with_openai_backend_placeholder(
@@ -289,6 +323,7 @@ def main() -> None:
                 prefer_backend=args.prefer_backend,
                 proposal_id=args.proposal_id,
                 context_json_path=args.context_json,
+                emit_change_set_draft=args.emit_change_set_draft,
             )
     except ValueError as exc:
         print(str(exc), file=sys.stderr)
