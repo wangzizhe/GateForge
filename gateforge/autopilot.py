@@ -31,6 +31,9 @@ def _write_markdown(path: str, summary: dict) -> None:
         f"- proposal_id: `{summary.get('proposal_id')}`",
         f"- policy_decision: `{summary.get('policy_decision')}`",
         f"- generated_change_set_path: `{summary.get('generated_change_set_path')}`",
+        f"- change_apply_status: `{summary.get('change_apply_status')}`",
+        f"- applied_changes_count: `{summary.get('applied_changes_count')}`",
+        f"- change_set_hash: `{summary.get('change_set_hash')}`",
         f"- planner_exit_code: `{summary.get('planner_exit_code')}`",
         f"- agent_run_exit_code: `{summary.get('agent_run_exit_code')}`",
         "",
@@ -266,6 +269,9 @@ def main() -> None:
         summary["policy_reasons"] = agent_payload.get("policy_reasons", [])
         summary["human_hints"] = agent_payload.get("human_hints", [])
         summary["required_human_checks"] = agent_payload.get("required_human_checks", [])
+        summary["change_apply_status"] = agent_payload.get("change_apply_status")
+        summary["change_set_hash"] = agent_payload.get("change_set_hash")
+        summary["applied_changes_count"] = agent_payload.get("applied_changes_count")
         summary["run_path"] = agent_payload.get("run_path")
         summary["run_report_path"] = agent_payload.get("run_report_path")
 

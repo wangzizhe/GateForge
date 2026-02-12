@@ -99,6 +99,9 @@ class AgentRunTests(unittest.TestCase):
             self.assertEqual(payload["fail_reasons"], [])
             self.assertEqual(payload["policy_reasons"], [])
             self.assertIsInstance(payload["human_hints"], list)
+            self.assertEqual(payload["change_apply_status"], "not_requested")
+            self.assertEqual(payload["change_set_hash"], None)
+            self.assertEqual(payload["applied_changes_count"], 0)
 
     def test_agent_run_demo_mock_fail_exposes_reasons(self) -> None:
         with tempfile.TemporaryDirectory() as d:
@@ -146,6 +149,9 @@ class AgentRunTests(unittest.TestCase):
             self.assertNotEqual(payload["run_exit_code"], 0)
             self.assertIn("regression_fail", payload["fail_reasons"])
             self.assertEqual(payload["policy_decision"], "FAIL")
+            self.assertEqual(payload["change_apply_status"], "not_requested")
+            self.assertEqual(payload["change_set_hash"], None)
+            self.assertEqual(payload["applied_changes_count"], 0)
 
     def test_agent_run_from_intent_file(self) -> None:
         with tempfile.TemporaryDirectory() as d:
