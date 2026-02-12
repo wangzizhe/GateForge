@@ -200,6 +200,17 @@ python -m gateforge.agent_run \
   --out artifacts/agent/agent_run_from_planner.json
 ```
 
+One-command autopilot (goal -> planner -> agent_run):
+
+```bash
+python -m gateforge.autopilot \
+  --goal "run demo mock pass" \
+  --proposal-id autopilot-demo-001 \
+  --baseline baselines/mock_minimal_probe_baseline.json \
+  --out artifacts/autopilot/autopilot_summary.json
+cat artifacts/autopilot/autopilot_summary.json
+```
+
 Planner variants:
 
 ```bash
