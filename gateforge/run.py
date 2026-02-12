@@ -2,9 +2,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import shutil
 import sys
+import tempfile
 from pathlib import Path
 
+from .change_apply import apply_change_set
+from .core import OM_SOURCE_ROOT_ENV, PROJECT_ROOT
 from .core import run_pipeline
 from .policy import DEFAULT_POLICY_PATH, evaluate_policy, load_policy
 from .proposal import EXECUTION_ACTIONS, load_proposal, validate_proposal
@@ -26,6 +31,9 @@ def _write_run_markdown(path: str, summary: dict) -> None:
         f"- actions: `{','.join(summary['actions'])}`",
         f"- smoke_executed: `{summary['smoke_executed']}`",
         f"- regress_executed: `{summary['regress_executed']}`",
+        f"- change_set_path: `{summary.get('change_set_path')}`",
+        f"- change_apply_status: `{summary.get('change_apply_status')}`",
+        f"- change_set_hash: `{summary.get('change_set_hash')}`",
         "",
     ]
     if summary.get("candidate_path"):
@@ -49,6 +57,12 @@ def _write_run_markdown(path: str, summary: dict) -> None:
     lines.extend(["## Human Hints", ""])
     if summary.get("human_hints"):
         lines.extend([f"- {h}" for h in summary["human_hints"]])
+    else:
+        lines.append("- `none`")
+    lines.append("")
+    lines.extend(["## Applied Changes", ""])
+    if summary.get("applied_changes"):
+        lines.extend([f"- `{c.get('file')}` ({c.get('op')})" for c in summary["applied_changes"]])
     else:
         lines.append("- `none`")
     lines.append("")
@@ -220,79 +234,119 @@ def main() -> None:
         "fail_reasons": [],
         "human_hints": [],
         "required_human_checks": [],
+        "change_set_path": proposal.get("change_set_path"),
+        "change_apply_status": "not_requested",
+        "change_set_hash": None,
+        "applied_changes": [],
     }
 
     candidate = None
-    if action_set.intersection(EXECUTION_ACTIONS):
-        candidate = run_pipeline(
-            backend=backend,
-            out_path=args.candidate_out,
-            script_path=script_path,
-            proposal_id=proposal["proposal_id"],
-        )
-        summary["smoke_executed"] = True
-        summary["candidate_path"] = args.candidate_out
-        if candidate["gate"] != "PASS":
-            summary["fail_reasons"].append("candidate_gate_not_pass")
+    execution_requested = bool(action_set.intersection(EXECUTION_ACTIONS))
+    source_override_tmp: tempfile.TemporaryDirectory[str] | None = None
+    previous_source_root = os.environ.get(OM_SOURCE_ROOT_ENV)
+    try:
+        if execution_requested and proposal.get("change_set_path"):
+            try:
+                source_override_tmp = tempfile.TemporaryDirectory(prefix="gateforge-change-set-")
+                tmp_root = Path(source_override_tmp.name)
+                shutil.copytree(PROJECT_ROOT / "examples", tmp_root / "examples")
+                change_result = apply_change_set(
+                    path=proposal["change_set_path"],
+                    workspace_root=tmp_root,
+                )
+                summary["change_apply_status"] = "applied"
+                summary["change_set_hash"] = change_result["change_set_hash"]
+                summary["applied_changes"] = change_result["applied_changes"]
+                os.environ[OM_SOURCE_ROOT_ENV] = str(tmp_root)
+            except Exception as exc:  # pragma: no cover - guarded by tests through summary behavior
+                summary["change_apply_status"] = "failed"
+                summary["fail_reasons"].append("change_apply_failed")
+                summary["human_hints"].append(f"Change-set apply failed: {exc}")
 
-    if "regress" in action_set:
-        if candidate is None:
-            if not args.candidate_in:
-                raise SystemExit("--candidate-in is required when regress is requested without execution actions")
-            candidate = load_json(args.candidate_in)
-            summary["candidate_path"] = args.candidate_in
-
-        try:
-            baseline_path = _resolve_baseline_path(
-                baseline_arg=args.baseline,
-                baseline_index_path=args.baseline_index,
+        if execution_requested and summary["change_apply_status"] != "failed":
+            candidate = run_pipeline(
                 backend=backend,
+                out_path=args.candidate_out,
                 script_path=script_path,
+                proposal_id=proposal["proposal_id"],
             )
-        except ValueError as exc:
-            raise SystemExit(str(exc)) from exc
-        baseline = load_json(baseline_path)
-        result = compare_evidence(
-            baseline=baseline,
-            candidate=candidate,
-            runtime_regression_threshold=args.runtime_threshold,
-            strict=True,
-            strict_model_script=True,
+            summary["smoke_executed"] = True
+            summary["candidate_path"] = args.candidate_out
+            if candidate["gate"] != "PASS":
+                summary["fail_reasons"].append("candidate_gate_not_pass")
+
+        if "regress" in action_set:
+            if candidate is None:
+                if summary["change_apply_status"] == "failed":
+                    summary["regress_executed"] = False
+                else:
+                    if not args.candidate_in:
+                        raise SystemExit("--candidate-in is required when regress is requested without execution actions")
+                    candidate = load_json(args.candidate_in)
+                    summary["candidate_path"] = args.candidate_in
+
+            if candidate is not None:
+                try:
+                    baseline_path = _resolve_baseline_path(
+                        baseline_arg=args.baseline,
+                        baseline_index_path=args.baseline_index,
+                        backend=backend,
+                        script_path=script_path,
+                    )
+                except ValueError as exc:
+                    raise SystemExit(str(exc)) from exc
+                baseline = load_json(baseline_path)
+                result = compare_evidence(
+                    baseline=baseline,
+                    candidate=candidate,
+                    runtime_regression_threshold=args.runtime_threshold,
+                    strict=True,
+                    strict_model_script=True,
+                )
+                _apply_proposal_constraints(result, baseline, candidate, backend=backend, script=script_path)
+                result["proposal_id"] = proposal["proposal_id"]
+                result["proposal_expected_backend"] = backend
+                result["proposal_expected_model_script"] = script_path
+                write_json(args.regression_out, result)
+                write_markdown(_default_md_path(args.regression_out), result)
+                summary["regress_executed"] = True
+                summary["regression_path"] = args.regression_out
+                summary["baseline_path"] = baseline_path
+                if result["decision"] != "PASS":
+                    summary["fail_reasons"].append("regression_fail")
+
+        combined_reasons: list[str] = []
+        if summary["change_apply_status"] == "failed":
+            combined_reasons.append("change_apply_failed")
+        if candidate is not None and candidate["gate"] != "PASS":
+            combined_reasons.append("candidate_gate_not_pass")
+        if summary.get("regression_path"):
+            regression_payload = load_json(summary["regression_path"])
+            combined_reasons.extend(regression_payload.get("reasons", []))
+        combined_reasons = list(dict.fromkeys(combined_reasons))
+
+        policy = load_policy(args.policy)
+        policy_result = evaluate_policy(
+            reasons=combined_reasons,
+            risk_level=proposal["risk_level"],
+            policy=policy,
         )
-        _apply_proposal_constraints(result, baseline, candidate, backend=backend, script=script_path)
-        result["proposal_id"] = proposal["proposal_id"]
-        result["proposal_expected_backend"] = backend
-        result["proposal_expected_model_script"] = script_path
-        write_json(args.regression_out, result)
-        write_markdown(_default_md_path(args.regression_out), result)
-        summary["regress_executed"] = True
-        summary["regression_path"] = args.regression_out
-        summary["baseline_path"] = baseline_path
-        if result["decision"] != "PASS":
-            summary["fail_reasons"].append("regression_fail")
-
-    combined_reasons: list[str] = []
-    if candidate is not None and candidate["gate"] != "PASS":
-        combined_reasons.append("candidate_gate_not_pass")
-    if summary.get("regression_path"):
-        regression_payload = load_json(summary["regression_path"])
-        combined_reasons.extend(regression_payload.get("reasons", []))
-
-    policy = load_policy(args.policy)
-    policy_result = evaluate_policy(
-        reasons=combined_reasons,
-        risk_level=proposal["risk_level"],
-        policy=policy,
-    )
-    summary["policy_decision"] = policy_result["policy_decision"]
-    summary["policy_reasons"] = policy_result["policy_reasons"]
-    summary["status"] = policy_result["policy_decision"]
-    summary["human_hints"] = _human_hints_for_candidate(candidate, backend=backend)
-    summary["required_human_checks"] = _required_human_checks(
-        policy_decision=summary["policy_decision"],
-        policy_reasons=summary["policy_reasons"],
-        candidate=candidate,
-    )
+        summary["policy_decision"] = policy_result["policy_decision"]
+        summary["policy_reasons"] = policy_result["policy_reasons"]
+        summary["status"] = policy_result["policy_decision"]
+        summary["human_hints"].extend(_human_hints_for_candidate(candidate, backend=backend))
+        summary["required_human_checks"] = _required_human_checks(
+            policy_decision=summary["policy_decision"],
+            policy_reasons=summary["policy_reasons"],
+            candidate=candidate,
+        )
+    finally:
+        if previous_source_root is None:
+            os.environ.pop(OM_SOURCE_ROOT_ENV, None)
+        else:
+            os.environ[OM_SOURCE_ROOT_ENV] = previous_source_root
+        if source_override_tmp is not None:
+            source_override_tmp.cleanup()
 
     write_json(args.out, summary)
     _write_run_markdown(args.report or _default_md_path(args.out), summary)

@@ -63,6 +63,11 @@ def validate_proposal(proposal: dict) -> None:
     if risk_level not in SUPPORTED_RISK_LEVELS:
         raise ValueError(f"risk_level must be one of {sorted(SUPPORTED_RISK_LEVELS)}")
 
+    change_set_path = proposal.get("change_set_path")
+    if change_set_path is not None:
+        if not isinstance(change_set_path, str) or not change_set_path.strip():
+            raise ValueError("change_set_path must be a non-empty string when provided")
+
 
 def execution_target_from_proposal(proposal: dict) -> tuple[str, str]:
     # v0 contract: smoke execution is only valid when proposal requests check/simulate.

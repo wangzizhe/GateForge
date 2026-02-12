@@ -1,0 +1,11 @@
+{
+  "schema_version": "0.1.0",
+  "changes": [
+    {
+      "op": "replace_text",
+      "file": "examples/openmodelica/MinimalProbe.mo",
+      "old": "der(x) = -999*x;",
+      "new": "der(x) = -2*x;"
+    }
+  ]
+}

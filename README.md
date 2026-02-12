@@ -186,6 +186,16 @@ python -m gateforge.agent_run \
   --out artifacts/agent/agent_run_from_intent_file.json
 ```
 
+Deterministic model patch before run (change_set):
+
+```bash
+python -m gateforge.run \
+  --proposal examples/proposals/proposal_with_changeset_mock.json \
+  --baseline baselines/mock_minimal_probe_baseline.json \
+  --out artifacts/proposal_run_changeset.json
+cat artifacts/proposal_run_changeset.json
+```
+
 Minimal planner mode (rule-based, LLM-ready interface):
 
 ```bash
