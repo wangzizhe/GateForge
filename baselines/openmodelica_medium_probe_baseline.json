@@ -1,0 +1,20 @@
+{
+  "schema_version": "0.1.0",
+  "run_id": "baseline-openmodelica-medium-probe-v1",
+  "timestamp_utc": "2026-02-12T00:00:00+00:00",
+  "backend": "openmodelica_docker",
+  "status": "success",
+  "failure_type": "none",
+  "metrics": {
+    "runtime_seconds": 0.0,
+    "events": 1
+  },
+  "artifacts": {
+    "log_excerpt": "OpenModelica baseline: MediumOscillator"
+  },
+  "model_script": "examples/openmodelica/medium_probe.mos",
+  "exit_code": 0,
+  "check_ok": true,
+  "simulate_ok": true,
+  "gate": "PASS"
+}

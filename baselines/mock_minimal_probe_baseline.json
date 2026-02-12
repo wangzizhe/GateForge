@@ -1,0 +1,20 @@
+{
+  "schema_version": "0.1.0",
+  "run_id": "baseline-mock-minimal-probe-v1",
+  "timestamp_utc": "2026-02-12T00:00:00+00:00",
+  "backend": "mock",
+  "status": "success",
+  "failure_type": "none",
+  "metrics": {
+    "runtime_seconds": 0.0,
+    "events": 12
+  },
+  "artifacts": {
+    "log_excerpt": "mock simulation completed"
+  },
+  "model_script": "examples/openmodelica/minimal_probe.mos",
+  "exit_code": 0,
+  "check_ok": true,
+  "simulate_ok": true,
+  "gate": "PASS"
+}

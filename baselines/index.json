@@ -4,12 +4,17 @@
     {
       "backend": "mock",
       "model_script": "examples/openmodelica/minimal_probe.mos",
-      "baseline": "baselines/mock_baseline.json"
+      "baseline": "baselines/mock_minimal_probe_baseline.json"
     },
     {
       "backend": "openmodelica_docker",
       "model_script": "examples/openmodelica/minimal_probe.mos",
       "baseline": "baselines/openmodelica_minimal_probe_baseline.json"
+    },
+    {
+      "backend": "openmodelica_docker",
+      "model_script": "examples/openmodelica/medium_probe.mos",
+      "baseline": "baselines/openmodelica_medium_probe_baseline.json"
     }
   ]
 }

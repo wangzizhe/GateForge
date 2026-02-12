@@ -1,0 +1,14 @@
+{
+  "schema_version": "0.1.0",
+  "proposal_id": "proposal-medium-openmodelica-0001",
+  "timestamp_utc": "2026-02-12T10:00:00Z",
+  "author_type": "human",
+  "backend": "openmodelica_docker",
+  "model_script": "examples/openmodelica/medium_probe.mos",
+  "change_summary": "Run medium oscillator model through check/simulate/regress pipeline",
+  "requested_actions": ["check", "simulate", "regress"],
+  "risk_level": "medium",
+  "metadata": {
+    "note": "medium validation case"
+  }
+}
