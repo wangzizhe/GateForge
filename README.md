@@ -199,6 +199,21 @@ python -m gateforge.agent_run \
   --out artifacts/agent/agent_run_from_planner.json
 ```
 
+Planner variants:
+
+```bash
+# read goal from file
+python -m gateforge.llm_planner \
+  --goal-file /tmp/goal.txt \
+  --out artifacts/agent/intent_from_goal_file.json
+
+# inject external context (for future LLM planners)
+python -m gateforge.llm_planner \
+  --goal "run pass flow" \
+  --context-json /tmp/planner_context.json \
+  --out artifacts/agent/intent_from_context.json
+```
+
 Agent medium intent (OpenModelica medium case):
 
 ```bash
