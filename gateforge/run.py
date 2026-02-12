@@ -7,7 +7,7 @@ from pathlib import Path
 
 from .core import run_pipeline
 from .policy import DEFAULT_POLICY_PATH, evaluate_policy, load_policy
-from .proposal import EXECUTION_ACTIONS, execution_target_from_proposal, load_proposal, validate_proposal
+from .proposal import EXECUTION_ACTIONS, load_proposal, validate_proposal
 from .regression import compare_evidence, load_json, write_json, write_markdown
 
 DEFAULT_BASELINE_INDEX = "baselines/index.json"
@@ -43,6 +43,12 @@ def _write_run_markdown(path: str, summary: dict) -> None:
     lines.extend(["## Policy Reasons", ""])
     if summary.get("policy_reasons"):
         lines.extend([f"- `{r}`" for r in summary["policy_reasons"]])
+    else:
+        lines.append("- `none`")
+    lines.append("")
+    lines.extend(["## Human Hints", ""])
+    if summary.get("human_hints"):
+        lines.extend([f"- {h}" for h in summary["human_hints"]])
     else:
         lines.append("- `none`")
     lines.append("")
@@ -96,6 +102,21 @@ def _apply_proposal_constraints(result: dict, baseline: dict, candidate: dict, b
         result["reasons"].append("proposal_model_script_mismatch_candidate")
     if result["reasons"]:
         result["decision"] = "FAIL"
+
+
+def _human_hints_for_candidate(candidate: dict | None, backend: str) -> list[str]:
+    if not candidate:
+        return []
+    if candidate.get("failure_type") != "docker_error":
+        return []
+    hints = [
+        "Docker backend execution failed. Start Docker Desktop and verify `docker ps` works.",
+        f"Re-run the same proposal after Docker is healthy (backend: {backend}).",
+    ]
+    log_excerpt = candidate.get("artifacts", {}).get("log_excerpt", "")
+    if "permission denied" in log_excerpt.lower():
+        hints.append("Docker socket permission issue detected. Check current user access to Docker daemon.")
+    return hints
 
 
 def main() -> None:
@@ -154,7 +175,8 @@ def main() -> None:
     actions = proposal["requested_actions"]
     action_set = set(actions)
 
-    backend, script_path = execution_target_from_proposal(proposal)
+    backend = proposal["backend"]
+    script_path = proposal["model_script"]
 
     summary = {
         "proposal_id": proposal["proposal_id"],
@@ -170,6 +192,7 @@ def main() -> None:
         "baseline_path": None,
         "regression_path": None,
         "fail_reasons": [],
+        "human_hints": [],
     }
 
     candidate = None
@@ -237,6 +260,7 @@ def main() -> None:
     summary["policy_decision"] = policy_result["policy_decision"]
     summary["policy_reasons"] = policy_result["policy_reasons"]
     summary["status"] = policy_result["policy_decision"]
+    summary["human_hints"] = _human_hints_for_candidate(candidate, backend=backend)
 
     write_json(args.out, summary)
     _write_run_markdown(args.report or _default_md_path(args.out), summary)
