@@ -270,7 +270,8 @@ cat artifacts/autopilot/autopilot_plan.json
 ```
 
 `autopilot_summary.json` includes governance-facing fields such as:
-`policy_decision`, `policy_reasons`, `required_human_checks`, `fail_reasons`, and `run_report_path`.
+`policy_decision`, `policy_reasons`, `required_human_checks`, `fail_reasons`, `run_report_path`,
+`change_apply_status`, `applied_changes_count`, and `change_set_hash`.
 
 Planner variants:
 
