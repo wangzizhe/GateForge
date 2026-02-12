@@ -204,6 +204,32 @@ class PlannerTests(unittest.TestCase):
             self.assertIn("requires OPENAI_API_KEY", proc.stderr + proc.stdout)
             self.assertFalse(out.exists())
 
+    def test_planner_gemini_backend_requires_api_key(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            out = Path(d) / "intent.json"
+            env = os.environ.copy()
+            env.pop("GOOGLE_API_KEY", None)
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.llm_planner",
+                    "--goal",
+                    "run demo mock pass",
+                    "--planner-backend",
+                    "gemini",
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+                env=env,
+            )
+            self.assertNotEqual(proc.returncode, 0)
+            self.assertIn("requires GOOGLE_API_KEY", proc.stderr + proc.stdout)
+            self.assertFalse(out.exists())
+
 
 if __name__ == "__main__":
     unittest.main()

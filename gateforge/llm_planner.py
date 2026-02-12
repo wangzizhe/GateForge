@@ -3,7 +3,11 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
+import urllib.error
+import urllib.parse
+import urllib.request
 from pathlib import Path
 
 
@@ -113,6 +117,123 @@ def _plan_with_openai_backend_placeholder(
     )
 
 
+def _extract_json_object(text: str) -> dict:
+    stripped = text.strip()
+    if stripped.startswith("```"):
+        lines = stripped.splitlines()
+        if lines and lines[0].startswith("```"):
+            lines = lines[1:]
+        if lines and lines[-1].strip().startswith("```"):
+            lines = lines[:-1]
+        stripped = "\n".join(lines).strip()
+    try:
+        payload = json.loads(stripped)
+    except json.JSONDecodeError:
+        match = re.search(r"\{.*\}", stripped, re.DOTALL)
+        if not match:
+            raise ValueError("gemini planner response does not contain a JSON object")
+        payload = json.loads(match.group(0))
+    if not isinstance(payload, dict):
+        raise ValueError("gemini planner response JSON must be an object")
+    return payload
+
+
+def _plan_with_gemini_backend(
+    *,
+    goal_text: str,
+    context: dict,
+    prefer_backend: str,
+    proposal_id: str | None,
+    context_json_path: str | None,
+) -> dict:
+    api_key = os.getenv("GOOGLE_API_KEY")
+    if not api_key:
+        raise ValueError("planner-backend=gemini requires GOOGLE_API_KEY to be set")
+
+    model = os.getenv("GATEFORGE_GEMINI_MODEL", "gemini-2.5-flash-lite")
+    prompt = (
+        "You are a planning backend for GateForge.\n"
+        "Return ONLY JSON object with keys: intent, proposal_id, overrides.\n"
+        "Allowed intent values: demo_mock_pass, demo_openmodelica_pass, medium_openmodelica_pass, "
+        "runtime_regress_low_risk, runtime_regress_high_risk.\n"
+        "proposal_id should be null if unknown.\n"
+        "overrides must be an object and may include risk_level, change_summary.\n"
+        f"goal: {goal_text}\n"
+        f"prefer_backend: {prefer_backend}\n"
+        f"context_json: {json.dumps(context)}\n"
+        f"user_proposal_id: {proposal_id}\n"
+    )
+    req_payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {"temperature": 0.1},
+    }
+    req_data = json.dumps(req_payload).encode("utf-8")
+    url = (
+        "https://generativelanguage.googleapis.com/v1beta/models/"
+        f"{model}:generateContent?key={urllib.parse.quote(api_key)}"
+    )
+    req = urllib.request.Request(
+        url,
+        data=req_data,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            response_payload = json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        body = exc.read().decode("utf-8", errors="ignore")
+        raise ValueError(f"gemini API error {exc.code}: {body[:300]}") from exc
+    except urllib.error.URLError as exc:
+        raise ValueError(f"gemini API connection error: {exc.reason}") from exc
+
+    candidates = response_payload.get("candidates", [])
+    if not candidates:
+        raise ValueError("gemini response has no candidates")
+    text = (
+        candidates[0]
+        .get("content", {})
+        .get("parts", [{}])[0]
+        .get("text", "")
+    )
+    parsed = _extract_json_object(text)
+    intent = parsed.get("intent")
+    allowed_intents = {
+        "demo_mock_pass",
+        "demo_openmodelica_pass",
+        "medium_openmodelica_pass",
+        "runtime_regress_low_risk",
+        "runtime_regress_high_risk",
+    }
+    if intent not in allowed_intents:
+        raise ValueError(f"gemini planner returned unsupported intent: {intent}")
+    overrides = parsed.get("overrides", {})
+    if not isinstance(overrides, dict):
+        raise ValueError("gemini planner overrides must be an object")
+    if "change_summary" not in overrides:
+        overrides["change_summary"] = goal_text
+    resolved_proposal_id = proposal_id if proposal_id is not None else parsed.get("proposal_id")
+    return {
+        "intent": intent,
+        "proposal_id": resolved_proposal_id,
+        "overrides": overrides,
+        "planner": "gemini_v0",
+        "planner_inputs": {
+            "goal": goal_text,
+            "prefer_backend": prefer_backend,
+            "context_path": context_json_path,
+            "planner_backend": "gemini",
+            "model": model,
+        },
+        "context": context,
+        "raw_response": {
+            "modelVersion": response_payload.get("modelVersion"),
+            "responseId": response_payload.get("responseId"),
+            "usageMetadata": response_payload.get("usageMetadata", {}),
+        },
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Rule-based planner that emits GateForge intent-file JSON")
     parser.add_argument("--goal", default=None, help="Natural-language planner goal")
@@ -120,8 +241,8 @@ def main() -> None:
     parser.add_argument(
         "--planner-backend",
         default="rule",
-        choices=["rule", "openai"],
-        help="Planner backend: rule (implemented) or openai (placeholder)",
+        choices=["rule", "openai", "gemini"],
+        help="Planner backend: rule (implemented), openai (placeholder), gemini (implemented)",
     )
     parser.add_argument(
         "--prefer-backend",
@@ -147,6 +268,14 @@ def main() -> None:
         context = _load_context(args.context_json)
         if args.planner_backend == "rule":
             payload = _plan_with_rule_backend(
+                goal_text=goal_text,
+                context=context,
+                prefer_backend=args.prefer_backend,
+                proposal_id=args.proposal_id,
+                context_json_path=args.context_json,
+            )
+        elif args.planner_backend == "gemini":
+            payload = _plan_with_gemini_backend(
                 goal_text=goal_text,
                 context=context,
                 prefer_backend=args.prefer_backend,
