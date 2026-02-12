@@ -56,6 +56,10 @@
       "type": "string",
       "enum": ["low", "medium", "high"]
     },
+    "change_set_path": {
+      "type": "string",
+      "minLength": 1
+    },
     "metadata": {
       "type": "object"
     }

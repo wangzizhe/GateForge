@@ -97,6 +97,21 @@ class ProposalTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             execution_target_from_proposal(proposal)
 
+    def test_validate_accepts_optional_change_set_path(self) -> None:
+        proposal = {
+            "schema_version": "0.1.0",
+            "proposal_id": "p3",
+            "timestamp_utc": "2026-02-11T10:00:00Z",
+            "author_type": "human",
+            "backend": "mock",
+            "model_script": "examples/openmodelica/minimal_probe.mos",
+            "change_summary": "proposal with deterministic change set",
+            "requested_actions": ["check", "simulate"],
+            "risk_level": "low",
+            "change_set_path": "examples/changesets/minimalprobe_x_to_2.json",
+        }
+        validate_proposal(proposal)
+
 
 if __name__ == "__main__":
     unittest.main()

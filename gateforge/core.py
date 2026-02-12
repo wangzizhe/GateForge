@@ -15,6 +15,7 @@ from typing import Protocol
 DEFAULT_OM_DOCKER_IMAGE = "openmodelica/openmodelica:v1.26.1-minimal"
 OM_DOCKER_IMAGE_ENV = "GATEFORGE_OM_IMAGE"
 OM_SCRIPT_ENV = "GATEFORGE_OM_SCRIPT"
+OM_SOURCE_ROOT_ENV = "GATEFORGE_OM_SOURCE_ROOT"
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OM_SCRIPT = "examples/openmodelica/minimal_probe.mos"
 
@@ -161,8 +162,9 @@ def _run_openmodelica_docker_probe(
     script_path: str | None = None,
 ) -> dict:
     selected_image = os.getenv(OM_DOCKER_IMAGE_ENV, image)
+    source_root = Path(os.getenv(OM_SOURCE_ROOT_ENV, str(PROJECT_ROOT)))
     script_rel = script_path or os.getenv(OM_SCRIPT_ENV, DEFAULT_OM_SCRIPT)
-    script_abs = PROJECT_ROOT / script_rel
+    script_abs = source_root / script_rel
     if not script_abs.exists():
         return {
             "status": "failed",
@@ -178,7 +180,7 @@ def _run_openmodelica_docker_probe(
     # Run inside an ephemeral workspace so OMC artifacts never pollute the repo.
     with tempfile.TemporaryDirectory(prefix="gateforge-om-") as tmpdir:
         tmp_root = Path(tmpdir)
-        src_dir = PROJECT_ROOT / "examples" / "openmodelica"
+        src_dir = source_root / "examples" / "openmodelica"
         dst_dir = tmp_root / "examples" / "openmodelica"
         dst_dir.parent.mkdir(parents=True, exist_ok=True)
         shutil.copytree(src_dir, dst_dir)

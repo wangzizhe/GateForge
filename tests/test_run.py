@@ -7,21 +7,29 @@ from pathlib import Path
 
 
 class RunTests(unittest.TestCase):
-    def _write_proposal(self, path: Path, actions: list[str]) -> None:
+    def _write_proposal(
+        self,
+        path: Path,
+        actions: list[str],
+        *,
+        backend: str = "mock",
+        change_set_path: str | None = None,
+    ) -> None:
+        payload = {
+            "schema_version": "0.1.0",
+            "proposal_id": "proposal-run-1",
+            "timestamp_utc": "2026-02-11T10:00:00Z",
+            "author_type": "human",
+            "backend": backend,
+            "model_script": "examples/openmodelica/minimal_probe.mos",
+            "change_summary": "proposal-driven run",
+            "requested_actions": actions,
+            "risk_level": "low",
+        }
+        if change_set_path is not None:
+            payload["change_set_path"] = change_set_path
         path.write_text(
-            json.dumps(
-                {
-                    "schema_version": "0.1.0",
-                    "proposal_id": "proposal-run-1",
-                    "timestamp_utc": "2026-02-11T10:00:00Z",
-                    "author_type": "human",
-                    "backend": "mock",
-                    "model_script": "examples/openmodelica/minimal_probe.mos",
-                    "change_summary": "proposal-driven run",
-                    "requested_actions": actions,
-                    "risk_level": "low",
-                }
-            ),
+            json.dumps(payload),
             encoding="utf-8",
         )
 
@@ -321,6 +329,80 @@ class RunTests(unittest.TestCase):
             self.assertIn("runtime", summary["required_human_checks"][0].lower())
             report_text = report.read_text(encoding="utf-8")
             self.assertIn("## Required Human Checks", report_text)
+
+    def test_run_proposal_applies_change_set_successfully(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            proposal = root / "proposal.json"
+            baseline = root / "baseline.json"
+            out = root / "run_summary.json"
+            report = root / "run_summary.md"
+
+            self._write_proposal(
+                proposal,
+                ["check", "simulate", "regress"],
+                change_set_path="examples/changesets/minimalprobe_x_to_2.json",
+            )
+            self._write_baseline(baseline)
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.run",
+                    "--proposal",
+                    str(proposal),
+                    "--baseline",
+                    str(baseline),
+                    "--out",
+                    str(out),
+                    "--report",
+                    str(report),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            summary = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(summary["status"], "PASS")
+            self.assertEqual(summary["change_apply_status"], "applied")
+            self.assertTrue(summary["change_set_hash"])
+            self.assertTrue(summary["applied_changes"])
+            report_text = report.read_text(encoding="utf-8")
+            self.assertIn("## Applied Changes", report_text)
+
+    def test_run_proposal_fails_when_change_set_apply_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            proposal = root / "proposal.json"
+            out = root / "run_summary.json"
+
+            self._write_proposal(
+                proposal,
+                ["check", "simulate"],
+                change_set_path="examples/changesets/minimalprobe_bad_old_text.json",
+            )
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.run",
+                    "--proposal",
+                    str(proposal),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertNotEqual(proc.returncode, 0)
+            summary = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(summary["status"], "FAIL")
+            self.assertEqual(summary["change_apply_status"], "failed")
+            self.assertIn("change_apply_failed", summary["fail_reasons"])
 
 
 if __name__ == "__main__":
