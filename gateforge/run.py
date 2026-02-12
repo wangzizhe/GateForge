@@ -52,6 +52,12 @@ def _write_run_markdown(path: str, summary: dict) -> None:
     else:
         lines.append("- `none`")
     lines.append("")
+    lines.extend(["## Required Human Checks", ""])
+    if summary.get("required_human_checks"):
+        lines.extend([f"- {h}" for h in summary["required_human_checks"]])
+    else:
+        lines.append("- `none`")
+    lines.append("")
     p.write_text("\n".join(lines), encoding="utf-8")
 
 
@@ -117,6 +123,26 @@ def _human_hints_for_candidate(candidate: dict | None, backend: str) -> list[str
     if "permission denied" in log_excerpt.lower():
         hints.append("Docker socket permission issue detected. Check current user access to Docker daemon.")
     return hints
+
+
+def _required_human_checks(policy_decision: str, policy_reasons: list[str], candidate: dict | None) -> list[str]:
+    checks: list[str] = []
+    if policy_decision == "PASS":
+        return checks
+
+    if any("runtime_regression" in reason for reason in policy_reasons):
+        checks.append("Review runtime trend and confirm the regression is acceptable for this change.")
+        checks.append("Compare baseline/candidate evidence and attach justification before merge.")
+    if any("proposal_model_script_mismatch" in reason or "proposal_backend_mismatch" in reason for reason in policy_reasons):
+        checks.append("Verify proposal target, baseline mapping, and candidate model_script/backend alignment.")
+    if "candidate_gate_not_pass" in policy_reasons:
+        checks.append("Inspect candidate failure_type and log_excerpt, then classify root cause.")
+    if candidate and candidate.get("failure_type") == "docker_error":
+        checks.append("Fix Docker backend availability before rerunning this proposal.")
+
+    if not checks:
+        checks.append("Human review required: inspect policy_reasons and evidence artifacts before merge.")
+    return checks
 
 
 def main() -> None:
@@ -193,6 +219,7 @@ def main() -> None:
         "regression_path": None,
         "fail_reasons": [],
         "human_hints": [],
+        "required_human_checks": [],
     }
 
     candidate = None
@@ -261,6 +288,11 @@ def main() -> None:
     summary["policy_reasons"] = policy_result["policy_reasons"]
     summary["status"] = policy_result["policy_decision"]
     summary["human_hints"] = _human_hints_for_candidate(candidate, backend=backend)
+    summary["required_human_checks"] = _required_human_checks(
+        policy_decision=summary["policy_decision"],
+        policy_reasons=summary["policy_reasons"],
+        candidate=candidate,
+    )
 
     write_json(args.out, summary)
     _write_run_markdown(args.report or _default_md_path(args.out), summary)

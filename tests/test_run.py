@@ -43,7 +43,17 @@ class RunTests(unittest.TestCase):
             encoding="utf-8",
         )
 
-    def _write_candidate(self, path: Path, *, failure_type: str, gate: str = "FAIL", runtime: float = 0.1) -> None:
+    def _write_candidate(
+        self,
+        path: Path,
+        *,
+        failure_type: str,
+        gate: str = "FAIL",
+        runtime: float = 0.1,
+        status: str = "failed",
+        check_ok: bool = False,
+        simulate_ok: bool = False,
+    ) -> None:
         path.write_text(
             json.dumps(
                 {
@@ -51,11 +61,11 @@ class RunTests(unittest.TestCase):
                     "run_id": "cand-1",
                     "backend": "mock",
                     "model_script": "examples/openmodelica/minimal_probe.mos",
-                    "status": "failed",
+                    "status": status,
                     "failure_type": failure_type,
                     "gate": gate,
-                    "check_ok": False,
-                    "simulate_ok": False,
+                    "check_ok": check_ok,
+                    "simulate_ok": simulate_ok,
                     "metrics": {"runtime_seconds": runtime},
                     "artifacts": {"log_excerpt": "permission denied while trying to connect to the Docker daemon socket"},
                 }
@@ -259,6 +269,58 @@ class RunTests(unittest.TestCase):
             report_text = report.read_text(encoding="utf-8")
             self.assertIn("## Human Hints", report_text)
             self.assertIn("Docker backend execution failed", report_text)
+
+    def test_run_proposal_needs_review_includes_required_checks(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            proposal = root / "proposal.json"
+            baseline = root / "baseline.json"
+            candidate = root / "candidate.json"
+            out = root / "run_summary.json"
+            report = root / "run_summary.md"
+
+            self._write_proposal(proposal, ["regress"])
+            self._write_baseline(baseline, backend="mock")
+            baseline_payload = json.loads(baseline.read_text(encoding="utf-8"))
+            baseline_payload["metrics"]["runtime_seconds"] = 0.5
+            baseline.write_text(json.dumps(baseline_payload), encoding="utf-8")
+            self._write_candidate(
+                candidate,
+                failure_type="none",
+                gate="PASS",
+                runtime=1.0,
+                status="success",
+                check_ok=True,
+                simulate_ok=True,
+            )
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.run",
+                    "--proposal",
+                    str(proposal),
+                    "--candidate-in",
+                    str(candidate),
+                    "--baseline",
+                    str(baseline),
+                    "--out",
+                    str(out),
+                    "--report",
+                    str(report),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            summary = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(summary["status"], "NEEDS_REVIEW")
+            self.assertTrue(summary["required_human_checks"])
+            self.assertIn("runtime", summary["required_human_checks"][0].lower())
+            report_text = report.read_text(encoding="utf-8")
+            self.assertIn("## Required Human Checks", report_text)
 
 
 if __name__ == "__main__":
