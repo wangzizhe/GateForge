@@ -185,6 +185,20 @@ python -m gateforge.agent_run \
   --out artifacts/agent/agent_run_from_intent_file.json
 ```
 
+Minimal planner mode (rule-based, LLM-ready interface):
+
+```bash
+python -m gateforge.llm_planner \
+  --goal "run a low risk demo pass on mock backend" \
+  --proposal-id planner-demo-001 \
+  --out artifacts/agent/intent_from_planner.json
+
+python -m gateforge.agent_run \
+  --intent-file artifacts/agent/intent_from_planner.json \
+  --baseline baselines/mock_minimal_probe_baseline.json \
+  --out artifacts/agent/agent_run_from_planner.json
+```
+
 Agent medium intent (OpenModelica medium case):
 
 ```bash
