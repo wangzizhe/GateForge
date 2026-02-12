@@ -118,6 +118,7 @@ Expected output shape:
 ```
 
 When gate fails, `status` becomes `FAIL` and `fail_reasons` is non-empty.
+When policy returns `NEEDS_REVIEW`, the run summary includes `required_human_checks`.
 
 ### 2. Proposal schema v0 + validator
 
