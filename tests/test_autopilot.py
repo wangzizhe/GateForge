@@ -50,6 +50,7 @@ class AutopilotTests(unittest.TestCase):
             intent_out = root / "intent.json"
             agent_run_out = root / "agent_run.json"
             out = root / "summary.json"
+            report = root / "summary.md"
             self._write_baseline(baseline)
 
             proc = subprocess.run(
@@ -69,6 +70,8 @@ class AutopilotTests(unittest.TestCase):
                     str(agent_run_out),
                     "--out",
                     str(out),
+                    "--report",
+                    str(report),
                 ],
                 capture_output=True,
                 text=True,
@@ -79,8 +82,19 @@ class AutopilotTests(unittest.TestCase):
             self.assertEqual(payload["status"], "PASS")
             self.assertEqual(payload["proposal_id"], "autopilot-test-1")
             self.assertEqual(payload["intent"], "demo_mock_pass")
+            self.assertEqual(payload["save_run_under"], "autopilot")
             self.assertEqual(payload["planner_exit_code"], 0)
             self.assertEqual(payload["agent_run_exit_code"], 0)
+            self.assertEqual(payload["policy_decision"], "PASS")
+            self.assertEqual(payload["policy_reasons"], [])
+            self.assertEqual(payload["required_human_checks"], [])
+            self.assertIn("run_report_path", payload)
+            self.assertEqual(payload["run_path"], "artifacts/autopilot/run_summary.json")
+            self.assertEqual(payload["run_report_path"], "artifacts/autopilot/run_summary.md")
+            self.assertTrue(report.exists())
+            report_text = report.read_text(encoding="utf-8")
+            self.assertIn("# GateForge Autopilot Summary", report_text)
+            self.assertIn("## Required Human Checks", report_text)
 
     def test_autopilot_context_json_propagates_to_intent(self) -> None:
         with tempfile.TemporaryDirectory() as d:
@@ -162,6 +176,86 @@ class AutopilotTests(unittest.TestCase):
             self.assertEqual(payload["status"], "FAIL")
             self.assertEqual(payload["policy_decision"], "FAIL")
             self.assertTrue(payload["fail_reasons"])
+            self.assertTrue(payload["policy_reasons"])
+            self.assertTrue(payload["required_human_checks"])
+            self.assertIn("run_report_path", payload)
+
+    def test_autopilot_save_run_under_agent(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            baseline = root / "baseline.json"
+            out = root / "summary.json"
+            self._write_baseline(baseline)
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.autopilot",
+                    "--goal",
+                    "run demo mock pass",
+                    "--proposal-id",
+                    "autopilot-test-agent-root-1",
+                    "--baseline",
+                    str(baseline),
+                    "--save-run-under",
+                    "agent",
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            payload = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(payload["save_run_under"], "agent")
+            self.assertEqual(payload["run_path"], "artifacts/agent/run_summary.json")
+            self.assertEqual(payload["run_report_path"], "artifacts/agent/run_summary.md")
+
+    def test_autopilot_dry_run_plans_without_execution(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            out = root / "summary.json"
+            report = root / "summary.md"
+            intent_out = root / "intent.json"
+            agent_run_out = root / "agent_run.json"
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.autopilot",
+                    "--goal",
+                    "run demo mock pass",
+                    "--proposal-id",
+                    "autopilot-dry-run-1",
+                    "--dry-run",
+                    "--intent-out",
+                    str(intent_out),
+                    "--agent-run-out",
+                    str(agent_run_out),
+                    "--out",
+                    str(out),
+                    "--report",
+                    str(report),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            payload = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(payload["status"], "PLANNED")
+            self.assertTrue(payload["dry_run"])
+            self.assertEqual(payload["agent_run_exit_code"], None)
+            self.assertEqual(payload["proposal_id"], "autopilot-dry-run-1")
+            self.assertIn("planned_run", payload)
+            self.assertEqual(payload["planned_run"]["run_out"], "artifacts/autopilot/run_summary.json")
+            self.assertFalse(agent_run_out.exists())
+            report_text = report.read_text(encoding="utf-8")
+            self.assertIn("PLANNED", report_text)
 
 
 if __name__ == "__main__":

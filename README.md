@@ -207,9 +207,25 @@ python -m gateforge.autopilot \
   --goal "run demo mock pass" \
   --proposal-id autopilot-demo-001 \
   --baseline baselines/mock_minimal_probe_baseline.json \
+  --save-run-under autopilot \
   --out artifacts/autopilot/autopilot_summary.json
 cat artifacts/autopilot/autopilot_summary.json
+cat artifacts/autopilot/autopilot_summary.md
 ```
+
+Plan-only mode (no execution):
+
+```bash
+python -m gateforge.autopilot \
+  --goal "run demo mock pass" \
+  --proposal-id autopilot-plan-001 \
+  --dry-run \
+  --out artifacts/autopilot/autopilot_plan.json
+cat artifacts/autopilot/autopilot_plan.json
+```
+
+`autopilot_summary.json` includes governance-facing fields such as:
+`policy_decision`, `policy_reasons`, `required_human_checks`, `fail_reasons`, and `run_report_path`.
 
 Planner variants:
 
