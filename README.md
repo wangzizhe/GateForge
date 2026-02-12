@@ -165,6 +165,26 @@ python -m gateforge.agent_run \
 cat artifacts/agent/agent_run.json
 ```
 
+Intent file mode (LLM/external planner friendly):
+
+```bash
+cat > /tmp/intent.json <<'EOF'
+{
+  "intent": "demo_mock_pass",
+  "proposal_id": "agent-intent-file-001",
+  "overrides": {
+    "risk_level": "medium",
+    "change_summary": "Planner-generated proposal"
+  }
+}
+EOF
+
+python -m gateforge.agent_run \
+  --intent-file /tmp/intent.json \
+  --baseline baselines/mock_minimal_probe_baseline.json \
+  --out artifacts/agent/agent_run_from_intent_file.json
+```
+
 Agent medium intent (OpenModelica medium case):
 
 ```bash

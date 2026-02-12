@@ -147,6 +147,60 @@ class AgentRunTests(unittest.TestCase):
             self.assertIn("regression_fail", payload["fail_reasons"])
             self.assertEqual(payload["policy_decision"], "FAIL")
 
+    def test_agent_run_from_intent_file(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            baseline = root / "baseline.json"
+            intent_file = root / "intent.json"
+            proposal_out = root / "proposal.json"
+            run_out = root / "run.json"
+            agent_run_out = root / "agent_run.json"
+
+            self._write_baseline(baseline)
+            intent_file.write_text(
+                json.dumps(
+                    {
+                        "intent": "demo_mock_pass",
+                        "proposal_id": "agent-run-intent-file-1",
+                        "overrides": {
+                            "risk_level": "medium",
+                            "change_summary": "LLM intent file override",
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.agent_run",
+                    "--intent-file",
+                    str(intent_file),
+                    "--proposal-out",
+                    str(proposal_out),
+                    "--run-out",
+                    str(run_out),
+                    "--baseline",
+                    str(baseline),
+                    "--out",
+                    str(agent_run_out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            proposal = json.loads(proposal_out.read_text(encoding="utf-8"))
+            self.assertEqual(proposal["proposal_id"], "agent-run-intent-file-1")
+            self.assertEqual(proposal["risk_level"], "medium")
+            self.assertEqual(proposal["change_summary"], "LLM intent file override")
+            payload = json.loads(agent_run_out.read_text(encoding="utf-8"))
+            self.assertEqual(payload["intent"], "demo_mock_pass")
+            self.assertEqual(payload["status"], "PASS")
+
 
 if __name__ == "__main__":
     unittest.main()
