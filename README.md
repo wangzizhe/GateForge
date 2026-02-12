@@ -206,6 +206,7 @@ One-command autopilot (goal -> planner -> agent_run):
 ```bash
 python -m gateforge.autopilot \
   --goal "run demo mock pass" \
+  --planner-backend rule \
   --proposal-id autopilot-demo-001 \
   --baseline baselines/mock_minimal_probe_baseline.json \
   --save-run-under autopilot \
@@ -248,6 +249,7 @@ python -m gateforge.llm_planner \
 Planner backend option:
 - `--planner-backend rule`: implemented (default)
 - `--planner-backend openai`: placeholder only (validates `OPENAI_API_KEY`, then exits with not-implemented message)
+- `--planner-backend gemini`: implemented (requires `GOOGLE_API_KEY`; default model `gemini-2.5-flash-lite`)
 
 Agent medium intent (OpenModelica medium case):
 

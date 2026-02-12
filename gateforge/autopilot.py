@@ -79,6 +79,12 @@ def main() -> None:
         choices=["auto", "mock", "openmodelica_docker"],
         help="Optional backend preference for planner",
     )
+    parser.add_argument(
+        "--planner-backend",
+        default="rule",
+        choices=["rule", "openai", "gemini"],
+        help="Planner backend passed to llm_planner",
+    )
     parser.add_argument("--proposal-id", default=None, help="Optional explicit proposal_id")
     parser.add_argument(
         "--intent-out",
@@ -147,6 +153,8 @@ def main() -> None:
         "gateforge.llm_planner",
         "--out",
         args.intent_out,
+        "--planner-backend",
+        args.planner_backend,
         "--prefer-backend",
         args.prefer_backend,
     ]
@@ -208,6 +216,7 @@ def main() -> None:
         "dry_run": args.dry_run,
         "planner_exit_code": planner_proc.returncode,
         "agent_run_exit_code": agent_run_exit_code,
+        "planner_backend": args.planner_backend,
         "intent": intent_payload.get("intent"),
         "proposal_id": agent_payload.get("proposal_id") or intent_payload.get("proposal_id"),
         "status": status,
