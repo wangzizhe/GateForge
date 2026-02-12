@@ -151,6 +151,9 @@ def _required_human_checks(policy_decision: str, policy_reasons: list[str], cand
         checks.append("Verify proposal target, baseline mapping, and candidate model_script/backend alignment.")
     if "candidate_gate_not_pass" in policy_reasons:
         checks.append("Inspect candidate failure_type and log_excerpt, then classify root cause.")
+    if "change_apply_failed" in policy_reasons:
+        checks.append("Inspect change_set_path and confirm each replace_text old/new fragment matches target files.")
+        checks.append("Regenerate or fix the change_set, then rerun proposal before merge.")
     if candidate and candidate.get("failure_type") == "docker_error":
         checks.append("Fix Docker backend availability before rerunning this proposal.")
 

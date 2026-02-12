@@ -1,0 +1,12 @@
+{
+  "schema_version": "0.1.0",
+  "proposal_id": "proposal-changeset-mock-fail-0001",
+  "timestamp_utc": "2026-02-12T12:05:00Z",
+  "author_type": "human",
+  "backend": "mock",
+  "model_script": "examples/openmodelica/minimal_probe.mos",
+  "change_summary": "Apply deterministic patch expected to fail",
+  "requested_actions": ["check", "simulate", "regress"],
+  "risk_level": "low",
+  "change_set_path": "examples/changesets/minimalprobe_bad_old_text.json"
+}
