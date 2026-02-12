@@ -153,6 +153,14 @@ class BenchmarkTests(unittest.TestCase):
             self.assertEqual(payload["proposal_id"], "proposal-benchmark-1")
             self.assertEqual(payload["cases"][0]["proposal_id"], "proposal-benchmark-1")
 
+    def test_benchmark_pack_contains_medium_cases(self) -> None:
+        pack = Path("benchmarks/pack_v0.json")
+        payload = json.loads(pack.read_text(encoding="utf-8"))
+        names = {c.get("name") for c in payload.get("cases", [])}
+        self.assertIn("pass_medium_probe_1", names)
+        self.assertIn("fail_medium_probe_expected_mismatch_1", names)
+
+
 
 if __name__ == "__main__":
     unittest.main()

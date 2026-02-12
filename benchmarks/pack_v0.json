@@ -6,7 +6,8 @@
     "examples/openmodelica/minimal_probe.mos",
     "examples/openmodelica/failures/script_parse_error.mos",
     "examples/openmodelica/failures/model_check_error.mos",
-    "examples/openmodelica/failures/simulate_error.mos"
+    "examples/openmodelica/failures/simulate_error.mos",
+    "examples/openmodelica/medium_probe.mos"
   ],
   "cases": [
     {
@@ -95,6 +96,26 @@
         "failure_type": "simulate_error",
         "check_ok": true,
         "simulate_ok": false
+      }
+    },
+    {
+      "name": "pass_medium_probe_1",
+      "backend": "openmodelica_docker",
+      "script": "examples/openmodelica/medium_probe.mos",
+      "expected": {
+        "gate": "PASS",
+        "failure_type": "none",
+        "check_ok": true,
+        "simulate_ok": true
+      }
+    },
+    {
+      "name": "fail_medium_probe_expected_mismatch_1",
+      "backend": "openmodelica_docker",
+      "script": "examples/openmodelica/medium_probe.mos",
+      "expected": {
+        "gate": "FAIL",
+        "failure_type": "simulate_error"
       }
     }
   ]

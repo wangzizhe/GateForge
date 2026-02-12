@@ -1,0 +1,3 @@
+loadFile("examples/openmodelica/MediumOscillator.mo");
+checkModel(MediumOscillator);
+simulate(MediumOscillator, stopTime=5.0, numberOfIntervals=200);
