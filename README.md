@@ -191,6 +191,7 @@ Minimal planner mode (rule-based, LLM-ready interface):
 ```bash
 python -m gateforge.llm_planner \
   --goal "run a low risk demo pass on mock backend" \
+  --planner-backend rule \
   --proposal-id planner-demo-001 \
   --out artifacts/agent/intent_from_planner.json
 
@@ -233,14 +234,20 @@ Planner variants:
 # read goal from file
 python -m gateforge.llm_planner \
   --goal-file /tmp/goal.txt \
+  --planner-backend rule \
   --out artifacts/agent/intent_from_goal_file.json
 
 # inject external context (for future LLM planners)
 python -m gateforge.llm_planner \
   --goal "run pass flow" \
+  --planner-backend rule \
   --context-json /tmp/planner_context.json \
   --out artifacts/agent/intent_from_context.json
 ```
+
+Planner backend option:
+- `--planner-backend rule`: implemented (default)
+- `--planner-backend openai`: placeholder only (validates `OPENAI_API_KEY`, then exits with not-implemented message)
 
 Agent medium intent (OpenModelica medium case):
 

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import sys
 from pathlib import Path
 
 
@@ -59,10 +61,68 @@ def _load_context(context_json: str | None) -> dict:
     return payload
 
 
+def _plan_with_rule_backend(
+    *,
+    goal_text: str,
+    context: dict,
+    prefer_backend: str,
+    proposal_id: str | None,
+    context_json_path: str | None,
+) -> dict:
+    context_prefer_backend = context.get("prefer_backend")
+    if context_prefer_backend in {"auto", "mock", "openmodelica_docker"}:
+        effective_prefer_backend = context_prefer_backend
+    else:
+        effective_prefer_backend = prefer_backend
+
+    intent = _infer_intent(goal=goal_text, prefer_backend=effective_prefer_backend)
+    overrides = _infer_overrides(goal_text)
+    if isinstance(context.get("risk_level"), str):
+        overrides["risk_level"] = context["risk_level"]
+    if isinstance(context.get("change_summary"), str) and context["change_summary"].strip():
+        overrides["change_summary"] = context["change_summary"]
+
+    return {
+        "intent": intent,
+        "proposal_id": proposal_id,
+        "overrides": overrides,
+        "planner": "rule_v0",
+        "planner_inputs": {
+            "goal": goal_text,
+            "prefer_backend": effective_prefer_backend,
+            "context_path": context_json_path,
+            "planner_backend": "rule",
+        },
+        "context": context,
+    }
+
+
+def _plan_with_openai_backend_placeholder(
+    *,
+    goal_text: str,
+    context: dict,
+    prefer_backend: str,
+    proposal_id: str | None,
+    context_json_path: str | None,
+) -> dict:
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        raise ValueError("planner-backend=openai requires OPENAI_API_KEY to be set")
+    raise ValueError(
+        "planner-backend=openai is not implemented yet; keep using --planner-backend rule for now"
+    )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Rule-based planner that emits GateForge intent-file JSON")
     parser.add_argument("--goal", default=None, help="Natural-language planner goal")
     parser.add_argument("--goal-file", default=None, help="Path to file containing goal text")
+    parser.add_argument(
+        "--planner-backend",
+        default="rule",
+        choices=["rule", "openai"],
+        help="Planner backend: rule (implemented) or openai (placeholder)",
+    )
     parser.add_argument(
         "--prefer-backend",
         default="auto",
@@ -82,36 +142,31 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    goal_text = _read_goal(goal=args.goal, goal_file=args.goal_file)
-    context = _load_context(args.context_json)
+    try:
+        goal_text = _read_goal(goal=args.goal, goal_file=args.goal_file)
+        context = _load_context(args.context_json)
+        if args.planner_backend == "rule":
+            payload = _plan_with_rule_backend(
+                goal_text=goal_text,
+                context=context,
+                prefer_backend=args.prefer_backend,
+                proposal_id=args.proposal_id,
+                context_json_path=args.context_json,
+            )
+        else:
+            payload = _plan_with_openai_backend_placeholder(
+                goal_text=goal_text,
+                context=context,
+                prefer_backend=args.prefer_backend,
+                proposal_id=args.proposal_id,
+                context_json_path=args.context_json,
+            )
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        raise SystemExit(1) from exc
 
-    context_prefer_backend = context.get("prefer_backend")
-    if context_prefer_backend in {"auto", "mock", "openmodelica_docker"}:
-        effective_prefer_backend = context_prefer_backend
-    else:
-        effective_prefer_backend = args.prefer_backend
-
-    intent = _infer_intent(goal=goal_text, prefer_backend=effective_prefer_backend)
-    overrides = _infer_overrides(goal_text)
-    if isinstance(context.get("risk_level"), str):
-        overrides["risk_level"] = context["risk_level"]
-    if isinstance(context.get("change_summary"), str) and context["change_summary"].strip():
-        overrides["change_summary"] = context["change_summary"]
-
-    payload = {
-        "intent": intent,
-        "proposal_id": args.proposal_id,
-        "overrides": overrides,
-        "planner": "rule_v0",
-        "planner_inputs": {
-            "goal": goal_text,
-            "prefer_backend": effective_prefer_backend,
-            "context_path": args.context_json,
-        },
-        "context": context,
-    }
     _write_json(args.out, payload)
-    print(json.dumps({"intent": intent, "out": args.out}))
+    print(json.dumps({"intent": payload["intent"], "out": args.out, "planner_backend": args.planner_backend}))
 
 
 if __name__ == "__main__":
