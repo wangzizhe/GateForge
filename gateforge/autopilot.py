@@ -30,6 +30,7 @@ def _write_markdown(path: str, summary: dict) -> None:
         f"- intent: `{summary.get('intent')}`",
         f"- proposal_id: `{summary.get('proposal_id')}`",
         f"- policy_decision: `{summary.get('policy_decision')}`",
+        f"- generated_change_set_path: `{summary.get('generated_change_set_path')}`",
         f"- planner_exit_code: `{summary.get('planner_exit_code')}`",
         f"- agent_run_exit_code: `{summary.get('agent_run_exit_code')}`",
         "",
@@ -84,6 +85,11 @@ def main() -> None:
         default="rule",
         choices=["rule", "openai", "gemini"],
         help="Planner backend passed to llm_planner",
+    )
+    parser.add_argument(
+        "--materialize-change-set",
+        action="store_true",
+        help="If planner returns change_set_draft, write it and inject change_set_path into intent overrides",
     )
     parser.add_argument("--proposal-id", default=None, help="Optional explicit proposal_id")
     parser.add_argument(
@@ -158,6 +164,8 @@ def main() -> None:
         "--prefer-backend",
         args.prefer_backend,
     ]
+    if args.materialize_change_set:
+        planner_cmd.append("--emit-change-set-draft")
     if args.goal:
         planner_cmd.extend(["--goal", args.goal])
     if args.goal_file:
@@ -168,6 +176,21 @@ def main() -> None:
         planner_cmd.extend(["--proposal-id", args.proposal_id])
 
     planner_proc = subprocess.run(planner_cmd, capture_output=True, text=True, check=False)
+
+    intent_payload = {}
+    if Path(args.intent_out).exists():
+        intent_payload = json.loads(Path(args.intent_out).read_text(encoding="utf-8"))
+
+    generated_change_set_path = None
+    if args.materialize_change_set and isinstance(intent_payload.get("change_set_draft"), dict):
+        generated_change_set_path = str(run_root / "change_set.generated.json")
+        _write_json(generated_change_set_path, intent_payload["change_set_draft"])
+        overrides = intent_payload.get("overrides", {})
+        if not isinstance(overrides, dict):
+            overrides = {}
+        overrides["change_set_path"] = generated_change_set_path
+        intent_payload["overrides"] = overrides
+        _write_json(args.intent_out, intent_payload)
 
     agent_cmd = [
         sys.executable,
@@ -200,8 +223,7 @@ def main() -> None:
     if not args.dry_run:
         agent_proc = subprocess.run(agent_cmd, capture_output=True, text=True, check=False)
 
-    intent_payload = {}
-    if Path(args.intent_out).exists():
+    if not intent_payload and Path(args.intent_out).exists():
         intent_payload = json.loads(Path(args.intent_out).read_text(encoding="utf-8"))
     agent_payload = {}
     if not args.dry_run and Path(args.agent_run_out).exists():
@@ -217,6 +239,8 @@ def main() -> None:
         "planner_exit_code": planner_proc.returncode,
         "agent_run_exit_code": agent_run_exit_code,
         "planner_backend": args.planner_backend,
+        "materialize_change_set": args.materialize_change_set,
+        "generated_change_set_path": generated_change_set_path,
         "intent": intent_payload.get("intent"),
         "proposal_id": agent_payload.get("proposal_id") or intent_payload.get("proposal_id"),
         "status": status,

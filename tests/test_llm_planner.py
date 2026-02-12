@@ -230,6 +230,31 @@ class PlannerTests(unittest.TestCase):
             self.assertIn("requires GOOGLE_API_KEY", proc.stderr + proc.stdout)
             self.assertFalse(out.exists())
 
+    def test_planner_rule_emits_change_set_draft(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            out = Path(d) / "intent.json"
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.llm_planner",
+                    "--goal",
+                    "apply a deterministic patch",
+                    "--planner-backend",
+                    "rule",
+                    "--emit-change-set-draft",
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            payload = json.loads(out.read_text(encoding="utf-8"))
+            self.assertIn("change_set_draft", payload)
+            self.assertEqual(payload["change_set_draft"]["schema_version"], "0.1.0")
+
 
 if __name__ == "__main__":
     unittest.main()
