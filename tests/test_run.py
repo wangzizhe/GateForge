@@ -43,6 +43,26 @@ class RunTests(unittest.TestCase):
             encoding="utf-8",
         )
 
+    def _write_candidate(self, path: Path, *, failure_type: str, gate: str = "FAIL", runtime: float = 0.1) -> None:
+        path.write_text(
+            json.dumps(
+                {
+                    "schema_version": "0.1.0",
+                    "run_id": "cand-1",
+                    "backend": "mock",
+                    "model_script": "examples/openmodelica/minimal_probe.mos",
+                    "status": "failed",
+                    "failure_type": failure_type,
+                    "gate": gate,
+                    "check_ok": False,
+                    "simulate_ok": False,
+                    "metrics": {"runtime_seconds": runtime},
+                    "artifacts": {"log_excerpt": "permission denied while trying to connect to the Docker daemon socket"},
+                }
+            ),
+            encoding="utf-8",
+        )
+
     def test_run_proposal_check_simulate_regress_pass(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
@@ -198,6 +218,47 @@ class RunTests(unittest.TestCase):
             )
             self.assertNotEqual(proc.returncode, 0)
             self.assertIn("No baseline mapping found", proc.stderr + proc.stdout)
+
+    def test_run_proposal_includes_docker_error_hints(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            proposal = root / "proposal.json"
+            baseline = root / "baseline.json"
+            candidate = root / "candidate.json"
+            out = root / "run_summary.json"
+            report = root / "run_summary.md"
+
+            self._write_proposal(proposal, ["regress"])
+            self._write_baseline(baseline, backend="mock")
+            self._write_candidate(candidate, failure_type="docker_error")
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.run",
+                    "--proposal",
+                    str(proposal),
+                    "--candidate-in",
+                    str(candidate),
+                    "--baseline",
+                    str(baseline),
+                    "--out",
+                    str(out),
+                    "--report",
+                    str(report),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertNotEqual(proc.returncode, 0)
+            summary = json.loads(out.read_text(encoding="utf-8"))
+            self.assertTrue(summary["human_hints"])
+            self.assertIn("Docker backend execution failed", summary["human_hints"][0])
+            report_text = report.read_text(encoding="utf-8")
+            self.assertIn("## Human Hints", report_text)
+            self.assertIn("Docker backend execution failed", report_text)
 
 
 if __name__ == "__main__":
