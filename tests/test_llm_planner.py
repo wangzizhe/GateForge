@@ -114,6 +114,69 @@ class PlannerTests(unittest.TestCase):
             self.assertEqual(payload["proposal_id"], "planner-integration-1")
             self.assertEqual(payload["status"], "PASS")
 
+    def test_planner_goal_file(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            out = root / "intent.json"
+            goal_file = root / "goal.txt"
+            goal_file.write_text("Please run medium oscillator flow", encoding="utf-8")
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.llm_planner",
+                    "--goal-file",
+                    str(goal_file),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            payload = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(payload["intent"], "medium_openmodelica_pass")
+            self.assertEqual(payload["planner_inputs"]["goal"], "Please run medium oscillator flow")
+
+    def test_planner_context_json_overrides(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            out = root / "intent.json"
+            context = root / "context.json"
+            context.write_text(
+                json.dumps(
+                    {
+                        "prefer_backend": "openmodelica_docker",
+                        "risk_level": "medium",
+                        "change_summary": "Context-specified summary",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.llm_planner",
+                    "--goal",
+                    "run a simple pass flow",
+                    "--context-json",
+                    str(context),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            payload = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(payload["intent"], "demo_openmodelica_pass")
+            self.assertEqual(payload["overrides"]["risk_level"], "medium")
+            self.assertEqual(payload["overrides"]["change_summary"], "Context-specified summary")
+            self.assertEqual(payload["planner_inputs"]["prefer_backend"], "openmodelica_docker")
+
 
 if __name__ == "__main__":
     unittest.main()

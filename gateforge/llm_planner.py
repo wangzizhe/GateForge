@@ -39,14 +39,40 @@ def _infer_overrides(goal: str) -> dict:
     return overrides
 
 
+def _read_goal(goal: str | None, goal_file: str | None) -> str:
+    if bool(goal) == bool(goal_file):
+        raise ValueError("Exactly one of --goal or --goal-file must be provided")
+    if goal is not None:
+        return goal
+    text = Path(goal_file).read_text(encoding="utf-8").strip()
+    if not text:
+        raise ValueError("goal file must contain non-empty text")
+    return text
+
+
+def _load_context(context_json: str | None) -> dict:
+    if not context_json:
+        return {}
+    payload = json.loads(Path(context_json).read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError("context-json must be a JSON object")
+    return payload
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Rule-based planner that emits GateForge intent-file JSON")
-    parser.add_argument("--goal", required=True, help="Natural-language planner goal")
+    parser.add_argument("--goal", default=None, help="Natural-language planner goal")
+    parser.add_argument("--goal-file", default=None, help="Path to file containing goal text")
     parser.add_argument(
         "--prefer-backend",
         default="auto",
         choices=["auto", "mock", "openmodelica_docker"],
         help="Optional backend preference for intent selection",
+    )
+    parser.add_argument(
+        "--context-json",
+        default=None,
+        help="Optional context JSON path (can provide prefer_backend/risk_level/change_summary)",
     )
     parser.add_argument("--proposal-id", default=None, help="Optional explicit proposal_id")
     parser.add_argument(
@@ -56,12 +82,33 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    intent = _infer_intent(goal=args.goal, prefer_backend=args.prefer_backend)
+    goal_text = _read_goal(goal=args.goal, goal_file=args.goal_file)
+    context = _load_context(args.context_json)
+
+    context_prefer_backend = context.get("prefer_backend")
+    if context_prefer_backend in {"auto", "mock", "openmodelica_docker"}:
+        effective_prefer_backend = context_prefer_backend
+    else:
+        effective_prefer_backend = args.prefer_backend
+
+    intent = _infer_intent(goal=goal_text, prefer_backend=effective_prefer_backend)
+    overrides = _infer_overrides(goal_text)
+    if isinstance(context.get("risk_level"), str):
+        overrides["risk_level"] = context["risk_level"]
+    if isinstance(context.get("change_summary"), str) and context["change_summary"].strip():
+        overrides["change_summary"] = context["change_summary"]
+
     payload = {
         "intent": intent,
         "proposal_id": args.proposal_id,
-        "overrides": _infer_overrides(args.goal),
+        "overrides": overrides,
         "planner": "rule_v0",
+        "planner_inputs": {
+            "goal": goal_text,
+            "prefer_backend": effective_prefer_backend,
+            "context_path": args.context_json,
+        },
+        "context": context,
     }
     _write_json(args.out, payload)
     print(json.dumps({"intent": intent, "out": args.out}))
