@@ -147,6 +147,34 @@ python -m gateforge.smoke --proposal examples/proposals/proposal_v0.json --out a
 cat artifacts/evidence_from_proposal.json
 ```
 
+Generate an agent-authored proposal (Agent v0, rule-based):
+
+```bash
+python -m gateforge.agent --intent demo_mock_pass --out artifacts/agent_proposal.json
+python -m gateforge.run --proposal artifacts/agent_proposal.json --baseline auto --out artifacts/agent_run.json
+cat artifacts/agent_run.json
+```
+
+One-command agent execution (proposal -> run -> audit summary):
+
+```bash
+python -m gateforge.agent_run \
+  --intent demo_mock_pass \
+  --baseline baselines/mock_minimal_probe_baseline.json \
+  --out artifacts/agent/agent_run.json
+cat artifacts/agent/agent_run.json
+```
+
+Agent medium intent (OpenModelica medium case):
+
+```bash
+python -m gateforge.agent --intent medium_openmodelica_pass --out artifacts/agent_medium_proposal.json
+python -m gateforge.run --proposal artifacts/agent_medium_proposal.json --baseline auto --out artifacts/agent_medium_run.json
+cat artifacts/agent_medium_run.json
+```
+
+Note: `medium_openmodelica_pass` requires Docker/OpenModelica backend access.
+
 ### 3. What this minimal CI does
 
 - Runs tests on each push/PR.
@@ -157,6 +185,20 @@ cat artifacts/evidence_from_proposal.json
 - Provides an optional benchmark job (`workflow_dispatch` with `run_benchmark=true`) that does not block the main job.
 
 This is intentionally small. It proves your governance layer can always produce machine-readable evidence before adding real simulation complexity.
+
+### 3.1 Medium OpenModelica case (recommended next validation step)
+
+```bash
+python -m gateforge.run \
+  --proposal examples/proposals/proposal_medium_openmodelica.json \
+  --baseline auto \
+  --out artifacts/proposal_run_medium.json
+cat artifacts/proposal_run_medium.json
+```
+
+This uses:
+- `examples/openmodelica/MediumOscillator.mo`
+- `examples/openmodelica/medium_probe.mos`
 
 ### 4. OpenModelica via Docker (recommended on macOS)
 
@@ -367,11 +409,11 @@ python -m gateforge.benchmark \
 
 When `--proposal` is used, `proposal_id` is propagated to benchmark case outputs/summary.
 
-Pack `benchmarks/pack_v0.json` currently defines 8 fixed cases with expected:
-- 2 PASS cases
-- 2 `script_parse_error` cases
-- 2 `model_check_error` cases
-- 2 `simulate_error` cases
+Pack `benchmarks/pack_v0.json` currently defines mixed fixed cases with expected:
+- minimal PASS cases
+- failure taxonomy cases (`script_parse_error`, `model_check_error`, `simulate_error`)
+- medium model PASS case (`medium_probe`)
+- medium model expected-mismatch case (intentionally failing benchmark check)
 
 Benchmark behavior:
 - case matches expected -> PASS
