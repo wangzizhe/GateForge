@@ -180,6 +180,10 @@ def main() -> None:
         orchestration["fail_reasons"] = run_summary.get("fail_reasons", [])
         orchestration["policy_reasons"] = run_summary.get("policy_reasons", [])
         orchestration["human_hints"] = run_summary.get("human_hints", [])
+        orchestration["required_human_checks"] = run_summary.get("required_human_checks", [])
+        orchestration["change_apply_status"] = run_summary.get("change_apply_status")
+        orchestration["change_set_hash"] = run_summary.get("change_set_hash")
+        orchestration["applied_changes_count"] = len(run_summary.get("applied_changes") or [])
     if run_proc.returncode != 0:
         orchestration["run_stderr_tail"] = (run_proc.stderr or run_proc.stdout)[-500:]
 
