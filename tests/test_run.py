@@ -403,6 +403,9 @@ class RunTests(unittest.TestCase):
             self.assertEqual(summary["status"], "FAIL")
             self.assertEqual(summary["change_apply_status"], "failed")
             self.assertIn("change_apply_failed", summary["fail_reasons"])
+            self.assertTrue(summary["required_human_checks"])
+            joined = " ".join(summary["required_human_checks"]).lower()
+            self.assertIn("change_set", joined)
 
 
 if __name__ == "__main__":

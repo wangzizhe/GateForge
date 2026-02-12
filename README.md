@@ -196,6 +196,17 @@ python -m gateforge.run \
 cat artifacts/proposal_run_changeset.json
 ```
 
+Failing patch demo (shows `change_apply_failed` and required human checks):
+
+```bash
+python -m gateforge.run \
+  --proposal examples/proposals/proposal_with_changeset_mock_fail.json \
+  --baseline baselines/mock_minimal_probe_baseline.json \
+  --out artifacts/proposal_run_changeset_fail.json
+cat artifacts/proposal_run_changeset_fail.json
+cat artifacts/proposal_run_changeset_fail.md
+```
+
 Minimal planner mode (rule-based, LLM-ready interface):
 
 ```bash
