@@ -50,6 +50,11 @@ on:
         required: false
         default: false
         type: boolean
+      run_planner_output_validate_demo:
+        description: "Run optional planner-output validate demo job"
+        required: false
+        default: false
+        type: boolean
       run_repair_batch_demo:
         description: "Run optional repair batch demo job"
         required: false
@@ -744,6 +749,69 @@ jobs:
             artifacts/planner_guardrails_demo/pass_intent.json
             artifacts/planner_guardrails_demo/summary.json
             artifacts/planner_guardrails_demo/summary.md
+
+  planner-output-validate-demo-optional:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_planner_output_validate_demo }}
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Run planner output validate demo
+        run: bash scripts/demo_planner_output_validate.sh
+
+      - name: Publish planner output validate summary to job page
+        if: always()
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          path = Path("artifacts/planner_output_validate_demo/summary.json")
+          if not path.exists():
+              text = "## Planner Output Validate Summary\n\n`artifacts/planner_output_validate_demo/summary.json` not found."
+          else:
+              payload = json.loads(path.read_text(encoding="utf-8"))
+              lines = [
+                  "## Planner Output Validate Summary",
+                  "",
+                  f"- bundle_status: `{payload.get('bundle_status')}`",
+                  f"- pass_case_status: `{payload.get('pass_case_status')}`",
+                  f"- fail_case_status: `{payload.get('fail_case_status')}`",
+                  f"- fail_case_exit_code: `{payload.get('fail_case_exit_code')}`",
+                  "",
+              ]
+              text = "\n".join(lines)
+
+          summary_file = os.getenv("GITHUB_STEP_SUMMARY")
+          if summary_file:
+              with open(summary_file, "a", encoding="utf-8") as f:
+                  f.write(text + "\n")
+          print(text)
+          PY
+
+      - name: Upload planner output validate artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: planner-output-validate-demo
+          path: |
+            artifacts/planner_output_validate_demo/pass_result.json
+            artifacts/planner_output_validate_demo/fail_result.json
+            artifacts/planner_output_validate_demo/summary.json
+            artifacts/planner_output_validate_demo/summary.md
 
   repair-batch-demo-optional:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_repair_batch_demo }}
