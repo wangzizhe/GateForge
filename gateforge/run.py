@@ -11,7 +11,13 @@ from pathlib import Path
 from .change_apply import apply_change_set
 from .core import OM_SOURCE_ROOT_ENV, PROJECT_ROOT
 from .core import run_pipeline
-from .policy import DEFAULT_POLICY_PATH, evaluate_policy, load_policy, run_required_human_checks
+from .policy import (
+    DEFAULT_POLICY_PATH,
+    evaluate_policy,
+    load_policy,
+    resolve_policy_path,
+    run_required_human_checks,
+)
 from .proposal import EXECUTION_ACTIONS, load_proposal, validate_proposal
 from .regression import compare_evidence, load_json, write_json, write_markdown
 
@@ -187,8 +193,13 @@ def main() -> None:
     )
     parser.add_argument(
         "--policy",
-        default=DEFAULT_POLICY_PATH,
-        help="Policy JSON path for proposal risk-based decision",
+        default=None,
+        help=f"Policy JSON path for proposal risk-based decision (default: {DEFAULT_POLICY_PATH})",
+    )
+    parser.add_argument(
+        "--policy-profile",
+        default=None,
+        help="Policy profile name under policies/profiles (e.g. industrial_strict_v0)",
     )
     args = parser.parse_args()
 
@@ -200,6 +211,11 @@ def main() -> None:
     backend = proposal["backend"]
     script_path = proposal["model_script"]
 
+    try:
+        policy_path = resolve_policy_path(policy_path=args.policy, policy_profile=args.policy_profile)
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
+
     summary = {
         "proposal_id": proposal["proposal_id"],
         "risk_level": proposal["risk_level"],
@@ -207,7 +223,7 @@ def main() -> None:
         "status": "PASS",
         "policy_decision": "PASS",
         "policy_reasons": [],
-        "policy_path": args.policy,
+        "policy_path": policy_path,
         "policy_version": None,
         "checkers": proposal.get("checkers", []),
         "checker_config": proposal.get("checker_config", {}),
@@ -312,7 +328,7 @@ def main() -> None:
             combined_reasons.extend(regression_payload.get("reasons", []))
         combined_reasons = list(dict.fromkeys(combined_reasons))
 
-        policy = load_policy(args.policy)
+        policy = load_policy(policy_path)
         policy_result = evaluate_policy(
             reasons=combined_reasons,
             risk_level=proposal["risk_level"],

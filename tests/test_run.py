@@ -527,6 +527,46 @@ class RunTests(unittest.TestCase):
             self.assertIn("performance_regression_detected", regression_payload["reasons"])
             self.assertEqual(regression_payload["checker_config"]["performance_regression"]["max_ratio"], 1.5)
 
+    def test_run_proposal_fails_on_unknown_policy_profile(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            proposal = root / "proposal.json"
+            baseline = root / "baseline.json"
+            candidate = root / "candidate.json"
+            out = root / "run_summary.json"
+
+            self._write_proposal(proposal, ["regress"])
+            self._write_baseline(baseline, backend="mock")
+            self._write_candidate(
+                candidate,
+                failure_type="none",
+                gate="PASS",
+                status="success",
+                check_ok=True,
+                simulate_ok=True,
+            )
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.run",
+                    "--proposal",
+                    str(proposal),
+                    "--candidate-in",
+                    str(candidate),
+                    "--baseline",
+                    str(baseline),
+                    "--policy-profile",
+                    "does_not_exist_profile",
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertNotEqual(proc.returncode, 0)
+
 
 if __name__ == "__main__":
     unittest.main()

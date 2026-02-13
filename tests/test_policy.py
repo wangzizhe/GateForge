@@ -1,6 +1,6 @@
 import unittest
 
-from gateforge.policy import dry_run_human_checks, evaluate_policy, load_policy, run_required_human_checks
+from gateforge.policy import dry_run_human_checks, evaluate_policy, load_policy, resolve_policy_path, run_required_human_checks
 
 
 class PolicyTests(unittest.TestCase):
@@ -96,6 +96,17 @@ class PolicyTests(unittest.TestCase):
         policy = load_policy("policies/profiles/industrial_strict_v0.json")
         result = evaluate_policy(["runtime_regression:1.2s>1.0s"], "medium", policy)
         self.assertEqual(result["policy_decision"], "FAIL")
+
+    def test_resolve_policy_path_from_profile(self) -> None:
+        resolved = resolve_policy_path(policy_profile="industrial_strict_v0")
+        self.assertEqual(resolved, "policies/profiles/industrial_strict_v0.json")
+
+    def test_resolve_policy_path_rejects_both_path_and_profile(self) -> None:
+        with self.assertRaises(ValueError):
+            resolve_policy_path(
+                policy_path="policies/default_policy.json",
+                policy_profile="industrial_strict_v0",
+            )
 
 
 if __name__ == "__main__":
