@@ -181,6 +181,25 @@ class ProposalTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             validate_proposal(proposal)
 
+    def test_validate_fails_on_invalid_steady_state_checker_config(self) -> None:
+        proposal = {
+            "schema_version": "0.1.0",
+            "proposal_id": "proposal-invalid-steady-1",
+            "timestamp_utc": "2026-02-12T00:00:00Z",
+            "author_type": "human",
+            "backend": "mock",
+            "model_script": "examples/openmodelica/minimal_probe.mos",
+            "change_summary": "invalid steady-state checker config",
+            "requested_actions": ["check", "regress"],
+            "risk_level": "low",
+            "checkers": ["steady_state_regression"],
+            "checker_config": {
+                "steady_state_regression": {"max_abs_delta": 0}
+            },
+        }
+        with self.assertRaises(ValueError):
+            validate_proposal(proposal)
+
 
 if __name__ == "__main__":
     unittest.main()

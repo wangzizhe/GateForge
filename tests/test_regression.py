@@ -158,6 +158,45 @@ class RegressionTests(unittest.TestCase):
         self.assertIn("event_explosion_detected", result["reasons"])
         self.assertEqual(result["checker_config"]["event_explosion"]["max_ratio"], 1.5)
 
+    def test_compare_fail_steady_state_regression_checker(self) -> None:
+        baseline = _evidence("base")
+        candidate = _evidence("cand")
+        baseline["metrics"]["steady_state_error"] = 0.02
+        candidate["metrics"]["steady_state_error"] = 0.12
+        result = compare_evidence(
+            baseline,
+            candidate,
+            runtime_regression_threshold=10.0,
+            checker_names=["steady_state_regression"],
+        )
+        self.assertEqual(result["decision"], "FAIL")
+        self.assertIn("steady_state_regression_detected", result["reasons"])
+        self.assertTrue(any(f.get("checker") == "steady_state_regression" for f in result["findings"]))
+
+    def test_compare_runtime_checker_enable_disable(self) -> None:
+        baseline = _evidence("base", runtime_seconds=1.0)
+        candidate = _evidence("cand", runtime_seconds=1.6)
+        result_disabled = compare_evidence(
+            baseline,
+            candidate,
+            runtime_regression_threshold=10.0,
+            checker_names=["performance_regression"],
+            checker_config={"_runtime": {"disable": ["performance_regression"]}},
+        )
+        self.assertEqual(result_disabled["decision"], "PASS")
+        result_enabled = compare_evidence(
+            baseline,
+            candidate,
+            runtime_regression_threshold=10.0,
+            checker_names=[],
+            checker_config={
+                "_runtime": {"enable": ["performance_regression"]},
+                "performance_regression": {"max_ratio": 1.5},
+            },
+        )
+        self.assertEqual(result_enabled["decision"], "FAIL")
+        self.assertIn("performance_regression_detected", result_enabled["reasons"])
+
     def test_compare_fail_strict_backend_mismatch(self) -> None:
         baseline = _evidence("base", backend="mock")
         candidate = _evidence("cand", backend="openmodelica_docker")

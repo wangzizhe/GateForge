@@ -1,17 +1,39 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Callable
 
 CheckerFn = Callable[[dict, dict, dict], list[dict]]
 
 
-def _make_finding(checker: str, reason: str, message: str, severity: str = "error") -> dict:
-    return {
-        "checker": checker,
-        "reason": reason,
-        "message": message,
-        "severity": severity,
-    }
+@dataclass(frozen=True)
+class Finding:
+    checker: str
+    reason: str
+    message: str
+    severity: str = "error"
+    evidence: dict | None = None
+
+    def to_dict(self) -> dict:
+        payload = {
+            "checker": self.checker,
+            "reason": self.reason,
+            "message": self.message,
+            "severity": self.severity,
+        }
+        if self.evidence:
+            payload["evidence"] = self.evidence
+        return payload
+
+
+def _make_finding(checker: str, reason: str, message: str, severity: str = "error", evidence: dict | None = None) -> dict:
+    return Finding(
+        checker=checker,
+        reason=reason,
+        message=message,
+        severity=severity,
+        evidence=evidence,
+    ).to_dict()
 
 
 def timeout_checker(_baseline: dict, candidate: dict, _checker_config: dict) -> list[dict]:
@@ -94,16 +116,75 @@ def event_explosion_checker(baseline: dict, candidate: dict, checker_config: dic
     return []
 
 
+def steady_state_regression_checker(baseline: dict, candidate: dict, checker_config: dict) -> list[dict]:
+    cfg = checker_config.get("steady_state_regression", {})
+    max_abs_delta = float(cfg.get("max_abs_delta", 0.05))
+    b = baseline.get("metrics", {}).get("steady_state_error")
+    c = candidate.get("metrics", {}).get("steady_state_error")
+    if b is None or c is None:
+        return []
+    base_error = float(b)
+    cand_error = float(c)
+    delta = abs(cand_error - base_error)
+    if delta > max_abs_delta:
+        return [
+            _make_finding(
+                checker="steady_state_regression",
+                reason="steady_state_regression_detected",
+                message=(
+                    f"Steady-state error delta {delta:.4f} exceeds threshold {max_abs_delta:.4f} "
+                    f"(baseline={base_error:.4f}, candidate={cand_error:.4f})."
+                ),
+                evidence={
+                    "baseline.metrics.steady_state_error": base_error,
+                    "candidate.metrics.steady_state_error": cand_error,
+                    "max_abs_delta": max_abs_delta,
+                },
+            )
+        ]
+    return []
+
+
 BUILTIN_CHECKERS: dict[str, CheckerFn] = {
     "timeout": timeout_checker,
     "nan_inf": nan_inf_checker,
     "performance_regression": performance_regression_checker,
     "event_explosion": event_explosion_checker,
+    "steady_state_regression": steady_state_regression_checker,
 }
+
+CHECKER_REGISTRY: dict[str, CheckerFn] = dict(BUILTIN_CHECKERS)
+
+
+def register_checker(name: str, checker: CheckerFn) -> None:
+    if not isinstance(name, str) or not name.strip():
+        raise ValueError("checker name must be non-empty string")
+    CHECKER_REGISTRY[name] = checker
+
+
+def unregister_checker(name: str) -> None:
+    if name in BUILTIN_CHECKERS:
+        raise ValueError(f"Cannot unregister builtin checker: {name}")
+    CHECKER_REGISTRY.pop(name, None)
 
 
 def available_checkers() -> list[str]:
-    return sorted(BUILTIN_CHECKERS.keys())
+    return sorted(CHECKER_REGISTRY.keys())
+
+
+def _resolve_checker_names(checker_names: list[str] | None, checker_config: dict) -> list[str]:
+    names = list(checker_names) if checker_names is not None else available_checkers()
+    runtime_cfg = checker_config.get("_runtime", {})
+    if not isinstance(runtime_cfg, dict):
+        return names
+    enable = runtime_cfg.get("enable", [])
+    disable = set(runtime_cfg.get("disable", []))
+    if isinstance(enable, list):
+        for checker_name in enable:
+            if isinstance(checker_name, str) and checker_name not in names:
+                names.append(checker_name)
+    names = [name for name in names if name not in disable]
+    return names
 
 
 def run_checkers(
@@ -112,12 +193,13 @@ def run_checkers(
     checker_names: list[str] | None = None,
     checker_config: dict | None = None,
 ) -> tuple[list[dict], list[str]]:
-    names = checker_names or available_checkers()
+    config = checker_config or {}
+    names = _resolve_checker_names(checker_names, config)
     config = checker_config or {}
     findings: list[dict] = []
 
     for name in names:
-        checker = BUILTIN_CHECKERS.get(name)
+        checker = CHECKER_REGISTRY.get(name)
         if checker is None:
             raise ValueError(f"Unknown checker: {name}")
         findings.extend(checker(baseline, candidate, config))

@@ -13,7 +13,8 @@
   ],
   "needs_review_reason_prefixes": [
     "runtime_regression",
-    "performance_regression_detected"
+    "performance_regression_detected",
+    "steady_state_regression_detected"
   ],
   "fail_on_needs_review_risk_levels": [
     "high"
@@ -43,6 +44,10 @@
       "performance_regression_detected": [
         "Review performance checker finding and confirm configured max_ratio is still acceptable.",
         "Compare runtime and solver settings to determine if slowdown is intentional."
+      ],
+      "steady_state_regression_detected": [
+        "Inspect steady-state behavior shift and verify controller/system objectives remain satisfied.",
+        "Review steady_state_regression threshold and justify acceptance before merge."
       ],
       "event_explosion_detected": [
         "Inspect event count growth and verify hybrid/event behavior remains physically meaningful.",
