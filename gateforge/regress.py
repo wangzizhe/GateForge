@@ -5,6 +5,7 @@ import json
 import sys
 from pathlib import Path
 
+from .checkers import available_checkers
 from .policy import DEFAULT_POLICY_PATH, evaluate_policy, load_policy
 from .proposal import execution_target_from_proposal, load_proposal
 from .regression import compare_evidence, load_json, write_json, write_markdown
@@ -57,6 +58,13 @@ def main() -> None:
         default=DEFAULT_POLICY_PATH,
         help="Policy JSON path used when --proposal is provided",
     )
+    parser.add_argument(
+        "--checker",
+        action="append",
+        dest="checkers",
+        default=None,
+        help=f"Enable specific checker by name (repeatable). Available: {', '.join(available_checkers())}",
+    )
     args = parser.parse_args()
 
     baseline = load_json(args.baseline)
@@ -82,6 +90,7 @@ def main() -> None:
         runtime_regression_threshold=args.runtime_threshold,
         strict=strict,
         strict_model_script=strict_model_script,
+        checker_names=args.checkers,
     )
     if expected_backend is not None:
         if baseline.get("backend") != expected_backend:

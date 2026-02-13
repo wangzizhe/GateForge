@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from .checkers import run_checkers
+
 
 def compare_evidence(
     baseline: dict,
@@ -10,6 +12,7 @@ def compare_evidence(
     runtime_regression_threshold: float = 0.2,
     strict: bool = False,
     strict_model_script: bool = False,
+    checker_names: list[str] | None = None,
 ) -> dict:
     reasons: list[str] = []
 
@@ -39,6 +42,13 @@ def compare_evidence(
                 f"runtime_regression:{cand_runtime:.4f}s>{allowed:.4f}s"
             )
 
+    checker_findings, checker_reasons = run_checkers(
+        baseline=baseline,
+        candidate=candidate,
+        checker_names=checker_names,
+    )
+    reasons.extend([r for r in checker_reasons if r not in reasons])
+
     decision = "FAIL" if reasons else "PASS"
     return {
         "decision": decision,
@@ -51,6 +61,7 @@ def compare_evidence(
         "baseline_runtime_seconds": base_runtime,
         "candidate_runtime_seconds": cand_runtime,
         "reasons": reasons,
+        "findings": checker_findings,
     }
 
 
@@ -85,6 +96,15 @@ def write_markdown(path: str, result: dict) -> None:
     ]
     if result["reasons"]:
         lines.extend([f"- `{r}`" for r in result["reasons"]])
+    else:
+        lines.append("- `none`")
+    lines.extend(["", "## Checker Findings", ""])
+    findings = result.get("findings", [])
+    if findings:
+        for finding in findings:
+            lines.append(
+                f"- `{finding.get('checker')}` `{finding.get('severity')}` `{finding.get('reason')}`: {finding.get('message')}"
+            )
     else:
         lines.append("- `none`")
     lines.append("")

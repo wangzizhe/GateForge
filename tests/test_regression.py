@@ -19,6 +19,8 @@ def _evidence(
     simulate_ok: bool = True,
     runtime_seconds: float = 1.0,
     proposal_id: str | None = None,
+    failure_type: str = "none",
+    log_excerpt: str = "",
 ) -> dict:
     return {
         "run_id": run_id,
@@ -27,10 +29,12 @@ def _evidence(
         "backend": backend,
         "model_script": model_script,
         "status": status,
+        "failure_type": failure_type,
         "gate": gate,
         "check_ok": check_ok,
         "simulate_ok": simulate_ok,
         "metrics": {"runtime_seconds": runtime_seconds},
+        "artifacts": {"log_excerpt": log_excerpt},
     }
 
 
@@ -57,6 +61,38 @@ class RegressionTests(unittest.TestCase):
         result = compare_evidence(baseline, candidate, runtime_regression_threshold=0.2)
         self.assertEqual(result["decision"], "FAIL")
         self.assertIn("candidate_status_not_success", result["reasons"])
+
+    def test_compare_fail_timeout_checker(self) -> None:
+        baseline = _evidence("base")
+        candidate = _evidence("cand", status="failed", gate="FAIL", failure_type="timeout")
+        result = compare_evidence(
+            baseline,
+            candidate,
+            runtime_regression_threshold=0.2,
+            checker_names=["timeout"],
+        )
+        self.assertEqual(result["decision"], "FAIL")
+        self.assertIn("timeout_detected", result["reasons"])
+        self.assertTrue(any(f.get("checker") == "timeout" for f in result["findings"]))
+
+    def test_compare_fail_nan_inf_checker(self) -> None:
+        baseline = _evidence("base")
+        candidate = _evidence(
+            "cand",
+            status="failed",
+            gate="FAIL",
+            failure_type="none",
+            log_excerpt="solver produced NaN at t=0.5",
+        )
+        result = compare_evidence(
+            baseline,
+            candidate,
+            runtime_regression_threshold=0.2,
+            checker_names=["nan_inf"],
+        )
+        self.assertEqual(result["decision"], "FAIL")
+        self.assertIn("nan_inf_detected", result["reasons"])
+        self.assertTrue(any(f.get("checker") == "nan_inf" for f in result["findings"]))
 
     def test_compare_fail_strict_backend_mismatch(self) -> None:
         baseline = _evidence("base", backend="mock")
