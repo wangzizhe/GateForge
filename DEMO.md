@@ -243,6 +243,7 @@ Expected result:
 - `after_status = PASS`
 - `delta = improved`
 - `retry_used` may be `true` when fallback retry is needed
+- retry depth can be controlled with `--max-retries`
 
 Schema reference:
 

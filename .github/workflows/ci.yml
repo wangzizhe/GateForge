@@ -689,6 +689,7 @@ jobs:
               text = "## Planner Guardrails Summary\n\n`artifacts/planner_guardrails_demo/summary.json` not found."
           else:
               payload = json.loads(path.read_text(encoding="utf-8"))
+              rule_ids = payload.get("rule_ids", {}).get("all", [])
               lines = [
                   "## Planner Guardrails Summary",
                   "",
@@ -696,6 +697,8 @@ jobs:
                   f"- pass_case_status: `{payload.get('pass_case', {}).get('status')}`",
                   f"- low_confidence_case_status: `{payload.get('low_confidence_case', {}).get('status')}`",
                   f"- whitelist_case_status: `{payload.get('whitelist_case', {}).get('status')}`",
+                  f"- rule_ids_count: `{len(rule_ids)}`",
+                  f"- rule_ids_all: `{','.join(rule_ids) if rule_ids else 'none'}`",
                   "",
               ]
               text = "\n".join(lines)
