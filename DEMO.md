@@ -336,7 +336,27 @@ Key outputs:
 - `artifacts/planner_confidence_demo/summary.json`
 - `artifacts/planner_confidence_demo/summary.md`
 
-## 10. Human Review Resolution Demo
+## 10. Planner Guardrails Demo (Format + Whitelist + Confidence)
+
+Command:
+
+```bash
+bash scripts/demo_planner_guardrails.sh
+```
+
+What it validates:
+
+- guarded planner output passes when confidence and file constraints are satisfied
+- low-confidence planner output is rejected before execution
+- planner output targeting non-whitelisted file is rejected before execution
+
+Key outputs:
+
+- `artifacts/planner_guardrails_demo/pass_intent.json`
+- `artifacts/planner_guardrails_demo/summary.json`
+- `artifacts/planner_guardrails_demo/summary.md`
+
+## 11. Human Review Resolution Demo
 
 Command:
 
@@ -360,7 +380,7 @@ Key outputs:
 - `artifacts/review_demo/summary.json`
 - `artifacts/review_demo/summary.md`
 
-## 11. Review Ledger Demo
+## 12. Review Ledger Demo
 
 Command:
 

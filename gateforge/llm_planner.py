@@ -10,8 +10,22 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
-from .change_plan import validate_change_plan
+from .change_plan import DEFAULT_ALLOWED_ROOTS, DEFAULT_ALLOWED_SUFFIXES, summarize_change_plan, validate_change_plan
 from .change_apply import validate_change_set
+
+ALLOWED_GEMINI_TOP_LEVEL_KEYS = {
+    "intent",
+    "proposal_id",
+    "overrides",
+    "change_plan",
+    "change_set_draft",
+}
+ALLOWED_OVERRIDE_KEYS = {
+    "risk_level",
+    "change_summary",
+    "checkers",
+    "checker_config",
+}
 
 
 def _write_json(path: str, payload: dict) -> None:
@@ -190,6 +204,90 @@ def _extract_json_object(text: str) -> dict:
     return payload
 
 
+def _validate_overrides(overrides: dict) -> None:
+    unknown = sorted(k for k in overrides if k not in ALLOWED_OVERRIDE_KEYS)
+    if unknown:
+        raise ValueError(f"planner overrides contain unsupported keys: {unknown}")
+
+
+def _validate_change_set_files(
+    change_set: dict,
+    *,
+    allowed_roots: tuple[str, ...],
+    allowed_suffixes: tuple[str, ...],
+    allowed_files: tuple[str, ...] | None,
+) -> None:
+    changes = change_set.get("changes", [])
+    for idx, change in enumerate(changes):
+        file_path = change.get("file")
+        if not isinstance(file_path, str) or not file_path:
+            continue
+        if Path(file_path).is_absolute():
+            raise ValueError(f"change_set_draft changes[{idx}].file must be relative")
+        if not any(file_path == root or file_path.startswith(root + "/") for root in allowed_roots):
+            raise ValueError(f"change_set_draft changes[{idx}].file outside allowed roots: {file_path}")
+        if not file_path.endswith(allowed_suffixes):
+            raise ValueError(
+                f"change_set_draft changes[{idx}].file must end with one of {sorted(allowed_suffixes)}"
+            )
+        if allowed_files and file_path not in allowed_files:
+            raise ValueError(f"change_set_draft changes[{idx}].file is not in allowed_files whitelist: {file_path}")
+
+
+def _apply_llm_guardrails(
+    payload: dict,
+    *,
+    allowed_roots: tuple[str, ...],
+    allowed_suffixes: tuple[str, ...],
+    allowed_files: tuple[str, ...] | None,
+    confidence_min: float,
+    confidence_max: float,
+) -> dict:
+    overrides = payload.get("overrides", {})
+    if not isinstance(overrides, dict):
+        raise ValueError("planner overrides must be an object")
+    _validate_overrides(overrides)
+
+    change_plan = payload.get("change_plan")
+    guardrails = {
+        "allowed_roots": list(allowed_roots),
+        "allowed_suffixes": list(allowed_suffixes),
+        "allowed_files_count": 0 if not allowed_files else len(allowed_files),
+        "confidence_min": confidence_min,
+        "confidence_max": confidence_max,
+    }
+    if change_plan is not None:
+        validate_change_plan(
+            change_plan,
+            allowed_roots=allowed_roots,
+            allowed_suffixes=allowed_suffixes,
+            allowed_files=allowed_files,
+        )
+        stats = summarize_change_plan(change_plan)
+        conf_min = stats["plan_confidence_min"]
+        conf_max = stats["plan_confidence_max"]
+        if conf_min < confidence_min:
+            raise ValueError(
+                f"change_plan confidence_min={conf_min:.3f} is below guardrail {confidence_min:.3f}"
+            )
+        if conf_max > confidence_max:
+            raise ValueError(
+                f"change_plan confidence_max={conf_max:.3f} is above guardrail {confidence_max:.3f}"
+            )
+        guardrails.update(stats)
+
+    draft = payload.get("change_set_draft")
+    if draft is not None:
+        validate_change_set(draft)
+        _validate_change_set_files(
+            draft,
+            allowed_roots=allowed_roots,
+            allowed_suffixes=allowed_suffixes,
+            allowed_files=allowed_files,
+        )
+    return guardrails
+
+
 def _plan_with_gemini_backend(
     *,
     goal_text: str,
@@ -264,9 +362,10 @@ def _plan_with_gemini_backend(
     }
     if intent not in allowed_intents:
         raise ValueError(f"gemini planner returned unsupported intent: {intent}")
+    unknown_top_level = sorted(k for k in parsed.keys() if k not in ALLOWED_GEMINI_TOP_LEVEL_KEYS)
+    if unknown_top_level:
+        raise ValueError(f"gemini planner returned unsupported top-level keys: {unknown_top_level}")
     overrides = parsed.get("overrides", {})
-    if not isinstance(overrides, dict):
-        raise ValueError("gemini planner overrides must be an object")
     if "change_summary" not in overrides:
         overrides["change_summary"] = goal_text
     resolved_proposal_id = proposal_id if proposal_id is not None else parsed.get("proposal_id")
@@ -292,11 +391,9 @@ def _plan_with_gemini_backend(
     }
     draft = parsed.get("change_set_draft")
     if draft is not None:
-        validate_change_set(draft)
         payload["change_set_draft"] = draft
     change_plan = parsed.get("change_plan")
     if change_plan is not None:
-        validate_change_plan(change_plan)
         payload["change_plan"] = change_plan
     return payload
 
@@ -327,6 +424,36 @@ def main() -> None:
         action="store_true",
         help="Ask planner to include a change_set_draft in output",
     )
+    parser.add_argument(
+        "--change-plan-allowed-root",
+        action="append",
+        default=None,
+        help="Allowed root prefix for planner-produced change_plan/change_set files (repeatable)",
+    )
+    parser.add_argument(
+        "--change-plan-allowed-suffix",
+        action="append",
+        default=None,
+        help="Allowed file suffix for planner-produced change_plan/change_set files (repeatable)",
+    )
+    parser.add_argument(
+        "--change-plan-allowed-file",
+        action="append",
+        default=None,
+        help="Allowed file whitelist for planner-produced change_plan/change_set files (repeatable)",
+    )
+    parser.add_argument(
+        "--change-plan-confidence-min",
+        type=float,
+        default=0.0,
+        help="Reject planner change_plan if min operation confidence is below this value",
+    )
+    parser.add_argument(
+        "--change-plan-confidence-max",
+        type=float,
+        default=1.0,
+        help="Reject planner change_plan if max operation confidence is above this value",
+    )
     parser.add_argument("--proposal-id", default=None, help="Optional explicit proposal_id")
     parser.add_argument(
         "--out",
@@ -336,8 +463,18 @@ def main() -> None:
     args = parser.parse_args()
 
     try:
+        if not (0.0 <= args.change_plan_confidence_min <= 1.0):
+            raise ValueError("--change-plan-confidence-min must be in [0.0, 1.0]")
+        if not (0.0 <= args.change_plan_confidence_max <= 1.0):
+            raise ValueError("--change-plan-confidence-max must be in [0.0, 1.0]")
+        if args.change_plan_confidence_min > args.change_plan_confidence_max:
+            raise ValueError("--change-plan-confidence-min must be <= --change-plan-confidence-max")
+
         goal_text = _read_goal(goal=args.goal, goal_file=args.goal_file)
         context = _load_context(args.context_json)
+        allowed_roots = tuple(args.change_plan_allowed_root or DEFAULT_ALLOWED_ROOTS)
+        allowed_suffixes = tuple(args.change_plan_allowed_suffix or DEFAULT_ALLOWED_SUFFIXES)
+        allowed_files = tuple(args.change_plan_allowed_file) if args.change_plan_allowed_file else None
         if args.planner_backend == "rule":
             payload = _plan_with_rule_backend(
                 goal_text=goal_text,
@@ -365,6 +502,19 @@ def main() -> None:
                 context_json_path=args.context_json,
                 emit_change_set_draft=args.emit_change_set_draft,
             )
+        guardrails = _apply_llm_guardrails(
+            payload,
+            allowed_roots=allowed_roots,
+            allowed_suffixes=allowed_suffixes,
+            allowed_files=allowed_files,
+            confidence_min=args.change_plan_confidence_min,
+            confidence_max=args.change_plan_confidence_max,
+        )
+        planner_inputs = payload.get("planner_inputs", {})
+        if isinstance(planner_inputs, dict):
+            planner_inputs["change_plan_guardrails"] = guardrails
+        else:
+            payload["planner_inputs"] = {"change_plan_guardrails": guardrails}
     except ValueError as exc:
         print(str(exc), file=sys.stderr)
         raise SystemExit(1) from exc
