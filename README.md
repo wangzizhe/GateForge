@@ -529,6 +529,21 @@ cat artifacts/proposal_run.json
 You can override the index with `--baseline-index <path>`, or bypass auto-resolve with `--baseline <baseline.json>`.
 You can override policy with `--policy <path>` (default: `policies/default_policy.json`).
 
+Policy profile examples:
+
+- Default balanced profile: `policies/default_policy.json`
+- Stricter industrial profile: `policies/profiles/industrial_strict_v0.json`
+
+Example:
+
+```bash
+python -m gateforge.run \
+  --proposal examples/proposals/proposal_v0.json \
+  --baseline auto \
+  --policy policies/profiles/industrial_strict_v0.json \
+  --out artifacts/proposal_run_strict.json
+```
+
 ### 8. Batch execution (multiple runs + summary)
 
 Run a batch and generate per-run evidence plus an aggregate report:

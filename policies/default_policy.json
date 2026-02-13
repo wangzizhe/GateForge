@@ -6,10 +6,14 @@
     "check_regression",
     "simulate_regression",
     "strict_",
-    "proposal_"
+    "proposal_",
+    "nan_inf_detected",
+    "timeout_detected",
+    "event_explosion_detected"
   ],
   "needs_review_reason_prefixes": [
-    "runtime_regression"
+    "runtime_regression",
+    "performance_regression_detected"
   ],
   "fail_on_needs_review_risk_levels": [
     "high"
@@ -35,6 +39,20 @@
       "runtime_regression": [
         "Review runtime trend and confirm the regression is acceptable for this change.",
         "Compare baseline/candidate evidence and attach justification before merge."
+      ],
+      "performance_regression_detected": [
+        "Review performance checker finding and confirm configured max_ratio is still acceptable.",
+        "Compare runtime and solver settings to determine if slowdown is intentional."
+      ],
+      "event_explosion_detected": [
+        "Inspect event count growth and verify hybrid/event behavior remains physically meaningful.",
+        "Review event-related checker thresholds before approving this change."
+      ],
+      "nan_inf_detected": [
+        "Inspect NaN/Inf source and verify numerical stability before merge."
+      ],
+      "timeout_detected": [
+        "Investigate timeout root cause and confirm expected run-time envelope."
       ],
       "proposal_backend_mismatch": [
         "Verify proposal target, baseline mapping, and candidate model_script/backend alignment."
