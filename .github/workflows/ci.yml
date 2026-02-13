@@ -144,7 +144,6 @@ jobs:
 
   demo-bundle-optional:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_demo_bundle }}
-    continue-on-error: true
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

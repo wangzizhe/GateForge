@@ -58,7 +58,7 @@ Expected result:
 In GitHub Actions (`ci` workflow), use **Run workflow** and enable:
 
 - `run_checker_demo=true`
-- `run_demo_bundle=true` (runs both demos and emits one summary)
+- `run_demo_bundle=true` (runs both demos, emits one summary, and is strict when triggered)
 
 Artifact to download:
 
