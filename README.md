@@ -104,6 +104,9 @@ bash scripts/demo_steady_state_checker.sh
 # combined demo bundle (docker-independent)
 bash scripts/demo_all.sh
 
+# local CI matrix simulation (workflow_dispatch-like toggles)
+bash scripts/demo_ci_matrix.sh
+
 # same demos with strict policy profile
 POLICY_PROFILE=industrial_strict_v0 bash scripts/demo_all.sh
 
@@ -369,6 +372,16 @@ Optional demo artifacts:
 - `steady-state-demo`
 - `demo-bundle`
 - `autopilot-dry-run-demo`
+
+Local workflow-dispatch simulation:
+
+```bash
+bash scripts/demo_ci_matrix.sh
+```
+
+Outputs:
+- `artifacts/ci_matrix_summary.json`
+- `artifacts/ci_matrix_summary.md`
 
 This is intentionally small. It proves your governance layer can always produce machine-readable evidence before adding real simulation complexity.
 

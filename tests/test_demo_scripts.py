@@ -105,6 +105,26 @@ class DemoScriptTests(unittest.TestCase):
         self.assertIn("steady_state_regression_detected", reg_payload.get("reasons", []))
         self.assertTrue(summary_path.exists())
 
+    def test_demo_ci_matrix_script_writes_summary(self) -> None:
+        proc = subprocess.run(
+            ["bash", "scripts/demo_ci_matrix.sh"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+
+        out_json = Path("artifacts/ci_matrix_summary.json")
+        out_md = Path("artifacts/ci_matrix_summary.md")
+        self.assertTrue(out_json.exists())
+        self.assertTrue(out_md.exists())
+
+        payload = json.loads(out_json.read_text(encoding="utf-8"))
+        self.assertEqual(payload.get("matrix_status"), "PASS")
+        self.assertEqual(payload.get("policy_profile"), "default")
+        self.assertGreaterEqual(payload.get("selected_count", 0), 1)
+        self.assertIsInstance(payload.get("job_exit_codes"), dict)
+
 
 if __name__ == "__main__":
     unittest.main()

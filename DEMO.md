@@ -179,3 +179,35 @@ Policy profiles (optional):
 Schema reference:
 
 - `schemas/demo_bundle_summary.schema.json`
+
+## 7. Local CI Matrix Demo (simulate workflow_dispatch toggles)
+
+Command:
+
+```bash
+bash scripts/demo_ci_matrix.sh
+```
+
+With strict profile:
+
+```bash
+POLICY_PROFILE=industrial_strict_v0 bash scripts/demo_ci_matrix.sh
+```
+
+What it validates:
+
+- local simulation of optional CI jobs
+- one summary for selected jobs and exit codes
+
+Key outputs:
+
+- `artifacts/ci_matrix_summary.json`
+- `artifacts/ci_matrix_summary.md`
+
+Optional toggles (env vars):
+
+- `RUN_CHECKER_DEMO=0|1`
+- `RUN_STEADY_STATE_DEMO=0|1`
+- `RUN_DEMO_BUNDLE=0|1`
+- `RUN_AUTOPILOT_DRY_RUN=0|1`
+- `RUN_BENCHMARK=0|1` (default `0`)
