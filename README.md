@@ -110,6 +110,9 @@ bash scripts/demo_ci_matrix.sh
 # agent change safety loop demo (low-risk pass, high-risk needs review)
 bash scripts/demo_agent_change_loop.sh
 
+# planner confidence gates demo (PASS / NEEDS_REVIEW / FAIL)
+bash scripts/demo_planner_confidence_gates.sh
+
 # same demos with strict policy profile
 POLICY_PROFILE=industrial_strict_v0 bash scripts/demo_all.sh
 

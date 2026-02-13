@@ -61,6 +61,15 @@ def _merge_context_overrides(overrides: dict, context: dict) -> dict:
     return merged
 
 
+def _resolve_plan_confidence(context: dict, default: float = 0.9) -> float:
+    value = context.get("change_plan_confidence")
+    if isinstance(value, (int, float)):
+        v = float(value)
+        if 0.0 <= v <= 1.0:
+            return v
+    return default
+
+
 def _read_goal(goal: str | None, goal_file: str | None) -> str:
     if bool(goal) == bool(goal_file):
         raise ValueError("Exactly one of --goal or --goal-file must be provided")
@@ -114,6 +123,7 @@ def _plan_with_rule_backend(
         "context": context,
     }
     if emit_change_set_draft:
+        plan_confidence = _resolve_plan_confidence(context=context)
         payload["change_plan"] = {
             "schema_version": "0.1.0",
             "operations": [
@@ -123,7 +133,7 @@ def _plan_with_rule_backend(
                     "old": "der(x) = -x;",
                     "new": "der(x) = -2*x;",
                     "reason": "Increase decay rate for deterministic stability demo",
-                    "confidence": 0.9,
+                    "confidence": plan_confidence,
                     "risk_tag": "low",
                 }
             ],

@@ -138,6 +138,20 @@ class DemoScriptTests(unittest.TestCase):
         self.assertEqual(payload.get("low_risk_status"), "PASS")
         self.assertEqual(payload.get("high_risk_status"), "NEEDS_REVIEW")
 
+    def test_demo_planner_confidence_gates_script(self) -> None:
+        proc = subprocess.run(
+            ["bash", "scripts/demo_planner_confidence_gates.sh"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+        payload = json.loads(Path("artifacts/planner_confidence_demo/summary.json").read_text(encoding="utf-8"))
+        self.assertEqual(payload.get("bundle_status"), "PASS")
+        self.assertEqual(payload.get("high_confidence", {}).get("status"), "PASS")
+        self.assertEqual(payload.get("mid_confidence", {}).get("status"), "NEEDS_REVIEW")
+        self.assertEqual(payload.get("low_confidence", {}).get("status"), "FAIL")
+
 
 if __name__ == "__main__":
     unittest.main()

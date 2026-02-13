@@ -242,3 +242,31 @@ Key outputs:
 - `artifacts/agent_change_loop/high_summary.json`
 - `artifacts/agent_change_loop/summary.json`
 - `artifacts/agent_change_loop/summary.md`
+
+## 9. Planner Confidence Gates Demo
+
+Command:
+
+```bash
+bash scripts/demo_planner_confidence_gates.sh
+```
+
+With strict profile:
+
+```bash
+POLICY_PROFILE=industrial_strict_v0 bash scripts/demo_planner_confidence_gates.sh
+```
+
+What it validates:
+
+- high confidence change_plan -> `PASS`
+- medium confidence change_plan -> `NEEDS_REVIEW`
+- very low confidence change_plan -> `FAIL`
+
+Key outputs:
+
+- `artifacts/planner_confidence_demo/high.json`
+- `artifacts/planner_confidence_demo/mid.json`
+- `artifacts/planner_confidence_demo/low.json`
+- `artifacts/planner_confidence_demo/summary.json`
+- `artifacts/planner_confidence_demo/summary.md`
