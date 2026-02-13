@@ -240,6 +240,7 @@ def main() -> None:
 
     summary = {
         "proposal_id": proposal["proposal_id"],
+        "proposal_author": proposal.get("author"),
         "risk_level": proposal["risk_level"],
         "actions": actions,
         "status": "PASS",
@@ -272,6 +273,7 @@ def main() -> None:
         "change_plan_confidence_avg": None,
         "change_plan_confidence_max": None,
         "applied_changes": [],
+        "review_resolution_policy": {},
     }
 
     candidate = None
@@ -281,6 +283,9 @@ def main() -> None:
     try:
         policy = load_policy(policy_path)
         summary["policy_version"] = policy.get("version")
+        review_policy = policy.get("review_resolution", {})
+        if isinstance(review_policy, dict):
+            summary["review_resolution_policy"] = review_policy
 
         if execution_requested and proposal.get("change_set_path"):
             try:

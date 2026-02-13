@@ -48,6 +48,14 @@ def validate_review_decision(payload: dict) -> None:
             if not isinstance(item, str) or not item.strip():
                 raise ValueError(f"confirmed_checks[{idx}] must be a non-empty string")
 
+    second_reviewer = payload.get("second_reviewer")
+    if second_reviewer is not None and (not isinstance(second_reviewer, str) or not second_reviewer.strip()):
+        raise ValueError("second_reviewer must be a non-empty string when provided")
+
+    second_decision = payload.get("second_decision")
+    if second_decision is not None and second_decision not in SUPPORTED_DECISIONS:
+        raise ValueError(f"second_decision must be one of {sorted(SUPPORTED_DECISIONS)} when provided")
+
 
 def _require_non_empty_string(payload: dict, key: str) -> None:
     value = payload[key]

@@ -3,9 +3,17 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 from .review import load_review_decision, validate_review_decision
+from .review_ledger import (
+    append_review_ledger,
+    summarize_review_ledger,
+    load_review_ledger,
+    write_json as write_ledger_json,
+    write_markdown as write_ledger_markdown,
+)
 
 
 def _write_json(path: str, payload: dict) -> None:
@@ -86,6 +94,7 @@ def _resolve(source: dict, review: dict) -> dict:
         "final_status": "FAIL",
         "final_reasons": [],
         "unresolved_required_human_checks": [],
+        "review_policy_checks": [],
     }
 
     if review.get("proposal_id") != proposal_id:
@@ -111,6 +120,50 @@ def _resolve(source: dict, review: dict) -> dict:
         summary["final_reasons"].append("source_not_reviewable")
         return summary
 
+    review_policy = source.get("review_resolution_policy", {})
+    if not isinstance(review_policy, dict):
+        review_policy = {}
+    require_distinct = bool(review_policy.get("require_distinct_reviewer_from_source_author", False))
+    source_author = source.get("proposal_author")
+    if require_distinct and isinstance(source_author, str) and source_author.strip():
+        if review.get("reviewer") == source_author:
+            summary["final_status"] = "FAIL"
+            summary["final_reasons"].append("reviewer_matches_source_author")
+            return summary
+
+    dual_risks = set(review_policy.get("require_dual_review_risk_levels", []))
+    dual_reason_prefixes = tuple(review_policy.get("require_dual_review_reason_prefixes", []))
+    risk_level = source.get("risk_level")
+    source_policy_reasons = source.get("policy_reasons", [])
+    if not isinstance(source_policy_reasons, list):
+        source_policy_reasons = []
+
+    dual_required = False
+    if isinstance(risk_level, str) and risk_level in dual_risks:
+        dual_required = True
+    if dual_reason_prefixes:
+        for reason in source_policy_reasons:
+            if isinstance(reason, str) and any(reason.startswith(prefix) for prefix in dual_reason_prefixes):
+                dual_required = True
+                break
+    summary["review_policy_checks"].append({"dual_review_required": dual_required})
+
+    if dual_required:
+        second_reviewer = review.get("second_reviewer")
+        second_decision = review.get("second_decision")
+        if not isinstance(second_reviewer, str) or not second_reviewer.strip():
+            summary["final_status"] = "FAIL"
+            summary["final_reasons"].append("dual_review_missing_second_reviewer")
+            return summary
+        if second_reviewer == review.get("reviewer"):
+            summary["final_status"] = "FAIL"
+            summary["final_reasons"].append("dual_review_duplicate_reviewer")
+            return summary
+        if second_decision != "approve":
+            summary["final_status"] = "FAIL"
+            summary["final_reasons"].append("dual_review_not_approved")
+            return summary
+
     if decision == "reject":
         summary["final_status"] = "FAIL"
         summary["final_reasons"].append("human_rejected")
@@ -132,6 +185,17 @@ def main() -> None:
     parser.add_argument("--review", required=True, help="Path to human review decision JSON")
     parser.add_argument("--out", default="artifacts/review/final_summary.json", help="Where to write resolution summary")
     parser.add_argument("--report", default=None, help="Where to write markdown report")
+    parser.add_argument("--ledger", default="artifacts/review/ledger.jsonl", help="Review ledger JSONL path")
+    parser.add_argument(
+        "--ledger-summary-out",
+        default="artifacts/review/ledger_summary.json",
+        help="Where to write ledger summary JSON",
+    )
+    parser.add_argument(
+        "--ledger-report-out",
+        default=None,
+        help="Where to write ledger summary markdown",
+    )
     args = parser.parse_args()
 
     source = _load_source_summary(args.summary)
@@ -141,6 +205,21 @@ def main() -> None:
     resolved = _resolve(source=source, review=review)
     _write_json(args.out, resolved)
     _write_markdown(args.report or _default_md_path(args.out), resolved)
+
+    ledger_record = {
+        "recorded_at_utc": datetime.now(timezone.utc).isoformat(),
+        "proposal_id": resolved.get("proposal_id"),
+        "review_id": resolved.get("review_id"),
+        "reviewer": resolved.get("reviewer"),
+        "human_decision": resolved.get("human_decision"),
+        "final_status": resolved.get("final_status"),
+        "final_reasons": resolved.get("final_reasons", []),
+    }
+    append_review_ledger(args.ledger, ledger_record)
+    ledger_rows = load_review_ledger(args.ledger)
+    ledger_summary = summarize_review_ledger(ledger_rows)
+    write_ledger_json(args.ledger_summary_out, ledger_summary)
+    write_ledger_markdown(args.ledger_report_out or _default_md_path(args.ledger_summary_out), ledger_summary)
 
     print(json.dumps({"proposal_id": resolved.get("proposal_id"), "final_status": resolved["final_status"]}))
     if resolved["final_status"] == "FAIL":

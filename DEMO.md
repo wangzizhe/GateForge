@@ -294,3 +294,23 @@ Key outputs:
 - `artifacts/review_demo/final_reject.json`
 - `artifacts/review_demo/summary.json`
 - `artifacts/review_demo/summary.md`
+
+## 11. Review Ledger Demo
+
+Command:
+
+```bash
+bash scripts/demo_review_ledger.sh
+```
+
+What it validates:
+
+- review resolution writes ledger records (JSONL)
+- ledger summary aggregates PASS/FAIL and reviewer counts
+
+Key outputs:
+
+- `artifacts/review/ledger.jsonl`
+- `artifacts/review/ledger_summary.json`
+- `artifacts/review/ledger_summary.md`
+- `artifacts/review_ledger_demo/ledger_summary.json`
