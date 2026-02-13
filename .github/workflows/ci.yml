@@ -15,6 +15,11 @@ on:
         required: false
         default: false
         type: boolean
+      run_demo_bundle:
+        description: "Run optional combined demo bundle job"
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   test-and-smoke:
@@ -136,3 +141,43 @@ jobs:
             artifacts/checker_demo_run.json
             artifacts/checker_demo_run.md
             artifacts/checker_demo_summary.md
+
+  demo-bundle-optional:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_demo_bundle }}
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Run demo bundle
+        run: bash scripts/demo_all.sh
+
+      - name: Upload demo bundle artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: demo-bundle
+          path: |
+            artifacts/proposal_run_demo.json
+            artifacts/proposal_run_demo.md
+            artifacts/regression_from_proposal_demo.json
+            artifacts/regression_from_proposal_demo.md
+            artifacts/checker_demo_baseline.json
+            artifacts/checker_demo_candidate.json
+            artifacts/checker_demo_regression.json
+            artifacts/checker_demo_regression.md
+            artifacts/checker_demo_run.json
+            artifacts/checker_demo_run.md
+            artifacts/checker_demo_summary.md
+            artifacts/demo_all_summary.md

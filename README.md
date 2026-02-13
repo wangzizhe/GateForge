@@ -97,6 +97,9 @@ bash scripts/demo_proposal_flow.sh
 
 # checker threshold demo (docker-independent)
 bash scripts/demo_checker_config.sh
+
+# combined demo bundle (docker-independent)
+bash scripts/demo_all.sh
 ```
 
 The demo script uses `examples/proposals/proposal_demo_mock.json` and writes an aligned
@@ -325,13 +328,14 @@ Note: `medium_openmodelica_pass` requires Docker/OpenModelica backend access.
 - Uploads all evidence and regression artifacts in GitHub Actions.
 - Provides an optional benchmark job (`workflow_dispatch` with `run_benchmark=true`) that does not block the main job.
 - Provides an optional checker demo job (`workflow_dispatch` with `run_checker_demo=true`) that does not block the main job.
+- Provides an optional combined demo bundle job (`workflow_dispatch` with `run_demo_bundle=true`) that does not block the main job.
 
 Manual trigger path in GitHub:
 
 1. Open `Actions` tab.
 2. Select `ci` workflow.
 3. Click `Run workflow`.
-4. Enable `run_benchmark` and/or `run_checker_demo`.
+4. Enable `run_benchmark` and/or `run_checker_demo` and/or `run_demo_bundle`.
 5. Run and download uploaded artifacts from the selected optional job.
 
 This is intentionally small. It proves your governance layer can always produce machine-readable evidence before adding real simulation complexity.
