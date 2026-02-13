@@ -73,11 +73,14 @@ def main() -> None:
     strict_model_script = args.strict_model_script
     expected_backend = None
     expected_script = None
+    effective_checkers = args.checkers
     if args.proposal:
         proposal = load_proposal(args.proposal)
         expected_backend, expected_script = execution_target_from_proposal(proposal)
         expected_proposal_id = proposal.get("proposal_id")
         expected_risk_level = proposal.get("risk_level")
+        if effective_checkers is None:
+            effective_checkers = proposal.get("checkers")
         strict = True
         strict_model_script = True
     else:
@@ -90,7 +93,7 @@ def main() -> None:
         runtime_regression_threshold=args.runtime_threshold,
         strict=strict,
         strict_model_script=strict_model_script,
-        checker_names=args.checkers,
+        checker_names=effective_checkers,
     )
     if expected_backend is not None:
         if baseline.get("backend") != expected_backend:
@@ -106,6 +109,7 @@ def main() -> None:
         result["decision"] = "FAIL"
     result["strict"] = strict
     result["strict_model_script"] = strict_model_script
+    result["checkers"] = effective_checkers or []
     if args.proposal:
         policy = load_policy(args.policy)
         policy_result = evaluate_policy(

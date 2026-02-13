@@ -140,6 +140,9 @@ cat artifacts/proposal_validate.json
 Current proposal schema file:
 
 - `schemas/proposal.schema.json`
+- Optional `checkers` field in proposal:
+  - `["timeout", "nan_inf"]`
+  - If omitted, all built-in checkers run by default
 
 Drive smoke execution from proposal:
 
@@ -400,6 +403,17 @@ python -m gateforge.smoke --backend mock --out artifacts/candidate.json
 python -m gateforge.regress --baseline baselines/mock_baseline.json --candidate artifacts/candidate.json --out artifacts/regression.json
 cat artifacts/regression.json
 cat artifacts/regression.md
+```
+
+Run regression with explicit checker selection:
+
+```bash
+python -m gateforge.regress \
+  --baseline baselines/mock_baseline.json \
+  --candidate artifacts/candidate.json \
+  --checker timeout \
+  --checker nan_inf \
+  --out artifacts/regression_with_checkers.json
 ```
 
 Behavior:

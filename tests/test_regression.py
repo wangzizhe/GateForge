@@ -408,6 +408,78 @@ class RegressionTests(unittest.TestCase):
             self.assertEqual(result["decision"], "FAIL")
             self.assertEqual(result["policy_decision"], "FAIL")
 
+    def test_regress_cli_with_proposal_uses_checker_config(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            baseline = root / "baseline.json"
+            candidate = root / "candidate.json"
+            proposal = root / "proposal.json"
+            out = root / "regression.json"
+
+            baseline.write_text(
+                json.dumps(
+                    _evidence(
+                        "base",
+                        backend="mock",
+                        model_script="examples/openmodelica/minimal_probe.mos",
+                        runtime_seconds=1.0,
+                    )
+                ),
+                encoding="utf-8",
+            )
+            candidate.write_text(
+                json.dumps(
+                    _evidence(
+                        "cand",
+                        backend="mock",
+                        model_script="examples/openmodelica/minimal_probe.mos",
+                        runtime_seconds=1.0,
+                        log_excerpt="NaN detected in state update",
+                    )
+                ),
+                encoding="utf-8",
+            )
+            proposal.write_text(
+                json.dumps(
+                    {
+                        "schema_version": "0.1.0",
+                        "proposal_id": "proposal-regress-5",
+                        "timestamp_utc": "2026-02-11T10:00:00Z",
+                        "author_type": "human",
+                        "backend": "mock",
+                        "model_script": "examples/openmodelica/minimal_probe.mos",
+                        "change_summary": "checker-config test",
+                        "requested_actions": ["check", "regress"],
+                        "risk_level": "low",
+                        "checkers": ["nan_inf"],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.regress",
+                    "--baseline",
+                    str(baseline),
+                    "--candidate",
+                    str(candidate),
+                    "--proposal",
+                    str(proposal),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertNotEqual(proc.returncode, 0)
+            result = json.loads(out.read_text(encoding="utf-8"))
+            self.assertIn("nan_inf_detected", result["reasons"])
+            self.assertEqual(result["checkers"], ["nan_inf"])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from .checkers import available_checkers
+
 SUPPORTED_ACTIONS = {"check", "simulate", "regress", "benchmark"}
 SUPPORTED_AUTHOR_TYPES = {"human", "agent"}
 SUPPORTED_BACKENDS = {"mock", "openmodelica", "openmodelica_docker", "fmu_runner"}
@@ -67,6 +69,17 @@ def validate_proposal(proposal: dict) -> None:
     if change_set_path is not None:
         if not isinstance(change_set_path, str) or not change_set_path.strip():
             raise ValueError("change_set_path must be a non-empty string when provided")
+
+    checkers = proposal.get("checkers")
+    if checkers is not None:
+        if not isinstance(checkers, list):
+            raise ValueError("checkers must be a list when provided")
+        supported_checkers = set(available_checkers())
+        for checker in checkers:
+            if not isinstance(checker, str) or not checker.strip():
+                raise ValueError("checkers must contain non-empty strings")
+            if checker not in supported_checkers:
+                raise ValueError(f"unsupported checker: {checker}")
 
 
 def execution_target_from_proposal(proposal: dict) -> tuple[str, str]:

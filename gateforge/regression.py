@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from .checkers import run_checkers
+from .checkers import available_checkers, run_checkers
 
 
 def compare_evidence(
@@ -15,6 +15,7 @@ def compare_evidence(
     checker_names: list[str] | None = None,
 ) -> dict:
     reasons: list[str] = []
+    effective_checkers = checker_names or available_checkers()
 
     if strict:
         if baseline.get("schema_version") != candidate.get("schema_version"):
@@ -45,7 +46,7 @@ def compare_evidence(
     checker_findings, checker_reasons = run_checkers(
         baseline=baseline,
         candidate=candidate,
-        checker_names=checker_names,
+        checker_names=effective_checkers,
     )
     reasons.extend([r for r in checker_reasons if r not in reasons])
 
@@ -61,6 +62,7 @@ def compare_evidence(
         "baseline_runtime_seconds": base_runtime,
         "candidate_runtime_seconds": cand_runtime,
         "reasons": reasons,
+        "checkers": effective_checkers,
         "findings": checker_findings,
     }
 
@@ -90,6 +92,7 @@ def write_markdown(path: str, result: dict) -> None:
         f"- baseline_runtime_seconds: `{result['baseline_runtime_seconds']}`",
         f"- candidate_runtime_seconds: `{result['candidate_runtime_seconds']}`",
         f"- runtime_threshold: `{result['runtime_threshold']}`",
+        f"- checkers: `{','.join(result.get('checkers', []))}`",
         "",
         "## Reasons",
         "",
