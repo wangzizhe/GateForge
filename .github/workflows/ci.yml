@@ -390,11 +390,14 @@ jobs:
                   f"- checker_demo_status: `{payload.get('checker_demo_status')}`",
                   f"- checker_demo_policy_decision: `{payload.get('checker_demo_policy_decision')}`",
                   f"- steady_demo_decision: `{payload.get('steady_demo_decision')}`",
+                  f"- behavior_demo_decision: `{payload.get('behavior_demo_decision')}`",
                   f"- proposal_fail_reasons_count: `{payload.get('proposal_fail_reasons_count')}`",
                   f"- checker_reasons_count: `{payload.get('checker_reasons_count')}`",
                   f"- checker_findings_count: `{payload.get('checker_findings_count')}`",
                   f"- steady_reasons_count: `{payload.get('steady_reasons_count')}`",
                   f"- steady_findings_count: `{payload.get('steady_findings_count')}`",
+                  f"- behavior_reasons_count: `{payload.get('behavior_reasons_count')}`",
+                  f"- behavior_findings_count: `{payload.get('behavior_findings_count')}`",
                   f"- checksums_count: `{len(payload.get('checksums', {}))}`",
                   "",
                   "### Result Flags",
@@ -402,6 +405,7 @@ jobs:
                   f"- proposal_flow: `{rf.get('proposal_flow')}`",
                   f"- checker_demo_expected_fail: `{rf.get('checker_demo_expected_fail')}`",
                   f"- steady_demo_expected_nonpass: `{rf.get('steady_demo_expected_nonpass')}`",
+                  f"- behavior_demo_expected_nonpass: `{rf.get('behavior_demo_expected_nonpass')}`",
                   "",
               ]
               text = "\n".join(lines)
