@@ -140,6 +140,50 @@ class RepairBatchTests(unittest.TestCase):
             self.assertIn("PASS", statuses)
             self.assertIn("FAIL", statuses)
 
+    def test_repair_batch_profile_compare_outputs_transitions(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            src = root / "recover.json"
+            baseline = root / "baseline_mock.json"
+            self._write_source(src, status="FAIL", decision="FAIL", proposal_id="p_compare")
+            self._write_baseline(baseline, backend="mock")
+
+            pack = {
+                "pack_id": "repair_batch_unit_compare",
+                "cases": [
+                    {"name": "compare_case", "source": str(src), "baseline": str(baseline), "planner_backend": "rule"},
+                ],
+            }
+            pack_path = root / "pack.json"
+            pack_path.write_text(json.dumps(pack), encoding="utf-8")
+
+            summary_out = root / "summary.json"
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.repair_batch",
+                    "--pack",
+                    str(pack_path),
+                    "--summary-out",
+                    str(summary_out),
+                    "--compare-policy-profiles",
+                    "industrial_strict_v0",
+                    "industrial_strict_v0",
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertIn(proc.returncode, {0, 1}, msg=proc.stderr or proc.stdout)
+            payload = json.loads(summary_out.read_text(encoding="utf-8"))
+            compare = payload.get("profile_compare", {})
+            self.assertEqual(compare.get("from_policy_profile"), "industrial_strict_v0")
+            self.assertEqual(compare.get("to_policy_profile"), "industrial_strict_v0")
+            self.assertEqual(compare.get("total_compared_cases"), 1)
+            self.assertIn("strict_downgrade_rate", compare)
+            self.assertTrue(compare.get("transitions"))
+
 
 if __name__ == "__main__":
     unittest.main()

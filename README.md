@@ -397,6 +397,24 @@ Demo shortcut:
 bash scripts/demo_repair_batch.sh
 ```
 
+Repair batch profile comparison (e.g., default vs industrial strict):
+
+```bash
+python -m gateforge.repair_batch \
+  --pack artifacts/repair_batch_compare_demo/pack.json \
+  --compare-policy-profiles default industrial_strict_v0 \
+  --continue-on-fail \
+  --summary-out artifacts/repair_batch_compare_demo/summary.json \
+  --report-out artifacts/repair_batch_compare_demo/summary.md
+cat artifacts/repair_batch_compare_demo/summary.json
+```
+
+Demo shortcut:
+
+```bash
+bash scripts/demo_repair_batch_compare.sh
+```
+
 Review ledger summary:
 
 ```bash
@@ -441,8 +459,11 @@ KPI fields include:
 - `kpis.p95_resolution_seconds`
 - `kpis.sla_breach_rate`
 - `kpis.guardrail_fail_rate`
+- `kpis.review_recovery_rate`
+- `kpis.strict_non_pass_rate`
 - `planner_guardrail_decision_counts`
 - `planner_guardrail_rule_id_counts`
+- `policy_profile_counts`
 
 Planner variants:
 
@@ -539,13 +560,15 @@ Note: `medium_openmodelica_pass` requires Docker/OpenModelica backend access.
   This job publishes pass/low-confidence/whitelist outcomes for planner-side safety checks.
 - Provides an optional repair batch demo job (`workflow_dispatch` with `run_repair_batch_demo=true`) that does not block the main job.
   This job publishes mixed-case repair outcomes for batch governance visibility.
+- Provides an optional repair batch compare demo job (`workflow_dispatch` with `run_repair_batch_compare_demo=true`) that does not block the main job.
+  This job publishes strict profile downgrade rate across the same repair pack.
 
 Manual trigger path in GitHub:
 
 1. Open `Actions` tab.
 2. Select `ci` workflow.
 3. Click `Run workflow`.
-4. Enable `run_benchmark` and/or `run_checker_demo` and/or `run_steady_state_demo` and/or `run_behavior_metrics_demo` and/or `run_demo_bundle` and/or `run_autopilot_dry_run` and/or `run_agent_change_loop` and/or `run_repair_loop` and/or `run_planner_guardrails` and/or `run_repair_batch_demo`.
+4. Enable `run_benchmark` and/or `run_checker_demo` and/or `run_steady_state_demo` and/or `run_behavior_metrics_demo` and/or `run_demo_bundle` and/or `run_autopilot_dry_run` and/or `run_agent_change_loop` and/or `run_repair_loop` and/or `run_planner_guardrails` and/or `run_repair_batch_demo` and/or `run_repair_batch_compare_demo`.
 5. Optional: set `demo_policy_profile` (for demo jobs) such as `industrial_strict_v0`.
 6. Run and download uploaded artifacts from the selected optional job.
 
@@ -559,6 +582,7 @@ Optional demo artifacts:
 - `repair-loop-demo`
 - `planner-guardrails-demo`
 - `repair-batch-demo`
+- `repair-batch-compare-demo`
 
 Local workflow-dispatch simulation:
 
@@ -582,6 +606,9 @@ You can include repair-loop in local matrix with:
 
 You can include repair-batch demo in local matrix with:
 `RUN_REPAIR_BATCH_DEMO=1 bash scripts/demo_ci_matrix.sh`
+
+You can include repair-batch compare demo in local matrix with:
+`RUN_REPAIR_BATCH_COMPARE_DEMO=1 bash scripts/demo_ci_matrix.sh`
 
 You can include planner-guardrails in local matrix with:
 `RUN_PLANNER_GUARDRAILS=1 bash scripts/demo_ci_matrix.sh`

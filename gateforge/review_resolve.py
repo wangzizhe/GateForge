@@ -231,6 +231,7 @@ def main() -> None:
         "final_status": resolved.get("final_status"),
         "final_reasons": resolved.get("final_reasons", []),
         "risk_level": source.get("risk_level"),
+        "policy_profile": source.get("policy_profile"),
         "source_policy_decision": source.get("policy_decision"),
         "planner_guardrail_decision": source.get("planner_guardrail_decision"),
         "planner_guardrail_rule_ids": [

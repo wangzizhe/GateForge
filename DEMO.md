@@ -266,6 +266,27 @@ Key outputs:
 - `artifacts/repair_batch_demo/demo_summary.json`
 - `artifacts/repair_batch_demo/demo_summary.md`
 
+## 10. Repair Batch Compare Demo (Policy Profiles)
+
+Command:
+
+```bash
+bash scripts/demo_repair_batch_compare.sh
+```
+
+What it validates:
+
+- same repair pack executed under two policy profiles
+- transition summary (`from_status -> to_status`)
+- strict downgrade KPI (`strict_downgrade_rate`)
+
+Key outputs:
+
+- `artifacts/repair_batch_compare_demo/summary.json`
+- `artifacts/repair_batch_compare_demo/summary.md`
+- `artifacts/repair_batch_compare_demo/demo_summary.json`
+- `artifacts/repair_batch_compare_demo/demo_summary.md`
+
 Schema reference:
 
 - `schemas/demo_bundle_summary.schema.json`
@@ -305,6 +326,7 @@ Optional toggles (env vars):
 - `RUN_REPAIR_LOOP=0|1`
 - `RUN_PLANNER_GUARDRAILS=0|1`
 - `RUN_REPAIR_BATCH_DEMO=0|1`
+- `RUN_REPAIR_BATCH_COMPARE_DEMO=0|1`
 - `RUN_BENCHMARK=0|1` (default `0`)
 
 ## 8. Agent Change Safety Loop Demo

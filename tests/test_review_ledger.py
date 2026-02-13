@@ -125,6 +125,8 @@ class ReviewLedgerTests(unittest.TestCase):
                                 "final_status": "PASS",
                                 "reviewer": "r1",
                                 "final_reasons": [],
+                                "policy_profile": "default",
+                                "source_policy_decision": "NEEDS_REVIEW",
                                 "planner_guardrail_decision": "PASS",
                                 "planner_guardrail_rule_ids": [],
                             }
@@ -134,6 +136,8 @@ class ReviewLedgerTests(unittest.TestCase):
                                 "final_status": "FAIL",
                                 "reviewer": "r2",
                                 "final_reasons": ["human_rejected"],
+                                "policy_profile": "industrial_strict_v0",
+                                "source_policy_decision": "NEEDS_REVIEW",
                                 "planner_guardrail_decision": "FAIL",
                                 "planner_guardrail_rule_ids": ["change_plan_confidence_min_below_threshold"],
                             }
@@ -175,6 +179,12 @@ class ReviewLedgerTests(unittest.TestCase):
                 1,
             )
             self.assertIn("guardrail_fail_rate", summary["kpis"])
+            self.assertEqual(summary["policy_profile_counts"].get("default"), 1)
+            self.assertEqual(summary["policy_profile_counts"].get("industrial_strict_v0"), 1)
+            self.assertEqual(summary["kpis"]["review_recovery_rate"], 0.5)
+            self.assertEqual(summary["kpis"]["strict_review_count"], 1)
+            self.assertEqual(summary["kpis"]["strict_non_pass_count"], 1)
+            self.assertEqual(summary["kpis"]["strict_non_pass_rate"], 1.0)
             self.assertIn("top_unstable_proposals", summary)
             self.assertTrue(report_out.exists())
 
