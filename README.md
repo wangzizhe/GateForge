@@ -117,6 +117,9 @@ bash scripts/demo_agent_change_loop.sh
 # planner confidence gates demo (PASS / NEEDS_REVIEW / FAIL)
 bash scripts/demo_planner_confidence_gates.sh
 
+# fail -> repair -> rerun loop demo
+bash scripts/demo_repair_loop.sh
+
 # human review resolution demo (NEEDS_REVIEW -> human approve/reject -> final PASS/FAIL)
 bash scripts/demo_review_resolution.sh
 
@@ -357,6 +360,24 @@ cat artifacts/review_demo/final_approve.json
 
 Review decision schema reference:
 - `schemas/review_decision.schema.json`
+
+Repair loop (fail summary -> planner/autopilot repair -> rerun -> before/after delta):
+
+```bash
+python -m gateforge.repair_loop \
+  --source artifacts/review_demo/source_needs_review.json \
+  --planner-backend rule \
+  --baseline baselines/mock_minimal_probe_baseline.json \
+  --out artifacts/repair_loop/summary.json
+cat artifacts/repair_loop/summary.json
+cat artifacts/repair_loop/summary.md
+```
+
+Demo shortcut:
+
+```bash
+bash scripts/demo_repair_loop.sh
+```
 
 Review ledger summary:
 
