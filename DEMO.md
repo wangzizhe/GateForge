@@ -334,3 +334,22 @@ Key outputs:
 - `artifacts/review_export_demo/proposal_records.json`
 - `artifacts/review_export_demo/fail_summary.json`
 - `artifacts/review_export_demo/proposal_summary.json`
+
+## 13. Review KPI Demo
+
+Command:
+
+```bash
+bash scripts/demo_review_kpis.sh
+```
+
+What it validates:
+
+- KPI summary includes approval/fail rates
+- KPI summary includes risk-level distribution
+- KPI summary includes last-7-days review volume
+
+Key outputs:
+
+- `artifacts/review_kpi_demo/kpi_summary.json`
+- `artifacts/review_kpi_demo/kpi_summary.md`

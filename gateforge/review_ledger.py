@@ -31,23 +31,62 @@ def summarize_review_ledger(rows: list[dict]) -> dict:
     status_counter = Counter()
     reviewer_counter = Counter()
     reason_counter = Counter()
+    risk_counter = Counter()
+    risk_status_counter: dict[str, Counter] = {}
+    date_counter = Counter()
     for row in rows:
         status = row.get("final_status")
         reviewer = row.get("reviewer")
+        risk = row.get("risk_level")
+        recorded_at = row.get("recorded_at_utc")
         if isinstance(status, str):
             status_counter[status] += 1
+            if isinstance(risk, str) and risk.strip():
+                risk_counter[risk] += 1
+                if risk not in risk_status_counter:
+                    risk_status_counter[risk] = Counter()
+                risk_status_counter[risk][status] += 1
         if isinstance(reviewer, str) and reviewer.strip():
             reviewer_counter[reviewer] += 1
+        if isinstance(recorded_at, str):
+            try:
+                date_key = _parse_utc(recorded_at).date().isoformat()
+                date_counter[date_key] += 1
+            except Exception:
+                pass
         for reason in row.get("final_reasons", []) or []:
             if isinstance(reason, str):
                 prefix = reason.split(":", 1)[0]
                 reason_counter[prefix] += 1
+    total = len(rows)
+    pass_count = int(status_counter.get("PASS", 0))
+    fail_count = int(status_counter.get("FAIL", 0))
+    needs_review_count = int(status_counter.get("NEEDS_REVIEW", 0))
+    approval_rate = round(pass_count / total, 4) if total else 0.0
+    fail_rate = round(fail_count / total, 4) if total else 0.0
+
+    recent_days = sorted(date_counter.keys())[-7:]
+    volume_by_day = [{"date": day, "count": int(date_counter.get(day, 0))} for day in recent_days]
+
+    by_risk: dict[str, dict[str, int]] = {}
+    for risk, counter in risk_status_counter.items():
+        by_risk[risk] = {k: int(v) for k, v in counter.items()}
     return {
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
         "total_records": len(rows),
         "status_counts": dict(status_counter),
         "reviewer_counts": dict(reviewer_counter),
         "reason_prefix_counts": dict(reason_counter),
+        "risk_level_counts": dict(risk_counter),
+        "kpis": {
+            "approval_rate": approval_rate,
+            "fail_rate": fail_rate,
+            "pass_count": pass_count,
+            "fail_count": fail_count,
+            "needs_review_count": needs_review_count,
+            "by_risk_status_counts": by_risk,
+            "review_volume_last_7_days": volume_by_day,
+        },
     }
 
 
@@ -123,6 +162,30 @@ def write_markdown(path: str, summary: dict) -> None:
     if reason_counts:
         for k in sorted(reason_counts.keys()):
             lines.append(f"- {k}: `{reason_counts[k]}`")
+    else:
+        lines.append("- `none`")
+
+    lines.extend(["", "## KPI Snapshot", ""])
+    kpis = summary.get("kpis", {})
+    lines.append(f"- approval_rate: `{kpis.get('approval_rate', 0.0)}`")
+    lines.append(f"- fail_rate: `{kpis.get('fail_rate', 0.0)}`")
+    lines.append(f"- pass_count: `{kpis.get('pass_count', 0)}`")
+    lines.append(f"- fail_count: `{kpis.get('fail_count', 0)}`")
+    lines.append(f"- needs_review_count: `{kpis.get('needs_review_count', 0)}`")
+
+    lines.extend(["", "## Risk-Level Counts", ""])
+    risk_counts = summary.get("risk_level_counts", {})
+    if risk_counts:
+        for k in sorted(risk_counts.keys()):
+            lines.append(f"- {k}: `{risk_counts[k]}`")
+    else:
+        lines.append("- `none`")
+
+    lines.extend(["", "## Review Volume (Last 7 Days)", ""])
+    volume = kpis.get("review_volume_last_7_days", [])
+    if volume:
+        for item in volume:
+            lines.append(f"- {item.get('date')}: `{item.get('count')}`")
     else:
         lines.append("- `none`")
 
