@@ -33,6 +33,7 @@ def _write_markdown(path: str, summary: dict) -> None:
         f"- proposal_id: `{summary.get('proposal_id')}`",
         f"- policy_decision: `{summary.get('policy_decision')}`",
         f"- policy_version: `{summary.get('policy_version')}`",
+        f"- policy_profile: `{summary.get('policy_profile')}`",
         f"- generated_change_set_path: `{summary.get('generated_change_set_path')}`",
         f"- change_apply_status: `{summary.get('change_apply_status')}`",
         f"- applied_changes_count: `{summary.get('applied_changes_count')}`",
@@ -274,6 +275,7 @@ def main() -> None:
         "materialize_change_set": args.materialize_change_set,
         "generated_change_set_path": generated_change_set_path,
         "policy_version": None,
+        "policy_profile": args.policy_profile or "default",
         "intent": intent_payload.get("intent"),
         "proposal_id": agent_payload.get("proposal_id") or intent_payload.get("proposal_id"),
         "status": status,
@@ -311,11 +313,13 @@ def main() -> None:
             summary["policy_load_error"] = str(exc)
     if agent_payload:
         summary["policy_version"] = agent_payload.get("policy_version", summary.get("policy_version"))
+        summary["policy_profile"] = agent_payload.get("policy_profile", summary.get("policy_profile"))
         summary["policy_decision"] = agent_payload.get("policy_decision")
         summary["fail_reasons"] = agent_payload.get("fail_reasons", [])
         summary["policy_reasons"] = agent_payload.get("policy_reasons", [])
         summary["human_hints"] = agent_payload.get("human_hints", [])
         summary["required_human_checks"] = agent_payload.get("required_human_checks", [])
+        summary["candidate_toolchain"] = agent_payload.get("candidate_toolchain")
         summary["change_apply_status"] = agent_payload.get("change_apply_status")
         summary["change_set_hash"] = agent_payload.get("change_set_hash")
         summary["applied_changes_count"] = agent_payload.get("applied_changes_count")

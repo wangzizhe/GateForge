@@ -41,6 +41,8 @@ class MockRunner:
             "exit_code": 0,
             "check_ok": True,
             "simulate_ok": True,
+            "backend_version": "mock-v1",
+            "docker_image": None,
         }
 
 
@@ -63,6 +65,8 @@ def run_pipeline(
     report_path: str | None = None,
     script_path: str | None = None,
     proposal_id: str | None = None,
+    policy_profile: str | None = None,
+    policy_version: str | None = None,
 ) -> dict:
     # Single entry point: execute backend, normalize outputs, emit evidence.
     started = time.time()
@@ -75,6 +79,13 @@ def run_pipeline(
         "run_id": f"run-{int(started)}",
         "timestamp_utc": datetime.now(timezone.utc).isoformat(),
         "backend": backend,
+        "toolchain": {
+            "backend_name": backend,
+            "backend_version": result.get("backend_version"),
+            "docker_image": result.get("docker_image"),
+            "policy_profile": policy_profile,
+            "policy_version": policy_version,
+        },
         "status": result["status"],
         "failure_type": result["failure_type"],
         "metrics": {
@@ -131,6 +142,8 @@ def _run_openmodelica_probe() -> dict:
             "exit_code": -1,
             "check_ok": False,
             "simulate_ok": False,
+            "backend_version": None,
+            "docker_image": None,
         }
 
     if proc.returncode != 0:
@@ -143,6 +156,8 @@ def _run_openmodelica_probe() -> dict:
             "exit_code": proc.returncode,
             "check_ok": False,
             "simulate_ok": False,
+            "backend_version": None,
+            "docker_image": None,
         }
 
     return {
@@ -154,6 +169,8 @@ def _run_openmodelica_probe() -> dict:
         "exit_code": proc.returncode,
         "check_ok": False,
         "simulate_ok": False,
+        "backend_version": _extract_om_version(proc.stdout or ""),
+        "docker_image": None,
     }
 
 
@@ -175,6 +192,8 @@ def _run_openmodelica_docker_probe(
             "exit_code": -1,
             "check_ok": False,
             "simulate_ok": False,
+            "backend_version": None,
+            "docker_image": selected_image,
         }
 
     # Run inside an ephemeral workspace so OMC artifacts never pollute the repo.
@@ -215,12 +234,15 @@ def _run_openmodelica_docker_probe(
                 "exit_code": -1,
                 "check_ok": False,
                 "simulate_ok": False,
+                "backend_version": None,
+                "docker_image": selected_image,
             }
 
         # Keep parsing logic backend-agnostic by extracting booleans from raw logs.
         merged_output = (proc.stdout or "") + "\n" + (proc.stderr or "")
         check_ok, simulate_ok = _extract_om_success_flags(merged_output)
         classified_failure = _classify_om_failure(merged_output, check_ok, simulate_ok)
+        backend_version = _extract_om_version(merged_output)
 
         if proc.returncode != 0 or classified_failure != "none":
             return {
@@ -232,6 +254,8 @@ def _run_openmodelica_docker_probe(
                 "exit_code": proc.returncode,
                 "check_ok": check_ok,
                 "simulate_ok": simulate_ok,
+                "backend_version": backend_version,
+                "docker_image": selected_image,
             }
 
         return {
@@ -243,6 +267,8 @@ def _run_openmodelica_docker_probe(
             "exit_code": proc.returncode,
             "check_ok": check_ok,
             "simulate_ok": simulate_ok,
+            "backend_version": backend_version,
+            "docker_image": selected_image,
         }
 
 
@@ -261,6 +287,13 @@ def _extract_om_success_flags(output: str) -> tuple[bool, bool]:
     )
     simulate_ok = has_sim_result and not result_file_empty and not sim_error_markers
     return check_ok, simulate_ok
+
+
+def _extract_om_version(output: str) -> str | None:
+    m = re.search(r"OpenModelica\\s+([0-9]+\\.[0-9]+\\.[0-9]+)", output)
+    if not m:
+        return None
+    return m.group(1)
 
 
 def _classify_om_failure(output: str, check_ok: bool, simulate_ok: bool) -> str:
@@ -316,6 +349,7 @@ def validate_evidence(evidence: dict) -> None:
         "run_id",
         "timestamp_utc",
         "backend",
+        "toolchain",
         "status",
         "failure_type",
         "metrics",
@@ -332,6 +366,13 @@ def validate_evidence(evidence: dict) -> None:
 
     if evidence["backend"] not in {"mock", "openmodelica", "openmodelica_docker"}:
         raise ValueError("backend must be mock/openmodelica/openmodelica_docker")
+    toolchain = evidence["toolchain"]
+    if not isinstance(toolchain, dict):
+        raise ValueError("toolchain must be object")
+    required_toolchain = {"backend_name", "backend_version", "docker_image", "policy_profile", "policy_version"}
+    missing_toolchain = required_toolchain - set(toolchain.keys())
+    if missing_toolchain:
+        raise ValueError(f"missing toolchain fields: {sorted(missing_toolchain)}")
     if evidence["status"] not in {"success", "failed"}:
         raise ValueError("status must be success/failed")
     if evidence["gate"] not in {"PASS", "FAIL", "NEEDS_REVIEW"}:
@@ -382,6 +423,10 @@ def _write_markdown_report(path: str, evidence: dict) -> None:
         f"- status: `{evidence['status']}`",
         f"- failure_type: `{evidence['failure_type']}`",
         f"- backend: `{evidence['backend']}`",
+        f"- backend_version: `{evidence['toolchain'].get('backend_version')}`",
+        f"- docker_image: `{evidence['toolchain'].get('docker_image')}`",
+        f"- policy_profile: `{evidence['toolchain'].get('policy_profile')}`",
+        f"- policy_version: `{evidence['toolchain'].get('policy_version')}`",
         f"- proposal_id: `{evidence['proposal_id']}`",
         f"- model_script: `{evidence['model_script']}`",
         f"- check_ok: `{evidence['check_ok']}`",

@@ -34,6 +34,8 @@ def _write_run_markdown(path: str, summary: dict) -> None:
         f"- status: `{summary['status']}`",
         f"- risk_level: `{summary.get('risk_level')}`",
         f"- policy_decision: `{summary.get('policy_decision')}`",
+        f"- policy_profile: `{summary.get('policy_profile')}`",
+        f"- policy_version: `{summary.get('policy_version')}`",
         f"- checkers: `{','.join(summary.get('checkers', []))}`",
         f"- checker_config: `{json.dumps(summary.get('checker_config', {}), separators=(',', ':'))}`",
         f"- actions: `{','.join(summary['actions'])}`",
@@ -225,11 +227,13 @@ def main() -> None:
         "policy_reasons": [],
         "policy_path": policy_path,
         "policy_version": None,
+        "policy_profile": args.policy_profile or "default",
         "checkers": proposal.get("checkers", []),
         "checker_config": proposal.get("checker_config", {}),
         "smoke_executed": False,
         "regress_executed": False,
         "candidate_path": None,
+        "candidate_toolchain": None,
         "baseline_path": None,
         "regression_path": None,
         "fail_reasons": [],
@@ -264,15 +268,21 @@ def main() -> None:
                 summary["fail_reasons"].append("change_apply_failed")
                 summary["human_hints"].append(f"Change-set apply failed: {exc}")
 
+        policy = load_policy(policy_path)
+        summary["policy_version"] = policy.get("version")
+
         if execution_requested and summary["change_apply_status"] != "failed":
             candidate = run_pipeline(
                 backend=backend,
                 out_path=args.candidate_out,
                 script_path=script_path,
                 proposal_id=proposal["proposal_id"],
+                policy_profile=summary["policy_profile"],
+                policy_version=summary["policy_version"],
             )
             summary["smoke_executed"] = True
             summary["candidate_path"] = args.candidate_out
+            summary["candidate_toolchain"] = candidate.get("toolchain")
             if candidate["gate"] != "PASS":
                 summary["fail_reasons"].append("candidate_gate_not_pass")
 
@@ -285,6 +295,7 @@ def main() -> None:
                         raise SystemExit("--candidate-in is required when regress is requested without execution actions")
                     candidate = load_json(args.candidate_in)
                     summary["candidate_path"] = args.candidate_in
+                    summary["candidate_toolchain"] = candidate.get("toolchain")
 
             if candidate is not None:
                 try:
@@ -328,7 +339,6 @@ def main() -> None:
             combined_reasons.extend(regression_payload.get("reasons", []))
         combined_reasons = list(dict.fromkeys(combined_reasons))
 
-        policy = load_policy(policy_path)
         policy_result = evaluate_policy(
             reasons=combined_reasons,
             risk_level=proposal["risk_level"],

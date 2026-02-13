@@ -35,6 +35,8 @@ class SmokePipelineTests(unittest.TestCase):
             self.assertEqual(evidence["status"], "success")
             self.assertEqual(evidence["gate"], "PASS")
             self.assertEqual(evidence["backend"], "mock")
+            self.assertIn("toolchain", evidence)
+            self.assertEqual(evidence["toolchain"]["backend_name"], "mock")
             self.assertIsNone(evidence["model_script"])
             self.assertEqual(evidence["exit_code"], 0)
             self.assertIs(evidence["check_ok"], True)

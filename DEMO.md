@@ -107,6 +107,18 @@ This runs both demos and writes:
 - `artifacts/demo_all_summary.md`
 - `artifacts/demo_all_summary.json` (machine-readable bundle summary)
 
+Batch governance view (failure distribution):
+
+```bash
+python3 -m gateforge.batch \
+  --pack benchmarks/pack_v0.json \
+  --out-dir artifacts/bench-pack \
+  --summary-out artifacts/bench-pack/summary.json \
+  --report-out artifacts/bench-pack/summary.md
+cat artifacts/bench-pack/summary.json
+cat artifacts/bench-pack/summary.md
+```
+
 ## 5. Autopilot Dry-Run Demo (Human Review Template)
 
 Command:

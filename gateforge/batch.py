@@ -32,9 +32,20 @@ def _write_markdown(path: str, summary: dict) -> None:
         f"- pass_count: `{summary['pass_count']}`",
         f"- fail_count: `{summary['fail_count']}`",
         "",
-        "## Runs",
+        "## Failure Distribution",
         "",
     ]
+    failure_counts = summary.get("failure_type_counts", {})
+    if failure_counts:
+        for failure_type, count in failure_counts.items():
+            lines.append(f"- `{failure_type}`: `{count}`")
+    else:
+        lines.append("- `none`")
+    lines.extend([
+        "",
+        "## Runs",
+        "",
+    ])
     for item in summary["runs"]:
         lines.append(
             f"- `{item['name']}`: gate=`{item['gate']}` status=`{item['status']}` "
@@ -153,12 +164,20 @@ def main() -> None:
             break
 
     fail_count = sum(1 for r in runs if r["gate"] != "PASS")
+    failure_type_counts: dict[str, int] = {}
+    for run in runs:
+        if run["gate"] == "PASS":
+            continue
+        failure = run.get("failure_type") or "unknown"
+        failure_type_counts[failure] = failure_type_counts.get(failure, 0) + 1
+    failure_type_counts = dict(sorted(failure_type_counts.items(), key=lambda kv: (-kv[1], kv[0])))
     summary = {
         "proposal_id": proposal_id,
         "backend": backend,
         "total_runs": len(runs),
         "pass_count": len(runs) - fail_count,
         "fail_count": fail_count,
+        "failure_type_counts": failure_type_counts,
         "runs": runs,
     }
     _write_json(args.summary_out, summary)

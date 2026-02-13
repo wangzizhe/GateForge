@@ -418,6 +418,11 @@ The generated evidence includes:
 - `exit_code`: process exit code from the backend run
 - `check_ok`: whether model checking succeeded
 - `simulate_ok`: whether simulation succeeded
+- `toolchain`: reproducibility fingerprint (`backend_version`, `docker_image`, `policy_profile`, `policy_version`)
+
+For reproducibility, `toolchain` is propagated into proposal-run artifacts:
+- `candidate_toolchain` in proposal run summary
+- `policy_profile` / `policy_version` in run and autopilot summaries
 
 Each run also writes a short markdown summary report (default: same path as `--out` with `.md`).
 You can override it with:
@@ -457,6 +462,17 @@ python -m gateforge.regress \
   --checker event_explosion \
   --checker-config /tmp/checker_config.json \
   --out artifacts/regression_with_checkers.json
+```
+
+Optional strict policy-version blocking (default is warning-only):
+
+```bash
+python -m gateforge.regress \
+  --baseline baselines/mock_baseline.json \
+  --candidate artifacts/candidate.json \
+  --strict \
+  --strict-policy-version \
+  --out artifacts/regression_strict_policy.json
 ```
 
 Run a proposal-driven checker threshold demo:
@@ -586,6 +602,7 @@ python -m gateforge.batch \
 Batch behavior:
 - Default: stop on first failed run.
 - Use `--continue-on-fail` to execute all runs even if some fail.
+- Summary now includes `failure_type_counts` and markdown `Failure Distribution`.
 
 You can also drive batch from a proposal (single-run batch):
 

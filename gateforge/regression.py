@@ -12,10 +12,12 @@ def compare_evidence(
     runtime_regression_threshold: float = 0.2,
     strict: bool = False,
     strict_model_script: bool = False,
+    strict_policy_version: bool = False,
     checker_names: list[str] | None = None,
     checker_config: dict | None = None,
 ) -> dict:
     reasons: list[str] = []
+    warnings: list[str] = []
     effective_checkers = checker_names or available_checkers()
 
     if strict:
@@ -25,6 +27,21 @@ def compare_evidence(
             reasons.append("strict_backend_mismatch")
         if strict_model_script and baseline.get("model_script") != candidate.get("model_script"):
             reasons.append("strict_model_script_mismatch")
+        baseline_policy_version = (
+            baseline.get("policy_version")
+            or baseline.get("baseline_meta", {}).get("policy_version")
+            or baseline.get("toolchain", {}).get("policy_version")
+        )
+        candidate_policy_version = candidate.get("policy_version") or candidate.get("toolchain", {}).get("policy_version")
+        if (
+            baseline_policy_version
+            and candidate_policy_version
+            and baseline_policy_version != candidate_policy_version
+        ):
+            warning = f"strict_policy_version_mismatch:{baseline_policy_version}!={candidate_policy_version}"
+            warnings.append(warning)
+            if strict_policy_version:
+                reasons.append("strict_policy_version_mismatch")
 
     if candidate.get("status") != "success":
         reasons.append("candidate_status_not_success")
@@ -58,6 +75,7 @@ def compare_evidence(
         "proposal_id": candidate.get("proposal_id") or baseline.get("proposal_id"),
         "strict": strict,
         "strict_model_script": strict_model_script,
+        "strict_policy_version": strict_policy_version,
         "baseline_run_id": baseline.get("run_id"),
         "candidate_run_id": candidate.get("run_id"),
         "runtime_threshold": runtime_regression_threshold,
@@ -67,6 +85,7 @@ def compare_evidence(
         "checkers": effective_checkers,
         "checker_config": checker_config or {},
         "findings": checker_findings,
+        "warnings": warnings,
     }
 
 
@@ -90,6 +109,7 @@ def write_markdown(path: str, result: dict) -> None:
         f"- proposal_id: `{result.get('proposal_id')}`",
         f"- strict: `{result['strict']}`",
         f"- strict_model_script: `{result['strict_model_script']}`",
+        f"- strict_policy_version: `{result.get('strict_policy_version')}`",
         f"- baseline_run_id: `{result['baseline_run_id']}`",
         f"- candidate_run_id: `{result['candidate_run_id']}`",
         f"- baseline_runtime_seconds: `{result['baseline_runtime_seconds']}`",
@@ -112,6 +132,12 @@ def write_markdown(path: str, result: dict) -> None:
             lines.append(
                 f"- `{finding.get('checker')}` `{finding.get('severity')}` `{finding.get('reason')}`: {finding.get('message')}"
             )
+    else:
+        lines.append("- `none`")
+    lines.extend(["", "## Warnings", ""])
+    warnings = result.get("warnings", [])
+    if warnings:
+        lines.extend([f"- `{w}`" for w in warnings])
     else:
         lines.append("- `none`")
     lines.append("")
