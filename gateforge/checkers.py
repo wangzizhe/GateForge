@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import dataclass
 from typing import Callable
 
@@ -239,6 +240,17 @@ BUILTIN_CHECKERS: dict[str, CheckerFn] = {
 
 CHECKER_REGISTRY: dict[str, CheckerFn] = dict(BUILTIN_CHECKERS)
 
+CHECKER_DEFAULT_CONFIG: dict[str, dict] = {
+    "performance_regression": {"max_ratio": 2.0},
+    "event_explosion": {"max_ratio": 2.0, "abs_threshold_if_baseline_zero": 100},
+    "steady_state_regression": {"max_abs_delta": 0.05},
+    "control_behavior_regression": {
+        "max_overshoot_abs_delta": 0.1,
+        "max_settling_time_ratio": 1.5,
+        "max_steady_state_abs_delta": 0.05,
+    },
+}
+
 
 def register_checker(name: str, checker: CheckerFn) -> None:
     if not isinstance(name, str) or not name.strip():
@@ -254,6 +266,18 @@ def unregister_checker(name: str) -> None:
 
 def available_checkers() -> list[str]:
     return sorted(CHECKER_REGISTRY.keys())
+
+
+def checker_config_template(checker_names: list[str] | None = None, include_runtime: bool = True) -> dict:
+    resolved_names = list(checker_names) if checker_names is not None else available_checkers()
+    template: dict = {}
+    for name in resolved_names:
+        defaults = CHECKER_DEFAULT_CONFIG.get(name)
+        if defaults is not None:
+            template[name] = deepcopy(defaults)
+    if include_runtime:
+        template["_runtime"] = {"enable": [], "disable": []}
+    return template
 
 
 def _resolve_checker_names(checker_names: list[str] | None, checker_config: dict) -> list[str]:

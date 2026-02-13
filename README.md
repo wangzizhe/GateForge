@@ -718,6 +718,19 @@ python -m gateforge.run \
   --out artifacts/proposal_run_strict.json
 ```
 
+You can also emit a starter checker template inferred from proposal checkers:
+
+```bash
+python -m gateforge.run \
+  --proposal examples/proposals/proposal_v0.json \
+  --baseline auto \
+  --emit-checker-template artifacts/checker_template.json \
+  --out artifacts/proposal_run.json
+cat artifacts/checker_template.json
+```
+
+If proposal omits `checkers`, the template includes all configurable built-in checker sections plus `_runtime`.
+
 ### 8. Batch execution (multiple runs + summary)
 
 Run a batch and generate per-run evidence plus an aggregate report:
