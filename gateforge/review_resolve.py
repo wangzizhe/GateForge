@@ -232,6 +232,13 @@ def main() -> None:
         "final_reasons": resolved.get("final_reasons", []),
         "risk_level": source.get("risk_level"),
         "source_policy_decision": source.get("policy_decision"),
+        "planner_guardrail_decision": source.get("planner_guardrail_decision"),
+        "planner_guardrail_rule_ids": [
+            v.get("rule_id")
+            for v in (source.get("planner_guardrail_violation_objects") or [])
+            if isinstance(v, dict) and isinstance(v.get("rule_id"), str)
+        ],
+        "planner_guardrail_violations_count": len(source.get("planner_guardrail_violations", []) or []),
         "required_human_checks_count": len(source.get("required_human_checks", []) or []),
         "requested_at_utc": resolved.get("requested_at_utc"),
         "reviewed_at_utc": resolved.get("reviewed_at_utc"),

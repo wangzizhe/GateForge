@@ -34,6 +34,8 @@ def summarize_review_ledger(rows: list[dict], sla_seconds: float = 86400.0) -> d
     reason_counter = Counter()
     risk_counter = Counter()
     risk_status_counter: dict[str, Counter] = {}
+    guardrail_decision_counter = Counter()
+    guardrail_rule_counter = Counter()
     date_counter = Counter()
     resolution_values: list[float] = []
     for row in rows:
@@ -56,6 +58,12 @@ def summarize_review_ledger(rows: list[dict], sla_seconds: float = 86400.0) -> d
                 date_counter[date_key] += 1
             except Exception:
                 pass
+        gd = row.get("planner_guardrail_decision")
+        if isinstance(gd, str) and gd.strip():
+            guardrail_decision_counter[gd] += 1
+        for rid in row.get("planner_guardrail_rule_ids", []) or []:
+            if isinstance(rid, str) and rid.strip():
+                guardrail_rule_counter[rid] += 1
         res = row.get("resolution_seconds")
         if isinstance(res, (int, float)) and float(res) >= 0:
             resolution_values.append(float(res))
@@ -88,6 +96,9 @@ def summarize_review_ledger(rows: list[dict], sla_seconds: float = 86400.0) -> d
     if resolution_values:
         breach_count = sum(1 for v in resolution_values if v > float(sla_seconds))
     breach_rate = round(breach_count / len(resolution_values), 4) if resolution_values else 0.0
+    guardrail_total = sum(guardrail_decision_counter.values())
+    guardrail_fail_count = int(guardrail_decision_counter.get("FAIL", 0))
+    guardrail_fail_rate = round(guardrail_fail_count / guardrail_total, 4) if guardrail_total else 0.0
     return {
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
         "total_records": len(rows),
@@ -95,6 +106,8 @@ def summarize_review_ledger(rows: list[dict], sla_seconds: float = 86400.0) -> d
         "reviewer_counts": dict(reviewer_counter),
         "reason_prefix_counts": dict(reason_counter),
         "risk_level_counts": dict(risk_counter),
+        "planner_guardrail_decision_counts": dict(guardrail_decision_counter),
+        "planner_guardrail_rule_id_counts": dict(guardrail_rule_counter),
         "kpis": {
             "approval_rate": approval_rate,
             "fail_rate": fail_rate,
@@ -109,6 +122,9 @@ def summarize_review_ledger(rows: list[dict], sla_seconds: float = 86400.0) -> d
             "sla_seconds": float(sla_seconds),
             "sla_breach_count": int(breach_count),
             "sla_breach_rate": breach_rate,
+            "guardrail_record_count": int(guardrail_total),
+            "guardrail_fail_count": int(guardrail_fail_count),
+            "guardrail_fail_rate": guardrail_fail_rate,
         },
     }
 
@@ -201,12 +217,31 @@ def write_markdown(path: str, summary: dict) -> None:
     lines.append(f"- sla_seconds: `{kpis.get('sla_seconds')}`")
     lines.append(f"- sla_breach_count: `{kpis.get('sla_breach_count', 0)}`")
     lines.append(f"- sla_breach_rate: `{kpis.get('sla_breach_rate', 0.0)}`")
+    lines.append(f"- guardrail_record_count: `{kpis.get('guardrail_record_count', 0)}`")
+    lines.append(f"- guardrail_fail_count: `{kpis.get('guardrail_fail_count', 0)}`")
+    lines.append(f"- guardrail_fail_rate: `{kpis.get('guardrail_fail_rate', 0.0)}`")
 
     lines.extend(["", "## Risk-Level Counts", ""])
     risk_counts = summary.get("risk_level_counts", {})
     if risk_counts:
         for k in sorted(risk_counts.keys()):
             lines.append(f"- {k}: `{risk_counts[k]}`")
+    else:
+        lines.append("- `none`")
+
+    lines.extend(["", "## Planner Guardrail Decision Counts", ""])
+    guardrail_decisions = summary.get("planner_guardrail_decision_counts", {})
+    if guardrail_decisions:
+        for k in sorted(guardrail_decisions.keys()):
+            lines.append(f"- {k}: `{guardrail_decisions[k]}`")
+    else:
+        lines.append("- `none`")
+
+    lines.extend(["", "## Planner Guardrail Rule IDs", ""])
+    guardrail_rules = summary.get("planner_guardrail_rule_id_counts", {})
+    if guardrail_rules:
+        for k in sorted(guardrail_rules.keys()):
+            lines.append(f"- {k}: `{guardrail_rules[k]}`")
     else:
         lines.append("- `none`")
 

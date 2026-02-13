@@ -229,6 +229,7 @@ What it validates:
 - input is an existing failed governance summary
 - planner/autopilot proposes a constrained repair run
 - output provides before/after decision delta
+- if first attempt fails, repair loop can retry once with conservative fallback constraints
 
 Key outputs:
 
@@ -241,6 +242,7 @@ Expected result:
 
 - `after_status = PASS`
 - `delta = improved`
+- `retry_used` may be `true` when fallback retry is needed
 
 Schema reference:
 
@@ -351,6 +353,7 @@ What it validates:
 - low-confidence planner output is rejected before execution
 - planner output targeting non-whitelisted file is rejected before execution
 - planner guardrail result is persisted for downstream audit (`decision + violations`)
+- violations are structured with `rule_id` and `message`
 
 Key outputs:
 

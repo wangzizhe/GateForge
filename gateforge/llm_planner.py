@@ -28,6 +28,13 @@ ALLOWED_OVERRIDE_KEYS = {
 }
 
 
+class PlannerGuardrailError(ValueError):
+    def __init__(self, rule_id: str, message: str):
+        super().__init__(message)
+        self.rule_id = rule_id
+        self.message = message
+
+
 def _write_json(path: str, payload: dict) -> None:
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
@@ -213,7 +220,10 @@ def _extract_json_object(text: str) -> dict:
 def _validate_overrides(overrides: dict) -> None:
     unknown = sorted(k for k in overrides if k not in ALLOWED_OVERRIDE_KEYS)
     if unknown:
-        raise ValueError(f"planner overrides contain unsupported keys: {unknown}")
+        raise PlannerGuardrailError(
+            "overrides_unsupported_keys",
+            f"planner overrides contain unsupported keys: {unknown}",
+        )
 
 
 def _validate_change_set_files(
@@ -229,15 +239,25 @@ def _validate_change_set_files(
         if not isinstance(file_path, str) or not file_path:
             continue
         if Path(file_path).is_absolute():
-            raise ValueError(f"change_set_draft changes[{idx}].file must be relative")
+            raise PlannerGuardrailError(
+                "change_set_file_absolute",
+                f"change_set_draft changes[{idx}].file must be relative",
+            )
         if not any(file_path == root or file_path.startswith(root + "/") for root in allowed_roots):
-            raise ValueError(f"change_set_draft changes[{idx}].file outside allowed roots: {file_path}")
+            raise PlannerGuardrailError(
+                "change_set_file_outside_allowed_roots",
+                f"change_set_draft changes[{idx}].file outside allowed roots: {file_path}",
+            )
         if not file_path.endswith(allowed_suffixes):
-            raise ValueError(
+            raise PlannerGuardrailError(
+                "change_set_file_suffix_not_allowed",
                 f"change_set_draft changes[{idx}].file must end with one of {sorted(allowed_suffixes)}"
             )
         if allowed_files and file_path not in allowed_files:
-            raise ValueError(f"change_set_draft changes[{idx}].file is not in allowed_files whitelist: {file_path}")
+            raise PlannerGuardrailError(
+                "change_set_file_not_whitelisted",
+                f"change_set_draft changes[{idx}].file is not in allowed_files whitelist: {file_path}",
+            )
 
 
 def _apply_llm_guardrails(
@@ -273,11 +293,13 @@ def _apply_llm_guardrails(
         conf_min = stats["plan_confidence_min"]
         conf_max = stats["plan_confidence_max"]
         if conf_min < confidence_min:
-            raise ValueError(
+            raise PlannerGuardrailError(
+                "change_plan_confidence_min_below_threshold",
                 f"change_plan confidence_min={conf_min:.3f} is below guardrail {confidence_min:.3f}"
             )
         if conf_max > confidence_max:
-            raise ValueError(
+            raise PlannerGuardrailError(
+                "change_plan_confidence_max_above_threshold",
                 f"change_plan confidence_max={conf_max:.3f} is above guardrail {confidence_max:.3f}"
             )
         guardrails.update(stats)
@@ -370,7 +392,10 @@ def _plan_with_gemini_backend(
         raise ValueError(f"gemini planner returned unsupported intent: {intent}")
     unknown_top_level = sorted(k for k in parsed.keys() if k not in ALLOWED_GEMINI_TOP_LEVEL_KEYS)
     if unknown_top_level:
-        raise ValueError(f"gemini planner returned unsupported top-level keys: {unknown_top_level}")
+        raise PlannerGuardrailError(
+            "gemini_unsupported_top_level_keys",
+            f"gemini planner returned unsupported top-level keys: {unknown_top_level}",
+        )
     overrides = parsed.get("overrides", {})
     if "change_summary" not in overrides:
         overrides["change_summary"] = goal_text
@@ -526,6 +551,7 @@ def main() -> None:
             {
                 "decision": "PASS",
                 "violations": [],
+                "violation_messages": [],
                 "guardrails": guardrails,
                 "planner_backend": args.planner_backend,
             },
@@ -536,11 +562,16 @@ def main() -> None:
         else:
             payload["planner_inputs"] = {"change_plan_guardrails": guardrails}
     except ValueError as exc:
+        if isinstance(exc, PlannerGuardrailError):
+            violations = [{"rule_id": exc.rule_id, "message": exc.message}]
+        else:
+            violations = [{"rule_id": "planner_backend_error", "message": str(exc)}]
         _write_guardrail_report(
             args.guardrail_report_out,
             {
                 "decision": "FAIL",
-                "violations": [str(exc)],
+                "violations": violations,
+                "violation_messages": [v["message"] for v in violations],
                 "planner_backend": args.planner_backend,
             },
         )
