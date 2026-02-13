@@ -4,6 +4,10 @@ from gateforge.demo_bundle import validate_demo_bundle_summary
 
 
 def _valid_payload() -> dict:
+    artifacts = [
+        "artifacts/proposal_run_demo.json",
+        "artifacts/checker_demo_summary.md",
+    ]
     return {
         "flow_exit_code": 0,
         "checker_exit_code": 0,
@@ -14,10 +18,11 @@ def _valid_payload() -> dict:
             "proposal_flow": "PASS",
             "checker_demo_expected_fail": "PASS",
         },
-        "artifacts": [
-            "artifacts/proposal_run_demo.json",
-            "artifacts/checker_demo_summary.md",
-        ],
+        "artifacts": artifacts,
+        "checksums": {
+            "artifacts/proposal_run_demo.json": "a" * 64,
+            "artifacts/checker_demo_summary.md": "b" * 64,
+        },
         "bundle_status": "PASS",
     }
 
@@ -36,6 +41,12 @@ class DemoBundleTests(unittest.TestCase):
     def test_validate_demo_bundle_summary_bad_flag(self) -> None:
         payload = _valid_payload()
         payload["result_flags"]["proposal_flow"] = "MAYBE"
+        with self.assertRaises(ValueError):
+            validate_demo_bundle_summary(payload)
+
+    def test_validate_demo_bundle_summary_missing_checksum(self) -> None:
+        payload = _valid_payload()
+        payload["checksums"].pop("artifacts/proposal_run_demo.json")
         with self.assertRaises(ValueError):
             validate_demo_bundle_summary(payload)
 

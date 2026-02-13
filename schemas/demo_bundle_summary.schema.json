@@ -11,6 +11,7 @@
     "checker_demo_policy_decision",
     "result_flags",
     "artifacts",
+    "checksums",
     "bundle_status"
   ],
   "properties": {
@@ -48,6 +49,13 @@
       "items": {
         "type": "string",
         "minLength": 1
+      }
+    },
+    "checksums": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^[a-f0-9]{64}$"
       }
     },
     "bundle_status": {

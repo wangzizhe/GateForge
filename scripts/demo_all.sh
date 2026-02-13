@@ -19,6 +19,7 @@ export GATEFORGE_CHECKER_EXIT_CODE="$CHECKER_EXIT_CODE"
 python3 - <<'PY'
 import json
 import os
+import hashlib
 from pathlib import Path
 from gateforge.demo_bundle import validate_demo_bundle_summary
 
@@ -85,9 +86,18 @@ if summary_json["result_flags"]["proposal_flow"] != "PASS":
 if summary_json["result_flags"]["checker_demo_expected_fail"] != "PASS":
     bundle_status = "FAIL"
 summary_json["bundle_status"] = bundle_status
+
+checksums = {}
+for artifact in summary_json["artifacts"]:
+    p = Path(artifact)
+    if p.exists():
+        checksums[artifact] = hashlib.sha256(p.read_bytes()).hexdigest()
+summary_json["checksums"] = checksums
+
 validate_demo_bundle_summary(summary_json)
 
 lines.insert(10, f"- bundle_status: `{bundle_status}`")
+lines.insert(11, f"- checksums_count: `{len(checksums)}`")
 
 Path("artifacts/demo_all_summary.md").write_text("\n".join(lines), encoding="utf-8")
 Path("artifacts/demo_all_summary.json").write_text(json.dumps(summary_json, indent=2), encoding="utf-8")

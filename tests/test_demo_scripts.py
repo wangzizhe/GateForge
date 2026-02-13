@@ -27,6 +27,12 @@ class DemoScriptTests(unittest.TestCase):
         result_flags = payload.get("result_flags", {})
         self.assertEqual(result_flags.get("proposal_flow"), "PASS")
         self.assertEqual(result_flags.get("checker_demo_expected_fail"), "PASS")
+        checksums = payload.get("checksums", {})
+        self.assertIsInstance(checksums, dict)
+        artifacts = payload.get("artifacts", [])
+        for artifact in artifacts:
+            self.assertIn(artifact, checksums)
+            self.assertEqual(len(checksums[artifact]), 64)
 
 
 if __name__ == "__main__":
