@@ -8,18 +8,20 @@ cd "$ROOT_DIR"
 # Defaults: run demos, skip benchmark (to keep loop fast).
 RUN_CHECKER_DEMO="${RUN_CHECKER_DEMO:-1}"
 RUN_STEADY_STATE_DEMO="${RUN_STEADY_STATE_DEMO:-1}"
+RUN_BEHAVIOR_METRICS_DEMO="${RUN_BEHAVIOR_METRICS_DEMO:-1}"
 RUN_DEMO_BUNDLE="${RUN_DEMO_BUNDLE:-1}"
 RUN_AUTOPILOT_DRY_RUN="${RUN_AUTOPILOT_DRY_RUN:-1}"
 RUN_AGENT_CHANGE_LOOP="${RUN_AGENT_CHANGE_LOOP:-1}"
 RUN_BENCHMARK="${RUN_BENCHMARK:-0}"
 POLICY_PROFILE="${POLICY_PROFILE:-}"
-export RUN_CHECKER_DEMO RUN_STEADY_STATE_DEMO RUN_DEMO_BUNDLE RUN_AUTOPILOT_DRY_RUN RUN_AGENT_CHANGE_LOOP RUN_BENCHMARK POLICY_PROFILE
+export RUN_CHECKER_DEMO RUN_STEADY_STATE_DEMO RUN_BEHAVIOR_METRICS_DEMO RUN_DEMO_BUNDLE RUN_AUTOPILOT_DRY_RUN RUN_AGENT_CHANGE_LOOP RUN_BENCHMARK POLICY_PROFILE
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --all)
       RUN_CHECKER_DEMO=1
       RUN_STEADY_STATE_DEMO=1
+      RUN_BEHAVIOR_METRICS_DEMO=1
       RUN_DEMO_BUNDLE=1
       RUN_AUTOPILOT_DRY_RUN=1
       RUN_AGENT_CHANGE_LOOP=1
@@ -28,6 +30,7 @@ while [[ $# -gt 0 ]]; do
     --none)
       RUN_CHECKER_DEMO=0
       RUN_STEADY_STATE_DEMO=0
+      RUN_BEHAVIOR_METRICS_DEMO=0
       RUN_DEMO_BUNDLE=0
       RUN_AUTOPILOT_DRY_RUN=0
       RUN_AGENT_CHANGE_LOOP=0
@@ -40,6 +43,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --steady-state-demo)
       RUN_STEADY_STATE_DEMO=1
+      shift
+      ;;
+    --behavior-metrics-demo)
+      RUN_BEHAVIOR_METRICS_DEMO=1
       shift
       ;;
     --demo-bundle)
@@ -90,6 +97,9 @@ fi
 if [[ "$RUN_STEADY_STATE_DEMO" == "1" ]]; then
   RESULTS+=("$(run_job steady_state_demo bash scripts/demo_steady_state_checker.sh)")
 fi
+if [[ "$RUN_BEHAVIOR_METRICS_DEMO" == "1" ]]; then
+  RESULTS+=("$(run_job behavior_metrics_demo bash scripts/demo_behavior_metrics_checker.sh)")
+fi
 if [[ "$RUN_DEMO_BUNDLE" == "1" ]]; then
   RESULTS+=("$(run_job demo_bundle bash scripts/demo_all.sh)")
 fi
@@ -113,6 +123,7 @@ from pathlib import Path
 selected = {
     "checker_demo": os.getenv("RUN_CHECKER_DEMO") == "1",
     "steady_state_demo": os.getenv("RUN_STEADY_STATE_DEMO") == "1",
+    "behavior_metrics_demo": os.getenv("RUN_BEHAVIOR_METRICS_DEMO") == "1",
     "demo_bundle": os.getenv("RUN_DEMO_BUNDLE") == "1",
     "autopilot_dry_run": os.getenv("RUN_AUTOPILOT_DRY_RUN") == "1",
     "agent_change_loop": os.getenv("RUN_AGENT_CHANGE_LOOP") == "1",

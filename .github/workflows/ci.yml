@@ -20,6 +20,11 @@ on:
         required: false
         default: false
         type: boolean
+      run_behavior_metrics_demo:
+        description: "Run optional behavior-metrics checker demo job"
+        required: false
+        default: false
+        type: boolean
       run_demo_bundle:
         description: "Run optional combined demo bundle job"
         required: false
@@ -269,6 +274,76 @@ jobs:
             artifacts/steady_state_demo_regression.json
             artifacts/steady_state_demo_regression.md
             artifacts/steady_state_demo_summary.md
+
+  behavior-metrics-demo-optional:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_behavior_metrics_demo }}
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    env:
+      POLICY_PROFILE: ${{ inputs.demo_policy_profile }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Run behavior-metrics checker demo
+        run: bash scripts/demo_behavior_metrics_checker.sh
+
+      - name: Publish behavior-metrics demo summary to job page
+        if: always()
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          regress_path = Path("artifacts/behavior_metrics_demo/regression.json")
+          if not regress_path.exists():
+              text = "## Behavior Metrics Demo Summary\n\n`artifacts/behavior_metrics_demo/regression.json` not found."
+          else:
+              payload = json.loads(regress_path.read_text(encoding="utf-8"))
+              reasons = payload.get("reasons", []) if isinstance(payload, dict) else []
+              findings = payload.get("findings", []) if isinstance(payload, dict) else []
+              lines = [
+                  "## Behavior Metrics Demo Summary",
+                  "",
+                  f"- decision: `{payload.get('decision')}`",
+                  f"- policy_decision: `{payload.get('policy_decision')}`",
+                  f"- policy_path: `{payload.get('policy_path')}`",
+                  f"- reasons_count: `{len(reasons)}`",
+                  f"- findings_count: `{len(findings)}`",
+                  "",
+              ]
+              text = "\n".join(lines)
+
+          summary_file = os.getenv("GITHUB_STEP_SUMMARY")
+          if summary_file:
+              with open(summary_file, "a", encoding="utf-8") as f:
+                  f.write(text + "\n")
+          print(text)
+          PY
+
+      - name: Upload behavior-metrics demo artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: behavior-metrics-demo
+          path: |
+            artifacts/behavior_metrics_demo/baseline.json
+            artifacts/behavior_metrics_demo/candidate.json
+            artifacts/behavior_metrics_demo/regression.json
+            artifacts/behavior_metrics_demo/regression.md
+            artifacts/behavior_metrics_demo/summary.json
+            artifacts/behavior_metrics_demo/summary.md
 
   demo-bundle-optional:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_demo_bundle }}
