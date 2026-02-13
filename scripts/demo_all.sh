@@ -20,6 +20,7 @@ python3 - <<'PY'
 import json
 import os
 from pathlib import Path
+from gateforge.demo_bundle import validate_demo_bundle_summary
 
 def read_json(path: str) -> dict:
     p = Path(path)
@@ -84,6 +85,7 @@ if summary_json["result_flags"]["proposal_flow"] != "PASS":
 if summary_json["result_flags"]["checker_demo_expected_fail"] != "PASS":
     bundle_status = "FAIL"
 summary_json["bundle_status"] = bundle_status
+validate_demo_bundle_summary(summary_json)
 
 lines.insert(10, f"- bundle_status: `{bundle_status}`")
 
