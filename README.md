@@ -256,7 +256,7 @@ python -m gateforge.agent_run \
 
 Planner intent payload can include:
 - `overrides` (e.g. `risk_level`, `checkers`, `checker_config`)
-- `change_plan` (structured operation list)
+- `change_plan` (structured operation list; each op must include `reason` and `confidence` in `[0,1]`)
 - `change_set_draft` (direct change-set JSON)
 
 Schema reference:
@@ -318,6 +318,10 @@ Execution-time `required_human_checks` are also policy-driven via `required_huma
 `autopilot_summary.json` includes governance-facing fields such as:
 `policy_decision`, `policy_reasons`, `required_human_checks`, `fail_reasons`, `run_report_path`,
 `change_apply_status`, `applied_changes_count`, `change_set_hash`, and `policy_version`.
+
+For planner-driven patches, policy can enforce confidence gates:
+- below `min_confidence_auto_apply`: proposal becomes `NEEDS_REVIEW` (`change_plan_confidence_below_auto_apply`)
+- below `min_confidence_accept`: proposal becomes `FAIL` (`change_plan_confidence_below_accept`)
 
 Planner variants:
 

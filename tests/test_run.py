@@ -495,6 +495,113 @@ class RunTests(unittest.TestCase):
             self.assertEqual(summary["change_preflight_status"], "failed")
             self.assertIn("change_preflight_failed", summary["fail_reasons"])
 
+    def test_run_proposal_change_set_low_confidence_needs_review(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            proposal = root / "proposal.json"
+            out = root / "run_summary.json"
+            conf_changeset = root / "confidence_change_set.json"
+            conf_changeset.write_text(
+                json.dumps(
+                    {
+                        "schema_version": "0.1.0",
+                        "changes": [
+                            {
+                                "op": "replace_text",
+                                "file": "examples/openmodelica/MinimalProbe.mo",
+                                "old": "der(x) = -x;",
+                                "new": "der(x) = -2*x;",
+                            }
+                        ],
+                        "metadata": {
+                            "plan_confidence_min": 0.5,
+                            "plan_confidence_avg": 0.5,
+                            "plan_confidence_max": 0.5,
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            self._write_proposal(
+                proposal,
+                ["check", "simulate"],
+                risk_level="low",
+                change_set_path=str(conf_changeset),
+            )
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.run",
+                    "--proposal",
+                    str(proposal),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            summary = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(summary["status"], "NEEDS_REVIEW")
+            self.assertEqual(summary["change_apply_status"], "requires_review")
+            self.assertEqual(summary["change_plan_confidence_min"], 0.5)
+            self.assertIn("change_plan_confidence_below_auto_apply", summary["policy_reasons"])
+
+    def test_run_proposal_change_set_very_low_confidence_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            proposal = root / "proposal.json"
+            out = root / "run_summary.json"
+            conf_changeset = root / "confidence_change_set_fail.json"
+            conf_changeset.write_text(
+                json.dumps(
+                    {
+                        "schema_version": "0.1.0",
+                        "changes": [
+                            {
+                                "op": "replace_text",
+                                "file": "examples/openmodelica/MinimalProbe.mo",
+                                "old": "der(x) = -x;",
+                                "new": "der(x) = -2*x;",
+                            }
+                        ],
+                        "metadata": {
+                            "plan_confidence_min": 0.2,
+                            "plan_confidence_avg": 0.2,
+                            "plan_confidence_max": 0.2,
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            self._write_proposal(
+                proposal,
+                ["check", "simulate"],
+                risk_level="low",
+                change_set_path=str(conf_changeset),
+            )
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.run",
+                    "--proposal",
+                    str(proposal),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertNotEqual(proc.returncode, 0)
+            summary = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(summary["status"], "FAIL")
+            self.assertEqual(summary["change_apply_status"], "rejected_low_confidence")
+            self.assertIn("change_plan_confidence_below_accept", summary["policy_reasons"])
+
     def test_run_proposal_uses_configured_checkers(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)

@@ -42,6 +42,9 @@ def _write_markdown(path: str, summary: dict) -> None:
         f"- change_apply_status: `{summary.get('change_apply_status')}`",
         f"- applied_changes_count: `{summary.get('applied_changes_count')}`",
         f"- change_set_hash: `{summary.get('change_set_hash')}`",
+        f"- change_plan_confidence_min: `{summary.get('change_plan_confidence_min')}`",
+        f"- change_plan_confidence_avg: `{summary.get('change_plan_confidence_avg')}`",
+        f"- change_plan_confidence_max: `{summary.get('change_plan_confidence_max')}`",
         f"- planner_exit_code: `{summary.get('planner_exit_code')}`",
         f"- agent_run_exit_code: `{summary.get('agent_run_exit_code')}`",
         "",
@@ -339,6 +342,9 @@ def main() -> None:
         summary["change_apply_status"] = agent_payload.get("change_apply_status")
         summary["change_set_hash"] = agent_payload.get("change_set_hash")
         summary["applied_changes_count"] = agent_payload.get("applied_changes_count")
+        summary["change_plan_confidence_min"] = agent_payload.get("change_plan_confidence_min")
+        summary["change_plan_confidence_avg"] = agent_payload.get("change_plan_confidence_avg")
+        summary["change_plan_confidence_max"] = agent_payload.get("change_plan_confidence_max")
         summary["run_path"] = agent_payload.get("run_path")
         summary["run_report_path"] = agent_payload.get("run_report_path")
 

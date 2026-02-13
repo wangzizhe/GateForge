@@ -48,6 +48,9 @@ def _write_run_markdown(path: str, summary: dict) -> None:
         f"- change_apply_status: `{summary.get('change_apply_status')}`",
         f"- change_set_hash: `{summary.get('change_set_hash')}`",
         f"- change_ops_count: `{summary.get('change_ops_count')}`",
+        f"- change_plan_confidence_min: `{summary.get('change_plan_confidence_min')}`",
+        f"- change_plan_confidence_avg: `{summary.get('change_plan_confidence_avg')}`",
+        f"- change_plan_confidence_max: `{summary.get('change_plan_confidence_max')}`",
         "",
     ]
     if summary.get("candidate_path"):
@@ -265,6 +268,9 @@ def main() -> None:
         "change_apply_status": "not_requested",
         "change_set_hash": None,
         "change_ops_count": 0,
+        "change_plan_confidence_min": None,
+        "change_plan_confidence_avg": None,
+        "change_plan_confidence_max": None,
         "applied_changes": [],
     }
 
@@ -291,31 +297,49 @@ def main() -> None:
                     tmp_root = Path(source_override_tmp.name)
                     shutil.copytree(PROJECT_ROOT / "examples", tmp_root / "examples")
                     change_set_payload = load_change_set(proposal["change_set_path"])
+                    metadata = change_set_payload.get("metadata", {})
                     summary["change_ops_count"] = len(change_set_payload.get("changes", []))
+                    if isinstance(metadata, dict):
+                        summary["change_plan_confidence_min"] = metadata.get("plan_confidence_min")
+                        summary["change_plan_confidence_avg"] = metadata.get("plan_confidence_avg")
+                        summary["change_plan_confidence_max"] = metadata.get("plan_confidence_max")
 
-                    preflight = preflight_change_set(
-                        change_set=change_set_payload,
-                        workspace_root=tmp_root,
-                        allowed_roots=policy.get("change_set_allowed_roots", ["examples/openmodelica"]),
-                        max_changes=int(policy.get("change_set_max_changes", 20)),
-                    )
-                    summary["change_preflight_status"] = preflight["status"]
-                    summary["change_preflight_reasons"] = preflight["reasons"]
-                    summary["change_preflight_hints"] = preflight["hints"]
-                    summary["change_targets"] = preflight["targets"]
-                    if not preflight["ok"]:
-                        summary["change_apply_status"] = "preflight_failed"
-                        summary["fail_reasons"].append("change_preflight_failed")
-                        summary["human_hints"].extend(preflight["hints"])
-                    else:
-                        change_result = apply_change_set(
-                            path=proposal["change_set_path"],
+                    min_conf_auto_apply = float(policy.get("min_confidence_auto_apply", 0.6))
+                    min_conf_accept = float(policy.get("min_confidence_accept", 0.3))
+                    conf_min = summary["change_plan_confidence_min"]
+                    if isinstance(conf_min, (int, float)):
+                        if float(conf_min) < min_conf_accept:
+                            summary["change_apply_status"] = "rejected_low_confidence"
+                            summary["fail_reasons"].append("change_plan_confidence_below_accept")
+                        elif float(conf_min) < min_conf_auto_apply:
+                            summary["change_apply_status"] = "requires_review"
+                            summary["fail_reasons"].append("change_plan_confidence_below_auto_apply")
+                            summary["fail_reasons"].append("change_requires_human_review")
+
+                    if summary["change_apply_status"] not in {"requires_review", "rejected_low_confidence"}:
+                        preflight = preflight_change_set(
+                            change_set=change_set_payload,
                             workspace_root=tmp_root,
+                            allowed_roots=policy.get("change_set_allowed_roots", ["examples/openmodelica"]),
+                            max_changes=int(policy.get("change_set_max_changes", 20)),
                         )
-                        summary["change_apply_status"] = "applied"
-                        summary["change_set_hash"] = change_result["change_set_hash"]
-                        summary["applied_changes"] = change_result["applied_changes"]
-                        os.environ[OM_SOURCE_ROOT_ENV] = str(tmp_root)
+                        summary["change_preflight_status"] = preflight["status"]
+                        summary["change_preflight_reasons"] = preflight["reasons"]
+                        summary["change_preflight_hints"] = preflight["hints"]
+                        summary["change_targets"] = preflight["targets"]
+                        if not preflight["ok"]:
+                            summary["change_apply_status"] = "preflight_failed"
+                            summary["fail_reasons"].append("change_preflight_failed")
+                            summary["human_hints"].extend(preflight["hints"])
+                        else:
+                            change_result = apply_change_set(
+                                path=proposal["change_set_path"],
+                                workspace_root=tmp_root,
+                            )
+                            summary["change_apply_status"] = "applied"
+                            summary["change_set_hash"] = change_result["change_set_hash"]
+                            summary["applied_changes"] = change_result["applied_changes"]
+                            os.environ[OM_SOURCE_ROOT_ENV] = str(tmp_root)
             except Exception as exc:  # pragma: no cover - guarded by tests through summary behavior
                 summary["change_apply_status"] = "failed"
                 summary["fail_reasons"].append("change_apply_failed")
@@ -338,7 +362,12 @@ def main() -> None:
 
         if "regress" in action_set:
             if candidate is None:
-                if summary["change_apply_status"] in {"failed", "preflight_failed", "requires_review"}:
+                if summary["change_apply_status"] in {
+                    "failed",
+                    "preflight_failed",
+                    "requires_review",
+                    "rejected_low_confidence",
+                }:
                     summary["regress_executed"] = False
                 else:
                     if not args.candidate_in:
@@ -386,6 +415,10 @@ def main() -> None:
             combined_reasons.append("change_preflight_failed")
         if summary["change_apply_status"] == "requires_review":
             combined_reasons.append("change_requires_human_review")
+            if "change_plan_confidence_below_auto_apply" in summary["fail_reasons"]:
+                combined_reasons.append("change_plan_confidence_below_auto_apply")
+        if summary["change_apply_status"] == "rejected_low_confidence":
+            combined_reasons.append("change_plan_confidence_below_accept")
         if candidate is not None and candidate["gate"] != "PASS":
             combined_reasons.append("candidate_gate_not_pass")
         if summary.get("regression_path"):

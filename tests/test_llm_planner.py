@@ -265,6 +265,9 @@ class PlannerTests(unittest.TestCase):
             self.assertIn("change_plan", payload)
             self.assertEqual(payload["change_set_draft"]["schema_version"], "0.1.0")
             self.assertEqual(payload["change_plan"]["schema_version"], "0.1.0")
+            first = payload["change_plan"]["operations"][0]
+            self.assertIn("reason", first)
+            self.assertIsInstance(first.get("confidence"), (int, float))
 
 
 if __name__ == "__main__":
