@@ -623,6 +623,8 @@ Note: `medium_openmodelica_pass` requires Docker/OpenModelica backend access.
   This job publishes before/after decision delta for a constrained repair attempt.
 - Provides an optional planner guardrails demo job (`workflow_dispatch` with `run_planner_guardrails=true`) that does not block the main job.
   This job publishes pass/low-confidence/whitelist outcomes for planner-side safety checks.
+- Provides an optional planner output validate demo job (`workflow_dispatch` with `run_planner_output_validate_demo=true`) that does not block the main job.
+  This job publishes contract-validation pass/fail outcomes for planner output JSON.
 - Provides an optional repair batch demo job (`workflow_dispatch` with `run_repair_batch_demo=true`) that does not block the main job.
   This job publishes mixed-case repair outcomes for batch governance visibility.
 - Provides an optional repair batch compare demo job (`workflow_dispatch` with `run_repair_batch_compare_demo=true`) that does not block the main job.
@@ -639,7 +641,7 @@ Manual trigger path in GitHub:
 1. Open `Actions` tab.
 2. Select `ci` workflow.
 3. Click `Run workflow`.
-4. Enable `run_benchmark` and/or `run_checker_demo` and/or `run_steady_state_demo` and/or `run_behavior_metrics_demo` and/or `run_demo_bundle` and/or `run_autopilot_dry_run` and/or `run_agent_change_loop` and/or `run_repair_loop` and/or `run_planner_guardrails` and/or `run_repair_batch_demo` and/or `run_repair_batch_compare_demo` and/or `run_governance_snapshot_demo` and/or `run_governance_snapshot_trend_demo` and/or `run_governance_history_demo`.
+4. Enable `run_benchmark` and/or `run_checker_demo` and/or `run_steady_state_demo` and/or `run_behavior_metrics_demo` and/or `run_demo_bundle` and/or `run_autopilot_dry_run` and/or `run_agent_change_loop` and/or `run_repair_loop` and/or `run_planner_guardrails` and/or `run_planner_output_validate_demo` and/or `run_repair_batch_demo` and/or `run_repair_batch_compare_demo` and/or `run_governance_snapshot_demo` and/or `run_governance_snapshot_trend_demo` and/or `run_governance_history_demo`.
 5. Optional: set `demo_policy_profile` (for demo jobs) such as `industrial_strict_v0`.
 6. Run and download uploaded artifacts from the selected optional job.
 
