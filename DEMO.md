@@ -17,9 +17,9 @@ What it validates:
 
 Key outputs:
 
-- `artifacts/proposal_run_demo_mock.json`
-- `artifacts/proposal_run_demo_mock.md`
-- `artifacts/regression_from_proposal_demo_mock.json`
+- `artifacts/proposal_run_demo.json`
+- `artifacts/proposal_run_demo.md`
+- `artifacts/regression_from_proposal_demo.json`
 
 Expected result:
 
@@ -58,6 +58,7 @@ Expected result:
 In GitHub Actions (`ci` workflow), use **Run workflow** and enable:
 
 - `run_checker_demo=true`
+- `run_demo_bundle=true` (runs both demos and emits one summary)
 
 Artifact to download:
 
@@ -65,3 +66,18 @@ Artifact to download:
 
 It includes all checker demo outputs including `checker_demo_summary.md`.
 
+For combined evidence, use artifact:
+
+- `demo-bundle` (includes `artifacts/demo_all_summary.md`)
+
+## 4. One-command bundle (local)
+
+Command:
+
+```bash
+bash scripts/demo_all.sh
+```
+
+This runs both demos and writes:
+
+- `artifacts/demo_all_summary.md`
