@@ -132,13 +132,11 @@ summary_json = {
         "artifacts/checker_demo_run.json",
         "artifacts/checker_demo_regression.json",
         "artifacts/checker_demo_summary.md",
-        "artifacts/steady_state_demo_regression.json",
-        "artifacts/steady_state_demo_summary.md",
-        "artifacts/behavior_metrics_demo/regression.json",
-        "artifacts/behavior_metrics_demo/summary.md",
-        "artifacts/demo_all_summary.md",
-        "artifacts/demo_all_summary.json",
-    ],
+    "artifacts/steady_state_demo_regression.json",
+    "artifacts/steady_state_demo_summary.md",
+    "artifacts/behavior_metrics_demo/regression.json",
+    "artifacts/behavior_metrics_demo/summary.md",
+  ],
 }
 bundle_status = "PASS"
 if summary_json["result_flags"]["proposal_flow"] != "PASS":
