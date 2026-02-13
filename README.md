@@ -452,6 +452,25 @@ Trend demo shortcut:
 bash scripts/demo_governance_snapshot_trend.sh
 ```
 
+Governance history (archive snapshots + summarize last N transitions):
+
+```bash
+python -m gateforge.governance_history \
+  --history-dir artifacts/governance_history \
+  --snapshot artifacts/governance_snapshot_demo/summary.json \
+  --label daily_run \
+  --last-n 7 \
+  --out artifacts/governance_history/summary.json \
+  --report artifacts/governance_history/summary.md
+cat artifacts/governance_history/summary.json
+```
+
+History demo shortcut:
+
+```bash
+bash scripts/demo_governance_history.sh
+```
+
 Review ledger summary:
 
 ```bash
@@ -603,13 +622,15 @@ Note: `medium_openmodelica_pass` requires Docker/OpenModelica backend access.
   This job publishes a single governance status view and top KPI/risk signals.
 - Provides an optional governance snapshot trend demo job (`workflow_dispatch` with `run_governance_snapshot_trend_demo=true`) that does not block the main job.
   This job publishes status transition and risk delta versus a previous snapshot.
+- Provides an optional governance history demo job (`workflow_dispatch` with `run_governance_history_demo=true`) that does not block the main job.
+  This job publishes last-N transition KPIs from archived governance snapshots.
 
 Manual trigger path in GitHub:
 
 1. Open `Actions` tab.
 2. Select `ci` workflow.
 3. Click `Run workflow`.
-4. Enable `run_benchmark` and/or `run_checker_demo` and/or `run_steady_state_demo` and/or `run_behavior_metrics_demo` and/or `run_demo_bundle` and/or `run_autopilot_dry_run` and/or `run_agent_change_loop` and/or `run_repair_loop` and/or `run_planner_guardrails` and/or `run_repair_batch_demo` and/or `run_repair_batch_compare_demo` and/or `run_governance_snapshot_demo` and/or `run_governance_snapshot_trend_demo`.
+4. Enable `run_benchmark` and/or `run_checker_demo` and/or `run_steady_state_demo` and/or `run_behavior_metrics_demo` and/or `run_demo_bundle` and/or `run_autopilot_dry_run` and/or `run_agent_change_loop` and/or `run_repair_loop` and/or `run_planner_guardrails` and/or `run_repair_batch_demo` and/or `run_repair_batch_compare_demo` and/or `run_governance_snapshot_demo` and/or `run_governance_snapshot_trend_demo` and/or `run_governance_history_demo`.
 5. Optional: set `demo_policy_profile` (for demo jobs) such as `industrial_strict_v0`.
 6. Run and download uploaded artifacts from the selected optional job.
 
@@ -626,6 +647,7 @@ Optional demo artifacts:
 - `repair-batch-compare-demo`
 - `governance-snapshot-demo`
 - `governance-snapshot-trend-demo`
+- `governance-history-demo`
 
 Local workflow-dispatch simulation:
 
@@ -658,6 +680,9 @@ You can include governance snapshot demo in local matrix with:
 
 You can include governance snapshot trend demo in local matrix with:
 `RUN_GOVERNANCE_SNAPSHOT_TREND_DEMO=1 bash scripts/demo_ci_matrix.sh`
+
+You can include governance history demo in local matrix with:
+`RUN_GOVERNANCE_HISTORY_DEMO=1 bash scripts/demo_ci_matrix.sh`
 
 You can include planner-guardrails in local matrix with:
 `RUN_PLANNER_GUARDRAILS=1 bash scripts/demo_ci_matrix.sh`

@@ -324,6 +324,25 @@ Key outputs:
 - `artifacts/governance_snapshot_trend_demo/summary.json`
 - `artifacts/governance_snapshot_trend_demo/summary.md`
 
+## 13. Governance History Demo
+
+Command:
+
+```bash
+bash scripts/demo_governance_history.sh
+```
+
+What it validates:
+
+- archive multiple governance snapshots into history storage
+- summarize last-N status distribution and transition KPIs
+
+Key outputs:
+
+- `artifacts/governance_history_demo/history/index.jsonl`
+- `artifacts/governance_history_demo/summary.json`
+- `artifacts/governance_history_demo/summary.md`
+
 Schema reference:
 
 - `schemas/demo_bundle_summary.schema.json`
@@ -366,6 +385,7 @@ Optional toggles (env vars):
 - `RUN_REPAIR_BATCH_COMPARE_DEMO=0|1`
 - `RUN_GOVERNANCE_SNAPSHOT_DEMO=0|1`
 - `RUN_GOVERNANCE_SNAPSHOT_TREND_DEMO=0|1`
+- `RUN_GOVERNANCE_HISTORY_DEMO=0|1`
 - `RUN_BENCHMARK=0|1` (default `0`)
 
 ## 8. Agent Change Safety Loop Demo
