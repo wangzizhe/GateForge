@@ -60,6 +60,8 @@ class SmokePipelineTests(unittest.TestCase):
             report = Path(d) / "evidence.md"
             with temp_env(GATEFORGE_OM_SCRIPT="examples/openmodelica/minimal_probe.mos"):
                 evidence = run_pipeline(backend="openmodelica_docker", out_path=str(out))
+            if evidence.get("failure_type") in {"tool_missing", "docker_error"}:
+                self.skipTest("Docker/OpenModelica unavailable in this environment")
             self.assertTrue(out.exists())
             self.assertTrue(report.exists())
             self.assertIn(evidence["gate"], {"PASS", "NEEDS_REVIEW", "FAIL"})
