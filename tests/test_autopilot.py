@@ -116,6 +116,10 @@ class AutopilotTests(unittest.TestCase):
                     {
                         "risk_level": "medium",
                         "change_summary": "context override in autopilot",
+                        "checkers": ["steady_state_regression"],
+                        "checker_config": {
+                            "steady_state_regression": {"max_abs_delta": 0.05}
+                        },
                     }
                 ),
                 encoding="utf-8",
@@ -150,9 +154,15 @@ class AutopilotTests(unittest.TestCase):
             self.assertEqual(payload["status"], "PASS")
             self.assertEqual(payload["planner_backend"], "rule")
             self.assertFalse(payload["materialize_change_set"])
+            self.assertEqual(payload["checkers"], ["steady_state_regression"])
+            self.assertEqual(
+                payload["checker_config"]["steady_state_regression"]["max_abs_delta"],
+                0.05,
+            )
             intent_payload = json.loads(intent_out.read_text(encoding="utf-8"))
             self.assertEqual(intent_payload["overrides"]["risk_level"], "medium")
             self.assertEqual(intent_payload["overrides"]["change_summary"], "context override in autopilot")
+            self.assertEqual(intent_payload["overrides"]["checkers"], ["steady_state_regression"])
 
     def test_autopilot_fail_on_baseline_mismatch(self) -> None:
         with tempfile.TemporaryDirectory() as d:
