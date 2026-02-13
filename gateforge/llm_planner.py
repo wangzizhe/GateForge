@@ -122,6 +122,8 @@ def _plan_with_rule_backend(
                     "file": "examples/openmodelica/MinimalProbe.mo",
                     "old": "der(x) = -x;",
                     "new": "der(x) = -2*x;",
+                    "reason": "Increase decay rate for deterministic stability demo",
+                    "confidence": 0.9,
                     "risk_tag": "low",
                 }
             ],
@@ -200,6 +202,7 @@ def _plan_with_gemini_backend(
         "proposal_id should be null if unknown.\n"
         "overrides must be an object and may include risk_level, change_summary, checkers, checker_config.\n"
         "You may include optional change_plan with schema_version='0.1.0' and operations list.\n"
+        "Each change_plan operation must include: kind,file,old,new,reason,confidence (0..1).\n"
         "If emit_change_set_draft is true, optionally add key change_set_draft with valid GateForge change_set JSON.\n"
         f"goal: {goal_text}\n"
         f"prefer_backend: {prefer_backend}\n"

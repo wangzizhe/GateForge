@@ -76,7 +76,7 @@ def evaluate_policy(reasons: list[str], risk_level: str, policy: dict) -> dict:
         if forced_review:
             return {
                 "policy_decision": "NEEDS_REVIEW",
-                "policy_reasons": forced_review,
+                "policy_reasons": review,
                 "critical_reasons": critical,
                 "review_reasons": review,
                 "unknown_reasons": unknown,

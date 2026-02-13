@@ -9,12 +9,14 @@
     "proposal_",
     "nan_inf_detected",
     "timeout_detected",
-    "event_explosion_detected"
+    "event_explosion_detected",
+    "change_plan_confidence_below_accept"
   ],
   "needs_review_reason_prefixes": [
     "runtime_regression",
     "performance_regression_detected",
-    "change_requires_human_review"
+    "change_requires_human_review",
+    "change_plan_confidence_below_auto_apply"
   ],
   "always_needs_review_reason_prefixes": [
     "change_requires_human_review"
@@ -22,6 +24,8 @@
   "allow_auto_apply_risk_levels": [
     "low"
   ],
+  "min_confidence_auto_apply": 0.8,
+  "min_confidence_accept": 0.5,
   "change_set_allowed_roots": [
     "examples/openmodelica"
   ],
@@ -77,6 +81,12 @@
       ],
       "change_requires_human_review": [
         "Auto-apply is disabled for this risk level under industrial_strict_v0. Manual approval required."
+      ],
+      "change_plan_confidence_below_auto_apply": [
+        "Confidence is below industrial auto-apply threshold; manual review is mandatory."
+      ],
+      "change_plan_confidence_below_accept": [
+        "Confidence is below industrial acceptance threshold; reject and regenerate plan."
       ]
     },
     "by_failure_type": {

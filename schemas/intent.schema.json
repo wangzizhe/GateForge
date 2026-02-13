@@ -33,7 +33,7 @@
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["kind", "file", "old", "new"],
+            "required": ["kind", "file", "old", "new", "reason", "confidence"],
             "properties": {
               "kind": {
                 "type": "string",
@@ -42,6 +42,15 @@
               "file": {
                 "type": "string",
                 "minLength": 1
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1
+              },
+              "confidence": {
+                "type": "number",
+                "minimum": 0.0,
+                "maximum": 1.0
               },
               "old": {
                 "type": "string"

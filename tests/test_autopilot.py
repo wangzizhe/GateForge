@@ -425,6 +425,7 @@ class AutopilotTests(unittest.TestCase):
             self.assertEqual(payload["change_apply_status"], "applied")
             self.assertTrue(payload["change_set_hash"])
             self.assertEqual(payload["applied_changes_count"], 1)
+            self.assertEqual(payload["change_plan_confidence_min"], 0.9)
             generated_path = Path(payload["generated_change_set_path"])
             self.assertTrue(generated_path.exists())
             intent_payload = json.loads(intent_out.read_text(encoding="utf-8"))

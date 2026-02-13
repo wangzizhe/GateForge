@@ -12,14 +12,16 @@ class IntentTests(unittest.TestCase):
             "change_plan": {
                 "schema_version": "0.1.0",
                 "operations": [
-                    {
-                        "kind": "replace_text",
-                        "file": "examples/openmodelica/MinimalProbe.mo",
-                        "old": "der(x) = -x;",
-                        "new": "der(x) = -2*x;",
-                    }
-                ],
-            },
+                {
+                    "kind": "replace_text",
+                    "file": "examples/openmodelica/MinimalProbe.mo",
+                    "old": "der(x) = -x;",
+                    "new": "der(x) = -2*x;",
+                    "reason": "improve damping",
+                    "confidence": 0.8,
+                }
+            ],
+        },
         }
         validate_intent_request(payload)
 
@@ -30,4 +32,3 @@ class IntentTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

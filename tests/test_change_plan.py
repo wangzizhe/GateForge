@@ -13,6 +13,8 @@ class ChangePlanTests(unittest.TestCase):
                     "file": "examples/openmodelica/MinimalProbe.mo",
                     "old": "der(x) = -x;",
                     "new": "der(x) = -2*x;",
+                    "reason": "improve damping",
+                    "confidence": 0.9,
                 }
             ],
         }
@@ -27,14 +29,16 @@ class ChangePlanTests(unittest.TestCase):
                     "file": "examples/openmodelica/MinimalProbe.mo",
                     "old": "der(x) = -x;",
                     "new": "der(x) = -2*x;",
+                    "reason": "improve damping",
+                    "confidence": 0.9,
                 }
             ],
         }
         change_set = materialize_change_set_from_plan(plan)
         self.assertEqual(change_set["schema_version"], "0.1.0")
         self.assertEqual(change_set["changes"][0]["op"], "replace_text")
+        self.assertEqual(change_set["metadata"]["plan_confidence_min"], 0.9)
 
 
 if __name__ == "__main__":
     unittest.main()
-

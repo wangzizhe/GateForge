@@ -192,6 +192,9 @@ def main() -> None:
         orchestration["change_apply_status"] = run_summary.get("change_apply_status")
         orchestration["change_set_hash"] = run_summary.get("change_set_hash")
         orchestration["applied_changes_count"] = len(run_summary.get("applied_changes") or [])
+        orchestration["change_plan_confidence_min"] = run_summary.get("change_plan_confidence_min")
+        orchestration["change_plan_confidence_avg"] = run_summary.get("change_plan_confidence_avg")
+        orchestration["change_plan_confidence_max"] = run_summary.get("change_plan_confidence_max")
     if run_proc.returncode != 0:
         orchestration["run_stderr_tail"] = (run_proc.stderr or run_proc.stdout)[-500:]
 

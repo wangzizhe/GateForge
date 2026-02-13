@@ -9,13 +9,15 @@
     "proposal_",
     "nan_inf_detected",
     "timeout_detected",
-    "event_explosion_detected"
+    "event_explosion_detected",
+    "change_plan_confidence_below_accept"
   ],
   "needs_review_reason_prefixes": [
     "runtime_regression",
     "performance_regression_detected",
     "steady_state_regression_detected",
-    "change_requires_human_review"
+    "change_requires_human_review",
+    "change_plan_confidence_below_auto_apply"
   ],
   "always_needs_review_reason_prefixes": [
     "change_requires_human_review"
@@ -24,6 +26,8 @@
     "low",
     "medium"
   ],
+  "min_confidence_auto_apply": 0.6,
+  "min_confidence_accept": 0.3,
   "change_set_allowed_roots": [
     "examples/openmodelica"
   ],
@@ -91,6 +95,12 @@
       "change_requires_human_review": [
         "This risk level is not auto-apply eligible. Perform manual review and explicit approval.",
         "After approval, rerun with a policy/profile that allows this operation."
+      ],
+      "change_plan_confidence_below_auto_apply": [
+        "Planner confidence is below auto-apply threshold; perform manual review before execution."
+      ],
+      "change_plan_confidence_below_accept": [
+        "Planner confidence is below acceptance threshold; reject this plan and request regeneration."
       ]
     },
     "by_failure_type": {
