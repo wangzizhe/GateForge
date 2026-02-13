@@ -31,6 +31,8 @@ class DemoScriptTests(unittest.TestCase):
         result_flags = payload.get("result_flags", {})
         self.assertEqual(result_flags.get("proposal_flow"), "PASS")
         self.assertEqual(result_flags.get("checker_demo_expected_fail"), "PASS")
+        self.assertEqual(result_flags.get("steady_demo_expected_nonpass"), "PASS")
+        self.assertIn(payload.get("steady_demo_decision"), {"NEEDS_REVIEW", "FAIL"})
         checksums = payload.get("checksums", {})
         self.assertIsInstance(checksums, dict)
         artifacts = payload.get("artifacts", [])
@@ -86,6 +88,22 @@ class DemoScriptTests(unittest.TestCase):
         self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
         payload = json.loads(Path("artifacts/demo_all_summary.json").read_text(encoding="utf-8"))
         self.assertEqual(payload.get("policy_profile"), "industrial_strict_v0")
+
+    def test_demo_steady_state_checker_script_expected_fail(self) -> None:
+        proc = subprocess.run(
+            ["bash", "scripts/demo_steady_state_checker.sh"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+
+        reg_payload = json.loads(Path("artifacts/steady_state_demo_regression.json").read_text(encoding="utf-8"))
+        summary_path = Path("artifacts/steady_state_demo_summary.md")
+
+        self.assertEqual(reg_payload.get("decision"), "NEEDS_REVIEW")
+        self.assertIn("steady_state_regression_detected", reg_payload.get("reasons", []))
+        self.assertTrue(summary_path.exists())
 
 
 if __name__ == "__main__":

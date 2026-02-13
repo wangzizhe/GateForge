@@ -1,0 +1,17 @@
+{
+  "schema_version": "0.1.0",
+  "proposal_id": "proposal-checker-steady-state-demo-0001",
+  "timestamp_utc": "2026-02-13T00:00:00Z",
+  "author_type": "human",
+  "backend": "mock",
+  "model_script": "examples/openmodelica/minimal_probe.mos",
+  "change_summary": "demo steady-state regression checker",
+  "requested_actions": ["check", "simulate", "regress"],
+  "risk_level": "medium",
+  "checkers": ["steady_state_regression"],
+  "checker_config": {
+    "steady_state_regression": {
+      "max_abs_delta": 0.05
+    }
+  }
+}

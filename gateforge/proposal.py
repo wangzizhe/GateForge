@@ -85,8 +85,27 @@ def validate_proposal(proposal: dict) -> None:
     if checker_config is not None:
         if not isinstance(checker_config, dict):
             raise ValueError("checker_config must be an object when provided")
+        supported_checkers = set(available_checkers())
         for checker_name, cfg in checker_config.items():
-            if checker_name not in available_checkers():
+            if checker_name == "_runtime":
+                if not isinstance(cfg, dict):
+                    raise ValueError("checker_config[_runtime] must be an object")
+                for runtime_key in cfg.keys():
+                    if runtime_key not in {"enable", "disable"}:
+                        raise ValueError("checker_config[_runtime] supports only enable/disable")
+                for runtime_key in ("enable", "disable"):
+                    names = cfg.get(runtime_key)
+                    if names is None:
+                        continue
+                    if not isinstance(names, list):
+                        raise ValueError(f"checker_config[_runtime].{runtime_key} must be a list")
+                    for checker in names:
+                        if not isinstance(checker, str) or checker not in supported_checkers:
+                            raise ValueError(
+                                f"checker_config[_runtime].{runtime_key} contains unsupported checker: {checker}"
+                            )
+                continue
+            if checker_name not in supported_checkers:
                 raise ValueError(f"checker_config contains unsupported checker: {checker_name}")
             if not isinstance(cfg, dict):
                 raise ValueError(f"checker_config[{checker_name}] must be an object")

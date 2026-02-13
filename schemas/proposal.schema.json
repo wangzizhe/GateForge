@@ -64,7 +64,7 @@
       "type": "array",
       "items": {
         "type": "string",
-        "enum": ["timeout", "nan_inf", "performance_regression", "event_explosion"]
+        "enum": ["timeout", "nan_inf", "performance_regression", "event_explosion", "steady_state_regression"]
       }
     },
     "checker_config": {
@@ -89,6 +89,28 @@
             "abs_threshold_if_baseline_zero": {
               "type": "integer",
               "minimum": 0
+            }
+          }
+        },
+        "steady_state_regression": {
+          "type": "object",
+          "properties": {
+            "max_abs_delta": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            }
+          }
+        },
+        "_runtime": {
+          "type": "object",
+          "properties": {
+            "enable": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "disable": {
+              "type": "array",
+              "items": { "type": "string" }
             }
           }
         }

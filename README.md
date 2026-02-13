@@ -98,6 +98,9 @@ bash scripts/demo_proposal_flow.sh
 # checker threshold demo (docker-independent)
 bash scripts/demo_checker_config.sh
 
+# behavior drift demo (steady-state checker)
+bash scripts/demo_steady_state_checker.sh
+
 # combined demo bundle (docker-independent)
 bash scripts/demo_all.sh
 
@@ -155,11 +158,13 @@ Current proposal schema file:
 
 - `schemas/proposal.schema.json`
 - Optional `checkers` field in proposal:
-  - `["timeout", "nan_inf", "performance_regression", "event_explosion"]`
+  - `["timeout", "nan_inf", "performance_regression", "event_explosion", "steady_state_regression"]`
   - If omitted, all built-in checkers run by default
 - Optional `checker_config` field in proposal:
   - `{"performance_regression": {"max_ratio": 1.5}}`
   - `{"event_explosion": {"max_ratio": 1.8, "abs_threshold_if_baseline_zero": 50}}`
+  - `{"steady_state_regression": {"max_abs_delta": 0.05}}`
+  - `{"_runtime": {"enable": ["steady_state_regression"], "disable": ["performance_regression"]}}`
 
 Drive smoke execution from proposal:
 
@@ -485,6 +490,19 @@ This uses:
 - `examples/proposals/proposal_checker_config_demo.json`
 - `checker_config.performance_regression.max_ratio = 1.5`
 - `checker_config.event_explosion.max_ratio = 1.5`
+
+Run a steady-state behavior drift checker demo:
+
+```bash
+bash scripts/demo_steady_state_checker.sh
+```
+
+This uses:
+- `examples/proposals/proposal_checker_steady_state_demo.json`
+- `checker_config.steady_state_regression.max_abs_delta = 0.05`
+
+Behavior under default policy:
+- `steady_state_regression_detected` triggers policy decision `NEEDS_REVIEW` for `risk_level=medium`
 
 Behavior:
 - `decision = PASS` -> command exits `0`

@@ -200,6 +200,46 @@ class ProposalTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             validate_proposal(proposal)
 
+    def test_validate_accepts_runtime_checker_toggle_config(self) -> None:
+        proposal = {
+            "schema_version": "0.1.0",
+            "proposal_id": "proposal-runtime-cfg-1",
+            "timestamp_utc": "2026-02-13T00:00:00Z",
+            "author_type": "human",
+            "backend": "mock",
+            "model_script": "examples/openmodelica/minimal_probe.mos",
+            "change_summary": "runtime checker toggles",
+            "requested_actions": ["check", "regress"],
+            "risk_level": "medium",
+            "checker_config": {
+                "_runtime": {
+                    "enable": ["steady_state_regression"],
+                    "disable": ["performance_regression"],
+                }
+            },
+        }
+        validate_proposal(proposal)
+
+    def test_validate_fails_on_runtime_checker_toggle_unknown_checker(self) -> None:
+        proposal = {
+            "schema_version": "0.1.0",
+            "proposal_id": "proposal-runtime-cfg-2",
+            "timestamp_utc": "2026-02-13T00:00:00Z",
+            "author_type": "human",
+            "backend": "mock",
+            "model_script": "examples/openmodelica/minimal_probe.mos",
+            "change_summary": "runtime checker toggles bad checker",
+            "requested_actions": ["check", "regress"],
+            "risk_level": "medium",
+            "checker_config": {
+                "_runtime": {
+                    "enable": ["not_a_checker"]
+                }
+            },
+        }
+        with self.assertRaises(ValueError):
+            validate_proposal(proposal)
+
 
 if __name__ == "__main__":
     unittest.main()
