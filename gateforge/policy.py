@@ -81,5 +81,67 @@ def evaluate_policy(reasons: list[str], risk_level: str, policy: dict) -> dict:
     }
 
 
+def dry_run_human_checks(policy: dict, risk_level: str, has_change_set: bool) -> list[str]:
+    templates = policy.get("dry_run_human_checks", {})
+    if not isinstance(templates, dict):
+        templates = {}
+
+    checks = _as_str_list(
+        templates.get(
+            "base",
+            [
+                "Confirm proposal backend/model_script mapping before execution.",
+                "Review baseline selection strategy (auto/index or explicit path).",
+            ],
+        )
+    )
+
+    normalized_risk = risk_level if risk_level in {"low", "medium", "high"} else "low"
+    if normalized_risk in {"medium", "high"}:
+        checks.extend(
+            _as_str_list(
+                templates.get(
+                    "medium_extra",
+                    ["Confirm regression thresholds and checker_config reflect intended risk posture."],
+                )
+            )
+        )
+    if normalized_risk == "high":
+        checks.extend(
+            _as_str_list(
+                templates.get(
+                    "high_extra",
+                    ["Pre-approve rollback path if gate returns FAIL after candidate execution."],
+                )
+            )
+        )
+    if has_change_set:
+        checks.extend(
+            _as_str_list(
+                templates.get(
+                    "changeset_extra",
+                    ["Review change-set diff against target files before execution."],
+                )
+            )
+        )
+
+    # Keep order stable but deduplicate.
+    dedup: list[str] = []
+    for item in checks:
+        if item not in dedup:
+            dedup.append(item)
+    return dedup
+
+
 def _matches_any_prefix(reason: str, prefixes: tuple[str, ...]) -> bool:
     return any(reason.startswith(prefix) for prefix in prefixes)
+
+
+def _as_str_list(value: object) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    out: list[str] = []
+    for item in value:
+        if isinstance(item, str) and item.strip():
+            out.append(item)
+    return out

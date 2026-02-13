@@ -1,6 +1,6 @@
 import unittest
 
-from gateforge.policy import evaluate_policy
+from gateforge.policy import dry_run_human_checks, evaluate_policy
 
 
 class PolicyTests(unittest.TestCase):
@@ -33,6 +33,23 @@ class PolicyTests(unittest.TestCase):
         }
         result = evaluate_policy(["runtime_regression:1.2s>1.0s"], "high", policy)
         self.assertEqual(result["policy_decision"], "FAIL")
+
+    def test_dry_run_human_checks_default_fallback(self) -> None:
+        checks = dry_run_human_checks(policy={}, risk_level="high", has_change_set=True)
+        self.assertTrue(any("rollback" in c.lower() for c in checks))
+        self.assertTrue(any("change-set" in c.lower() for c in checks))
+
+    def test_dry_run_human_checks_custom_templates(self) -> None:
+        policy = {
+            "dry_run_human_checks": {
+                "base": ["base-a", "base-b"],
+                "medium_extra": ["med-a"],
+                "high_extra": ["high-a"],
+                "changeset_extra": ["cs-a"],
+            }
+        }
+        checks = dry_run_human_checks(policy=policy, risk_level="high", has_change_set=True)
+        self.assertEqual(checks, ["base-a", "base-b", "med-a", "high-a", "cs-a"])
 
 
 if __name__ == "__main__":

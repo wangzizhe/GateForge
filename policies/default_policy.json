@@ -14,5 +14,20 @@
   "fail_on_needs_review_risk_levels": [
     "high"
   ],
-  "fail_on_unknown_reasons": true
+  "fail_on_unknown_reasons": true,
+  "dry_run_human_checks": {
+    "base": [
+      "Confirm proposal backend/model_script mapping before execution.",
+      "Review baseline selection strategy (auto/index or explicit path)."
+    ],
+    "medium_extra": [
+      "Confirm regression thresholds and checker_config reflect intended risk posture."
+    ],
+    "high_extra": [
+      "Pre-approve rollback path if gate returns FAIL after candidate execution."
+    ],
+    "changeset_extra": [
+      "Review change-set diff against target files before execution."
+    ]
+  }
 }
