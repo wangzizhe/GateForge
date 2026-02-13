@@ -81,6 +81,53 @@ def evaluate_policy(reasons: list[str], risk_level: str, policy: dict) -> dict:
     }
 
 
+def run_required_human_checks(
+    policy: dict,
+    policy_decision: str,
+    policy_reasons: list[str],
+    candidate_failure_type: str | None,
+) -> list[str]:
+    if policy_decision == "PASS":
+        return []
+
+    templates = policy.get("required_human_checks", {})
+    if not isinstance(templates, dict):
+        templates = {}
+
+    by_reason_prefix = templates.get("by_reason_prefix", {})
+    if not isinstance(by_reason_prefix, dict):
+        by_reason_prefix = {}
+
+    by_failure_type = templates.get("by_failure_type", {})
+    if not isinstance(by_failure_type, dict):
+        by_failure_type = {}
+
+    fallback = _as_str_list(
+        templates.get(
+            "fallback",
+            ["Human review required: inspect policy_reasons and evidence artifacts before merge."],
+        )
+    )
+
+    checks: list[str] = []
+    for reason in policy_reasons:
+        for prefix, items in by_reason_prefix.items():
+            if reason.startswith(prefix):
+                checks.extend(_as_str_list(items))
+
+    if candidate_failure_type and candidate_failure_type in by_failure_type:
+        checks.extend(_as_str_list(by_failure_type[candidate_failure_type]))
+
+    if not checks:
+        checks.extend(fallback)
+
+    dedup: list[str] = []
+    for item in checks:
+        if item not in dedup:
+            dedup.append(item)
+    return dedup
+
+
 def dry_run_human_checks(policy: dict, risk_level: str, has_change_set: bool) -> list[str]:
     templates = policy.get("dry_run_human_checks", {})
     if not isinstance(templates, dict):

@@ -95,6 +95,7 @@ class AgentRunTests(unittest.TestCase):
             self.assertEqual(payload["proposal_id"], "agent-run-test-1")
             self.assertEqual(payload["status"], "PASS")
             self.assertEqual(payload["run_exit_code"], 0)
+            self.assertEqual(payload["policy_version"], "0.1.0")
             self.assertEqual(payload["policy_decision"], "PASS")
             self.assertEqual(payload["fail_reasons"], [])
             self.assertEqual(payload["policy_reasons"], [])

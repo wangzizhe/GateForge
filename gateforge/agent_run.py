@@ -176,6 +176,7 @@ def main() -> None:
         "run_exit_code": run_proc.returncode,
     }
     if run_summary:
+        orchestration["policy_version"] = run_summary.get("policy_version")
         orchestration["policy_decision"] = run_summary.get("policy_decision")
         orchestration["fail_reasons"] = run_summary.get("fail_reasons", [])
         orchestration["policy_reasons"] = run_summary.get("policy_reasons", [])
