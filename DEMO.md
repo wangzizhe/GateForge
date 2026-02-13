@@ -65,10 +65,12 @@ Artifact to download:
 - `checker-config-demo`
 
 It includes all checker demo outputs including `checker_demo_summary.md`.
+Actions job page also shows `Checker Demo Summary` (status/policy/reason counts) for quick inspection.
 
 For combined evidence, use artifact:
 
 - `demo-bundle` (includes `artifacts/demo_all_summary.md`)
+- Actions job page also shows `Demo Bundle Summary` including reason/finding counts.
 
 ## 4. One-command bundle (local)
 

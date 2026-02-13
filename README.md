@@ -328,8 +328,10 @@ Note: `medium_openmodelica_pass` requires Docker/OpenModelica backend access.
 - Uploads all evidence and regression artifacts in GitHub Actions.
 - Provides an optional benchmark job (`workflow_dispatch` with `run_benchmark=true`) that does not block the main job.
 - Provides an optional checker demo job (`workflow_dispatch` with `run_checker_demo=true`) that does not block the main job.
+  This job publishes `Checker Demo Summary` on the Actions page (status/policy/reason counts).
 - Provides an optional combined demo bundle job (`workflow_dispatch` with `run_demo_bundle=true`).
   When triggered, this job is strict and fails on demo expectation mismatch.
+  The same job also publishes a concise summary on the Actions job page (`Demo Bundle Summary`), including reason/finding counts.
 
 Manual trigger path in GitHub:
 

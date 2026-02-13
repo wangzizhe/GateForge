@@ -128,6 +128,41 @@ jobs:
       - name: Run checker-config demo
         run: bash scripts/demo_checker_config.sh
 
+      - name: Publish checker demo summary to job page
+        if: always()
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          run_path = Path("artifacts/checker_demo_run.json")
+          regress_path = Path("artifacts/checker_demo_regression.json")
+
+          run_payload = json.loads(run_path.read_text(encoding="utf-8")) if run_path.exists() else {}
+          reg_payload = json.loads(regress_path.read_text(encoding="utf-8")) if regress_path.exists() else {}
+
+          reasons = reg_payload.get("reasons", []) if isinstance(reg_payload, dict) else []
+          findings = reg_payload.get("findings", []) if isinstance(reg_payload, dict) else []
+
+          lines = [
+              "## Checker Demo Summary",
+              "",
+              f"- status: `{run_payload.get('status')}`",
+              f"- policy_decision: `{run_payload.get('policy_decision')}`",
+              f"- reasons_count: `{len(reasons)}`",
+              f"- findings_count: `{len(findings)}`",
+              "",
+          ]
+          text = "\n".join(lines)
+
+          summary_file = os.getenv("GITHUB_STEP_SUMMARY")
+          if summary_file:
+              with open(summary_file, "a", encoding="utf-8") as f:
+                  f.write(text + "\n")
+          print(text)
+          PY
+
       - name: Upload checker demo artifact
         if: always()
         uses: actions/upload-artifact@v4
@@ -161,6 +196,47 @@ jobs:
 
       - name: Run demo bundle
         run: bash scripts/demo_all.sh
+
+      - name: Publish demo bundle summary to job page
+        if: always()
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          path = Path("artifacts/demo_all_summary.json")
+          if not path.exists():
+              text = "## Demo Bundle Summary\n\n`artifacts/demo_all_summary.json` not found."
+          else:
+              payload = json.loads(path.read_text(encoding="utf-8"))
+              rf = payload.get("result_flags", {})
+              lines = [
+                  "## Demo Bundle Summary",
+                  "",
+                  f"- bundle_status: `{payload.get('bundle_status')}`",
+                  f"- proposal_flow_status: `{payload.get('proposal_flow_status')}`",
+                  f"- checker_demo_status: `{payload.get('checker_demo_status')}`",
+                  f"- checker_demo_policy_decision: `{payload.get('checker_demo_policy_decision')}`",
+                  f"- proposal_fail_reasons_count: `{payload.get('proposal_fail_reasons_count')}`",
+                  f"- checker_reasons_count: `{payload.get('checker_reasons_count')}`",
+                  f"- checker_findings_count: `{payload.get('checker_findings_count')}`",
+                  f"- checksums_count: `{len(payload.get('checksums', {}))}`",
+                  "",
+                  "### Result Flags",
+                  "",
+                  f"- proposal_flow: `{rf.get('proposal_flow')}`",
+                  f"- checker_demo_expected_fail: `{rf.get('checker_demo_expected_fail')}`",
+                  "",
+              ]
+              text = "\n".join(lines)
+
+          summary_file = os.getenv("GITHUB_STEP_SUMMARY")
+          if summary_file:
+              with open(summary_file, "a", encoding="utf-8") as f:
+                  f.write(text + "\n")
+          print(text)
+          PY
 
       - name: Upload demo bundle artifact
         if: always()

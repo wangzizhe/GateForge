@@ -31,8 +31,12 @@ def read_json(path: str) -> dict:
 
 proposal = read_json("artifacts/proposal_run_demo.json")
 checker = read_json("artifacts/checker_demo_run.json")
+checker_regression = read_json("artifacts/checker_demo_regression.json")
 flow_exit = int(os.getenv("GATEFORGE_FLOW_EXIT_CODE", "-1"))
 checker_exit = int(os.getenv("GATEFORGE_CHECKER_EXIT_CODE", "-1"))
+proposal_fail_reasons = proposal.get("fail_reasons", []) if isinstance(proposal, dict) else []
+checker_reasons = checker_regression.get("reasons", []) if isinstance(checker_regression, dict) else []
+checker_findings = checker_regression.get("findings", []) if isinstance(checker_regression, dict) else []
 
 lines = [
     "# GateForge Demo Bundle Summary",
@@ -42,6 +46,9 @@ lines = [
     f"- proposal_flow_status: `{proposal.get('status')}`",
     f"- checker_demo_status: `{checker.get('status')}`",
     f"- checker_demo_policy_decision: `{checker.get('policy_decision')}`",
+    f"- proposal_fail_reasons_count: `{len(proposal_fail_reasons)}`",
+    f"- checker_reasons_count: `{len(checker_reasons)}`",
+    f"- checker_findings_count: `{len(checker_findings)}`",
     "",
     "## Result Flags",
     "",
@@ -65,6 +72,9 @@ summary_json = {
     "proposal_flow_status": proposal.get("status"),
     "checker_demo_status": checker.get("status"),
     "checker_demo_policy_decision": checker.get("policy_decision"),
+    "proposal_fail_reasons_count": len(proposal_fail_reasons),
+    "checker_reasons_count": len(checker_reasons),
+    "checker_findings_count": len(checker_findings),
     "result_flags": {
         "proposal_flow": "PASS" if proposal.get("status") == "PASS" else "FAIL",
         "checker_demo_expected_fail": "PASS" if checker.get("status") == "FAIL" else "FAIL",
