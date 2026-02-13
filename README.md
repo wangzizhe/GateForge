@@ -143,6 +143,9 @@ Current proposal schema file:
 - Optional `checkers` field in proposal:
   - `["timeout", "nan_inf", "performance_regression", "event_explosion"]`
   - If omitted, all built-in checkers run by default
+- Optional `checker_config` field in proposal:
+  - `{"performance_regression": {"max_ratio": 1.5}}`
+  - `{"event_explosion": {"max_ratio": 1.8, "abs_threshold_if_baseline_zero": 50}}`
 
 Drive smoke execution from proposal:
 
@@ -415,6 +418,7 @@ python -m gateforge.regress \
   --checker nan_inf \
   --checker performance_regression \
   --checker event_explosion \
+  --checker-config /tmp/checker_config.json \
   --out artifacts/regression_with_checkers.json
 ```
 

@@ -65,6 +65,11 @@ def main() -> None:
         default=None,
         help=f"Enable specific checker by name (repeatable). Available: {', '.join(available_checkers())}",
     )
+    parser.add_argument(
+        "--checker-config",
+        default=None,
+        help="Optional checker config JSON path",
+    )
     args = parser.parse_args()
 
     baseline = load_json(args.baseline)
@@ -74,6 +79,11 @@ def main() -> None:
     expected_backend = None
     expected_script = None
     effective_checkers = args.checkers
+    checker_config = {}
+    if args.checker_config:
+        checker_config = load_json(args.checker_config)
+        if not isinstance(checker_config, dict):
+            raise SystemExit("--checker-config must point to a JSON object")
     if args.proposal:
         proposal = load_proposal(args.proposal)
         expected_backend, expected_script = execution_target_from_proposal(proposal)
@@ -81,6 +91,8 @@ def main() -> None:
         expected_risk_level = proposal.get("risk_level")
         if effective_checkers is None:
             effective_checkers = proposal.get("checkers")
+        if not checker_config:
+            checker_config = proposal.get("checker_config", {})
         strict = True
         strict_model_script = True
     else:
@@ -94,6 +106,7 @@ def main() -> None:
         strict=strict,
         strict_model_script=strict_model_script,
         checker_names=effective_checkers,
+        checker_config=checker_config,
     )
     if expected_backend is not None:
         if baseline.get("backend") != expected_backend:
@@ -110,6 +123,7 @@ def main() -> None:
     result["strict"] = strict
     result["strict_model_script"] = strict_model_script
     result["checkers"] = effective_checkers or []
+    result["checker_config"] = checker_config
     if args.proposal:
         policy = load_policy(args.policy)
         policy_result = evaluate_policy(

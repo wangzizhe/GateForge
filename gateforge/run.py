@@ -29,6 +29,7 @@ def _write_run_markdown(path: str, summary: dict) -> None:
         f"- risk_level: `{summary.get('risk_level')}`",
         f"- policy_decision: `{summary.get('policy_decision')}`",
         f"- checkers: `{','.join(summary.get('checkers', []))}`",
+        f"- checker_config: `{json.dumps(summary.get('checker_config', {}), separators=(',', ':'))}`",
         f"- actions: `{','.join(summary['actions'])}`",
         f"- smoke_executed: `{summary['smoke_executed']}`",
         f"- regress_executed: `{summary['regress_executed']}`",
@@ -231,6 +232,7 @@ def main() -> None:
         "policy_reasons": [],
         "policy_path": args.policy,
         "checkers": proposal.get("checkers", []),
+        "checker_config": proposal.get("checker_config", {}),
         "smoke_executed": False,
         "regress_executed": False,
         "candidate_path": None,
@@ -308,6 +310,7 @@ def main() -> None:
                     strict=True,
                     strict_model_script=True,
                     checker_names=proposal.get("checkers"),
+                    checker_config=proposal.get("checker_config", {}),
                 )
                 _apply_proposal_constraints(result, baseline, candidate, backend=backend, script=script_path)
                 result["proposal_id"] = proposal["proposal_id"]

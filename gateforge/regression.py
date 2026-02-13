@@ -13,6 +13,7 @@ def compare_evidence(
     strict: bool = False,
     strict_model_script: bool = False,
     checker_names: list[str] | None = None,
+    checker_config: dict | None = None,
 ) -> dict:
     reasons: list[str] = []
     effective_checkers = checker_names or available_checkers()
@@ -47,6 +48,7 @@ def compare_evidence(
         baseline=baseline,
         candidate=candidate,
         checker_names=effective_checkers,
+        checker_config=checker_config,
     )
     reasons.extend([r for r in checker_reasons if r not in reasons])
 
@@ -63,6 +65,7 @@ def compare_evidence(
         "candidate_runtime_seconds": cand_runtime,
         "reasons": reasons,
         "checkers": effective_checkers,
+        "checker_config": checker_config or {},
         "findings": checker_findings,
     }
 
@@ -93,6 +96,7 @@ def write_markdown(path: str, result: dict) -> None:
         f"- candidate_runtime_seconds: `{result['candidate_runtime_seconds']}`",
         f"- runtime_threshold: `{result['runtime_threshold']}`",
         f"- checkers: `{','.join(result.get('checkers', []))}`",
+        f"- checker_config: `{json.dumps(result.get('checker_config', {}), separators=(',', ':'))}`",
         "",
         "## Reasons",
         "",

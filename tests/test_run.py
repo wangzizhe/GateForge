@@ -462,9 +462,70 @@ class RunTests(unittest.TestCase):
             self.assertEqual(summary["status"], "FAIL")
             self.assertIn("regression_fail", summary["fail_reasons"])
             self.assertEqual(summary["checkers"], ["nan_inf"])
+            self.assertEqual(summary["checker_config"], {})
             regression_payload = json.loads(regression.read_text(encoding="utf-8"))
             self.assertIn("nan_inf_detected", regression_payload["reasons"])
             self.assertEqual(regression_payload["checkers"], ["nan_inf"])
+
+    def test_run_proposal_uses_checker_config(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            proposal = root / "proposal.json"
+            baseline = root / "baseline.json"
+            candidate = root / "candidate.json"
+            out = root / "run_summary.json"
+            regression = root / "regression.json"
+
+            self._write_proposal(
+                proposal,
+                ["regress"],
+                checkers=["performance_regression"],
+            )
+            proposal_payload = json.loads(proposal.read_text(encoding="utf-8"))
+            proposal_payload["checker_config"] = {"performance_regression": {"max_ratio": 1.5}}
+            proposal.write_text(json.dumps(proposal_payload), encoding="utf-8")
+
+            self._write_baseline(baseline, backend="mock")
+            self._write_candidate(
+                candidate,
+                failure_type="none",
+                gate="PASS",
+                status="success",
+                check_ok=True,
+                simulate_ok=True,
+                runtime=1.6,
+            )
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.run",
+                    "--proposal",
+                    str(proposal),
+                    "--candidate-in",
+                    str(candidate),
+                    "--baseline",
+                    str(baseline),
+                    "--runtime-threshold",
+                    "10",
+                    "--regression-out",
+                    str(regression),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertNotEqual(proc.returncode, 0)
+            summary = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(summary["status"], "FAIL")
+            self.assertEqual(summary["checkers"], ["performance_regression"])
+            self.assertEqual(summary["checker_config"]["performance_regression"]["max_ratio"], 1.5)
+            regression_payload = json.loads(regression.read_text(encoding="utf-8"))
+            self.assertIn("performance_regression_detected", regression_payload["reasons"])
+            self.assertEqual(regression_payload["checker_config"]["performance_regression"]["max_ratio"], 1.5)
 
 
 if __name__ == "__main__":

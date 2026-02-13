@@ -81,6 +81,35 @@ def validate_proposal(proposal: dict) -> None:
             if checker not in supported_checkers:
                 raise ValueError(f"unsupported checker: {checker}")
 
+    checker_config = proposal.get("checker_config")
+    if checker_config is not None:
+        if not isinstance(checker_config, dict):
+            raise ValueError("checker_config must be an object when provided")
+        for checker_name, cfg in checker_config.items():
+            if checker_name not in available_checkers():
+                raise ValueError(f"checker_config contains unsupported checker: {checker_name}")
+            if not isinstance(cfg, dict):
+                raise ValueError(f"checker_config[{checker_name}] must be an object")
+
+        perf_cfg = checker_config.get("performance_regression")
+        if perf_cfg is not None and "max_ratio" in perf_cfg:
+            ratio = perf_cfg["max_ratio"]
+            if not isinstance(ratio, (int, float)) or ratio <= 0:
+                raise ValueError("checker_config.performance_regression.max_ratio must be > 0")
+
+        event_cfg = checker_config.get("event_explosion")
+        if event_cfg is not None:
+            if "max_ratio" in event_cfg:
+                ratio = event_cfg["max_ratio"]
+                if not isinstance(ratio, (int, float)) or ratio <= 0:
+                    raise ValueError("checker_config.event_explosion.max_ratio must be > 0")
+            if "abs_threshold_if_baseline_zero" in event_cfg:
+                threshold = event_cfg["abs_threshold_if_baseline_zero"]
+                if not isinstance(threshold, int) or threshold < 0:
+                    raise ValueError(
+                        "checker_config.event_explosion.abs_threshold_if_baseline_zero must be >= 0 integer"
+                    )
+
 
 def execution_target_from_proposal(proposal: dict) -> tuple[str, str]:
     # v0 contract: smoke execution is only valid when proposal requests check/simulate.
