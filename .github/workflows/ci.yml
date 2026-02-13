@@ -40,6 +40,11 @@ on:
         required: false
         default: false
         type: boolean
+      run_repair_loop:
+        description: "Run optional repair loop demo job"
+        required: false
+        default: false
+        type: boolean
       demo_policy_profile:
         description: "Optional policy profile for demo jobs (e.g. industrial_strict_v0)"
         required: false
@@ -577,3 +582,68 @@ jobs:
             artifacts/agent_change_loop/high_summary.json
             artifacts/agent_change_loop/summary.json
             artifacts/agent_change_loop/summary.md
+
+  repair-loop-optional:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_repair_loop }}
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    env:
+      POLICY_PROFILE: ${{ inputs.demo_policy_profile }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Run repair loop demo
+        run: bash scripts/demo_repair_loop.sh
+
+      - name: Publish repair loop summary to job page
+        if: always()
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          path = Path("artifacts/repair_loop/demo_summary.json")
+          if not path.exists():
+              text = "## Repair Loop Summary\n\n`artifacts/repair_loop/demo_summary.json` not found."
+          else:
+              payload = json.loads(path.read_text(encoding="utf-8"))
+              lines = [
+                  "## Repair Loop Summary",
+                  "",
+                  f"- bundle_status: `{payload.get('bundle_status')}`",
+                  f"- before_status: `{payload.get('before_status')}`",
+                  f"- after_status: `{payload.get('after_status')}`",
+                  f"- delta: `{payload.get('delta')}`",
+                  "",
+              ]
+              text = "\n".join(lines)
+
+          summary_file = os.getenv("GITHUB_STEP_SUMMARY")
+          if summary_file:
+              with open(summary_file, "a", encoding="utf-8") as f:
+                  f.write(text + "\n")
+          print(text)
+          PY
+
+      - name: Upload repair loop artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: repair-loop-demo
+          path: |
+            artifacts/repair_loop/summary.json
+            artifacts/repair_loop/summary.md
+            artifacts/repair_loop/demo_summary.json
+            artifacts/repair_loop/demo_summary.md
