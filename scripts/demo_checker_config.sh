@@ -5,6 +5,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
+POLICY_PROFILE="${POLICY_PROFILE:-}"
 
 mkdir -p artifacts
 
@@ -52,14 +53,21 @@ cat > artifacts/checker_demo_candidate.json <<'EOF'
 }
 EOF
 
-set +e
-python3 -m gateforge.run \
-  --proposal examples/proposals/proposal_checker_config_demo.json \
-  --candidate-in artifacts/checker_demo_candidate.json \
-  --baseline artifacts/checker_demo_baseline.json \
-  --runtime-threshold 10 \
-  --regression-out artifacts/checker_demo_regression.json \
+RUN_CMD=(
+  python3 -m gateforge.run
+  --proposal examples/proposals/proposal_checker_config_demo.json
+  --candidate-in artifacts/checker_demo_candidate.json
+  --baseline artifacts/checker_demo_baseline.json
+  --runtime-threshold 10
+  --regression-out artifacts/checker_demo_regression.json
   --out artifacts/checker_demo_run.json
+)
+if [[ -n "$POLICY_PROFILE" ]]; then
+  RUN_CMD+=(--policy-profile "$POLICY_PROFILE")
+fi
+
+set +e
+"${RUN_CMD[@]}"
 RUN_EXIT_CODE=$?
 set -e
 
@@ -82,6 +90,8 @@ lines = [
     f"- proposal_id: `{run_payload.get('proposal_id')}`",
     f"- status: `{run_payload.get('status')}`",
     f"- policy_decision: `{run_payload.get('policy_decision')}`",
+    f"- policy_path: `{run_payload.get('policy_path')}`",
+    f"- policy_version: `{run_payload.get('policy_version')}`",
     f"- checkers: `{','.join(run_payload.get('checkers', []))}`",
     f"- checker_config: `{json.dumps(run_payload.get('checker_config', {}), separators=(',', ':'))}`",
     f"- run_exit_code: `{os.getenv('GATEFORGE_RUN_EXIT_CODE', 'unknown')}`",

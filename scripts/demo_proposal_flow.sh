@@ -9,6 +9,7 @@ RUN_OUT="artifacts/proposal_run_demo.json"
 CANDIDATE_OUT="artifacts/candidate_from_proposal_demo.json"
 REGRESSION_OUT="artifacts/regression_from_proposal_demo.json"
 DEMO_BASELINE="artifacts/baseline_demo_mock.json"
+POLICY_PROFILE="${POLICY_PROFILE:-}"
 
 python3 -m gateforge.proposal_validate --in "$PROPOSAL_PATH"
 
@@ -23,12 +24,18 @@ baseline["model_script"] = proposal["model_script"]
 Path("artifacts/baseline_demo_mock.json").write_text(json.dumps(baseline, indent=2), encoding="utf-8")
 PY
 
-python3 -m gateforge.run \
-  --proposal "$PROPOSAL_PATH" \
-  --baseline "$DEMO_BASELINE" \
-  --candidate-out "$CANDIDATE_OUT" \
-  --regression-out "$REGRESSION_OUT" \
+RUN_CMD=(
+  python3 -m gateforge.run
+  --proposal "$PROPOSAL_PATH"
+  --baseline "$DEMO_BASELINE"
+  --candidate-out "$CANDIDATE_OUT"
+  --regression-out "$REGRESSION_OUT"
   --out "$RUN_OUT"
+)
+if [[ -n "$POLICY_PROFILE" ]]; then
+  RUN_CMD+=(--policy-profile "$POLICY_PROFILE")
+fi
+"${RUN_CMD[@]}"
 
 python3 - <<'PY'
 import json
@@ -41,6 +48,8 @@ print("\n[GateForge Demo Summary]")
 print(f"proposal_id      : {run.get('proposal_id')}")
 print(f"run status       : {run.get('status')}")
 print(f"policy decision  : {run.get('policy_decision')}")
+print(f"policy path      : {run.get('policy_path')}")
+print(f"policy version   : {run.get('policy_version')}")
 print(f"candidate path   : {run.get('candidate_path')}")
 print(f"baseline path    : {run.get('baseline_path')}")
 print(f"regression path  : {run.get('regression_path')}")

@@ -101,6 +101,9 @@ bash scripts/demo_checker_config.sh
 # combined demo bundle (docker-independent)
 bash scripts/demo_all.sh
 
+# same demos with strict policy profile
+POLICY_PROFILE=industrial_strict_v0 bash scripts/demo_all.sh
+
 # autopilot dry-run review template demo
 bash scripts/demo_autopilot_dry_run.sh
 ```

@@ -1,4 +1,5 @@
 import json
+import os
 import subprocess
 import unittest
 from pathlib import Path
@@ -57,6 +58,20 @@ class DemoScriptTests(unittest.TestCase):
         checks = payload.get("planned_required_human_checks", [])
         self.assertTrue(checks)
         self.assertTrue(any("rollback" in c.lower() for c in checks))
+
+    def test_demo_all_script_accepts_policy_profile(self) -> None:
+        env = dict(os.environ)
+        env["POLICY_PROFILE"] = "industrial_strict_v0"
+        proc = subprocess.run(
+            ["bash", "scripts/demo_all.sh"],
+            capture_output=True,
+            text=True,
+            check=False,
+            env=env,
+        )
+        self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+        payload = json.loads(Path("artifacts/demo_all_summary.json").read_text(encoding="utf-8"))
+        self.assertEqual(payload.get("policy_profile"), "industrial_strict_v0")
 
 
 if __name__ == "__main__":

@@ -5,6 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
 mkdir -p artifacts
+POLICY_PROFILE="${POLICY_PROFILE:-}"
 
 set +e
 bash scripts/demo_proposal_flow.sh
@@ -37,6 +38,7 @@ checker_exit = int(os.getenv("GATEFORGE_CHECKER_EXIT_CODE", "-1"))
 proposal_fail_reasons = proposal.get("fail_reasons", []) if isinstance(proposal, dict) else []
 checker_reasons = checker_regression.get("reasons", []) if isinstance(checker_regression, dict) else []
 checker_findings = checker_regression.get("findings", []) if isinstance(checker_regression, dict) else []
+policy_profile = os.getenv("POLICY_PROFILE", "")
 
 lines = [
     "# GateForge Demo Bundle Summary",
@@ -46,6 +48,7 @@ lines = [
     f"- proposal_flow_status: `{proposal.get('status')}`",
     f"- checker_demo_status: `{checker.get('status')}`",
     f"- checker_demo_policy_decision: `{checker.get('policy_decision')}`",
+    f"- policy_profile: `{policy_profile or 'default'}`",
     f"- proposal_fail_reasons_count: `{len(proposal_fail_reasons)}`",
     f"- checker_reasons_count: `{len(checker_reasons)}`",
     f"- checker_findings_count: `{len(checker_findings)}`",
@@ -72,6 +75,7 @@ summary_json = {
     "proposal_flow_status": proposal.get("status"),
     "checker_demo_status": checker.get("status"),
     "checker_demo_policy_decision": checker.get("policy_decision"),
+    "policy_profile": policy_profile or "default",
     "proposal_fail_reasons_count": len(proposal_fail_reasons),
     "checker_reasons_count": len(checker_reasons),
     "checker_findings_count": len(checker_findings),
