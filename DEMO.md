@@ -466,6 +466,27 @@ Key outputs:
 - `artifacts/planner_guardrails_demo/summary.md`
 - `summary.json` includes `rule_ids.all` (aggregated guardrail rule IDs)
 
+### Planner Output Validation Demo (Offline Contract Check)
+
+Command:
+
+```bash
+bash scripts/demo_planner_output_validate.sh
+```
+
+What it validates:
+
+- valid planner output JSON passes contract checks
+- malformed planner output is rejected before execution
+- validation result is summarized as governance evidence
+
+Key outputs:
+
+- `artifacts/planner_output_validate_demo/pass_result.json`
+- `artifacts/planner_output_validate_demo/fail_result.json`
+- `artifacts/planner_output_validate_demo/summary.json`
+- `artifacts/planner_output_validate_demo/summary.md`
+
 ## 11. Human Review Resolution Demo
 
 Command:

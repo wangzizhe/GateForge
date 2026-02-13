@@ -12,20 +12,10 @@ from pathlib import Path
 
 from .change_plan import DEFAULT_ALLOWED_ROOTS, DEFAULT_ALLOWED_SUFFIXES, summarize_change_plan, validate_change_plan
 from .change_apply import validate_change_set
-
-ALLOWED_GEMINI_TOP_LEVEL_KEYS = {
-    "intent",
-    "proposal_id",
-    "overrides",
-    "change_plan",
-    "change_set_draft",
-}
-ALLOWED_OVERRIDE_KEYS = {
-    "risk_level",
-    "change_summary",
-    "checkers",
-    "checker_config",
-}
+from .planner_output import (
+    ALLOWED_PLANNER_OVERRIDE_KEYS,
+    validate_planner_output,
+)
 
 
 class PlannerGuardrailError(ValueError):
@@ -218,7 +208,7 @@ def _extract_json_object(text: str) -> dict:
 
 
 def _validate_overrides(overrides: dict) -> None:
-    unknown = sorted(k for k in overrides if k not in ALLOWED_OVERRIDE_KEYS)
+    unknown = sorted(k for k in overrides if k not in ALLOWED_PLANNER_OVERRIDE_KEYS)
     if unknown:
         raise PlannerGuardrailError(
             "overrides_unsupported_keys",
@@ -400,7 +390,14 @@ def _plan_with_gemini_backend(
     }
     if intent not in allowed_intents:
         raise ValueError(f"gemini planner returned unsupported intent: {intent}")
-    unknown_top_level = sorted(k for k in parsed.keys() if k not in ALLOWED_GEMINI_TOP_LEVEL_KEYS)
+    raw_allowed = {
+        "intent",
+        "proposal_id",
+        "overrides",
+        "change_plan",
+        "change_set_draft",
+    }
+    unknown_top_level = sorted(k for k in parsed.keys() if k not in raw_allowed)
     if unknown_top_level:
         raise PlannerGuardrailError(
             "gemini_unsupported_top_level_keys",
@@ -436,6 +433,10 @@ def _plan_with_gemini_backend(
     change_plan = parsed.get("change_plan")
     if change_plan is not None:
         payload["change_plan"] = change_plan
+    try:
+        validate_planner_output(payload, strict_top_level=True)
+    except ValueError as exc:
+        raise PlannerGuardrailError("planner_output_invalid", str(exc)) from exc
     return payload
 
 
@@ -548,6 +549,7 @@ def main() -> None:
                 context_json_path=args.context_json,
                 emit_change_set_draft=args.emit_change_set_draft,
             )
+        validate_planner_output(payload, strict_top_level=True)
         guardrails = _apply_llm_guardrails(
             payload,
             allowed_roots=allowed_roots,
