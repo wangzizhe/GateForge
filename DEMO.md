@@ -134,6 +134,7 @@ In GitHub Actions (`ci` workflow), use **Run workflow** and enable:
 
 - `run_checker_demo=true`
 - `run_steady_state_demo=true`
+- `run_behavior_metrics_demo=true`
 - `run_demo_bundle=true` (runs both demos, emits one summary, and is strict when triggered)
 - `run_autopilot_dry_run=true` (runs dry-run review-template demo, non-blocking)
 - `run_agent_change_loop=true` (runs low/high risk change safety loop demo, non-blocking)
@@ -143,11 +144,13 @@ Artifact to download:
 
 - `checker-config-demo`
 - `steady-state-demo`
+- `behavior-metrics-demo`
 - `autopilot-dry-run-demo`
 - `agent-change-loop-demo`
 
 It includes all checker demo outputs including `checker_demo_summary.md`.
 `steady-state-demo` includes behavior-drift regression outputs and summary.
+`behavior-metrics-demo` includes overshoot/settling/steady-state checker outputs and summary.
 `autopilot-dry-run-demo` includes the dry-run JSON/MD and planned human checks.
 `agent-change-loop-demo` includes low/high risk summaries and policy-driven decision outcomes.
 Actions job page also shows `Checker Demo Summary` (status/policy/reason counts) for quick inspection.
