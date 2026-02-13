@@ -59,6 +59,20 @@ class DemoScriptTests(unittest.TestCase):
         self.assertTrue(checks)
         self.assertTrue(any("rollback" in c.lower() for c in checks))
 
+    def test_demo_autopilot_dry_run_script_accepts_policy_profile(self) -> None:
+        env = dict(os.environ)
+        env["POLICY_PROFILE"] = "industrial_strict_v0"
+        proc = subprocess.run(
+            ["bash", "scripts/demo_autopilot_dry_run.sh"],
+            capture_output=True,
+            text=True,
+            check=False,
+            env=env,
+        )
+        self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+        payload = json.loads(Path("artifacts/autopilot/autopilot_dry_run_demo.json").read_text(encoding="utf-8"))
+        self.assertTrue(str(payload.get("planned_run", {}).get("policy", "")).endswith("industrial_strict_v0.json"))
+
     def test_demo_all_script_accepts_policy_profile(self) -> None:
         env = dict(os.environ)
         env["POLICY_PROFILE"] = "industrial_strict_v0"

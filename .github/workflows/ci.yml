@@ -279,6 +279,8 @@ jobs:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_autopilot_dry_run }}
     continue-on-error: true
     runs-on: ubuntu-latest
+    env:
+      POLICY_PROFILE: ${{ inputs.demo_policy_profile }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -314,6 +316,8 @@ jobs:
                   "## Autopilot Dry-Run Summary",
                   "",
                   f"- status: `{payload.get('status')}`",
+                  f"- policy_path: `{payload.get('planned_run', {}).get('policy')}`",
+                  f"- policy_version: `{payload.get('policy_version')}`",
                   f"- planned_risk_level: `{payload.get('planned_risk_level')}`",
                   f"- planned_required_human_checks_count: `{len(checks)}`",
                   "",
