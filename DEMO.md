@@ -81,3 +81,4 @@ bash scripts/demo_all.sh
 This runs both demos and writes:
 
 - `artifacts/demo_all_summary.md`
+- `artifacts/demo_all_summary.json` (machine-readable bundle summary)

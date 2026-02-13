@@ -29,15 +29,22 @@ def read_json(path: str) -> dict:
 
 proposal = read_json("artifacts/proposal_run_demo.json")
 checker = read_json("artifacts/checker_demo_run.json")
+flow_exit = int(os.getenv("GATEFORGE_FLOW_EXIT_CODE", "-1"))
+checker_exit = int(os.getenv("GATEFORGE_CHECKER_EXIT_CODE", "-1"))
 
 lines = [
     "# GateForge Demo Bundle Summary",
     "",
-    f"- flow_exit_code: `{os.getenv('GATEFORGE_FLOW_EXIT_CODE', 'unknown')}`",
-    f"- checker_exit_code: `{os.getenv('GATEFORGE_CHECKER_EXIT_CODE', 'unknown')}`",
+    f"- flow_exit_code: `{flow_exit}`",
+    f"- checker_exit_code: `{checker_exit}`",
     f"- proposal_flow_status: `{proposal.get('status')}`",
     f"- checker_demo_status: `{checker.get('status')}`",
     f"- checker_demo_policy_decision: `{checker.get('policy_decision')}`",
+    "",
+    "## Result Flags",
+    "",
+    f"- proposal_flow: `{'PASS' if proposal.get('status') == 'PASS' else 'FAIL'}`",
+    f"- checker_demo_expected_fail: `{'PASS' if checker.get('status') == 'FAIL' else 'FAIL'}`",
     "",
     "## Key Artifacts",
     "",
@@ -50,10 +57,35 @@ lines = [
     "",
 ]
 
+summary_json = {
+    "flow_exit_code": flow_exit,
+    "checker_exit_code": checker_exit,
+    "proposal_flow_status": proposal.get("status"),
+    "checker_demo_status": checker.get("status"),
+    "checker_demo_policy_decision": checker.get("policy_decision"),
+    "result_flags": {
+        "proposal_flow": "PASS" if proposal.get("status") == "PASS" else "FAIL",
+        "checker_demo_expected_fail": "PASS" if checker.get("status") == "FAIL" else "FAIL",
+    },
+    "artifacts": [
+        "artifacts/proposal_run_demo.json",
+        "artifacts/proposal_run_demo.md",
+        "artifacts/regression_from_proposal_demo.json",
+        "artifacts/checker_demo_run.json",
+        "artifacts/checker_demo_regression.json",
+        "artifacts/checker_demo_summary.md",
+        "artifacts/demo_all_summary.md",
+        "artifacts/demo_all_summary.json",
+    ],
+}
+
 Path("artifacts/demo_all_summary.md").write_text("\n".join(lines), encoding="utf-8")
+Path("artifacts/demo_all_summary.json").write_text(json.dumps(summary_json, indent=2), encoding="utf-8")
 print("wrote artifacts/demo_all_summary.md")
+print("wrote artifacts/demo_all_summary.json")
 PY
 
 echo "demo_proposal_flow exit code: $FLOW_EXIT_CODE"
 echo "demo_checker_config exit code: $CHECKER_EXIT_CODE"
 cat artifacts/demo_all_summary.md
+cat artifacts/demo_all_summary.json
