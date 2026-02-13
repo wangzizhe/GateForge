@@ -5,6 +5,10 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
 mkdir -p artifacts/review_export_demo
+rm -f artifacts/review_export_demo/ledger.jsonl
+rm -f artifacts/review_export_demo/fail_records.json artifacts/review_export_demo/proposal_records.json
+rm -f artifacts/review_export_demo/fail_summary.json artifacts/review_export_demo/fail_summary.md
+rm -f artifacts/review_export_demo/proposal_summary.json artifacts/review_export_demo/proposal_summary.md
 
 bash scripts/demo_review_ledger.sh
 
