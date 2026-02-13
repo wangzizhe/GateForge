@@ -206,6 +206,7 @@ class DemoScriptTests(unittest.TestCase):
         payload = json.loads(Path("artifacts/review_kpi_demo/kpi_summary.json").read_text(encoding="utf-8"))
         self.assertIn("kpis", payload)
         self.assertIn("approval_rate", payload["kpis"])
+        self.assertIn("sla_breach_rate", payload["kpis"])
 
 
 if __name__ == "__main__":

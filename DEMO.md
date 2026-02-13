@@ -348,6 +348,7 @@ What it validates:
 - KPI summary includes approval/fail rates
 - KPI summary includes risk-level distribution
 - KPI summary includes last-7-days review volume
+- KPI summary includes SLA breach metrics
 
 Key outputs:
 

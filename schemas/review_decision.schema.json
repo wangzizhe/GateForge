@@ -58,6 +58,14 @@
         "approve",
         "reject"
       ]
+    },
+    "requested_at_utc": {
+      "type": "string",
+      "minLength": 1
+    },
+    "reviewed_at_utc": {
+      "type": "string",
+      "minLength": 1
     }
   }
 }

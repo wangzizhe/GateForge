@@ -12,6 +12,7 @@ cp artifacts/review_ledger_demo/ledger.jsonl artifacts/review_kpi_demo/ledger.js
 
 python3 -m gateforge.review_ledger \
   --ledger artifacts/review_kpi_demo/ledger.jsonl \
+  --sla-seconds 3600 \
   --summary-out artifacts/review_kpi_demo/kpi_summary.json \
   --report-out artifacts/review_kpi_demo/kpi_summary.md
 
@@ -28,5 +29,7 @@ if payload.get("total_records", 0) < 2:
 if "approval_rate" not in kpis or "fail_rate" not in kpis:
     raise SystemExit(1)
 if not isinstance(kpis.get("review_volume_last_7_days", []), list):
+    raise SystemExit(1)
+if "sla_breach_rate" not in kpis:
     raise SystemExit(1)
 PY

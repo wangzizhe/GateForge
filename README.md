@@ -356,6 +356,7 @@ Review ledger summary:
 ```bash
 python -m gateforge.review_ledger \
   --ledger artifacts/review/ledger.jsonl \
+  --sla-seconds 3600 \
   --summary-out artifacts/review/ledger_summary.json \
   --report-out artifacts/review/ledger_summary.md
 cat artifacts/review/ledger_summary.json
@@ -388,6 +389,9 @@ KPI fields include:
 - `kpis.fail_rate`
 - `kpis.by_risk_status_counts`
 - `kpis.review_volume_last_7_days`
+- `kpis.avg_resolution_seconds`
+- `kpis.p95_resolution_seconds`
+- `kpis.sla_breach_rate`
 
 Planner variants:
 

@@ -6,7 +6,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .review import load_review_decision, validate_review_decision
+from .review import load_review_decision, parse_utc, validate_review_decision
 from .review_ledger import (
     append_review_ledger,
     summarize_review_ledger,
@@ -43,6 +43,9 @@ def _write_markdown(path: str, summary: dict) -> None:
         f"- reviewer: `{summary.get('reviewer')}`",
         f"- human_decision: `{summary.get('human_decision')}`",
         f"- all_required_checks_completed: `{summary.get('all_required_checks_completed')}`",
+        f"- requested_at_utc: `{summary.get('requested_at_utc')}`",
+        f"- reviewed_at_utc: `{summary.get('reviewed_at_utc')}`",
+        f"- resolution_seconds: `{summary.get('resolution_seconds')}`",
         "",
         "## Final Reasons",
         "",
@@ -95,7 +98,20 @@ def _resolve(source: dict, review: dict) -> dict:
         "final_reasons": [],
         "unresolved_required_human_checks": [],
         "review_policy_checks": [],
+        "requested_at_utc": review.get("requested_at_utc"),
+        "reviewed_at_utc": review.get("reviewed_at_utc"),
+        "resolution_seconds": None,
     }
+
+    requested_at = review.get("requested_at_utc")
+    reviewed_at = review.get("reviewed_at_utc")
+    if isinstance(requested_at, str) and isinstance(reviewed_at, str):
+        try:
+            duration = (parse_utc(reviewed_at) - parse_utc(requested_at)).total_seconds()
+            if duration >= 0:
+                summary["resolution_seconds"] = round(duration, 3)
+        except Exception:
+            pass
 
     if review.get("proposal_id") != proposal_id:
         summary["final_reasons"].append("review_proposal_id_mismatch")
@@ -217,6 +233,9 @@ def main() -> None:
         "risk_level": source.get("risk_level"),
         "source_policy_decision": source.get("policy_decision"),
         "required_human_checks_count": len(source.get("required_human_checks", []) or []),
+        "requested_at_utc": resolved.get("requested_at_utc"),
+        "reviewed_at_utc": resolved.get("reviewed_at_utc"),
+        "resolution_seconds": resolved.get("resolution_seconds"),
     }
     append_review_ledger(args.ledger, ledger_record)
     ledger_rows = load_review_ledger(args.ledger)

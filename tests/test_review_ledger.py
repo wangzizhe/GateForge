@@ -109,6 +109,8 @@ class ReviewLedgerTests(unittest.TestCase):
             self.assertIn("kpis", payload)
             self.assertIn("approval_rate", payload["kpis"])
             self.assertIn("risk_level_counts", payload)
+            self.assertIn("avg_resolution_seconds", payload["kpis"])
+            self.assertIn("sla_breach_rate", payload["kpis"])
 
     def test_review_ledger_cli_summarizes_existing_ledger(self) -> None:
         with tempfile.TemporaryDirectory() as d:
@@ -208,6 +210,63 @@ class ReviewLedgerTests(unittest.TestCase):
             export_payload = json.loads(export_out.read_text(encoding="utf-8"))
             self.assertEqual(export_payload["total_records"], 1)
             self.assertEqual(export_payload["records"][0]["proposal_id"], "p2")
+
+    def test_review_ledger_sla_metrics(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            ledger = root / "ledger.jsonl"
+            ledger.write_text(
+                "\n".join(
+                    [
+                        json.dumps(
+                            {
+                                "recorded_at_utc": "2026-02-13T09:00:00+00:00",
+                                "proposal_id": "p1",
+                                "reviewer": "r1",
+                                "final_status": "PASS",
+                                "risk_level": "low",
+                                "resolution_seconds": 1200.0,
+                                "final_reasons": [],
+                            }
+                        ),
+                        json.dumps(
+                            {
+                                "recorded_at_utc": "2026-02-13T10:00:00+00:00",
+                                "proposal_id": "p2",
+                                "reviewer": "r2",
+                                "final_status": "FAIL",
+                                "risk_level": "high",
+                                "resolution_seconds": 90000.0,
+                                "final_reasons": ["human_rejected"],
+                            }
+                        ),
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            summary_out = root / "summary.json"
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.review_ledger",
+                    "--ledger",
+                    str(ledger),
+                    "--sla-seconds",
+                    "3600",
+                    "--summary-out",
+                    str(summary_out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            payload = json.loads(summary_out.read_text(encoding="utf-8"))
+            self.assertEqual(payload["kpis"]["avg_resolution_seconds"], 45600.0)
+            self.assertEqual(payload["kpis"]["sla_breach_count"], 1)
+            self.assertEqual(payload["kpis"]["sla_breach_rate"], 0.5)
 
 
 if __name__ == "__main__":

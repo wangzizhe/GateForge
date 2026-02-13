@@ -41,24 +41,24 @@ class ReviewTests(unittest.TestCase):
         reviewer: str = "human.reviewer",
         second_reviewer: str | None = None,
         second_decision: str | None = None,
+        requested_at_utc: str | None = None,
+        reviewed_at_utc: str | None = None,
     ) -> None:
-        path.write_text(
-            json.dumps(
-                {
-                    "schema_version": "0.1.0",
-                    "review_id": "review-001",
-                    "proposal_id": proposal_id,
-                    "reviewer": reviewer,
-                    "decision": decision,
-                    "rationale": "manual decision",
-                    "all_required_checks_completed": all_done,
-                    "confirmed_checks": ["check-a", "check-b"],
-                    "second_reviewer": second_reviewer,
-                    "second_decision": second_decision,
-                }
-            ),
-            encoding="utf-8",
-        )
+        payload = {
+            "schema_version": "0.1.0",
+            "review_id": "review-001",
+            "proposal_id": proposal_id,
+            "reviewer": reviewer,
+            "decision": decision,
+            "rationale": "manual decision",
+            "all_required_checks_completed": all_done,
+            "confirmed_checks": ["check-a", "check-b"],
+            "second_reviewer": second_reviewer,
+            "second_decision": second_decision,
+            "requested_at_utc": requested_at_utc,
+            "reviewed_at_utc": reviewed_at_utc,
+        }
+        path.write_text(json.dumps(payload), encoding="utf-8")
 
     def test_resolve_approve_pass(self) -> None:
         with tempfile.TemporaryDirectory() as d:
@@ -67,7 +67,13 @@ class ReviewTests(unittest.TestCase):
             review = root / "review.json"
             out = root / "final.json"
             self._write_source(source)
-            self._write_review(review, decision="approve", all_done=True)
+            self._write_review(
+                review,
+                decision="approve",
+                all_done=True,
+                requested_at_utc="2026-02-13T09:00:00Z",
+                reviewed_at_utc="2026-02-13T09:20:00Z",
+            )
 
             proc = subprocess.run(
                 [
@@ -88,6 +94,7 @@ class ReviewTests(unittest.TestCase):
             self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
             payload = json.loads(out.read_text(encoding="utf-8"))
             self.assertEqual(payload["final_status"], "PASS")
+            self.assertEqual(payload["resolution_seconds"], 1200.0)
 
     def test_resolve_reject_fail(self) -> None:
         with tempfile.TemporaryDirectory() as d:
@@ -278,6 +285,38 @@ class ReviewTests(unittest.TestCase):
             self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
             payload = json.loads(out.read_text(encoding="utf-8"))
             self.assertEqual(payload["final_status"], "PASS")
+
+    def test_resolve_rejects_invalid_review_timestamp(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            source = root / "source.json"
+            review = root / "review.json"
+            out = root / "final.json"
+            self._write_source(source)
+            self._write_review(
+                review,
+                decision="approve",
+                requested_at_utc="not-a-time",
+                reviewed_at_utc="2026-02-13T09:20:00Z",
+            )
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.review_resolve",
+                    "--summary",
+                    str(source),
+                    "--review",
+                    str(review),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertNotEqual(proc.returncode, 0)
+            self.assertIn("requested_at_utc", proc.stderr + proc.stdout)
 
 
 if __name__ == "__main__":
