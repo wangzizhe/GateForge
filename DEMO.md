@@ -72,6 +72,7 @@ In GitHub Actions (`ci` workflow), use **Run workflow** and enable:
 - `run_checker_demo=true`
 - `run_demo_bundle=true` (runs both demos, emits one summary, and is strict when triggered)
 - `run_autopilot_dry_run=true` (runs dry-run review-template demo, non-blocking)
+- optional: `demo_policy_profile=industrial_strict_v0` to run demos under a profile
 
 Artifact to download:
 

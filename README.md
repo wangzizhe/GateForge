@@ -354,7 +354,8 @@ Manual trigger path in GitHub:
 2. Select `ci` workflow.
 3. Click `Run workflow`.
 4. Enable `run_benchmark` and/or `run_checker_demo` and/or `run_demo_bundle` and/or `run_autopilot_dry_run`.
-5. Run and download uploaded artifacts from the selected optional job.
+5. Optional: set `demo_policy_profile` (for demo jobs) such as `industrial_strict_v0`.
+6. Run and download uploaded artifacts from the selected optional job.
 
 This is intentionally small. It proves your governance layer can always produce machine-readable evidence before adding real simulation complexity.
 

@@ -25,6 +25,11 @@ on:
         required: false
         default: false
         type: boolean
+      demo_policy_profile:
+        description: "Optional policy profile for demo jobs (e.g. industrial_strict_v0)"
+        required: false
+        default: ""
+        type: string
 
 jobs:
   test-and-smoke:
@@ -116,6 +121,8 @@ jobs:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_checker_demo }}
     continue-on-error: true
     runs-on: ubuntu-latest
+    env:
+      POLICY_PROFILE: ${{ inputs.demo_policy_profile }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -155,6 +162,8 @@ jobs:
               "",
               f"- status: `{run_payload.get('status')}`",
               f"- policy_decision: `{run_payload.get('policy_decision')}`",
+              f"- policy_path: `{run_payload.get('policy_path')}`",
+              f"- policy_version: `{run_payload.get('policy_version')}`",
               f"- reasons_count: `{len(reasons)}`",
               f"- findings_count: `{len(findings)}`",
               "",
@@ -185,6 +194,8 @@ jobs:
   demo-bundle-optional:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_demo_bundle }}
     runs-on: ubuntu-latest
+    env:
+      POLICY_PROFILE: ${{ inputs.demo_policy_profile }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -220,6 +231,7 @@ jobs:
                   "## Demo Bundle Summary",
                   "",
                   f"- bundle_status: `{payload.get('bundle_status')}`",
+                  f"- policy_profile: `{payload.get('policy_profile')}`",
                   f"- proposal_flow_status: `{payload.get('proposal_flow_status')}`",
                   f"- checker_demo_status: `{payload.get('checker_demo_status')}`",
                   f"- checker_demo_policy_decision: `{payload.get('checker_demo_policy_decision')}`",
