@@ -141,7 +141,7 @@ Current proposal schema file:
 
 - `schemas/proposal.schema.json`
 - Optional `checkers` field in proposal:
-  - `["timeout", "nan_inf"]`
+  - `["timeout", "nan_inf", "performance_regression", "event_explosion"]`
   - If omitted, all built-in checkers run by default
 
 Drive smoke execution from proposal:
@@ -413,6 +413,8 @@ python -m gateforge.regress \
   --candidate artifacts/candidate.json \
   --checker timeout \
   --checker nan_inf \
+  --checker performance_regression \
+  --checker event_explosion \
   --out artifacts/regression_with_checkers.json
 ```
 
