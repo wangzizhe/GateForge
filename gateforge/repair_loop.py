@@ -36,6 +36,8 @@ def _write_markdown(path: str, summary: dict) -> None:
         f"- source_kind: `{summary.get('source_kind')}`",
         f"- source_proposal_id: `{summary.get('source_proposal_id')}`",
         f"- goal: `{summary.get('goal')}`",
+        f"- planner_guardrail_decision: `{summary.get('planner_guardrail_decision')}`",
+        f"- planner_guardrail_report_path: `{summary.get('planner_guardrail_report_path')}`",
         "",
         "## Before",
         "",
@@ -68,6 +70,12 @@ def _write_markdown(path: str, summary: dict) -> None:
     new = comparison.get("new_reasons", [])
     if new:
         lines.extend([f"- `{r}`" for r in new])
+    else:
+        lines.append("- `none`")
+    lines.extend(["", "## Planner Guardrail Violations", ""])
+    violations = summary.get("planner_guardrail_violations", [])
+    if violations:
+        lines.extend([f"- `{item}`" for item in violations])
     else:
         lines.append("- `none`")
     lines.append("")
@@ -284,6 +292,9 @@ def main() -> None:
         "planner_change_plan_confidence_min": args.planner_change_plan_confidence_min,
         "planner_change_plan_confidence_max": args.planner_change_plan_confidence_max,
         "planner_change_plan_allowed_files": args.planner_change_plan_allowed_file or [],
+        "planner_guardrail_decision": after_payload.get("planner_guardrail_decision"),
+        "planner_guardrail_violations": after_payload.get("planner_guardrail_violations", []),
+        "planner_guardrail_report_path": after_payload.get("planner_guardrail_report_path"),
         "before": before,
         "after": after,
         "comparison": {

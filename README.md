@@ -342,7 +342,8 @@ Execution-time `required_human_checks` are also policy-driven via `required_huma
 
 `autopilot_summary.json` includes governance-facing fields such as:
 `policy_decision`, `policy_reasons`, `required_human_checks`, `fail_reasons`, `run_report_path`,
-`change_apply_status`, `applied_changes_count`, `change_set_hash`, and `policy_version`.
+`change_apply_status`, `applied_changes_count`, `change_set_hash`, `policy_version`,
+`planner_guardrail_decision`, and `planner_guardrail_violations`.
 
 For planner-driven patches, policy can enforce confidence gates:
 - below `min_confidence_auto_apply`: proposal becomes `NEEDS_REVIEW` (`change_plan_confidence_below_auto_apply`)
@@ -462,6 +463,15 @@ Guardrail demo:
 ```bash
 bash scripts/demo_planner_guardrails.sh
 ```
+
+Autopilot forwards planner guardrails and writes them to evidence:
+- `planner_guardrail_report_path`
+- `planner_guardrail_decision` (`PASS` / `FAIL`)
+- `planner_guardrail_violations` (non-empty when planner guardrail fails)
+
+Planner confidence guardrail defaults:
+- if not explicitly set, `autopilot` uses policy `min_confidence_accept` as planner min confidence
+- planner max confidence defaults to `1.0`
 
 Agent medium intent (OpenModelica medium case):
 

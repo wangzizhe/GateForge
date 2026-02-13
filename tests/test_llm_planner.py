@@ -306,6 +306,7 @@ class PlannerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
             out = root / "intent.json"
+            report = root / "guardrails.json"
             context = root / "context.json"
             context.write_text(json.dumps({"change_plan_confidence": 0.4}), encoding="utf-8")
             proc = subprocess.run(
@@ -320,6 +321,8 @@ class PlannerTests(unittest.TestCase):
                     "--emit-change-set-draft",
                     "--change-plan-confidence-min",
                     "0.8",
+                    "--guardrail-report-out",
+                    str(report),
                     "--context-json",
                     str(context),
                     "--out",
@@ -332,6 +335,9 @@ class PlannerTests(unittest.TestCase):
             self.assertNotEqual(proc.returncode, 0)
             self.assertIn("confidence_min", proc.stderr + proc.stdout)
             self.assertFalse(out.exists())
+            payload = json.loads(report.read_text(encoding="utf-8"))
+            self.assertEqual(payload.get("decision"), "FAIL")
+            self.assertTrue(payload.get("violations"))
 
     def test_planner_change_plan_file_whitelist_rejects_outside_file(self) -> None:
         with tempfile.TemporaryDirectory() as d:
@@ -358,6 +364,37 @@ class PlannerTests(unittest.TestCase):
             self.assertNotEqual(proc.returncode, 0)
             self.assertIn("allowed_files whitelist", proc.stderr + proc.stdout)
             self.assertFalse(out.exists())
+
+    def test_planner_writes_guardrail_report_on_success(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            out = root / "intent.json"
+            report = root / "guardrails.json"
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.llm_planner",
+                    "--goal",
+                    "apply deterministic patch and run",
+                    "--planner-backend",
+                    "rule",
+                    "--emit-change-set-draft",
+                    "--change-plan-confidence-min",
+                    "0.8",
+                    "--guardrail-report-out",
+                    str(report),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            payload = json.loads(report.read_text(encoding="utf-8"))
+            self.assertEqual(payload.get("decision"), "PASS")
+            self.assertEqual(payload.get("violations"), [])
 
 
 if __name__ == "__main__":

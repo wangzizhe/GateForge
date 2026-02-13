@@ -110,6 +110,8 @@ class RepairLoopTests(unittest.TestCase):
             self.assertIn("autopilot_stderr_tail", payload)
             self.assertEqual(payload["after"]["autopilot_exit_code"], proc.returncode)
             self.assertIn(payload["after"]["status"], {"UNKNOWN", "FAIL"})
+            self.assertEqual(payload.get("planner_guardrail_decision"), "FAIL")
+            self.assertTrue(payload.get("planner_guardrail_violations"))
 
     def test_repair_loop_detects_worse_outcome(self) -> None:
         with tempfile.TemporaryDirectory() as d:
