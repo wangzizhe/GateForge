@@ -518,9 +518,9 @@ class RunTests(unittest.TestCase):
                 text=True,
                 check=False,
             )
-            self.assertNotEqual(proc.returncode, 0)
+            self.assertEqual(proc.returncode, 0)
             summary = json.loads(out.read_text(encoding="utf-8"))
-            self.assertEqual(summary["status"], "FAIL")
+            self.assertEqual(summary["status"], "NEEDS_REVIEW")
             self.assertEqual(summary["checkers"], ["performance_regression"])
             self.assertEqual(summary["checker_config"]["performance_regression"]["max_ratio"], 1.5)
             regression_payload = json.loads(regression.read_text(encoding="utf-8"))

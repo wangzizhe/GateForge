@@ -106,6 +106,11 @@ Key outputs:
 - `artifacts/autopilot/autopilot_dry_run_demo.json`
 - `artifacts/autopilot/autopilot_dry_run_demo.md`
 
+Policy profiles (optional):
+
+- default: `policies/default_policy.json`
+- strict: `policies/profiles/industrial_strict_v0.json`
+
 Schema reference:
 
 - `schemas/demo_bundle_summary.schema.json`

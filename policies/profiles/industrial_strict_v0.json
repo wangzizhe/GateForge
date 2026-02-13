@@ -1,0 +1,74 @@
+{
+  "version": "0.1.0-industrial-strict",
+  "critical_reason_prefixes": [
+    "candidate_status_not_success",
+    "candidate_gate_not_pass",
+    "check_regression",
+    "simulate_regression",
+    "strict_",
+    "proposal_",
+    "nan_inf_detected",
+    "timeout_detected",
+    "event_explosion_detected"
+  ],
+  "needs_review_reason_prefixes": [
+    "runtime_regression",
+    "performance_regression_detected"
+  ],
+  "fail_on_needs_review_risk_levels": [
+    "medium",
+    "high"
+  ],
+  "fail_on_unknown_reasons": true,
+  "dry_run_human_checks": {
+    "base": [
+      "Confirm proposal backend/model_script mapping before execution.",
+      "Review baseline and policy profile selection for this environment."
+    ],
+    "medium_extra": [
+      "Pre-assign human reviewer for performance/runtime deviations."
+    ],
+    "high_extra": [
+      "Pre-approve rollback path and escalation owner before execution."
+    ],
+    "changeset_extra": [
+      "Review change-set diff against target files before execution."
+    ]
+  },
+  "required_human_checks": {
+    "by_reason_prefix": {
+      "runtime_regression": [
+        "Attach a runtime-delta justification and expected production impact."
+      ],
+      "performance_regression_detected": [
+        "Validate performance checker threshold and provide mitigation or acceptance note."
+      ],
+      "event_explosion_detected": [
+        "Review event traces and confirm no unsafe mode-switch amplification."
+      ],
+      "nan_inf_detected": [
+        "Block merge until numerical instability root cause is explained and fixed."
+      ],
+      "timeout_detected": [
+        "Block merge until timeout root cause is identified and reproduced."
+      ],
+      "proposal_backend_mismatch": [
+        "Fix proposal/baseline/candidate backend alignment before any approval."
+      ],
+      "proposal_model_script_mismatch": [
+        "Fix proposal/baseline/candidate model_script alignment before any approval."
+      ],
+      "change_apply_failed": [
+        "Repair change_set content and re-run with fresh evidence."
+      ]
+    },
+    "by_failure_type": {
+      "docker_error": [
+        "Restore backend runtime availability before rerun."
+      ]
+    },
+    "fallback": [
+      "Human review required: inspect policy_reasons and evidence artifacts before merge."
+    ]
+  }
+}
