@@ -148,6 +148,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertIn("repair_batch_demo", payload.get("selected", {}))
         self.assertIn("repair_batch_compare_demo", payload.get("selected", {}))
         self.assertIn("governance_snapshot_demo", payload.get("selected", {}))
+        self.assertIn("governance_snapshot_trend_demo", payload.get("selected", {}))
         self.assertIsInstance(payload.get("planner_guardrail_rule_ids"), list)
         self.assertIn("change_plan_confidence_min_below_threshold", payload.get("planner_guardrail_rule_ids", []))
 
@@ -303,6 +304,20 @@ class DemoScriptTests(unittest.TestCase):
         payload = json.loads(Path("artifacts/governance_snapshot_demo/summary.json").read_text(encoding="utf-8"))
         self.assertIn(payload.get("status"), {"PASS", "NEEDS_REVIEW", "FAIL"})
         self.assertIn("kpis", payload)
+
+    def test_demo_governance_snapshot_trend_script(self) -> None:
+        proc = subprocess.run(
+            ["bash", "scripts/demo_governance_snapshot_trend.sh"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+        payload = json.loads(Path("artifacts/governance_snapshot_trend_demo/summary.json").read_text(encoding="utf-8"))
+        trend = payload.get("trend", {})
+        self.assertTrue(trend)
+        self.assertIn("status_transition", trend)
+        self.assertIn("kpi_delta", trend)
 
 
 if __name__ == "__main__":

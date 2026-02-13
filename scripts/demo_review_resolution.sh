@@ -7,29 +7,21 @@ POLICY_PROFILE="${POLICY_PROFILE:-}"
 
 mkdir -p artifacts/review_demo
 
-cat > artifacts/review_demo/review_context_mid.json <<'EOF'
+cat > artifacts/review_demo/source_needs_review.json <<'EOF'
 {
+  "proposal_id": "review-demo-001",
+  "status": "NEEDS_REVIEW",
+  "policy_decision": "NEEDS_REVIEW",
   "risk_level": "low",
-  "change_summary": "review resolution demo: medium confidence requires human review",
-  "change_plan_confidence": 0.5
+  "policy_profile": "default",
+  "policy_reasons": [
+    "change_plan_confidence_below_auto_apply"
+  ],
+  "required_human_checks": [
+    "Planner confidence is below auto-apply threshold; perform manual review before execution."
+  ]
 }
 EOF
-
-AP_CMD=(
-  python3 -m gateforge.autopilot
-  --goal "apply deterministic patch and run"
-  --planner-backend rule
-  --materialize-change-set
-  --context-json artifacts/review_demo/review_context_mid.json
-  --proposal-id review-demo-001
-  --baseline baselines/mock_minimal_probe_baseline.json
-  --save-run-under autopilot
-  --out artifacts/review_demo/source_needs_review.json
-)
-if [[ -n "$POLICY_PROFILE" ]]; then
-  AP_CMD+=(--policy-profile "$POLICY_PROFILE")
-fi
-"${AP_CMD[@]}"
 
 python3 - <<'PY'
 import json

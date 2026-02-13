@@ -305,6 +305,25 @@ Key outputs:
 - `artifacts/governance_snapshot_demo/summary.json`
 - `artifacts/governance_snapshot_demo/summary.md`
 
+## 12. Governance Snapshot Trend Demo
+
+Command:
+
+```bash
+bash scripts/demo_governance_snapshot_trend.sh
+```
+
+What it validates:
+
+- compares current governance snapshot with a previous one
+- outputs status transition, new risks, resolved risks, and KPI deltas
+
+Key outputs:
+
+- `artifacts/governance_snapshot_trend_demo/previous_summary.json`
+- `artifacts/governance_snapshot_trend_demo/summary.json`
+- `artifacts/governance_snapshot_trend_demo/summary.md`
+
 Schema reference:
 
 - `schemas/demo_bundle_summary.schema.json`
@@ -346,6 +365,7 @@ Optional toggles (env vars):
 - `RUN_REPAIR_BATCH_DEMO=0|1`
 - `RUN_REPAIR_BATCH_COMPARE_DEMO=0|1`
 - `RUN_GOVERNANCE_SNAPSHOT_DEMO=0|1`
+- `RUN_GOVERNANCE_SNAPSHOT_TREND_DEMO=0|1`
 - `RUN_BENCHMARK=0|1` (default `0`)
 
 ## 8. Agent Change Safety Loop Demo
