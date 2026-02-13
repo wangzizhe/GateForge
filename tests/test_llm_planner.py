@@ -269,6 +269,39 @@ class PlannerTests(unittest.TestCase):
             self.assertIn("reason", first)
             self.assertIsInstance(first.get("confidence"), (int, float))
 
+    def test_planner_rule_context_overrides_change_plan_confidence(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            out = root / "intent.json"
+            context = root / "context.json"
+            context.write_text(
+                json.dumps({"change_plan_confidence": 0.5}),
+                encoding="utf-8",
+            )
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.llm_planner",
+                    "--goal",
+                    "apply deterministic patch and run",
+                    "--planner-backend",
+                    "rule",
+                    "--emit-change-set-draft",
+                    "--context-json",
+                    str(context),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            payload = json.loads(out.read_text(encoding="utf-8"))
+            first = payload["change_plan"]["operations"][0]
+            self.assertEqual(first["confidence"], 0.5)
+
 
 if __name__ == "__main__":
     unittest.main()
