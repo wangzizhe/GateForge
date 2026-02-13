@@ -178,6 +178,7 @@ This runs both demos and writes:
 
 - `artifacts/demo_all_summary.md`
 - `artifacts/demo_all_summary.json` (machine-readable bundle summary)
+- includes checker + steady-state + behavior-metrics expected-nonpass flags in one bundle
 
 Batch governance view (failure distribution):
 

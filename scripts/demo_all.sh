@@ -14,11 +14,14 @@ bash scripts/demo_checker_config.sh
 CHECKER_EXIT_CODE=$?
 bash scripts/demo_steady_state_checker.sh
 STEADY_EXIT_CODE=$?
+bash scripts/demo_behavior_metrics_checker.sh
+BEHAVIOR_EXIT_CODE=$?
 set -e
 
 export GATEFORGE_FLOW_EXIT_CODE="$FLOW_EXIT_CODE"
 export GATEFORGE_CHECKER_EXIT_CODE="$CHECKER_EXIT_CODE"
 export GATEFORGE_STEADY_EXIT_CODE="$STEADY_EXIT_CODE"
+export GATEFORGE_BEHAVIOR_EXIT_CODE="$BEHAVIOR_EXIT_CODE"
 
 python3 - <<'PY'
 import json
@@ -37,14 +40,18 @@ proposal = read_json("artifacts/proposal_run_demo.json")
 checker = read_json("artifacts/checker_demo_run.json")
 checker_regression = read_json("artifacts/checker_demo_regression.json")
 steady_regression = read_json("artifacts/steady_state_demo_regression.json")
+behavior_regression = read_json("artifacts/behavior_metrics_demo/regression.json")
 flow_exit = int(os.getenv("GATEFORGE_FLOW_EXIT_CODE", "-1"))
 checker_exit = int(os.getenv("GATEFORGE_CHECKER_EXIT_CODE", "-1"))
 steady_exit = int(os.getenv("GATEFORGE_STEADY_EXIT_CODE", "-1"))
+behavior_exit = int(os.getenv("GATEFORGE_BEHAVIOR_EXIT_CODE", "-1"))
 proposal_fail_reasons = proposal.get("fail_reasons", []) if isinstance(proposal, dict) else []
 checker_reasons = checker_regression.get("reasons", []) if isinstance(checker_regression, dict) else []
 checker_findings = checker_regression.get("findings", []) if isinstance(checker_regression, dict) else []
 steady_reasons = steady_regression.get("reasons", []) if isinstance(steady_regression, dict) else []
 steady_findings = steady_regression.get("findings", []) if isinstance(steady_regression, dict) else []
+behavior_reasons = behavior_regression.get("reasons", []) if isinstance(behavior_regression, dict) else []
+behavior_findings = behavior_regression.get("findings", []) if isinstance(behavior_regression, dict) else []
 policy_profile = os.getenv("POLICY_PROFILE", "")
 
 lines = [
@@ -53,22 +60,27 @@ lines = [
     f"- flow_exit_code: `{flow_exit}`",
     f"- checker_exit_code: `{checker_exit}`",
     f"- steady_exit_code: `{steady_exit}`",
+    f"- behavior_exit_code: `{behavior_exit}`",
     f"- proposal_flow_status: `{proposal.get('status')}`",
     f"- checker_demo_status: `{checker.get('status')}`",
     f"- checker_demo_policy_decision: `{checker.get('policy_decision')}`",
     f"- steady_demo_decision: `{steady_regression.get('decision')}`",
+    f"- behavior_demo_decision: `{behavior_regression.get('decision')}`",
     f"- policy_profile: `{policy_profile or 'default'}`",
     f"- proposal_fail_reasons_count: `{len(proposal_fail_reasons)}`",
     f"- checker_reasons_count: `{len(checker_reasons)}`",
     f"- checker_findings_count: `{len(checker_findings)}`",
     f"- steady_reasons_count: `{len(steady_reasons)}`",
     f"- steady_findings_count: `{len(steady_findings)}`",
+    f"- behavior_reasons_count: `{len(behavior_reasons)}`",
+    f"- behavior_findings_count: `{len(behavior_findings)}`",
     "",
     "## Result Flags",
     "",
     f"- proposal_flow: `{'PASS' if proposal.get('status') == 'PASS' else 'FAIL'}`",
     f"- checker_demo_expected_fail: `{'PASS' if checker.get('status') == 'FAIL' else 'FAIL'}`",
     f"- steady_demo_expected_nonpass: `{'PASS' if steady_regression.get('decision') in ('NEEDS_REVIEW', 'FAIL') else 'FAIL'}`",
+    f"- behavior_demo_expected_nonpass: `{'PASS' if behavior_regression.get('decision') in ('NEEDS_REVIEW', 'FAIL') else 'FAIL'}`",
     "",
     "## Key Artifacts",
     "",
@@ -80,6 +92,8 @@ lines = [
     "- `artifacts/checker_demo_summary.md`",
     "- `artifacts/steady_state_demo_regression.json`",
     "- `artifacts/steady_state_demo_summary.md`",
+    "- `artifacts/behavior_metrics_demo/regression.json`",
+    "- `artifacts/behavior_metrics_demo/summary.md`",
     "",
 ]
 
@@ -87,21 +101,28 @@ summary_json = {
     "flow_exit_code": flow_exit,
     "checker_exit_code": checker_exit,
     "steady_exit_code": steady_exit,
+    "behavior_exit_code": behavior_exit,
     "proposal_flow_status": proposal.get("status"),
     "checker_demo_status": checker.get("status"),
     "checker_demo_policy_decision": checker.get("policy_decision"),
     "steady_demo_decision": steady_regression.get("decision"),
+    "behavior_demo_decision": behavior_regression.get("decision"),
     "policy_profile": policy_profile or "default",
     "proposal_fail_reasons_count": len(proposal_fail_reasons),
     "checker_reasons_count": len(checker_reasons),
     "checker_findings_count": len(checker_findings),
     "steady_reasons_count": len(steady_reasons),
     "steady_findings_count": len(steady_findings),
+    "behavior_reasons_count": len(behavior_reasons),
+    "behavior_findings_count": len(behavior_findings),
     "result_flags": {
         "proposal_flow": "PASS" if proposal.get("status") == "PASS" else "FAIL",
         "checker_demo_expected_fail": "PASS" if checker.get("status") == "FAIL" else "FAIL",
         "steady_demo_expected_nonpass": (
             "PASS" if steady_regression.get("decision") in {"NEEDS_REVIEW", "FAIL"} else "FAIL"
+        ),
+        "behavior_demo_expected_nonpass": (
+            "PASS" if behavior_regression.get("decision") in {"NEEDS_REVIEW", "FAIL"} else "FAIL"
         ),
     },
     "artifacts": [
@@ -113,6 +134,8 @@ summary_json = {
         "artifacts/checker_demo_summary.md",
         "artifacts/steady_state_demo_regression.json",
         "artifacts/steady_state_demo_summary.md",
+        "artifacts/behavior_metrics_demo/regression.json",
+        "artifacts/behavior_metrics_demo/summary.md",
         "artifacts/demo_all_summary.md",
         "artifacts/demo_all_summary.json",
     ],
@@ -123,6 +146,8 @@ if summary_json["result_flags"]["proposal_flow"] != "PASS":
 if summary_json["result_flags"]["checker_demo_expected_fail"] != "PASS":
     bundle_status = "FAIL"
 if summary_json["result_flags"]["steady_demo_expected_nonpass"] != "PASS":
+    bundle_status = "FAIL"
+if summary_json["result_flags"]["behavior_demo_expected_nonpass"] != "PASS":
     bundle_status = "FAIL"
 summary_json["bundle_status"] = bundle_status
 
@@ -147,6 +172,7 @@ PY
 echo "demo_proposal_flow exit code: $FLOW_EXIT_CODE"
 echo "demo_checker_config exit code: $CHECKER_EXIT_CODE"
 echo "demo_steady_state_checker exit code: $STEADY_EXIT_CODE"
+echo "demo_behavior_metrics_checker exit code: $BEHAVIOR_EXIT_CODE"
 cat artifacts/demo_all_summary.md
 cat artifacts/demo_all_summary.json
 

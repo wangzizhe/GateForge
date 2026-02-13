@@ -106,6 +106,7 @@ bash scripts/demo_behavior_metrics_checker.sh
 
 # combined demo bundle (docker-independent)
 bash scripts/demo_all.sh
+# bundle summary now includes checker + steady-state + behavior-metrics signals
 
 # local CI matrix simulation (workflow_dispatch-like toggles)
 bash scripts/demo_ci_matrix.sh
