@@ -2,6 +2,8 @@
 
 Minimal `run -> evidence -> gate` pipeline for learning and bootstrapping CI/regression governance.
 
+Demo entry points: see `DEMO.md`.
+
 ## I. Overview
 
 ### 1. Goals
@@ -322,6 +324,15 @@ Note: `medium_openmodelica_pass` requires Docker/OpenModelica backend access.
 - Runs a regression gate in strict mode (`artifacts/regression.json + artifacts/regression.md`).
 - Uploads all evidence and regression artifacts in GitHub Actions.
 - Provides an optional benchmark job (`workflow_dispatch` with `run_benchmark=true`) that does not block the main job.
+- Provides an optional checker demo job (`workflow_dispatch` with `run_checker_demo=true`) that does not block the main job.
+
+Manual trigger path in GitHub:
+
+1. Open `Actions` tab.
+2. Select `ci` workflow.
+3. Click `Run workflow`.
+4. Enable `run_benchmark` and/or `run_checker_demo`.
+5. Run and download uploaded artifacts from the selected optional job.
 
 This is intentionally small. It proves your governance layer can always produce machine-readable evidence before adding real simulation complexity.
 
