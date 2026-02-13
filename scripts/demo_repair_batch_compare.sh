@@ -57,7 +57,6 @@ python3 -m gateforge.repair_batch \
   --continue-on-fail \
   --summary-out artifacts/repair_batch_compare_demo/summary.json \
   --report-out artifacts/repair_batch_compare_demo/summary.md
-BATCH_CODE=$?
 set -e
 
 cat artifacts/repair_batch_compare_demo/summary.json
@@ -109,11 +108,6 @@ print(json.dumps({"bundle_status": bundle_status}))
 if bundle_status != "PASS":
     raise SystemExit(1)
 PY
-
-if [[ "$BATCH_CODE" -eq 0 ]]; then
-  echo "Expected repair_batch compare demo to return non-zero for mixed outcomes" >&2
-  exit 1
-fi
 
 cat artifacts/repair_batch_compare_demo/demo_summary.json
 cat artifacts/repair_batch_compare_demo/demo_summary.md

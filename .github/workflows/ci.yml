@@ -70,6 +70,11 @@ on:
         required: false
         default: false
         type: boolean
+      run_governance_history_demo:
+        description: "Run optional governance history demo job"
+        required: false
+        default: false
+        type: boolean
       demo_policy_profile:
         description: "Optional policy profile for demo jobs (e.g. industrial_strict_v0)"
         required: false
@@ -1000,3 +1005,69 @@ jobs:
           path: |
             artifacts/governance_snapshot_trend_demo/summary.json
             artifacts/governance_snapshot_trend_demo/summary.md
+
+  governance-history-demo-optional:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_governance_history_demo }}
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    env:
+      POLICY_PROFILE: ${{ inputs.demo_policy_profile }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Run governance history demo
+        run: bash scripts/demo_governance_history.sh
+
+      - name: Publish governance history summary to job page
+        if: always()
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          path = Path("artifacts/governance_history_demo/summary.json")
+          if not path.exists():
+              text = "## Governance History Summary\n\n`artifacts/governance_history_demo/summary.json` not found."
+          else:
+              payload = json.loads(path.read_text(encoding="utf-8"))
+              tk = payload.get("transition_kpis", {})
+              lines = [
+                  "## Governance History Summary",
+                  "",
+                  f"- total_records: `{payload.get('total_records')}`",
+                  f"- window_size: `{payload.get('window_size')}`",
+                  f"- latest_status: `{payload.get('latest_status')}`",
+                  f"- transition_count: `{tk.get('transition_count')}`",
+                  f"- improved_count: `{tk.get('improved_count')}`",
+                  f"- worse_count: `{tk.get('worse_count')}`",
+                  "",
+              ]
+              text = "\n".join(lines)
+
+          summary_file = os.getenv("GITHUB_STEP_SUMMARY")
+          if summary_file:
+              with open(summary_file, "a", encoding="utf-8") as f:
+                  f.write(text + "\n")
+          print(text)
+          PY
+
+      - name: Upload governance history artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: governance-history-demo
+          path: |
+            artifacts/governance_history_demo/summary.json
+            artifacts/governance_history_demo/summary.md

@@ -18,9 +18,10 @@ RUN_REPAIR_BATCH_DEMO="${RUN_REPAIR_BATCH_DEMO:-1}"
 RUN_REPAIR_BATCH_COMPARE_DEMO="${RUN_REPAIR_BATCH_COMPARE_DEMO:-1}"
 RUN_GOVERNANCE_SNAPSHOT_DEMO="${RUN_GOVERNANCE_SNAPSHOT_DEMO:-1}"
 RUN_GOVERNANCE_SNAPSHOT_TREND_DEMO="${RUN_GOVERNANCE_SNAPSHOT_TREND_DEMO:-1}"
+RUN_GOVERNANCE_HISTORY_DEMO="${RUN_GOVERNANCE_HISTORY_DEMO:-1}"
 RUN_BENCHMARK="${RUN_BENCHMARK:-0}"
 POLICY_PROFILE="${POLICY_PROFILE:-}"
-export RUN_CHECKER_DEMO RUN_STEADY_STATE_DEMO RUN_BEHAVIOR_METRICS_DEMO RUN_DEMO_BUNDLE RUN_AUTOPILOT_DRY_RUN RUN_AGENT_CHANGE_LOOP RUN_REPAIR_LOOP RUN_PLANNER_GUARDRAILS RUN_REPAIR_BATCH_DEMO RUN_REPAIR_BATCH_COMPARE_DEMO RUN_GOVERNANCE_SNAPSHOT_DEMO RUN_GOVERNANCE_SNAPSHOT_TREND_DEMO RUN_BENCHMARK POLICY_PROFILE
+export RUN_CHECKER_DEMO RUN_STEADY_STATE_DEMO RUN_BEHAVIOR_METRICS_DEMO RUN_DEMO_BUNDLE RUN_AUTOPILOT_DRY_RUN RUN_AGENT_CHANGE_LOOP RUN_REPAIR_LOOP RUN_PLANNER_GUARDRAILS RUN_REPAIR_BATCH_DEMO RUN_REPAIR_BATCH_COMPARE_DEMO RUN_GOVERNANCE_SNAPSHOT_DEMO RUN_GOVERNANCE_SNAPSHOT_TREND_DEMO RUN_GOVERNANCE_HISTORY_DEMO RUN_BENCHMARK POLICY_PROFILE
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -37,6 +38,7 @@ while [[ $# -gt 0 ]]; do
       RUN_REPAIR_BATCH_COMPARE_DEMO=1
       RUN_GOVERNANCE_SNAPSHOT_DEMO=1
       RUN_GOVERNANCE_SNAPSHOT_TREND_DEMO=1
+      RUN_GOVERNANCE_HISTORY_DEMO=1
       shift
       ;;
     --none)
@@ -52,6 +54,7 @@ while [[ $# -gt 0 ]]; do
       RUN_REPAIR_BATCH_COMPARE_DEMO=0
       RUN_GOVERNANCE_SNAPSHOT_DEMO=0
       RUN_GOVERNANCE_SNAPSHOT_TREND_DEMO=0
+      RUN_GOVERNANCE_HISTORY_DEMO=0
       RUN_BENCHMARK=0
       shift
       ;;
@@ -101,6 +104,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --governance-snapshot-trend-demo)
       RUN_GOVERNANCE_SNAPSHOT_TREND_DEMO=1
+      shift
+      ;;
+    --governance-history-demo)
+      RUN_GOVERNANCE_HISTORY_DEMO=1
       shift
       ;;
     --benchmark)
@@ -169,6 +176,9 @@ fi
 if [[ "$RUN_GOVERNANCE_SNAPSHOT_TREND_DEMO" == "1" ]]; then
   RESULTS+=("$(run_job governance_snapshot_trend_demo bash scripts/demo_governance_snapshot_trend.sh)")
 fi
+if [[ "$RUN_GOVERNANCE_HISTORY_DEMO" == "1" ]]; then
+  RESULTS+=("$(run_job governance_history_demo bash scripts/demo_governance_history.sh)")
+fi
 if [[ "$RUN_BENCHMARK" == "1" ]]; then
   RESULTS+=("$(run_job benchmark python3 -m gateforge.benchmark --pack benchmarks/pack_v0.json --out-dir artifacts/benchmark_v0 --summary-out artifacts/benchmark_v0/summary.json --report-out artifacts/benchmark_v0/summary.md)")
 fi
@@ -193,6 +203,7 @@ selected = {
     "repair_batch_compare_demo": os.getenv("RUN_REPAIR_BATCH_COMPARE_DEMO") == "1",
     "governance_snapshot_demo": os.getenv("RUN_GOVERNANCE_SNAPSHOT_DEMO") == "1",
     "governance_snapshot_trend_demo": os.getenv("RUN_GOVERNANCE_SNAPSHOT_TREND_DEMO") == "1",
+    "governance_history_demo": os.getenv("RUN_GOVERNANCE_HISTORY_DEMO") == "1",
     "benchmark": os.getenv("RUN_BENCHMARK") == "1",
 }
 
