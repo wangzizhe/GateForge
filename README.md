@@ -214,6 +214,7 @@ python -m gateforge.agent_run \
   --intent demo_mock_pass \
   --policy-profile industrial_strict_v0 \
   --baseline baselines/mock_minimal_probe_baseline.json \
+  --emit-checker-template artifacts/agent/checker_template.json \
   --out artifacts/agent/agent_run.json
 cat artifacts/agent/agent_run.json
 ```
@@ -301,6 +302,7 @@ python -m gateforge.autopilot \
   --proposal-id autopilot-demo-001 \
   --policy-profile industrial_strict_v0 \
   --baseline baselines/mock_minimal_probe_baseline.json \
+  --emit-checker-template \
   --save-run-under autopilot \
   --out artifacts/autopilot/autopilot_summary.json
 cat artifacts/autopilot/autopilot_summary.json

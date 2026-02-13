@@ -431,6 +431,42 @@ class AutopilotTests(unittest.TestCase):
             intent_payload = json.loads(intent_out.read_text(encoding="utf-8"))
             self.assertIn("change_set_path", intent_payload.get("overrides", {}))
 
+    def test_autopilot_emits_checker_template(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            baseline = root / "baseline.json"
+            out = root / "summary.json"
+            self._write_baseline(baseline)
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.autopilot",
+                    "--goal",
+                    "run demo mock pass",
+                    "--proposal-id",
+                    "autopilot-checker-template-1",
+                    "--baseline",
+                    str(baseline),
+                    "--emit-checker-template",
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            payload = json.loads(out.read_text(encoding="utf-8"))
+            self.assertTrue(payload["emit_checker_template"])
+            self.assertEqual(
+                payload["planned_run"]["checker_template_out"],
+                "artifacts/autopilot/checker_template.json",
+            )
+            self.assertEqual(payload["checker_template_path"], "artifacts/autopilot/checker_template.json")
+            self.assertTrue(Path("artifacts/autopilot/checker_template.json").exists())
+
     def test_autopilot_dry_run_accepts_policy_profile(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)

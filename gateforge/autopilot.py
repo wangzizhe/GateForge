@@ -37,6 +37,7 @@ def _write_markdown(path: str, summary: dict) -> None:
         f"- policy_profile: `{summary.get('policy_profile')}`",
         f"- checkers: `{','.join(summary.get('checkers', []))}`",
         f"- checker_config: `{json.dumps(summary.get('checker_config', {}), separators=(',', ':'))}`",
+        f"- checker_template_path: `{summary.get('checker_template_path')}`",
         f"- generated_change_set_path: `{summary.get('generated_change_set_path')}`",
         f"- generated_change_set_source: `{summary.get('generated_change_set_source')}`",
         f"- change_apply_status: `{summary.get('change_apply_status')}`",
@@ -121,6 +122,11 @@ def main() -> None:
         action="store_true",
         help="If planner returns change_set_draft, write it and inject change_set_path into intent overrides",
     )
+    parser.add_argument(
+        "--emit-checker-template",
+        action="store_true",
+        help="Emit checker template artifact during run execution",
+    )
     parser.add_argument("--proposal-id", default=None, help="Optional explicit proposal_id")
     parser.add_argument(
         "--intent-out",
@@ -187,6 +193,7 @@ def main() -> None:
     run_report = str(run_root / "run_summary.md")
     candidate_out = str(run_root / "candidate.json")
     regression_out = str(run_root / "regression.json")
+    checker_template_out = str(run_root / "checker_template.json")
 
     planner_cmd = [
         sys.executable,
@@ -268,6 +275,8 @@ def main() -> None:
         "--out",
         args.agent_run_out,
     ]
+    if args.emit_checker_template:
+        agent_cmd.extend(["--emit-checker-template", checker_template_out])
     agent_proc = None
     if not args.dry_run:
         agent_proc = subprocess.run(agent_cmd, capture_output=True, text=True, check=False)
@@ -289,6 +298,7 @@ def main() -> None:
         "agent_run_exit_code": agent_run_exit_code,
         "planner_backend": args.planner_backend,
         "materialize_change_set": args.materialize_change_set,
+        "emit_checker_template": args.emit_checker_template,
         "generated_change_set_path": generated_change_set_path,
         "generated_change_set_source": generated_change_set_source,
         "policy_version": None,
@@ -302,6 +312,7 @@ def main() -> None:
             "run_report": run_report,
             "candidate_out": candidate_out,
             "regression_out": regression_out,
+            "checker_template_out": checker_template_out if args.emit_checker_template else None,
             "baseline": args.baseline,
             "baseline_index": args.baseline_index,
             "runtime_threshold": args.runtime_threshold,
@@ -345,6 +356,7 @@ def main() -> None:
         summary["change_plan_confidence_min"] = agent_payload.get("change_plan_confidence_min")
         summary["change_plan_confidence_avg"] = agent_payload.get("change_plan_confidence_avg")
         summary["change_plan_confidence_max"] = agent_payload.get("change_plan_confidence_max")
+        summary["checker_template_path"] = agent_payload.get("checker_template_path")
         summary["run_path"] = agent_payload.get("run_path")
         summary["run_report_path"] = agent_payload.get("run_report_path")
 

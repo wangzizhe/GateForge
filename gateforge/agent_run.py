@@ -100,6 +100,11 @@ def main() -> None:
         help="Allowed runtime regression ratio (0.2 = +20%%)",
     )
     parser.add_argument(
+        "--emit-checker-template",
+        default=None,
+        help="Optional path to write checker_config template inferred from proposal checkers",
+    )
+    parser.add_argument(
         "--policy",
         default=None,
         help="Policy JSON path (default: policies/default_policy.json)",
@@ -159,6 +164,8 @@ def main() -> None:
         cmd.extend(["--policy", args.policy])
     if args.policy_profile:
         cmd.extend(["--policy-profile", args.policy_profile])
+    if args.emit_checker_template:
+        cmd.extend(["--emit-checker-template", args.emit_checker_template])
     run_proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
 
     run_summary = {}
@@ -195,6 +202,7 @@ def main() -> None:
         orchestration["change_plan_confidence_min"] = run_summary.get("change_plan_confidence_min")
         orchestration["change_plan_confidence_avg"] = run_summary.get("change_plan_confidence_avg")
         orchestration["change_plan_confidence_max"] = run_summary.get("change_plan_confidence_max")
+        orchestration["checker_template_path"] = run_summary.get("checker_template_path")
     if run_proc.returncode != 0:
         orchestration["run_stderr_tail"] = (run_proc.stderr or run_proc.stdout)[-500:]
 
