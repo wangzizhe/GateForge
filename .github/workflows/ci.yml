@@ -10,6 +10,11 @@ on:
         required: false
         default: false
         type: boolean
+      run_checker_demo:
+        description: "Run optional checker-config demo job"
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   test-and-smoke:
@@ -96,3 +101,37 @@ jobs:
           name: benchmark-v0
           path: |
             artifacts/benchmark_v0
+
+  checker-demo-optional:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_checker_demo }}
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Run checker-config demo
+        run: bash scripts/demo_checker_config.sh
+
+      - name: Upload checker demo artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: checker-config-demo
+          path: |
+            artifacts/checker_demo_baseline.json
+            artifacts/checker_demo_candidate.json
+            artifacts/checker_demo_regression.json
+            artifacts/checker_demo_regression.md
+            artifacts/checker_demo_run.json
+            artifacts/checker_demo_run.md
