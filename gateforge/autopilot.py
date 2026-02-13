@@ -34,6 +34,8 @@ def _write_markdown(path: str, summary: dict) -> None:
         f"- policy_decision: `{summary.get('policy_decision')}`",
         f"- policy_version: `{summary.get('policy_version')}`",
         f"- policy_profile: `{summary.get('policy_profile')}`",
+        f"- checkers: `{','.join(summary.get('checkers', []))}`",
+        f"- checker_config: `{json.dumps(summary.get('checker_config', {}), separators=(',', ':'))}`",
         f"- generated_change_set_path: `{summary.get('generated_change_set_path')}`",
         f"- change_apply_status: `{summary.get('change_apply_status')}`",
         f"- applied_changes_count: `{summary.get('applied_changes_count')}`",
@@ -315,6 +317,8 @@ def main() -> None:
         summary["policy_version"] = agent_payload.get("policy_version", summary.get("policy_version"))
         summary["policy_profile"] = agent_payload.get("policy_profile", summary.get("policy_profile"))
         summary["policy_decision"] = agent_payload.get("policy_decision")
+        summary["checkers"] = agent_payload.get("checkers", [])
+        summary["checker_config"] = agent_payload.get("checker_config", {})
         summary["fail_reasons"] = agent_payload.get("fail_reasons", [])
         summary["policy_reasons"] = agent_payload.get("policy_reasons", [])
         summary["human_hints"] = agent_payload.get("human_hints", [])

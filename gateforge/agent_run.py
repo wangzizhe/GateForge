@@ -186,6 +186,8 @@ def main() -> None:
         orchestration["policy_version"] = run_summary.get("policy_version")
         orchestration["policy_profile"] = run_summary.get("policy_profile")
         orchestration["policy_decision"] = run_summary.get("policy_decision")
+        orchestration["checkers"] = run_summary.get("checkers", [])
+        orchestration["checker_config"] = run_summary.get("checker_config", {})
         orchestration["fail_reasons"] = run_summary.get("fail_reasons", [])
         orchestration["policy_reasons"] = run_summary.get("policy_reasons", [])
         orchestration["human_hints"] = run_summary.get("human_hints", [])

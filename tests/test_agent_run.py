@@ -172,6 +172,10 @@ class AgentRunTests(unittest.TestCase):
                         "overrides": {
                             "risk_level": "medium",
                             "change_summary": "LLM intent file override",
+                            "checkers": ["steady_state_regression"],
+                            "checker_config": {
+                                "steady_state_regression": {"max_abs_delta": 0.05}
+                            },
                         },
                     }
                 ),
@@ -204,9 +208,15 @@ class AgentRunTests(unittest.TestCase):
             self.assertEqual(proposal["proposal_id"], "agent-run-intent-file-1")
             self.assertEqual(proposal["risk_level"], "medium")
             self.assertEqual(proposal["change_summary"], "LLM intent file override")
+            self.assertEqual(proposal["checkers"], ["steady_state_regression"])
             payload = json.loads(agent_run_out.read_text(encoding="utf-8"))
             self.assertEqual(payload["intent"], "demo_mock_pass")
             self.assertEqual(payload["status"], "PASS")
+            self.assertEqual(payload["checkers"], ["steady_state_regression"])
+            self.assertEqual(
+                payload["checker_config"]["steady_state_regression"]["max_abs_delta"],
+                0.05,
+            )
 
     def test_agent_run_fails_on_unknown_policy_profile(self) -> None:
         with tempfile.TemporaryDirectory() as d:

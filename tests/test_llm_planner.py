@@ -151,6 +151,10 @@ class PlannerTests(unittest.TestCase):
                         "prefer_backend": "openmodelica_docker",
                         "risk_level": "medium",
                         "change_summary": "Context-specified summary",
+                        "checkers": ["steady_state_regression"],
+                        "checker_config": {
+                            "steady_state_regression": {"max_abs_delta": 0.05}
+                        },
                     }
                 ),
                 encoding="utf-8",
@@ -176,6 +180,11 @@ class PlannerTests(unittest.TestCase):
             self.assertEqual(payload["intent"], "demo_openmodelica_pass")
             self.assertEqual(payload["overrides"]["risk_level"], "medium")
             self.assertEqual(payload["overrides"]["change_summary"], "Context-specified summary")
+            self.assertEqual(payload["overrides"]["checkers"], ["steady_state_regression"])
+            self.assertEqual(
+                payload["overrides"]["checker_config"]["steady_state_regression"]["max_abs_delta"],
+                0.05,
+            )
             self.assertEqual(payload["planner_inputs"]["prefer_backend"], "openmodelica_docker")
 
     def test_planner_openai_backend_requires_api_key(self) -> None:
