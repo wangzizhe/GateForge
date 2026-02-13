@@ -144,6 +144,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertIsInstance(payload.get("job_exit_codes"), dict)
         self.assertIn("behavior_metrics_demo", payload.get("selected", {}))
         self.assertIn("repair_loop", payload.get("selected", {}))
+        self.assertIn("planner_guardrails", payload.get("selected", {}))
 
     def test_demo_agent_change_loop_script(self) -> None:
         proc = subprocess.run(
