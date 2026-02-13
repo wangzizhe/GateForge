@@ -23,6 +23,9 @@ class DemoScriptTests(unittest.TestCase):
         self.assertEqual(payload.get("bundle_status"), "PASS")
         self.assertEqual(payload.get("proposal_flow_status"), "PASS")
         self.assertEqual(payload.get("checker_demo_status"), "FAIL")
+        self.assertIsInstance(payload.get("proposal_fail_reasons_count"), int)
+        self.assertIsInstance(payload.get("checker_reasons_count"), int)
+        self.assertIsInstance(payload.get("checker_findings_count"), int)
 
         result_flags = payload.get("result_flags", {})
         self.assertEqual(result_flags.get("proposal_flow"), "PASS")
