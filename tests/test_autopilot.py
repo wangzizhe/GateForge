@@ -580,6 +580,49 @@ class AutopilotTests(unittest.TestCase):
             self.assertEqual(payload["status"], "PLANNED")
             self.assertTrue(str(payload["planned_run"]["policy"]).endswith("industrial_strict_v0.json"))
 
+    def test_autopilot_uses_policy_default_allowed_suffixes_and_files(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            out = root / "summary.json"
+            policy = root / "policy.json"
+            policy.write_text(
+                json.dumps(
+                    {
+                        "min_confidence_accept": 0.2,
+                        "min_confidence_auto_apply": 0.6,
+                        "change_set_allowed_roots": ["examples/openmodelica"],
+                        "change_set_allowed_suffixes": [".mo"],
+                        "change_set_allowed_files": ["examples/openmodelica/MinimalProbe.mo"],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.autopilot",
+                    "--goal",
+                    "run demo mock pass",
+                    "--dry-run",
+                    "--policy",
+                    str(policy),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            payload = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(payload.get("planner_change_plan_allowed_roots"), ["examples/openmodelica"])
+            self.assertEqual(payload.get("planner_change_plan_allowed_suffixes"), [".mo"])
+            self.assertEqual(
+                payload.get("planner_change_plan_allowed_files"),
+                ["examples/openmodelica/MinimalProbe.mo"],
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

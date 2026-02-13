@@ -277,6 +277,16 @@ def main() -> None:
         if args.planner_change_plan_allowed_root
         else list(policy_payload.get("change_set_allowed_roots", []))
     )
+    resolved_planner_allowed_suffixes = (
+        list(args.planner_change_plan_allowed_suffix)
+        if args.planner_change_plan_allowed_suffix
+        else list(policy_payload.get("change_set_allowed_suffixes", []))
+    )
+    resolved_planner_allowed_files = (
+        list(args.planner_change_plan_allowed_file)
+        if args.planner_change_plan_allowed_file
+        else list(policy_payload.get("change_set_allowed_files", []))
+    )
 
     planner_cmd = [
         sys.executable,
@@ -305,9 +315,9 @@ def main() -> None:
         planner_cmd.extend(["--change-plan-allowed-root", root])
     guardrail_report_path = str(run_root / "planner_guardrails.json")
     planner_cmd.extend(["--guardrail-report-out", guardrail_report_path])
-    for suffix in args.planner_change_plan_allowed_suffix or []:
+    for suffix in resolved_planner_allowed_suffixes:
         planner_cmd.extend(["--change-plan-allowed-suffix", suffix])
-    for file_path in args.planner_change_plan_allowed_file or []:
+    for file_path in resolved_planner_allowed_files:
         planner_cmd.extend(["--change-plan-allowed-file", file_path])
 
     intent_path = Path(args.intent_out)
@@ -412,8 +422,8 @@ def main() -> None:
         "planner_change_plan_confidence_min": resolved_planner_conf_min,
         "planner_change_plan_confidence_max": resolved_planner_conf_max,
         "planner_change_plan_allowed_roots": resolved_planner_allowed_roots,
-        "planner_change_plan_allowed_suffixes": args.planner_change_plan_allowed_suffix or [],
-        "planner_change_plan_allowed_files": args.planner_change_plan_allowed_file or [],
+        "planner_change_plan_allowed_suffixes": resolved_planner_allowed_suffixes,
+        "planner_change_plan_allowed_files": resolved_planner_allowed_files,
         "planner_guardrail_report_path": guardrail_report_path,
         "planner_guardrail_decision": guardrail_payload.get("decision"),
         "planner_guardrail_violations": guardrail_messages,

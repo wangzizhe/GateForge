@@ -556,6 +556,8 @@ Planner guardrails (for LLM/rule outputs with `change_plan` / `change_set_draft`
 - `--change-plan-confidence-min` / `--change-plan-confidence-max`
 - `--change-plan-allowed-root` / `--change-plan-allowed-suffix`
 - `--change-plan-allowed-file` (exact whitelist)
+- policy defaults are also supported via `change_set_allowed_roots`, `change_set_allowed_suffixes`, `change_set_allowed_files`
+  (CLI flags override policy defaults)
 
 Guardrail demo:
 
