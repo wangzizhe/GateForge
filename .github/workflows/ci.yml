@@ -135,3 +135,4 @@ jobs:
             artifacts/checker_demo_regression.md
             artifacts/checker_demo_run.json
             artifacts/checker_demo_run.md
+            artifacts/checker_demo_summary.md
