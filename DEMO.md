@@ -274,10 +274,12 @@ Optional toggles (env vars):
 
 - `RUN_CHECKER_DEMO=0|1`
 - `RUN_STEADY_STATE_DEMO=0|1`
+- `RUN_BEHAVIOR_METRICS_DEMO=0|1`
 - `RUN_DEMO_BUNDLE=0|1`
 - `RUN_AUTOPILOT_DRY_RUN=0|1`
-- `RUN_BENCHMARK=0|1` (default `0`)
 - `RUN_AGENT_CHANGE_LOOP=0|1`
+- `RUN_REPAIR_LOOP=0|1`
+- `RUN_BENCHMARK=0|1` (default `0`)
 
 ## 8. Agent Change Safety Loop Demo
 

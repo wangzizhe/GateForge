@@ -143,6 +143,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertGreaterEqual(payload.get("selected_count", 0), 1)
         self.assertIsInstance(payload.get("job_exit_codes"), dict)
         self.assertIn("behavior_metrics_demo", payload.get("selected", {}))
+        self.assertIn("repair_loop", payload.get("selected", {}))
 
     def test_demo_agent_change_loop_script(self) -> None:
         proc = subprocess.run(
