@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gateforge.dev/schemas/demo_bundle_summary.schema.json",
+  "title": "GateForge Demo Bundle Summary v0.1.0",
+  "type": "object",
+  "required": [
+    "flow_exit_code",
+    "checker_exit_code",
+    "proposal_flow_status",
+    "checker_demo_status",
+    "checker_demo_policy_decision",
+    "result_flags",
+    "artifacts",
+    "bundle_status"
+  ],
+  "properties": {
+    "flow_exit_code": { "type": "integer" },
+    "checker_exit_code": { "type": "integer" },
+    "proposal_flow_status": {
+      "type": "string",
+      "enum": ["PASS", "FAIL", "NEEDS_REVIEW"]
+    },
+    "checker_demo_status": {
+      "type": "string",
+      "enum": ["PASS", "FAIL", "NEEDS_REVIEW"]
+    },
+    "checker_demo_policy_decision": {
+      "type": "string",
+      "enum": ["PASS", "FAIL", "NEEDS_REVIEW"]
+    },
+    "result_flags": {
+      "type": "object",
+      "required": ["proposal_flow", "checker_demo_expected_fail"],
+      "properties": {
+        "proposal_flow": {
+          "type": "string",
+          "enum": ["PASS", "FAIL"]
+        },
+        "checker_demo_expected_fail": {
+          "type": "string",
+          "enum": ["PASS", "FAIL"]
+        }
+      }
+    },
+    "artifacts": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "bundle_status": {
+      "type": "string",
+      "enum": ["PASS", "FAIL"]
+    }
+  }
+}

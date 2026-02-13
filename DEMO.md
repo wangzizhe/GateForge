@@ -82,3 +82,7 @@ This runs both demos and writes:
 
 - `artifacts/demo_all_summary.md`
 - `artifacts/demo_all_summary.json` (machine-readable bundle summary)
+
+Schema reference:
+
+- `schemas/demo_bundle_summary.schema.json`
