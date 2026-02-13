@@ -195,6 +195,18 @@ class DemoScriptTests(unittest.TestCase):
         self.assertGreaterEqual(fail_payload.get("total_records", 0), 1)
         self.assertGreaterEqual(proposal_payload.get("total_records", 0), 1)
 
+    def test_demo_review_kpis_script(self) -> None:
+        proc = subprocess.run(
+            ["bash", "scripts/demo_review_kpis.sh"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+        payload = json.loads(Path("artifacts/review_kpi_demo/kpi_summary.json").read_text(encoding="utf-8"))
+        self.assertIn("kpis", payload)
+        self.assertIn("approval_rate", payload["kpis"])
+
 
 if __name__ == "__main__":
     unittest.main()

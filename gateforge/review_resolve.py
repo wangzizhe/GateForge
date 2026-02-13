@@ -214,6 +214,9 @@ def main() -> None:
         "human_decision": resolved.get("human_decision"),
         "final_status": resolved.get("final_status"),
         "final_reasons": resolved.get("final_reasons", []),
+        "risk_level": source.get("risk_level"),
+        "source_policy_decision": source.get("policy_decision"),
+        "required_human_checks_count": len(source.get("required_human_checks", []) or []),
     }
     append_review_ledger(args.ledger, ledger_record)
     ledger_rows = load_review_ledger(args.ledger)

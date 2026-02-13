@@ -14,6 +14,7 @@ class ReviewLedgerTests(unittest.TestCase):
                     "proposal_id": proposal_id,
                     "status": "NEEDS_REVIEW",
                     "policy_decision": "NEEDS_REVIEW",
+                    "risk_level": "low",
                     "required_human_checks": ["check-a"],
                 }
             ),
@@ -105,6 +106,9 @@ class ReviewLedgerTests(unittest.TestCase):
             self.assertEqual(payload["total_records"], 2)
             self.assertEqual(payload["status_counts"].get("PASS"), 1)
             self.assertEqual(payload["status_counts"].get("FAIL"), 1)
+            self.assertIn("kpis", payload)
+            self.assertIn("approval_rate", payload["kpis"])
+            self.assertIn("risk_level_counts", payload)
 
     def test_review_ledger_cli_summarizes_existing_ledger(self) -> None:
         with tempfile.TemporaryDirectory() as d:
@@ -144,6 +148,8 @@ class ReviewLedgerTests(unittest.TestCase):
             self.assertEqual(summary["total_records"], 2)
             self.assertEqual(summary["status_counts"].get("PASS"), 1)
             self.assertEqual(summary["status_counts"].get("FAIL"), 1)
+            self.assertIn("kpis", summary)
+            self.assertIn("review_volume_last_7_days", summary["kpis"])
             self.assertTrue(report_out.exists())
 
     def test_review_ledger_cli_exports_filtered_records(self) -> None:

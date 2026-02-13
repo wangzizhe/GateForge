@@ -122,6 +122,9 @@ bash scripts/demo_review_ledger.sh
 # review ledger export demo (filtered records for audit/reporting)
 bash scripts/demo_review_ledger_export.sh
 
+# review KPI demo (approval/fail rates, risk split, 7-day volume)
+bash scripts/demo_review_kpis.sh
+
 # same demos with strict policy profile
 POLICY_PROFILE=industrial_strict_v0 bash scripts/demo_all.sh
 
@@ -369,6 +372,22 @@ python -m gateforge.review_ledger \
   --summary-out artifacts/review/ledger_fail_summary.json
 cat artifacts/review/ledger_fail_records.json
 ```
+
+Review KPI summary:
+
+```bash
+python -m gateforge.review_ledger \
+  --ledger artifacts/review/ledger.jsonl \
+  --summary-out artifacts/review/ledger_summary.json \
+  --report-out artifacts/review/ledger_summary.md
+cat artifacts/review/ledger_summary.json
+```
+
+KPI fields include:
+- `kpis.approval_rate`
+- `kpis.fail_rate`
+- `kpis.by_risk_status_counts`
+- `kpis.review_volume_last_7_days`
 
 Planner variants:
 
