@@ -29,5 +29,34 @@
     "changeset_extra": [
       "Review change-set diff against target files before execution."
     ]
+  },
+  "required_human_checks": {
+    "by_reason_prefix": {
+      "runtime_regression": [
+        "Review runtime trend and confirm the regression is acceptable for this change.",
+        "Compare baseline/candidate evidence and attach justification before merge."
+      ],
+      "proposal_backend_mismatch": [
+        "Verify proposal target, baseline mapping, and candidate model_script/backend alignment."
+      ],
+      "proposal_model_script_mismatch": [
+        "Verify proposal target, baseline mapping, and candidate model_script/backend alignment."
+      ],
+      "candidate_gate_not_pass": [
+        "Inspect candidate failure_type and log_excerpt, then classify root cause."
+      ],
+      "change_apply_failed": [
+        "Inspect change_set_path and confirm each replace_text old/new fragment matches target files.",
+        "Regenerate or fix the change_set, then rerun proposal before merge."
+      ]
+    },
+    "by_failure_type": {
+      "docker_error": [
+        "Fix Docker backend availability before rerunning this proposal."
+      ]
+    },
+    "fallback": [
+      "Human review required: inspect policy_reasons and evidence artifacts before merge."
+    ]
   }
 }

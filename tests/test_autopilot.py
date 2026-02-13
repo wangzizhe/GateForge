@@ -87,6 +87,7 @@ class AutopilotTests(unittest.TestCase):
             self.assertFalse(payload["materialize_change_set"])
             self.assertEqual(payload["planner_exit_code"], 0)
             self.assertEqual(payload["agent_run_exit_code"], 0)
+            self.assertEqual(payload["policy_version"], "0.1.0")
             self.assertEqual(payload["policy_decision"], "PASS")
             self.assertEqual(payload["policy_reasons"], [])
             self.assertEqual(payload["required_human_checks"], [])

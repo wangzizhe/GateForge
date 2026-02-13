@@ -1,6 +1,6 @@
 import unittest
 
-from gateforge.policy import dry_run_human_checks, evaluate_policy
+from gateforge.policy import dry_run_human_checks, evaluate_policy, run_required_human_checks
 
 
 class PolicyTests(unittest.TestCase):
@@ -50,6 +50,37 @@ class PolicyTests(unittest.TestCase):
         }
         checks = dry_run_human_checks(policy=policy, risk_level="high", has_change_set=True)
         self.assertEqual(checks, ["base-a", "base-b", "med-a", "high-a", "cs-a"])
+
+    def test_run_required_human_checks_from_templates(self) -> None:
+        policy = {
+            "required_human_checks": {
+                "by_reason_prefix": {
+                    "runtime_regression": ["runtime-check"],
+                    "candidate_gate_not_pass": ["gate-check"],
+                },
+                "by_failure_type": {
+                    "docker_error": ["docker-check"],
+                },
+                "fallback": ["fallback-check"],
+            }
+        }
+        checks = run_required_human_checks(
+            policy=policy,
+            policy_decision="FAIL",
+            policy_reasons=["runtime_regression:1.0>0.5", "candidate_gate_not_pass"],
+            candidate_failure_type="docker_error",
+        )
+        self.assertEqual(checks, ["runtime-check", "gate-check", "docker-check"])
+
+    def test_run_required_human_checks_fallback(self) -> None:
+        checks = run_required_human_checks(
+            policy={},
+            policy_decision="FAIL",
+            policy_reasons=["unknown_reason"],
+            candidate_failure_type=None,
+        )
+        self.assertEqual(len(checks), 1)
+        self.assertIn("human review required", checks[0].lower())
 
 
 if __name__ == "__main__":

@@ -11,7 +11,7 @@ from pathlib import Path
 from .change_apply import apply_change_set
 from .core import OM_SOURCE_ROOT_ENV, PROJECT_ROOT
 from .core import run_pipeline
-from .policy import DEFAULT_POLICY_PATH, evaluate_policy, load_policy
+from .policy import DEFAULT_POLICY_PATH, evaluate_policy, load_policy, run_required_human_checks
 from .proposal import EXECUTION_ACTIONS, load_proposal, validate_proposal
 from .regression import compare_evidence, load_json, write_json, write_markdown
 
@@ -141,29 +141,6 @@ def _human_hints_for_candidate(candidate: dict | None, backend: str) -> list[str
     return hints
 
 
-def _required_human_checks(policy_decision: str, policy_reasons: list[str], candidate: dict | None) -> list[str]:
-    checks: list[str] = []
-    if policy_decision == "PASS":
-        return checks
-
-    if any("runtime_regression" in reason for reason in policy_reasons):
-        checks.append("Review runtime trend and confirm the regression is acceptable for this change.")
-        checks.append("Compare baseline/candidate evidence and attach justification before merge.")
-    if any("proposal_model_script_mismatch" in reason or "proposal_backend_mismatch" in reason for reason in policy_reasons):
-        checks.append("Verify proposal target, baseline mapping, and candidate model_script/backend alignment.")
-    if "candidate_gate_not_pass" in policy_reasons:
-        checks.append("Inspect candidate failure_type and log_excerpt, then classify root cause.")
-    if "change_apply_failed" in policy_reasons:
-        checks.append("Inspect change_set_path and confirm each replace_text old/new fragment matches target files.")
-        checks.append("Regenerate or fix the change_set, then rerun proposal before merge.")
-    if candidate and candidate.get("failure_type") == "docker_error":
-        checks.append("Fix Docker backend availability before rerunning this proposal.")
-
-    if not checks:
-        checks.append("Human review required: inspect policy_reasons and evidence artifacts before merge.")
-    return checks
-
-
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run GateForge pipeline from a proposal")
     parser.add_argument("--proposal", required=True, help="Path to proposal JSON")
@@ -231,6 +208,7 @@ def main() -> None:
         "policy_decision": "PASS",
         "policy_reasons": [],
         "policy_path": args.policy,
+        "policy_version": None,
         "checkers": proposal.get("checkers", []),
         "checker_config": proposal.get("checker_config", {}),
         "smoke_executed": False,
@@ -342,12 +320,14 @@ def main() -> None:
         )
         summary["policy_decision"] = policy_result["policy_decision"]
         summary["policy_reasons"] = policy_result["policy_reasons"]
+        summary["policy_version"] = policy.get("version")
         summary["status"] = policy_result["policy_decision"]
         summary["human_hints"].extend(_human_hints_for_candidate(candidate, backend=backend))
-        summary["required_human_checks"] = _required_human_checks(
+        summary["required_human_checks"] = run_required_human_checks(
+            policy=policy,
             policy_decision=summary["policy_decision"],
             policy_reasons=summary["policy_reasons"],
-            candidate=candidate,
+            candidate_failure_type=(candidate or {}).get("failure_type"),
         )
     finally:
         if previous_source_root is None:

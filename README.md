@@ -289,10 +289,11 @@ cat artifacts/autopilot/autopilot_plan.json
 In dry-run mode, summary also includes:
 `planned_risk_level` and `planned_required_human_checks` (pre-execution human review template).
 These checks are policy-driven via `dry_run_human_checks` in `policies/default_policy.json`.
+Execution-time `required_human_checks` are also policy-driven via `required_human_checks` in the same file.
 
 `autopilot_summary.json` includes governance-facing fields such as:
 `policy_decision`, `policy_reasons`, `required_human_checks`, `fail_reasons`, `run_report_path`,
-`change_apply_status`, `applied_changes_count`, and `change_set_hash`.
+`change_apply_status`, `applied_changes_count`, `change_set_hash`, and `policy_version`.
 
 Planner variants:
 

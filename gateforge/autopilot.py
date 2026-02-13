@@ -32,6 +32,7 @@ def _write_markdown(path: str, summary: dict) -> None:
         f"- intent: `{summary.get('intent')}`",
         f"- proposal_id: `{summary.get('proposal_id')}`",
         f"- policy_decision: `{summary.get('policy_decision')}`",
+        f"- policy_version: `{summary.get('policy_version')}`",
         f"- generated_change_set_path: `{summary.get('generated_change_set_path')}`",
         f"- change_apply_status: `{summary.get('change_apply_status')}`",
         f"- applied_changes_count: `{summary.get('applied_changes_count')}`",
@@ -262,6 +263,7 @@ def main() -> None:
         "planner_backend": args.planner_backend,
         "materialize_change_set": args.materialize_change_set,
         "generated_change_set_path": generated_change_set_path,
+        "policy_version": None,
         "intent": intent_payload.get("intent"),
         "proposal_id": agent_payload.get("proposal_id") or intent_payload.get("proposal_id"),
         "status": status,
@@ -286,6 +288,7 @@ def main() -> None:
         summary["planned_risk_level"] = (overrides.get("risk_level") if isinstance(overrides, dict) else None) or "low"
         try:
             policy_payload = load_policy(args.policy)
+            summary["policy_version"] = policy_payload.get("version")
             summary["planned_required_human_checks"] = _compute_planned_required_checks(
                 intent_payload=intent_payload,
                 policy=policy_payload,
@@ -297,6 +300,7 @@ def main() -> None:
             )
             summary["policy_load_error"] = str(exc)
     if agent_payload:
+        summary["policy_version"] = agent_payload.get("policy_version", summary.get("policy_version"))
         summary["policy_decision"] = agent_payload.get("policy_decision")
         summary["fail_reasons"] = agent_payload.get("fail_reasons", [])
         summary["policy_reasons"] = agent_payload.get("policy_reasons", [])
