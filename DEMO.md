@@ -287,6 +287,24 @@ Key outputs:
 - `artifacts/repair_batch_compare_demo/demo_summary.json`
 - `artifacts/repair_batch_compare_demo/demo_summary.md`
 
+## 11. Governance Snapshot Demo
+
+Command:
+
+```bash
+bash scripts/demo_governance_snapshot.sh
+```
+
+What it validates:
+
+- aggregates repair compare + review ledger KPI + ci matrix into one governance decision
+- emits management-facing risks and core KPI lines
+
+Key outputs:
+
+- `artifacts/governance_snapshot_demo/summary.json`
+- `artifacts/governance_snapshot_demo/summary.md`
+
 Schema reference:
 
 - `schemas/demo_bundle_summary.schema.json`
@@ -327,6 +345,7 @@ Optional toggles (env vars):
 - `RUN_PLANNER_GUARDRAILS=0|1`
 - `RUN_REPAIR_BATCH_DEMO=0|1`
 - `RUN_REPAIR_BATCH_COMPARE_DEMO=0|1`
+- `RUN_GOVERNANCE_SNAPSHOT_DEMO=0|1`
 - `RUN_BENCHMARK=0|1` (default `0`)
 
 ## 8. Agent Change Safety Loop Demo

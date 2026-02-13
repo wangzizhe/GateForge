@@ -60,6 +60,11 @@ on:
         required: false
         default: false
         type: boolean
+      run_governance_snapshot_demo:
+        description: "Run optional governance snapshot demo job"
+        required: false
+        default: false
+        type: boolean
       demo_policy_profile:
         description: "Optional policy profile for demo jobs (e.g. industrial_strict_v0)"
         required: false
@@ -861,3 +866,68 @@ jobs:
             artifacts/repair_batch_compare_demo/summary.md
             artifacts/repair_batch_compare_demo/demo_summary.json
             artifacts/repair_batch_compare_demo/demo_summary.md
+
+  governance-snapshot-demo-optional:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_governance_snapshot_demo }}
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    env:
+      POLICY_PROFILE: ${{ inputs.demo_policy_profile }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Run governance snapshot demo
+        run: bash scripts/demo_governance_snapshot.sh
+
+      - name: Publish governance snapshot summary to job page
+        if: always()
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          path = Path("artifacts/governance_snapshot_demo/summary.json")
+          if not path.exists():
+              text = "## Governance Snapshot Summary\n\n`artifacts/governance_snapshot_demo/summary.json` not found."
+          else:
+              payload = json.loads(path.read_text(encoding="utf-8"))
+              kpis = payload.get("kpis", {})
+              lines = [
+                  "## Governance Snapshot Summary",
+                  "",
+                  f"- status: `{payload.get('status')}`",
+                  f"- strict_downgrade_rate: `{kpis.get('strict_downgrade_rate')}`",
+                  f"- review_recovery_rate: `{kpis.get('review_recovery_rate')}`",
+                  f"- strict_non_pass_rate: `{kpis.get('strict_non_pass_rate')}`",
+                  f"- risks: `{','.join(payload.get('risks', [])) or 'none'}`",
+                  "",
+              ]
+              text = "\n".join(lines)
+
+          summary_file = os.getenv("GITHUB_STEP_SUMMARY")
+          if summary_file:
+              with open(summary_file, "a", encoding="utf-8") as f:
+                  f.write(text + "\n")
+          print(text)
+          PY
+
+      - name: Upload governance snapshot artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: governance-snapshot-demo
+          path: |
+            artifacts/governance_snapshot_demo/summary.json
+            artifacts/governance_snapshot_demo/summary.md
