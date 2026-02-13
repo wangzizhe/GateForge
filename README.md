@@ -116,6 +116,9 @@ bash scripts/demo_planner_confidence_gates.sh
 # human review resolution demo (NEEDS_REVIEW -> human approve/reject -> final PASS/FAIL)
 bash scripts/demo_review_resolution.sh
 
+# review ledger demo (append + summarize review history)
+bash scripts/demo_review_ledger.sh
+
 # same demos with strict policy profile
 POLICY_PROFILE=industrial_strict_v0 bash scripts/demo_all.sh
 
@@ -341,6 +344,16 @@ cat artifacts/review_demo/final_approve.json
 
 Review decision schema reference:
 - `schemas/review_decision.schema.json`
+
+Review ledger summary:
+
+```bash
+python -m gateforge.review_ledger \
+  --ledger artifacts/review/ledger.jsonl \
+  --summary-out artifacts/review/ledger_summary.json \
+  --report-out artifacts/review/ledger_summary.md
+cat artifacts/review/ledger_summary.json
+```
 
 Planner variants:
 

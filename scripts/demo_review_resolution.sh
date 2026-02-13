@@ -45,6 +45,8 @@ cat > artifacts/review_demo/review_approve.json <<'EOF'
   "review_id": "review-demo-approve-001",
   "proposal_id": "review-demo-001",
   "reviewer": "human.reviewer",
+  "second_reviewer": "human.reviewer.2",
+  "second_decision": "approve",
   "decision": "approve",
   "rationale": "All required checks completed and risk accepted.",
   "all_required_checks_completed": true,

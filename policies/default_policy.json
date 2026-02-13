@@ -112,4 +112,14 @@
       "Human review required: inspect policy_reasons and evidence artifacts before merge."
     ]
   }
+  ,
+  "review_resolution": {
+    "require_distinct_reviewer_from_source_author": false,
+    "require_dual_review_risk_levels": [
+      "high"
+    ],
+    "require_dual_review_reason_prefixes": [
+      "change_plan_confidence_below_auto_apply"
+    ]
+  }
 }

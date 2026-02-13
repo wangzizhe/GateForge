@@ -47,6 +47,17 @@
         "type": "string",
         "minLength": 1
       }
+    },
+    "second_reviewer": {
+      "type": "string",
+      "minLength": 1
+    },
+    "second_decision": {
+      "type": "string",
+      "enum": [
+        "approve",
+        "reject"
+      ]
     }
   }
 }
