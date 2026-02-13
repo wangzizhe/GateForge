@@ -7,6 +7,7 @@
     "run_id",
     "timestamp_utc",
     "backend",
+    "toolchain",
     "status",
     "failure_type",
     "metrics",
@@ -33,6 +34,27 @@
     "backend": {
       "type": "string",
       "enum": ["mock", "openmodelica", "openmodelica_docker"]
+    },
+    "toolchain": {
+      "type": "object",
+      "required": ["backend_name", "backend_version", "docker_image", "policy_profile", "policy_version"],
+      "properties": {
+        "backend_name": {
+          "type": "string"
+        },
+        "backend_version": {
+          "type": ["string", "null"]
+        },
+        "docker_image": {
+          "type": ["string", "null"]
+        },
+        "policy_profile": {
+          "type": ["string", "null"]
+        },
+        "policy_version": {
+          "type": ["string", "null"]
+        }
+      }
     },
     "status": {
       "type": "string",

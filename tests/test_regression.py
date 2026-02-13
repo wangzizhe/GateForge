@@ -22,6 +22,7 @@ def _evidence(
     proposal_id: str | None = None,
     failure_type: str = "none",
     log_excerpt: str = "",
+    policy_version: str | None = "0.1.0",
 ) -> dict:
     return {
         "run_id": run_id,
@@ -36,6 +37,14 @@ def _evidence(
         "simulate_ok": simulate_ok,
         "metrics": {"runtime_seconds": runtime_seconds, "events": events},
         "artifacts": {"log_excerpt": log_excerpt},
+        "toolchain": {
+            "backend_name": backend,
+            "backend_version": "test",
+            "docker_image": None,
+            "policy_profile": "default",
+            "policy_version": policy_version,
+        },
+        "policy_version": policy_version,
     }
 
 
@@ -185,6 +194,31 @@ class RegressionTests(unittest.TestCase):
         )
         self.assertEqual(result["decision"], "FAIL")
         self.assertIn("strict_model_script_mismatch", result["reasons"])
+
+    def test_compare_warn_strict_policy_version_mismatch(self) -> None:
+        baseline = _evidence("base", policy_version="0.1.0")
+        candidate = _evidence("cand", policy_version="0.2.0")
+        result = compare_evidence(
+            baseline,
+            candidate,
+            runtime_regression_threshold=0.2,
+            strict=True,
+        )
+        self.assertEqual(result["decision"], "PASS")
+        self.assertIn("strict_policy_version_mismatch:0.1.0!=0.2.0", result["warnings"])
+
+    def test_compare_fail_when_strict_policy_version_enabled(self) -> None:
+        baseline = _evidence("base", policy_version="0.1.0")
+        candidate = _evidence("cand", policy_version="0.2.0")
+        result = compare_evidence(
+            baseline,
+            candidate,
+            runtime_regression_threshold=0.2,
+            strict=True,
+            strict_policy_version=True,
+        )
+        self.assertEqual(result["decision"], "FAIL")
+        self.assertIn("strict_policy_version_mismatch", result["reasons"])
 
     def test_write_json(self) -> None:
         payload = {"decision": "PASS", "reasons": []}
@@ -596,6 +630,62 @@ class RegressionTests(unittest.TestCase):
             result = json.loads(out.read_text(encoding="utf-8"))
             self.assertIn("performance_regression_detected", result["reasons"])
             self.assertEqual(result["checker_config"]["performance_regression"]["max_ratio"], 1.5)
+
+    def test_regress_cli_strict_policy_version_switch(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            baseline = root / "baseline.json"
+            candidate = root / "candidate.json"
+            out_warn = root / "regression_warn.json"
+            out_fail = root / "regression_fail.json"
+
+            baseline.write_text(json.dumps(_evidence("base", policy_version="0.1.0")), encoding="utf-8")
+            candidate.write_text(json.dumps(_evidence("cand", policy_version="0.2.0")), encoding="utf-8")
+
+            proc_warn = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.regress",
+                    "--baseline",
+                    str(baseline),
+                    "--candidate",
+                    str(candidate),
+                    "--strict",
+                    "--out",
+                    str(out_warn),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc_warn.returncode, 0, msg=proc_warn.stderr or proc_warn.stdout)
+            warn_payload = json.loads(out_warn.read_text(encoding="utf-8"))
+            self.assertEqual(warn_payload["decision"], "PASS")
+            self.assertTrue(warn_payload.get("warnings"))
+
+            proc_fail = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.regress",
+                    "--baseline",
+                    str(baseline),
+                    "--candidate",
+                    str(candidate),
+                    "--strict",
+                    "--strict-policy-version",
+                    "--out",
+                    str(out_fail),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertNotEqual(proc_fail.returncode, 0)
+            fail_payload = json.loads(out_fail.read_text(encoding="utf-8"))
+            self.assertEqual(fail_payload["decision"], "FAIL")
+            self.assertIn("strict_policy_version_mismatch", fail_payload["reasons"])
 
 
 if __name__ == "__main__":

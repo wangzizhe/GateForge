@@ -184,11 +184,13 @@ def main() -> None:
     }
     if run_summary:
         orchestration["policy_version"] = run_summary.get("policy_version")
+        orchestration["policy_profile"] = run_summary.get("policy_profile")
         orchestration["policy_decision"] = run_summary.get("policy_decision")
         orchestration["fail_reasons"] = run_summary.get("fail_reasons", [])
         orchestration["policy_reasons"] = run_summary.get("policy_reasons", [])
         orchestration["human_hints"] = run_summary.get("human_hints", [])
         orchestration["required_human_checks"] = run_summary.get("required_human_checks", [])
+        orchestration["candidate_toolchain"] = run_summary.get("candidate_toolchain")
         orchestration["change_apply_status"] = run_summary.get("change_apply_status")
         orchestration["change_set_hash"] = run_summary.get("change_set_hash")
         orchestration["applied_changes_count"] = len(run_summary.get("applied_changes") or [])

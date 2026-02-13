@@ -50,6 +50,7 @@ class BatchTests(unittest.TestCase):
             self.assertEqual(payload["backend"], "mock")
             self.assertEqual(payload["total_runs"], 1)
             self.assertEqual(payload["fail_count"], 0)
+            self.assertEqual(payload["failure_type_counts"], {})
 
     def test_batch_stops_on_first_failure_by_default(self) -> None:
         with tempfile.TemporaryDirectory() as d:
@@ -143,6 +144,7 @@ class BatchTests(unittest.TestCase):
             self.assertEqual(payload["backend"], "mock")
             self.assertEqual(payload["total_runs"], 1)
             self.assertEqual(payload["fail_count"], 0)
+            self.assertEqual(payload["failure_type_counts"], {})
 
     def test_batch_proposal_mock_generates_summary(self) -> None:
         with tempfile.TemporaryDirectory() as d:
@@ -172,6 +174,48 @@ class BatchTests(unittest.TestCase):
             self.assertEqual(payload["fail_count"], 0)
             self.assertEqual(payload["proposal_id"], "proposal-batch-1")
             self.assertEqual(payload["runs"][0]["proposal_id"], "proposal-batch-1")
+            self.assertEqual(payload["failure_type_counts"], {})
+
+    def test_batch_failure_distribution_for_mock_pack(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            pack = Path(d) / "pack.json"
+            pack.write_text(
+                json.dumps(
+                    {
+                        "backend": "openmodelica_docker",
+                        "continue_on_fail": True,
+                        "scripts": [
+                            "examples/openmodelica/failures/script_parse_error.mos",
+                            "examples/openmodelica/failures/model_check_error.mos",
+                            "examples/openmodelica/failures/model_check_error.mos",
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            out_dir = Path(d) / "batch"
+            summary = Path(d) / "summary.json"
+            report = Path(d) / "summary.md"
+            cmd = [
+                "python3",
+                "-m",
+                "gateforge.batch",
+                "--pack",
+                str(pack),
+                "--out-dir",
+                str(out_dir),
+                "--summary-out",
+                str(summary),
+                "--report-out",
+                str(report),
+            ]
+            proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
+            if "docker" in (proc.stderr + proc.stdout).lower() and proc.returncode != 0:
+                self.skipTest("Docker/OpenModelica unavailable in this environment")
+            payload = json.loads(summary.read_text(encoding="utf-8"))
+            self.assertIn("failure_type_counts", payload)
+            self.assertTrue(payload["failure_type_counts"])
+            self.assertIn("## Failure Distribution", report.read_text(encoding="utf-8"))
 
     def test_batch_rejects_proposal_with_pack_or_script(self) -> None:
         with tempfile.TemporaryDirectory() as d:

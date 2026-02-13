@@ -44,6 +44,11 @@ def main() -> None:
         help="When strict mode is enabled, also require model_script to match",
     )
     parser.add_argument(
+        "--strict-policy-version",
+        action="store_true",
+        help="When strict mode is enabled, also fail on policy_version mismatch (otherwise warning only)",
+    )
+    parser.add_argument(
         "--proposal",
         default=None,
         help="Optional proposal JSON path; enables strict comparability and proposal alignment checks",
@@ -105,6 +110,7 @@ def main() -> None:
         runtime_regression_threshold=args.runtime_threshold,
         strict=strict,
         strict_model_script=strict_model_script,
+        strict_policy_version=args.strict_policy_version,
         checker_names=effective_checkers,
         checker_config=checker_config,
     )
@@ -122,6 +128,7 @@ def main() -> None:
         result["decision"] = "FAIL"
     result["strict"] = strict
     result["strict_model_script"] = strict_model_script
+    result["strict_policy_version"] = args.strict_policy_version
     result["checkers"] = effective_checkers or []
     result["checker_config"] = checker_config
     if args.proposal:
