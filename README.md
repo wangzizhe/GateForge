@@ -421,6 +421,9 @@ KPI fields include:
 - `kpis.avg_resolution_seconds`
 - `kpis.p95_resolution_seconds`
 - `kpis.sla_breach_rate`
+- `kpis.guardrail_fail_rate`
+- `planner_guardrail_decision_counts`
+- `planner_guardrail_rule_id_counts`
 
 Planner variants:
 
@@ -468,10 +471,16 @@ Autopilot forwards planner guardrails and writes them to evidence:
 - `planner_guardrail_report_path`
 - `planner_guardrail_decision` (`PASS` / `FAIL`)
 - `planner_guardrail_violations` (non-empty when planner guardrail fails)
+- `planner_guardrail_violation_objects` (structured `{rule_id,message}`)
 
 Planner confidence guardrail defaults:
 - if not explicitly set, `autopilot` uses policy `min_confidence_accept` as planner min confidence
 - planner max confidence defaults to `1.0`
+
+Repair loop fallback:
+- when first attempt fails, repair loop retries once with conservative defaults
+- fallback defaults: `planner-backend=rule`, tighter confidence floor, explicit file whitelist
+- summary includes `retry_used` and per-attempt outcomes in `attempts`
 
 Agent medium intent (OpenModelica medium case):
 

@@ -95,6 +95,7 @@ class RepairLoopTests(unittest.TestCase):
                     str(source),
                     "--planner-backend",
                     "gemini",
+                    "--no-retry-on-failed-attempt",
                     "--baseline",
                     str(baseline),
                     "--out",
@@ -112,6 +113,45 @@ class RepairLoopTests(unittest.TestCase):
             self.assertIn(payload["after"]["status"], {"UNKNOWN", "FAIL"})
             self.assertEqual(payload.get("planner_guardrail_decision"), "FAIL")
             self.assertTrue(payload.get("planner_guardrail_violations"))
+
+    def test_repair_loop_retry_fallback_rule_recovers_from_gemini_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            source = root / "source_fail.json"
+            baseline = root / "baseline.json"
+            out = root / "repair_summary_retry.json"
+            self._write_fail_run_summary(source, status="FAIL", decision="FAIL")
+            self._write_baseline(baseline, backend="mock")
+
+            env = dict(os.environ)
+            had_key = bool(env.get("GOOGLE_API_KEY"))
+            if had_key:
+                env["GOOGLE_API_KEY"] = ""
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.repair_loop",
+                    "--source",
+                    str(source),
+                    "--planner-backend",
+                    "gemini",
+                    "--baseline",
+                    str(baseline),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+                env=env,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            payload = json.loads(out.read_text(encoding="utf-8"))
+            self.assertTrue(payload.get("retry_used"))
+            self.assertGreaterEqual(len(payload.get("attempts", [])), 2)
+            self.assertEqual(payload.get("status"), "PASS")
 
     def test_repair_loop_detects_worse_outcome(self) -> None:
         with tempfile.TemporaryDirectory() as d:

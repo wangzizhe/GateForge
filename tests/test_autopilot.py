@@ -471,6 +471,7 @@ class AutopilotTests(unittest.TestCase):
             self.assertIn("planner_stderr_tail", payload)
             self.assertEqual(payload["planner_guardrail_decision"], "FAIL")
             self.assertTrue(payload["planner_guardrail_violations"])
+            self.assertTrue(payload.get("planner_guardrail_violation_objects"))
 
     def test_autopilot_emits_checker_template(self) -> None:
         with tempfile.TemporaryDirectory() as d:
@@ -551,6 +552,7 @@ class AutopilotTests(unittest.TestCase):
             self.assertEqual(payload["planner_exit_code"], 1)
             self.assertEqual(payload["planner_guardrail_decision"], "FAIL")
             self.assertIn("confidence_min", " ".join(payload.get("planner_guardrail_violations", [])))
+            self.assertTrue(payload.get("planner_guardrail_violation_objects"))
 
     def test_autopilot_dry_run_accepts_policy_profile(self) -> None:
         with tempfile.TemporaryDirectory() as d:

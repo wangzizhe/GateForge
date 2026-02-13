@@ -38,6 +38,7 @@ def _write_markdown(path: str, summary: dict) -> None:
         f"- goal: `{summary.get('goal')}`",
         f"- planner_guardrail_decision: `{summary.get('planner_guardrail_decision')}`",
         f"- planner_guardrail_report_path: `{summary.get('planner_guardrail_report_path')}`",
+        f"- retry_used: `{summary.get('retry_used')}`",
         "",
         "## Before",
         "",
@@ -76,6 +77,16 @@ def _write_markdown(path: str, summary: dict) -> None:
     violations = summary.get("planner_guardrail_violations", [])
     if violations:
         lines.extend([f"- `{item}`" for item in violations])
+    else:
+        lines.append("- `none`")
+    lines.extend(["", "## Attempts", ""])
+    attempts = summary.get("attempts", [])
+    if attempts:
+        for item in attempts:
+            lines.append(
+                f"- attempt#{item.get('attempt')}: backend=`{item.get('planner_backend')}` "
+                f"status=`{item.get('status')}` exit_code=`{item.get('exit_code')}`"
+            )
     else:
         lines.append("- `none`")
     lines.append("")
@@ -174,6 +185,30 @@ def main() -> None:
         help="Forwarded planner file whitelist for change_plan/change_set files (repeatable)",
     )
     parser.add_argument(
+        "--retry-on-failed-attempt",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="If first repair attempt fails, retry once with conservative fallback constraints",
+    )
+    parser.add_argument(
+        "--retry-fallback-planner-backend",
+        choices=["rule", "gemini", "openai"],
+        default="rule",
+        help="Planner backend for conservative retry",
+    )
+    parser.add_argument(
+        "--retry-confidence-min",
+        type=float,
+        default=0.8,
+        help="Minimum planner confidence for conservative retry",
+    )
+    parser.add_argument(
+        "--retry-allowed-file",
+        action="append",
+        default=None,
+        help="Allowed planner file whitelist for conservative retry (repeatable)",
+    )
+    parser.add_argument(
         "--out",
         default="artifacts/repair_loop/repair_loop_summary.json",
         help="Where to write repair-loop summary JSON",
@@ -249,12 +284,92 @@ def main() -> None:
         cmd.extend(["--policy-profile", args.policy_profile])
     for file_path in args.planner_change_plan_allowed_file or []:
         cmd.extend(["--planner-change-plan-allowed-file", file_path])
-
+    attempts: list[dict] = []
     proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
-
     after_payload = {}
     if Path(autopilot_out).exists():
         after_payload = json.loads(Path(autopilot_out).read_text(encoding="utf-8"))
+    attempts.append(
+        {
+            "attempt": 1,
+            "planner_backend": args.planner_backend,
+            "exit_code": proc.returncode,
+            "status": after_payload.get("status"),
+            "planner_guardrail_decision": after_payload.get("planner_guardrail_decision"),
+            "planner_guardrail_violations": after_payload.get("planner_guardrail_violations", []),
+            "summary_path": autopilot_out,
+        }
+    )
+
+    retry_used = False
+    retry_payload = {}
+    retry_proc = None
+    should_retry = args.retry_on_failed_attempt and proc.returncode != 0
+    if should_retry:
+        retry_used = True
+        retry_out = str(run_dir / "autopilot_after_retry.json")
+        retry_report = str(run_dir / "autopilot_after_retry.md")
+        retry_intent_out = str(run_dir / "autopilot_intent_retry.json")
+        retry_agent_run_out = str(run_dir / "autopilot_agent_run_retry.json")
+        retry_cmd = [
+            sys.executable,
+            "-m",
+            "gateforge.autopilot",
+            "--goal",
+            goal,
+            "--planner-backend",
+            args.retry_fallback_planner_backend,
+            "--context-json",
+            context_path,
+            "--baseline",
+            args.baseline,
+            "--baseline-index",
+            args.baseline_index,
+            "--runtime-threshold",
+            str(args.runtime_threshold),
+            "--save-run-under",
+            args.save_run_under,
+            "--planner-change-plan-confidence-min",
+            str(max(args.planner_change_plan_confidence_min, args.retry_confidence_min)),
+            "--planner-change-plan-confidence-max",
+            str(args.planner_change_plan_confidence_max),
+            "--intent-out",
+            retry_intent_out,
+            "--agent-run-out",
+            retry_agent_run_out,
+            "--out",
+            retry_out,
+            "--report",
+            retry_report,
+        ]
+        if args.proposal_id:
+            retry_cmd.extend(["--proposal-id", f"{args.proposal_id}-retry1"])
+        if args.policy:
+            retry_cmd.extend(["--policy", args.policy])
+        if args.policy_profile:
+            retry_cmd.extend(["--policy-profile", args.policy_profile])
+        retry_allowed_files = args.retry_allowed_file or ["examples/openmodelica/MinimalProbe.mo"]
+        for file_path in retry_allowed_files:
+            retry_cmd.extend(["--planner-change-plan-allowed-file", file_path])
+        retry_proc = subprocess.run(retry_cmd, capture_output=True, text=True, check=False)
+        if Path(retry_out).exists():
+            retry_payload = json.loads(Path(retry_out).read_text(encoding="utf-8"))
+        attempts.append(
+            {
+                "attempt": 2,
+                "planner_backend": args.retry_fallback_planner_backend,
+                "exit_code": retry_proc.returncode,
+                "status": retry_payload.get("status"),
+                "planner_guardrail_decision": retry_payload.get("planner_guardrail_decision"),
+                "planner_guardrail_violations": retry_payload.get("planner_guardrail_violations", []),
+                "summary_path": retry_out,
+            }
+        )
+        if retry_payload and _status_score(retry_payload.get("policy_decision") or retry_payload.get("status")) >= _status_score(
+            after_payload.get("policy_decision") or after_payload.get("status")
+        ):
+            after_payload = retry_payload
+            proc = retry_proc
 
     after = {
         "proposal_id": after_payload.get("proposal_id"),
@@ -294,7 +409,11 @@ def main() -> None:
         "planner_change_plan_allowed_files": args.planner_change_plan_allowed_file or [],
         "planner_guardrail_decision": after_payload.get("planner_guardrail_decision"),
         "planner_guardrail_violations": after_payload.get("planner_guardrail_violations", []),
+        "planner_guardrail_violation_objects": after_payload.get("planner_guardrail_violation_objects", []),
         "planner_guardrail_report_path": after_payload.get("planner_guardrail_report_path"),
+        "retry_on_failed_attempt": args.retry_on_failed_attempt,
+        "retry_used": retry_used,
+        "attempts": attempts,
         "before": before,
         "after": after,
         "comparison": {
@@ -307,6 +426,8 @@ def main() -> None:
     }
     if proc.returncode != 0:
         summary["autopilot_stderr_tail"] = (proc.stderr or proc.stdout)[-800:]
+    if retry_proc is not None and retry_proc.returncode != 0:
+        summary["retry_stderr_tail"] = (retry_proc.stderr or retry_proc.stdout)[-800:]
 
     _write_json(args.out, summary)
     _write_markdown(args.report or _default_md_path(args.out), summary)

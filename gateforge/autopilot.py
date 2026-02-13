@@ -104,6 +104,28 @@ def _compute_planned_required_checks(intent_payload: dict, policy: dict) -> list
     return dry_run_human_checks(policy=policy, risk_level=risk_level, has_change_set=has_change_set)
 
 
+def _normalize_guardrail_violations(payload: dict) -> tuple[list[str], list[dict]]:
+    raw = payload.get("violations", [])
+    messages: list[str] = []
+    objects: list[dict] = []
+    if isinstance(raw, list):
+        for item in raw:
+            if isinstance(item, dict):
+                msg = item.get("message")
+                rid = item.get("rule_id")
+                if isinstance(msg, str):
+                    messages.append(msg)
+                if isinstance(rid, str) or isinstance(msg, str):
+                    objects.append({"rule_id": rid, "message": msg})
+            elif isinstance(item, str):
+                messages.append(item)
+                objects.append({"rule_id": None, "message": item})
+    explicit = payload.get("violation_messages")
+    if isinstance(explicit, list) and explicit:
+        messages = [str(x) for x in explicit if isinstance(x, str)]
+    return messages, objects
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="One-command goal -> planner -> agent_run pipeline")
     parser.add_argument("--goal", default=None, help="Natural-language planner goal")
@@ -363,6 +385,7 @@ def main() -> None:
     guardrail_report_file = Path(guardrail_report_path)
     if guardrail_report_file.exists():
         guardrail_payload = json.loads(guardrail_report_file.read_text(encoding="utf-8"))
+    guardrail_messages, guardrail_objects = _normalize_guardrail_violations(guardrail_payload)
     agent_payload = {}
     if planner_succeeded and not args.dry_run and Path(args.agent_run_out).exists():
         agent_payload = json.loads(Path(args.agent_run_out).read_text(encoding="utf-8"))
@@ -393,7 +416,8 @@ def main() -> None:
         "planner_change_plan_allowed_files": args.planner_change_plan_allowed_file or [],
         "planner_guardrail_report_path": guardrail_report_path,
         "planner_guardrail_decision": guardrail_payload.get("decision"),
-        "planner_guardrail_violations": guardrail_payload.get("violations", []),
+        "planner_guardrail_violations": guardrail_messages,
+        "planner_guardrail_violation_objects": guardrail_objects,
         "emit_checker_template": args.emit_checker_template,
         "generated_change_set_path": generated_change_set_path,
         "generated_change_set_source": generated_change_set_source,

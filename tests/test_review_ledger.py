@@ -119,8 +119,24 @@ class ReviewLedgerTests(unittest.TestCase):
             ledger.write_text(
                 "\n".join(
                     [
-                        json.dumps({"final_status": "PASS", "reviewer": "r1", "final_reasons": []}),
-                        json.dumps({"final_status": "FAIL", "reviewer": "r2", "final_reasons": ["human_rejected"]}),
+                        json.dumps(
+                            {
+                                "final_status": "PASS",
+                                "reviewer": "r1",
+                                "final_reasons": [],
+                                "planner_guardrail_decision": "PASS",
+                                "planner_guardrail_rule_ids": [],
+                            }
+                        ),
+                        json.dumps(
+                            {
+                                "final_status": "FAIL",
+                                "reviewer": "r2",
+                                "final_reasons": ["human_rejected"],
+                                "planner_guardrail_decision": "FAIL",
+                                "planner_guardrail_rule_ids": ["change_plan_confidence_min_below_threshold"],
+                            }
+                        ),
                     ]
                 )
                 + "\n",
@@ -152,6 +168,12 @@ class ReviewLedgerTests(unittest.TestCase):
             self.assertEqual(summary["status_counts"].get("FAIL"), 1)
             self.assertIn("kpis", summary)
             self.assertIn("review_volume_last_7_days", summary["kpis"])
+            self.assertEqual(summary["planner_guardrail_decision_counts"].get("FAIL"), 1)
+            self.assertEqual(
+                summary["planner_guardrail_rule_id_counts"].get("change_plan_confidence_min_below_threshold"),
+                1,
+            )
+            self.assertIn("guardrail_fail_rate", summary["kpis"])
             self.assertTrue(report_out.exists())
 
     def test_review_ledger_cli_exports_filtered_records(self) -> None:
