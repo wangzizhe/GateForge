@@ -216,6 +216,32 @@ Policy profiles (optional):
 - strict: `policies/profiles/industrial_strict_v0.json`
 - you can pass profile by name: `--policy-profile industrial_strict_v0`
 
+## 8. Repair Loop Demo (FAIL -> Repair -> Rerun)
+
+Command:
+
+```bash
+bash scripts/demo_repair_loop.sh
+```
+
+What it validates:
+
+- input is an existing failed governance summary
+- planner/autopilot proposes a constrained repair run
+- output provides before/after decision delta
+
+Key outputs:
+
+- `artifacts/repair_loop/summary.json`
+- `artifacts/repair_loop/summary.md`
+- `artifacts/repair_loop/demo_summary.json`
+- `artifacts/repair_loop/demo_summary.md`
+
+Expected result:
+
+- `after_status = PASS`
+- `delta = improved`
+
 Schema reference:
 
 - `schemas/demo_bundle_summary.schema.json`
