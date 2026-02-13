@@ -155,6 +155,43 @@ class RepairLoopTests(unittest.TestCase):
             self.assertIn("retry_analysis", payload)
             self.assertTrue(payload["retry_analysis"].get("recovered_by_retry"))
 
+    def test_repair_loop_max_retries_zero_disables_retry(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            source = root / "source_fail.json"
+            baseline = root / "baseline.json"
+            out = root / "repair_summary_no_retry.json"
+            self._write_fail_run_summary(source, status="FAIL", decision="FAIL")
+            self._write_baseline(baseline, backend="mock")
+
+            env = dict(os.environ)
+            env.pop("GOOGLE_API_KEY", None)
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.repair_loop",
+                    "--source",
+                    str(source),
+                    "--planner-backend",
+                    "gemini",
+                    "--max-retries",
+                    "0",
+                    "--baseline",
+                    str(baseline),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+                env=env,
+            )
+            self.assertNotEqual(proc.returncode, 0)
+            payload = json.loads(out.read_text(encoding="utf-8"))
+            self.assertFalse(payload.get("retry_used"))
+            self.assertEqual(len(payload.get("attempts", [])), 1)
+
     def test_repair_loop_detects_worse_outcome(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)

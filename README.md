@@ -481,6 +481,7 @@ Repair loop fallback:
 - when first attempt fails, repair loop retries once with conservative defaults
 - fallback defaults: `planner-backend=rule`, tighter confidence floor, explicit file whitelist
 - summary includes `retry_used`, per-attempt outcomes in `attempts`, and `retry_analysis`
+- you can control retry depth with `--max-retries` (set `0` to disable retries)
 
 Agent medium intent (OpenModelica medium case):
 
@@ -547,6 +548,10 @@ Outputs:
 - `artifacts/ci_matrix_summary.json`
 - `artifacts/ci_matrix_summary.md`
 `ci_matrix_summary.json` now includes `planner_guardrail_rule_ids` aggregated from planner-guardrails demo.
+
+Planner guardrails optional workflow job summary now also includes:
+- `rule_ids_count`
+- `rule_ids_all`
 You can include agent-loop in local matrix with:
 `RUN_AGENT_CHANGE_LOOP=1 bash scripts/demo_ci_matrix.sh`
 

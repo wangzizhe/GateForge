@@ -43,11 +43,26 @@ def summarize_review_ledger(rows: list[dict], sla_seconds: float = 86400.0) -> d
     cutoff_24h = now_utc - timedelta(hours=24)
     cutoff_7d = now_utc - timedelta(days=7)
     resolution_values: list[float] = []
+    proposal_stats: dict[str, dict] = {}
     for row in rows:
         status = row.get("final_status")
         reviewer = row.get("reviewer")
         risk = row.get("risk_level")
         recorded_at = row.get("recorded_at_utc")
+        proposal_id = row.get("proposal_id")
+        if isinstance(proposal_id, str) and proposal_id.strip():
+            item = proposal_stats.setdefault(
+                proposal_id,
+                {"proposal_id": proposal_id, "total": 0, "fail": 0, "needs_review": 0, "pass": 0, "last_status": None},
+            )
+            item["total"] += 1
+            if status == "FAIL":
+                item["fail"] += 1
+            elif status == "NEEDS_REVIEW":
+                item["needs_review"] += 1
+            elif status == "PASS":
+                item["pass"] += 1
+            item["last_status"] = status
         if isinstance(status, str):
             status_counter[status] += 1
             if isinstance(risk, str) and risk.strip():
@@ -118,6 +133,25 @@ def summarize_review_ledger(rows: list[dict], sla_seconds: float = 86400.0) -> d
     approval_rate_last_7d = (
         round(last7d_status_counter.get("PASS", 0) / total_last_7d, 4) if total_last_7d else 0.0
     )
+    unstable = []
+    for item in proposal_stats.values():
+        non_pass = int(item["fail"]) + int(item["needs_review"])
+        unstable.append(
+            {
+                "proposal_id": item["proposal_id"],
+                "non_pass_count": non_pass,
+                "fail_count": int(item["fail"]),
+                "needs_review_count": int(item["needs_review"]),
+                "pass_count": int(item["pass"]),
+                "total_count": int(item["total"]),
+                "last_status": item["last_status"],
+            }
+        )
+    unstable.sort(
+        key=lambda x: (x["non_pass_count"], x["fail_count"], x["needs_review_count"], -x["pass_count"]),
+        reverse=True,
+    )
+    top_unstable = unstable[:5]
     return {
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
         "total_records": len(rows),
@@ -127,6 +161,7 @@ def summarize_review_ledger(rows: list[dict], sla_seconds: float = 86400.0) -> d
         "risk_level_counts": dict(risk_counter),
         "planner_guardrail_decision_counts": dict(guardrail_decision_counter),
         "planner_guardrail_rule_id_counts": dict(guardrail_rule_counter),
+        "top_unstable_proposals": top_unstable,
         "kpis": {
             "approval_rate": approval_rate,
             "fail_rate": fail_rate,
@@ -269,6 +304,18 @@ def write_markdown(path: str, summary: dict) -> None:
     if guardrail_rules:
         for k in sorted(guardrail_rules.keys()):
             lines.append(f"- {k}: `{guardrail_rules[k]}`")
+    else:
+        lines.append("- `none`")
+
+    lines.extend(["", "## Top Unstable Proposals", ""])
+    unstable = summary.get("top_unstable_proposals", [])
+    if unstable:
+        for item in unstable:
+            lines.append(
+                f"- {item.get('proposal_id')}: non_pass=`{item.get('non_pass_count')}` "
+                f"fail=`{item.get('fail_count')}` needs_review=`{item.get('needs_review_count')}` "
+                f"pass=`{item.get('pass_count')}` last_status=`{item.get('last_status')}`"
+            )
     else:
         lines.append("- `none`")
 

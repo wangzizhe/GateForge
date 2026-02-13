@@ -175,6 +175,7 @@ class ReviewLedgerTests(unittest.TestCase):
                 1,
             )
             self.assertIn("guardrail_fail_rate", summary["kpis"])
+            self.assertIn("top_unstable_proposals", summary)
             self.assertTrue(report_out.exists())
 
     def test_review_ledger_cli_exports_filtered_records(self) -> None:
@@ -355,6 +356,41 @@ class ReviewLedgerTests(unittest.TestCase):
             self.assertEqual(payload["kpis"]["review_volume_last_7d"], 2)
             self.assertEqual(payload["kpis"]["approval_rate_last_24h"], 1.0)
             self.assertEqual(payload["kpis"]["approval_rate_last_7d"], 0.5)
+
+    def test_review_ledger_top_unstable_proposals(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            ledger = root / "ledger.jsonl"
+            rows = [
+                {"proposal_id": "p_hot", "final_status": "FAIL", "reviewer": "r1", "final_reasons": []},
+                {"proposal_id": "p_hot", "final_status": "NEEDS_REVIEW", "reviewer": "r1", "final_reasons": []},
+                {"proposal_id": "p_hot", "final_status": "FAIL", "reviewer": "r2", "final_reasons": []},
+                {"proposal_id": "p_warm", "final_status": "NEEDS_REVIEW", "reviewer": "r1", "final_reasons": []},
+                {"proposal_id": "p_warm", "final_status": "PASS", "reviewer": "r2", "final_reasons": []},
+                {"proposal_id": "p_cool", "final_status": "PASS", "reviewer": "r1", "final_reasons": []},
+            ]
+            ledger.write_text("\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8")
+            summary_out = root / "summary.json"
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.review_ledger",
+                    "--ledger",
+                    str(ledger),
+                    "--summary-out",
+                    str(summary_out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            payload = json.loads(summary_out.read_text(encoding="utf-8"))
+            top = payload.get("top_unstable_proposals", [])
+            self.assertTrue(top)
+            self.assertEqual(top[0]["proposal_id"], "p_hot")
+            self.assertEqual(top[0]["non_pass_count"], 3)
 
 
 if __name__ == "__main__":

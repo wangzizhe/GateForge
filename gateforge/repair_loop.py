@@ -201,7 +201,13 @@ def main() -> None:
         "--retry-on-failed-attempt",
         action=argparse.BooleanOptionalAction,
         default=True,
-        help="If first repair attempt fails, retry once with conservative fallback constraints",
+        help="If first repair attempt fails, allow fallback retries",
+    )
+    parser.add_argument(
+        "--max-retries",
+        type=int,
+        default=1,
+        help="Maximum number of fallback retries after first failed attempt",
     )
     parser.add_argument(
         "--retry-fallback-planner-backend",
@@ -232,6 +238,8 @@ def main() -> None:
         help="Where to write repair-loop summary markdown",
     )
     args = parser.parse_args()
+    if args.max_retries < 0:
+        raise SystemExit("--max-retries must be >= 0")
 
     source_payload = json.loads(Path(args.source).read_text(encoding="utf-8"))
     before = _normalize_before(source_payload)
@@ -258,46 +266,71 @@ def main() -> None:
     autopilot_intent_out = str(run_dir / "autopilot_intent.json")
     autopilot_agent_run_out = str(run_dir / "autopilot_agent_run.json")
 
-    cmd = [
-        sys.executable,
-        "-m",
-        "gateforge.autopilot",
-        "--goal",
-        goal,
-        "--planner-backend",
-        args.planner_backend,
-        "--context-json",
-        context_path,
-        "--baseline",
-        args.baseline,
-        "--baseline-index",
-        args.baseline_index,
-        "--runtime-threshold",
-        str(args.runtime_threshold),
-        "--save-run-under",
-        args.save_run_under,
-        "--planner-change-plan-confidence-min",
-        str(args.planner_change_plan_confidence_min),
-        "--planner-change-plan-confidence-max",
-        str(args.planner_change_plan_confidence_max),
-        "--intent-out",
-        autopilot_intent_out,
-        "--agent-run-out",
-        autopilot_agent_run_out,
-        "--out",
-        autopilot_out,
-        "--report",
-        autopilot_report,
-    ]
-    if args.proposal_id:
-        cmd.extend(["--proposal-id", args.proposal_id])
-    if args.policy:
-        cmd.extend(["--policy", args.policy])
-    if args.policy_profile:
-        cmd.extend(["--policy-profile", args.policy_profile])
-    for file_path in args.planner_change_plan_allowed_file or []:
-        cmd.extend(["--planner-change-plan-allowed-file", file_path])
+    def _build_autopilot_cmd(
+        *,
+        planner_backend: str,
+        proposal_id: str | None,
+        conf_min: float,
+        conf_max: float,
+        allowed_files: list[str] | None,
+        out_json: str,
+        out_md: str,
+        intent_out: str,
+        agent_run_out: str,
+    ) -> list[str]:
+        cmd = [
+            sys.executable,
+            "-m",
+            "gateforge.autopilot",
+            "--goal",
+            goal,
+            "--planner-backend",
+            planner_backend,
+            "--context-json",
+            context_path,
+            "--baseline",
+            args.baseline,
+            "--baseline-index",
+            args.baseline_index,
+            "--runtime-threshold",
+            str(args.runtime_threshold),
+            "--save-run-under",
+            args.save_run_under,
+            "--planner-change-plan-confidence-min",
+            str(conf_min),
+            "--planner-change-plan-confidence-max",
+            str(conf_max),
+            "--intent-out",
+            intent_out,
+            "--agent-run-out",
+            agent_run_out,
+            "--out",
+            out_json,
+            "--report",
+            out_md,
+        ]
+        if proposal_id:
+            cmd.extend(["--proposal-id", proposal_id])
+        if args.policy:
+            cmd.extend(["--policy", args.policy])
+        if args.policy_profile:
+            cmd.extend(["--policy-profile", args.policy_profile])
+        for file_path in allowed_files or []:
+            cmd.extend(["--planner-change-plan-allowed-file", file_path])
+        return cmd
+
     attempts: list[dict] = []
+    cmd = _build_autopilot_cmd(
+        planner_backend=args.planner_backend,
+        proposal_id=args.proposal_id,
+        conf_min=args.planner_change_plan_confidence_min,
+        conf_max=args.planner_change_plan_confidence_max,
+        allowed_files=args.planner_change_plan_allowed_file,
+        out_json=autopilot_out,
+        out_md=autopilot_report,
+        intent_out=autopilot_intent_out,
+        agent_run_out=autopilot_agent_run_out,
+    )
     proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
     after_payload = {}
     if Path(autopilot_out).exists():
@@ -312,65 +345,43 @@ def main() -> None:
             "planner_guardrail_violations": after_payload.get("planner_guardrail_violations", []),
             "planner_guardrail_violation_objects": after_payload.get("planner_guardrail_violation_objects", []),
             "summary_path": autopilot_out,
+            "report_path": autopilot_report,
+            "intent_path": autopilot_intent_out,
+            "agent_run_path": autopilot_agent_run_out,
         }
     )
 
     retry_used = False
-    retry_payload = {}
     retry_proc = None
-    should_retry = args.retry_on_failed_attempt and proc.returncode != 0
-    if should_retry:
+    selected_attempt = 1
+    max_retries = args.max_retries if args.retry_on_failed_attempt else 0
+    retry_allowed_files = args.retry_allowed_file or ["examples/openmodelica/MinimalProbe.mo"]
+    for retry_index in range(1, max_retries + 1):
+        if proc.returncode == 0:
+            break
         retry_used = True
-        retry_out = str(run_dir / "autopilot_after_retry.json")
-        retry_report = str(run_dir / "autopilot_after_retry.md")
-        retry_intent_out = str(run_dir / "autopilot_intent_retry.json")
-        retry_agent_run_out = str(run_dir / "autopilot_agent_run_retry.json")
-        retry_cmd = [
-            sys.executable,
-            "-m",
-            "gateforge.autopilot",
-            "--goal",
-            goal,
-            "--planner-backend",
-            args.retry_fallback_planner_backend,
-            "--context-json",
-            context_path,
-            "--baseline",
-            args.baseline,
-            "--baseline-index",
-            args.baseline_index,
-            "--runtime-threshold",
-            str(args.runtime_threshold),
-            "--save-run-under",
-            args.save_run_under,
-            "--planner-change-plan-confidence-min",
-            str(max(args.planner_change_plan_confidence_min, args.retry_confidence_min)),
-            "--planner-change-plan-confidence-max",
-            str(args.planner_change_plan_confidence_max),
-            "--intent-out",
-            retry_intent_out,
-            "--agent-run-out",
-            retry_agent_run_out,
-            "--out",
-            retry_out,
-            "--report",
-            retry_report,
-        ]
-        if args.proposal_id:
-            retry_cmd.extend(["--proposal-id", f"{args.proposal_id}-retry1"])
-        if args.policy:
-            retry_cmd.extend(["--policy", args.policy])
-        if args.policy_profile:
-            retry_cmd.extend(["--policy-profile", args.policy_profile])
-        retry_allowed_files = args.retry_allowed_file or ["examples/openmodelica/MinimalProbe.mo"]
-        for file_path in retry_allowed_files:
-            retry_cmd.extend(["--planner-change-plan-allowed-file", file_path])
+        retry_out = str(run_dir / f"autopilot_after_retry_{retry_index}.json")
+        retry_report = str(run_dir / f"autopilot_after_retry_{retry_index}.md")
+        retry_intent_out = str(run_dir / f"autopilot_intent_retry_{retry_index}.json")
+        retry_agent_run_out = str(run_dir / f"autopilot_agent_run_retry_{retry_index}.json")
+        retry_cmd = _build_autopilot_cmd(
+            planner_backend=args.retry_fallback_planner_backend,
+            proposal_id=f"{args.proposal_id}-retry{retry_index}" if args.proposal_id else None,
+            conf_min=max(args.planner_change_plan_confidence_min, args.retry_confidence_min),
+            conf_max=args.planner_change_plan_confidence_max,
+            allowed_files=retry_allowed_files,
+            out_json=retry_out,
+            out_md=retry_report,
+            intent_out=retry_intent_out,
+            agent_run_out=retry_agent_run_out,
+        )
         retry_proc = subprocess.run(retry_cmd, capture_output=True, text=True, check=False)
+        retry_payload = {}
         if Path(retry_out).exists():
             retry_payload = json.loads(Path(retry_out).read_text(encoding="utf-8"))
         attempts.append(
             {
-                "attempt": 2,
+                "attempt": retry_index + 1,
                 "planner_backend": args.retry_fallback_planner_backend,
                 "exit_code": retry_proc.returncode,
                 "status": retry_payload.get("status"),
@@ -378,14 +389,19 @@ def main() -> None:
                 "planner_guardrail_violations": retry_payload.get("planner_guardrail_violations", []),
                 "planner_guardrail_violation_objects": retry_payload.get("planner_guardrail_violation_objects", []),
                 "summary_path": retry_out,
+                "report_path": retry_report,
+                "intent_path": retry_intent_out,
+                "agent_run_path": retry_agent_run_out,
             }
         )
-        if retry_payload and _status_score(retry_payload.get("policy_decision") or retry_payload.get("status")) >= _status_score(
-            after_payload.get("policy_decision") or after_payload.get("status")
-        ):
+        if retry_payload and _status_score(
+            retry_payload.get("policy_decision") or retry_payload.get("status")
+        ) >= _status_score(after_payload.get("policy_decision") or after_payload.get("status")):
             after_payload = retry_payload
             proc = retry_proc
+            selected_attempt = retry_index + 1
 
+    selected_attempt_payload = next((a for a in attempts if a.get("attempt") == selected_attempt), attempts[0])
     after = {
         "proposal_id": after_payload.get("proposal_id"),
         "status": after_payload.get("status", "UNKNOWN"),
@@ -395,10 +411,10 @@ def main() -> None:
             if isinstance(after_payload.get("policy_reasons"), list)
             else after_payload.get("fail_reasons", [])
         ),
-        "autopilot_summary_path": autopilot_out,
-        "autopilot_report_path": autopilot_report,
-        "autopilot_intent_path": autopilot_intent_out,
-        "autopilot_agent_run_path": autopilot_agent_run_out,
+        "autopilot_summary_path": selected_attempt_payload.get("summary_path"),
+        "autopilot_report_path": selected_attempt_payload.get("report_path"),
+        "autopilot_intent_path": selected_attempt_payload.get("intent_path"),
+        "autopilot_agent_run_path": selected_attempt_payload.get("agent_run_path"),
         "autopilot_exit_code": proc.returncode,
     }
     before_reasons = set(before.get("reasons", []))
@@ -427,7 +443,9 @@ def main() -> None:
         "planner_guardrail_violation_objects": after_payload.get("planner_guardrail_violation_objects", []),
         "planner_guardrail_report_path": after_payload.get("planner_guardrail_report_path"),
         "retry_on_failed_attempt": args.retry_on_failed_attempt,
+        "max_retries": args.max_retries,
         "retry_used": retry_used,
+        "selected_attempt": selected_attempt,
         "attempts": attempts,
         "before": before,
         "after": after,
@@ -441,7 +459,7 @@ def main() -> None:
     }
     if attempts:
         first = attempts[0]
-        selected = attempts[-1] if retry_used and len(attempts) > 1 and after_payload == retry_payload else attempts[0]
+        selected = next((a for a in attempts if a.get("attempt") == selected_attempt), attempts[-1])
         first_rules = {
             item.get("rule_id")
             for item in (first.get("planner_guardrail_violation_objects") or [])
