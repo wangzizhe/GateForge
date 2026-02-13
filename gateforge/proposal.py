@@ -135,6 +135,27 @@ def validate_proposal(proposal: dict) -> None:
             if not isinstance(delta, (int, float)) or delta <= 0:
                 raise ValueError("checker_config.steady_state_regression.max_abs_delta must be > 0")
 
+        control_cfg = checker_config.get("control_behavior_regression")
+        if control_cfg is not None:
+            if "max_overshoot_abs_delta" in control_cfg:
+                value = control_cfg["max_overshoot_abs_delta"]
+                if not isinstance(value, (int, float)) or value <= 0:
+                    raise ValueError(
+                        "checker_config.control_behavior_regression.max_overshoot_abs_delta must be > 0"
+                    )
+            if "max_settling_time_ratio" in control_cfg:
+                value = control_cfg["max_settling_time_ratio"]
+                if not isinstance(value, (int, float)) or value <= 0:
+                    raise ValueError(
+                        "checker_config.control_behavior_regression.max_settling_time_ratio must be > 0"
+                    )
+            if "max_steady_state_abs_delta" in control_cfg:
+                value = control_cfg["max_steady_state_abs_delta"]
+                if not isinstance(value, (int, float)) or value <= 0:
+                    raise ValueError(
+                        "checker_config.control_behavior_regression.max_steady_state_abs_delta must be > 0"
+                    )
+
 
 def execution_target_from_proposal(proposal: dict) -> tuple[str, str]:
     # v0 contract: smoke execution is only valid when proposal requests check/simulate.

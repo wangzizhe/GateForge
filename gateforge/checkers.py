@@ -145,12 +145,96 @@ def steady_state_regression_checker(baseline: dict, candidate: dict, checker_con
     return []
 
 
+def control_behavior_regression_checker(baseline: dict, candidate: dict, checker_config: dict) -> list[dict]:
+    cfg = checker_config.get("control_behavior_regression", {})
+    max_overshoot_abs_delta = float(cfg.get("max_overshoot_abs_delta", 0.1))
+    max_settling_time_ratio = float(cfg.get("max_settling_time_ratio", 1.5))
+    max_steady_state_abs_delta = float(cfg.get("max_steady_state_abs_delta", 0.05))
+
+    findings: list[dict] = []
+
+    b_overshoot = baseline.get("metrics", {}).get("overshoot")
+    c_overshoot = candidate.get("metrics", {}).get("overshoot")
+    if b_overshoot is not None and c_overshoot is not None:
+        base_overshoot = float(b_overshoot)
+        cand_overshoot = float(c_overshoot)
+        overshoot_delta = abs(cand_overshoot - base_overshoot)
+        if overshoot_delta > max_overshoot_abs_delta:
+            findings.append(
+                _make_finding(
+                    checker="control_behavior_regression",
+                    reason="overshoot_regression_detected",
+                    message=(
+                        f"Overshoot delta {overshoot_delta:.4f} exceeds threshold "
+                        f"{max_overshoot_abs_delta:.4f} (baseline={base_overshoot:.4f}, "
+                        f"candidate={cand_overshoot:.4f})."
+                    ),
+                    evidence={
+                        "baseline.metrics.overshoot": base_overshoot,
+                        "candidate.metrics.overshoot": cand_overshoot,
+                        "max_overshoot_abs_delta": max_overshoot_abs_delta,
+                    },
+                )
+            )
+
+    b_settling = baseline.get("metrics", {}).get("settling_time")
+    c_settling = candidate.get("metrics", {}).get("settling_time")
+    if b_settling is not None and c_settling is not None:
+        base_settling = float(b_settling)
+        cand_settling = float(c_settling)
+        if base_settling > 0:
+            max_allowed = base_settling * max_settling_time_ratio
+            if cand_settling > max_allowed:
+                findings.append(
+                    _make_finding(
+                        checker="control_behavior_regression",
+                        reason="settling_time_regression_detected",
+                        message=(
+                            f"Settling time {cand_settling:.4f}s exceeds {max_settling_time_ratio:.2f}x "
+                            f"baseline {base_settling:.4f}s."
+                        ),
+                        evidence={
+                            "baseline.metrics.settling_time": base_settling,
+                            "candidate.metrics.settling_time": cand_settling,
+                            "max_settling_time_ratio": max_settling_time_ratio,
+                        },
+                    )
+                )
+
+    b_steady = baseline.get("metrics", {}).get("steady_state_error")
+    c_steady = candidate.get("metrics", {}).get("steady_state_error")
+    if b_steady is not None and c_steady is not None:
+        base_steady = float(b_steady)
+        cand_steady = float(c_steady)
+        steady_delta = abs(cand_steady - base_steady)
+        if steady_delta > max_steady_state_abs_delta:
+            findings.append(
+                _make_finding(
+                    checker="control_behavior_regression",
+                    reason="steady_state_regression_detected",
+                    message=(
+                        f"Steady-state error delta {steady_delta:.4f} exceeds threshold "
+                        f"{max_steady_state_abs_delta:.4f} (baseline={base_steady:.4f}, "
+                        f"candidate={cand_steady:.4f})."
+                    ),
+                    evidence={
+                        "baseline.metrics.steady_state_error": base_steady,
+                        "candidate.metrics.steady_state_error": cand_steady,
+                        "max_steady_state_abs_delta": max_steady_state_abs_delta,
+                    },
+                )
+            )
+
+    return findings
+
+
 BUILTIN_CHECKERS: dict[str, CheckerFn] = {
     "timeout": timeout_checker,
     "nan_inf": nan_inf_checker,
     "performance_regression": performance_regression_checker,
     "event_explosion": event_explosion_checker,
     "steady_state_regression": steady_state_regression_checker,
+    "control_behavior_regression": control_behavior_regression_checker,
 }
 
 CHECKER_REGISTRY: dict[str, CheckerFn] = dict(BUILTIN_CHECKERS)

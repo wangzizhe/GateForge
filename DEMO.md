@@ -95,7 +95,40 @@ Expected result:
 - regression reasons include:
   - `steady_state_regression_detected`
 
-## 4. Optional CI Demo Job
+## 4. Behavior Metrics Checker Demo (Overshoot + Settling)
+
+Command:
+
+```bash
+bash scripts/demo_behavior_metrics_checker.sh
+```
+
+With strict profile:
+
+```bash
+POLICY_PROFILE=industrial_strict_v0 bash scripts/demo_behavior_metrics_checker.sh
+```
+
+What it validates:
+
+- combined behavior checker for control-oriented metrics
+- overshoot, settling-time, and steady-state thresholds in one gate
+
+Key outputs:
+
+- `artifacts/behavior_metrics_demo/regression.json`
+- `artifacts/behavior_metrics_demo/summary.json`
+- `artifacts/behavior_metrics_demo/summary.md`
+
+Expected result:
+
+- regression output contains `"decision": "NEEDS_REVIEW"` (under default medium-risk policy)
+- regression reasons include:
+  - `overshoot_regression_detected`
+  - `settling_time_regression_detected`
+  - `steady_state_regression_detected`
+
+## 5. Optional CI Demo Job
 
 In GitHub Actions (`ci` workflow), use **Run workflow** and enable:
 
@@ -124,7 +157,7 @@ For combined evidence, use artifact:
 - `demo-bundle` (includes `artifacts/demo_all_summary.md`)
 - Actions job page also shows `Demo Bundle Summary` including reason/finding counts.
 
-## 5. One-command bundle (local)
+## 6. One-command bundle (local)
 
 Command:
 
@@ -155,7 +188,7 @@ cat artifacts/bench-pack/summary.json
 cat artifacts/bench-pack/summary.md
 ```
 
-## 6. Autopilot Dry-Run Demo (Human Review Template)
+## 7. Autopilot Dry-Run Demo (Human Review Template)
 
 Command:
 

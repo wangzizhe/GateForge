@@ -197,6 +197,63 @@ class RegressionTests(unittest.TestCase):
         self.assertEqual(result_enabled["decision"], "FAIL")
         self.assertIn("performance_regression_detected", result_enabled["reasons"])
 
+    def test_compare_fail_control_behavior_overshoot_checker(self) -> None:
+        baseline = _evidence("base")
+        candidate = _evidence("cand")
+        baseline["metrics"]["overshoot"] = 0.1
+        candidate["metrics"]["overshoot"] = 0.3
+        result = compare_evidence(
+            baseline,
+            candidate,
+            runtime_regression_threshold=10.0,
+            checker_names=["control_behavior_regression"],
+            checker_config={"control_behavior_regression": {"max_overshoot_abs_delta": 0.1}},
+        )
+        self.assertEqual(result["decision"], "FAIL")
+        self.assertIn("overshoot_regression_detected", result["reasons"])
+        self.assertTrue(any(f.get("checker") == "control_behavior_regression" for f in result["findings"]))
+
+    def test_compare_fail_control_behavior_settling_checker(self) -> None:
+        baseline = _evidence("base")
+        candidate = _evidence("cand")
+        baseline["metrics"]["settling_time"] = 1.0
+        candidate["metrics"]["settling_time"] = 2.0
+        result = compare_evidence(
+            baseline,
+            candidate,
+            runtime_regression_threshold=10.0,
+            checker_names=["control_behavior_regression"],
+            checker_config={"control_behavior_regression": {"max_settling_time_ratio": 1.5}},
+        )
+        self.assertEqual(result["decision"], "FAIL")
+        self.assertIn("settling_time_regression_detected", result["reasons"])
+
+    def test_compare_control_behavior_checker_enable_disable(self) -> None:
+        baseline = _evidence("base")
+        candidate = _evidence("cand")
+        baseline["metrics"]["overshoot"] = 0.1
+        candidate["metrics"]["overshoot"] = 0.3
+        result_disabled = compare_evidence(
+            baseline,
+            candidate,
+            runtime_regression_threshold=10.0,
+            checker_names=["control_behavior_regression"],
+            checker_config={"_runtime": {"disable": ["control_behavior_regression"]}},
+        )
+        self.assertEqual(result_disabled["decision"], "PASS")
+        result_enabled = compare_evidence(
+            baseline,
+            candidate,
+            runtime_regression_threshold=10.0,
+            checker_names=[],
+            checker_config={
+                "_runtime": {"enable": ["control_behavior_regression"]},
+                "control_behavior_regression": {"max_overshoot_abs_delta": 0.1},
+            },
+        )
+        self.assertEqual(result_enabled["decision"], "FAIL")
+        self.assertIn("overshoot_regression_detected", result_enabled["reasons"])
+
     def test_compare_fail_strict_backend_mismatch(self) -> None:
         baseline = _evidence("base", backend="mock")
         candidate = _evidence("cand", backend="openmodelica_docker")
