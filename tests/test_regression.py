@@ -18,6 +18,7 @@ def _evidence(
     check_ok: bool = True,
     simulate_ok: bool = True,
     runtime_seconds: float = 1.0,
+    events: int = 10,
     proposal_id: str | None = None,
     failure_type: str = "none",
     log_excerpt: str = "",
@@ -33,7 +34,7 @@ def _evidence(
         "gate": gate,
         "check_ok": check_ok,
         "simulate_ok": simulate_ok,
-        "metrics": {"runtime_seconds": runtime_seconds},
+        "metrics": {"runtime_seconds": runtime_seconds, "events": events},
         "artifacts": {"log_excerpt": log_excerpt},
     }
 
@@ -93,6 +94,32 @@ class RegressionTests(unittest.TestCase):
         self.assertEqual(result["decision"], "FAIL")
         self.assertIn("nan_inf_detected", result["reasons"])
         self.assertTrue(any(f.get("checker") == "nan_inf" for f in result["findings"]))
+
+    def test_compare_fail_performance_regression_checker(self) -> None:
+        baseline = _evidence("base", runtime_seconds=1.0)
+        candidate = _evidence("cand", runtime_seconds=2.5)
+        result = compare_evidence(
+            baseline,
+            candidate,
+            runtime_regression_threshold=10.0,
+            checker_names=["performance_regression"],
+        )
+        self.assertEqual(result["decision"], "FAIL")
+        self.assertIn("performance_regression_detected", result["reasons"])
+        self.assertTrue(any(f.get("checker") == "performance_regression" for f in result["findings"]))
+
+    def test_compare_fail_event_explosion_checker(self) -> None:
+        baseline = _evidence("base", events=10)
+        candidate = _evidence("cand", events=30)
+        result = compare_evidence(
+            baseline,
+            candidate,
+            runtime_regression_threshold=10.0,
+            checker_names=["event_explosion"],
+        )
+        self.assertEqual(result["decision"], "FAIL")
+        self.assertIn("event_explosion_detected", result["reasons"])
+        self.assertTrue(any(f.get("checker") == "event_explosion" for f in result["findings"]))
 
     def test_compare_fail_strict_backend_mismatch(self) -> None:
         baseline = _evidence("base", backend="mock")

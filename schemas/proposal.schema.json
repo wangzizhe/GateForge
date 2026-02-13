@@ -64,7 +64,7 @@
       "type": "array",
       "items": {
         "type": "string",
-        "enum": ["timeout", "nan_inf"]
+        "enum": ["timeout", "nan_inf", "performance_regression", "event_explosion"]
       }
     },
     "metadata": {

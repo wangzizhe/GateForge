@@ -41,9 +41,56 @@ def nan_inf_checker(_baseline: dict, candidate: dict) -> list[dict]:
     return []
 
 
+def performance_regression_checker(baseline: dict, candidate: dict) -> list[dict]:
+    base_runtime = float(baseline.get("metrics", {}).get("runtime_seconds", 0.0))
+    cand_runtime = float(candidate.get("metrics", {}).get("runtime_seconds", 0.0))
+    if base_runtime <= 0:
+        return []
+    if cand_runtime > (base_runtime * 2.0):
+        return [
+            _make_finding(
+                checker="performance_regression",
+                reason="performance_regression_detected",
+                message=(
+                    f"Candidate runtime {cand_runtime:.4f}s exceeds 2.0x baseline "
+                    f"{base_runtime:.4f}s."
+                ),
+            )
+        ]
+    return []
+
+
+def event_explosion_checker(baseline: dict, candidate: dict) -> list[dict]:
+    base_events = int(baseline.get("metrics", {}).get("events", 0))
+    cand_events = int(candidate.get("metrics", {}).get("events", 0))
+    if base_events > 0:
+        if cand_events > (base_events * 2):
+            return [
+                _make_finding(
+                    checker="event_explosion",
+                    reason="event_explosion_detected",
+                    message=(
+                        f"Candidate events {cand_events} exceeds 2.0x baseline {base_events}."
+                    ),
+                )
+            ]
+        return []
+    if cand_events >= 100:
+        return [
+            _make_finding(
+                checker="event_explosion",
+                reason="event_explosion_detected",
+                message=f"Candidate events {cand_events} unexpectedly high from zero baseline.",
+            )
+        ]
+    return []
+
+
 BUILTIN_CHECKERS: dict[str, CheckerFn] = {
     "timeout": timeout_checker,
     "nan_inf": nan_inf_checker,
+    "performance_regression": performance_regression_checker,
+    "event_explosion": event_explosion_checker,
 }
 
 
@@ -74,4 +121,3 @@ def run_checkers(
             seen.add(reason)
 
     return findings, reasons
-
