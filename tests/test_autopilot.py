@@ -430,6 +430,45 @@ class AutopilotTests(unittest.TestCase):
             self.assertTrue(generated_path.exists())
             intent_payload = json.loads(intent_out.read_text(encoding="utf-8"))
             self.assertIn("change_set_path", intent_payload.get("overrides", {}))
+            self.assertIn("change_plan_guardrails", intent_payload.get("planner_inputs", {}))
+
+    def test_autopilot_materialize_respects_planner_confidence_guardrail(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            baseline = root / "baseline.json"
+            out = root / "summary.json"
+            context = root / "context.json"
+            self._write_baseline(baseline)
+            context.write_text(json.dumps({"change_plan_confidence": 0.4}), encoding="utf-8")
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.autopilot",
+                    "--goal",
+                    "apply deterministic patch and run",
+                    "--planner-backend",
+                    "rule",
+                    "--materialize-change-set",
+                    "--context-json",
+                    str(context),
+                    "--planner-change-plan-confidence-min",
+                    "0.8",
+                    "--baseline",
+                    str(baseline),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertNotEqual(proc.returncode, 0)
+            payload = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(payload["planner_exit_code"], 1)
+            self.assertEqual(payload["status"], "UNKNOWN")
+            self.assertIn("planner_stderr_tail", payload)
 
     def test_autopilot_emits_checker_template(self) -> None:
         with tempfile.TemporaryDirectory() as d:

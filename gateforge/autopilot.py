@@ -123,6 +123,36 @@ def main() -> None:
         help="If planner returns change_set_draft, write it and inject change_set_path into intent overrides",
     )
     parser.add_argument(
+        "--planner-change-plan-allowed-root",
+        action="append",
+        default=None,
+        help="Allowed root prefix for planner-generated change files (repeatable)",
+    )
+    parser.add_argument(
+        "--planner-change-plan-allowed-suffix",
+        action="append",
+        default=None,
+        help="Allowed file suffix for planner-generated change files (repeatable)",
+    )
+    parser.add_argument(
+        "--planner-change-plan-allowed-file",
+        action="append",
+        default=None,
+        help="Allowed file whitelist for planner-generated change files (repeatable)",
+    )
+    parser.add_argument(
+        "--planner-change-plan-confidence-min",
+        type=float,
+        default=0.0,
+        help="Reject planner change_plan if min confidence is below this value",
+    )
+    parser.add_argument(
+        "--planner-change-plan-confidence-max",
+        type=float,
+        default=1.0,
+        help="Reject planner change_plan if max confidence is above this value",
+    )
+    parser.add_argument(
         "--emit-checker-template",
         action="store_true",
         help="Emit checker template artifact during run execution",
@@ -216,16 +246,34 @@ def main() -> None:
         planner_cmd.extend(["--context-json", args.context_json])
     if args.proposal_id:
         planner_cmd.extend(["--proposal-id", args.proposal_id])
+    planner_cmd.extend(["--change-plan-confidence-min", str(args.planner_change_plan_confidence_min)])
+    planner_cmd.extend(["--change-plan-confidence-max", str(args.planner_change_plan_confidence_max)])
+    for root in args.planner_change_plan_allowed_root or []:
+        planner_cmd.extend(["--change-plan-allowed-root", root])
+    for suffix in args.planner_change_plan_allowed_suffix or []:
+        planner_cmd.extend(["--change-plan-allowed-suffix", suffix])
+    for file_path in args.planner_change_plan_allowed_file or []:
+        planner_cmd.extend(["--change-plan-allowed-file", file_path])
 
+    intent_path = Path(args.intent_out)
+    intent_pre_exists = intent_path.exists()
+    intent_pre_mtime_ns = intent_path.stat().st_mtime_ns if intent_pre_exists else None
     planner_proc = subprocess.run(planner_cmd, capture_output=True, text=True, check=False)
 
     intent_payload = {}
-    if Path(args.intent_out).exists():
-        intent_payload = json.loads(Path(args.intent_out).read_text(encoding="utf-8"))
+    planner_succeeded = planner_proc.returncode == 0
+    intent_written_this_run = False
+    if intent_path.exists():
+        if not intent_pre_exists:
+            intent_written_this_run = True
+        elif intent_pre_mtime_ns is not None and intent_path.stat().st_mtime_ns > intent_pre_mtime_ns:
+            intent_written_this_run = True
+    if planner_succeeded and intent_path.exists():
+        intent_payload = json.loads(intent_path.read_text(encoding="utf-8"))
 
     generated_change_set_path = None
     generated_change_set_source = None
-    if args.materialize_change_set:
+    if planner_succeeded and args.materialize_change_set:
         generated = None
         if isinstance(intent_payload.get("change_plan"), dict):
             generated = materialize_change_set_from_plan(intent_payload["change_plan"])
@@ -278,32 +326,48 @@ def main() -> None:
     if args.emit_checker_template:
         agent_cmd.extend(["--emit-checker-template", checker_template_out])
     agent_proc = None
-    if not args.dry_run:
+    if planner_succeeded and not args.dry_run:
         agent_proc = subprocess.run(agent_cmd, capture_output=True, text=True, check=False)
 
-    if not intent_payload and Path(args.intent_out).exists():
-        intent_payload = json.loads(Path(args.intent_out).read_text(encoding="utf-8"))
+    if planner_succeeded and not intent_payload and intent_path.exists():
+        intent_payload = json.loads(intent_path.read_text(encoding="utf-8"))
     agent_payload = {}
-    if not args.dry_run and Path(args.agent_run_out).exists():
+    if planner_succeeded and not args.dry_run and Path(args.agent_run_out).exists():
         agent_payload = json.loads(Path(args.agent_run_out).read_text(encoding="utf-8"))
 
-    agent_run_exit_code = None if args.dry_run else agent_proc.returncode
-    status = "PLANNED" if args.dry_run else agent_payload.get("status", "UNKNOWN")
+    if args.dry_run or agent_proc is None:
+        agent_run_exit_code = None
+    else:
+        agent_run_exit_code = agent_proc.returncode
+    if not planner_succeeded:
+        status = "UNKNOWN"
+    else:
+        status = "PLANNED" if args.dry_run else agent_payload.get("status", "UNKNOWN")
     summary = {
         "intent_path": args.intent_out,
         "agent_run_path": args.agent_run_out,
         "save_run_under": args.save_run_under,
         "dry_run": args.dry_run,
         "planner_exit_code": planner_proc.returncode,
+        "planner_succeeded": planner_succeeded,
+        "intent_written_this_run": intent_written_this_run,
         "agent_run_exit_code": agent_run_exit_code,
         "planner_backend": args.planner_backend,
         "materialize_change_set": args.materialize_change_set,
+        "planner_change_plan_confidence_min": args.planner_change_plan_confidence_min,
+        "planner_change_plan_confidence_max": args.planner_change_plan_confidence_max,
+        "planner_change_plan_allowed_roots": args.planner_change_plan_allowed_root or [],
+        "planner_change_plan_allowed_suffixes": args.planner_change_plan_allowed_suffix or [],
+        "planner_change_plan_allowed_files": args.planner_change_plan_allowed_file or [],
         "emit_checker_template": args.emit_checker_template,
         "generated_change_set_path": generated_change_set_path,
         "generated_change_set_source": generated_change_set_source,
         "policy_version": None,
         "policy_profile": args.policy_profile or "default",
         "intent": intent_payload.get("intent"),
+        "planner_guardrails": intent_payload.get("planner_inputs", {}).get("change_plan_guardrails")
+        if isinstance(intent_payload.get("planner_inputs"), dict)
+        else None,
         "proposal_id": agent_payload.get("proposal_id") or intent_payload.get("proposal_id"),
         "status": status,
         "planned_run": {

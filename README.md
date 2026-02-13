@@ -436,12 +436,32 @@ python -m gateforge.llm_planner \
   --planner-backend rule \
   --context-json /tmp/planner_context.json \
   --out artifacts/agent/intent_from_context.json
+
+# enforce planner guardrails for planner-emitted change_plan/change_set
+python -m gateforge.llm_planner \
+  --goal "apply deterministic patch and run" \
+  --planner-backend rule \
+  --emit-change-set-draft \
+  --change-plan-confidence-min 0.8 \
+  --change-plan-allowed-file examples/openmodelica/MinimalProbe.mo \
+  --out artifacts/agent/intent_guarded.json
 ```
 
 Planner backend option:
 - `--planner-backend rule`: implemented (default)
 - `--planner-backend openai`: placeholder only (validates `OPENAI_API_KEY`, then exits with not-implemented message)
 - `--planner-backend gemini`: implemented (requires `GOOGLE_API_KEY`; default model `gemini-2.5-flash-lite`)
+
+Planner guardrails (for LLM/rule outputs with `change_plan` / `change_set_draft`):
+- `--change-plan-confidence-min` / `--change-plan-confidence-max`
+- `--change-plan-allowed-root` / `--change-plan-allowed-suffix`
+- `--change-plan-allowed-file` (exact whitelist)
+
+Guardrail demo:
+
+```bash
+bash scripts/demo_planner_guardrails.sh
+```
 
 Agent medium intent (OpenModelica medium case):
 

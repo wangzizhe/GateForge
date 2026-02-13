@@ -148,6 +148,24 @@ def main() -> None:
         help="Artifacts namespace for repaired run",
     )
     parser.add_argument(
+        "--planner-change-plan-confidence-min",
+        type=float,
+        default=0.5,
+        help="Forwarded to autopilot planner guardrail for minimum change_plan confidence",
+    )
+    parser.add_argument(
+        "--planner-change-plan-confidence-max",
+        type=float,
+        default=1.0,
+        help="Forwarded to autopilot planner guardrail for maximum change_plan confidence",
+    )
+    parser.add_argument(
+        "--planner-change-plan-allowed-file",
+        action="append",
+        default=None,
+        help="Forwarded planner file whitelist for change_plan/change_set files (repeatable)",
+    )
+    parser.add_argument(
         "--out",
         default="artifacts/repair_loop/repair_loop_summary.json",
         help="Where to write repair-loop summary JSON",
@@ -202,6 +220,10 @@ def main() -> None:
         str(args.runtime_threshold),
         "--save-run-under",
         args.save_run_under,
+        "--planner-change-plan-confidence-min",
+        str(args.planner_change_plan_confidence_min),
+        "--planner-change-plan-confidence-max",
+        str(args.planner_change_plan_confidence_max),
         "--intent-out",
         autopilot_intent_out,
         "--agent-run-out",
@@ -217,6 +239,8 @@ def main() -> None:
         cmd.extend(["--policy", args.policy])
     if args.policy_profile:
         cmd.extend(["--policy-profile", args.policy_profile])
+    for file_path in args.planner_change_plan_allowed_file or []:
+        cmd.extend(["--planner-change-plan-allowed-file", file_path])
 
     proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
 
@@ -257,6 +281,9 @@ def main() -> None:
         "source_kind": before.get("source_kind"),
         "source_proposal_id": before.get("proposal_id"),
         "goal": goal,
+        "planner_change_plan_confidence_min": args.planner_change_plan_confidence_min,
+        "planner_change_plan_confidence_max": args.planner_change_plan_confidence_max,
+        "planner_change_plan_allowed_files": args.planner_change_plan_allowed_file or [],
         "before": before,
         "after": after,
         "comparison": {

@@ -9,6 +9,7 @@ CHANGE_PLAN_SCHEMA_VERSION = "0.1.0"
 SUPPORTED_KINDS = {"replace_text"}
 DEFAULT_ALLOWED_ROOTS = ("examples/openmodelica",)
 DEFAULT_ALLOWED_SUFFIXES = (".mo", ".mos")
+DEFAULT_ALLOWED_RISK_TAGS = ("low", "medium", "high")
 
 
 def validate_change_plan(
@@ -16,6 +17,8 @@ def validate_change_plan(
     *,
     allowed_roots: tuple[str, ...] = DEFAULT_ALLOWED_ROOTS,
     allowed_suffixes: tuple[str, ...] = DEFAULT_ALLOWED_SUFFIXES,
+    allowed_files: tuple[str, ...] | None = None,
+    allowed_risk_tags: tuple[str, ...] = DEFAULT_ALLOWED_RISK_TAGS,
     max_ops: int = 20,
     max_chars_per_op: int = 4000,
 ) -> None:
@@ -47,6 +50,8 @@ def validate_change_plan(
             raise ValueError(
                 f"change_plan operation[{idx}].file must end with one of {sorted(allowed_suffixes)}"
             )
+        if allowed_files and file_path not in allowed_files:
+            raise ValueError(f"change_plan operation[{idx}].file is not in allowed_files whitelist: {file_path}")
         if not isinstance(old_text, str):
             raise ValueError(f"change_plan operation[{idx}].old must be a string")
         if not isinstance(new_text, str):
@@ -61,6 +66,11 @@ def validate_change_plan(
         confidence = op.get("confidence")
         if not isinstance(confidence, (int, float)) or not (0.0 <= float(confidence) <= 1.0):
             raise ValueError(f"change_plan operation[{idx}].confidence must be in [0.0, 1.0]")
+        risk_tag = op.get("risk_tag")
+        if risk_tag is not None and risk_tag not in allowed_risk_tags:
+            raise ValueError(
+                f"change_plan operation[{idx}].risk_tag must be one of {sorted(allowed_risk_tags)}"
+            )
 
 
 def materialize_change_set_from_plan(change_plan: dict) -> dict:
