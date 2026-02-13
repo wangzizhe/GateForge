@@ -147,6 +147,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertIn("planner_guardrails", payload.get("selected", {}))
         self.assertIn("repair_batch_demo", payload.get("selected", {}))
         self.assertIn("repair_batch_compare_demo", payload.get("selected", {}))
+        self.assertIn("governance_snapshot_demo", payload.get("selected", {}))
         self.assertIsInstance(payload.get("planner_guardrail_rule_ids"), list)
         self.assertIn("change_plan_confidence_min_below_threshold", payload.get("planner_guardrail_rule_ids", []))
 
@@ -290,6 +291,18 @@ class DemoScriptTests(unittest.TestCase):
         self.assertEqual(compare.get("from_policy_profile"), "default")
         self.assertEqual(compare.get("to_policy_profile"), "industrial_strict_v0")
         self.assertEqual(compare.get("total_compared_cases"), 2)
+
+    def test_demo_governance_snapshot_script(self) -> None:
+        proc = subprocess.run(
+            ["bash", "scripts/demo_governance_snapshot.sh"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+        payload = json.loads(Path("artifacts/governance_snapshot_demo/summary.json").read_text(encoding="utf-8"))
+        self.assertIn(payload.get("status"), {"PASS", "NEEDS_REVIEW", "FAIL"})
+        self.assertIn("kpis", payload)
 
 
 if __name__ == "__main__":
