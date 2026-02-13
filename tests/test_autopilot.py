@@ -317,6 +317,63 @@ class AutopilotTests(unittest.TestCase):
             checks = payload.get("planned_required_human_checks", [])
             self.assertTrue(any("rollback" in c.lower() for c in checks))
 
+    def test_autopilot_dry_run_uses_policy_templates(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            out = root / "summary.json"
+            context = root / "context.json"
+            policy = root / "policy.json"
+            context.write_text(
+                json.dumps(
+                    {
+                        "risk_level": "high",
+                        "change_summary": "high risk dry run with custom policy",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            policy.write_text(
+                json.dumps(
+                    {
+                        "critical_reason_prefixes": ["strict_"],
+                        "needs_review_reason_prefixes": ["runtime_regression"],
+                        "fail_on_needs_review_risk_levels": ["high"],
+                        "fail_on_unknown_reasons": True,
+                        "dry_run_human_checks": {
+                            "base": ["custom-base"],
+                            "medium_extra": ["custom-medium"],
+                            "high_extra": ["custom-high"],
+                            "changeset_extra": ["custom-cs"],
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.autopilot",
+                    "--goal",
+                    "apply deterministic patch and run",
+                    "--context-json",
+                    str(context),
+                    "--policy",
+                    str(policy),
+                    "--materialize-change-set",
+                    "--dry-run",
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            payload = json.loads(out.read_text(encoding="utf-8"))
+            checks = payload.get("planned_required_human_checks", [])
+            self.assertEqual(checks, ["custom-base", "custom-medium", "custom-high", "custom-cs"])
+
     def test_autopilot_materializes_change_set_from_planner(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)

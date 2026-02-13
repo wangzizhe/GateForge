@@ -6,6 +6,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from .policy import dry_run_human_checks, load_policy
+
 
 def _write_json(path: str, payload: dict) -> None:
     p = Path(path)
@@ -75,22 +77,13 @@ def _write_markdown(path: str, summary: dict) -> None:
     p.write_text("\n".join(lines), encoding="utf-8")
 
 
-def _compute_planned_required_checks(intent_payload: dict) -> list[str]:
+def _compute_planned_required_checks(intent_payload: dict, policy: dict) -> list[str]:
     overrides = intent_payload.get("overrides") if isinstance(intent_payload, dict) else {}
     if not isinstance(overrides, dict):
         overrides = {}
     risk_level = overrides.get("risk_level", "low")
-    checks = [
-        "Confirm proposal backend/model_script mapping before execution.",
-        "Review baseline selection strategy (auto/index or explicit path).",
-    ]
-    if risk_level in {"medium", "high"}:
-        checks.append("Confirm regression thresholds and checker_config reflect intended risk posture.")
-    if risk_level == "high":
-        checks.append("Pre-approve rollback path if gate returns FAIL after candidate execution.")
-    if overrides.get("change_set_path") or overrides.get("change_set_draft"):
-        checks.append("Review change-set diff against target files before execution.")
-    return checks
+    has_change_set = bool(overrides.get("change_set_path") or intent_payload.get("change_set_draft"))
+    return dry_run_human_checks(policy=policy, risk_level=risk_level, has_change_set=has_change_set)
 
 
 def main() -> None:
@@ -291,7 +284,18 @@ def main() -> None:
     if args.dry_run:
         overrides = intent_payload.get("overrides", {}) if isinstance(intent_payload, dict) else {}
         summary["planned_risk_level"] = (overrides.get("risk_level") if isinstance(overrides, dict) else None) or "low"
-        summary["planned_required_human_checks"] = _compute_planned_required_checks(intent_payload)
+        try:
+            policy_payload = load_policy(args.policy)
+            summary["planned_required_human_checks"] = _compute_planned_required_checks(
+                intent_payload=intent_payload,
+                policy=policy_payload,
+            )
+        except Exception as exc:
+            summary["planned_required_human_checks"] = _compute_planned_required_checks(
+                intent_payload=intent_payload,
+                policy={},
+            )
+            summary["policy_load_error"] = str(exc)
     if agent_payload:
         summary["policy_decision"] = agent_payload.get("policy_decision")
         summary["fail_reasons"] = agent_payload.get("fail_reasons", [])
