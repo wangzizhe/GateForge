@@ -469,6 +469,8 @@ class AutopilotTests(unittest.TestCase):
             self.assertEqual(payload["planner_exit_code"], 1)
             self.assertEqual(payload["status"], "UNKNOWN")
             self.assertIn("planner_stderr_tail", payload)
+            self.assertEqual(payload["planner_guardrail_decision"], "FAIL")
+            self.assertTrue(payload["planner_guardrail_violations"])
 
     def test_autopilot_emits_checker_template(self) -> None:
         with tempfile.TemporaryDirectory() as d:
@@ -505,6 +507,50 @@ class AutopilotTests(unittest.TestCase):
             )
             self.assertEqual(payload["checker_template_path"], "artifacts/autopilot/checker_template.json")
             self.assertTrue(Path("artifacts/autopilot/checker_template.json").exists())
+
+    def test_autopilot_uses_policy_default_planner_confidence_min(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            baseline = root / "baseline.json"
+            out = root / "summary.json"
+            policy = root / "policy.json"
+            self._write_baseline(baseline)
+            policy.write_text(
+                json.dumps(
+                    {
+                        "min_confidence_accept": 0.95,
+                        "min_confidence_auto_apply": 0.95,
+                        "change_set_allowed_roots": ["examples/openmodelica"],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.autopilot",
+                    "--goal",
+                    "apply deterministic patch and run",
+                    "--planner-backend",
+                    "rule",
+                    "--materialize-change-set",
+                    "--baseline",
+                    str(baseline),
+                    "--policy",
+                    str(policy),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertNotEqual(proc.returncode, 0)
+            payload = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(payload["planner_exit_code"], 1)
+            self.assertEqual(payload["planner_guardrail_decision"], "FAIL")
+            self.assertIn("confidence_min", " ".join(payload.get("planner_guardrail_violations", [])))
 
     def test_autopilot_dry_run_accepts_policy_profile(self) -> None:
         with tempfile.TemporaryDirectory() as d:

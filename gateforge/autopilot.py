@@ -40,6 +40,8 @@ def _write_markdown(path: str, summary: dict) -> None:
         f"- checker_template_path: `{summary.get('checker_template_path')}`",
         f"- generated_change_set_path: `{summary.get('generated_change_set_path')}`",
         f"- generated_change_set_source: `{summary.get('generated_change_set_source')}`",
+        f"- planner_guardrail_decision: `{summary.get('planner_guardrail_decision')}`",
+        f"- planner_guardrail_report_path: `{summary.get('planner_guardrail_report_path')}`",
         f"- change_apply_status: `{summary.get('change_apply_status')}`",
         f"- applied_changes_count: `{summary.get('applied_changes_count')}`",
         f"- change_set_hash: `{summary.get('change_set_hash')}`",
@@ -81,6 +83,12 @@ def _write_markdown(path: str, summary: dict) -> None:
     human_hints = summary.get("human_hints", [])
     if human_hints:
         lines.extend([f"- {hint}" for hint in human_hints])
+    else:
+        lines.append("- `none`")
+    lines.extend(["", "## Planner Guardrail Violations", ""])
+    guardrail_violations = summary.get("planner_guardrail_violations", [])
+    if guardrail_violations:
+        lines.extend([f"- `{item}`" for item in guardrail_violations])
     else:
         lines.append("- `none`")
     lines.append("")
@@ -143,14 +151,14 @@ def main() -> None:
     parser.add_argument(
         "--planner-change-plan-confidence-min",
         type=float,
-        default=0.0,
-        help="Reject planner change_plan if min confidence is below this value",
+        default=None,
+        help="Reject planner change_plan if min confidence is below this value (default: policy min_confidence_accept)",
     )
     parser.add_argument(
         "--planner-change-plan-confidence-max",
         type=float,
-        default=1.0,
-        help="Reject planner change_plan if max confidence is above this value",
+        default=None,
+        help="Reject planner change_plan if max confidence is above this value (default: 1.0)",
     )
     parser.add_argument(
         "--emit-checker-template",
@@ -225,6 +233,29 @@ def main() -> None:
     regression_out = str(run_root / "regression.json")
     checker_template_out = str(run_root / "checker_template.json")
 
+    try:
+        policy_path = resolve_policy_path(policy_path=args.policy, policy_profile=args.policy_profile)
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
+    policy_payload = load_policy(policy_path)
+    resolved_planner_conf_min = (
+        float(args.planner_change_plan_confidence_min)
+        if args.planner_change_plan_confidence_min is not None
+        else float(policy_payload.get("min_confidence_accept", 0.0))
+    )
+    resolved_planner_conf_max = (
+        float(args.planner_change_plan_confidence_max)
+        if args.planner_change_plan_confidence_max is not None
+        else 1.0
+    )
+    if resolved_planner_conf_min > resolved_planner_conf_max:
+        raise SystemExit("Resolved planner confidence guardrails are invalid: min > max")
+    resolved_planner_allowed_roots = (
+        list(args.planner_change_plan_allowed_root)
+        if args.planner_change_plan_allowed_root
+        else list(policy_payload.get("change_set_allowed_roots", []))
+    )
+
     planner_cmd = [
         sys.executable,
         "-m",
@@ -246,10 +277,12 @@ def main() -> None:
         planner_cmd.extend(["--context-json", args.context_json])
     if args.proposal_id:
         planner_cmd.extend(["--proposal-id", args.proposal_id])
-    planner_cmd.extend(["--change-plan-confidence-min", str(args.planner_change_plan_confidence_min)])
-    planner_cmd.extend(["--change-plan-confidence-max", str(args.planner_change_plan_confidence_max)])
-    for root in args.planner_change_plan_allowed_root or []:
+    planner_cmd.extend(["--change-plan-confidence-min", str(resolved_planner_conf_min)])
+    planner_cmd.extend(["--change-plan-confidence-max", str(resolved_planner_conf_max)])
+    for root in resolved_planner_allowed_roots:
         planner_cmd.extend(["--change-plan-allowed-root", root])
+    guardrail_report_path = str(run_root / "planner_guardrails.json")
+    planner_cmd.extend(["--guardrail-report-out", guardrail_report_path])
     for suffix in args.planner_change_plan_allowed_suffix or []:
         planner_cmd.extend(["--change-plan-allowed-suffix", suffix])
     for file_path in args.planner_change_plan_allowed_file or []:
@@ -291,11 +324,6 @@ def main() -> None:
             intent_payload["overrides"] = overrides
             _write_json(args.intent_out, intent_payload)
 
-    try:
-        policy_path = resolve_policy_path(policy_path=args.policy, policy_profile=args.policy_profile)
-    except ValueError as exc:
-        raise SystemExit(str(exc)) from exc
-
     agent_cmd = [
         sys.executable,
         "-m",
@@ -331,6 +359,10 @@ def main() -> None:
 
     if planner_succeeded and not intent_payload and intent_path.exists():
         intent_payload = json.loads(intent_path.read_text(encoding="utf-8"))
+    guardrail_payload = {}
+    guardrail_report_file = Path(guardrail_report_path)
+    if guardrail_report_file.exists():
+        guardrail_payload = json.loads(guardrail_report_file.read_text(encoding="utf-8"))
     agent_payload = {}
     if planner_succeeded and not args.dry_run and Path(args.agent_run_out).exists():
         agent_payload = json.loads(Path(args.agent_run_out).read_text(encoding="utf-8"))
@@ -354,11 +386,14 @@ def main() -> None:
         "agent_run_exit_code": agent_run_exit_code,
         "planner_backend": args.planner_backend,
         "materialize_change_set": args.materialize_change_set,
-        "planner_change_plan_confidence_min": args.planner_change_plan_confidence_min,
-        "planner_change_plan_confidence_max": args.planner_change_plan_confidence_max,
-        "planner_change_plan_allowed_roots": args.planner_change_plan_allowed_root or [],
+        "planner_change_plan_confidence_min": resolved_planner_conf_min,
+        "planner_change_plan_confidence_max": resolved_planner_conf_max,
+        "planner_change_plan_allowed_roots": resolved_planner_allowed_roots,
         "planner_change_plan_allowed_suffixes": args.planner_change_plan_allowed_suffix or [],
         "planner_change_plan_allowed_files": args.planner_change_plan_allowed_file or [],
+        "planner_guardrail_report_path": guardrail_report_path,
+        "planner_guardrail_decision": guardrail_payload.get("decision"),
+        "planner_guardrail_violations": guardrail_payload.get("violations", []),
         "emit_checker_template": args.emit_checker_template,
         "generated_change_set_path": generated_change_set_path,
         "generated_change_set_source": generated_change_set_source,

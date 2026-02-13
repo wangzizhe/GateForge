@@ -350,6 +350,7 @@ What it validates:
 - guarded planner output passes when confidence and file constraints are satisfied
 - low-confidence planner output is rejected before execution
 - planner output targeting non-whitelisted file is rejected before execution
+- planner guardrail result is persisted for downstream audit (`decision + violations`)
 
 Key outputs:
 

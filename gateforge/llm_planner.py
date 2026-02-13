@@ -34,6 +34,12 @@ def _write_json(path: str, payload: dict) -> None:
     p.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
+def _write_guardrail_report(path: str | None, payload: dict) -> None:
+    if not path:
+        return
+    _write_json(path, payload)
+
+
 def _infer_intent(goal: str, prefer_backend: str) -> str:
     text = goal.lower()
     if "medium" in text or "oscillator" in text:
@@ -454,6 +460,11 @@ def main() -> None:
         default=1.0,
         help="Reject planner change_plan if max operation confidence is above this value",
     )
+    parser.add_argument(
+        "--guardrail-report-out",
+        default=None,
+        help="Optional path to write planner guardrail report JSON",
+    )
     parser.add_argument("--proposal-id", default=None, help="Optional explicit proposal_id")
     parser.add_argument(
         "--out",
@@ -510,12 +521,29 @@ def main() -> None:
             confidence_min=args.change_plan_confidence_min,
             confidence_max=args.change_plan_confidence_max,
         )
+        _write_guardrail_report(
+            args.guardrail_report_out,
+            {
+                "decision": "PASS",
+                "violations": [],
+                "guardrails": guardrails,
+                "planner_backend": args.planner_backend,
+            },
+        )
         planner_inputs = payload.get("planner_inputs", {})
         if isinstance(planner_inputs, dict):
             planner_inputs["change_plan_guardrails"] = guardrails
         else:
             payload["planner_inputs"] = {"change_plan_guardrails": guardrails}
     except ValueError as exc:
+        _write_guardrail_report(
+            args.guardrail_report_out,
+            {
+                "decision": "FAIL",
+                "violations": [str(exc)],
+                "planner_backend": args.planner_backend,
+            },
+        )
         print(str(exc), file=sys.stderr)
         raise SystemExit(1) from exc
 
