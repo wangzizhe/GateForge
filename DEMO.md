@@ -10,6 +10,12 @@ Command:
 bash scripts/demo_proposal_flow.sh
 ```
 
+With strict profile:
+
+```bash
+POLICY_PROFILE=industrial_strict_v0 bash scripts/demo_proposal_flow.sh
+```
+
 What it validates:
 
 - proposal -> run -> regress full path
@@ -32,6 +38,12 @@ Command:
 
 ```bash
 bash scripts/demo_checker_config.sh
+```
+
+With strict profile:
+
+```bash
+POLICY_PROFILE=industrial_strict_v0 bash scripts/demo_checker_config.sh
 ```
 
 What it validates:
@@ -81,6 +93,12 @@ Command:
 
 ```bash
 bash scripts/demo_all.sh
+```
+
+With strict profile:
+
+```bash
+POLICY_PROFILE=industrial_strict_v0 bash scripts/demo_all.sh
 ```
 
 This runs both demos and writes:
