@@ -28,6 +28,7 @@ def resolve_policy_path(policy_path: str | None = None, policy_profile: str | No
 def evaluate_policy(reasons: list[str], risk_level: str, policy: dict) -> dict:
     critical_prefixes = tuple(policy.get("critical_reason_prefixes", []))
     review_prefixes = tuple(policy.get("needs_review_reason_prefixes", []))
+    force_review_prefixes = tuple(policy.get("always_needs_review_reason_prefixes", []))
     fail_on_review_risks = set(policy.get("fail_on_needs_review_risk_levels", []))
     fail_on_unknown = bool(policy.get("fail_on_unknown_reasons", True))
 
@@ -71,6 +72,15 @@ def evaluate_policy(reasons: list[str], risk_level: str, policy: dict) -> dict:
         }
 
     if review:
+        forced_review = [r for r in review if _matches_any_prefix(r, force_review_prefixes)]
+        if forced_review:
+            return {
+                "policy_decision": "NEEDS_REVIEW",
+                "policy_reasons": forced_review,
+                "critical_reasons": critical,
+                "review_reasons": review,
+                "unknown_reasons": unknown,
+            }
         if risk_level in fail_on_review_risks:
             return {
                 "policy_decision": "FAIL",

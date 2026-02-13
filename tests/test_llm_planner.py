@@ -262,7 +262,9 @@ class PlannerTests(unittest.TestCase):
             self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
             payload = json.loads(out.read_text(encoding="utf-8"))
             self.assertIn("change_set_draft", payload)
+            self.assertIn("change_plan", payload)
             self.assertEqual(payload["change_set_draft"]["schema_version"], "0.1.0")
+            self.assertEqual(payload["change_plan"]["schema_version"], "0.1.0")
 
 
 if __name__ == "__main__":

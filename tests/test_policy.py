@@ -34,6 +34,17 @@ class PolicyTests(unittest.TestCase):
         result = evaluate_policy(["runtime_regression:1.2s>1.0s"], "high", policy)
         self.assertEqual(result["policy_decision"], "FAIL")
 
+    def test_policy_force_needs_review_prefix_overrides_high_risk_fail(self) -> None:
+        policy = {
+            "critical_reason_prefixes": ["strict_"],
+            "needs_review_reason_prefixes": ["change_requires_human_review"],
+            "always_needs_review_reason_prefixes": ["change_requires_human_review"],
+            "fail_on_needs_review_risk_levels": ["high"],
+            "fail_on_unknown_reasons": True,
+        }
+        result = evaluate_policy(["change_requires_human_review"], "high", policy)
+        self.assertEqual(result["policy_decision"], "NEEDS_REVIEW")
+
     def test_dry_run_human_checks_default_fallback(self) -> None:
         checks = dry_run_human_checks(policy={}, risk_level="high", has_change_set=True)
         self.assertTrue(any("rollback" in c.lower() for c in checks))

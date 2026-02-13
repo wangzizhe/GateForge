@@ -8,7 +8,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-from .change_apply import apply_change_set
+from .change_apply import apply_change_set, load_change_set
 from .core import OM_SOURCE_ROOT_ENV, PROJECT_ROOT
 from .core import run_pipeline
 from .policy import (
@@ -18,6 +18,7 @@ from .policy import (
     resolve_policy_path,
     run_required_human_checks,
 )
+from .preflight import preflight_change_set
 from .proposal import EXECUTION_ACTIONS, load_proposal, validate_proposal
 from .regression import compare_evidence, load_json, write_json, write_markdown
 
@@ -42,8 +43,11 @@ def _write_run_markdown(path: str, summary: dict) -> None:
         f"- smoke_executed: `{summary['smoke_executed']}`",
         f"- regress_executed: `{summary['regress_executed']}`",
         f"- change_set_path: `{summary.get('change_set_path')}`",
+        f"- change_auto_apply_allowed: `{summary.get('change_auto_apply_allowed')}`",
+        f"- change_preflight_status: `{summary.get('change_preflight_status')}`",
         f"- change_apply_status: `{summary.get('change_apply_status')}`",
         f"- change_set_hash: `{summary.get('change_set_hash')}`",
+        f"- change_ops_count: `{summary.get('change_ops_count')}`",
         "",
     ]
     if summary.get("candidate_path"):
@@ -67,6 +71,19 @@ def _write_run_markdown(path: str, summary: dict) -> None:
     lines.extend(["## Human Hints", ""])
     if summary.get("human_hints"):
         lines.extend([f"- {h}" for h in summary["human_hints"]])
+    else:
+        lines.append("- `none`")
+    lines.append("")
+    lines.extend(["## Change Preflight", ""])
+    preflight_reasons = summary.get("change_preflight_reasons", [])
+    if preflight_reasons:
+        lines.extend([f"- `{r}`" for r in preflight_reasons])
+    else:
+        lines.append("- `none`")
+    lines.append("")
+    lines.extend(["## Change Targets", ""])
+    if summary.get("change_targets"):
+        lines.extend([f"- `{p}`" for p in summary["change_targets"]])
     else:
         lines.append("- `none`")
     lines.append("")
@@ -240,8 +257,14 @@ def main() -> None:
         "human_hints": [],
         "required_human_checks": [],
         "change_set_path": proposal.get("change_set_path"),
+        "change_auto_apply_allowed": True,
+        "change_preflight_status": "not_requested",
+        "change_preflight_reasons": [],
+        "change_preflight_hints": [],
+        "change_targets": [],
         "change_apply_status": "not_requested",
         "change_set_hash": None,
+        "change_ops_count": 0,
         "applied_changes": [],
     }
 
@@ -250,28 +273,55 @@ def main() -> None:
     source_override_tmp: tempfile.TemporaryDirectory[str] | None = None
     previous_source_root = os.environ.get(OM_SOURCE_ROOT_ENV)
     try:
+        policy = load_policy(policy_path)
+        summary["policy_version"] = policy.get("version")
+
         if execution_requested and proposal.get("change_set_path"):
             try:
-                source_override_tmp = tempfile.TemporaryDirectory(prefix="gateforge-change-set-")
-                tmp_root = Path(source_override_tmp.name)
-                shutil.copytree(PROJECT_ROOT / "examples", tmp_root / "examples")
-                change_result = apply_change_set(
-                    path=proposal["change_set_path"],
-                    workspace_root=tmp_root,
-                )
-                summary["change_apply_status"] = "applied"
-                summary["change_set_hash"] = change_result["change_set_hash"]
-                summary["applied_changes"] = change_result["applied_changes"]
-                os.environ[OM_SOURCE_ROOT_ENV] = str(tmp_root)
+                allowed_risks = set(policy.get("allow_auto_apply_risk_levels", ["low", "medium"]))
+                if proposal["risk_level"] not in allowed_risks:
+                    summary["change_auto_apply_allowed"] = False
+                    summary["change_apply_status"] = "requires_review"
+                    summary["fail_reasons"].append("change_requires_human_review")
+                else:
+                    summary["change_auto_apply_allowed"] = True
+
+                if summary["change_apply_status"] != "requires_review":
+                    source_override_tmp = tempfile.TemporaryDirectory(prefix="gateforge-change-set-")
+                    tmp_root = Path(source_override_tmp.name)
+                    shutil.copytree(PROJECT_ROOT / "examples", tmp_root / "examples")
+                    change_set_payload = load_change_set(proposal["change_set_path"])
+                    summary["change_ops_count"] = len(change_set_payload.get("changes", []))
+
+                    preflight = preflight_change_set(
+                        change_set=change_set_payload,
+                        workspace_root=tmp_root,
+                        allowed_roots=policy.get("change_set_allowed_roots", ["examples/openmodelica"]),
+                        max_changes=int(policy.get("change_set_max_changes", 20)),
+                    )
+                    summary["change_preflight_status"] = preflight["status"]
+                    summary["change_preflight_reasons"] = preflight["reasons"]
+                    summary["change_preflight_hints"] = preflight["hints"]
+                    summary["change_targets"] = preflight["targets"]
+                    if not preflight["ok"]:
+                        summary["change_apply_status"] = "preflight_failed"
+                        summary["fail_reasons"].append("change_preflight_failed")
+                        summary["human_hints"].extend(preflight["hints"])
+                    else:
+                        change_result = apply_change_set(
+                            path=proposal["change_set_path"],
+                            workspace_root=tmp_root,
+                        )
+                        summary["change_apply_status"] = "applied"
+                        summary["change_set_hash"] = change_result["change_set_hash"]
+                        summary["applied_changes"] = change_result["applied_changes"]
+                        os.environ[OM_SOURCE_ROOT_ENV] = str(tmp_root)
             except Exception as exc:  # pragma: no cover - guarded by tests through summary behavior
                 summary["change_apply_status"] = "failed"
                 summary["fail_reasons"].append("change_apply_failed")
                 summary["human_hints"].append(f"Change-set apply failed: {exc}")
 
-        policy = load_policy(policy_path)
-        summary["policy_version"] = policy.get("version")
-
-        if execution_requested and summary["change_apply_status"] != "failed":
+        if execution_requested and summary["change_apply_status"] in {"not_requested", "applied"}:
             candidate = run_pipeline(
                 backend=backend,
                 out_path=args.candidate_out,
@@ -288,7 +338,7 @@ def main() -> None:
 
         if "regress" in action_set:
             if candidate is None:
-                if summary["change_apply_status"] == "failed":
+                if summary["change_apply_status"] in {"failed", "preflight_failed", "requires_review"}:
                     summary["regress_executed"] = False
                 else:
                     if not args.candidate_in:
@@ -332,6 +382,10 @@ def main() -> None:
         combined_reasons: list[str] = []
         if summary["change_apply_status"] == "failed":
             combined_reasons.append("change_apply_failed")
+        if summary["change_apply_status"] == "preflight_failed":
+            combined_reasons.append("change_preflight_failed")
+        if summary["change_apply_status"] == "requires_review":
+            combined_reasons.append("change_requires_human_review")
         if candidate is not None and candidate["gate"] != "PASS":
             combined_reasons.append("candidate_gate_not_pass")
         if summary.get("regression_path"):

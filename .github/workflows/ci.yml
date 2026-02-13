@@ -30,6 +30,11 @@ on:
         required: false
         default: false
         type: boolean
+      run_agent_change_loop:
+        description: "Run optional agent change safety loop demo job"
+        required: false
+        default: false
+        type: boolean
       demo_policy_profile:
         description: "Optional policy profile for demo jobs (e.g. industrial_strict_v0)"
         required: false
@@ -421,3 +426,75 @@ jobs:
             artifacts/autopilot/demo_dry_run_context.json
             artifacts/autopilot/autopilot_dry_run_demo.json
             artifacts/autopilot/autopilot_dry_run_demo.md
+
+  agent-change-loop-optional:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_agent_change_loop }}
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    env:
+      POLICY_PROFILE: ${{ inputs.demo_policy_profile }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Run agent change safety loop demo
+        run: bash scripts/demo_agent_change_loop.sh
+
+      - name: Publish agent change loop summary to job page
+        if: always()
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          path = Path("artifacts/agent_change_loop/summary.json")
+          if not path.exists():
+              text = "## Agent Change Loop Summary\n\n`artifacts/agent_change_loop/summary.json` not found."
+          else:
+              payload = json.loads(path.read_text(encoding="utf-8"))
+              rf = payload.get("result_flags", {})
+              lines = [
+                  "## Agent Change Loop Summary",
+                  "",
+                  f"- bundle_status: `{payload.get('bundle_status')}`",
+                  f"- policy_profile: `{payload.get('policy_profile')}`",
+                  f"- low_risk_status: `{payload.get('low_risk_status')}`",
+                  f"- high_risk_status: `{payload.get('high_risk_status')}`",
+                  f"- high_risk_required_human_checks_count: `{payload.get('high_risk_required_human_checks_count')}`",
+                  "",
+                  "### Result Flags",
+                  "",
+                  f"- low_risk_expected_pass: `{rf.get('low_risk_expected_pass')}`",
+                  f"- high_risk_expected_needs_review: `{rf.get('high_risk_expected_needs_review')}`",
+              ]
+              text = "\n".join(lines)
+
+          summary_file = os.getenv("GITHUB_STEP_SUMMARY")
+          if summary_file:
+              with open(summary_file, "a", encoding="utf-8") as f:
+                  f.write(text + "\n")
+          print(text)
+          PY
+
+      - name: Upload agent change loop artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-change-loop-demo
+          path: |
+            artifacts/agent_change_loop/high_context.json
+            artifacts/agent_change_loop/low_summary.json
+            artifacts/agent_change_loop/high_summary.json
+            artifacts/agent_change_loop/summary.json
+            artifacts/agent_change_loop/summary.md

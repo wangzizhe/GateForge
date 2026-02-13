@@ -13,8 +13,19 @@
   ],
   "needs_review_reason_prefixes": [
     "runtime_regression",
-    "performance_regression_detected"
+    "performance_regression_detected",
+    "change_requires_human_review"
   ],
+  "always_needs_review_reason_prefixes": [
+    "change_requires_human_review"
+  ],
+  "allow_auto_apply_risk_levels": [
+    "low"
+  ],
+  "change_set_allowed_roots": [
+    "examples/openmodelica"
+  ],
+  "change_set_max_changes": 10,
   "fail_on_needs_review_risk_levels": [
     "medium",
     "high"
@@ -60,6 +71,12 @@
       ],
       "change_apply_failed": [
         "Repair change_set content and re-run with fresh evidence."
+      ],
+      "change_preflight_failed": [
+        "Fix preflight violations (scope/path/filetype) before any re-run."
+      ],
+      "change_requires_human_review": [
+        "Auto-apply is disabled for this risk level under industrial_strict_v0. Manual approval required."
       ]
     },
     "by_failure_type": {

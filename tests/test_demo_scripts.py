@@ -125,6 +125,19 @@ class DemoScriptTests(unittest.TestCase):
         self.assertGreaterEqual(payload.get("selected_count", 0), 1)
         self.assertIsInstance(payload.get("job_exit_codes"), dict)
 
+    def test_demo_agent_change_loop_script(self) -> None:
+        proc = subprocess.run(
+            ["bash", "scripts/demo_agent_change_loop.sh"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+        payload = json.loads(Path("artifacts/agent_change_loop/summary.json").read_text(encoding="utf-8"))
+        self.assertEqual(payload.get("bundle_status"), "PASS")
+        self.assertEqual(payload.get("low_risk_status"), "PASS")
+        self.assertEqual(payload.get("high_risk_status"), "NEEDS_REVIEW")
+
 
 if __name__ == "__main__":
     unittest.main()

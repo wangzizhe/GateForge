@@ -10,6 +10,7 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
+from .change_plan import validate_change_plan
 from .change_apply import validate_change_set
 
 
@@ -113,6 +114,18 @@ def _plan_with_rule_backend(
         "context": context,
     }
     if emit_change_set_draft:
+        payload["change_plan"] = {
+            "schema_version": "0.1.0",
+            "operations": [
+                {
+                    "kind": "replace_text",
+                    "file": "examples/openmodelica/MinimalProbe.mo",
+                    "old": "der(x) = -x;",
+                    "new": "der(x) = -2*x;",
+                    "risk_tag": "low",
+                }
+            ],
+        }
         payload["change_set_draft"] = {
             "schema_version": "0.1.0",
             "changes": [
@@ -186,6 +199,7 @@ def _plan_with_gemini_backend(
         "runtime_regress_low_risk, runtime_regress_high_risk.\n"
         "proposal_id should be null if unknown.\n"
         "overrides must be an object and may include risk_level, change_summary, checkers, checker_config.\n"
+        "You may include optional change_plan with schema_version='0.1.0' and operations list.\n"
         "If emit_change_set_draft is true, optionally add key change_set_draft with valid GateForge change_set JSON.\n"
         f"goal: {goal_text}\n"
         f"prefer_backend: {prefer_backend}\n"
@@ -267,6 +281,10 @@ def _plan_with_gemini_backend(
     if draft is not None:
         validate_change_set(draft)
         payload["change_set_draft"] = draft
+    change_plan = parsed.get("change_plan")
+    if change_plan is not None:
+        validate_change_plan(change_plan)
+        payload["change_plan"] = change_plan
     return payload
 
 

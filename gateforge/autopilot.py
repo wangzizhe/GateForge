@@ -6,6 +6,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+from .change_plan import materialize_change_set_from_plan
 from .policy import DEFAULT_POLICY_PATH, dry_run_human_checks, load_policy, resolve_policy_path
 
 
@@ -37,6 +38,7 @@ def _write_markdown(path: str, summary: dict) -> None:
         f"- checkers: `{','.join(summary.get('checkers', []))}`",
         f"- checker_config: `{json.dumps(summary.get('checker_config', {}), separators=(',', ':'))}`",
         f"- generated_change_set_path: `{summary.get('generated_change_set_path')}`",
+        f"- generated_change_set_source: `{summary.get('generated_change_set_source')}`",
         f"- change_apply_status: `{summary.get('change_apply_status')}`",
         f"- applied_changes_count: `{summary.get('applied_changes_count')}`",
         f"- change_set_hash: `{summary.get('change_set_hash')}`",
@@ -212,15 +214,24 @@ def main() -> None:
         intent_payload = json.loads(Path(args.intent_out).read_text(encoding="utf-8"))
 
     generated_change_set_path = None
-    if args.materialize_change_set and isinstance(intent_payload.get("change_set_draft"), dict):
-        generated_change_set_path = str(run_root / "change_set.generated.json")
-        _write_json(generated_change_set_path, intent_payload["change_set_draft"])
-        overrides = intent_payload.get("overrides", {})
-        if not isinstance(overrides, dict):
-            overrides = {}
-        overrides["change_set_path"] = generated_change_set_path
-        intent_payload["overrides"] = overrides
-        _write_json(args.intent_out, intent_payload)
+    generated_change_set_source = None
+    if args.materialize_change_set:
+        generated = None
+        if isinstance(intent_payload.get("change_plan"), dict):
+            generated = materialize_change_set_from_plan(intent_payload["change_plan"])
+            generated_change_set_source = "change_plan"
+        elif isinstance(intent_payload.get("change_set_draft"), dict):
+            generated = intent_payload["change_set_draft"]
+            generated_change_set_source = "change_set_draft"
+        if generated is not None:
+            generated_change_set_path = str(run_root / "change_set.generated.json")
+            _write_json(generated_change_set_path, generated)
+            overrides = intent_payload.get("overrides", {})
+            if not isinstance(overrides, dict):
+                overrides = {}
+            overrides["change_set_path"] = generated_change_set_path
+            intent_payload["overrides"] = overrides
+            _write_json(args.intent_out, intent_payload)
 
     try:
         policy_path = resolve_policy_path(policy_path=args.policy, policy_profile=args.policy_profile)
@@ -276,6 +287,7 @@ def main() -> None:
         "planner_backend": args.planner_backend,
         "materialize_change_set": args.materialize_change_set,
         "generated_change_set_path": generated_change_set_path,
+        "generated_change_set_source": generated_change_set_source,
         "policy_version": None,
         "policy_profile": args.policy_profile or "default",
         "intent": intent_payload.get("intent"),

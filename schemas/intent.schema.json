@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gateforge.dev/schemas/intent.schema.json",
+  "title": "GateForge Intent Request v0",
+  "type": "object",
+  "required": ["intent"],
+  "additionalProperties": true,
+  "properties": {
+    "intent": {
+      "type": "string",
+      "enum": [
+        "demo_mock_pass",
+        "demo_openmodelica_pass",
+        "medium_openmodelica_pass",
+        "runtime_regress_low_risk",
+        "runtime_regress_high_risk"
+      ]
+    },
+    "proposal_id": {
+      "type": ["string", "null"]
+    },
+    "overrides": {
+      "type": "object"
+    },
+    "change_plan": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "type": "string",
+          "const": "0.1.0"
+        },
+        "operations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["kind", "file", "old", "new"],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": ["replace_text"]
+              },
+              "file": {
+                "type": "string",
+                "minLength": 1
+              },
+              "old": {
+                "type": "string"
+              },
+              "new": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

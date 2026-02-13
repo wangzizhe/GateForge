@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 from .agent import _build_proposal
+from .intent import validate_intent_request
 from .proposal import validate_proposal
 
 SUPPORTED_INTENTS = {
@@ -26,21 +27,16 @@ def _write_json(path: str, payload: dict) -> None:
 
 def _load_intent_file(path: str) -> dict:
     payload = json.loads(Path(path).read_text(encoding="utf-8"))
-    if not isinstance(payload, dict):
-        raise ValueError("intent file must be a JSON object")
+    validate_intent_request(payload)
     intent = payload.get("intent")
-    if intent not in SUPPORTED_INTENTS:
-        raise ValueError(f"intent in intent file must be one of {sorted(SUPPORTED_INTENTS)}")
     proposal_id = payload.get("proposal_id")
-    if proposal_id is not None and (not isinstance(proposal_id, str) or not proposal_id.strip()):
-        raise ValueError("proposal_id in intent file must be a non-empty string when provided")
     overrides = payload.get("overrides", {})
-    if not isinstance(overrides, dict):
-        raise ValueError("overrides in intent file must be a JSON object")
     return {
         "intent": intent,
         "proposal_id": proposal_id,
         "overrides": overrides,
+        "change_plan": payload.get("change_plan"),
+        "change_set_draft": payload.get("change_set_draft"),
     }
 
 
