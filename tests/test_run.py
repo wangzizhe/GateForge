@@ -14,6 +14,7 @@ class RunTests(unittest.TestCase):
         *,
         backend: str = "mock",
         change_set_path: str | None = None,
+        checkers: list[str] | None = None,
     ) -> None:
         payload = {
             "schema_version": "0.1.0",
@@ -28,6 +29,8 @@ class RunTests(unittest.TestCase):
         }
         if change_set_path is not None:
             payload["change_set_path"] = change_set_path
+        if checkers is not None:
+            payload["checkers"] = checkers
         path.write_text(
             json.dumps(payload),
             encoding="utf-8",
@@ -406,6 +409,62 @@ class RunTests(unittest.TestCase):
             self.assertTrue(summary["required_human_checks"])
             joined = " ".join(summary["required_human_checks"]).lower()
             self.assertIn("change_set", joined)
+
+    def test_run_proposal_uses_configured_checkers(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            proposal = root / "proposal.json"
+            baseline = root / "baseline.json"
+            candidate = root / "candidate.json"
+            out = root / "run_summary.json"
+            regression = root / "regression.json"
+
+            self._write_proposal(
+                proposal,
+                ["regress"],
+                checkers=["nan_inf"],
+            )
+            self._write_baseline(baseline, backend="mock")
+            self._write_candidate(
+                candidate,
+                failure_type="none",
+                gate="PASS",
+                status="success",
+                check_ok=True,
+                simulate_ok=True,
+            )
+            candidate_payload = json.loads(candidate.read_text(encoding="utf-8"))
+            candidate_payload["artifacts"]["log_excerpt"] = "solver produced NaN at t=0.1"
+            candidate.write_text(json.dumps(candidate_payload), encoding="utf-8")
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.run",
+                    "--proposal",
+                    str(proposal),
+                    "--candidate-in",
+                    str(candidate),
+                    "--baseline",
+                    str(baseline),
+                    "--regression-out",
+                    str(regression),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertNotEqual(proc.returncode, 0)
+            summary = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(summary["status"], "FAIL")
+            self.assertIn("regression_fail", summary["fail_reasons"])
+            self.assertEqual(summary["checkers"], ["nan_inf"])
+            regression_payload = json.loads(regression.read_text(encoding="utf-8"))
+            self.assertIn("nan_inf_detected", regression_payload["reasons"])
+            self.assertEqual(regression_payload["checkers"], ["nan_inf"])
 
 
 if __name__ == "__main__":

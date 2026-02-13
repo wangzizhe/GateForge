@@ -112,6 +112,37 @@ class ProposalTests(unittest.TestCase):
         }
         validate_proposal(proposal)
 
+    def test_validate_accepts_optional_checkers(self) -> None:
+        proposal = {
+            "schema_version": "0.1.0",
+            "proposal_id": "p4",
+            "timestamp_utc": "2026-02-11T10:00:00Z",
+            "author_type": "human",
+            "backend": "mock",
+            "model_script": "examples/openmodelica/minimal_probe.mos",
+            "change_summary": "proposal with explicit checker config",
+            "requested_actions": ["check", "regress"],
+            "risk_level": "low",
+            "checkers": ["timeout", "nan_inf"],
+        }
+        validate_proposal(proposal)
+
+    def test_validate_fails_on_unknown_checker(self) -> None:
+        proposal = {
+            "schema_version": "0.1.0",
+            "proposal_id": "p5",
+            "timestamp_utc": "2026-02-11T10:00:00Z",
+            "author_type": "human",
+            "backend": "mock",
+            "model_script": "examples/openmodelica/minimal_probe.mos",
+            "change_summary": "proposal with bad checker",
+            "requested_actions": ["check", "regress"],
+            "risk_level": "low",
+            "checkers": ["unknown_checker"],
+        }
+        with self.assertRaises(ValueError):
+            validate_proposal(proposal)
+
 
 if __name__ == "__main__":
     unittest.main()
