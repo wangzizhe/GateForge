@@ -563,6 +563,15 @@ Guardrail demo:
 bash scripts/demo_planner_guardrails.sh
 ```
 
+Validate planner output JSON directly (offline check before execution):
+
+```bash
+python -m gateforge.planner_output_validate --in artifacts/agent/intent_from_planner.json
+```
+
+Planner output schema reference:
+- `schemas/planner_output.schema.json`
+
 Autopilot forwards planner guardrails and writes them to evidence:
 - `planner_guardrail_report_path`
 - `planner_guardrail_decision` (`PASS` / `FAIL`)
