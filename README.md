@@ -178,6 +178,7 @@ One-command agent execution (proposal -> run -> audit summary):
 ```bash
 python -m gateforge.agent_run \
   --intent demo_mock_pass \
+  --policy-profile industrial_strict_v0 \
   --baseline baselines/mock_minimal_probe_baseline.json \
   --out artifacts/agent/agent_run.json
 cat artifacts/agent/agent_run.json
@@ -256,6 +257,7 @@ python -m gateforge.autopilot \
   --goal "run demo mock pass" \
   --planner-backend rule \
   --proposal-id autopilot-demo-001 \
+  --policy-profile industrial_strict_v0 \
   --baseline baselines/mock_minimal_probe_baseline.json \
   --save-run-under autopilot \
   --out artifacts/autopilot/autopilot_summary.json
@@ -528,6 +530,7 @@ cat artifacts/proposal_run.json
 `--baseline auto` resolves baseline using `baselines/index.json` by `(backend, model_script)`.
 You can override the index with `--baseline-index <path>`, or bypass auto-resolve with `--baseline <baseline.json>`.
 You can override policy with `--policy <path>` (default: `policies/default_policy.json`).
+Or use `--policy-profile <name>` to load `policies/profiles/<name>.json`.
 
 Policy profile examples:
 
@@ -540,7 +543,7 @@ Example:
 python -m gateforge.run \
   --proposal examples/proposals/proposal_v0.json \
   --baseline auto \
-  --policy policies/profiles/industrial_strict_v0.json \
+  --policy-profile industrial_strict_v0 \
   --out artifacts/proposal_run_strict.json
 ```
 

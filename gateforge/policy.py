@@ -4,10 +4,25 @@ import json
 from pathlib import Path
 
 DEFAULT_POLICY_PATH = "policies/default_policy.json"
+PROFILE_DIR = Path("policies/profiles")
 
 
 def load_policy(path: str = DEFAULT_POLICY_PATH) -> dict:
     return json.loads(Path(path).read_text(encoding="utf-8"))
+
+
+def resolve_policy_path(policy_path: str | None = None, policy_profile: str | None = None) -> str:
+    if policy_path and policy_profile:
+        raise ValueError("Use either policy_path or policy_profile, not both")
+    if policy_profile:
+        profile_name = policy_profile if policy_profile.endswith(".json") else f"{policy_profile}.json"
+        resolved = PROFILE_DIR / profile_name
+        if not resolved.exists():
+            raise ValueError(f"Policy profile not found: {resolved}")
+        return str(resolved)
+    if policy_path:
+        return policy_path
+    return DEFAULT_POLICY_PATH
 
 
 def evaluate_policy(reasons: list[str], risk_level: str, policy: dict) -> dict:

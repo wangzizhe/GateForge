@@ -110,6 +110,7 @@ Policy profiles (optional):
 
 - default: `policies/default_policy.json`
 - strict: `policies/profiles/industrial_strict_v0.json`
+- you can pass profile by name: `--policy-profile industrial_strict_v0`
 
 Schema reference:
 

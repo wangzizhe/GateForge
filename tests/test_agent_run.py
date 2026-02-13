@@ -208,6 +208,34 @@ class AgentRunTests(unittest.TestCase):
             self.assertEqual(payload["intent"], "demo_mock_pass")
             self.assertEqual(payload["status"], "PASS")
 
+    def test_agent_run_fails_on_unknown_policy_profile(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            baseline = root / "baseline.json"
+            agent_run_out = root / "agent_run.json"
+            self._write_baseline(baseline)
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.agent_run",
+                    "--intent",
+                    "demo_mock_pass",
+                    "--baseline",
+                    str(baseline),
+                    "--policy-profile",
+                    "does_not_exist_profile",
+                    "--out",
+                    str(agent_run_out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+            self.assertNotEqual(proc.returncode, 0)
+
 
 if __name__ == "__main__":
     unittest.main()

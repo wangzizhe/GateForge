@@ -6,7 +6,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from .policy import dry_run_human_checks, load_policy
+from .policy import DEFAULT_POLICY_PATH, dry_run_human_checks, load_policy, resolve_policy_path
 
 
 def _write_json(path: str, payload: dict) -> None:
@@ -148,8 +148,13 @@ def main() -> None:
     )
     parser.add_argument(
         "--policy",
-        default="policies/default_policy.json",
-        help="Policy JSON path for run",
+        default=None,
+        help=f"Policy JSON path for run (default: {DEFAULT_POLICY_PATH})",
+    )
+    parser.add_argument(
+        "--policy-profile",
+        default=None,
+        help="Policy profile name under policies/profiles (e.g. industrial_strict_v0)",
     )
     parser.add_argument(
         "--out",
@@ -214,6 +219,11 @@ def main() -> None:
         intent_payload["overrides"] = overrides
         _write_json(args.intent_out, intent_payload)
 
+    try:
+        policy_path = resolve_policy_path(policy_path=args.policy, policy_profile=args.policy_profile)
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
+
     agent_cmd = [
         sys.executable,
         "-m",
@@ -237,7 +247,7 @@ def main() -> None:
         "--runtime-threshold",
         str(args.runtime_threshold),
         "--policy",
-        args.policy,
+        policy_path,
         "--out",
         args.agent_run_out,
     ]
@@ -276,7 +286,7 @@ def main() -> None:
             "baseline": args.baseline,
             "baseline_index": args.baseline_index,
             "runtime_threshold": args.runtime_threshold,
-            "policy": args.policy,
+            "policy": policy_path,
         },
     }
     if planner_proc.returncode != 0:
@@ -287,7 +297,7 @@ def main() -> None:
         overrides = intent_payload.get("overrides", {}) if isinstance(intent_payload, dict) else {}
         summary["planned_risk_level"] = (overrides.get("risk_level") if isinstance(overrides, dict) else None) or "low"
         try:
-            policy_payload = load_policy(args.policy)
+            policy_payload = load_policy(policy_path)
             summary["policy_version"] = policy_payload.get("version")
             summary["planned_required_human_checks"] = _compute_planned_required_checks(
                 intent_payload=intent_payload,

@@ -105,8 +105,13 @@ def main() -> None:
     )
     parser.add_argument(
         "--policy",
-        default="policies/default_policy.json",
-        help="Policy JSON path",
+        default=None,
+        help="Policy JSON path (default: policies/default_policy.json)",
+    )
+    parser.add_argument(
+        "--policy-profile",
+        default=None,
+        help="Policy profile name under policies/profiles (e.g. industrial_strict_v0)",
     )
     parser.add_argument(
         "--out",
@@ -153,9 +158,11 @@ def main() -> None:
         args.baseline_index,
         "--runtime-threshold",
         str(args.runtime_threshold),
-        "--policy",
-        args.policy,
     ]
+    if args.policy:
+        cmd.extend(["--policy", args.policy])
+    if args.policy_profile:
+        cmd.extend(["--policy-profile", args.policy_profile])
     run_proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
 
     run_summary = {}
