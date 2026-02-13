@@ -51,6 +51,39 @@ def summarize_review_ledger(rows: list[dict]) -> dict:
     }
 
 
+def filter_review_ledger(
+    rows: list[dict],
+    *,
+    proposal_id: str | None = None,
+    reviewer: str | None = None,
+    final_status: str | None = None,
+    since_utc: str | None = None,
+    until_utc: str | None = None,
+) -> list[dict]:
+    since_dt = _parse_utc(since_utc) if since_utc else None
+    until_dt = _parse_utc(until_utc) if until_utc else None
+
+    out: list[dict] = []
+    for row in rows:
+        if proposal_id and row.get("proposal_id") != proposal_id:
+            continue
+        if reviewer and row.get("reviewer") != reviewer:
+            continue
+        if final_status and row.get("final_status") != final_status:
+            continue
+        if since_dt or until_dt:
+            recorded = row.get("recorded_at_utc")
+            if not isinstance(recorded, str):
+                continue
+            rec_dt = _parse_utc(recorded)
+            if since_dt and rec_dt < since_dt:
+                continue
+            if until_dt and rec_dt > until_dt:
+                continue
+        out.append(row)
+    return out
+
+
 def write_json(path: str, payload: dict) -> None:
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
@@ -104,6 +137,16 @@ def _default_md_path(path: str) -> str:
     return f"{path}.md"
 
 
+def _parse_utc(value: str) -> datetime:
+    txt = value.strip()
+    if txt.endswith("Z"):
+        txt = txt[:-1] + "+00:00"
+    dt = datetime.fromisoformat(txt)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Summarize GateForge review ledger")
     parser.add_argument("--ledger", default="artifacts/review/ledger.jsonl", help="Ledger JSONL path")
@@ -113,12 +156,28 @@ def main() -> None:
         help="Where to write summary JSON",
     )
     parser.add_argument("--report-out", default=None, help="Where to write summary markdown")
+    parser.add_argument("--export-out", default=None, help="Optional path to write filtered records JSON")
+    parser.add_argument("--proposal-id", default=None, help="Filter by proposal_id")
+    parser.add_argument("--reviewer", default=None, help="Filter by reviewer")
+    parser.add_argument("--final-status", default=None, help="Filter by final_status")
+    parser.add_argument("--since-utc", default=None, help="Filter by recorded_at_utc >= value (ISO-8601)")
+    parser.add_argument("--until-utc", default=None, help="Filter by recorded_at_utc <= value (ISO-8601)")
     args = parser.parse_args()
 
     rows = load_review_ledger(args.ledger)
+    rows = filter_review_ledger(
+        rows,
+        proposal_id=args.proposal_id,
+        reviewer=args.reviewer,
+        final_status=args.final_status,
+        since_utc=args.since_utc,
+        until_utc=args.until_utc,
+    )
     summary = summarize_review_ledger(rows)
     write_json(args.summary_out, summary)
     write_markdown(args.report_out or _default_md_path(args.summary_out), summary)
+    if args.export_out:
+        write_json(args.export_out, {"total_records": len(rows), "records": rows})
     print(json.dumps({"total_records": summary["total_records"]}))
 
 

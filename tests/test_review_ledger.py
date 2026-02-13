@@ -146,6 +146,63 @@ class ReviewLedgerTests(unittest.TestCase):
             self.assertEqual(summary["status_counts"].get("FAIL"), 1)
             self.assertTrue(report_out.exists())
 
+    def test_review_ledger_cli_exports_filtered_records(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            ledger = root / "ledger.jsonl"
+            ledger.write_text(
+                "\n".join(
+                    [
+                        json.dumps(
+                            {
+                                "recorded_at_utc": "2026-02-13T09:00:00+00:00",
+                                "proposal_id": "p1",
+                                "reviewer": "r1",
+                                "final_status": "PASS",
+                                "final_reasons": [],
+                            }
+                        ),
+                        json.dumps(
+                            {
+                                "recorded_at_utc": "2026-02-13T10:00:00+00:00",
+                                "proposal_id": "p2",
+                                "reviewer": "r2",
+                                "final_status": "FAIL",
+                                "final_reasons": ["human_rejected"],
+                            }
+                        ),
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            export_out = root / "export.json"
+            summary_out = root / "summary.json"
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.review_ledger",
+                    "--ledger",
+                    str(ledger),
+                    "--final-status",
+                    "FAIL",
+                    "--since-utc",
+                    "2026-02-13T09:30:00Z",
+                    "--export-out",
+                    str(export_out),
+                    "--summary-out",
+                    str(summary_out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            export_payload = json.loads(export_out.read_text(encoding="utf-8"))
+            self.assertEqual(export_payload["total_records"], 1)
+            self.assertEqual(export_payload["records"][0]["proposal_id"], "p2")
+
 
 if __name__ == "__main__":
     unittest.main()
