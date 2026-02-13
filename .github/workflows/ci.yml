@@ -45,6 +45,11 @@ on:
         required: false
         default: false
         type: boolean
+      run_planner_guardrails:
+        description: "Run optional planner guardrails demo job"
+        required: false
+        default: false
+        type: boolean
       demo_policy_profile:
         description: "Optional policy profile for demo jobs (e.g. industrial_strict_v0)"
         required: false
@@ -647,3 +652,67 @@ jobs:
             artifacts/repair_loop/summary.md
             artifacts/repair_loop/demo_summary.json
             artifacts/repair_loop/demo_summary.md
+
+  planner-guardrails-optional:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_planner_guardrails }}
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    env:
+      POLICY_PROFILE: ${{ inputs.demo_policy_profile }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Run planner guardrails demo
+        run: bash scripts/demo_planner_guardrails.sh
+
+      - name: Publish planner guardrails summary to job page
+        if: always()
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          path = Path("artifacts/planner_guardrails_demo/summary.json")
+          if not path.exists():
+              text = "## Planner Guardrails Summary\n\n`artifacts/planner_guardrails_demo/summary.json` not found."
+          else:
+              payload = json.loads(path.read_text(encoding="utf-8"))
+              lines = [
+                  "## Planner Guardrails Summary",
+                  "",
+                  f"- bundle_status: `{payload.get('bundle_status')}`",
+                  f"- pass_case_status: `{payload.get('pass_case', {}).get('status')}`",
+                  f"- low_confidence_case_status: `{payload.get('low_confidence_case', {}).get('status')}`",
+                  f"- whitelist_case_status: `{payload.get('whitelist_case', {}).get('status')}`",
+                  "",
+              ]
+              text = "\n".join(lines)
+
+          summary_file = os.getenv("GITHUB_STEP_SUMMARY")
+          if summary_file:
+              with open(summary_file, "a", encoding="utf-8") as f:
+                  f.write(text + "\n")
+          print(text)
+          PY
+
+      - name: Upload planner guardrails artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: planner-guardrails-demo
+          path: |
+            artifacts/planner_guardrails_demo/pass_intent.json
+            artifacts/planner_guardrails_demo/summary.json
+            artifacts/planner_guardrails_demo/summary.md

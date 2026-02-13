@@ -279,6 +279,7 @@ Optional toggles (env vars):
 - `RUN_AUTOPILOT_DRY_RUN=0|1`
 - `RUN_AGENT_CHANGE_LOOP=0|1`
 - `RUN_REPAIR_LOOP=0|1`
+- `RUN_PLANNER_GUARDRAILS=0|1`
 - `RUN_BENCHMARK=0|1` (default `0`)
 
 ## 8. Agent Change Safety Loop Demo
