@@ -78,6 +78,14 @@ summary_json = {
         "artifacts/demo_all_summary.json",
     ],
 }
+bundle_status = "PASS"
+if summary_json["result_flags"]["proposal_flow"] != "PASS":
+    bundle_status = "FAIL"
+if summary_json["result_flags"]["checker_demo_expected_fail"] != "PASS":
+    bundle_status = "FAIL"
+summary_json["bundle_status"] = bundle_status
+
+lines.insert(10, f"- bundle_status: `{bundle_status}`")
 
 Path("artifacts/demo_all_summary.md").write_text("\n".join(lines), encoding="utf-8")
 Path("artifacts/demo_all_summary.json").write_text(json.dumps(summary_json, indent=2), encoding="utf-8")
@@ -89,3 +97,12 @@ echo "demo_proposal_flow exit code: $FLOW_EXIT_CODE"
 echo "demo_checker_config exit code: $CHECKER_EXIT_CODE"
 cat artifacts/demo_all_summary.md
 cat artifacts/demo_all_summary.json
+
+python3 - <<'PY'
+import json
+from pathlib import Path
+
+summary = json.loads(Path("artifacts/demo_all_summary.json").read_text(encoding="utf-8"))
+if summary.get("bundle_status") != "PASS":
+    raise SystemExit(1)
+PY
