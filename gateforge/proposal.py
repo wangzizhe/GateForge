@@ -110,6 +110,12 @@ def validate_proposal(proposal: dict) -> None:
                         "checker_config.event_explosion.abs_threshold_if_baseline_zero must be >= 0 integer"
                     )
 
+        steady_cfg = checker_config.get("steady_state_regression")
+        if steady_cfg is not None and "max_abs_delta" in steady_cfg:
+            delta = steady_cfg["max_abs_delta"]
+            if not isinstance(delta, (int, float)) or delta <= 0:
+                raise ValueError("checker_config.steady_state_regression.max_abs_delta must be > 0")
+
 
 def execution_target_from_proposal(proposal: dict) -> tuple[str, str]:
     # v0 contract: smoke execution is only valid when proposal requests check/simulate.
