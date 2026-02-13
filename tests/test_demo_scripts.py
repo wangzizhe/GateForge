@@ -152,6 +152,20 @@ class DemoScriptTests(unittest.TestCase):
         self.assertEqual(payload.get("mid_confidence", {}).get("status"), "NEEDS_REVIEW")
         self.assertEqual(payload.get("low_confidence", {}).get("status"), "FAIL")
 
+    def test_demo_review_resolution_script(self) -> None:
+        proc = subprocess.run(
+            ["bash", "scripts/demo_review_resolution.sh"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+        payload = json.loads(Path("artifacts/review_demo/summary.json").read_text(encoding="utf-8"))
+        self.assertEqual(payload.get("bundle_status"), "PASS")
+        self.assertEqual(payload.get("source_status"), "NEEDS_REVIEW")
+        self.assertEqual(payload.get("approve_final_status"), "PASS")
+        self.assertEqual(payload.get("reject_final_status"), "FAIL")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gateforge.dev/schemas/review_decision.schema.json",
+  "title": "GateForge Review Decision v0.1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "review_id",
+    "proposal_id",
+    "reviewer",
+    "decision",
+    "rationale",
+    "all_required_checks_completed"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "0.1.0"
+    },
+    "review_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "proposal_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "reviewer": {
+      "type": "string",
+      "minLength": 1
+    },
+    "decision": {
+      "type": "string",
+      "enum": ["approve", "reject"]
+    },
+    "rationale": {
+      "type": "string",
+      "minLength": 1
+    },
+    "all_required_checks_completed": {
+      "type": "boolean"
+    },
+    "confirmed_checks": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  }
+}

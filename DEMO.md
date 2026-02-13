@@ -270,3 +270,27 @@ Key outputs:
 - `artifacts/planner_confidence_demo/low.json`
 - `artifacts/planner_confidence_demo/summary.json`
 - `artifacts/planner_confidence_demo/summary.md`
+
+## 10. Human Review Resolution Demo
+
+Command:
+
+```bash
+bash scripts/demo_review_resolution.sh
+```
+
+What it validates:
+
+- start from a `NEEDS_REVIEW` source summary
+- human `approve` can resolve to final `PASS`
+- human `reject` resolves to final `FAIL`
+
+Key outputs:
+
+- `artifacts/review_demo/source_needs_review.json`
+- `artifacts/review_demo/review_approve.json`
+- `artifacts/review_demo/review_reject.json`
+- `artifacts/review_demo/final_approve.json`
+- `artifacts/review_demo/final_reject.json`
+- `artifacts/review_demo/summary.json`
+- `artifacts/review_demo/summary.md`

@@ -113,6 +113,9 @@ bash scripts/demo_agent_change_loop.sh
 # planner confidence gates demo (PASS / NEEDS_REVIEW / FAIL)
 bash scripts/demo_planner_confidence_gates.sh
 
+# human review resolution demo (NEEDS_REVIEW -> human approve/reject -> final PASS/FAIL)
+bash scripts/demo_review_resolution.sh
+
 # same demos with strict policy profile
 POLICY_PROFILE=industrial_strict_v0 bash scripts/demo_all.sh
 
@@ -325,6 +328,19 @@ Execution-time `required_human_checks` are also policy-driven via `required_huma
 For planner-driven patches, policy can enforce confidence gates:
 - below `min_confidence_auto_apply`: proposal becomes `NEEDS_REVIEW` (`change_plan_confidence_below_auto_apply`)
 - below `min_confidence_accept`: proposal becomes `FAIL` (`change_plan_confidence_below_accept`)
+
+Human review resolution (resolve `NEEDS_REVIEW` to final decision):
+
+```bash
+python -m gateforge.review_resolve \
+  --summary artifacts/review_demo/source_needs_review.json \
+  --review artifacts/review_demo/review_approve.json \
+  --out artifacts/review_demo/final_approve.json
+cat artifacts/review_demo/final_approve.json
+```
+
+Review decision schema reference:
+- `schemas/review_decision.schema.json`
 
 Planner variants:
 
