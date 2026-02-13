@@ -67,6 +67,33 @@
         "enum": ["timeout", "nan_inf", "performance_regression", "event_explosion"]
       }
     },
+    "checker_config": {
+      "type": "object",
+      "properties": {
+        "performance_regression": {
+          "type": "object",
+          "properties": {
+            "max_ratio": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            }
+          }
+        },
+        "event_explosion": {
+          "type": "object",
+          "properties": {
+            "max_ratio": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "abs_threshold_if_baseline_zero": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      }
+    },
     "metadata": {
       "type": "object"
     }

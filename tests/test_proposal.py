@@ -143,6 +143,44 @@ class ProposalTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             validate_proposal(proposal)
 
+    def test_validate_accepts_checker_config(self) -> None:
+        proposal = {
+            "schema_version": "0.1.0",
+            "proposal_id": "p6",
+            "timestamp_utc": "2026-02-11T10:00:00Z",
+            "author_type": "human",
+            "backend": "mock",
+            "model_script": "examples/openmodelica/minimal_probe.mos",
+            "change_summary": "proposal with checker_config",
+            "requested_actions": ["check", "regress"],
+            "risk_level": "low",
+            "checkers": ["performance_regression", "event_explosion"],
+            "checker_config": {
+                "performance_regression": {"max_ratio": 1.5},
+                "event_explosion": {"max_ratio": 1.4, "abs_threshold_if_baseline_zero": 50},
+            },
+        }
+        validate_proposal(proposal)
+
+    def test_validate_fails_on_invalid_checker_config(self) -> None:
+        proposal = {
+            "schema_version": "0.1.0",
+            "proposal_id": "p7",
+            "timestamp_utc": "2026-02-11T10:00:00Z",
+            "author_type": "human",
+            "backend": "mock",
+            "model_script": "examples/openmodelica/minimal_probe.mos",
+            "change_summary": "proposal with invalid checker_config",
+            "requested_actions": ["check", "regress"],
+            "risk_level": "low",
+            "checkers": ["performance_regression"],
+            "checker_config": {
+                "performance_regression": {"max_ratio": 0},
+            },
+        }
+        with self.assertRaises(ValueError):
+            validate_proposal(proposal)
+
 
 if __name__ == "__main__":
     unittest.main()

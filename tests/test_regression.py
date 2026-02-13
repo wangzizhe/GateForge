@@ -121,6 +121,34 @@ class RegressionTests(unittest.TestCase):
         self.assertIn("event_explosion_detected", result["reasons"])
         self.assertTrue(any(f.get("checker") == "event_explosion" for f in result["findings"]))
 
+    def test_compare_fail_performance_regression_checker_with_config(self) -> None:
+        baseline = _evidence("base", runtime_seconds=1.0)
+        candidate = _evidence("cand", runtime_seconds=1.6)
+        result = compare_evidence(
+            baseline,
+            candidate,
+            runtime_regression_threshold=10.0,
+            checker_names=["performance_regression"],
+            checker_config={"performance_regression": {"max_ratio": 1.5}},
+        )
+        self.assertEqual(result["decision"], "FAIL")
+        self.assertIn("performance_regression_detected", result["reasons"])
+        self.assertEqual(result["checker_config"]["performance_regression"]["max_ratio"], 1.5)
+
+    def test_compare_fail_event_explosion_checker_with_config(self) -> None:
+        baseline = _evidence("base", events=10)
+        candidate = _evidence("cand", events=16)
+        result = compare_evidence(
+            baseline,
+            candidate,
+            runtime_regression_threshold=10.0,
+            checker_names=["event_explosion"],
+            checker_config={"event_explosion": {"max_ratio": 1.5}},
+        )
+        self.assertEqual(result["decision"], "FAIL")
+        self.assertIn("event_explosion_detected", result["reasons"])
+        self.assertEqual(result["checker_config"]["event_explosion"]["max_ratio"], 1.5)
+
     def test_compare_fail_strict_backend_mismatch(self) -> None:
         baseline = _evidence("base", backend="mock")
         candidate = _evidence("cand", backend="openmodelica_docker")
@@ -506,6 +534,68 @@ class RegressionTests(unittest.TestCase):
             result = json.loads(out.read_text(encoding="utf-8"))
             self.assertIn("nan_inf_detected", result["reasons"])
             self.assertEqual(result["checkers"], ["nan_inf"])
+
+    def test_regress_cli_uses_checker_config_file(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            baseline = root / "baseline.json"
+            candidate = root / "candidate.json"
+            checker_cfg = root / "checker_config.json"
+            out = root / "regression.json"
+
+            baseline.write_text(
+                json.dumps(
+                    _evidence(
+                        "base",
+                        backend="mock",
+                        model_script="examples/openmodelica/minimal_probe.mos",
+                        runtime_seconds=1.0,
+                    )
+                ),
+                encoding="utf-8",
+            )
+            candidate.write_text(
+                json.dumps(
+                    _evidence(
+                        "cand",
+                        backend="mock",
+                        model_script="examples/openmodelica/minimal_probe.mos",
+                        runtime_seconds=1.6,
+                    )
+                ),
+                encoding="utf-8",
+            )
+            checker_cfg.write_text(
+                json.dumps({"performance_regression": {"max_ratio": 1.5}}),
+                encoding="utf-8",
+            )
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.regress",
+                    "--baseline",
+                    str(baseline),
+                    "--candidate",
+                    str(candidate),
+                    "--checker",
+                    "performance_regression",
+                    "--checker-config",
+                    str(checker_cfg),
+                    "--runtime-threshold",
+                    "10",
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertNotEqual(proc.returncode, 0)
+            result = json.loads(out.read_text(encoding="utf-8"))
+            self.assertIn("performance_regression_detected", result["reasons"])
+            self.assertEqual(result["checker_config"]["performance_regression"]["max_ratio"], 1.5)
 
 
 if __name__ == "__main__":
