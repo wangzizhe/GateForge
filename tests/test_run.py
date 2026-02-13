@@ -719,6 +719,110 @@ class RunTests(unittest.TestCase):
             self.assertIn("performance_regression_detected", regression_payload["reasons"])
             self.assertEqual(regression_payload["checker_config"]["performance_regression"]["max_ratio"], 1.5)
 
+    def test_run_emits_checker_template_for_selected_checkers(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            proposal = root / "proposal.json"
+            baseline = root / "baseline.json"
+            candidate = root / "candidate.json"
+            out = root / "run_summary.json"
+            template_out = root / "checker_template.json"
+
+            self._write_proposal(
+                proposal,
+                ["regress"],
+                checkers=["performance_regression", "control_behavior_regression"],
+            )
+            self._write_baseline(baseline, backend="mock")
+            self._write_candidate(
+                candidate,
+                failure_type="none",
+                gate="PASS",
+                status="success",
+                check_ok=True,
+                simulate_ok=True,
+                runtime=1.0,
+            )
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.run",
+                    "--proposal",
+                    str(proposal),
+                    "--candidate-in",
+                    str(candidate),
+                    "--baseline",
+                    str(baseline),
+                    "--emit-checker-template",
+                    str(template_out),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            self.assertTrue(template_out.exists())
+            template_payload = json.loads(template_out.read_text(encoding="utf-8"))
+            self.assertIn("performance_regression", template_payload)
+            self.assertIn("control_behavior_regression", template_payload)
+            self.assertIn("_runtime", template_payload)
+            self.assertNotIn("event_explosion", template_payload)
+            self.assertEqual(template_payload["performance_regression"]["max_ratio"], 2.0)
+            summary = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(summary["checker_template_path"], str(template_out))
+
+    def test_run_emits_checker_template_for_all_when_checkers_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            proposal = root / "proposal.json"
+            baseline = root / "baseline.json"
+            candidate = root / "candidate.json"
+            out = root / "run_summary.json"
+            template_out = root / "checker_template_all.json"
+
+            self._write_proposal(proposal, ["regress"])
+            self._write_baseline(baseline, backend="mock")
+            self._write_candidate(
+                candidate,
+                failure_type="none",
+                gate="PASS",
+                status="success",
+                check_ok=True,
+                simulate_ok=True,
+                runtime=1.0,
+            )
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.run",
+                    "--proposal",
+                    str(proposal),
+                    "--candidate-in",
+                    str(candidate),
+                    "--baseline",
+                    str(baseline),
+                    "--emit-checker-template",
+                    str(template_out),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            template_payload = json.loads(template_out.read_text(encoding="utf-8"))
+            self.assertIn("performance_regression", template_payload)
+            self.assertIn("event_explosion", template_payload)
+            self.assertIn("steady_state_regression", template_payload)
+            self.assertIn("control_behavior_regression", template_payload)
+
     def test_run_proposal_fails_on_unknown_policy_profile(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)

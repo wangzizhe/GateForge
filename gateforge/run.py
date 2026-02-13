@@ -9,6 +9,7 @@ import tempfile
 from pathlib import Path
 
 from .change_apply import apply_change_set, load_change_set
+from .checkers import checker_config_template
 from .core import OM_SOURCE_ROOT_ENV, PROJECT_ROOT
 from .core import run_pipeline
 from .policy import (
@@ -39,6 +40,7 @@ def _write_run_markdown(path: str, summary: dict) -> None:
         f"- policy_version: `{summary.get('policy_version')}`",
         f"- checkers: `{','.join(summary.get('checkers', []))}`",
         f"- checker_config: `{json.dumps(summary.get('checker_config', {}), separators=(',', ':'))}`",
+        f"- checker_template_path: `{summary.get('checker_template_path')}`",
         f"- actions: `{','.join(summary['actions'])}`",
         f"- smoke_executed: `{summary['smoke_executed']}`",
         f"- regress_executed: `{summary['regress_executed']}`",
@@ -214,6 +216,11 @@ def main() -> None:
         help="Allowed runtime regression ratio (0.2 = +20%%)",
     )
     parser.add_argument(
+        "--emit-checker-template",
+        default=None,
+        help="Optional path to write checker_config template inferred from proposal checkers",
+    )
+    parser.add_argument(
         "--policy",
         default=None,
         help=f"Policy JSON path for proposal risk-based decision (default: {DEFAULT_POLICY_PATH})",
@@ -251,6 +258,7 @@ def main() -> None:
         "policy_profile": args.policy_profile or "default",
         "checkers": proposal.get("checkers", []),
         "checker_config": proposal.get("checker_config", {}),
+        "checker_template_path": None,
         "smoke_executed": False,
         "regress_executed": False,
         "candidate_path": None,
@@ -286,6 +294,14 @@ def main() -> None:
         review_policy = policy.get("review_resolution", {})
         if isinstance(review_policy, dict):
             summary["review_resolution_policy"] = review_policy
+
+        if args.emit_checker_template:
+            template_payload = checker_config_template(
+                checker_names=proposal.get("checkers"),
+                include_runtime=True,
+            )
+            write_json(args.emit_checker_template, template_payload)
+            summary["checker_template_path"] = args.emit_checker_template
 
         if execution_requested and proposal.get("change_set_path"):
             try:
