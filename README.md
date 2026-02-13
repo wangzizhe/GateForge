@@ -100,6 +100,9 @@ bash scripts/demo_checker_config.sh
 
 # combined demo bundle (docker-independent)
 bash scripts/demo_all.sh
+
+# autopilot dry-run review template demo
+bash scripts/demo_autopilot_dry_run.sh
 ```
 
 The demo script uses `examples/proposals/proposal_demo_mock.json` and writes an aligned
@@ -283,6 +286,9 @@ python -m gateforge.autopilot \
 cat artifacts/autopilot/autopilot_plan.json
 ```
 
+In dry-run mode, summary also includes:
+`planned_risk_level` and `planned_required_human_checks` (pre-execution human review template).
+
 `autopilot_summary.json` includes governance-facing fields such as:
 `policy_decision`, `policy_reasons`, `required_human_checks`, `fail_reasons`, `run_report_path`,
 `change_apply_status`, `applied_changes_count`, and `change_set_hash`.
@@ -332,13 +338,15 @@ Note: `medium_openmodelica_pass` requires Docker/OpenModelica backend access.
 - Provides an optional combined demo bundle job (`workflow_dispatch` with `run_demo_bundle=true`).
   When triggered, this job is strict and fails on demo expectation mismatch.
   The same job also publishes a concise summary on the Actions job page (`Demo Bundle Summary`), including reason/finding counts.
+- Provides an optional autopilot dry-run demo job (`workflow_dispatch` with `run_autopilot_dry_run=true`) that does not block the main job.
+  This job publishes planned review-check counts on the Actions page.
 
 Manual trigger path in GitHub:
 
 1. Open `Actions` tab.
 2. Select `ci` workflow.
 3. Click `Run workflow`.
-4. Enable `run_benchmark` and/or `run_checker_demo` and/or `run_demo_bundle`.
+4. Enable `run_benchmark` and/or `run_checker_demo` and/or `run_demo_bundle` and/or `run_autopilot_dry_run`.
 5. Run and download uploaded artifacts from the selected optional job.
 
 This is intentionally small. It proves your governance layer can always produce machine-readable evidence before adding real simulation complexity.

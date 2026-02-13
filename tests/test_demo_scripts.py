@@ -37,6 +37,27 @@ class DemoScriptTests(unittest.TestCase):
             self.assertIn(artifact, checksums)
             self.assertEqual(len(checksums[artifact]), 64)
 
+    def test_demo_autopilot_dry_run_script_writes_review_template(self) -> None:
+        proc = subprocess.run(
+            ["bash", "scripts/demo_autopilot_dry_run.sh"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+
+        out_json = Path("artifacts/autopilot/autopilot_dry_run_demo.json")
+        out_md = Path("artifacts/autopilot/autopilot_dry_run_demo.md")
+        self.assertTrue(out_json.exists())
+        self.assertTrue(out_md.exists())
+
+        payload = json.loads(out_json.read_text(encoding="utf-8"))
+        self.assertEqual(payload.get("status"), "PLANNED")
+        self.assertEqual(payload.get("planned_risk_level"), "high")
+        checks = payload.get("planned_required_human_checks", [])
+        self.assertTrue(checks)
+        self.assertTrue(any("rollback" in c.lower() for c in checks))
+
 
 if __name__ == "__main__":
     unittest.main()

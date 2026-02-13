@@ -271,10 +271,51 @@ class AutopilotTests(unittest.TestCase):
             self.assertEqual(payload["agent_run_exit_code"], None)
             self.assertEqual(payload["proposal_id"], "autopilot-dry-run-1")
             self.assertIn("planned_run", payload)
+            self.assertEqual(payload["planned_risk_level"], "low")
+            self.assertTrue(payload["planned_required_human_checks"])
             self.assertEqual(payload["planned_run"]["run_out"], "artifacts/autopilot/run_summary.json")
             self.assertFalse(agent_run_out.exists())
             report_text = report.read_text(encoding="utf-8")
             self.assertIn("PLANNED", report_text)
+            self.assertIn("## Planned Human Checks (Dry Run)", report_text)
+
+    def test_autopilot_dry_run_high_risk_planned_checks(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            out = root / "summary.json"
+            context = root / "context.json"
+            context.write_text(
+                json.dumps(
+                    {
+                        "risk_level": "high",
+                        "change_summary": "high risk dry run",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.autopilot",
+                    "--goal",
+                    "run demo mock pass",
+                    "--context-json",
+                    str(context),
+                    "--dry-run",
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            payload = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(payload["status"], "PLANNED")
+            self.assertEqual(payload["planned_risk_level"], "high")
+            checks = payload.get("planned_required_human_checks", [])
+            self.assertTrue(any("rollback" in c.lower() for c in checks))
 
     def test_autopilot_materializes_change_set_from_planner(self) -> None:
         with tempfile.TemporaryDirectory() as d:

@@ -58,6 +58,13 @@ def _write_markdown(path: str, summary: dict) -> None:
         lines.extend([f"- {check}" for check in required_checks])
     else:
         lines.append("- `none`")
+    if summary.get("dry_run"):
+        lines.extend(["", "## Planned Human Checks (Dry Run)", ""])
+        planned_checks = summary.get("planned_required_human_checks", [])
+        if planned_checks:
+            lines.extend([f"- {check}" for check in planned_checks])
+        else:
+            lines.append("- `none`")
     lines.extend(["", "## Human Hints", ""])
     human_hints = summary.get("human_hints", [])
     if human_hints:
@@ -66,6 +73,24 @@ def _write_markdown(path: str, summary: dict) -> None:
         lines.append("- `none`")
     lines.append("")
     p.write_text("\n".join(lines), encoding="utf-8")
+
+
+def _compute_planned_required_checks(intent_payload: dict) -> list[str]:
+    overrides = intent_payload.get("overrides") if isinstance(intent_payload, dict) else {}
+    if not isinstance(overrides, dict):
+        overrides = {}
+    risk_level = overrides.get("risk_level", "low")
+    checks = [
+        "Confirm proposal backend/model_script mapping before execution.",
+        "Review baseline selection strategy (auto/index or explicit path).",
+    ]
+    if risk_level in {"medium", "high"}:
+        checks.append("Confirm regression thresholds and checker_config reflect intended risk posture.")
+    if risk_level == "high":
+        checks.append("Pre-approve rollback path if gate returns FAIL after candidate execution.")
+    if overrides.get("change_set_path") or overrides.get("change_set_draft"):
+        checks.append("Review change-set diff against target files before execution.")
+    return checks
 
 
 def main() -> None:
@@ -263,6 +288,10 @@ def main() -> None:
         summary["planner_stderr_tail"] = (planner_proc.stderr or planner_proc.stdout)[-500:]
     if agent_proc is not None and agent_proc.returncode != 0:
         summary["agent_run_stderr_tail"] = (agent_proc.stderr or agent_proc.stdout)[-500:]
+    if args.dry_run:
+        overrides = intent_payload.get("overrides", {}) if isinstance(intent_payload, dict) else {}
+        summary["planned_risk_level"] = (overrides.get("risk_level") if isinstance(overrides, dict) else None) or "low"
+        summary["planned_required_human_checks"] = _compute_planned_required_checks(intent_payload)
     if agent_payload:
         summary["policy_decision"] = agent_payload.get("policy_decision")
         summary["fail_reasons"] = agent_payload.get("fail_reasons", [])
