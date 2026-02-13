@@ -92,6 +92,9 @@ cat artifacts/proposal_run.json
 
 # one-command demo (docker-independent)
 bash scripts/demo_proposal_flow.sh
+
+# checker threshold demo (docker-independent)
+bash scripts/demo_checker_config.sh
 ```
 
 The demo script uses `examples/proposals/proposal_demo_mock.json` and writes an aligned
@@ -421,6 +424,17 @@ python -m gateforge.regress \
   --checker-config /tmp/checker_config.json \
   --out artifacts/regression_with_checkers.json
 ```
+
+Run a proposal-driven checker threshold demo:
+
+```bash
+bash scripts/demo_checker_config.sh
+```
+
+This uses:
+- `examples/proposals/proposal_checker_config_demo.json`
+- `checker_config.performance_regression.max_ratio = 1.5`
+- `checker_config.event_explosion.max_ratio = 1.5`
 
 Behavior:
 - `decision = PASS` -> command exits `0`
