@@ -267,7 +267,8 @@ def _classify_om_failure(output: str, check_ok: bool, simulate_ok: bool) -> str:
     # Failure taxonomy v0 from log patterns; conservative fallback keeps unknowns visible.
     lower = output.lower()
     if (
-        "permission denied while trying to connect to the docker api" in lower
+        "failed to connect to the docker api" in lower
+        or "permission denied while trying to connect to the docker api" in lower
         or "cannot connect to the docker daemon" in lower
         or "docker daemon" in lower and "not running" in lower
     ):
