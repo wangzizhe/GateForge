@@ -314,3 +314,23 @@ Key outputs:
 - `artifacts/review/ledger_summary.json`
 - `artifacts/review/ledger_summary.md`
 - `artifacts/review_ledger_demo/ledger_summary.json`
+
+## 12. Review Ledger Export Demo
+
+Command:
+
+```bash
+bash scripts/demo_review_ledger_export.sh
+```
+
+What it validates:
+
+- export ledger rows filtered by `final_status`
+- export ledger rows filtered by `proposal_id`
+
+Key outputs:
+
+- `artifacts/review_export_demo/fail_records.json`
+- `artifacts/review_export_demo/proposal_records.json`
+- `artifacts/review_export_demo/fail_summary.json`
+- `artifacts/review_export_demo/proposal_summary.json`

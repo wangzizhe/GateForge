@@ -119,6 +119,9 @@ bash scripts/demo_review_resolution.sh
 # review ledger demo (append + summarize review history)
 bash scripts/demo_review_ledger.sh
 
+# review ledger export demo (filtered records for audit/reporting)
+bash scripts/demo_review_ledger_export.sh
+
 # same demos with strict policy profile
 POLICY_PROFILE=industrial_strict_v0 bash scripts/demo_all.sh
 
@@ -353,6 +356,18 @@ python -m gateforge.review_ledger \
   --summary-out artifacts/review/ledger_summary.json \
   --report-out artifacts/review/ledger_summary.md
 cat artifacts/review/ledger_summary.json
+```
+
+Review ledger filtered export:
+
+```bash
+python -m gateforge.review_ledger \
+  --ledger artifacts/review/ledger.jsonl \
+  --final-status FAIL \
+  --since-utc 2026-02-13T00:00:00Z \
+  --export-out artifacts/review/ledger_fail_records.json \
+  --summary-out artifacts/review/ledger_fail_summary.json
+cat artifacts/review/ledger_fail_records.json
 ```
 
 Planner variants:

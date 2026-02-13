@@ -180,6 +180,21 @@ class DemoScriptTests(unittest.TestCase):
         self.assertGreaterEqual(status.get("PASS", 0), 1)
         self.assertGreaterEqual(status.get("FAIL", 0), 1)
 
+    def test_demo_review_ledger_export_script(self) -> None:
+        proc = subprocess.run(
+            ["bash", "scripts/demo_review_ledger_export.sh"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+        fail_payload = json.loads(Path("artifacts/review_export_demo/fail_records.json").read_text(encoding="utf-8"))
+        proposal_payload = json.loads(
+            Path("artifacts/review_export_demo/proposal_records.json").read_text(encoding="utf-8")
+        )
+        self.assertGreaterEqual(fail_payload.get("total_records", 0), 1)
+        self.assertGreaterEqual(proposal_payload.get("total_records", 0), 1)
+
 
 if __name__ == "__main__":
     unittest.main()
