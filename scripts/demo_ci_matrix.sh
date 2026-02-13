@@ -15,9 +15,10 @@ RUN_AGENT_CHANGE_LOOP="${RUN_AGENT_CHANGE_LOOP:-1}"
 RUN_REPAIR_LOOP="${RUN_REPAIR_LOOP:-1}"
 RUN_PLANNER_GUARDRAILS="${RUN_PLANNER_GUARDRAILS:-1}"
 RUN_REPAIR_BATCH_DEMO="${RUN_REPAIR_BATCH_DEMO:-1}"
+RUN_REPAIR_BATCH_COMPARE_DEMO="${RUN_REPAIR_BATCH_COMPARE_DEMO:-1}"
 RUN_BENCHMARK="${RUN_BENCHMARK:-0}"
 POLICY_PROFILE="${POLICY_PROFILE:-}"
-export RUN_CHECKER_DEMO RUN_STEADY_STATE_DEMO RUN_BEHAVIOR_METRICS_DEMO RUN_DEMO_BUNDLE RUN_AUTOPILOT_DRY_RUN RUN_AGENT_CHANGE_LOOP RUN_REPAIR_LOOP RUN_PLANNER_GUARDRAILS RUN_REPAIR_BATCH_DEMO RUN_BENCHMARK POLICY_PROFILE
+export RUN_CHECKER_DEMO RUN_STEADY_STATE_DEMO RUN_BEHAVIOR_METRICS_DEMO RUN_DEMO_BUNDLE RUN_AUTOPILOT_DRY_RUN RUN_AGENT_CHANGE_LOOP RUN_REPAIR_LOOP RUN_PLANNER_GUARDRAILS RUN_REPAIR_BATCH_DEMO RUN_REPAIR_BATCH_COMPARE_DEMO RUN_BENCHMARK POLICY_PROFILE
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -31,6 +32,7 @@ while [[ $# -gt 0 ]]; do
       RUN_REPAIR_LOOP=1
       RUN_PLANNER_GUARDRAILS=1
       RUN_REPAIR_BATCH_DEMO=1
+      RUN_REPAIR_BATCH_COMPARE_DEMO=1
       shift
       ;;
     --none)
@@ -43,6 +45,7 @@ while [[ $# -gt 0 ]]; do
       RUN_REPAIR_LOOP=0
       RUN_PLANNER_GUARDRAILS=0
       RUN_REPAIR_BATCH_DEMO=0
+      RUN_REPAIR_BATCH_COMPARE_DEMO=0
       RUN_BENCHMARK=0
       shift
       ;;
@@ -80,6 +83,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --repair-batch-demo)
       RUN_REPAIR_BATCH_DEMO=1
+      shift
+      ;;
+    --repair-batch-compare-demo)
+      RUN_REPAIR_BATCH_COMPARE_DEMO=1
       shift
       ;;
     --benchmark)
@@ -139,6 +146,9 @@ fi
 if [[ "$RUN_REPAIR_BATCH_DEMO" == "1" ]]; then
   RESULTS+=("$(run_job repair_batch_demo bash scripts/demo_repair_batch.sh)")
 fi
+if [[ "$RUN_REPAIR_BATCH_COMPARE_DEMO" == "1" ]]; then
+  RESULTS+=("$(run_job repair_batch_compare_demo bash scripts/demo_repair_batch_compare.sh)")
+fi
 if [[ "$RUN_BENCHMARK" == "1" ]]; then
   RESULTS+=("$(run_job benchmark python3 -m gateforge.benchmark --pack benchmarks/pack_v0.json --out-dir artifacts/benchmark_v0 --summary-out artifacts/benchmark_v0/summary.json --report-out artifacts/benchmark_v0/summary.md)")
 fi
@@ -160,6 +170,7 @@ selected = {
     "repair_loop": os.getenv("RUN_REPAIR_LOOP") == "1",
     "planner_guardrails": os.getenv("RUN_PLANNER_GUARDRAILS") == "1",
     "repair_batch_demo": os.getenv("RUN_REPAIR_BATCH_DEMO") == "1",
+    "repair_batch_compare_demo": os.getenv("RUN_REPAIR_BATCH_COMPARE_DEMO") == "1",
     "benchmark": os.getenv("RUN_BENCHMARK") == "1",
 }
 

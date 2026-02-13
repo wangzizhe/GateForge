@@ -55,6 +55,11 @@ on:
         required: false
         default: false
         type: boolean
+      run_repair_batch_compare_demo:
+        description: "Run optional repair batch profile compare demo job"
+        required: false
+        default: false
+        type: boolean
       demo_policy_profile:
         description: "Optional policy profile for demo jobs (e.g. industrial_strict_v0)"
         required: false
@@ -789,3 +794,70 @@ jobs:
             artifacts/repair_batch_demo/summary.md
             artifacts/repair_batch_demo/demo_summary.json
             artifacts/repair_batch_demo/demo_summary.md
+
+  repair-batch-compare-demo-optional:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_repair_batch_compare_demo }}
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    env:
+      POLICY_PROFILE: ${{ inputs.demo_policy_profile }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Run repair batch compare demo
+        run: bash scripts/demo_repair_batch_compare.sh
+
+      - name: Publish repair batch compare summary to job page
+        if: always()
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          path = Path("artifacts/repair_batch_compare_demo/demo_summary.json")
+          if not path.exists():
+              text = "## Repair Batch Compare Summary\n\n`artifacts/repair_batch_compare_demo/demo_summary.json` not found."
+          else:
+              payload = json.loads(path.read_text(encoding="utf-8"))
+              compare = payload.get("compare", {})
+              lines = [
+                  "## Repair Batch Compare Summary",
+                  "",
+                  f"- bundle_status: `{payload.get('bundle_status')}`",
+                  f"- total_cases: `{payload.get('total_cases')}`",
+                  f"- from_policy_profile: `{compare.get('from_policy_profile')}`",
+                  f"- to_policy_profile: `{compare.get('to_policy_profile')}`",
+                  f"- strict_downgrade_rate: `{compare.get('strict_downgrade_rate')}`",
+                  "",
+              ]
+              text = "\n".join(lines)
+
+          summary_file = os.getenv("GITHUB_STEP_SUMMARY")
+          if summary_file:
+              with open(summary_file, "a", encoding="utf-8") as f:
+                  f.write(text + "\n")
+          print(text)
+          PY
+
+      - name: Upload repair batch compare artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: repair-batch-compare-demo
+          path: |
+            artifacts/repair_batch_compare_demo/summary.json
+            artifacts/repair_batch_compare_demo/summary.md
+            artifacts/repair_batch_compare_demo/demo_summary.json
+            artifacts/repair_batch_compare_demo/demo_summary.md

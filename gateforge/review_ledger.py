@@ -44,11 +44,16 @@ def summarize_review_ledger(
     date_counter = Counter()
     last24h_status_counter = Counter()
     last7d_status_counter = Counter()
+    policy_profile_counter = Counter()
     now_utc = datetime.now(timezone.utc)
     cutoff_24h = now_utc - timedelta(hours=24)
     cutoff_7d = now_utc - timedelta(days=7)
     resolution_values: list[float] = []
     proposal_stats: dict[str, dict] = {}
+    reviewable_total = 0
+    reviewable_pass = 0
+    strict_total = 0
+    strict_non_pass = 0
     for row in rows:
         status = row.get("final_status")
         reviewer = row.get("reviewer")
@@ -70,6 +75,18 @@ def summarize_review_ledger(
             item["last_status"] = status
         if isinstance(status, str):
             status_counter[status] += 1
+            source_decision = row.get("source_policy_decision")
+            if isinstance(source_decision, str) and source_decision == "NEEDS_REVIEW":
+                reviewable_total += 1
+                if status == "PASS":
+                    reviewable_pass += 1
+            profile = row.get("policy_profile")
+            if isinstance(profile, str) and profile.strip():
+                policy_profile_counter[profile] += 1
+                if "strict" in profile.lower():
+                    strict_total += 1
+                    if status != "PASS":
+                        strict_non_pass += 1
             if isinstance(risk, str) and risk.strip():
                 risk_counter[risk] += 1
                 if risk not in risk_status_counter:
@@ -130,6 +147,8 @@ def summarize_review_ledger(
     guardrail_total = sum(guardrail_decision_counter.values())
     guardrail_fail_count = int(guardrail_decision_counter.get("FAIL", 0))
     guardrail_fail_rate = round(guardrail_fail_count / guardrail_total, 4) if guardrail_total else 0.0
+    review_recovery_rate = round(reviewable_pass / reviewable_total, 4) if reviewable_total else 0.0
+    strict_non_pass_rate = round(strict_non_pass / strict_total, 4) if strict_total else 0.0
     total_last_24h = sum(last24h_status_counter.values())
     total_last_7d = sum(last7d_status_counter.values())
     approval_rate_last_24h = (
@@ -166,6 +185,7 @@ def summarize_review_ledger(
         "reviewer_counts": dict(reviewer_counter),
         "reason_prefix_counts": dict(reason_counter),
         "risk_level_counts": dict(risk_counter),
+        "policy_profile_counts": dict(policy_profile_counter),
         "planner_guardrail_decision_counts": dict(guardrail_decision_counter),
         "planner_guardrail_rule_id_counts": dict(guardrail_rule_counter),
         "top_unstable_config": {
@@ -190,6 +210,10 @@ def summarize_review_ledger(
             "guardrail_record_count": int(guardrail_total),
             "guardrail_fail_count": int(guardrail_fail_count),
             "guardrail_fail_rate": guardrail_fail_rate,
+            "review_recovery_rate": review_recovery_rate,
+            "strict_non_pass_count": int(strict_non_pass),
+            "strict_review_count": int(strict_total),
+            "strict_non_pass_rate": strict_non_pass_rate,
             "review_volume_last_24h": int(total_last_24h),
             "review_volume_last_7d": int(total_last_7d),
             "approval_rate_last_24h": approval_rate_last_24h,
@@ -289,6 +313,10 @@ def write_markdown(path: str, summary: dict) -> None:
     lines.append(f"- guardrail_record_count: `{kpis.get('guardrail_record_count', 0)}`")
     lines.append(f"- guardrail_fail_count: `{kpis.get('guardrail_fail_count', 0)}`")
     lines.append(f"- guardrail_fail_rate: `{kpis.get('guardrail_fail_rate', 0.0)}`")
+    lines.append(f"- review_recovery_rate: `{kpis.get('review_recovery_rate', 0.0)}`")
+    lines.append(f"- strict_review_count: `{kpis.get('strict_review_count', 0)}`")
+    lines.append(f"- strict_non_pass_count: `{kpis.get('strict_non_pass_count', 0)}`")
+    lines.append(f"- strict_non_pass_rate: `{kpis.get('strict_non_pass_rate', 0.0)}`")
     lines.append(f"- review_volume_last_24h: `{kpis.get('review_volume_last_24h', 0)}`")
     lines.append(f"- review_volume_last_7d: `{kpis.get('review_volume_last_7d', 0)}`")
     lines.append(f"- approval_rate_last_24h: `{kpis.get('approval_rate_last_24h', 0.0)}`")
@@ -299,6 +327,14 @@ def write_markdown(path: str, summary: dict) -> None:
     if risk_counts:
         for k in sorted(risk_counts.keys()):
             lines.append(f"- {k}: `{risk_counts[k]}`")
+    else:
+        lines.append("- `none`")
+
+    lines.extend(["", "## Policy Profile Counts", ""])
+    profile_counts = summary.get("policy_profile_counts", {})
+    if profile_counts:
+        for k in sorted(profile_counts.keys()):
+            lines.append(f"- {k}: `{profile_counts[k]}`")
     else:
         lines.append("- `none`")
 
