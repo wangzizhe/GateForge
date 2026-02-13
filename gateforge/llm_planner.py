@@ -283,12 +283,22 @@ def _apply_llm_guardrails(
         "confidence_max": confidence_max,
     }
     if change_plan is not None:
-        validate_change_plan(
-            change_plan,
-            allowed_roots=allowed_roots,
-            allowed_suffixes=allowed_suffixes,
-            allowed_files=allowed_files,
-        )
+        try:
+            validate_change_plan(
+                change_plan,
+                allowed_roots=allowed_roots,
+                allowed_suffixes=allowed_suffixes,
+                allowed_files=allowed_files,
+            )
+        except ValueError as exc:
+            msg = str(exc)
+            if "allowed_files whitelist" in msg:
+                raise PlannerGuardrailError("change_plan_file_not_whitelisted", msg) from exc
+            if "outside allowed roots" in msg:
+                raise PlannerGuardrailError("change_plan_file_outside_allowed_roots", msg) from exc
+            if "must end with one of" in msg:
+                raise PlannerGuardrailError("change_plan_file_suffix_not_allowed", msg) from exc
+            raise PlannerGuardrailError("change_plan_validation_error", msg) from exc
         stats = summarize_change_plan(change_plan)
         conf_min = stats["plan_confidence_min"]
         conf_max = stats["plan_confidence_max"]

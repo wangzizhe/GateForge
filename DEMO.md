@@ -360,6 +360,7 @@ Key outputs:
 - `artifacts/planner_guardrails_demo/pass_intent.json`
 - `artifacts/planner_guardrails_demo/summary.json`
 - `artifacts/planner_guardrails_demo/summary.md`
+- `summary.json` includes `rule_ids.all` (aggregated guardrail rule IDs)
 
 ## 11. Human Review Resolution Demo
 
