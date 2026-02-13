@@ -28,7 +28,12 @@ def load_review_ledger(ledger_path: str) -> list[dict]:
     return rows
 
 
-def summarize_review_ledger(rows: list[dict], sla_seconds: float = 86400.0) -> dict:
+def summarize_review_ledger(
+    rows: list[dict],
+    sla_seconds: float = 86400.0,
+    top_unstable_n: int = 5,
+    min_unstable_non_pass_count: int = 1,
+) -> dict:
     status_counter = Counter()
     reviewer_counter = Counter()
     reason_counter = Counter()
@@ -151,7 +156,9 @@ def summarize_review_ledger(rows: list[dict], sla_seconds: float = 86400.0) -> d
         key=lambda x: (x["non_pass_count"], x["fail_count"], x["needs_review_count"], -x["pass_count"]),
         reverse=True,
     )
-    top_unstable = unstable[:5]
+    top_unstable = [x for x in unstable if int(x.get("non_pass_count", 0)) >= int(min_unstable_non_pass_count)][
+        : max(0, int(top_unstable_n))
+    ]
     return {
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
         "total_records": len(rows),
@@ -161,6 +168,10 @@ def summarize_review_ledger(rows: list[dict], sla_seconds: float = 86400.0) -> d
         "risk_level_counts": dict(risk_counter),
         "planner_guardrail_decision_counts": dict(guardrail_decision_counter),
         "planner_guardrail_rule_id_counts": dict(guardrail_rule_counter),
+        "top_unstable_config": {
+            "top_n": int(top_unstable_n),
+            "min_non_pass_count": int(min_unstable_non_pass_count),
+        },
         "top_unstable_proposals": top_unstable,
         "kpis": {
             "approval_rate": approval_rate,
@@ -308,6 +319,13 @@ def write_markdown(path: str, summary: dict) -> None:
         lines.append("- `none`")
 
     lines.extend(["", "## Top Unstable Proposals", ""])
+    unstable_cfg = summary.get("top_unstable_config", {})
+    if unstable_cfg:
+        lines.append(
+            f"- config: top_n=`{unstable_cfg.get('top_n')}` "
+            f"min_non_pass_count=`{unstable_cfg.get('min_non_pass_count')}`"
+        )
+        lines.append("")
     unstable = summary.get("top_unstable_proposals", [])
     if unstable:
         for item in unstable:
@@ -364,6 +382,18 @@ def main() -> None:
     parser.add_argument("--since-utc", default=None, help="Filter by recorded_at_utc >= value (ISO-8601)")
     parser.add_argument("--until-utc", default=None, help="Filter by recorded_at_utc <= value (ISO-8601)")
     parser.add_argument("--sla-seconds", type=float, default=86400.0, help="SLA threshold in seconds")
+    parser.add_argument(
+        "--top-unstable-n",
+        type=int,
+        default=5,
+        help="Maximum number of unstable proposals in top_unstable_proposals",
+    )
+    parser.add_argument(
+        "--min-unstable-non-pass-count",
+        type=int,
+        default=1,
+        help="Minimum non-pass count to include in unstable proposal ranking",
+    )
     args = parser.parse_args()
 
     rows = load_review_ledger(args.ledger)
@@ -375,7 +405,12 @@ def main() -> None:
         since_utc=args.since_utc,
         until_utc=args.until_utc,
     )
-    summary = summarize_review_ledger(rows, sla_seconds=args.sla_seconds)
+    summary = summarize_review_ledger(
+        rows,
+        sla_seconds=args.sla_seconds,
+        top_unstable_n=args.top_unstable_n,
+        min_unstable_non_pass_count=args.min_unstable_non_pass_count,
+    )
     write_json(args.summary_out, summary)
     write_markdown(args.report_out or _default_md_path(args.summary_out), summary)
     if args.export_out:

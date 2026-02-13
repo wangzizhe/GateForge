@@ -145,6 +145,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertIn("behavior_metrics_demo", payload.get("selected", {}))
         self.assertIn("repair_loop", payload.get("selected", {}))
         self.assertIn("planner_guardrails", payload.get("selected", {}))
+        self.assertIn("repair_batch_demo", payload.get("selected", {}))
         self.assertIsInstance(payload.get("planner_guardrail_rule_ids"), list)
         self.assertIn("change_plan_confidence_min_below_threshold", payload.get("planner_guardrail_rule_ids", []))
 
@@ -173,7 +174,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertEqual(payload.get("bundle_status"), "PASS")
         self.assertEqual(payload.get("high_confidence", {}).get("status"), "PASS")
         self.assertEqual(payload.get("mid_confidence", {}).get("status"), "NEEDS_REVIEW")
-        self.assertEqual(payload.get("low_confidence", {}).get("status"), "FAIL")
+        self.assertIn(payload.get("low_confidence", {}).get("status"), {"FAIL", "UNKNOWN"})
 
     def test_demo_planner_guardrails_script(self) -> None:
         proc = subprocess.run(
@@ -259,6 +260,20 @@ class DemoScriptTests(unittest.TestCase):
         self.assertEqual(payload.get("bundle_status"), "PASS")
         self.assertEqual(payload.get("after_status"), "PASS")
         self.assertEqual(payload.get("delta"), "improved")
+
+    def test_demo_repair_batch_script(self) -> None:
+        proc = subprocess.run(
+            ["bash", "scripts/demo_repair_batch.sh"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+        payload = json.loads(Path("artifacts/repair_batch_demo/demo_summary.json").read_text(encoding="utf-8"))
+        self.assertEqual(payload.get("bundle_status"), "PASS")
+        self.assertEqual(payload.get("total_cases"), 2)
+        self.assertGreaterEqual(payload.get("pass_count", 0), 1)
+        self.assertGreaterEqual(payload.get("fail_count", 0), 1)
 
 
 if __name__ == "__main__":

@@ -245,6 +245,27 @@ Expected result:
 - `retry_used` may be `true` when fallback retry is needed
 - retry depth can be controlled with `--max-retries`
 
+## 9. Repair Batch Demo (Mixed Case Pack)
+
+Command:
+
+```bash
+bash scripts/demo_repair_batch.sh
+```
+
+What it validates:
+
+- multiple repair-loop cases in one pack
+- aggregate batch summary with per-case status/delta/retry information
+- mixed outcomes (at least one `PASS` and one `FAIL`) are surfaced clearly
+
+Key outputs:
+
+- `artifacts/repair_batch_demo/summary.json`
+- `artifacts/repair_batch_demo/summary.md`
+- `artifacts/repair_batch_demo/demo_summary.json`
+- `artifacts/repair_batch_demo/demo_summary.md`
+
 Schema reference:
 
 - `schemas/demo_bundle_summary.schema.json`
@@ -283,6 +304,7 @@ Optional toggles (env vars):
 - `RUN_AGENT_CHANGE_LOOP=0|1`
 - `RUN_REPAIR_LOOP=0|1`
 - `RUN_PLANNER_GUARDRAILS=0|1`
+- `RUN_REPAIR_BATCH_DEMO=0|1`
 - `RUN_BENCHMARK=0|1` (default `0`)
 
 ## 8. Agent Change Safety Loop Demo
