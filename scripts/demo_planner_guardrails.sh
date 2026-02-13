@@ -17,6 +17,7 @@ python3 -m gateforge.llm_planner \
   --planner-backend rule \
   --emit-change-set-draft \
   --change-plan-confidence-min 0.8 \
+  --guardrail-report-out artifacts/planner_guardrails_demo/pass_guardrail_report.json \
   --out artifacts/planner_guardrails_demo/pass_intent.json
 
 set +e
@@ -26,6 +27,7 @@ python3 -m gateforge.llm_planner \
   --emit-change-set-draft \
   --context-json artifacts/planner_guardrails_demo/low_conf_context.json \
   --change-plan-confidence-min 0.8 \
+  --guardrail-report-out artifacts/planner_guardrails_demo/fail_low_conf_guardrail_report.json \
   --out artifacts/planner_guardrails_demo/fail_low_conf_intent.json
 LOW_CODE=$?
 
@@ -34,6 +36,7 @@ python3 -m gateforge.llm_planner \
   --planner-backend rule \
   --emit-change-set-draft \
   --change-plan-allowed-file examples/openmodelica/MediumOscillator.mo \
+  --guardrail-report-out artifacts/planner_guardrails_demo/fail_whitelist_guardrail_report.json \
   --out artifacts/planner_guardrails_demo/fail_whitelist_intent.json
 WHITE_CODE=$?
 set -e
@@ -45,6 +48,13 @@ import os
 from pathlib import Path
 
 pass_payload = json.loads(Path("artifacts/planner_guardrails_demo/pass_intent.json").read_text(encoding="utf-8"))
+pass_report = json.loads(Path("artifacts/planner_guardrails_demo/pass_guardrail_report.json").read_text(encoding="utf-8"))
+low_report = json.loads(
+    Path("artifacts/planner_guardrails_demo/fail_low_conf_guardrail_report.json").read_text(encoding="utf-8")
+)
+white_report = json.loads(
+    Path("artifacts/planner_guardrails_demo/fail_whitelist_guardrail_report.json").read_text(encoding="utf-8")
+)
 guard = pass_payload.get("planner_inputs", {}).get("change_plan_guardrails", {})
 low_code = int(os.getenv("LOW_CODE", "99"))
 white_code = int(os.getenv("WHITE_CODE", "99"))
@@ -56,6 +66,22 @@ summary = {
     },
     "low_confidence_case": {"status": "PASS" if low_code == 1 else "FAIL", "exit_code": low_code},
     "whitelist_case": {"status": "PASS" if white_code == 1 else "FAIL", "exit_code": white_code},
+    "rule_ids": {
+        "low_confidence": [v.get("rule_id") for v in low_report.get("violations", []) if isinstance(v, dict)],
+        "whitelist": [v.get("rule_id") for v in white_report.get("violations", []) if isinstance(v, dict)],
+    },
+}
+summary["rule_ids"]["all"] = sorted(
+    {
+        rid
+        for rid in (summary["rule_ids"].get("low_confidence", []) + summary["rule_ids"].get("whitelist", []))
+        if isinstance(rid, str) and rid
+    }
+)
+summary["guardrail_decisions"] = {
+    "pass": pass_report.get("decision"),
+    "low_confidence": low_report.get("decision"),
+    "whitelist": white_report.get("decision"),
 }
 summary["result_flags"] = {
     "pass_case_expected_pass": summary["pass_case"]["status"],
@@ -76,6 +102,7 @@ lines = [
     f"- pass_case_status: `{summary['pass_case']['status']}`",
     f"- low_confidence_case_status: `{summary['low_confidence_case']['status']}`",
     f"- whitelist_case_status: `{summary['whitelist_case']['status']}`",
+    f"- rule_ids_all: `{','.join(summary['rule_ids']['all']) if summary['rule_ids']['all'] else 'none'}`",
     f"- bundle_status: `{summary['bundle_status']}`",
     "",
     "## Result Flags",

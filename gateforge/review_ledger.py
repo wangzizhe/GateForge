@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 from collections import Counter
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 import statistics
 
@@ -37,6 +37,11 @@ def summarize_review_ledger(rows: list[dict], sla_seconds: float = 86400.0) -> d
     guardrail_decision_counter = Counter()
     guardrail_rule_counter = Counter()
     date_counter = Counter()
+    last24h_status_counter = Counter()
+    last7d_status_counter = Counter()
+    now_utc = datetime.now(timezone.utc)
+    cutoff_24h = now_utc - timedelta(hours=24)
+    cutoff_7d = now_utc - timedelta(days=7)
     resolution_values: list[float] = []
     for row in rows:
         status = row.get("final_status")
@@ -54,8 +59,14 @@ def summarize_review_ledger(rows: list[dict], sla_seconds: float = 86400.0) -> d
             reviewer_counter[reviewer] += 1
         if isinstance(recorded_at, str):
             try:
-                date_key = _parse_utc(recorded_at).date().isoformat()
+                recorded_dt = _parse_utc(recorded_at)
+                date_key = recorded_dt.date().isoformat()
                 date_counter[date_key] += 1
+                if isinstance(status, str):
+                    if recorded_dt >= cutoff_24h:
+                        last24h_status_counter[status] += 1
+                    if recorded_dt >= cutoff_7d:
+                        last7d_status_counter[status] += 1
             except Exception:
                 pass
         gd = row.get("planner_guardrail_decision")
@@ -99,6 +110,14 @@ def summarize_review_ledger(rows: list[dict], sla_seconds: float = 86400.0) -> d
     guardrail_total = sum(guardrail_decision_counter.values())
     guardrail_fail_count = int(guardrail_decision_counter.get("FAIL", 0))
     guardrail_fail_rate = round(guardrail_fail_count / guardrail_total, 4) if guardrail_total else 0.0
+    total_last_24h = sum(last24h_status_counter.values())
+    total_last_7d = sum(last7d_status_counter.values())
+    approval_rate_last_24h = (
+        round(last24h_status_counter.get("PASS", 0) / total_last_24h, 4) if total_last_24h else 0.0
+    )
+    approval_rate_last_7d = (
+        round(last7d_status_counter.get("PASS", 0) / total_last_7d, 4) if total_last_7d else 0.0
+    )
     return {
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
         "total_records": len(rows),
@@ -125,6 +144,10 @@ def summarize_review_ledger(rows: list[dict], sla_seconds: float = 86400.0) -> d
             "guardrail_record_count": int(guardrail_total),
             "guardrail_fail_count": int(guardrail_fail_count),
             "guardrail_fail_rate": guardrail_fail_rate,
+            "review_volume_last_24h": int(total_last_24h),
+            "review_volume_last_7d": int(total_last_7d),
+            "approval_rate_last_24h": approval_rate_last_24h,
+            "approval_rate_last_7d": approval_rate_last_7d,
         },
     }
 
@@ -220,6 +243,10 @@ def write_markdown(path: str, summary: dict) -> None:
     lines.append(f"- guardrail_record_count: `{kpis.get('guardrail_record_count', 0)}`")
     lines.append(f"- guardrail_fail_count: `{kpis.get('guardrail_fail_count', 0)}`")
     lines.append(f"- guardrail_fail_rate: `{kpis.get('guardrail_fail_rate', 0.0)}`")
+    lines.append(f"- review_volume_last_24h: `{kpis.get('review_volume_last_24h', 0)}`")
+    lines.append(f"- review_volume_last_7d: `{kpis.get('review_volume_last_7d', 0)}`")
+    lines.append(f"- approval_rate_last_24h: `{kpis.get('approval_rate_last_24h', 0.0)}`")
+    lines.append(f"- approval_rate_last_7d: `{kpis.get('approval_rate_last_7d', 0.0)}`")
 
     lines.extend(["", "## Risk-Level Counts", ""])
     risk_counts = summary.get("risk_level_counts", {})

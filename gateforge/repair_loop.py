@@ -89,6 +89,19 @@ def _write_markdown(path: str, summary: dict) -> None:
             )
     else:
         lines.append("- `none`")
+    lines.extend(["", "## Retry Analysis", ""])
+    retry_analysis = summary.get("retry_analysis", {})
+    if retry_analysis:
+        lines.append(f"- selected_attempt: `{retry_analysis.get('selected_attempt')}`")
+        lines.append(f"- first_attempt_status: `{retry_analysis.get('first_attempt_status')}`")
+        lines.append(f"- selected_attempt_status: `{retry_analysis.get('selected_attempt_status')}`")
+        lines.append(f"- recovered_by_retry: `{retry_analysis.get('recovered_by_retry')}`")
+        fixed = retry_analysis.get("fixed_guardrail_rule_ids", [])
+        new = retry_analysis.get("new_guardrail_rule_ids", [])
+        lines.append(f"- fixed_guardrail_rule_ids: `{','.join(fixed) if fixed else 'none'}`")
+        lines.append(f"- new_guardrail_rule_ids: `{','.join(new) if new else 'none'}`")
+    else:
+        lines.append("- `none`")
     lines.append("")
     p.write_text("\n".join(lines), encoding="utf-8")
 
@@ -297,6 +310,7 @@ def main() -> None:
             "status": after_payload.get("status"),
             "planner_guardrail_decision": after_payload.get("planner_guardrail_decision"),
             "planner_guardrail_violations": after_payload.get("planner_guardrail_violations", []),
+            "planner_guardrail_violation_objects": after_payload.get("planner_guardrail_violation_objects", []),
             "summary_path": autopilot_out,
         }
     )
@@ -362,6 +376,7 @@ def main() -> None:
                 "status": retry_payload.get("status"),
                 "planner_guardrail_decision": retry_payload.get("planner_guardrail_decision"),
                 "planner_guardrail_violations": retry_payload.get("planner_guardrail_violations", []),
+                "planner_guardrail_violation_objects": retry_payload.get("planner_guardrail_violation_objects", []),
                 "summary_path": retry_out,
             }
         )
@@ -424,6 +439,27 @@ def main() -> None:
             "new_reasons": sorted(after_reasons - before_reasons),
         },
     }
+    if attempts:
+        first = attempts[0]
+        selected = attempts[-1] if retry_used and len(attempts) > 1 and after_payload == retry_payload else attempts[0]
+        first_rules = {
+            item.get("rule_id")
+            for item in (first.get("planner_guardrail_violation_objects") or [])
+            if isinstance(item, dict) and isinstance(item.get("rule_id"), str)
+        }
+        selected_rules = {
+            item.get("rule_id")
+            for item in (selected.get("planner_guardrail_violation_objects") or [])
+            if isinstance(item, dict) and isinstance(item.get("rule_id"), str)
+        }
+        summary["retry_analysis"] = {
+            "selected_attempt": selected.get("attempt"),
+            "first_attempt_status": first.get("status"),
+            "selected_attempt_status": selected.get("status"),
+            "recovered_by_retry": bool(retry_used and selected.get("attempt") != first.get("attempt")),
+            "fixed_guardrail_rule_ids": sorted(first_rules - selected_rules),
+            "new_guardrail_rule_ids": sorted(selected_rules - first_rules),
+        }
     if proc.returncode != 0:
         summary["autopilot_stderr_tail"] = (proc.stderr or proc.stdout)[-800:]
     if retry_proc is not None and retry_proc.returncode != 0:

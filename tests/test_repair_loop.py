@@ -152,6 +152,8 @@ class RepairLoopTests(unittest.TestCase):
             self.assertTrue(payload.get("retry_used"))
             self.assertGreaterEqual(len(payload.get("attempts", [])), 2)
             self.assertEqual(payload.get("status"), "PASS")
+            self.assertIn("retry_analysis", payload)
+            self.assertTrue(payload["retry_analysis"].get("recovered_by_retry"))
 
     def test_repair_loop_detects_worse_outcome(self) -> None:
         with tempfile.TemporaryDirectory() as d:

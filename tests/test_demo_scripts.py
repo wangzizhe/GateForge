@@ -145,6 +145,8 @@ class DemoScriptTests(unittest.TestCase):
         self.assertIn("behavior_metrics_demo", payload.get("selected", {}))
         self.assertIn("repair_loop", payload.get("selected", {}))
         self.assertIn("planner_guardrails", payload.get("selected", {}))
+        self.assertIsInstance(payload.get("planner_guardrail_rule_ids"), list)
+        self.assertIn("change_plan_confidence_min_below_threshold", payload.get("planner_guardrail_rule_ids", []))
 
     def test_demo_agent_change_loop_script(self) -> None:
         proc = subprocess.run(
@@ -186,6 +188,8 @@ class DemoScriptTests(unittest.TestCase):
         self.assertEqual(payload.get("pass_case", {}).get("status"), "PASS")
         self.assertEqual(payload.get("low_confidence_case", {}).get("status"), "PASS")
         self.assertEqual(payload.get("whitelist_case", {}).get("status"), "PASS")
+        self.assertIn("change_plan_confidence_min_below_threshold", payload.get("rule_ids", {}).get("all", []))
+        self.assertIn("change_plan_file_not_whitelisted", payload.get("rule_ids", {}).get("all", []))
 
     def test_demo_review_resolution_script(self) -> None:
         proc = subprocess.run(

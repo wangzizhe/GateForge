@@ -3,6 +3,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 
@@ -289,6 +290,71 @@ class ReviewLedgerTests(unittest.TestCase):
             self.assertEqual(payload["kpis"]["avg_resolution_seconds"], 45600.0)
             self.assertEqual(payload["kpis"]["sla_breach_count"], 1)
             self.assertEqual(payload["kpis"]["sla_breach_rate"], 0.5)
+
+    def test_review_ledger_window_kpis(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            ledger = root / "ledger.jsonl"
+            now = datetime.now(timezone.utc)
+            within_24h = (now - timedelta(hours=2)).isoformat()
+            within_7d = (now - timedelta(days=3)).isoformat()
+            old = (now - timedelta(days=10)).isoformat()
+            ledger.write_text(
+                "\n".join(
+                    [
+                        json.dumps(
+                            {
+                                "recorded_at_utc": within_24h,
+                                "proposal_id": "p1",
+                                "reviewer": "r1",
+                                "final_status": "PASS",
+                                "final_reasons": [],
+                            }
+                        ),
+                        json.dumps(
+                            {
+                                "recorded_at_utc": within_7d,
+                                "proposal_id": "p2",
+                                "reviewer": "r2",
+                                "final_status": "FAIL",
+                                "final_reasons": ["human_rejected"],
+                            }
+                        ),
+                        json.dumps(
+                            {
+                                "recorded_at_utc": old,
+                                "proposal_id": "p3",
+                                "reviewer": "r3",
+                                "final_status": "PASS",
+                                "final_reasons": [],
+                            }
+                        ),
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            summary_out = root / "summary.json"
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.review_ledger",
+                    "--ledger",
+                    str(ledger),
+                    "--summary-out",
+                    str(summary_out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            payload = json.loads(summary_out.read_text(encoding="utf-8"))
+            self.assertEqual(payload["kpis"]["review_volume_last_24h"], 1)
+            self.assertEqual(payload["kpis"]["review_volume_last_7d"], 2)
+            self.assertEqual(payload["kpis"]["approval_rate_last_24h"], 1.0)
+            self.assertEqual(payload["kpis"]["approval_rate_last_7d"], 0.5)
 
 
 if __name__ == "__main__":

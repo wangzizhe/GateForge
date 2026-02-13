@@ -177,6 +177,16 @@ summary = {
     "failed_jobs": failed_jobs,
 }
 
+planner_guardrail_rule_ids = []
+if selected.get("planner_guardrails"):
+    guardrail_summary = Path("artifacts/planner_guardrails_demo/summary.json")
+    if guardrail_summary.exists():
+        payload = json.loads(guardrail_summary.read_text(encoding="utf-8"))
+        rule_ids = payload.get("rule_ids", {}).get("all", [])
+        if isinstance(rule_ids, list):
+            planner_guardrail_rule_ids = [x for x in rule_ids if isinstance(x, str)]
+summary["planner_guardrail_rule_ids"] = sorted(set(planner_guardrail_rule_ids))
+
 out_json = Path("artifacts/ci_matrix_summary.json")
 out_md = Path("artifacts/ci_matrix_summary.md")
 out_json.write_text(json.dumps(summary, indent=2), encoding="utf-8")
@@ -202,6 +212,13 @@ lines.extend(["", "## Failed Jobs", ""])
 if failed_jobs:
     for name in failed_jobs:
         lines.append(f"- {name}")
+else:
+    lines.append("- `none`")
+
+lines.extend(["", "## Planner Guardrail Rule IDs", ""])
+if summary["planner_guardrail_rule_ids"]:
+    for rid in summary["planner_guardrail_rule_ids"]:
+        lines.append(f"- {rid}")
 else:
     lines.append("- `none`")
 
