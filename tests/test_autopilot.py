@@ -421,6 +421,7 @@ class AutopilotTests(unittest.TestCase):
             self.assertEqual(payload["status"], "PASS")
             self.assertTrue(payload["materialize_change_set"])
             self.assertTrue(payload["generated_change_set_path"])
+            self.assertEqual(payload["generated_change_set_source"], "change_plan")
             self.assertEqual(payload["change_apply_status"], "applied")
             self.assertTrue(payload["change_set_hash"])
             self.assertEqual(payload["applied_changes_count"], 1)

@@ -13,6 +13,7 @@ class RunTests(unittest.TestCase):
         actions: list[str],
         *,
         backend: str = "mock",
+        risk_level: str = "low",
         change_set_path: str | None = None,
         checkers: list[str] | None = None,
     ) -> None:
@@ -25,7 +26,7 @@ class RunTests(unittest.TestCase):
             "model_script": "examples/openmodelica/minimal_probe.mos",
             "change_summary": "proposal-driven run",
             "requested_actions": actions,
-            "risk_level": "low",
+            "risk_level": risk_level,
         }
         if change_set_path is not None:
             payload["change_set_path"] = change_set_path
@@ -409,6 +410,90 @@ class RunTests(unittest.TestCase):
             self.assertTrue(summary["required_human_checks"])
             joined = " ".join(summary["required_human_checks"]).lower()
             self.assertIn("change_set", joined)
+
+    def test_run_proposal_high_risk_change_set_requires_review(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            proposal = root / "proposal.json"
+            out = root / "run_summary.json"
+
+            self._write_proposal(
+                proposal,
+                ["check", "simulate"],
+                risk_level="high",
+                change_set_path="examples/changesets/minimalprobe_x_to_2.json",
+            )
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.run",
+                    "--proposal",
+                    str(proposal),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            summary = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(summary["status"], "NEEDS_REVIEW")
+            self.assertEqual(summary["change_apply_status"], "requires_review")
+            self.assertFalse(summary["smoke_executed"])
+            self.assertIn("change_requires_human_review", summary["policy_reasons"])
+
+    def test_run_proposal_change_set_preflight_failed(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            proposal = root / "proposal.json"
+            out = root / "run_summary.json"
+            bad_changeset = root / "bad_change_set.json"
+            bad_changeset.write_text(
+                json.dumps(
+                    {
+                        "schema_version": "0.1.0",
+                        "changes": [
+                            {
+                                "op": "replace_text",
+                                "file": "examples/not_allowed/Bad.mo",
+                                "old": "x",
+                                "new": "y",
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            self._write_proposal(
+                proposal,
+                ["check", "simulate"],
+                change_set_path=str(bad_changeset),
+            )
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.run",
+                    "--proposal",
+                    str(proposal),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertNotEqual(proc.returncode, 0)
+            summary = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(summary["status"], "FAIL")
+            self.assertEqual(summary["change_apply_status"], "preflight_failed")
+            self.assertEqual(summary["change_preflight_status"], "failed")
+            self.assertIn("change_preflight_failed", summary["fail_reasons"])
 
     def test_run_proposal_uses_configured_checkers(self) -> None:
         with tempfile.TemporaryDirectory() as d:

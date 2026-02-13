@@ -14,8 +14,20 @@
   "needs_review_reason_prefixes": [
     "runtime_regression",
     "performance_regression_detected",
-    "steady_state_regression_detected"
+    "steady_state_regression_detected",
+    "change_requires_human_review"
   ],
+  "always_needs_review_reason_prefixes": [
+    "change_requires_human_review"
+  ],
+  "allow_auto_apply_risk_levels": [
+    "low",
+    "medium"
+  ],
+  "change_set_allowed_roots": [
+    "examples/openmodelica"
+  ],
+  "change_set_max_changes": 20,
   "fail_on_needs_review_risk_levels": [
     "high"
   ],
@@ -71,6 +83,14 @@
       "change_apply_failed": [
         "Inspect change_set_path and confirm each replace_text old/new fragment matches target files.",
         "Regenerate or fix the change_set, then rerun proposal before merge."
+      ],
+      "change_preflight_failed": [
+        "Inspect change-set target scope and file paths; ensure all changes stay inside approved roots.",
+        "Fix preflight violations and rerun before merge."
+      ],
+      "change_requires_human_review": [
+        "This risk level is not auto-apply eligible. Perform manual review and explicit approval.",
+        "After approval, rerun with a policy/profile that allows this operation."
       ]
     },
     "by_failure_type": {

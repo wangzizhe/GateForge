@@ -103,6 +103,7 @@ In GitHub Actions (`ci` workflow), use **Run workflow** and enable:
 - `run_steady_state_demo=true`
 - `run_demo_bundle=true` (runs both demos, emits one summary, and is strict when triggered)
 - `run_autopilot_dry_run=true` (runs dry-run review-template demo, non-blocking)
+- `run_agent_change_loop=true` (runs low/high risk change safety loop demo, non-blocking)
 - optional: `demo_policy_profile=industrial_strict_v0` to run all demo jobs under a profile
 
 Artifact to download:
@@ -110,10 +111,12 @@ Artifact to download:
 - `checker-config-demo`
 - `steady-state-demo`
 - `autopilot-dry-run-demo`
+- `agent-change-loop-demo`
 
 It includes all checker demo outputs including `checker_demo_summary.md`.
 `steady-state-demo` includes behavior-drift regression outputs and summary.
 `autopilot-dry-run-demo` includes the dry-run JSON/MD and planned human checks.
+`agent-change-loop-demo` includes low/high risk summaries and policy-driven decision outcomes.
 Actions job page also shows `Checker Demo Summary` (status/policy/reason counts) for quick inspection.
 
 For combined evidence, use artifact:
@@ -211,3 +214,31 @@ Optional toggles (env vars):
 - `RUN_DEMO_BUNDLE=0|1`
 - `RUN_AUTOPILOT_DRY_RUN=0|1`
 - `RUN_BENCHMARK=0|1` (default `0`)
+- `RUN_AGENT_CHANGE_LOOP=0|1`
+
+## 8. Agent Change Safety Loop Demo
+
+Command:
+
+```bash
+bash scripts/demo_agent_change_loop.sh
+```
+
+With strict profile:
+
+```bash
+POLICY_PROFILE=industrial_strict_v0 bash scripts/demo_agent_change_loop.sh
+```
+
+What it validates:
+
+- low-risk change-set can be auto-applied and executed
+- high-risk change-set is blocked for human review by policy
+- autopilot materializes change from planner `change_plan` into executable `change_set`
+
+Key outputs:
+
+- `artifacts/agent_change_loop/low_summary.json`
+- `artifacts/agent_change_loop/high_summary.json`
+- `artifacts/agent_change_loop/summary.json`
+- `artifacts/agent_change_loop/summary.md`

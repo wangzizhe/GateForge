@@ -107,6 +107,9 @@ bash scripts/demo_all.sh
 # local CI matrix simulation (workflow_dispatch-like toggles)
 bash scripts/demo_ci_matrix.sh
 
+# agent change safety loop demo (low-risk pass, high-risk needs review)
+bash scripts/demo_agent_change_loop.sh
+
 # same demos with strict policy profile
 POLICY_PROFILE=industrial_strict_v0 bash scripts/demo_all.sh
 
@@ -251,6 +254,14 @@ python -m gateforge.agent_run \
   --out artifacts/agent/agent_run_from_planner.json
 ```
 
+Planner intent payload can include:
+- `overrides` (e.g. `risk_level`, `checkers`, `checker_config`)
+- `change_plan` (structured operation list)
+- `change_set_draft` (direct change-set JSON)
+
+Schema reference:
+- `schemas/intent.schema.json`
+
 Planner can also emit a `change_set_draft`:
 
 ```bash
@@ -357,13 +368,15 @@ Note: `medium_openmodelica_pass` requires Docker/OpenModelica backend access.
   The same job also publishes a concise summary on the Actions job page (`Demo Bundle Summary`), including reason/finding counts.
 - Provides an optional autopilot dry-run demo job (`workflow_dispatch` with `run_autopilot_dry_run=true`) that does not block the main job.
   This job publishes planned review-check counts on the Actions page.
+- Provides an optional agent change loop demo job (`workflow_dispatch` with `run_agent_change_loop=true`) that does not block the main job.
+  This job publishes low/high risk policy outcomes for deterministic patch flows.
 
 Manual trigger path in GitHub:
 
 1. Open `Actions` tab.
 2. Select `ci` workflow.
 3. Click `Run workflow`.
-4. Enable `run_benchmark` and/or `run_checker_demo` and/or `run_steady_state_demo` and/or `run_demo_bundle` and/or `run_autopilot_dry_run`.
+4. Enable `run_benchmark` and/or `run_checker_demo` and/or `run_steady_state_demo` and/or `run_demo_bundle` and/or `run_autopilot_dry_run` and/or `run_agent_change_loop`.
 5. Optional: set `demo_policy_profile` (for demo jobs) such as `industrial_strict_v0`.
 6. Run and download uploaded artifacts from the selected optional job.
 
@@ -372,6 +385,7 @@ Optional demo artifacts:
 - `steady-state-demo`
 - `demo-bundle`
 - `autopilot-dry-run-demo`
+- `agent-change-loop-demo`
 
 Local workflow-dispatch simulation:
 
@@ -382,6 +396,8 @@ bash scripts/demo_ci_matrix.sh
 Outputs:
 - `artifacts/ci_matrix_summary.json`
 - `artifacts/ci_matrix_summary.md`
+You can include agent-loop in local matrix with:
+`RUN_AGENT_CHANGE_LOOP=1 bash scripts/demo_ci_matrix.sh`
 
 This is intentionally small. It proves your governance layer can always produce machine-readable evidence before adding real simulation complexity.
 
