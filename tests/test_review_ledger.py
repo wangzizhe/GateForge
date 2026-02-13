@@ -391,6 +391,47 @@ class ReviewLedgerTests(unittest.TestCase):
             self.assertTrue(top)
             self.assertEqual(top[0]["proposal_id"], "p_hot")
             self.assertEqual(top[0]["non_pass_count"], 3)
+            self.assertIn("top_unstable_config", payload)
+
+    def test_review_ledger_top_unstable_tunable(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            ledger = root / "ledger.jsonl"
+            rows = [
+                {"proposal_id": "p_hot", "final_status": "FAIL", "reviewer": "r1", "final_reasons": []},
+                {"proposal_id": "p_hot", "final_status": "NEEDS_REVIEW", "reviewer": "r2", "final_reasons": []},
+                {"proposal_id": "p_warm", "final_status": "NEEDS_REVIEW", "reviewer": "r2", "final_reasons": []},
+                {"proposal_id": "p_warm", "final_status": "PASS", "reviewer": "r3", "final_reasons": []},
+                {"proposal_id": "p_cool", "final_status": "PASS", "reviewer": "r4", "final_reasons": []},
+            ]
+            ledger.write_text("\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8")
+            summary_out = root / "summary.json"
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.review_ledger",
+                    "--ledger",
+                    str(ledger),
+                    "--summary-out",
+                    str(summary_out),
+                    "--top-unstable-n",
+                    "1",
+                    "--min-unstable-non-pass-count",
+                    "2",
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            payload = json.loads(summary_out.read_text(encoding="utf-8"))
+            top = payload.get("top_unstable_proposals", [])
+            self.assertEqual(len(top), 1)
+            self.assertEqual(top[0]["proposal_id"], "p_hot")
+            cfg = payload.get("top_unstable_config", {})
+            self.assertEqual(cfg.get("top_n"), 1)
+            self.assertEqual(cfg.get("min_non_pass_count"), 2)
 
 
 if __name__ == "__main__":

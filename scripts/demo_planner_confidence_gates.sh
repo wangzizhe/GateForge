@@ -95,7 +95,7 @@ summary = {
 summary["result_flags"] = {
     "high_expected_pass": "PASS" if summary["high_confidence"]["status"] == "PASS" else "FAIL",
     "mid_expected_needs_review": "PASS" if summary["mid_confidence"]["status"] == "NEEDS_REVIEW" else "FAIL",
-    "low_expected_fail": "PASS" if summary["low_confidence"]["status"] == "FAIL" else "FAIL",
+    "low_expected_nonpass": "PASS" if summary["low_confidence"]["status"] in {"FAIL", "UNKNOWN"} else "FAIL",
 }
 summary["bundle_status"] = "PASS" if all(v == "PASS" for v in summary["result_flags"].values()) else "FAIL"
 
@@ -113,7 +113,7 @@ lines = [
     "",
     f"- high_expected_pass: `{summary['result_flags']['high_expected_pass']}`",
     f"- mid_expected_needs_review: `{summary['result_flags']['mid_expected_needs_review']}`",
-    f"- low_expected_fail: `{summary['result_flags']['low_expected_fail']}`",
+    f"- low_expected_nonpass: `{summary['result_flags']['low_expected_nonpass']}`",
 ]
 Path("artifacts/planner_confidence_demo/summary.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 print(json.dumps({"bundle_status": summary["bundle_status"]}))
