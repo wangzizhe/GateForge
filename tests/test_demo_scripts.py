@@ -105,6 +105,22 @@ class DemoScriptTests(unittest.TestCase):
         self.assertIn("steady_state_regression_detected", reg_payload.get("reasons", []))
         self.assertTrue(summary_path.exists())
 
+    def test_demo_behavior_metrics_checker_script_expected_nonpass(self) -> None:
+        proc = subprocess.run(
+            ["bash", "scripts/demo_behavior_metrics_checker.sh"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+        reg_payload = json.loads(Path("artifacts/behavior_metrics_demo/regression.json").read_text(encoding="utf-8"))
+        summary_payload = json.loads(Path("artifacts/behavior_metrics_demo/summary.json").read_text(encoding="utf-8"))
+        self.assertEqual(reg_payload.get("decision"), "NEEDS_REVIEW")
+        self.assertIn("overshoot_regression_detected", reg_payload.get("reasons", []))
+        self.assertIn("settling_time_regression_detected", reg_payload.get("reasons", []))
+        self.assertIn("steady_state_regression_detected", reg_payload.get("reasons", []))
+        self.assertEqual(summary_payload.get("bundle_status"), "PASS")
+
     def test_demo_ci_matrix_script_writes_summary(self) -> None:
         proc = subprocess.run(
             ["bash", "scripts/demo_ci_matrix.sh"],

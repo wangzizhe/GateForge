@@ -220,6 +220,49 @@ class ProposalTests(unittest.TestCase):
         }
         validate_proposal(proposal)
 
+    def test_validate_accepts_control_behavior_checker_config(self) -> None:
+        proposal = {
+            "schema_version": "0.1.0",
+            "proposal_id": "proposal-control-cfg-1",
+            "timestamp_utc": "2026-02-13T00:00:00Z",
+            "author_type": "human",
+            "backend": "mock",
+            "model_script": "examples/openmodelica/minimal_probe.mos",
+            "change_summary": "control behavior checker config",
+            "requested_actions": ["check", "regress"],
+            "risk_level": "medium",
+            "checkers": ["control_behavior_regression"],
+            "checker_config": {
+                "control_behavior_regression": {
+                    "max_overshoot_abs_delta": 0.1,
+                    "max_settling_time_ratio": 1.5,
+                    "max_steady_state_abs_delta": 0.05,
+                }
+            },
+        }
+        validate_proposal(proposal)
+
+    def test_validate_fails_on_invalid_control_behavior_checker_config(self) -> None:
+        proposal = {
+            "schema_version": "0.1.0",
+            "proposal_id": "proposal-control-cfg-2",
+            "timestamp_utc": "2026-02-13T00:00:00Z",
+            "author_type": "human",
+            "backend": "mock",
+            "model_script": "examples/openmodelica/minimal_probe.mos",
+            "change_summary": "invalid control behavior checker config",
+            "requested_actions": ["check", "regress"],
+            "risk_level": "medium",
+            "checkers": ["control_behavior_regression"],
+            "checker_config": {
+                "control_behavior_regression": {
+                    "max_settling_time_ratio": 0
+                }
+            },
+        }
+        with self.assertRaises(ValueError):
+            validate_proposal(proposal)
+
     def test_validate_fails_on_runtime_checker_toggle_unknown_checker(self) -> None:
         proposal = {
             "schema_version": "0.1.0",

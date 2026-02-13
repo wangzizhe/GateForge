@@ -103,6 +103,16 @@ class PolicyTests(unittest.TestCase):
         result = evaluate_policy(["event_explosion_detected"], "low", policy)
         self.assertEqual(result["policy_decision"], "FAIL")
 
+    def test_default_policy_overshoot_regression_needs_review(self) -> None:
+        policy = load_policy()
+        result = evaluate_policy(["overshoot_regression_detected"], "medium", policy)
+        self.assertEqual(result["policy_decision"], "NEEDS_REVIEW")
+
+    def test_default_policy_settling_regression_needs_review(self) -> None:
+        policy = load_policy()
+        result = evaluate_policy(["settling_time_regression_detected"], "medium", policy)
+        self.assertEqual(result["policy_decision"], "NEEDS_REVIEW")
+
     def test_industrial_profile_runtime_regression_medium_fail(self) -> None:
         policy = load_policy("policies/profiles/industrial_strict_v0.json")
         result = evaluate_policy(["runtime_regression:1.2s>1.0s"], "medium", policy)

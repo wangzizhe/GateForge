@@ -15,6 +15,8 @@
   "needs_review_reason_prefixes": [
     "runtime_regression",
     "performance_regression_detected",
+    "overshoot_regression_detected",
+    "settling_time_regression_detected",
     "steady_state_regression_detected",
     "change_requires_human_review",
     "change_plan_confidence_below_auto_apply"
@@ -64,6 +66,14 @@
       "steady_state_regression_detected": [
         "Inspect steady-state behavior shift and verify controller/system objectives remain satisfied.",
         "Review steady_state_regression threshold and justify acceptance before merge."
+      ],
+      "overshoot_regression_detected": [
+        "Inspect overshoot increase and verify transient constraints remain acceptable.",
+        "Review control_behavior_regression overshoot threshold and justify acceptance before merge."
+      ],
+      "settling_time_regression_detected": [
+        "Inspect settling-time slowdown and verify closed-loop performance requirements remain satisfied.",
+        "Review control_behavior_regression settling threshold and justify acceptance before merge."
       ],
       "event_explosion_detected": [
         "Inspect event count growth and verify hybrid/event behavior remains physically meaningful.",

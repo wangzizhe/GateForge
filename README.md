@@ -101,6 +101,9 @@ bash scripts/demo_checker_config.sh
 # behavior drift demo (steady-state checker)
 bash scripts/demo_steady_state_checker.sh
 
+# behavior metrics demo (overshoot/settling/steady-state checker)
+bash scripts/demo_behavior_metrics_checker.sh
+
 # combined demo bundle (docker-independent)
 bash scripts/demo_all.sh
 
@@ -179,12 +182,13 @@ Current proposal schema file:
 
 - `schemas/proposal.schema.json`
 - Optional `checkers` field in proposal:
-  - `["timeout", "nan_inf", "performance_regression", "event_explosion", "steady_state_regression"]`
+  - `["timeout", "nan_inf", "performance_regression", "event_explosion", "steady_state_regression", "control_behavior_regression"]`
   - If omitted, all built-in checkers run by default
 - Optional `checker_config` field in proposal:
   - `{"performance_regression": {"max_ratio": 1.5}}`
   - `{"event_explosion": {"max_ratio": 1.8, "abs_threshold_if_baseline_zero": 50}}`
   - `{"steady_state_regression": {"max_abs_delta": 0.05}}`
+  - `{"control_behavior_regression": {"max_overshoot_abs_delta": 0.1, "max_settling_time_ratio": 1.5, "max_steady_state_abs_delta": 0.05}}`
   - `{"_runtime": {"enable": ["steady_state_regression"], "disable": ["performance_regression"]}}`
 
 Drive smoke execution from proposal:
@@ -614,6 +618,20 @@ This uses:
 
 Behavior under default policy:
 - `steady_state_regression_detected` triggers policy decision `NEEDS_REVIEW` for `risk_level=medium`
+
+Run a behavior-metrics checker demo (overshoot + settling + steady-state):
+
+```bash
+bash scripts/demo_behavior_metrics_checker.sh
+```
+
+This writes:
+- `artifacts/behavior_metrics_demo/regression.json`
+- `artifacts/behavior_metrics_demo/summary.json`
+- `artifacts/behavior_metrics_demo/summary.md`
+
+Behavior under default policy:
+- `overshoot_regression_detected` and `settling_time_regression_detected` map to `NEEDS_REVIEW` for `risk_level=medium`
 
 Behavior:
 - `decision = PASS` -> command exits `0`
