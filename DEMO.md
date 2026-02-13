@@ -65,7 +65,37 @@ Expected result:
   - `performance_regression_detected`
   - `event_explosion_detected`
 
-## 3. Optional CI Demo Job
+## 3. Steady-State Checker Demo (Behavior Drift)
+
+Command:
+
+```bash
+bash scripts/demo_steady_state_checker.sh
+```
+
+With strict profile:
+
+```bash
+POLICY_PROFILE=industrial_strict_v0 bash scripts/demo_steady_state_checker.sh
+```
+
+What it validates:
+
+- behavior regression checker (`steady_state_regression`)
+- regression can fail even when compile/simulate status are both success
+
+Key outputs:
+
+- `artifacts/steady_state_demo_regression.json`
+- `artifacts/steady_state_demo_summary.md`
+
+Expected result:
+
+- regression output contains `"decision": "NEEDS_REVIEW"` (under default medium-risk policy)
+- regression reasons include:
+  - `steady_state_regression_detected`
+
+## 4. Optional CI Demo Job
 
 In GitHub Actions (`ci` workflow), use **Run workflow** and enable:
 
@@ -88,7 +118,7 @@ For combined evidence, use artifact:
 - `demo-bundle` (includes `artifacts/demo_all_summary.md`)
 - Actions job page also shows `Demo Bundle Summary` including reason/finding counts.
 
-## 4. One-command bundle (local)
+## 5. One-command bundle (local)
 
 Command:
 
@@ -119,7 +149,7 @@ cat artifacts/bench-pack/summary.json
 cat artifacts/bench-pack/summary.md
 ```
 
-## 5. Autopilot Dry-Run Demo (Human Review Template)
+## 6. Autopilot Dry-Run Demo (Human Review Template)
 
 Command:
 
