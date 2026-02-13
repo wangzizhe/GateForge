@@ -246,6 +246,55 @@ class AgentRunTests(unittest.TestCase):
 
             self.assertNotEqual(proc.returncode, 0)
 
+    def test_agent_run_emits_checker_template(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            baseline = root / "baseline.json"
+            proposal_out = root / "proposal.json"
+            run_out = root / "run.json"
+            candidate_out = root / "candidate.json"
+            regression_out = root / "regression.json"
+            agent_run_out = root / "agent_run.json"
+            checker_template_out = root / "checker_template.json"
+
+            self._write_baseline(baseline)
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.agent_run",
+                    "--intent",
+                    "demo_mock_pass",
+                    "--proposal-id",
+                    "agent-run-checker-template-1",
+                    "--proposal-out",
+                    str(proposal_out),
+                    "--run-out",
+                    str(run_out),
+                    "--candidate-out",
+                    str(candidate_out),
+                    "--regression-out",
+                    str(regression_out),
+                    "--baseline",
+                    str(baseline),
+                    "--emit-checker-template",
+                    str(checker_template_out),
+                    "--out",
+                    str(agent_run_out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            self.assertTrue(checker_template_out.exists())
+            template_payload = json.loads(checker_template_out.read_text(encoding="utf-8"))
+            self.assertIn("_runtime", template_payload)
+            payload = json.loads(agent_run_out.read_text(encoding="utf-8"))
+            self.assertEqual(payload["checker_template_path"], str(checker_template_out))
+
 
 if __name__ == "__main__":
     unittest.main()
