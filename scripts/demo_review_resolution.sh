@@ -49,6 +49,8 @@ cat > artifacts/review_demo/review_approve.json <<'EOF'
   "second_decision": "approve",
   "decision": "approve",
   "rationale": "All required checks completed and risk accepted.",
+  "requested_at_utc": "2026-02-13T09:00:00Z",
+  "reviewed_at_utc": "2026-02-13T09:20:00Z",
   "all_required_checks_completed": true,
   "confirmed_checks": [
     "Checked required_human_checks list and evidence artifacts"
@@ -64,6 +66,8 @@ cat > artifacts/review_demo/review_reject.json <<'EOF'
   "reviewer": "human.reviewer",
   "decision": "reject",
   "rationale": "Risk not acceptable at this time.",
+  "requested_at_utc": "2026-02-13T09:00:00Z",
+  "reviewed_at_utc": "2026-02-14T12:00:00Z",
   "all_required_checks_completed": true,
   "confirmed_checks": [
     "Checked required_human_checks list and evidence artifacts"

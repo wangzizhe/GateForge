@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 
 REVIEW_SCHEMA_VERSION = "0.1.0"
@@ -56,8 +57,36 @@ def validate_review_decision(payload: dict) -> None:
     if second_decision is not None and second_decision not in SUPPORTED_DECISIONS:
         raise ValueError(f"second_decision must be one of {sorted(SUPPORTED_DECISIONS)} when provided")
 
+    requested_at = payload.get("requested_at_utc")
+    if requested_at is not None:
+        if not isinstance(requested_at, str) or not requested_at.strip():
+            raise ValueError("requested_at_utc must be a non-empty string when provided")
+        try:
+            parse_utc(requested_at)
+        except ValueError as exc:
+            raise ValueError("requested_at_utc must be a valid ISO-8601 timestamp") from exc
+
+    reviewed_at = payload.get("reviewed_at_utc")
+    if reviewed_at is not None:
+        if not isinstance(reviewed_at, str) or not reviewed_at.strip():
+            raise ValueError("reviewed_at_utc must be a non-empty string when provided")
+        try:
+            parse_utc(reviewed_at)
+        except ValueError as exc:
+            raise ValueError("reviewed_at_utc must be a valid ISO-8601 timestamp") from exc
+
 
 def _require_non_empty_string(payload: dict, key: str) -> None:
     value = payload[key]
     if not isinstance(value, str) or not value.strip():
         raise ValueError(f"{key} must be a non-empty string")
+
+
+def parse_utc(value: str) -> datetime:
+    txt = value.strip()
+    if txt.endswith("Z"):
+        txt = txt[:-1] + "+00:00"
+    dt = datetime.fromisoformat(txt)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)

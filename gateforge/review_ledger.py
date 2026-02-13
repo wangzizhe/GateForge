@@ -5,6 +5,7 @@ import json
 from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
+import statistics
 
 
 def append_review_ledger(ledger_path: str, record: dict) -> None:
@@ -27,13 +28,14 @@ def load_review_ledger(ledger_path: str) -> list[dict]:
     return rows
 
 
-def summarize_review_ledger(rows: list[dict]) -> dict:
+def summarize_review_ledger(rows: list[dict], sla_seconds: float = 86400.0) -> dict:
     status_counter = Counter()
     reviewer_counter = Counter()
     reason_counter = Counter()
     risk_counter = Counter()
     risk_status_counter: dict[str, Counter] = {}
     date_counter = Counter()
+    resolution_values: list[float] = []
     for row in rows:
         status = row.get("final_status")
         reviewer = row.get("reviewer")
@@ -54,6 +56,9 @@ def summarize_review_ledger(rows: list[dict]) -> dict:
                 date_counter[date_key] += 1
             except Exception:
                 pass
+        res = row.get("resolution_seconds")
+        if isinstance(res, (int, float)) and float(res) >= 0:
+            resolution_values.append(float(res))
         for reason in row.get("final_reasons", []) or []:
             if isinstance(reason, str):
                 prefix = reason.split(":", 1)[0]
@@ -71,6 +76,18 @@ def summarize_review_ledger(rows: list[dict]) -> dict:
     by_risk: dict[str, dict[str, int]] = {}
     for risk, counter in risk_status_counter.items():
         by_risk[risk] = {k: int(v) for k, v in counter.items()}
+    avg_resolution = round(sum(resolution_values) / len(resolution_values), 3) if resolution_values else None
+    p50_resolution = round(statistics.median(resolution_values), 3) if resolution_values else None
+    if resolution_values:
+        sorted_res = sorted(resolution_values)
+        idx = max(0, min(len(sorted_res) - 1, int(0.95 * (len(sorted_res) - 1))))
+        p95_resolution = round(sorted_res[idx], 3)
+    else:
+        p95_resolution = None
+    breach_count = 0
+    if resolution_values:
+        breach_count = sum(1 for v in resolution_values if v > float(sla_seconds))
+    breach_rate = round(breach_count / len(resolution_values), 4) if resolution_values else 0.0
     return {
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
         "total_records": len(rows),
@@ -86,6 +103,12 @@ def summarize_review_ledger(rows: list[dict]) -> dict:
             "needs_review_count": needs_review_count,
             "by_risk_status_counts": by_risk,
             "review_volume_last_7_days": volume_by_day,
+            "avg_resolution_seconds": avg_resolution,
+            "p50_resolution_seconds": p50_resolution,
+            "p95_resolution_seconds": p95_resolution,
+            "sla_seconds": float(sla_seconds),
+            "sla_breach_count": int(breach_count),
+            "sla_breach_rate": breach_rate,
         },
     }
 
@@ -172,6 +195,12 @@ def write_markdown(path: str, summary: dict) -> None:
     lines.append(f"- pass_count: `{kpis.get('pass_count', 0)}`")
     lines.append(f"- fail_count: `{kpis.get('fail_count', 0)}`")
     lines.append(f"- needs_review_count: `{kpis.get('needs_review_count', 0)}`")
+    lines.append(f"- avg_resolution_seconds: `{kpis.get('avg_resolution_seconds')}`")
+    lines.append(f"- p50_resolution_seconds: `{kpis.get('p50_resolution_seconds')}`")
+    lines.append(f"- p95_resolution_seconds: `{kpis.get('p95_resolution_seconds')}`")
+    lines.append(f"- sla_seconds: `{kpis.get('sla_seconds')}`")
+    lines.append(f"- sla_breach_count: `{kpis.get('sla_breach_count', 0)}`")
+    lines.append(f"- sla_breach_rate: `{kpis.get('sla_breach_rate', 0.0)}`")
 
     lines.extend(["", "## Risk-Level Counts", ""])
     risk_counts = summary.get("risk_level_counts", {})
@@ -225,6 +254,7 @@ def main() -> None:
     parser.add_argument("--final-status", default=None, help="Filter by final_status")
     parser.add_argument("--since-utc", default=None, help="Filter by recorded_at_utc >= value (ISO-8601)")
     parser.add_argument("--until-utc", default=None, help="Filter by recorded_at_utc <= value (ISO-8601)")
+    parser.add_argument("--sla-seconds", type=float, default=86400.0, help="SLA threshold in seconds")
     args = parser.parse_args()
 
     rows = load_review_ledger(args.ledger)
@@ -236,7 +266,7 @@ def main() -> None:
         since_utc=args.since_utc,
         until_utc=args.until_utc,
     )
-    summary = summarize_review_ledger(rows)
+    summary = summarize_review_ledger(rows, sla_seconds=args.sla_seconds)
     write_json(args.summary_out, summary)
     write_markdown(args.report_out or _default_md_path(args.summary_out), summary)
     if args.export_out:
