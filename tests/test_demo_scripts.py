@@ -1,0 +1,33 @@
+import json
+import subprocess
+import unittest
+from pathlib import Path
+
+
+class DemoScriptTests(unittest.TestCase):
+    def test_demo_all_script_writes_bundle_summary(self) -> None:
+        proc = subprocess.run(
+            ["bash", "scripts/demo_all.sh"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+
+        summary_json = Path("artifacts/demo_all_summary.json")
+        summary_md = Path("artifacts/demo_all_summary.md")
+        self.assertTrue(summary_json.exists())
+        self.assertTrue(summary_md.exists())
+
+        payload = json.loads(summary_json.read_text(encoding="utf-8"))
+        self.assertEqual(payload.get("bundle_status"), "PASS")
+        self.assertEqual(payload.get("proposal_flow_status"), "PASS")
+        self.assertEqual(payload.get("checker_demo_status"), "FAIL")
+
+        result_flags = payload.get("result_flags", {})
+        self.assertEqual(result_flags.get("proposal_flow"), "PASS")
+        self.assertEqual(result_flags.get("checker_demo_expected_fail"), "PASS")
+
+
+if __name__ == "__main__":
+    unittest.main()
