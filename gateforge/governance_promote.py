@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 
 PROMOTION_PROFILE_DIR = Path("policies/promotion")
@@ -23,6 +24,17 @@ def _default_md_path(out_json: str) -> str:
 
 def _load_json(path: str) -> dict:
     return json.loads(Path(path).read_text(encoding="utf-8"))
+
+
+def _parse_utc(value: str) -> datetime | None:
+    try:
+        normalized = value.replace("Z", "+00:00")
+        parsed = datetime.fromisoformat(normalized)
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return parsed.astimezone(timezone.utc)
+    except Exception:
+        return None
 
 
 def _resolve_profile_path(profile: str | None, profile_path: str | None) -> str:
@@ -117,6 +129,74 @@ def _evaluate(snapshot: dict, policy: dict) -> dict:
     }
 
 
+def _validate_override(override: dict) -> None:
+    if not isinstance(override, dict):
+        raise ValueError("Override must be a JSON object")
+    forced = override.get("forced_decision")
+    if forced is not None and forced not in {"PASS", "NEEDS_REVIEW", "FAIL"}:
+        raise ValueError("override.forced_decision must be PASS|NEEDS_REVIEW|FAIL")
+    allow_promote = override.get("allow_promote")
+    if allow_promote is not None and not isinstance(allow_promote, bool):
+        raise ValueError("override.allow_promote must be boolean")
+    expires = override.get("expires_utc")
+    if isinstance(expires, str) and _parse_utc(expires) is None:
+        raise ValueError("override.expires_utc must be ISO-8601 UTC timestamp")
+
+
+def _apply_override(result: dict, override: dict | None) -> dict:
+    if not override:
+        return {
+            "override_applied": False,
+            "override_active": False,
+            "override_reason": None,
+        }
+
+    _validate_override(override)
+    now = datetime.now(timezone.utc)
+    expires_utc = override.get("expires_utc")
+    expires_dt = _parse_utc(expires_utc) if isinstance(expires_utc, str) else None
+    if expires_dt is not None and now > expires_dt:
+        return {
+            "override_applied": False,
+            "override_active": False,
+            "override_reason": "override_expired",
+            "override_expires_utc": expires_utc,
+        }
+
+    forced = override.get("forced_decision")
+    allow_promote = bool(override.get("allow_promote", False))
+    reason = str(override.get("reason") or "override_applied")
+
+    if isinstance(forced, str):
+        result["decision"] = forced
+        result["reasons"] = [f"override_forced_decision:{reason}"]
+        return {
+            "override_applied": True,
+            "override_active": True,
+            "override_reason": reason,
+            "override_mode": "forced_decision",
+            "override_expires_utc": expires_utc,
+        }
+
+    if allow_promote and result.get("decision") in {"FAIL", "NEEDS_REVIEW"}:
+        result["decision"] = "PASS"
+        result["reasons"] = [f"override_allow_promote:{reason}"]
+        return {
+            "override_applied": True,
+            "override_active": True,
+            "override_reason": reason,
+            "override_mode": "allow_promote",
+            "override_expires_utc": expires_utc,
+        }
+
+    return {
+        "override_applied": False,
+        "override_active": True,
+        "override_reason": "override_present_no_effect",
+        "override_expires_utc": expires_utc,
+    }
+
+
 def _write_markdown(path: str, payload: dict) -> None:
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
@@ -127,6 +207,8 @@ def _write_markdown(path: str, payload: dict) -> None:
         f"- snapshot_status: `{payload.get('status')}`",
         f"- profile: `{payload.get('profile')}`",
         f"- profile_path: `{payload.get('profile_path')}`",
+        f"- override_applied: `{payload.get('override_applied')}`",
+        f"- override_path: `{payload.get('override_path')}`",
         "",
         "## Signals",
         "",
@@ -150,6 +232,7 @@ def main() -> None:
     parser.add_argument("--snapshot", required=True, help="Governance snapshot JSON path")
     parser.add_argument("--profile", default=DEFAULT_PROMOTION_PROFILE, help="Promotion profile name")
     parser.add_argument("--profile-path", default=None, help="Promotion profile JSON path")
+    parser.add_argument("--override", default=None, help="Optional human override JSON path")
     parser.add_argument("--out", default="artifacts/governance_promote/summary.json", help="Output JSON path")
     parser.add_argument("--report", default=None, help="Output markdown path")
     args = parser.parse_args()
@@ -158,11 +241,16 @@ def main() -> None:
     policy = _load_json(profile_path)
     snapshot = _load_json(args.snapshot)
     result = _evaluate(snapshot, policy)
+    override_payload = _load_json(args.override) if isinstance(args.override, str) else None
+    override_meta = _apply_override(result, override_payload)
     result.update(
         {
             "snapshot_path": args.snapshot,
             "profile": args.profile,
             "profile_path": profile_path,
+            "override_path": args.override,
+            "override": override_payload,
+            **override_meta,
         }
     )
 

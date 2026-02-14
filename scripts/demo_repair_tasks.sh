@@ -41,11 +41,13 @@ flags = {
     "expect_policy_decision_fail": "PASS" if payload.get("policy_decision") == "FAIL" else "FAIL",
     "expect_task_count_positive": "PASS" if payload.get("task_count", 0) > 0 else "FAIL",
     "expect_runtime_reason_present": "PASS" if any("runtime_regression" in r for r in payload.get("policy_reasons", [])) else "FAIL",
+    "expect_p0_present": "PASS" if int((payload.get("priority_counts") or {}).get("P0", 0)) > 0 else "FAIL",
 }
 bundle_status = "PASS" if all(v == "PASS" for v in flags.values()) else "FAIL"
 summary = {
     "policy_decision": payload.get("policy_decision"),
     "task_count": payload.get("task_count"),
+    "p0_count": int((payload.get("priority_counts") or {}).get("P0", 0)),
     "result_flags": flags,
     "bundle_status": bundle_status
 }
@@ -57,6 +59,7 @@ Path("artifacts/repair_tasks_demo/demo_summary.md").write_text(
             "",
             f"- policy_decision: `{summary['policy_decision']}`",
             f"- task_count: `{summary['task_count']}`",
+            f"- p0_count: `{summary['p0_count']}`",
             f"- bundle_status: `{summary['bundle_status']}`",
             "",
             "## Result Flags",
@@ -64,6 +67,7 @@ Path("artifacts/repair_tasks_demo/demo_summary.md").write_text(
             f"- expect_policy_decision_fail: `{flags['expect_policy_decision_fail']}`",
             f"- expect_task_count_positive: `{flags['expect_task_count_positive']}`",
             f"- expect_runtime_reason_present: `{flags['expect_runtime_reason_present']}`",
+            f"- expect_p0_present: `{flags['expect_p0_present']}`",
             "",
         ]
     ),

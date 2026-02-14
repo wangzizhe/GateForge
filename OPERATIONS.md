@@ -23,6 +23,10 @@ bash scripts/demo_ci_matrix.sh
 ```bash
 python3 -m gateforge.repair_tasks --source <failing_summary.json> --out artifacts/repair_tasks/summary.json
 ```
+5. Prioritize repair queue from task summary:
+- execute `P0` tasks first
+- then `P1` evidence/fix tasks
+- close with `P2` verification rerun
 
 ## III. Failure Triage
 
@@ -65,6 +69,10 @@ python3 -m gateforge.governance_history --history-dir artifacts/governance_histo
 3. Run promotion gate:
 ```bash
 python3 -m gateforge.governance_promote --snapshot artifacts/governance_snapshot/summary.json --profile default --out artifacts/governance_promote/summary.json
+```
+4. Optional human override (waiver/forced decision):
+```bash
+python3 -m gateforge.governance_promote --snapshot artifacts/governance_snapshot/summary.json --profile industrial_strict --override <override.json> --out artifacts/governance_promote/summary_override.json
 ```
 
 ## VI. Release / Push Checklist

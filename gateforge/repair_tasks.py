@@ -59,12 +59,27 @@ def _build_tasks(payload: dict, policy: dict, policy_decision: str, policy_reaso
     tasks: list[dict] = []
     task_id = 1
 
+    def classify(category: str, risk_level: str, decision: str) -> tuple[str, str]:
+        # Priority convention: P0 (urgent), P1 (normal), P2 (follow-up).
+        if category == "required_check":
+            return "P0", "human_review"
+        if category in {"fix_plan", "triage"}:
+            if decision == "FAIL" and risk_level in {"medium", "high"}:
+                return "P0", "fix_execution"
+            return "P1", "fix_execution"
+        if category == "evidence":
+            return "P1", "evidence_review"
+        return "P2", "verification"
+
     def add(category: str, title: str, description: str, source: str) -> None:
         nonlocal task_id
+        priority, group = classify(category, str(payload.get("risk_level") or "low"), policy_decision)
         tasks.append(
             {
                 "id": f"T{task_id:03d}",
                 "category": category,
+                "group": group,
+                "priority": priority,
                 "title": title,
                 "description": description,
                 "source": source,
@@ -118,7 +133,18 @@ def _build_tasks(payload: dict, policy: dict, policy_decision: str, policy_reaso
         "Rerun proposal/check/simulate/regress and verify decision reaches PASS or accepted NEEDS_REVIEW with justification.",
         "default",
     )
+    prio_rank = {"P0": 0, "P1": 1, "P2": 2}
+    tasks.sort(key=lambda x: (prio_rank.get(str(x.get("priority")), 9), str(x.get("id"))))
     return tasks
+
+
+def _group_tasks(tasks: list[dict], key: str, values: list[str]) -> dict[str, list[dict]]:
+    grouped: dict[str, list[dict]] = {v: [] for v in values}
+    for task in tasks:
+        bucket = str(task.get(key) or "")
+        if bucket in grouped:
+            grouped[bucket].append(task)
+    return grouped
 
 
 def _write_markdown(path: str, summary: dict) -> None:
@@ -148,10 +174,13 @@ def _write_markdown(path: str, summary: dict) -> None:
     if tasks:
         for item in tasks:
             lines.append(
-                f"- `{item.get('id')}` [{item.get('category')}] {item.get('title')}: {item.get('description')}"
+                f"- `{item.get('id')}` [{item.get('priority')}/{item.get('group')}/{item.get('category')}] {item.get('title')}: {item.get('description')}"
             )
     else:
         lines.append("- `none`")
+    lines.extend(["", "## Priority Counts", ""])
+    for prio in ("P0", "P1", "P2"):
+        lines.append(f"- {prio}: `{summary.get('priority_counts', {}).get(prio, 0)}`")
     lines.append("")
     p.write_text("\n".join(lines), encoding="utf-8")
 
@@ -171,6 +200,10 @@ def main() -> None:
 
     policy_decision, policy_reasons, risk_level = _derive_policy_view(source, policy)
     tasks = _build_tasks(source, policy, policy_decision, policy_reasons)
+    tasks_by_priority = _group_tasks(tasks, "priority", ["P0", "P1", "P2"])
+    tasks_by_group = _group_tasks(tasks, "group", ["human_review", "fix_execution", "evidence_review", "verification"])
+    priority_counts = {k: len(v) for k, v in tasks_by_priority.items()}
+    group_counts = {k: len(v) for k, v in tasks_by_group.items()}
 
     summary = {
         "source_path": args.source,
@@ -182,6 +215,10 @@ def main() -> None:
         "risk_level": risk_level,
         "policy_path": policy_path,
         "task_count": len(tasks),
+        "priority_counts": priority_counts,
+        "group_counts": group_counts,
+        "tasks_by_priority": tasks_by_priority,
+        "tasks_by_group": tasks_by_group,
         "tasks": tasks,
     }
 
