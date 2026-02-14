@@ -288,6 +288,26 @@ Key outputs:
 - `artifacts/repair_batch_compare_demo/demo_summary.json`
 - `artifacts/repair_batch_compare_demo/demo_summary.md`
 
+## 10.1 Repair Tasks Demo
+
+Command:
+
+```bash
+bash scripts/demo_repair_tasks.sh
+```
+
+What it validates:
+
+- generates actionable repair checklist from failed run summary
+- keeps policy reasons and required checks in operator-facing task form
+
+Key outputs:
+
+- `artifacts/repair_tasks_demo/summary.json`
+- `artifacts/repair_tasks_demo/summary.md`
+- `artifacts/repair_tasks_demo/demo_summary.json`
+- `artifacts/repair_tasks_demo/demo_summary.md`
+
 ## 11. Governance Snapshot Demo
 
 Command:

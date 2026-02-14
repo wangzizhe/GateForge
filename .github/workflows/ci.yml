@@ -65,6 +65,11 @@ on:
         required: false
         default: false
         type: boolean
+      run_repair_tasks_demo:
+        description: "Run optional repair tasks demo job"
+        required: false
+        default: false
+        type: boolean
       run_governance_snapshot_demo:
         description: "Run optional governance snapshot demo job"
         required: false
@@ -949,6 +954,70 @@ jobs:
             artifacts/repair_batch_compare_demo/summary.md
             artifacts/repair_batch_compare_demo/demo_summary.json
             artifacts/repair_batch_compare_demo/demo_summary.md
+
+  repair-tasks-demo-optional:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_repair_tasks_demo }}
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    env:
+      POLICY_PROFILE: ${{ inputs.demo_policy_profile }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Run repair tasks demo
+        run: bash scripts/demo_repair_tasks.sh
+
+      - name: Publish repair tasks summary to job page
+        if: always()
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          path = Path("artifacts/repair_tasks_demo/demo_summary.json")
+          if not path.exists():
+              text = "## Repair Tasks Summary\n\n`artifacts/repair_tasks_demo/demo_summary.json` not found."
+          else:
+              payload = json.loads(path.read_text(encoding="utf-8"))
+              lines = [
+                  "## Repair Tasks Summary",
+                  "",
+                  f"- policy_decision: `{payload.get('policy_decision')}`",
+                  f"- task_count: `{payload.get('task_count')}`",
+                  f"- bundle_status: `{payload.get('bundle_status')}`",
+                  "",
+              ]
+              text = "\n".join(lines)
+
+          summary_file = os.getenv("GITHUB_STEP_SUMMARY")
+          if summary_file:
+              with open(summary_file, "a", encoding="utf-8") as f:
+                  f.write(text + "\n")
+          print(text)
+          PY
+
+      - name: Upload repair tasks artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: repair-tasks-demo
+          path: |
+            artifacts/repair_tasks_demo/summary.json
+            artifacts/repair_tasks_demo/summary.md
+            artifacts/repair_tasks_demo/demo_summary.json
+            artifacts/repair_tasks_demo/demo_summary.md
 
   governance-snapshot-demo-optional:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_governance_snapshot_demo }}

@@ -147,6 +147,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertIn("planner_guardrails", payload.get("selected", {}))
         self.assertIn("repair_batch_demo", payload.get("selected", {}))
         self.assertIn("repair_batch_compare_demo", payload.get("selected", {}))
+        self.assertIn("repair_tasks_demo", payload.get("selected", {}))
         self.assertIn("governance_snapshot_demo", payload.get("selected", {}))
         self.assertIn("governance_snapshot_trend_demo", payload.get("selected", {}))
         self.assertIn("governance_history_demo", payload.get("selected", {}))
@@ -308,6 +309,19 @@ class DemoScriptTests(unittest.TestCase):
         self.assertEqual(compare.get("from_policy_profile"), "default")
         self.assertEqual(compare.get("to_policy_profile"), "industrial_strict_v0")
         self.assertEqual(compare.get("total_compared_cases"), 2)
+
+    def test_demo_repair_tasks_script(self) -> None:
+        proc = subprocess.run(
+            ["bash", "scripts/demo_repair_tasks.sh"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+        payload = json.loads(Path("artifacts/repair_tasks_demo/demo_summary.json").read_text(encoding="utf-8"))
+        self.assertEqual(payload.get("bundle_status"), "PASS")
+        self.assertEqual(payload.get("policy_decision"), "FAIL")
+        self.assertGreater(payload.get("task_count", 0), 0)
 
     def test_demo_governance_snapshot_script(self) -> None:
         proc = subprocess.run(

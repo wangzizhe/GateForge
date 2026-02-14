@@ -616,6 +616,22 @@ Repair loop fallback:
 - if `--max-retries` is omitted, retry budget is risk-based by default:
   `low -> 1`, `medium -> 2`, `high -> 0` (toggle with `--auto-retry-budget-by-risk`)
 
+Repair tasks (failed summary -> actionable checklist):
+
+```bash
+python -m gateforge.repair_tasks \
+  --source artifacts/proposal_run_demo.json \
+  --out artifacts/repair_tasks/summary.json \
+  --report artifacts/repair_tasks/summary.md
+cat artifacts/repair_tasks/summary.json
+```
+
+Repair tasks demo:
+
+```bash
+bash scripts/demo_repair_tasks.sh
+```
+
 Agent medium intent (OpenModelica medium case):
 
 ```bash
@@ -657,6 +673,8 @@ Note: `medium_openmodelica_pass` requires Docker/OpenModelica backend access.
   This job publishes mixed-case repair outcomes for batch governance visibility.
 - Provides an optional repair batch compare demo job (`workflow_dispatch` with `run_repair_batch_compare_demo=true`) that does not block the main job.
   This job publishes strict profile downgrade rate across the same repair pack.
+- Provides an optional repair tasks demo job (`workflow_dispatch` with `run_repair_tasks_demo=true`) that does not block the main job.
+  This job publishes operator-facing repair checklist summary from failed governance evidence.
 - Provides an optional governance snapshot demo job (`workflow_dispatch` with `run_governance_snapshot_demo=true`) that does not block the main job.
   This job publishes a single governance status view and top KPI/risk signals.
 - Provides an optional governance snapshot trend demo job (`workflow_dispatch` with `run_governance_snapshot_trend_demo=true`) that does not block the main job.
@@ -671,7 +689,7 @@ Manual trigger path in GitHub:
 1. Open `Actions` tab.
 2. Select `ci` workflow.
 3. Click `Run workflow`.
-4. Enable `run_benchmark` and/or `run_checker_demo` and/or `run_steady_state_demo` and/or `run_behavior_metrics_demo` and/or `run_demo_bundle` and/or `run_autopilot_dry_run` and/or `run_agent_change_loop` and/or `run_repair_loop` and/or `run_planner_guardrails` and/or `run_planner_output_validate_demo` and/or `run_repair_batch_demo` and/or `run_repair_batch_compare_demo` and/or `run_governance_snapshot_demo` and/or `run_governance_snapshot_trend_demo` and/or `run_governance_history_demo` and/or `run_governance_promote_demo`.
+4. Enable `run_benchmark` and/or `run_checker_demo` and/or `run_steady_state_demo` and/or `run_behavior_metrics_demo` and/or `run_demo_bundle` and/or `run_autopilot_dry_run` and/or `run_agent_change_loop` and/or `run_repair_loop` and/or `run_planner_guardrails` and/or `run_planner_output_validate_demo` and/or `run_repair_batch_demo` and/or `run_repair_batch_compare_demo` and/or `run_repair_tasks_demo` and/or `run_governance_snapshot_demo` and/or `run_governance_snapshot_trend_demo` and/or `run_governance_history_demo` and/or `run_governance_promote_demo`.
 5. Optional: set `demo_policy_profile` (for demo jobs) such as `industrial_strict_v0`.
 6. Run and download uploaded artifacts from the selected optional job.
 
@@ -687,6 +705,7 @@ Optional demo artifacts:
 - `planner-output-validate-demo`
 - `repair-batch-demo`
 - `repair-batch-compare-demo`
+- `repair-tasks-demo`
 - `governance-snapshot-demo`
 - `governance-snapshot-trend-demo`
 - `governance-history-demo`
@@ -718,6 +737,9 @@ You can include repair-batch demo in local matrix with:
 You can include repair-batch compare demo in local matrix with:
 `RUN_REPAIR_BATCH_COMPARE_DEMO=1 bash scripts/demo_ci_matrix.sh`
 
+You can include repair tasks demo in local matrix with:
+`RUN_REPAIR_TASKS_DEMO=1 bash scripts/demo_ci_matrix.sh`
+
 You can include governance snapshot demo in local matrix with:
 `RUN_GOVERNANCE_SNAPSHOT_DEMO=1 bash scripts/demo_ci_matrix.sh`
 
@@ -729,6 +751,9 @@ You can include governance history demo in local matrix with:
 
 You can include governance promote demo in local matrix with:
 `RUN_GOVERNANCE_PROMOTE_DEMO=1 bash scripts/demo_ci_matrix.sh`
+
+Operations runbook:
+- `OPERATIONS.md`
 
 You can include planner-guardrails in local matrix with:
 `RUN_PLANNER_GUARDRAILS=1 bash scripts/demo_ci_matrix.sh`
