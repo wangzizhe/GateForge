@@ -80,6 +80,11 @@ on:
         required: false
         default: false
         type: boolean
+      run_governance_promote_demo:
+        description: "Run optional governance promote decision demo job"
+        required: false
+        default: false
+        type: boolean
       demo_policy_profile:
         description: "Optional policy profile for demo jobs (e.g. industrial_strict_v0)"
         required: false
@@ -1139,3 +1144,70 @@ jobs:
           path: |
             artifacts/governance_history_demo/summary.json
             artifacts/governance_history_demo/summary.md
+
+  governance-promote-demo-optional:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_governance_promote_demo }}
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    env:
+      POLICY_PROFILE: ${{ inputs.demo_policy_profile }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Run governance promote demo
+        run: bash scripts/demo_governance_promote.sh
+
+      - name: Publish governance promote summary to job page
+        if: always()
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          path = Path("artifacts/governance_promote_demo/summary.json")
+          if not path.exists():
+              text = "## Governance Promote Summary\n\n`artifacts/governance_promote_demo/summary.json` not found."
+          else:
+              payload = json.loads(path.read_text(encoding="utf-8"))
+              lines = [
+                  "## Governance Promote Summary",
+                  "",
+                  f"- default_decision: `{payload.get('default_decision')}`",
+                  f"- industrial_decision: `{payload.get('industrial_decision')}`",
+                  f"- industrial_exit_code: `{payload.get('industrial_exit_code')}`",
+                  f"- bundle_status: `{payload.get('bundle_status')}`",
+                  "",
+              ]
+              text = "\n".join(lines)
+
+          summary_file = os.getenv("GITHUB_STEP_SUMMARY")
+          if summary_file:
+              with open(summary_file, "a", encoding="utf-8") as f:
+                  f.write(text + "\n")
+          print(text)
+          PY
+
+      - name: Upload governance promote artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: governance-promote-demo
+          path: |
+            artifacts/governance_promote_demo/default.json
+            artifacts/governance_promote_demo/default.md
+            artifacts/governance_promote_demo/industrial.json
+            artifacts/governance_promote_demo/industrial.md
+            artifacts/governance_promote_demo/summary.json
+            artifacts/governance_promote_demo/summary.md

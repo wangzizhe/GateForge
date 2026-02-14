@@ -343,6 +343,26 @@ Key outputs:
 - `artifacts/governance_history_demo/summary.json`
 - `artifacts/governance_history_demo/summary.md`
 
+## 14. Governance Promote Demo
+
+Command:
+
+```bash
+bash scripts/demo_governance_promote.sh
+```
+
+What it validates:
+
+- derives a promotion decision from governance snapshot
+- compares default vs industrial strict promotion profile outcomes
+
+Key outputs:
+
+- `artifacts/governance_promote_demo/default.json`
+- `artifacts/governance_promote_demo/industrial.json`
+- `artifacts/governance_promote_demo/summary.json`
+- `artifacts/governance_promote_demo/summary.md`
+
 Schema reference:
 
 - `schemas/demo_bundle_summary.schema.json`

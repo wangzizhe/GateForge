@@ -8,7 +8,7 @@ mkdir -p artifacts/governance_snapshot_demo
 
 bash scripts/demo_review_kpis.sh
 bash scripts/demo_repair_batch_compare.sh
-RUN_GOVERNANCE_SNAPSHOT_DEMO=0 RUN_GOVERNANCE_SNAPSHOT_TREND_DEMO=0 bash scripts/demo_ci_matrix.sh
+RUN_GOVERNANCE_SNAPSHOT_DEMO=0 RUN_GOVERNANCE_SNAPSHOT_TREND_DEMO=0 RUN_GOVERNANCE_PROMOTE_DEMO=0 bash scripts/demo_ci_matrix.sh
 
 python3 -m gateforge.governance_report \
   --repair-batch-summary artifacts/repair_batch_compare_demo/summary.json \
