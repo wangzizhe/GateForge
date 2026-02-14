@@ -489,6 +489,17 @@ python -m gateforge.governance_promote \
   --report artifacts/governance_promote_demo/default.md
 ```
 
+Optional human override (waiver / forced promotion decision):
+
+```bash
+python -m gateforge.governance_promote \
+  --snapshot artifacts/governance_snapshot_demo/summary.json \
+  --profile industrial_strict \
+  --override artifacts/governance_promote_demo/override_allow_promote.json \
+  --out artifacts/governance_promote_demo/override.json \
+  --report artifacts/governance_promote_demo/override.md
+```
+
 Promote demo shortcut:
 
 ```bash
@@ -625,6 +636,11 @@ python -m gateforge.repair_tasks \
   --report artifacts/repair_tasks/summary.md
 cat artifacts/repair_tasks/summary.json
 ```
+
+`repair_tasks` now emits priority and grouping views for operations:
+- priorities: `P0/P1/P2`
+- groups: `human_review/fix_execution/evidence_review/verification`
+- grouped task views: `tasks_by_priority`, `tasks_by_group`
 
 Repair tasks demo:
 

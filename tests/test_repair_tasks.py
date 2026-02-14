@@ -46,6 +46,10 @@ class RepairTasksTests(unittest.TestCase):
             self.assertEqual(payload.get("proposal_id"), "repair-tasks-001")
             self.assertEqual(payload.get("policy_decision"), "FAIL")
             self.assertGreaterEqual(payload.get("task_count", 0), 4)
+            self.assertIn("priority_counts", payload)
+            self.assertIn("group_counts", payload)
+            self.assertGreaterEqual(payload.get("priority_counts", {}).get("P0", 0), 1)
+            self.assertTrue(payload.get("tasks_by_priority", {}).get("P0", []))
 
     def test_generate_tasks_from_regression_summary(self) -> None:
         with tempfile.TemporaryDirectory() as d:

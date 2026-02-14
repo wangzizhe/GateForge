@@ -300,6 +300,7 @@ What it validates:
 
 - generates actionable repair checklist from failed run summary
 - keeps policy reasons and required checks in operator-facing task form
+- adds operational priority/grouping (`P0/P1/P2`, `human_review/fix_execution/...`)
 
 Key outputs:
 
@@ -377,11 +378,13 @@ What it validates:
 
 - derives a promotion decision from governance snapshot
 - compares default vs industrial strict promotion profile outcomes
+- validates human override path (`override` can force/waive promotion)
 
 Key outputs:
 
 - `artifacts/governance_promote_demo/default.json`
 - `artifacts/governance_promote_demo/industrial.json`
+- `artifacts/governance_promote_demo/override.json`
 - `artifacts/governance_promote_demo/summary.json`
 - `artifacts/governance_promote_demo/summary.md`
 

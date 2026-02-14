@@ -322,6 +322,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertEqual(payload.get("bundle_status"), "PASS")
         self.assertEqual(payload.get("policy_decision"), "FAIL")
         self.assertGreater(payload.get("task_count", 0), 0)
+        self.assertGreater(payload.get("p0_count", 0), 0)
 
     def test_demo_governance_snapshot_script(self) -> None:
         proc = subprocess.run(
@@ -361,6 +362,8 @@ class DemoScriptTests(unittest.TestCase):
         self.assertEqual(payload.get("bundle_status"), "PASS")
         self.assertIn(payload.get("default_decision"), {"PASS", "NEEDS_REVIEW"})
         self.assertEqual(payload.get("industrial_decision"), "FAIL")
+        self.assertEqual(payload.get("override_decision"), "PASS")
+        self.assertTrue(payload.get("override_applied"))
 
     def test_demo_governance_history_script(self) -> None:
         proc = subprocess.run(

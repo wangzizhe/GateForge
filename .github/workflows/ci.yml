@@ -996,6 +996,7 @@ jobs:
                   "",
                   f"- policy_decision: `{payload.get('policy_decision')}`",
                   f"- task_count: `{payload.get('task_count')}`",
+                  f"- p0_count: `{payload.get('p0_count')}`",
                   f"- bundle_status: `{payload.get('bundle_status')}`",
                   "",
               ]
@@ -1255,6 +1256,8 @@ jobs:
                   "",
                   f"- default_decision: `{payload.get('default_decision')}`",
                   f"- industrial_decision: `{payload.get('industrial_decision')}`",
+                  f"- override_decision: `{payload.get('override_decision')}`",
+                  f"- override_applied: `{payload.get('override_applied')}`",
                   f"- industrial_exit_code: `{payload.get('industrial_exit_code')}`",
                   f"- bundle_status: `{payload.get('bundle_status')}`",
                   "",
@@ -1278,5 +1281,8 @@ jobs:
             artifacts/governance_promote_demo/default.md
             artifacts/governance_promote_demo/industrial.json
             artifacts/governance_promote_demo/industrial.md
+            artifacts/governance_promote_demo/override_allow_promote.json
+            artifacts/governance_promote_demo/override.json
+            artifacts/governance_promote_demo/override.md
             artifacts/governance_promote_demo/summary.json
             artifacts/governance_promote_demo/summary.md
