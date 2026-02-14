@@ -415,6 +415,10 @@ Demo shortcut:
 bash scripts/demo_repair_batch_compare.sh
 ```
 
+`repair_batch` profile compare also emits `profile_compare.reason_distribution`:
+- `from_counts`, `to_counts`, `delta_counts`
+- `new_reasons_in_to`, `resolved_reasons_in_to`
+
 Governance snapshot (single management view from repair compare + review KPI + ci matrix):
 
 ```bash
@@ -464,6 +468,10 @@ python -m gateforge.governance_history \
   --report artifacts/governance_history/summary.md
 cat artifacts/governance_history/summary.json
 ```
+
+`governance_history` also emits:
+- `alerts` (for example `consecutive_worsening_detected`)
+- transition streak KPIs: `max_worse_streak`, `latest_worse_streak`
 
 History demo shortcut:
 
@@ -605,6 +613,8 @@ Repair loop fallback:
 - fallback defaults: `planner-backend=rule`, tighter confidence floor, explicit file whitelist
 - summary includes `retry_used`, per-attempt outcomes in `attempts`, and `retry_analysis`
 - you can control retry depth with `--max-retries` (set `0` to disable retries)
+- if `--max-retries` is omitted, retry budget is risk-based by default:
+  `low -> 1`, `medium -> 2`, `high -> 0` (toggle with `--auto-retry-budget-by-risk`)
 
 Agent medium intent (OpenModelica medium case):
 

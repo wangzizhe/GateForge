@@ -8,11 +8,19 @@ from pathlib import Path
 
 
 class RepairLoopTests(unittest.TestCase):
-    def _write_fail_run_summary(self, path: Path, *, status: str = "FAIL", decision: str = "FAIL") -> None:
+    def _write_fail_run_summary(
+        self,
+        path: Path,
+        *,
+        status: str = "FAIL",
+        decision: str = "FAIL",
+        risk_level: str = "low",
+    ) -> None:
         path.write_text(
             json.dumps(
                 {
                     "proposal_id": "proposal-fail-001",
+                    "risk_level": risk_level,
                     "status": status,
                     "policy_decision": decision,
                     "policy_reasons": ["runtime_regression:1.2s>1.0s"],
@@ -191,6 +199,7 @@ class RepairLoopTests(unittest.TestCase):
             payload = json.loads(out.read_text(encoding="utf-8"))
             self.assertFalse(payload.get("retry_used"))
             self.assertEqual(len(payload.get("attempts", [])), 1)
+            self.assertEqual(payload.get("max_retries"), 0)
 
     def test_repair_loop_detects_worse_outcome(self) -> None:
         with tempfile.TemporaryDirectory() as d:
@@ -224,6 +233,43 @@ class RepairLoopTests(unittest.TestCase):
             self.assertEqual(payload["before"]["policy_decision"], "PASS")
             self.assertEqual(payload["after"]["policy_decision"], "FAIL")
             self.assertEqual(payload["comparison"]["delta"], "worse")
+
+    def test_repair_loop_risk_based_budget_high_disables_retry(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            source = root / "source_high_risk.json"
+            baseline = root / "baseline.json"
+            out = root / "repair_summary_high_risk.json"
+            self._write_fail_run_summary(source, status="FAIL", decision="FAIL", risk_level="high")
+            self._write_baseline(baseline, backend="mock")
+
+            env = dict(os.environ)
+            env.pop("GOOGLE_API_KEY", None)
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.repair_loop",
+                    "--source",
+                    str(source),
+                    "--planner-backend",
+                    "gemini",
+                    "--baseline",
+                    str(baseline),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+                env=env,
+            )
+            self.assertNotEqual(proc.returncode, 0)
+            payload = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(payload.get("source_risk_level"), "high")
+            self.assertEqual(payload.get("max_retries"), 0)
+            self.assertEqual(payload.get("retry_budget_source"), "risk_based:high")
+            self.assertEqual(len(payload.get("attempts", [])), 1)
 
 
 if __name__ == "__main__":

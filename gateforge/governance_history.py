@@ -97,7 +97,7 @@ def _status_score(status: str | None) -> int:
     return -1
 
 
-def _summarize_last_n(records: list[dict], last_n: int) -> dict:
+def _summarize_last_n(records: list[dict], last_n: int, worse_streak_threshold: int) -> dict:
     items = records[-max(1, int(last_n)) :] if records else []
     status_counts = Counter()
     risk_counts = Counter()
@@ -130,6 +130,24 @@ def _summarize_last_n(records: list[dict], last_n: int) -> dict:
 
     improved_count = sum(1 for t in transitions if t["relation"] == "improved")
     worse_count = sum(1 for t in transitions if t["relation"] == "worse")
+    current_worse_streak = 0
+    max_worse_streak = 0
+    for t in transitions:
+        if t["relation"] == "worse":
+            current_worse_streak += 1
+            if current_worse_streak > max_worse_streak:
+                max_worse_streak = current_worse_streak
+        else:
+            current_worse_streak = 0
+    latest_worse_streak = 0
+    for t in reversed(transitions):
+        if t["relation"] == "worse":
+            latest_worse_streak += 1
+        else:
+            break
+    alerts = []
+    if max_worse_streak >= max(1, int(worse_streak_threshold)):
+        alerts.append("consecutive_worsening_detected")
 
     return {
         "total_records": len(records),
@@ -143,8 +161,12 @@ def _summarize_last_n(records: list[dict], last_n: int) -> dict:
             "transition_count": len(transitions),
             "improved_count": improved_count,
             "worse_count": worse_count,
+            "max_worse_streak": max_worse_streak,
+            "latest_worse_streak": latest_worse_streak,
+            "worse_streak_threshold": int(worse_streak_threshold),
         },
         "latest_status": items[-1].get("status") if items else None,
+        "alerts": alerts,
     }
 
 
@@ -189,6 +211,23 @@ def _write_markdown(path: str, summary: dict) -> None:
             f"- transition_count: `{tk.get('transition_count')}`",
             f"- improved_count: `{tk.get('improved_count')}`",
             f"- worse_count: `{tk.get('worse_count')}`",
+            f"- max_worse_streak: `{tk.get('max_worse_streak')}`",
+            f"- latest_worse_streak: `{tk.get('latest_worse_streak')}`",
+            f"- worse_streak_threshold: `{tk.get('worse_streak_threshold')}`",
+            "",
+            "## Alerts",
+            "",
+        ]
+    )
+    alerts = summary.get("alerts", [])
+    if alerts:
+        for item in alerts:
+            lines.append(f"- `{item}`")
+    else:
+        lines.append("- `none`")
+
+    lines.extend(
+        [
             "",
             "## Transitions",
             "",
@@ -215,6 +254,12 @@ def main() -> None:
     parser.add_argument("--snapshot", default=None, help="Optional governance snapshot JSON to record")
     parser.add_argument("--label", default=None, help="Optional label for snapshot record")
     parser.add_argument("--last-n", type=int, default=5, help="Window size for trend summary")
+    parser.add_argument(
+        "--worse-streak-threshold",
+        type=int,
+        default=2,
+        help="Trigger consecutive worsening alert when max worse streak reaches this threshold",
+    )
     parser.add_argument("--out", default="artifacts/governance_history/summary.json", help="Summary JSON path")
     parser.add_argument("--report", default=None, help="Summary markdown path")
     args = parser.parse_args()
@@ -224,7 +269,7 @@ def main() -> None:
         recorded = _record_snapshot(args.snapshot, args.history_dir, label=args.label)
 
     records = _load_records(args.history_dir)
-    summary = _summarize_last_n(records, last_n=args.last_n)
+    summary = _summarize_last_n(records, last_n=args.last_n, worse_streak_threshold=args.worse_streak_threshold)
     if recorded:
         summary["last_record"] = recorded
 

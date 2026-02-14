@@ -39,6 +39,8 @@ def _write_markdown(path: str, summary: dict) -> None:
         f"- planner_guardrail_decision: `{summary.get('planner_guardrail_decision')}`",
         f"- planner_guardrail_report_path: `{summary.get('planner_guardrail_report_path')}`",
         f"- retry_used: `{summary.get('retry_used')}`",
+        f"- max_retries: `{summary.get('max_retries')}`",
+        f"- retry_budget_source: `{summary.get('retry_budget_source')}`",
         "",
         "## Before",
         "",
@@ -135,6 +137,7 @@ def _normalize_before(payload: dict) -> dict:
         "proposal_id": payload.get("proposal_id"),
         "status": status or "UNKNOWN",
         "policy_decision": policy_decision or "UNKNOWN",
+        "risk_level": payload.get("risk_level", "low"),
         "reasons": _collect_reasons(payload),
     }
 
@@ -155,6 +158,19 @@ def _default_goal(before: dict) -> str:
         "Repair failed governance gate and run demo mock pass under policy constraints. "
         "Focus on stable, low-risk fix."
     )
+
+
+def _resolve_max_retries(explicit_max_retries: int | None, source_risk_level: str, auto_budget_by_risk: bool) -> tuple[int, str]:
+    if explicit_max_retries is not None:
+        return explicit_max_retries, "explicit"
+    if not auto_budget_by_risk:
+        return 1, "default"
+    risk = str(source_risk_level or "low").lower()
+    if risk == "high":
+        return 0, "risk_based:high"
+    if risk == "medium":
+        return 2, "risk_based:medium"
+    return 1, "risk_based:low"
 
 
 def main() -> None:
@@ -206,8 +222,14 @@ def main() -> None:
     parser.add_argument(
         "--max-retries",
         type=int,
-        default=1,
-        help="Maximum number of fallback retries after first failed attempt",
+        default=None,
+        help="Maximum number of fallback retries after first failed attempt (default: risk-based budget)",
+    )
+    parser.add_argument(
+        "--auto-retry-budget-by-risk",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="When max-retries is not explicitly set, derive retry budget from source risk_level",
     )
     parser.add_argument(
         "--retry-fallback-planner-backend",
@@ -238,7 +260,7 @@ def main() -> None:
         help="Where to write repair-loop summary markdown",
     )
     args = parser.parse_args()
-    if args.max_retries < 0:
+    if args.max_retries is not None and args.max_retries < 0:
         raise SystemExit("--max-retries must be >= 0")
 
     source_payload = json.loads(Path(args.source).read_text(encoding="utf-8"))
@@ -354,7 +376,12 @@ def main() -> None:
     retry_used = False
     retry_proc = None
     selected_attempt = 1
-    max_retries = args.max_retries if args.retry_on_failed_attempt else 0
+    resolved_max_retries, retry_budget_source = _resolve_max_retries(
+        args.max_retries,
+        str(before.get("risk_level") or "low"),
+        bool(args.auto_retry_budget_by_risk),
+    )
+    max_retries = resolved_max_retries if args.retry_on_failed_attempt else 0
     retry_allowed_files = args.retry_allowed_file or ["examples/openmodelica/MinimalProbe.mo"]
     for retry_index in range(1, max_retries + 1):
         if proc.returncode == 0:
@@ -434,6 +461,7 @@ def main() -> None:
         "source_path": args.source,
         "source_kind": before.get("source_kind"),
         "source_proposal_id": before.get("proposal_id"),
+        "source_risk_level": before.get("risk_level"),
         "goal": goal,
         "planner_change_plan_confidence_min": args.planner_change_plan_confidence_min,
         "planner_change_plan_confidence_max": args.planner_change_plan_confidence_max,
@@ -443,7 +471,10 @@ def main() -> None:
         "planner_guardrail_violation_objects": after_payload.get("planner_guardrail_violation_objects", []),
         "planner_guardrail_report_path": after_payload.get("planner_guardrail_report_path"),
         "retry_on_failed_attempt": args.retry_on_failed_attempt,
-        "max_retries": args.max_retries,
+        "max_retries": max_retries,
+        "resolved_max_retries": resolved_max_retries,
+        "retry_budget_source": retry_budget_source,
+        "auto_retry_budget_by_risk": args.auto_retry_budget_by_risk,
         "retry_used": retry_used,
         "selected_attempt": selected_attempt,
         "attempts": attempts,

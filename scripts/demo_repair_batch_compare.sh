@@ -72,6 +72,7 @@ result_flags = {
     "expect_compare_present": "PASS" if isinstance(compare, dict) and compare else "FAIL",
     "expect_total_compared_cases": "PASS" if compare.get("total_compared_cases") == 2 else "FAIL",
     "expect_rate_present": "PASS" if "strict_downgrade_rate" in compare else "FAIL",
+    "expect_reason_distribution_present": "PASS" if isinstance(compare.get("reason_distribution"), dict) else "FAIL",
 }
 bundle_status = "PASS" if all(v == "PASS" for v in result_flags.values()) else "FAIL"
 summary = {
