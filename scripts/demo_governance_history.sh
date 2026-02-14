@@ -97,4 +97,6 @@ if len(transitions) != 2:
     raise SystemExit(1)
 if payload.get("transition_kpis", {}).get("worse_count", 0) < 1:
     raise SystemExit(1)
+if "consecutive_worsening_detected" not in payload.get("alerts", []):
+    raise SystemExit(1)
 PY

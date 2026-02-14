@@ -4,6 +4,7 @@ import argparse
 import json
 import subprocess
 import sys
+from collections import Counter
 from pathlib import Path
 
 
@@ -222,6 +223,21 @@ def _compare_profiles(primary_results: list[dict], strict_results: list[dict], f
 
     total = len(transitions)
     strict_downgrade_rate = round(downgrade / total, 4) if total else 0.0
+    from_reason_counts = Counter()
+    for row in primary_results:
+        for reason in row.get("reasons", []) or []:
+            if isinstance(reason, str):
+                from_reason_counts[reason] += 1
+    to_reason_counts = Counter()
+    for row in strict_results:
+        for reason in row.get("reasons", []) or []:
+            if isinstance(reason, str):
+                to_reason_counts[reason] += 1
+    all_reasons = sorted(set(from_reason_counts.keys()) | set(to_reason_counts.keys()))
+    delta_reason_counts = {
+        reason: int(to_reason_counts.get(reason, 0) - from_reason_counts.get(reason, 0))
+        for reason in all_reasons
+    }
     return {
         "from_policy_profile": from_profile,
         "to_policy_profile": to_profile,
@@ -231,6 +247,13 @@ def _compare_profiles(primary_results: list[dict], strict_results: list[dict], f
         "unchanged_count": unchanged,
         "strict_downgrade_rate": strict_downgrade_rate,
         "transitions": transitions,
+        "reason_distribution": {
+            "from_counts": dict(from_reason_counts),
+            "to_counts": dict(to_reason_counts),
+            "delta_counts": delta_reason_counts,
+            "new_reasons_in_to": sorted(set(to_reason_counts.keys()) - set(from_reason_counts.keys())),
+            "resolved_reasons_in_to": sorted(set(from_reason_counts.keys()) - set(to_reason_counts.keys())),
+        },
     }
 
 
@@ -296,6 +319,14 @@ def _write_markdown(path: str, summary: dict) -> None:
                 lines.append(
                     f"- `{t.get('name')}`: `{t.get('from_status')}` -> `{t.get('to_status')}` ({t.get('relation')})"
                 )
+        else:
+            lines.append("- `none`")
+        lines.extend(["", "### Reason Distribution Delta", ""])
+        reason_dist = compare.get("reason_distribution", {})
+        delta_counts = reason_dist.get("delta_counts", {})
+        if isinstance(delta_counts, dict) and delta_counts:
+            for reason in sorted(delta_counts.keys()):
+                lines.append(f"- `{reason}`: `{delta_counts[reason]}`")
         else:
             lines.append("- `none`")
 

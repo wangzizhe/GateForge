@@ -52,6 +52,8 @@ class GovernanceHistoryTests(unittest.TestCase):
             self.assertEqual(summary.get("status_counts", {}).get("FAIL"), 1)
             self.assertEqual(len(summary.get("transitions", [])), 2)
             self.assertGreaterEqual(summary.get("transition_kpis", {}).get("worse_count", 0), 1)
+            self.assertEqual(summary.get("transition_kpis", {}).get("max_worse_streak"), 2)
+            self.assertIn("consecutive_worsening_detected", summary.get("alerts", []))
 
 
 if __name__ == "__main__":

@@ -360,6 +360,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertEqual(payload.get("total_records"), 3)
         self.assertEqual(payload.get("window_size"), 3)
         self.assertEqual(payload.get("latest_status"), "FAIL")
+        self.assertIn("consecutive_worsening_detected", payload.get("alerts", []))
 
 
 if __name__ == "__main__":

@@ -183,6 +183,10 @@ class RepairBatchTests(unittest.TestCase):
             self.assertEqual(compare.get("total_compared_cases"), 1)
             self.assertIn("strict_downgrade_rate", compare)
             self.assertTrue(compare.get("transitions"))
+            reason_dist = compare.get("reason_distribution", {})
+            self.assertIn("from_counts", reason_dist)
+            self.assertIn("to_counts", reason_dist)
+            self.assertIn("delta_counts", reason_dist)
 
 
 if __name__ == "__main__":

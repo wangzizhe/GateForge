@@ -279,6 +279,7 @@ What it validates:
 - same repair pack executed under two policy profiles
 - transition summary (`from_status -> to_status`)
 - strict downgrade KPI (`strict_downgrade_rate`)
+- failure-reason distribution delta across profiles
 
 Key outputs:
 
@@ -336,6 +337,7 @@ What it validates:
 
 - archive multiple governance snapshots into history storage
 - summarize last-N status distribution and transition KPIs
+- emits alert when worsening streak crosses threshold
 
 Key outputs:
 
