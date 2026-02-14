@@ -1,0 +1,11 @@
+{
+  "version": "0.1.0",
+  "fail_on_needs_review": false,
+  "deny_statuses": ["FAIL"],
+  "review_statuses": ["NEEDS_REVIEW"],
+  "block_risks": ["ci_matrix_failed"],
+  "max_strict_non_pass_rate": 0.5,
+  "max_strict_downgrade_rate": 0.5,
+  "min_review_recovery_rate": 0.4,
+  "max_fail_rate": 0.6
+}
