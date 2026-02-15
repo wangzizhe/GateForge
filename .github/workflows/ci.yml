@@ -70,6 +70,11 @@ on:
         required: false
         default: false
         type: boolean
+      run_repair_pack_from_tasks_demo:
+        description: "Run optional repair-pack-from-tasks demo job"
+        required: false
+        default: false
+        type: boolean
       run_repair_tasks_demo:
         description: "Run optional repair tasks demo job"
         required: false
@@ -1089,6 +1094,73 @@ jobs:
             artifacts/repair_tasks_demo/summary.md
             artifacts/repair_tasks_demo/demo_summary.json
             artifacts/repair_tasks_demo/demo_summary.md
+
+  repair-pack-from-tasks-demo-optional:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_repair_pack_from_tasks_demo }}
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    env:
+      POLICY_PROFILE: ${{ inputs.demo_policy_profile }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Run repair pack from tasks demo
+        run: bash scripts/demo_repair_pack_from_tasks.sh
+
+      - name: Publish repair pack from tasks summary to job page
+        if: always()
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          path = Path("artifacts/repair_pack_demo/demo_summary.json")
+          if not path.exists():
+              text = "## Repair Pack From Tasks Summary\n\n`artifacts/repair_pack_demo/demo_summary.json` not found."
+          else:
+              payload = json.loads(path.read_text(encoding="utf-8"))
+              lines = [
+                  "## Repair Pack From Tasks Summary",
+                  "",
+                  f"- bundle_status: `{payload.get('bundle_status')}`",
+                  f"- pack_id: `{payload.get('pack_id')}`",
+                  f"- case_count: `{payload.get('case_count')}`",
+                  f"- improved_count: `{payload.get('improved_count')}`",
+                  f"- safety_block_count: `{payload.get('safety_block_count')}`",
+                  "",
+              ]
+              text = "\n".join(lines)
+
+          summary_file = os.getenv("GITHUB_STEP_SUMMARY")
+          if summary_file:
+              with open(summary_file, "a", encoding="utf-8") as f:
+                  f.write(text + "\n")
+          print(text)
+          PY
+
+      - name: Upload repair pack from tasks artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: repair-pack-from-tasks-demo
+          path: |
+            artifacts/repair_pack_demo/pack.json
+            artifacts/repair_pack_demo/summary.json
+            artifacts/repair_pack_demo/summary.md
+            artifacts/repair_pack_demo/demo_summary.json
+            artifacts/repair_pack_demo/demo_summary.md
 
   governance-snapshot-demo-optional:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_governance_snapshot_demo }}
