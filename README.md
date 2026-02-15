@@ -646,6 +646,9 @@ Decision behavior:
 - compare `status=PASS` -> `final_status=PASS` with `apply_action=promote`
 - compare `status=NEEDS_REVIEW` -> requires `--review-ticket-id`, else `FAIL`
 - compare `status=FAIL` -> `final_status=FAIL` with `apply_action=block`
+- apply summary and audit now carry compare ranking explanation fields:
+  - `ranking_selection_priority`
+  - `ranking_best_vs_others`
 
 Promote apply demo shortcut:
 
