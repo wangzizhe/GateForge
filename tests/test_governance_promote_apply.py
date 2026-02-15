@@ -163,6 +163,42 @@ class GovernancePromoteApplyTests(unittest.TestCase):
             self.assertEqual(payload.get("final_status"), "FAIL")
             self.assertIn("compare_status_fail", payload.get("reasons", []))
 
+    def test_apply_fail_when_ranking_explanation_required_but_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            compare = root / "compare.json"
+            out = root / "apply.json"
+            compare.write_text(
+                json.dumps(
+                    {
+                        "status": "PASS",
+                        "best_profile": "default",
+                        "best_decision": "PASS",
+                        "recommended_profile": "default",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.governance_promote_apply",
+                    "--compare-summary",
+                    str(compare),
+                    "--require-ranking-explanation",
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 1)
+            payload = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(payload.get("final_status"), "FAIL")
+            self.assertIn("ranking_explanation_required", payload.get("reasons", []))
+
 
 if __name__ == "__main__":
     unittest.main()

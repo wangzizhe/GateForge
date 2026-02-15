@@ -649,6 +649,8 @@ Decision behavior:
 - apply summary and audit now carry compare ranking explanation fields:
   - `ranking_selection_priority`
   - `ranking_best_vs_others`
+- optional strictness:
+  - `--require-ranking-explanation` (if enabled, missing ranking explanation causes `FAIL`)
 
 Promote apply demo shortcut:
 
