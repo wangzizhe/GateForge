@@ -1,0 +1,11 @@
+{
+  "name": "default",
+  "version": "0.1.0",
+  "planner_change_plan_confidence_min": 0.8,
+  "allowed_files": [
+    "examples/openmodelica/MinimalProbe.mo"
+  ],
+  "risk_level_remap": {
+    "high": "medium"
+  }
+}
