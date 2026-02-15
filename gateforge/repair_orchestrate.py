@@ -262,6 +262,9 @@ def main() -> None:
     base_profile = args.strategy_profile
     if args.compare_strategy_profiles:
         base_profile = args.compare_strategy_profiles[0]
+        compare_profile = args.compare_strategy_profiles[1]
+        if base_profile == compare_profile:
+            raise SystemExit("compare profiles must be different")
 
     primary = _run_pipeline(
         source=args.source,
