@@ -521,6 +521,11 @@ python -m gateforge.governance_promote \
   --report artifacts/governance_promote_demo/default.md
 ```
 
+Promotion profiles now support `recommended_profile_mismatch_decision`:
+- `review` (default profile): mismatch yields `NEEDS_REVIEW`
+- `fail` (industrial strict): mismatch yields `FAIL`
+- `ignore`: no effect
+
 Optional human override (waiver / forced promotion decision):
 
 ```bash

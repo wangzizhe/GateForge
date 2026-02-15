@@ -7,6 +7,92 @@ from pathlib import Path
 
 
 class GovernancePromoteTests(unittest.TestCase):
+    def test_promote_default_profile_marks_recommended_mismatch_as_needs_review(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            snapshot = root / "snapshot.json"
+            out = root / "promote.json"
+            snapshot.write_text(
+                json.dumps(
+                    {
+                        "status": "PASS",
+                        "risks": [],
+                        "kpis": {
+                            "recommended_profile": "industrial_strict",
+                            "strict_non_pass_rate": 0.1,
+                            "strict_downgrade_rate": 0.0,
+                            "review_recovery_rate": 0.9,
+                            "fail_rate": 0.1,
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.governance_promote",
+                    "--snapshot",
+                    str(snapshot),
+                    "--profile",
+                    "default",
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            payload = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(payload.get("decision"), "NEEDS_REVIEW")
+            reasons = payload.get("reasons", [])
+            self.assertTrue(any(str(r).startswith("recommended_profile_mismatch:") for r in reasons))
+
+    def test_promote_industrial_profile_fails_on_recommended_mismatch(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            snapshot = root / "snapshot.json"
+            out = root / "promote.json"
+            snapshot.write_text(
+                json.dumps(
+                    {
+                        "status": "PASS",
+                        "risks": [],
+                        "kpis": {
+                            "recommended_profile": "default",
+                            "strict_non_pass_rate": 0.1,
+                            "strict_downgrade_rate": 0.0,
+                            "review_recovery_rate": 0.9,
+                            "fail_rate": 0.1,
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.governance_promote",
+                    "--snapshot",
+                    str(snapshot),
+                    "--profile",
+                    "industrial_strict",
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertNotEqual(proc.returncode, 0)
+            payload = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(payload.get("decision"), "FAIL")
+            reasons = payload.get("reasons", [])
+            self.assertTrue(any(str(r).startswith("recommended_profile_mismatch:") for r in reasons))
+
     def test_promote_pass_under_default_profile(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
