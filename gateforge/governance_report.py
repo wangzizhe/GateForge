@@ -43,6 +43,29 @@ def _to_float(value: object, default: float = 0.0) -> float:
     return default
 
 
+def _extract_repair_compare(repair: dict) -> dict:
+    if not isinstance(repair, dict):
+        return {}
+    profile_compare = repair.get("profile_compare")
+    if isinstance(profile_compare, dict):
+        return profile_compare
+
+    strategy_compare = repair.get("strategy_compare")
+    if not isinstance(strategy_compare, dict):
+        return {}
+
+    relation = str(strategy_compare.get("relation") or "").lower()
+    downgrade_count = 1 if relation == "downgraded" else 0
+    strict_downgrade_rate = 1.0 if relation == "downgraded" else 0.0
+    return {
+        "from_policy_profile": strategy_compare.get("from_profile"),
+        "to_policy_profile": strategy_compare.get("to_profile"),
+        "downgrade_count": downgrade_count,
+        "strict_downgrade_rate": strict_downgrade_rate,
+        "strategy_compare_relation": strategy_compare.get("relation"),
+    }
+
+
 def _compute_trend(current: dict, previous: dict) -> dict:
     current_status = str(current.get("status") or "UNKNOWN")
     prev_status = str(previous.get("status") or "UNKNOWN")
@@ -84,7 +107,7 @@ def _compute_trend(current: dict, previous: dict) -> dict:
 
 
 def _compute_summary(repair: dict, review: dict, matrix: dict) -> dict:
-    repair_compare = repair.get("profile_compare", {}) if isinstance(repair, dict) else {}
+    repair_compare = _extract_repair_compare(repair)
     kpis = review.get("kpis", {}) if isinstance(review, dict) else {}
 
     strict_non_pass_rate = float(kpis.get("strict_non_pass_rate", 0.0) or 0.0)
@@ -116,6 +139,7 @@ def _compute_summary(repair: dict, review: dict, matrix: dict) -> dict:
         "kpis": {
             "strict_downgrade_rate": repair_compare.get("strict_downgrade_rate"),
             "downgrade_count": downgrade_count,
+            "strategy_compare_relation": repair_compare.get("strategy_compare_relation"),
             "review_recovery_rate": review_recovery_rate,
             "strict_non_pass_rate": strict_non_pass_rate,
             "approval_rate": kpis.get("approval_rate"),
@@ -146,6 +170,7 @@ def _write_markdown(path: str, summary: dict) -> None:
         f"- status: `{summary.get('status')}`",
         f"- strict_downgrade_rate: `{kpis.get('strict_downgrade_rate')}`",
         f"- downgrade_count: `{kpis.get('downgrade_count')}`",
+        f"- strategy_compare_relation: `{kpis.get('strategy_compare_relation')}`",
         f"- review_recovery_rate: `{kpis.get('review_recovery_rate')}`",
         f"- strict_non_pass_rate: `{kpis.get('strict_non_pass_rate')}`",
         f"- approval_rate: `{kpis.get('approval_rate')}`",
