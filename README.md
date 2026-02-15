@@ -727,8 +727,10 @@ python -m gateforge.repair_orchestrate \
   --compare-strategy-profiles default industrial_strict \
   --baseline baselines/mock_minimal_probe_baseline.json \
   --out-dir artifacts/repair_orchestrate_compare_demo \
-  --out artifacts/repair_orchestrate_compare_demo/summary.json
+  --out artifacts/repair_orchestrate_compare_demo/summary.json \
+  --report artifacts/repair_orchestrate_compare_demo/summary.md
 cat artifacts/repair_orchestrate_compare_demo/summary.json
+cat artifacts/repair_orchestrate_compare_demo/summary.md
 ```
 
 Demo shortcut:

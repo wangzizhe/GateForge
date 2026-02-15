@@ -377,6 +377,7 @@ class DemoScriptTests(unittest.TestCase):
         payload = json.loads(Path("artifacts/repair_orchestrate_compare_demo/demo_summary.json").read_text(encoding="utf-8"))
         self.assertEqual(payload.get("bundle_status"), "PASS")
         self.assertIn(payload.get("compare_relation"), {"upgraded", "unchanged", "downgraded"})
+        self.assertIn(payload.get("recommended_profile"), {"default", "industrial_strict"})
 
     def test_demo_governance_snapshot_script(self) -> None:
         proc = subprocess.run(
