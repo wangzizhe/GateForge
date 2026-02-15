@@ -4,6 +4,7 @@
   "deny_statuses": ["FAIL", "NEEDS_REVIEW"],
   "review_statuses": [],
   "block_risks": ["ci_matrix_failed", "strict_profile_downgrade_detected"],
+  "recommended_profile_mismatch_decision": "fail",
   "max_strict_non_pass_rate": 0.2,
   "max_strict_downgrade_rate": 0.1,
   "min_review_recovery_rate": 0.7,

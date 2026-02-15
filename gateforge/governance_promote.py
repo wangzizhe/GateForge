@@ -104,6 +104,18 @@ def _evaluate(snapshot: dict, policy: dict) -> dict:
     if isinstance(max_fail_rate, (int, float)) and fail_rate > float(max_fail_rate):
         review_reasons.append(f"fail_rate_high:{fail_rate:.4f}>{float(max_fail_rate):.4f}")
 
+    requested_profile = str(policy.get("_requested_profile") or "")
+    recommended_profile = str(kpis.get("recommended_profile") or "")
+    mismatch_mode = str(policy.get("recommended_profile_mismatch_decision") or "ignore").lower()
+    if mismatch_mode not in {"ignore", "review", "fail"}:
+        mismatch_mode = "ignore"
+    if requested_profile and recommended_profile and requested_profile != recommended_profile:
+        mismatch_reason = f"recommended_profile_mismatch:requested={requested_profile},recommended={recommended_profile}"
+        if mismatch_mode == "fail":
+            fail_reasons.append(mismatch_reason)
+        elif mismatch_mode == "review":
+            review_reasons.append(mismatch_reason)
+
     if fail_reasons:
         decision = "FAIL"
         reasons = fail_reasons
@@ -239,6 +251,8 @@ def main() -> None:
 
     profile_path = _resolve_profile_path(args.profile, args.profile_path)
     policy = _load_json(profile_path)
+    requested_profile = args.profile if not args.profile_path else Path(profile_path).stem
+    policy["_requested_profile"] = requested_profile
     snapshot = _load_json(args.snapshot)
     result = _evaluate(snapshot, policy)
     override_payload = _load_json(args.override) if isinstance(args.override, str) else None

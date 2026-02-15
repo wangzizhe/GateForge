@@ -475,6 +475,7 @@ What it validates:
 - derives a promotion decision from governance snapshot
 - compares default vs industrial strict promotion profile outcomes
 - validates human override path (`override` can force/waive promotion)
+- enforces `recommended_profile_mismatch_decision` from promotion policy
 
 Key outputs:
 
