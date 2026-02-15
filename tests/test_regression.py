@@ -228,6 +228,69 @@ class RegressionTests(unittest.TestCase):
         self.assertEqual(result["decision"], "FAIL")
         self.assertIn("settling_time_regression_detected", result["reasons"])
 
+    def test_compare_fail_invariant_range_checker(self) -> None:
+        baseline = _evidence("base")
+        candidate = _evidence("cand")
+        baseline["metrics"]["steady_state_error"] = 0.02
+        candidate["metrics"]["steady_state_error"] = 0.2
+        result = compare_evidence(
+            baseline,
+            candidate,
+            runtime_regression_threshold=10.0,
+            checker_names=["invariant_guard"],
+            checker_config={
+                "invariant_guard": {
+                    "invariants": [
+                        {"type": "range", "metric": "steady_state_error", "min": 0.0, "max": 0.1}
+                    ]
+                }
+            },
+        )
+        self.assertEqual(result["decision"], "FAIL")
+        self.assertIn("physical_invariant_range_violated", result["reasons"])
+
+    def test_compare_fail_invariant_monotonic_checker(self) -> None:
+        baseline = _evidence("base")
+        candidate = _evidence("cand")
+        baseline["metrics"]["energy"] = 1.0
+        candidate["metrics"]["energy"] = 1.3
+        result = compare_evidence(
+            baseline,
+            candidate,
+            runtime_regression_threshold=10.0,
+            checker_names=["invariant_guard"],
+            checker_config={
+                "invariant_guard": {
+                    "invariants": [
+                        {"type": "monotonic", "metric": "energy", "direction": "non_increasing"}
+                    ]
+                }
+            },
+        )
+        self.assertEqual(result["decision"], "FAIL")
+        self.assertIn("physical_invariant_monotonic_violated", result["reasons"])
+
+    def test_compare_fail_invariant_bounded_delta_checker(self) -> None:
+        baseline = _evidence("base")
+        candidate = _evidence("cand")
+        baseline["metrics"]["overshoot"] = 0.1
+        candidate["metrics"]["overshoot"] = 0.25
+        result = compare_evidence(
+            baseline,
+            candidate,
+            runtime_regression_threshold=10.0,
+            checker_names=["invariant_guard"],
+            checker_config={
+                "invariant_guard": {
+                    "invariants": [
+                        {"type": "bounded_delta", "metric": "overshoot", "max_abs_delta": 0.1}
+                    ]
+                }
+            },
+        )
+        self.assertEqual(result["decision"], "FAIL")
+        self.assertIn("physical_invariant_bounded_delta_violated", result["reasons"])
+
     def test_compare_control_behavior_checker_enable_disable(self) -> None:
         baseline = _evidence("base")
         candidate = _evidence("cand")
@@ -664,6 +727,76 @@ class RegressionTests(unittest.TestCase):
             result = json.loads(out.read_text(encoding="utf-8"))
             self.assertIn("nan_inf_detected", result["reasons"])
             self.assertEqual(result["checkers"], ["nan_inf"])
+
+    def test_regress_cli_with_proposal_physical_invariants(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            baseline = root / "baseline.json"
+            candidate = root / "candidate.json"
+            proposal = root / "proposal.json"
+            out = root / "regression.json"
+
+            b = _evidence(
+                "base",
+                backend="mock",
+                model_script="examples/openmodelica/minimal_probe.mos",
+                runtime_seconds=1.0,
+            )
+            b["metrics"]["steady_state_error"] = 0.05
+            baseline.write_text(json.dumps(b), encoding="utf-8")
+
+            c = _evidence(
+                "cand",
+                backend="mock",
+                model_script="examples/openmodelica/minimal_probe.mos",
+                runtime_seconds=1.0,
+            )
+            c["metrics"]["steady_state_error"] = 0.2
+            candidate.write_text(json.dumps(c), encoding="utf-8")
+
+            proposal.write_text(
+                json.dumps(
+                    {
+                        "schema_version": "0.1.0",
+                        "proposal_id": "proposal-regress-invariant-1",
+                        "timestamp_utc": "2026-02-16T10:00:00Z",
+                        "author_type": "agent",
+                        "backend": "mock",
+                        "model_script": "examples/openmodelica/minimal_probe.mos",
+                        "change_summary": "invariant violation medium risk",
+                        "requested_actions": ["check", "regress"],
+                        "risk_level": "medium",
+                        "checkers": ["invariant_guard"],
+                        "physical_invariants": [
+                            {"type": "range", "metric": "steady_state_error", "min": 0.0, "max": 0.08}
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.regress",
+                    "--baseline",
+                    str(baseline),
+                    "--candidate",
+                    str(candidate),
+                    "--proposal",
+                    str(proposal),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            result = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(result["decision"], "NEEDS_REVIEW")
+            self.assertIn("physical_invariant_range_violated", result["reasons"])
 
     def test_regress_cli_uses_checker_config_file(self) -> None:
         with tempfile.TemporaryDirectory() as d:

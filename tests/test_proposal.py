@@ -263,6 +263,43 @@ class ProposalTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             validate_proposal(proposal)
 
+    def test_validate_accepts_physical_invariants(self) -> None:
+        proposal = {
+            "schema_version": "0.1.0",
+            "proposal_id": "proposal-invariant-1",
+            "timestamp_utc": "2026-02-16T00:00:00Z",
+            "author_type": "human",
+            "backend": "mock",
+            "model_script": "examples/openmodelica/minimal_probe.mos",
+            "change_summary": "physical invariants on candidate metrics",
+            "requested_actions": ["check", "regress"],
+            "risk_level": "medium",
+            "physical_invariants": [
+                {"type": "range", "metric": "steady_state_error", "min": 0.0, "max": 0.1},
+                {"type": "monotonic", "metric": "energy", "direction": "non_increasing"},
+                {"type": "bounded_delta", "metric": "overshoot", "max_abs_delta": 0.05},
+            ],
+        }
+        validate_proposal(proposal)
+
+    def test_validate_fails_on_invalid_physical_invariants(self) -> None:
+        proposal = {
+            "schema_version": "0.1.0",
+            "proposal_id": "proposal-invariant-2",
+            "timestamp_utc": "2026-02-16T00:00:00Z",
+            "author_type": "human",
+            "backend": "mock",
+            "model_script": "examples/openmodelica/minimal_probe.mos",
+            "change_summary": "invalid physical invariant",
+            "requested_actions": ["check", "regress"],
+            "risk_level": "medium",
+            "physical_invariants": [
+                {"type": "bounded_delta", "metric": "overshoot", "max_abs_delta": 0},
+            ],
+        }
+        with self.assertRaises(ValueError):
+            validate_proposal(proposal)
+
     def test_validate_fails_on_runtime_checker_toggle_unknown_checker(self) -> None:
         proposal = {
             "schema_version": "0.1.0",

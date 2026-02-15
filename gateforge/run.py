@@ -114,6 +114,20 @@ def _default_md_path(out_json: str) -> str:
     return f"{out_json}.md"
 
 
+def _inject_invariants_into_checker_config(checker_config: dict, proposal: dict) -> dict:
+    physical_invariants = proposal.get("physical_invariants")
+    if not isinstance(physical_invariants, list) or not physical_invariants:
+        return checker_config
+    merged = dict(checker_config)
+    guard_cfg = merged.get("invariant_guard")
+    if not isinstance(guard_cfg, dict):
+        guard_cfg = {}
+    guard_cfg = dict(guard_cfg)
+    guard_cfg["invariants"] = physical_invariants
+    merged["invariant_guard"] = guard_cfg
+    return merged
+
+
 def _resolve_baseline_path(
     baseline_arg: str,
     baseline_index_path: str,
@@ -257,7 +271,7 @@ def main() -> None:
         "policy_version": None,
         "policy_profile": args.policy_profile or "default",
         "checkers": proposal.get("checkers", []),
-        "checker_config": proposal.get("checker_config", {}),
+        "checker_config": _inject_invariants_into_checker_config(proposal.get("checker_config", {}), proposal),
         "checker_template_path": None,
         "smoke_executed": False,
         "regress_executed": False,
@@ -415,7 +429,10 @@ def main() -> None:
                     strict=True,
                     strict_model_script=True,
                     checker_names=proposal.get("checkers"),
-                    checker_config=proposal.get("checker_config", {}),
+                    checker_config=_inject_invariants_into_checker_config(
+                        proposal.get("checker_config", {}),
+                        proposal,
+                    ),
                 )
                 _apply_proposal_constraints(result, baseline, candidate, backend=backend, script=script_path)
                 result["proposal_id"] = proposal["proposal_id"]

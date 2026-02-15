@@ -18,6 +18,7 @@
     "overshoot_regression_detected",
     "settling_time_regression_detected",
     "steady_state_regression_detected",
+    "physical_invariant_",
     "change_requires_human_review",
     "change_plan_confidence_below_auto_apply"
   ],
@@ -108,6 +109,10 @@
       ],
       "change_plan_confidence_below_auto_apply": [
         "Planner confidence is below auto-apply threshold; perform manual review before execution."
+      ],
+      "physical_invariant_": [
+        "Inspect physical invariant violations and verify whether constraints/thresholds are still valid for intended behavior.",
+        "Attach explicit engineering rationale before allowing merge or promotion."
       ],
       "change_plan_confidence_below_accept": [
         "Planner confidence is below acceptance threshold; reject this plan and request regeneration."

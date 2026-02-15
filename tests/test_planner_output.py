@@ -17,6 +17,20 @@ class PlannerOutputTests(unittest.TestCase):
         }
         validate_planner_output(payload)
 
+    def test_validate_pass_with_physical_invariants_override(self) -> None:
+        payload = {
+            "intent": "demo_mock_pass",
+            "proposal_id": "planner-output-2",
+            "overrides": {
+                "risk_level": "medium",
+                "change_summary": "demo invariants",
+                "physical_invariants": [
+                    {"type": "range", "metric": "steady_state_error", "min": 0.0, "max": 0.08}
+                ],
+            },
+        }
+        validate_planner_output(payload)
+
     def test_validate_fail_unknown_top_level(self) -> None:
         payload = {
             "intent": "demo_mock_pass",

@@ -156,6 +156,41 @@ def validate_proposal(proposal: dict) -> None:
                         "checker_config.control_behavior_regression.max_steady_state_abs_delta must be > 0"
                     )
 
+    physical_invariants = proposal.get("physical_invariants")
+    if physical_invariants is not None:
+        if not isinstance(physical_invariants, list):
+            raise ValueError("physical_invariants must be a list when provided")
+        for idx, inv in enumerate(physical_invariants):
+            if not isinstance(inv, dict):
+                raise ValueError(f"physical_invariants[{idx}] must be an object")
+            inv_type = inv.get("type")
+            metric = inv.get("metric")
+            if not isinstance(inv_type, str) or not inv_type:
+                raise ValueError(f"physical_invariants[{idx}].type must be a non-empty string")
+            if not isinstance(metric, str) or not metric:
+                raise ValueError(f"physical_invariants[{idx}].metric must be a non-empty string")
+            if inv_type == "range":
+                min_v = inv.get("min")
+                max_v = inv.get("max")
+                if min_v is not None and not isinstance(min_v, (int, float)):
+                    raise ValueError(f"physical_invariants[{idx}].min must be numeric when provided")
+                if max_v is not None and not isinstance(max_v, (int, float)):
+                    raise ValueError(f"physical_invariants[{idx}].max must be numeric when provided")
+                if isinstance(min_v, (int, float)) and isinstance(max_v, (int, float)) and float(min_v) > float(max_v):
+                    raise ValueError(f"physical_invariants[{idx}] requires min <= max")
+            elif inv_type == "monotonic":
+                direction = inv.get("direction")
+                if direction not in {"non_increasing", "non_decreasing"}:
+                    raise ValueError(
+                        f"physical_invariants[{idx}].direction must be non_increasing/non_decreasing"
+                    )
+            elif inv_type == "bounded_delta":
+                mad = inv.get("max_abs_delta")
+                if not isinstance(mad, (int, float)) or float(mad) <= 0:
+                    raise ValueError(f"physical_invariants[{idx}].max_abs_delta must be > 0")
+            else:
+                raise ValueError(f"physical_invariants[{idx}].type unsupported: {inv_type}")
+
 
 def execution_target_from_proposal(proposal: dict) -> tuple[str, str]:
     # v0 contract: smoke execution is only valid when proposal requests check/simulate.

@@ -539,6 +539,32 @@ Key outputs:
 - `artifacts/governance_promote_apply_demo/summary.json`
 - `artifacts/governance_promote_apply_demo/summary.md`
 
+## 15. Agent Invariant Guard Demo
+
+Command:
+
+```bash
+bash scripts/demo_agent_invariant_guard.sh
+```
+
+What it validates:
+
+- proposal-level `physical_invariants` are enforced in regression gate via `invariant_guard`
+- low/medium/high risk policy mapping on invariant violations:
+  - pass case -> `PASS`
+  - medium invariant violation -> `NEEDS_REVIEW`
+  - high invariant violation -> `FAIL`
+
+Key outputs:
+
+- `artifacts/agent_invariant_guard_demo/proposal_medium.json`
+- `artifacts/agent_invariant_guard_demo/proposal_high.json`
+- `artifacts/agent_invariant_guard_demo/regression_pass.json`
+- `artifacts/agent_invariant_guard_demo/regression_medium_nonpass.json`
+- `artifacts/agent_invariant_guard_demo/regression_high_fail.json`
+- `artifacts/agent_invariant_guard_demo/summary.json`
+- `artifacts/agent_invariant_guard_demo/summary.md`
+
 Schema reference:
 
 - `schemas/demo_bundle_summary.schema.json`
@@ -585,6 +611,7 @@ Optional toggles (env vars):
 - `RUN_GOVERNANCE_PROMOTE_DEMO=0|1`
 - `RUN_GOVERNANCE_PROMOTE_COMPARE_DEMO=0|1`
 - `RUN_GOVERNANCE_PROMOTE_APPLY_DEMO=0|1`
+- `RUN_AGENT_INVARIANT_GUARD_DEMO=0|1`
 - `RUN_BENCHMARK=0|1` (default `0`)
 
 ## 8. Agent Change Safety Loop Demo

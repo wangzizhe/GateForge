@@ -22,6 +22,7 @@ ALLOWED_PLANNER_OVERRIDE_KEYS = {
     "checkers",
     "checker_config",
     "change_set_path",
+    "physical_invariants",
 }
 
 
