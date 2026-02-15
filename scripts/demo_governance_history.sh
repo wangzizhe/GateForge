@@ -10,6 +10,7 @@ cat > artifacts/governance_history_demo/snapshot_1.json <<'JSON'
 {
   "status": "PASS",
   "kpis": {
+    "recommended_profile": "default",
     "strict_downgrade_rate": 0.0,
     "review_recovery_rate": 0.8,
     "strict_non_pass_rate": 0.1,
@@ -24,6 +25,7 @@ cat > artifacts/governance_history_demo/snapshot_2.json <<'JSON'
 {
   "status": "NEEDS_REVIEW",
   "kpis": {
+    "recommended_profile": "industrial_strict",
     "strict_downgrade_rate": 0.3,
     "review_recovery_rate": 0.5,
     "strict_non_pass_rate": 0.4,
@@ -31,7 +33,8 @@ cat > artifacts/governance_history_demo/snapshot_2.json <<'JSON'
     "fail_rate": 0.4
   },
   "risks": [
-    "strict_profile_downgrade_detected"
+    "strict_profile_downgrade_detected",
+    "strategy_profile_switch_recommended"
   ]
 }
 JSON
@@ -40,6 +43,7 @@ cat > artifacts/governance_history_demo/snapshot_3.json <<'JSON'
 {
   "status": "FAIL",
   "kpis": {
+    "recommended_profile": "industrial_strict",
     "strict_downgrade_rate": 0.5,
     "review_recovery_rate": 0.3,
     "strict_non_pass_rate": 0.8,
@@ -98,5 +102,9 @@ if len(transitions) != 2:
 if payload.get("transition_kpis", {}).get("worse_count", 0) < 1:
     raise SystemExit(1)
 if "consecutive_worsening_detected" not in payload.get("alerts", []):
+    raise SystemExit(1)
+if payload.get("transition_kpis", {}).get("strategy_switch_recommended_count", 0) < 1:
+    raise SystemExit(1)
+if payload.get("transition_kpis", {}).get("recommended_profile_change_count", 0) < 1:
     raise SystemExit(1)
 PY

@@ -103,12 +103,16 @@ def _summarize_last_n(records: list[dict], last_n: int, worse_streak_threshold: 
     risk_counts = Counter()
 
     transitions = []
+    strategy_switch_recommended_count = 0
+    recommended_profile_change_count = 0
     for i, row in enumerate(items):
         status = str(row.get("status") or "UNKNOWN").upper()
         status_counts[status] += 1
         for r in row.get("risks", []) or []:
             if isinstance(r, str):
                 risk_counts[r] += 1
+                if r == "strategy_profile_switch_recommended":
+                    strategy_switch_recommended_count += 1
 
         if i > 0:
             prev = str(items[i - 1].get("status") or "UNKNOWN").upper()
@@ -127,6 +131,12 @@ def _summarize_last_n(records: list[dict], last_n: int, worse_streak_threshold: 
                     "to_recorded_at_utc": row.get("recorded_at_utc"),
                 }
             )
+            prev_kpis = items[i - 1].get("kpis", {}) if isinstance(items[i - 1].get("kpis"), dict) else {}
+            curr_kpis = row.get("kpis", {}) if isinstance(row.get("kpis"), dict) else {}
+            prev_recommended = str(prev_kpis.get("recommended_profile") or "")
+            curr_recommended = str(curr_kpis.get("recommended_profile") or "")
+            if prev_recommended and curr_recommended and prev_recommended != curr_recommended:
+                recommended_profile_change_count += 1
 
     improved_count = sum(1 for t in transitions if t["relation"] == "improved")
     worse_count = sum(1 for t in transitions if t["relation"] == "worse")
@@ -164,6 +174,8 @@ def _summarize_last_n(records: list[dict], last_n: int, worse_streak_threshold: 
             "max_worse_streak": max_worse_streak,
             "latest_worse_streak": latest_worse_streak,
             "worse_streak_threshold": int(worse_streak_threshold),
+            "strategy_switch_recommended_count": strategy_switch_recommended_count,
+            "recommended_profile_change_count": recommended_profile_change_count,
         },
         "latest_status": items[-1].get("status") if items else None,
         "alerts": alerts,
@@ -214,6 +226,8 @@ def _write_markdown(path: str, summary: dict) -> None:
             f"- max_worse_streak: `{tk.get('max_worse_streak')}`",
             f"- latest_worse_streak: `{tk.get('latest_worse_streak')}`",
             f"- worse_streak_threshold: `{tk.get('worse_streak_threshold')}`",
+            f"- strategy_switch_recommended_count: `{tk.get('strategy_switch_recommended_count')}`",
+            f"- recommended_profile_change_count: `{tk.get('recommended_profile_change_count')}`",
             "",
             "## Alerts",
             "",

@@ -14,9 +14,13 @@ class GovernanceHistoryTests(unittest.TestCase):
             out = root / "summary.json"
 
             snapshots = [
-                {"status": "PASS", "risks": []},
-                {"status": "NEEDS_REVIEW", "risks": ["strict_profile_downgrade_detected"]},
-                {"status": "FAIL", "risks": ["ci_matrix_failed"]},
+                {"status": "PASS", "risks": [], "kpis": {"recommended_profile": "default"}},
+                {
+                    "status": "NEEDS_REVIEW",
+                    "risks": ["strict_profile_downgrade_detected", "strategy_profile_switch_recommended"],
+                    "kpis": {"recommended_profile": "industrial_strict"},
+                },
+                {"status": "FAIL", "risks": ["ci_matrix_failed"], "kpis": {"recommended_profile": "industrial_strict"}},
             ]
 
             for i, payload in enumerate(snapshots, start=1):
@@ -53,6 +57,8 @@ class GovernanceHistoryTests(unittest.TestCase):
             self.assertEqual(len(summary.get("transitions", [])), 2)
             self.assertGreaterEqual(summary.get("transition_kpis", {}).get("worse_count", 0), 1)
             self.assertEqual(summary.get("transition_kpis", {}).get("max_worse_streak"), 2)
+            self.assertEqual(summary.get("transition_kpis", {}).get("strategy_switch_recommended_count"), 1)
+            self.assertEqual(summary.get("transition_kpis", {}).get("recommended_profile_change_count"), 1)
             self.assertIn("consecutive_worsening_detected", summary.get("alerts", []))
 
 
