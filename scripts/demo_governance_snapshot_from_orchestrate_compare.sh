@@ -30,6 +30,10 @@ flags = {
     "expect_kpi_relation_present": "PASS"
     if "strategy_compare_relation" in (payload.get("kpis", {}) or {})
     else "FAIL",
+    "expect_recommended_profile_present": "PASS"
+    if isinstance((payload.get("kpis", {}) or {}).get("recommended_profile"), str)
+    and (payload.get("kpis", {}) or {}).get("recommended_profile")
+    else "FAIL",
     "expect_risks_list": "PASS" if isinstance(payload.get("risks", []), list) else "FAIL",
 }
 bundle_status = "PASS" if all(v == "PASS" for v in flags.values()) else "FAIL"
@@ -57,6 +61,7 @@ Path("artifacts/governance_snapshot_orchestrate_demo/demo_summary.md").write_tex
             "",
             f"- expect_status_known: `{flags['expect_status_known']}`",
             f"- expect_kpi_relation_present: `{flags['expect_kpi_relation_present']}`",
+            f"- expect_recommended_profile_present: `{flags['expect_recommended_profile_present']}`",
             f"- expect_risks_list: `{flags['expect_risks_list']}`",
             "",
         ]
