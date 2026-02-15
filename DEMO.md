@@ -565,6 +565,29 @@ Key outputs:
 - `artifacts/agent_invariant_guard_demo/summary.json`
 - `artifacts/agent_invariant_guard_demo/summary.md`
 
+## 16. Invariant Repair Loop Demo
+
+Command:
+
+```bash
+bash scripts/demo_invariant_repair_loop.sh
+```
+
+What it validates:
+
+- invariant-specific failure reasons are detected from source summary
+- repair loop auto-applies invariant-aware planner constraints before rerun
+- repaired run reaches `PASS` under constrained file whitelist
+
+Key outputs:
+
+- `artifacts/invariant_repair_loop_demo/plan.json`
+- `artifacts/invariant_repair_loop_demo/plan.md`
+- `artifacts/invariant_repair_loop_demo/summary.json`
+- `artifacts/invariant_repair_loop_demo/summary.md`
+- `artifacts/invariant_repair_loop_demo/demo_summary.json`
+- `artifacts/invariant_repair_loop_demo/demo_summary.md`
+
 Schema reference:
 
 - `schemas/demo_bundle_summary.schema.json`

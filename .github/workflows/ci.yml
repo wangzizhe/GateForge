@@ -130,6 +130,11 @@ on:
         required: false
         default: false
         type: boolean
+      run_invariant_repair_loop_demo:
+        description: "Run optional invariant repair-loop demo job"
+        required: false
+        default: false
+        type: boolean
       demo_policy_profile:
         description: "Optional policy profile for demo jobs (e.g. industrial_strict_v0)"
         required: false
@@ -1892,3 +1897,70 @@ jobs:
             artifacts/agent_invariant_guard_demo/regression_high_fail.json
             artifacts/agent_invariant_guard_demo/summary.json
             artifacts/agent_invariant_guard_demo/summary.md
+
+  invariant-repair-loop-demo-optional:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_invariant_repair_loop_demo }}
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Run invariant repair loop demo
+        run: bash scripts/demo_invariant_repair_loop.sh
+
+      - name: Publish invariant repair loop summary to job page
+        if: always()
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          path = Path("artifacts/invariant_repair_loop_demo/demo_summary.json")
+          if not path.exists():
+              text = "## Invariant Repair Loop Summary\n\n`artifacts/invariant_repair_loop_demo/demo_summary.json` not found."
+          else:
+              payload = json.loads(path.read_text(encoding="utf-8"))
+              lines = [
+                  "## Invariant Repair Loop Summary",
+                  "",
+                  f"- bundle_status: `{payload.get('bundle_status')}`",
+                  f"- plan_detected: `{payload.get('plan_detected')}`",
+                  f"- loop_applied: `{payload.get('loop_applied')}`",
+                  f"- before_status: `{payload.get('before_status')}`",
+                  f"- after_status: `{payload.get('after_status')}`",
+                  "",
+              ]
+              text = "\n".join(lines)
+
+          summary_file = os.getenv("GITHUB_STEP_SUMMARY")
+          if summary_file:
+              with open(summary_file, "a", encoding="utf-8") as f:
+                  f.write(text + "\n")
+          print(text)
+          PY
+
+      - name: Upload invariant repair loop artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: invariant-repair-loop-demo
+          path: |
+            artifacts/invariant_repair_loop_demo/source_fail.json
+            artifacts/invariant_repair_loop_demo/plan.json
+            artifacts/invariant_repair_loop_demo/plan.md
+            artifacts/invariant_repair_loop_demo/summary.json
+            artifacts/invariant_repair_loop_demo/summary.md
+            artifacts/invariant_repair_loop_demo/demo_summary.json
+            artifacts/invariant_repair_loop_demo/demo_summary.md

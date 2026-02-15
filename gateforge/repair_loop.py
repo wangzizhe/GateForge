@@ -7,6 +7,7 @@ import sys
 import tempfile
 from pathlib import Path
 
+from .invariant_repair import build_invariant_repair_plan
 from .policy import load_policy, resolve_policy_path
 
 
@@ -40,6 +41,9 @@ def _write_markdown(path: str, summary: dict) -> None:
         f"- goal: `{summary.get('goal')}`",
         f"- planner_guardrail_decision: `{summary.get('planner_guardrail_decision')}`",
         f"- planner_guardrail_report_path: `{summary.get('planner_guardrail_report_path')}`",
+        f"- invariant_repair_detected: `{summary.get('invariant_repair_detected')}`",
+        f"- invariant_repair_applied: `{summary.get('invariant_repair_applied')}`",
+        f"- invariant_repair_reason_count: `{summary.get('invariant_repair_reason_count')}`",
         f"- retry_used: `{summary.get('retry_used')}`",
         f"- max_retries: `{summary.get('max_retries')}`",
         f"- retry_budget_source: `{summary.get('retry_budget_source')}`",
@@ -107,6 +111,13 @@ def _write_markdown(path: str, summary: dict) -> None:
         new = retry_analysis.get("new_guardrail_rule_ids", [])
         lines.append(f"- fixed_guardrail_rule_ids: `{','.join(fixed) if fixed else 'none'}`")
         lines.append(f"- new_guardrail_rule_ids: `{','.join(new) if new else 'none'}`")
+    else:
+        lines.append("- `none`")
+    lines.append("")
+    lines.extend(["## Invariant Repair Reasons", ""])
+    invariant_reasons = summary.get("invariant_reasons", [])
+    if invariant_reasons:
+        lines.extend([f"- `{item}`" for item in invariant_reasons])
     else:
         lines.append("- `none`")
     lines.append("")
@@ -225,6 +236,18 @@ def main() -> None:
         help="Forwarded planner file whitelist for change_plan/change_set files (repeatable)",
     )
     parser.add_argument(
+        "--auto-invariant-repair",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Auto-derive invariant-aware planner constraints from source reasons",
+    )
+    parser.add_argument(
+        "--invariant-repair-allowed-file",
+        action="append",
+        default=None,
+        help="Allowed file whitelist for auto invariant repair (repeatable)",
+    )
+    parser.add_argument(
         "--retry-on-failed-attempt",
         action=argparse.BooleanOptionalAction,
         default=True,
@@ -280,19 +303,36 @@ def main() -> None:
     policy_path = resolve_policy_path(policy_path=args.policy, policy_profile=args.policy_profile)
     policy = load_policy(policy_path)
     blocked_prefixes = tuple(args.block_new_reason_prefix or policy.get("critical_reason_prefixes", []))
+    effective_context = {
+        "risk_level": "low",
+        "change_summary": (
+            f"Repair loop from {before['source_kind']} status={before['status']} "
+            f"policy_decision={before['policy_decision']} reasons={before['reasons']}"
+        ),
+    }
+    effective_allowed_files = list(args.planner_change_plan_allowed_file or [])
+    effective_conf_min = float(args.planner_change_plan_confidence_min)
+    invariant_plan = build_invariant_repair_plan(
+        source_payload,
+        allowed_files=args.invariant_repair_allowed_file,
+    )
+    if args.auto_invariant_repair and invariant_plan.get("invariant_repair_applied"):
+        if args.goal is None:
+            goal = str(invariant_plan.get("goal") or goal)
+        context_patch = invariant_plan.get("context_json")
+        if isinstance(context_patch, dict):
+            effective_context.update(context_patch)
+        if not effective_allowed_files:
+            plan_files = invariant_plan.get("planner_change_plan_allowed_files")
+            if isinstance(plan_files, list):
+                effective_allowed_files = [str(item) for item in plan_files if isinstance(item, str)]
+        plan_conf = invariant_plan.get("planner_change_plan_confidence_min")
+        if isinstance(plan_conf, (int, float)):
+            effective_conf_min = max(effective_conf_min, float(plan_conf))
 
     with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8") as tmp:
         context_path = tmp.name
-        json.dump(
-            {
-                "risk_level": "low",
-                "change_summary": (
-                    f"Repair loop from {before['source_kind']} status={before['status']} "
-                    f"policy_decision={before['policy_decision']} reasons={before['reasons']}"
-                ),
-            },
-            tmp,
-        )
+        json.dump(effective_context, tmp)
 
     out_path = Path(args.out)
     run_dir = out_path.parent
@@ -359,9 +399,9 @@ def main() -> None:
     cmd = _build_autopilot_cmd(
         planner_backend=args.planner_backend,
         proposal_id=args.proposal_id,
-        conf_min=args.planner_change_plan_confidence_min,
+        conf_min=effective_conf_min,
         conf_max=args.planner_change_plan_confidence_max,
-        allowed_files=args.planner_change_plan_allowed_file,
+        allowed_files=effective_allowed_files,
         out_json=autopilot_out,
         out_md=autopilot_report,
         intent_out=autopilot_intent_out,
@@ -408,7 +448,7 @@ def main() -> None:
         retry_cmd = _build_autopilot_cmd(
             planner_backend=args.retry_fallback_planner_backend,
             proposal_id=f"{args.proposal_id}-retry{retry_index}" if args.proposal_id else None,
-            conf_min=max(args.planner_change_plan_confidence_min, args.retry_confidence_min),
+            conf_min=max(effective_conf_min, args.retry_confidence_min),
             conf_max=args.planner_change_plan_confidence_max,
             allowed_files=retry_allowed_files,
             out_json=retry_out,
@@ -477,9 +517,13 @@ def main() -> None:
         "source_proposal_id": before.get("proposal_id"),
         "source_risk_level": before.get("risk_level"),
         "goal": goal,
-        "planner_change_plan_confidence_min": args.planner_change_plan_confidence_min,
+        "planner_change_plan_confidence_min": effective_conf_min,
         "planner_change_plan_confidence_max": args.planner_change_plan_confidence_max,
-        "planner_change_plan_allowed_files": args.planner_change_plan_allowed_file or [],
+        "planner_change_plan_allowed_files": effective_allowed_files,
+        "invariant_repair_detected": bool(invariant_plan.get("invariant_repair_detected")),
+        "invariant_repair_applied": bool(args.auto_invariant_repair and invariant_plan.get("invariant_repair_applied")),
+        "invariant_repair_reason_count": int(invariant_plan.get("invariant_reason_count") or 0),
+        "invariant_reasons": invariant_plan.get("invariant_reasons", []),
         "planner_guardrail_decision": after_payload.get("planner_guardrail_decision"),
         "planner_guardrail_violations": after_payload.get("planner_guardrail_violations", []),
         "planner_guardrail_violation_objects": after_payload.get("planner_guardrail_violation_objects", []),

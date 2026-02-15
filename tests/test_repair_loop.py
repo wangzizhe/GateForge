@@ -314,6 +314,58 @@ class RepairLoopTests(unittest.TestCase):
             self.assertEqual(payload.get("retry_budget_source"), "risk_based:high")
             self.assertEqual(len(payload.get("attempts", [])), 1)
 
+    def test_repair_loop_auto_invariant_repair_metadata(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            source = root / "source_invariant_fail.json"
+            baseline = root / "baseline.json"
+            out = root / "repair_summary_invariant.json"
+            source.write_text(
+                json.dumps(
+                    {
+                        "proposal_id": "proposal-invariant-001",
+                        "risk_level": "high",
+                        "status": "FAIL",
+                        "policy_decision": "FAIL",
+                        "policy_reasons": ["physical_invariant_range_violated:steady_state_error"],
+                        "checker_config": {
+                            "invariant_guard": {
+                                "invariants": [
+                                    {"type": "range", "metric": "steady_state_error", "min": 0.0, "max": 0.08}
+                                ]
+                            }
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            self._write_baseline(baseline, backend="mock")
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.repair_loop",
+                    "--source",
+                    str(source),
+                    "--planner-backend",
+                    "rule",
+                    "--baseline",
+                    str(baseline),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            payload = json.loads(out.read_text(encoding="utf-8"))
+            self.assertTrue(payload.get("invariant_repair_detected"))
+            self.assertTrue(payload.get("invariant_repair_applied"))
+            self.assertGreaterEqual(payload.get("invariant_repair_reason_count", 0), 1)
+            self.assertIn("examples/openmodelica/MinimalProbe.mo", payload.get("planner_change_plan_allowed_files", []))
+
 
 if __name__ == "__main__":
     unittest.main()

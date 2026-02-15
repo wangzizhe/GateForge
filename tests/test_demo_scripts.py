@@ -161,6 +161,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertIn("governance_promote_compare_demo", payload.get("selected", {}))
         self.assertIn("governance_promote_apply_demo", payload.get("selected", {}))
         self.assertIn("agent_invariant_guard_demo", payload.get("selected", {}))
+        self.assertIn("invariant_repair_loop_demo", payload.get("selected", {}))
         self.assertIsInstance(payload.get("planner_guardrail_rule_ids"), list)
         self.assertIn("change_plan_confidence_min_below_threshold", payload.get("planner_guardrail_rule_ids", []))
 
@@ -176,6 +177,20 @@ class DemoScriptTests(unittest.TestCase):
         self.assertEqual(payload.get("bundle_status"), "PASS")
         self.assertEqual(payload.get("low_risk_status"), "PASS")
         self.assertEqual(payload.get("high_risk_status"), "NEEDS_REVIEW")
+
+    def test_demo_invariant_repair_loop_script(self) -> None:
+        proc = subprocess.run(
+            ["bash", "scripts/demo_invariant_repair_loop.sh"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+        payload = json.loads(Path("artifacts/invariant_repair_loop_demo/demo_summary.json").read_text(encoding="utf-8"))
+        self.assertEqual(payload.get("bundle_status"), "PASS")
+        self.assertTrue(payload.get("plan_detected"))
+        self.assertTrue(payload.get("loop_applied"))
+        self.assertIn(payload.get("after_status"), {"PASS", "NEEDS_REVIEW"})
 
     def test_demo_planner_confidence_gates_script(self) -> None:
         proc = subprocess.run(
