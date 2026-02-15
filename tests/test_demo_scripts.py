@@ -404,6 +404,7 @@ class DemoScriptTests(unittest.TestCase):
         )
         self.assertEqual(payload.get("bundle_status"), "PASS")
         self.assertIn(payload.get("strategy_compare_relation"), {"upgraded", "unchanged", "downgraded"})
+        self.assertIn(payload.get("recommended_profile"), {"default", "industrial_strict"})
 
     def test_demo_governance_snapshot_trend_script(self) -> None:
         proc = subprocess.run(

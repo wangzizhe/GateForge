@@ -36,6 +36,7 @@ bundle_status = "PASS" if all(v == "PASS" for v in flags.values()) else "FAIL"
 demo = {
     "status": payload.get("status"),
     "strategy_compare_relation": payload.get("kpis", {}).get("strategy_compare_relation"),
+    "recommended_profile": payload.get("kpis", {}).get("recommended_profile"),
     "result_flags": flags,
     "bundle_status": bundle_status,
 }
@@ -49,6 +50,7 @@ Path("artifacts/governance_snapshot_orchestrate_demo/demo_summary.md").write_tex
             "",
             f"- status: `{demo['status']}`",
             f"- strategy_compare_relation: `{demo['strategy_compare_relation']}`",
+            f"- recommended_profile: `{demo['recommended_profile']}`",
             f"- bundle_status: `{demo['bundle_status']}`",
             "",
             "## Result Flags",
