@@ -499,6 +499,7 @@ What it validates:
 
 - compares promotion decisions across multiple profiles on the same snapshot
 - emits `best_profile` + `best_decision` with `recommended_profile` context
+- can enforce `--require-recommended-eligible` constraint in decision selection
 
 Key outputs:
 
