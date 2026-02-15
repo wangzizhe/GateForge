@@ -247,6 +247,52 @@ class GovernancePromoteCompareTests(unittest.TestCase):
             self.assertEqual(ranking[0].get("profile"), "industrial_strict")
             self.assertEqual(payload.get("best_profile"), "industrial_strict")
 
+    def test_promote_compare_enforces_min_top_score_margin(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            snapshot = root / "snapshot.json"
+            out = root / "summary.json"
+            snapshot.write_text(
+                json.dumps(
+                    {
+                        "status": "PASS",
+                        "risks": [],
+                        "kpis": {
+                            "strict_non_pass_rate": 0.0,
+                            "strict_downgrade_rate": 0.0,
+                            "review_recovery_rate": 1.0,
+                            "fail_rate": 0.0,
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.governance_promote_compare",
+                    "--snapshot",
+                    str(snapshot),
+                    "--profiles",
+                    "default",
+                    "industrial_strict",
+                    "--min-top-score-margin",
+                    "1",
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            payload = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(payload.get("status"), "NEEDS_REVIEW")
+            self.assertEqual(payload.get("constraint_reason"), "top_score_margin_low")
+            self.assertEqual(payload.get("top_score_margin"), 0)
+            self.assertEqual(payload.get("min_top_score_margin"), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

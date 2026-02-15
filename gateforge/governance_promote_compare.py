@@ -123,6 +123,8 @@ def _write_markdown(path: str, summary: dict) -> None:
         f"- require_recommended_eligible: `{summary.get('require_recommended_eligible')}`",
         f"- constraint_reason: `{summary.get('constraint_reason')}`",
         f"- best_total_score: `{summary.get('best_total_score')}`",
+        f"- top_score_margin: `{summary.get('top_score_margin')}`",
+        f"- min_top_score_margin: `{summary.get('min_top_score_margin')}`",
         "",
         "## Decision Explanation",
         "",
@@ -220,6 +222,12 @@ def main() -> None:
         help="Bonus for row matching snapshot recommended_profile",
     )
     parser.add_argument(
+        "--min-top-score-margin",
+        type=int,
+        default=0,
+        help="If >0, top score minus second score must meet threshold; otherwise decision is NEEDS_REVIEW",
+    )
+    parser.add_argument(
         "--out-dir",
         default="artifacts/governance_promote_compare",
         help="Directory for per-profile outputs",
@@ -293,6 +301,12 @@ def main() -> None:
     for idx, row in enumerate(ranking, start=1):
         row["rank"] = idx
 
+    top_score_margin = None
+    if len(ranking) >= 2:
+        top_score = int(ranking[0].get("total_score", 0))
+        second_score = int(ranking[1].get("total_score", 0))
+        top_score_margin = top_score - second_score
+
     best_profile, best_reason = _select_best_profile(results, recommended_profile)
     best_row = next((r for r in results if r.get("profile") == best_profile), None)
     best_decision = str(best_row.get("decision") if isinstance(best_row, dict) else "UNKNOWN")
@@ -316,6 +330,14 @@ def main() -> None:
         elif str(recommended_decision).upper() == "NEEDS_REVIEW" and status == "PASS":
             status = "NEEDS_REVIEW"
             constraint_reason = "recommended_profile_needs_review"
+    if (
+        status == "PASS"
+        and isinstance(top_score_margin, int)
+        and args.min_top_score_margin > 0
+        and top_score_margin < int(args.min_top_score_margin)
+    ):
+        status = "NEEDS_REVIEW"
+        constraint_reason = "top_score_margin_low"
 
     summary = {
         "status": status,
@@ -330,6 +352,8 @@ def main() -> None:
         "best_reason": best_reason,
         "best_total_score": best_row.get("total_score") if isinstance(best_row, dict) else None,
         "best_score_breakdown": best_row.get("score_breakdown") if isinstance(best_row, dict) else {},
+        "top_score_margin": top_score_margin,
+        "min_top_score_margin": int(args.min_top_score_margin),
         "scoring": {
             "decision_weight": args.score_decision_weight,
             "exit_penalty": args.score_exit_penalty,
