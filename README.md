@@ -565,6 +565,16 @@ When `--require-recommended-eligible` is enabled:
 - recommended profile decision `FAIL` => `FAIL`
 - recommended profile decision `NEEDS_REVIEW` => at least `NEEDS_REVIEW`
 
+You can also provide per-profile overrides:
+
+```bash
+python -m gateforge.governance_promote_compare \
+  --snapshot artifacts/governance_snapshot_orchestrate_demo/summary.json \
+  --profiles default industrial_strict \
+  --override-map artifacts/governance_promote_compare_demo/override_map.json \
+  --out artifacts/governance_promote_compare_demo/summary_with_override.json
+```
+
 Promote compare demo shortcut:
 
 ```bash

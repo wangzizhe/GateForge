@@ -450,6 +450,8 @@ class DemoScriptTests(unittest.TestCase):
         self.assertEqual(payload.get("bundle_status"), "PASS")
         self.assertIn(payload.get("best_profile"), {"default", "industrial_strict"})
         self.assertIn(payload.get("best_decision"), {"PASS", "NEEDS_REVIEW", "FAIL"})
+        self.assertIn(payload.get("override_best_profile"), {"default", "industrial_strict"})
+        self.assertIn(payload.get("override_best_decision"), {"PASS", "NEEDS_REVIEW", "FAIL"})
 
     def test_demo_governance_history_script(self) -> None:
         proc = subprocess.run(

@@ -1726,7 +1726,13 @@ jobs:
           path: |
             artifacts/governance_promote_compare_demo/default.json
             artifacts/governance_promote_compare_demo/industrial_strict.json
+            artifacts/governance_promote_compare_demo/override_map.json
+            artifacts/governance_promote_compare_demo/override_allow_industrial.json
             artifacts/governance_promote_compare_demo/summary.json
             artifacts/governance_promote_compare_demo/summary.md
+            artifacts/governance_promote_compare_demo/summary_with_override.json
+            artifacts/governance_promote_compare_demo/summary_with_override.md
+            artifacts/governance_promote_compare_demo/with_override/default.json
+            artifacts/governance_promote_compare_demo/with_override/industrial_strict.json
             artifacts/governance_promote_compare_demo/demo_summary.json
             artifacts/governance_promote_compare_demo/demo_summary.md

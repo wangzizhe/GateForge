@@ -31,7 +31,7 @@ def _decision_score(decision: str | None) -> int:
     return -1
 
 
-def _run_promote(snapshot: str, profile: str, out_path: str) -> tuple[int, dict]:
+def _run_promote(snapshot: str, profile: str, out_path: str, override_path: str | None) -> tuple[int, dict]:
     cmd = [
         sys.executable,
         "-m",
@@ -43,6 +43,8 @@ def _run_promote(snapshot: str, profile: str, out_path: str) -> tuple[int, dict]
         "--out",
         out_path,
     ]
+    if override_path:
+        cmd.extend(["--override", override_path])
     proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
     payload = {}
     path = Path(out_path)
@@ -84,7 +86,7 @@ def _write_markdown(path: str, summary: dict) -> None:
     for row in summary.get("profile_results", []):
         lines.append(
             f"- {row.get('profile')}: decision=`{row.get('decision')}` exit_code=`{row.get('exit_code')}` "
-            f"is_recommended=`{row.get('is_recommended')}`"
+            f"is_recommended=`{row.get('is_recommended')}` override_path=`{row.get('override_path')}`"
         )
     lines.append("")
     p.write_text("\n".join(lines), encoding="utf-8")
@@ -98,6 +100,11 @@ def main() -> None:
         nargs="+",
         default=["default", "industrial_strict"],
         help="Promotion profiles to compare",
+    )
+    parser.add_argument(
+        "--override-map",
+        default=None,
+        help="Optional JSON mapping {profile: override_json_path}",
     )
     parser.add_argument(
         "--require-recommended-eligible",
@@ -122,17 +129,24 @@ def main() -> None:
     snapshot_payload = json.loads(Path(args.snapshot).read_text(encoding="utf-8"))
     kpis = snapshot_payload.get("kpis", {}) if isinstance(snapshot_payload.get("kpis"), dict) else {}
     recommended_profile = kpis.get("recommended_profile") if isinstance(kpis.get("recommended_profile"), str) else None
+    override_map = {}
+    if args.override_map:
+        override_map = json.loads(Path(args.override_map).read_text(encoding="utf-8"))
+        if not isinstance(override_map, dict):
+            raise SystemExit("--override-map must contain a JSON object")
 
     results = []
     for profile in args.profiles:
         profile_out = out_dir / f"{profile}.json"
-        exit_code, payload = _run_promote(args.snapshot, profile, str(profile_out))
+        profile_override = override_map.get(profile) if isinstance(override_map.get(profile), str) else None
+        exit_code, payload = _run_promote(args.snapshot, profile, str(profile_out), profile_override)
         results.append(
             {
                 "profile": profile,
                 "decision": payload.get("decision"),
                 "exit_code": exit_code,
                 "out_path": str(profile_out),
+                "override_path": profile_override,
                 "is_recommended": bool(recommended_profile and profile == recommended_profile),
                 "reasons": payload.get("reasons", []),
             }
@@ -165,6 +179,7 @@ def main() -> None:
     summary = {
         "status": status,
         "snapshot_path": args.snapshot,
+        "override_map_path": args.override_map,
         "recommended_profile": recommended_profile,
         "recommended_profile_decision": recommended_decision,
         "require_recommended_eligible": bool(args.require_recommended_eligible),
