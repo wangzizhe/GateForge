@@ -50,6 +50,10 @@ class RepairTasksTests(unittest.TestCase):
             self.assertIn("group_counts", payload)
             self.assertGreaterEqual(payload.get("priority_counts", {}).get("P0", 0), 1)
             self.assertTrue(payload.get("tasks_by_priority", {}).get("P0", []))
+            self.assertIn("strategy_counts", payload)
+            self.assertGreaterEqual(
+                payload.get("strategy_counts", {}).get("tune_runtime_or_solver_config", 0), 1
+            )
 
     def test_generate_tasks_from_regression_summary(self) -> None:
         with tempfile.TemporaryDirectory() as d:

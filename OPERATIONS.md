@@ -40,7 +40,8 @@ python3 -m gateforge.repair_tasks --source <failing_summary.json> --out artifact
 - regression summary
 - candidate evidence
 - policy reasons and required human checks
-3. If status is `NEEDS_REVIEW`, require explicit reviewer resolution.
+3. For repair-loop outputs, verify `safety_guard_triggered` is `false` before approval.
+4. If status is `NEEDS_REVIEW`, require explicit reviewer resolution.
 
 ## IV. Repair Flow
 
