@@ -79,6 +79,10 @@ python3 -m gateforge.governance_promote --snapshot artifacts/governance_snapshot
 ```bash
 python3 -m gateforge.governance_promote --snapshot artifacts/governance_snapshot/summary.json --profile industrial_strict --override <override.json> --out artifacts/governance_promote/summary_override.json
 ```
+5. Optional profile ranking for promotion choice:
+```bash
+python3 -m gateforge.governance_promote_compare --snapshot artifacts/governance_snapshot/summary.json --profiles default industrial_strict --out artifacts/governance_promote_compare/summary.json
+```
 
 ## VI. Release / Push Checklist
 
