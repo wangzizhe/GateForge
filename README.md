@@ -504,6 +504,7 @@ cat artifacts/governance_history/summary.json
 `governance_history` also emits:
 - `alerts` (for example `consecutive_worsening_detected`)
 - transition streak KPIs: `max_worse_streak`, `latest_worse_streak`
+- strategy guidance KPIs: `strategy_switch_recommended_count`, `recommended_profile_change_count`
 
 History demo shortcut:
 
