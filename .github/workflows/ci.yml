@@ -1706,6 +1706,10 @@ jobs:
                   f"- status: `{payload.get('status')}`",
                   f"- best_profile: `{payload.get('best_profile')}`",
                   f"- best_decision: `{payload.get('best_decision')}`",
+                  f"- best_reason: `{payload.get('best_reason')}`",
+                  f"- best_total_score: `{payload.get('best_total_score')}`",
+                  f"- top_score_margin: `{payload.get('top_score_margin')}`",
+                  f"- min_top_score_margin: `{payload.get('min_top_score_margin')}`",
                   f"- recommended_profile: `{payload.get('recommended_profile')}`",
                   "",
               ]
