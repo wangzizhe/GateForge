@@ -26,6 +26,23 @@ class GovernancePromoteApplyTests(unittest.TestCase):
                     "best_reason": "highest_total_score",
                     "top_score_margin": 3,
                     "min_top_score_margin": 1,
+                    "decision_explanations": {
+                        "selection_priority": [
+                            "total_score",
+                            "decision",
+                            "exit_code",
+                            "recommended_profile_tiebreak",
+                        ],
+                        "best_vs_others": [
+                            {
+                                "winner_profile": best_profile,
+                                "challenger_profile": "industrial_strict",
+                                "score_margin": 3,
+                                "tie_on_total_score": False,
+                                "winner_advantages": ["decision_component"],
+                            }
+                        ],
+                    },
                 }
             ),
             encoding="utf-8",
@@ -58,9 +75,15 @@ class GovernancePromoteApplyTests(unittest.TestCase):
             payload = json.loads(out.read_text(encoding="utf-8"))
             self.assertEqual(payload.get("final_status"), "PASS")
             self.assertEqual(payload.get("apply_action"), "promote")
+            self.assertEqual(
+                payload.get("ranking_selection_priority"),
+                ["total_score", "decision", "exit_code", "recommended_profile_tiebreak"],
+            )
+            self.assertIsInstance(payload.get("ranking_best_vs_others"), list)
             rows = [json.loads(x) for x in audit.read_text(encoding="utf-8").splitlines() if x.strip()]
             self.assertEqual(len(rows), 1)
             self.assertEqual(rows[0].get("final_status"), "PASS")
+            self.assertIsInstance(rows[0].get("ranking_best_vs_others"), list)
 
     def test_apply_needs_review_requires_ticket(self) -> None:
         with tempfile.TemporaryDirectory() as d:

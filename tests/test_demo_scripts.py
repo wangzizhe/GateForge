@@ -506,6 +506,8 @@ class DemoScriptTests(unittest.TestCase):
         payload = json.loads(Path("artifacts/governance_promote_apply_demo/summary.json").read_text(encoding="utf-8"))
         self.assertEqual(payload.get("bundle_status"), "PASS")
         self.assertEqual(payload.get("pass_status"), "PASS")
+        self.assertIsInstance(payload.get("pass_ranking_selection_priority"), list)
+        self.assertGreaterEqual(int(payload.get("pass_ranking_best_vs_others_count", 0)), 1)
         self.assertEqual(payload.get("missing_ticket_status"), "FAIL")
         self.assertEqual(payload.get("with_ticket_status"), "NEEDS_REVIEW")
         self.assertEqual(payload.get("with_ticket_id"), "REV-42")

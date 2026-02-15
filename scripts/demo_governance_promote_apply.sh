@@ -84,6 +84,8 @@ bundle_status = "PASS" if all(v == "PASS" for v in flags.values()) else "FAIL"
 
 summary = {
     "pass_status": pass_payload.get("final_status"),
+    "pass_ranking_selection_priority": pass_payload.get("ranking_selection_priority"),
+    "pass_ranking_best_vs_others_count": len(pass_payload.get("ranking_best_vs_others") or []),
     "missing_ticket_status": missing_ticket.get("final_status"),
     "with_ticket_status": with_ticket.get("final_status"),
     "with_ticket_id": with_ticket.get("review_ticket_id"),
@@ -99,6 +101,8 @@ Path("artifacts/governance_promote_apply_demo/summary.md").write_text(
             "# Governance Promote Apply Demo",
             "",
             f"- pass_status: `{summary['pass_status']}`",
+            f"- pass_ranking_selection_priority: `{','.join(summary.get('pass_ranking_selection_priority') or [])}`",
+            f"- pass_ranking_best_vs_others_count: `{summary['pass_ranking_best_vs_others_count']}`",
             f"- missing_ticket_status: `{summary['missing_ticket_status']}`",
             f"- with_ticket_status: `{summary['with_ticket_status']}`",
             f"- with_ticket_id: `{summary['with_ticket_id']}`",

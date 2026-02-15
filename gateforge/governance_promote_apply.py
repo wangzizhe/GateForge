@@ -43,6 +43,8 @@ def _write_markdown(path: str, summary: dict) -> None:
         f"- compare_status: `{summary.get('compare_status')}`",
         f"- best_profile: `{summary.get('best_profile')}`",
         f"- best_decision: `{summary.get('best_decision')}`",
+        f"- best_reason: `{summary.get('best_reason')}`",
+        f"- ranking_selection_priority: `{','.join(summary.get('ranking_selection_priority') or [])}`",
         f"- recommended_profile: `{summary.get('recommended_profile')}`",
         f"- review_ticket_id: `{summary.get('review_ticket_id')}`",
         f"- audit_path: `{summary.get('audit_path')}`",
@@ -53,6 +55,23 @@ def _write_markdown(path: str, summary: dict) -> None:
     reasons = summary.get("reasons", [])
     if isinstance(reasons, list) and reasons:
         lines.extend([f"- `{r}`" for r in reasons])
+    else:
+        lines.append("- `none`")
+    lines.extend(
+        [
+            "",
+            "## Ranking Explanation (Best vs Others)",
+            "",
+        ]
+    )
+    best_vs_others = summary.get("ranking_best_vs_others", [])
+    if isinstance(best_vs_others, list) and best_vs_others:
+        for row in best_vs_others:
+            lines.append(
+                f"- winner=`{row.get('winner_profile')}` challenger=`{row.get('challenger_profile')}` "
+                f"margin=`{row.get('score_margin')}` tie_on_total=`{row.get('tie_on_total_score')}` "
+                f"advantages=`{','.join(row.get('winner_advantages') or []) or 'none'}`"
+            )
     else:
         lines.append("- `none`")
     lines.append("")
@@ -162,6 +181,8 @@ def main() -> None:
         "min_top_score_margin": compare_payload.get("min_top_score_margin"),
         "best_total_score": compare_payload.get("best_total_score"),
         "best_reason": compare_payload.get("best_reason"),
+        "ranking_selection_priority": compare_payload.get("decision_explanations", {}).get("selection_priority"),
+        "ranking_best_vs_others": compare_payload.get("decision_explanations", {}).get("best_vs_others"),
         "recorded_at_utc": recorded_at,
         "audit_path": args.audit,
     }
@@ -183,6 +204,8 @@ def main() -> None:
         "constraint_reason": summary.get("constraint_reason"),
         "top_score_margin": summary.get("top_score_margin"),
         "min_top_score_margin": summary.get("min_top_score_margin"),
+        "ranking_selection_priority": summary.get("ranking_selection_priority"),
+        "ranking_best_vs_others": summary.get("ranking_best_vs_others"),
     }
     _append_jsonl(args.audit, audit_record)
 
