@@ -487,6 +487,27 @@ Key outputs:
 - `artifacts/governance_promote_demo/summary.json`
 - `artifacts/governance_promote_demo/summary.md`
 
+## 14.1 Governance Promote Compare Demo
+
+Command:
+
+```bash
+bash scripts/demo_governance_promote_compare.sh
+```
+
+What it validates:
+
+- compares promotion decisions across multiple profiles on the same snapshot
+- emits `best_profile` + `best_decision` with `recommended_profile` context
+
+Key outputs:
+
+- `artifacts/governance_promote_compare_demo/default.json`
+- `artifacts/governance_promote_compare_demo/industrial_strict.json`
+- `artifacts/governance_promote_compare_demo/summary.json`
+- `artifacts/governance_promote_compare_demo/summary.md`
+- `artifacts/governance_promote_compare_demo/demo_summary.json`
+
 Schema reference:
 
 - `schemas/demo_bundle_summary.schema.json`
