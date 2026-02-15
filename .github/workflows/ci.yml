@@ -95,16 +95,6 @@ on:
         required: false
         default: false
         type: boolean
-      run_governance_snapshot_orchestrate_demo:
-        description: "Run optional governance snapshot from orchestrate-compare demo job"
-        required: false
-        default: false
-        type: boolean
-      run_governance_snapshot_trend_demo:
-        description: "Run optional governance snapshot trend demo job"
-        required: false
-        default: false
-        type: boolean
       run_governance_history_demo:
         description: "Run optional governance history demo job"
         required: false
@@ -1415,7 +1405,7 @@ jobs:
             artifacts/governance_snapshot_demo/summary.md
 
   governance-snapshot-orchestrate-demo-optional:
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_governance_snapshot_orchestrate_demo }}
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_governance_snapshot_demo }}
     continue-on-error: true
     runs-on: ubuntu-latest
     env:
@@ -1482,7 +1472,7 @@ jobs:
             artifacts/repair_orchestrate_compare_demo/demo_summary.json
 
   governance-snapshot-trend-demo-optional:
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_governance_snapshot_trend_demo }}
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_governance_snapshot_demo }}
     continue-on-error: true
     runs-on: ubuntu-latest
     env:
