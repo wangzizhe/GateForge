@@ -125,11 +125,6 @@ on:
         required: false
         default: false
         type: boolean
-      run_invariant_repair_profile_compare_demo:
-        description: "Run optional invariant repair profile-compare demo job"
-        required: false
-        default: false
-        type: boolean
       demo_policy_profile:
         description: "Optional policy profile for demo jobs (e.g. industrial_strict_v0)"
         required: false
@@ -1961,7 +1956,7 @@ jobs:
             artifacts/invariant_repair_loop_demo/demo_summary.md
 
   invariant-repair-profile-compare-demo-optional:
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_invariant_repair_profile_compare_demo }}
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_invariant_repair_loop_demo }}
     continue-on-error: true
     runs-on: ubuntu-latest
     steps:
