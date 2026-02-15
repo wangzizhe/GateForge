@@ -229,6 +229,216 @@ def control_behavior_regression_checker(baseline: dict, candidate: dict, checker
     return findings
 
 
+def invariant_guard_checker(baseline: dict, candidate: dict, checker_config: dict) -> list[dict]:
+    cfg = checker_config.get("invariant_guard", {})
+    invariants = cfg.get("invariants", [])
+    if not isinstance(invariants, list) or not invariants:
+        return []
+
+    findings: list[dict] = []
+    cand_metrics = candidate.get("metrics", {}) if isinstance(candidate.get("metrics"), dict) else {}
+    base_metrics = baseline.get("metrics", {}) if isinstance(baseline.get("metrics"), dict) else {}
+
+    for idx, inv in enumerate(invariants):
+        if not isinstance(inv, dict):
+            continue
+        inv_type = inv.get("type")
+        metric = inv.get("metric")
+        if not isinstance(inv_type, str) or not isinstance(metric, str):
+            continue
+
+        cand_value = cand_metrics.get(metric)
+        base_value = base_metrics.get(metric)
+
+        if cand_value is None:
+            findings.append(
+                _make_finding(
+                    checker="invariant_guard",
+                    reason="physical_invariant_metric_missing",
+                    message=f"Invariant[{idx}] metric '{metric}' is missing in candidate metrics.",
+                    evidence={"invariant_index": idx, "metric": metric, "invariant_type": inv_type},
+                )
+            )
+            continue
+
+        if inv_type == "range":
+            min_v = inv.get("min")
+            max_v = inv.get("max")
+            try:
+                value = float(cand_value)
+            except Exception:
+                findings.append(
+                    _make_finding(
+                        checker="invariant_guard",
+                        reason="physical_invariant_type_error",
+                        message=f"Invariant[{idx}] metric '{metric}' is not numeric for range check.",
+                        evidence={"invariant_index": idx, "metric": metric, "candidate_value": cand_value},
+                    )
+                )
+                continue
+            violated = False
+            if isinstance(min_v, (int, float)) and value < float(min_v):
+                violated = True
+            if isinstance(max_v, (int, float)) and value > float(max_v):
+                violated = True
+            if violated:
+                findings.append(
+                    _make_finding(
+                        checker="invariant_guard",
+                        reason="physical_invariant_range_violated",
+                        message=(
+                            f"Invariant[{idx}] range violated for '{metric}': value={value:.6g}, "
+                            f"expected [{min_v}, {max_v}]."
+                        ),
+                        evidence={
+                            "invariant_index": idx,
+                            "metric": metric,
+                            "candidate_value": value,
+                            "min": min_v,
+                            "max": max_v,
+                        },
+                    )
+                )
+            continue
+
+        if inv_type == "monotonic":
+            direction = inv.get("direction", "non_increasing")
+            if base_value is None:
+                findings.append(
+                    _make_finding(
+                        checker="invariant_guard",
+                        reason="physical_invariant_metric_missing",
+                        message=f"Invariant[{idx}] baseline metric '{metric}' is missing for monotonic check.",
+                        evidence={"invariant_index": idx, "metric": metric, "invariant_type": inv_type},
+                    )
+                )
+                continue
+            try:
+                b = float(base_value)
+                c = float(cand_value)
+            except Exception:
+                findings.append(
+                    _make_finding(
+                        checker="invariant_guard",
+                        reason="physical_invariant_type_error",
+                        message=f"Invariant[{idx}] metric '{metric}' is not numeric for monotonic check.",
+                        evidence={
+                            "invariant_index": idx,
+                            "metric": metric,
+                            "baseline_value": base_value,
+                            "candidate_value": cand_value,
+                        },
+                    )
+                )
+                continue
+            violated = False
+            if direction == "non_increasing":
+                violated = c > b
+            elif direction == "non_decreasing":
+                violated = c < b
+            else:
+                findings.append(
+                    _make_finding(
+                        checker="invariant_guard",
+                        reason="physical_invariant_type_error",
+                        message=f"Invariant[{idx}] has invalid monotonic direction '{direction}'.",
+                        evidence={"invariant_index": idx, "direction": direction},
+                    )
+                )
+                continue
+            if violated:
+                findings.append(
+                    _make_finding(
+                        checker="invariant_guard",
+                        reason="physical_invariant_monotonic_violated",
+                        message=(
+                            f"Invariant[{idx}] monotonic violated for '{metric}' with direction='{direction}': "
+                            f"baseline={b:.6g}, candidate={c:.6g}."
+                        ),
+                        evidence={
+                            "invariant_index": idx,
+                            "metric": metric,
+                            "direction": direction,
+                            "baseline_value": b,
+                            "candidate_value": c,
+                        },
+                    )
+                )
+            continue
+
+        if inv_type == "bounded_delta":
+            max_abs_delta = inv.get("max_abs_delta")
+            if base_value is None:
+                findings.append(
+                    _make_finding(
+                        checker="invariant_guard",
+                        reason="physical_invariant_metric_missing",
+                        message=f"Invariant[{idx}] baseline metric '{metric}' is missing for bounded_delta check.",
+                        evidence={"invariant_index": idx, "metric": metric, "invariant_type": inv_type},
+                    )
+                )
+                continue
+            if not isinstance(max_abs_delta, (int, float)) or float(max_abs_delta) <= 0:
+                findings.append(
+                    _make_finding(
+                        checker="invariant_guard",
+                        reason="physical_invariant_type_error",
+                        message=f"Invariant[{idx}] has invalid max_abs_delta '{max_abs_delta}'.",
+                        evidence={"invariant_index": idx, "max_abs_delta": max_abs_delta},
+                    )
+                )
+                continue
+            try:
+                b = float(base_value)
+                c = float(cand_value)
+            except Exception:
+                findings.append(
+                    _make_finding(
+                        checker="invariant_guard",
+                        reason="physical_invariant_type_error",
+                        message=f"Invariant[{idx}] metric '{metric}' is not numeric for bounded_delta check.",
+                        evidence={
+                            "invariant_index": idx,
+                            "metric": metric,
+                            "baseline_value": base_value,
+                            "candidate_value": cand_value,
+                        },
+                    )
+                )
+                continue
+            delta = abs(c - b)
+            if delta > float(max_abs_delta):
+                findings.append(
+                    _make_finding(
+                        checker="invariant_guard",
+                        reason="physical_invariant_bounded_delta_violated",
+                        message=(
+                            f"Invariant[{idx}] bounded_delta violated for '{metric}': "
+                            f"|candidate-baseline|={delta:.6g} > {float(max_abs_delta):.6g}."
+                        ),
+                        evidence={
+                            "invariant_index": idx,
+                            "metric": metric,
+                            "baseline_value": b,
+                            "candidate_value": c,
+                            "max_abs_delta": float(max_abs_delta),
+                        },
+                    )
+                )
+            continue
+
+        findings.append(
+            _make_finding(
+                checker="invariant_guard",
+                reason="physical_invariant_type_error",
+                message=f"Invariant[{idx}] unsupported type '{inv_type}'.",
+                evidence={"invariant_index": idx, "invariant_type": inv_type},
+            )
+        )
+
+    return findings
+
+
 BUILTIN_CHECKERS: dict[str, CheckerFn] = {
     "timeout": timeout_checker,
     "nan_inf": nan_inf_checker,
@@ -236,6 +446,7 @@ BUILTIN_CHECKERS: dict[str, CheckerFn] = {
     "event_explosion": event_explosion_checker,
     "steady_state_regression": steady_state_regression_checker,
     "control_behavior_regression": control_behavior_regression_checker,
+    "invariant_guard": invariant_guard_checker,
 }
 
 CHECKER_REGISTRY: dict[str, CheckerFn] = dict(BUILTIN_CHECKERS)
@@ -248,6 +459,9 @@ CHECKER_DEFAULT_CONFIG: dict[str, dict] = {
         "max_overshoot_abs_delta": 0.1,
         "max_settling_time_ratio": 1.5,
         "max_steady_state_abs_delta": 0.05,
+    },
+    "invariant_guard": {
+        "invariants": [],
     },
 }
 

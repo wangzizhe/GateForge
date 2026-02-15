@@ -64,7 +64,15 @@
       "type": "array",
       "items": {
         "type": "string",
-        "enum": ["timeout", "nan_inf", "performance_regression", "event_explosion", "steady_state_regression"]
+        "enum": [
+          "timeout",
+          "nan_inf",
+          "performance_regression",
+          "event_explosion",
+          "steady_state_regression",
+          "control_behavior_regression",
+          "invariant_guard"
+        ]
       }
     },
     "checker_config": {
@@ -101,6 +109,32 @@
             }
           }
         },
+        "control_behavior_regression": {
+          "type": "object",
+          "properties": {
+            "max_overshoot_abs_delta": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "max_settling_time_ratio": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "max_steady_state_abs_delta": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            }
+          }
+        },
+        "invariant_guard": {
+          "type": "object",
+          "properties": {
+            "invariants": {
+              "type": "array",
+              "items": { "type": "object" }
+            }
+          }
+        },
         "_runtime": {
           "type": "object",
           "properties": {
@@ -112,6 +146,33 @@
               "type": "array",
               "items": { "type": "string" }
             }
+          }
+        }
+      }
+    },
+    "physical_invariants": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["type", "metric"],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["range", "monotonic", "bounded_delta"]
+          },
+          "metric": {
+            "type": "string",
+            "minLength": 1
+          },
+          "min": { "type": "number" },
+          "max": { "type": "number" },
+          "direction": {
+            "type": "string",
+            "enum": ["non_increasing", "non_decreasing"]
+          },
+          "max_abs_delta": {
+            "type": "number",
+            "exclusiveMinimum": 0
           }
         }
       }

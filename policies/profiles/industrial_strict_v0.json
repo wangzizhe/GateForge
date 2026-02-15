@@ -17,6 +17,8 @@
     "performance_regression_detected",
     "overshoot_regression_detected",
     "settling_time_regression_detected",
+    "steady_state_regression_detected",
+    "physical_invariant_",
     "change_requires_human_review",
     "change_plan_confidence_below_auto_apply"
   ],
@@ -65,6 +67,12 @@
       ],
       "settling_time_regression_detected": [
         "Validate settling-time slowdown against control performance requirements before approval."
+      ],
+      "steady_state_regression_detected": [
+        "Validate steady-state deviation against closed-loop objectives before approval."
+      ],
+      "physical_invariant_": [
+        "Inspect physical invariant violation details and block auto-promotion until formally justified."
       ],
       "event_explosion_detected": [
         "Review event traces and confirm no unsafe mode-switch amplification."

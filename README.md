@@ -189,14 +189,20 @@ Current proposal schema file:
 
 - `schemas/proposal.schema.json`
 - Optional `checkers` field in proposal:
-  - `["timeout", "nan_inf", "performance_regression", "event_explosion", "steady_state_regression", "control_behavior_regression"]`
+  - `["timeout", "nan_inf", "performance_regression", "event_explosion", "steady_state_regression", "control_behavior_regression", "invariant_guard"]`
   - If omitted, all built-in checkers run by default
 - Optional `checker_config` field in proposal:
   - `{"performance_regression": {"max_ratio": 1.5}}`
   - `{"event_explosion": {"max_ratio": 1.8, "abs_threshold_if_baseline_zero": 50}}`
   - `{"steady_state_regression": {"max_abs_delta": 0.05}}`
   - `{"control_behavior_regression": {"max_overshoot_abs_delta": 0.1, "max_settling_time_ratio": 1.5, "max_steady_state_abs_delta": 0.05}}`
+  - `{"invariant_guard": {"invariants": [{"type":"range","metric":"steady_state_error","min":0.0,"max":0.08}]}}`
   - `{"_runtime": {"enable": ["steady_state_regression"], "disable": ["performance_regression"]}}`
+- Optional `physical_invariants` field in proposal:
+  - `range`: `{"type":"range","metric":"steady_state_error","min":0.0,"max":0.08}`
+  - `monotonic`: `{"type":"monotonic","metric":"energy","direction":"non_increasing"}`
+  - `bounded_delta`: `{"type":"bounded_delta","metric":"overshoot","max_abs_delta":0.1}`
+  - At runtime these are auto-injected into `checker_config.invariant_guard.invariants`.
 
 Drive smoke execution from proposal:
 
@@ -887,13 +893,15 @@ Note: `medium_openmodelica_pass` requires Docker/OpenModelica backend access.
   This job publishes best-profile selection over multiple promotion profiles.
 - Provides an optional governance promote apply demo job (`workflow_dispatch` with `run_governance_promote_apply_demo=true`) that does not block the main job.
   This job publishes executable promotion actions and audit ledger outputs with review-ticket enforcement.
+- Provides an optional agent invariant-guard demo job (`workflow_dispatch` with `run_agent_invariant_guard_demo=true`) that does not block the main job.
+  This job publishes PASS/NEEDS_REVIEW/FAIL outcomes for proposal-level physical invariants.
 
 Manual trigger path in GitHub:
 
 1. Open `Actions` tab.
 2. Select `ci` workflow.
 3. Click `Run workflow`.
-4. Enable `run_benchmark` and/or `run_checker_demo` and/or `run_steady_state_demo` and/or `run_behavior_metrics_demo` and/or `run_demo_bundle` and/or `run_autopilot_dry_run` and/or `run_agent_change_loop` and/or `run_repair_loop` and/or `run_repair_loop_safety_guard` and/or `run_planner_guardrails` and/or `run_planner_output_validate_demo` and/or `run_repair_batch_demo` and/or `run_repair_batch_compare_demo` and/or `run_repair_pack_from_tasks_demo` and/or `run_repair_tasks_demo` and/or `run_repair_orchestrate_demo` and/or `run_repair_orchestrate_compare_demo` and/or `run_governance_snapshot_demo` and/or `run_governance_snapshot_orchestrate_demo` and/or `run_governance_snapshot_trend_demo` and/or `run_governance_history_demo` and/or `run_governance_promote_demo` and/or `run_governance_promote_compare_demo` and/or `run_governance_promote_apply_demo`.
+4. Enable `run_benchmark` and/or `run_checker_demo` and/or `run_steady_state_demo` and/or `run_behavior_metrics_demo` and/or `run_demo_bundle` and/or `run_autopilot_dry_run` and/or `run_agent_change_loop` and/or `run_repair_loop` and/or `run_repair_loop_safety_guard` and/or `run_planner_guardrails` and/or `run_planner_output_validate_demo` and/or `run_repair_batch_demo` and/or `run_repair_batch_compare_demo` and/or `run_repair_pack_from_tasks_demo` and/or `run_repair_tasks_demo` and/or `run_repair_orchestrate_demo` and/or `run_repair_orchestrate_compare_demo` and/or `run_governance_snapshot_demo` and/or `run_governance_snapshot_orchestrate_demo` and/or `run_governance_snapshot_trend_demo` and/or `run_governance_history_demo` and/or `run_governance_promote_demo` and/or `run_governance_promote_compare_demo` and/or `run_governance_promote_apply_demo` and/or `run_agent_invariant_guard_demo`.
 5. Optional: set `demo_policy_profile` (for demo jobs) such as `industrial_strict_v0`.
 6. Run and download uploaded artifacts from the selected optional job.
 
@@ -921,6 +929,7 @@ Optional demo artifacts:
 - `governance-promote-demo`
 - `governance-promote-compare-demo`
 - `governance-promote-apply-demo`
+- `agent-invariant-guard-demo`
 
 Local workflow-dispatch simulation:
 
@@ -983,6 +992,9 @@ You can include governance promote compare demo in local matrix with:
 
 You can include governance promote apply demo in local matrix with:
 `RUN_GOVERNANCE_PROMOTE_APPLY_DEMO=1 bash scripts/demo_ci_matrix.sh`
+
+You can include agent invariant guard demo in local matrix with:
+`RUN_AGENT_INVARIANT_GUARD_DEMO=1 bash scripts/demo_ci_matrix.sh`
 
 Operations runbook:
 - `OPERATIONS.md`

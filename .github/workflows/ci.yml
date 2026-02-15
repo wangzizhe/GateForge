@@ -125,6 +125,11 @@ on:
         required: false
         default: false
         type: boolean
+      run_agent_invariant_guard_demo:
+        description: "Run optional agent physical-invariant guard demo job"
+        required: false
+        default: false
+        type: boolean
       demo_policy_profile:
         description: "Optional policy profile for demo jobs (e.g. industrial_strict_v0)"
         required: false
@@ -1818,3 +1823,72 @@ jobs:
             artifacts/governance_promote_apply_demo/decision_audit.jsonl
             artifacts/governance_promote_apply_demo/summary.json
             artifacts/governance_promote_apply_demo/summary.md
+
+  agent-invariant-guard-demo-optional:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_agent_invariant_guard_demo }}
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Run agent invariant guard demo
+        run: bash scripts/demo_agent_invariant_guard.sh
+
+      - name: Publish agent invariant guard summary to job page
+        if: always()
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          path = Path("artifacts/agent_invariant_guard_demo/summary.json")
+          if not path.exists():
+              text = "## Agent Invariant Guard Summary\n\n`artifacts/agent_invariant_guard_demo/summary.json` not found."
+          else:
+              payload = json.loads(path.read_text(encoding="utf-8"))
+              lines = [
+                  "## Agent Invariant Guard Summary",
+                  "",
+                  f"- bundle_status: `{payload.get('bundle_status')}`",
+                  f"- pass_decision: `{payload.get('pass_decision')}`",
+                  f"- medium_decision: `{payload.get('medium_decision')}`",
+                  f"- high_decision: `{payload.get('high_decision')}`",
+                  "",
+              ]
+              text = "\n".join(lines)
+
+          summary_file = os.getenv("GITHUB_STEP_SUMMARY")
+          if summary_file:
+              with open(summary_file, "a", encoding="utf-8") as f:
+                  f.write(text + "\n")
+          print(text)
+          PY
+
+      - name: Upload agent invariant guard artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-invariant-guard-demo
+          path: |
+            artifacts/agent_invariant_guard_demo/proposal_medium.json
+            artifacts/agent_invariant_guard_demo/proposal_high.json
+            artifacts/agent_invariant_guard_demo/baseline.json
+            artifacts/agent_invariant_guard_demo/candidate_pass.json
+            artifacts/agent_invariant_guard_demo/candidate_fail.json
+            artifacts/agent_invariant_guard_demo/regression_pass.json
+            artifacts/agent_invariant_guard_demo/regression_medium_nonpass.json
+            artifacts/agent_invariant_guard_demo/regression_high_fail.json
+            artifacts/agent_invariant_guard_demo/summary.json
+            artifacts/agent_invariant_guard_demo/summary.md

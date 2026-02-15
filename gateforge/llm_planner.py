@@ -75,6 +75,8 @@ def _merge_context_overrides(overrides: dict, context: dict) -> dict:
         merged["checkers"] = context["checkers"]
     if isinstance(context.get("checker_config"), dict):
         merged["checker_config"] = context["checker_config"]
+    if isinstance(context.get("physical_invariants"), list):
+        merged["physical_invariants"] = context["physical_invariants"]
     return merged
 
 
@@ -336,7 +338,7 @@ def _plan_with_gemini_backend(
         "Allowed intent values: demo_mock_pass, demo_openmodelica_pass, medium_openmodelica_pass, "
         "runtime_regress_low_risk, runtime_regress_high_risk.\n"
         "proposal_id should be null if unknown.\n"
-        "overrides must be an object and may include risk_level, change_summary, checkers, checker_config.\n"
+        "overrides must be an object and may include risk_level, change_summary, checkers, checker_config, physical_invariants.\n"
         "You may include optional change_plan with schema_version='0.1.0' and operations list.\n"
         "Each change_plan operation must include: kind,file,old,new,reason,confidence (0..1).\n"
         "If emit_change_set_draft is true, optionally add key change_set_draft with valid GateForge change_set JSON.\n"
