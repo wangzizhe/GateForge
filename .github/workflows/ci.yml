@@ -1431,6 +1431,7 @@ jobs:
                   f"- bundle_status: `{payload.get('bundle_status')}`",
                   f"- status: `{payload.get('status')}`",
                   f"- strategy_compare_relation: `{payload.get('strategy_compare_relation')}`",
+                  f"- recommended_profile: `{payload.get('recommended_profile')}`",
                   "",
               ]
               text = "\n".join(lines)
