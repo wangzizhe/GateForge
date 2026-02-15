@@ -553,11 +553,17 @@ Promotion profile compare (single snapshot -> multi-profile ranking):
 python -m gateforge.governance_promote_compare \
   --snapshot artifacts/governance_snapshot_orchestrate_demo/summary.json \
   --profiles default industrial_strict \
+  --require-recommended-eligible \
   --out-dir artifacts/governance_promote_compare_demo \
   --out artifacts/governance_promote_compare_demo/summary.json \
   --report artifacts/governance_promote_compare_demo/summary.md
 cat artifacts/governance_promote_compare_demo/summary.json
 ```
+
+When `--require-recommended-eligible` is enabled:
+- recommended profile missing from `--profiles` => `FAIL`
+- recommended profile decision `FAIL` => `FAIL`
+- recommended profile decision `NEEDS_REVIEW` => at least `NEEDS_REVIEW`
 
 Promote compare demo shortcut:
 

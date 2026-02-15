@@ -74,6 +74,9 @@ def _write_markdown(path: str, summary: dict) -> None:
         f"- best_profile: `{summary.get('best_profile')}`",
         f"- best_reason: `{summary.get('best_reason')}`",
         f"- recommended_profile: `{summary.get('recommended_profile')}`",
+        f"- recommended_profile_decision: `{summary.get('recommended_profile_decision')}`",
+        f"- require_recommended_eligible: `{summary.get('require_recommended_eligible')}`",
+        f"- constraint_reason: `{summary.get('constraint_reason')}`",
         "",
         "## Profile Results",
         "",
@@ -95,6 +98,12 @@ def main() -> None:
         nargs="+",
         default=["default", "industrial_strict"],
         help="Promotion profiles to compare",
+    )
+    parser.add_argument(
+        "--require-recommended-eligible",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="When enabled, recommended profile must exist and not be FAIL",
     )
     parser.add_argument(
         "--out-dir",
@@ -139,10 +148,27 @@ def main() -> None:
     elif best_decision.upper() == "NEEDS_REVIEW":
         status = "NEEDS_REVIEW"
 
+    recommended_row = next((r for r in results if r.get("profile") == recommended_profile), None)
+    recommended_decision = str(recommended_row.get("decision")) if isinstance(recommended_row, dict) else None
+    constraint_reason = None
+    if args.require_recommended_eligible and recommended_profile:
+        if recommended_row is None:
+            status = "FAIL"
+            constraint_reason = "recommended_profile_not_in_profiles"
+        elif str(recommended_decision).upper() == "FAIL":
+            status = "FAIL"
+            constraint_reason = "recommended_profile_failed"
+        elif str(recommended_decision).upper() == "NEEDS_REVIEW" and status == "PASS":
+            status = "NEEDS_REVIEW"
+            constraint_reason = "recommended_profile_needs_review"
+
     summary = {
         "status": status,
         "snapshot_path": args.snapshot,
         "recommended_profile": recommended_profile,
+        "recommended_profile_decision": recommended_decision,
+        "require_recommended_eligible": bool(args.require_recommended_eligible),
+        "constraint_reason": constraint_reason,
         "best_profile": best_profile,
         "best_decision": best_decision,
         "best_reason": best_reason,
