@@ -333,6 +333,7 @@ What it validates:
 
 - converts `repair_tasks` summary into executable `repair_batch` pack
 - runs generated pack through repair batch and captures effectiveness counters
+- applies strategy profile (`industrial_strict`) during pack generation
 
 Key outputs:
 

@@ -1,0 +1,37 @@
+{
+  "version": "0.1.0-industrial",
+  "default_case": {
+    "planner_backend": "rule",
+    "max_retries_by_risk": {
+      "low": 1,
+      "medium": 1,
+      "high": 0
+    },
+    "retry_confidence_min": 0.9,
+    "retry_fallback_planner_backend": "rule",
+    "policy_profile": "industrial_strict_v0"
+  },
+  "priority_overrides": {
+    "P0": {
+      "max_retries_by_risk": {
+        "low": 1,
+        "medium": 1,
+        "high": 0
+      }
+    }
+  },
+  "strategy_overrides": {
+    "tune_runtime_or_solver_config": {
+      "retry_confidence_min": 0.92
+    },
+    "optimize_model_or_relax_threshold_with_justification": {
+      "max_retries": 0
+    },
+    "stabilize_event_handling_and_hybrid_switches": {
+      "max_retries": 0
+    },
+    "fix_numerical_instability_before_merge": {
+      "max_retries": 0
+    }
+  }
+}

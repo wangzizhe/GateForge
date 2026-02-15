@@ -668,9 +668,14 @@ Generate `repair_batch` pack from `repair_tasks` summary:
 python -m gateforge.repair_pack \
   --tasks-summary artifacts/repair_tasks_demo/summary.json \
   --pack-id repair_pack_demo_v0 \
+  --strategy-profile industrial_strict \
   --out artifacts/repair_pack_demo/pack.json
 cat artifacts/repair_pack_demo/pack.json
 ```
+
+Available strategy profiles:
+- `default`
+- `industrial_strict`
 
 Demo shortcut:
 

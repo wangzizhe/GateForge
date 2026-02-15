@@ -1137,6 +1137,7 @@ jobs:
                   f"- bundle_status: `{payload.get('bundle_status')}`",
                   f"- pack_id: `{payload.get('pack_id')}`",
                   f"- case_count: `{payload.get('case_count')}`",
+                  f"- strategy_profile: `industrial_strict`",
                   f"- improved_count: `{payload.get('improved_count')}`",
                   f"- safety_block_count: `{payload.get('safety_block_count')}`",
                   "",

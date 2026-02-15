@@ -12,6 +12,7 @@ python3 -m gateforge.repair_pack \
   --tasks-summary artifacts/repair_tasks_demo/summary.json \
   --pack-id repair_pack_demo_v0 \
   --planner-backend rule \
+  --strategy-profile industrial_strict \
   --out artifacts/repair_pack_demo/pack.json
 
 python3 -m gateforge.repair_batch \
@@ -33,6 +34,7 @@ summary = json.loads(Path("artifacts/repair_pack_demo/summary.json").read_text(e
 flags = {
     "expect_pack_cases_positive": "PASS" if len(pack.get("cases", [])) > 0 else "FAIL",
     "expect_pack_source_linked": "PASS" if isinstance(pack.get("generated_from"), str) else "FAIL",
+    "expect_strategy_profile_set": "PASS" if pack.get("strategy_profile") == "industrial_strict" else "FAIL",
     "expect_summary_has_effectiveness_counts": "PASS"
     if all(k in summary for k in ("improved_count", "worse_count", "unchanged_count", "safety_block_count"))
     else "FAIL",
@@ -68,6 +70,7 @@ Path("artifacts/repair_pack_demo/demo_summary.md").write_text(
             "",
             f"- expect_pack_cases_positive: `{flags['expect_pack_cases_positive']}`",
             f"- expect_pack_source_linked: `{flags['expect_pack_source_linked']}`",
+            f"- expect_strategy_profile_set: `{flags['expect_strategy_profile_set']}`",
             f"- expect_summary_has_effectiveness_counts: `{flags['expect_summary_has_effectiveness_counts']}`",
             "",
         ]
