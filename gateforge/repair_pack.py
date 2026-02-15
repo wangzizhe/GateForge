@@ -4,6 +4,9 @@ import argparse
 import json
 from pathlib import Path
 
+REPAIR_STRATEGY_PROFILE_DIR = Path("policies/repair_strategy")
+DEFAULT_REPAIR_STRATEGY_PROFILE = "default"
+
 
 def _write_json(path: str, payload: dict) -> None:
     p = Path(path)
@@ -32,6 +35,40 @@ def _default_retry_for_risk(risk_level: str) -> int:
     return 1
 
 
+def _resolve_strategy_profile_path(profile: str | None, profile_path: str | None) -> str:
+    if profile and profile_path:
+        raise ValueError("Use either --strategy-profile or --strategy-profile-path, not both")
+    if profile_path:
+        return profile_path
+    name = profile or DEFAULT_REPAIR_STRATEGY_PROFILE
+    filename = name if name.endswith(".json") else f"{name}.json"
+    resolved = REPAIR_STRATEGY_PROFILE_DIR / filename
+    if not resolved.exists():
+        raise ValueError(f"Repair strategy profile not found: {resolved}")
+    return str(resolved)
+
+
+def _merge_case_config(*configs: dict) -> dict:
+    out: dict = {}
+    for cfg in configs:
+        if not isinstance(cfg, dict):
+            continue
+        out.update(cfg)
+    return out
+
+
+def _normalize_retry_budget(risk_level: str, cfg: dict) -> int:
+    max_retries = cfg.get("max_retries")
+    if isinstance(max_retries, int):
+        return max(0, max_retries)
+    by_risk = cfg.get("max_retries_by_risk", {})
+    if isinstance(by_risk, dict):
+        value = by_risk.get(str(risk_level).lower())
+        if isinstance(value, int):
+            return max(0, value)
+    return _default_retry_for_risk(risk_level)
+
+
 def _collect_fix_tasks(tasks_summary: dict) -> list[dict]:
     tasks = tasks_summary.get("tasks", [])
     if not isinstance(tasks, list):
@@ -46,24 +83,51 @@ def _collect_fix_tasks(tasks_summary: dict) -> list[dict]:
     return out
 
 
-def _build_cases(tasks_summary: dict, *, max_cases: int, planner_backend: str, policy_profile: str | None) -> list[dict]:
+def _build_cases(
+    tasks_summary: dict,
+    *,
+    max_cases: int,
+    planner_backend: str,
+    policy_profile: str | None,
+    strategy_profile_payload: dict,
+) -> list[dict]:
     source_path = tasks_summary.get("source_path")
     if not isinstance(source_path, str) or not source_path:
         raise ValueError("tasks summary must contain source_path")
 
     risk_level = str(tasks_summary.get("risk_level") or "low")
-    retry_budget = _default_retry_for_risk(risk_level)
+    base_cfg = strategy_profile_payload.get("default_case", {})
+    by_priority = strategy_profile_payload.get("priority_overrides", {})
+    by_strategy = strategy_profile_payload.get("strategy_overrides", {})
+    risk_policy_profile = strategy_profile_payload.get("policy_profile_by_risk", {})
     fix_tasks = _collect_fix_tasks(tasks_summary)
     cases: list[dict] = []
 
     for idx, task in enumerate(fix_tasks[:max_cases]):
         reason = str(task.get("reason") or f"reason_{idx+1}")
         strategy = str(task.get("recommended_strategy") or "generic_repair")
+        priority = str(task.get("priority") or "P1")
+        merged_cfg = _merge_case_config(
+            base_cfg,
+            by_priority.get(priority) if isinstance(by_priority, dict) else {},
+            by_strategy.get(strategy) if isinstance(by_strategy, dict) else {},
+        )
+        retry_budget = _normalize_retry_budget(risk_level, merged_cfg)
+        resolved_backend = str(merged_cfg.get("planner_backend") or planner_backend)
+        resolved_policy_profile = (
+            str(merged_cfg.get("policy_profile"))
+            if isinstance(merged_cfg.get("policy_profile"), str)
+            else (
+                str(risk_policy_profile.get(risk_level))
+                if isinstance(risk_policy_profile, dict) and isinstance(risk_policy_profile.get(risk_level), str)
+                else policy_profile
+            )
+        )
         case_name = _safe_case_name(f"{idx+1:02d}_{strategy}")
         case = {
             "name": case_name,
             "source": source_path,
-            "planner_backend": planner_backend,
+            "planner_backend": resolved_backend,
             "max_retries": retry_budget,
             "metadata": {
                 "reason": reason,
@@ -72,23 +136,43 @@ def _build_cases(tasks_summary: dict, *, max_cases: int, planner_backend: str, p
                 "priority": task.get("priority"),
             },
         }
-        if policy_profile:
-            case["policy_profile"] = policy_profile
+        if isinstance(merged_cfg.get("retry_confidence_min"), (int, float)):
+            case["retry_confidence_min"] = float(merged_cfg["retry_confidence_min"])
+        if isinstance(merged_cfg.get("retry_fallback_planner_backend"), str):
+            case["retry_fallback_planner_backend"] = str(merged_cfg["retry_fallback_planner_backend"])
+        if resolved_policy_profile:
+            case["policy_profile"] = resolved_policy_profile
         cases.append(case)
 
     if not cases:
+        merged_cfg = _merge_case_config(base_cfg)
+        retry_budget = _normalize_retry_budget(risk_level, merged_cfg)
+        resolved_backend = str(merged_cfg.get("planner_backend") or planner_backend)
+        resolved_policy_profile = (
+            str(merged_cfg.get("policy_profile"))
+            if isinstance(merged_cfg.get("policy_profile"), str)
+            else (
+                str(risk_policy_profile.get(risk_level))
+                if isinstance(risk_policy_profile, dict) and isinstance(risk_policy_profile.get(risk_level), str)
+                else policy_profile
+            )
+        )
         fallback = {
             "name": "01_generic_repair",
             "source": source_path,
-            "planner_backend": planner_backend,
+            "planner_backend": resolved_backend,
             "max_retries": retry_budget,
             "metadata": {
                 "reason": "generic_repair",
                 "recommended_strategy": "generic_repair",
             },
         }
-        if policy_profile:
-            fallback["policy_profile"] = policy_profile
+        if isinstance(merged_cfg.get("retry_confidence_min"), (int, float)):
+            fallback["retry_confidence_min"] = float(merged_cfg["retry_confidence_min"])
+        if isinstance(merged_cfg.get("retry_fallback_planner_backend"), str):
+            fallback["retry_fallback_planner_backend"] = str(merged_cfg["retry_fallback_planner_backend"])
+        if resolved_policy_profile:
+            fallback["policy_profile"] = resolved_policy_profile
         cases.append(fallback)
     return cases
 
@@ -99,6 +183,16 @@ def main() -> None:
     parser.add_argument("--pack-id", default="repair_pack_from_tasks_v0", help="Generated pack id")
     parser.add_argument("--planner-backend", default="rule", choices=["rule", "gemini", "openai"])
     parser.add_argument("--policy-profile", default=None, help="Optional policy profile for all generated cases")
+    parser.add_argument(
+        "--strategy-profile",
+        default=DEFAULT_REPAIR_STRATEGY_PROFILE,
+        help="Repair strategy profile name under policies/repair_strategy",
+    )
+    parser.add_argument(
+        "--strategy-profile-path",
+        default=None,
+        help="Explicit repair strategy profile JSON path",
+    )
     parser.add_argument("--max-cases", type=int, default=5, help="Maximum number of fix_plan tasks to convert")
     parser.add_argument(
         "--out",
@@ -110,15 +204,20 @@ def main() -> None:
         raise SystemExit("--max-cases must be > 0")
 
     tasks_summary = _load_json(args.tasks_summary)
+    strategy_profile_path = _resolve_strategy_profile_path(args.strategy_profile, args.strategy_profile_path)
+    strategy_profile_payload = _load_json(strategy_profile_path)
     cases = _build_cases(
         tasks_summary,
         max_cases=args.max_cases,
         planner_backend=args.planner_backend,
         policy_profile=args.policy_profile,
+        strategy_profile_payload=strategy_profile_payload,
     )
     output = {
         "pack_id": args.pack_id,
         "generated_from": args.tasks_summary,
+        "strategy_profile": args.strategy_profile,
+        "strategy_profile_path": strategy_profile_path,
         "risk_level": tasks_summary.get("risk_level"),
         "policy_decision": tasks_summary.get("policy_decision"),
         "task_count": tasks_summary.get("task_count"),

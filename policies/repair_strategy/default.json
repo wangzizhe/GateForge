@@ -1,0 +1,38 @@
+{
+  "version": "0.1.0",
+  "default_case": {
+    "planner_backend": "rule",
+    "max_retries_by_risk": {
+      "low": 1,
+      "medium": 2,
+      "high": 0
+    },
+    "retry_confidence_min": 0.8,
+    "retry_fallback_planner_backend": "rule"
+  },
+  "priority_overrides": {
+    "P0": {
+      "max_retries_by_risk": {
+        "low": 2,
+        "medium": 2,
+        "high": 0
+      }
+    }
+  },
+  "strategy_overrides": {
+    "tune_runtime_or_solver_config": {
+      "retry_confidence_min": 0.85
+    },
+    "stabilize_event_handling_and_hybrid_switches": {
+      "policy_profile": "industrial_strict_v0",
+      "max_retries": 0
+    },
+    "fix_numerical_instability_before_merge": {
+      "policy_profile": "industrial_strict_v0",
+      "max_retries": 0
+    }
+  },
+  "policy_profile_by_risk": {
+    "high": "industrial_strict_v0"
+  }
+}
