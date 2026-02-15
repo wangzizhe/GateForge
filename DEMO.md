@@ -499,6 +499,10 @@ What it validates:
 
 - compares promotion decisions across multiple profiles on the same snapshot
 - emits `best_profile` + `best_decision` with `recommended_profile` context
+- emits score-based ranking explainability:
+  - `best_total_score`
+  - `best_score_breakdown`
+  - `ranking` with per-profile `total_score`
 - can enforce `--require-recommended-eligible` constraint in decision selection
 - supports per-profile override injection via `--override-map`
 

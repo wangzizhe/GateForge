@@ -560,6 +560,16 @@ python -m gateforge.governance_promote_compare \
 cat artifacts/governance_promote_compare_demo/summary.json
 ```
 
+`governance_promote_compare` now emits explicit ranking explainability:
+- `ranking[]` with `rank`, `total_score`, `score_breakdown`
+- `best_total_score` and `best_score_breakdown`
+- `best_reason` (`highest_total_score` or recommended tie-break preference)
+- scoring weights in `scoring`:
+  - `--score-decision-weight`
+  - `--score-exit-penalty`
+  - `--score-reason-penalty`
+  - `--score-recommended-bonus`
+
 When `--require-recommended-eligible` is enabled:
 - recommended profile missing from `--profiles` => `FAIL`
 - recommended profile decision `FAIL` => `FAIL`

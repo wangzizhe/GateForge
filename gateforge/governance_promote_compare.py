@@ -31,6 +31,40 @@ def _decision_score(decision: str | None) -> int:
     return -1
 
 
+def _score_row(
+    row: dict,
+    recommended_profile: str | None,
+    *,
+    decision_weight: int,
+    exit_penalty: int,
+    reason_penalty: int,
+    recommended_bonus: int,
+) -> dict:
+    decision_score = _decision_score(row.get("decision"))
+    exit_code = int(row.get("exit_code", 99))
+    reasons = row.get("reasons", [])
+    reasons_count = len(reasons) if isinstance(reasons, list) else 0
+
+    decision_component = decision_score * decision_weight
+    exit_component = 0 if exit_code == 0 else -abs(exit_penalty)
+    reasons_component = -(reasons_count * abs(reason_penalty))
+    recommended_component = (
+        abs(recommended_bonus)
+        if isinstance(recommended_profile, str) and row.get("profile") == recommended_profile
+        else 0
+    )
+    total_score = decision_component + exit_component + reasons_component + recommended_component
+    return {
+        "decision_score": decision_score,
+        "decision_component": decision_component,
+        "exit_component": exit_component,
+        "reasons_component": reasons_component,
+        "recommended_component": recommended_component,
+        "total_score": total_score,
+        "reasons_count": reasons_count,
+    }
+
+
 def _run_promote(snapshot: str, profile: str, out_path: str, override_path: str | None) -> tuple[int, dict]:
     cmd = [
         sys.executable,
@@ -56,14 +90,23 @@ def _run_promote(snapshot: str, profile: str, out_path: str, override_path: str 
 def _select_best_profile(results: list[dict], recommended_profile: str | None) -> tuple[str | None, str]:
     if not results:
         return None, "no_profiles"
-    sorted_results = sorted(results, key=lambda x: (_decision_score(x.get("decision")), -int(x.get("exit_code", 99))), reverse=True)
-    top_score = _decision_score(sorted_results[0].get("decision"))
-    top = [r for r in sorted_results if _decision_score(r.get("decision")) == top_score]
+    sorted_results = sorted(
+        results,
+        key=lambda x: (
+            int(x.get("total_score", -999999)),
+            _decision_score(x.get("decision")),
+            -int(x.get("exit_code", 99)),
+        ),
+        reverse=True,
+    )
+    top_row = sorted_results[0]
+    top_score = int(top_row.get("total_score", -999999))
+    tied = [r for r in sorted_results if int(r.get("total_score", -999999)) == top_score]
     if recommended_profile:
-        for row in top:
+        for row in tied:
             if row.get("profile") == recommended_profile:
-                return str(row.get("profile")), "recommended_profile_preferred_within_top_score"
-    return str(top[0].get("profile")), "best_decision_score"
+                return str(row.get("profile")), "recommended_profile_preferred_within_top_total_score"
+    return str(top_row.get("profile")), "highest_total_score"
 
 
 def _write_markdown(path: str, summary: dict) -> None:
@@ -79,14 +122,54 @@ def _write_markdown(path: str, summary: dict) -> None:
         f"- recommended_profile_decision: `{summary.get('recommended_profile_decision')}`",
         f"- require_recommended_eligible: `{summary.get('require_recommended_eligible')}`",
         f"- constraint_reason: `{summary.get('constraint_reason')}`",
+        f"- best_total_score: `{summary.get('best_total_score')}`",
         "",
-        "## Profile Results",
+        "## Decision Explanation",
+        "",
+        f"- decision_weight: `{summary.get('scoring', {}).get('decision_weight')}`",
+        f"- exit_penalty: `{summary.get('scoring', {}).get('exit_penalty')}`",
+        f"- reason_penalty: `{summary.get('scoring', {}).get('reason_penalty')}`",
+        f"- recommended_bonus: `{summary.get('scoring', {}).get('recommended_bonus')}`",
+        "",
+        "Best profile score breakdown:",
         "",
     ]
+    best_score = summary.get("best_score_breakdown", {})
+    if isinstance(best_score, dict) and best_score:
+        lines.extend(
+            [
+                f"- decision_component: `{best_score.get('decision_component')}`",
+                f"- exit_component: `{best_score.get('exit_component')}`",
+                f"- reasons_component: `{best_score.get('reasons_component')}`",
+                f"- recommended_component: `{best_score.get('recommended_component')}`",
+            ]
+        )
+    else:
+        lines.append("- `none`")
+    lines.extend(
+        [
+            "",
+            "## Ranking",
+            "",
+        ]
+    )
+    for row in summary.get("ranking", []):
+        lines.append(
+            f"- rank={row.get('rank')} profile=`{row.get('profile')}` total_score=`{row.get('total_score')}` "
+            f"decision=`{row.get('decision')}` exit_code=`{row.get('exit_code')}` reasons=`{row.get('reasons_count')}`"
+        )
+    lines.extend(
+        [
+            "",
+        "## Profile Results",
+        "",
+        ]
+    )
     for row in summary.get("profile_results", []):
         lines.append(
             f"- {row.get('profile')}: decision=`{row.get('decision')}` exit_code=`{row.get('exit_code')}` "
-            f"is_recommended=`{row.get('is_recommended')}` override_path=`{row.get('override_path')}`"
+            f"total_score=`{row.get('total_score')}` is_recommended=`{row.get('is_recommended')}` "
+            f"override_path=`{row.get('override_path')}`"
         )
     lines.append("")
     p.write_text("\n".join(lines), encoding="utf-8")
@@ -111,6 +194,30 @@ def main() -> None:
         action=argparse.BooleanOptionalAction,
         default=False,
         help="When enabled, recommended profile must exist and not be FAIL",
+    )
+    parser.add_argument(
+        "--score-decision-weight",
+        type=int,
+        default=100,
+        help="Weight multiplier for decision score PASS/NEEDS_REVIEW/FAIL",
+    )
+    parser.add_argument(
+        "--score-exit-penalty",
+        type=int,
+        default=5,
+        help="Penalty when promote command exits non-zero",
+    )
+    parser.add_argument(
+        "--score-reason-penalty",
+        type=int,
+        default=1,
+        help="Penalty per reason item in profile result",
+    )
+    parser.add_argument(
+        "--score-recommended-bonus",
+        type=int,
+        default=3,
+        help="Bonus for row matching snapshot recommended_profile",
     )
     parser.add_argument(
         "--out-dir",
@@ -152,6 +259,40 @@ def main() -> None:
             }
         )
 
+    for row in results:
+        row["score_breakdown"] = _score_row(
+            row,
+            recommended_profile,
+            decision_weight=args.score_decision_weight,
+            exit_penalty=args.score_exit_penalty,
+            reason_penalty=args.score_reason_penalty,
+            recommended_bonus=args.score_recommended_bonus,
+        )
+        row["total_score"] = row["score_breakdown"]["total_score"]
+        row["reasons_count"] = row["score_breakdown"]["reasons_count"]
+
+    ranking = sorted(
+        [
+            {
+                "profile": row.get("profile"),
+                "decision": row.get("decision"),
+                "exit_code": row.get("exit_code"),
+                "total_score": row.get("total_score"),
+                "reasons_count": row.get("reasons_count"),
+                "score_breakdown": row.get("score_breakdown"),
+            }
+            for row in results
+        ],
+        key=lambda x: (
+            int(x.get("total_score", -999999)),
+            _decision_score(x.get("decision")),
+            -int(x.get("exit_code", 99)),
+        ),
+        reverse=True,
+    )
+    for idx, row in enumerate(ranking, start=1):
+        row["rank"] = idx
+
     best_profile, best_reason = _select_best_profile(results, recommended_profile)
     best_row = next((r for r in results if r.get("profile") == best_profile), None)
     best_decision = str(best_row.get("decision") if isinstance(best_row, dict) else "UNKNOWN")
@@ -187,6 +328,15 @@ def main() -> None:
         "best_profile": best_profile,
         "best_decision": best_decision,
         "best_reason": best_reason,
+        "best_total_score": best_row.get("total_score") if isinstance(best_row, dict) else None,
+        "best_score_breakdown": best_row.get("score_breakdown") if isinstance(best_row, dict) else {},
+        "scoring": {
+            "decision_weight": args.score_decision_weight,
+            "exit_penalty": args.score_exit_penalty,
+            "reason_penalty": args.score_reason_penalty,
+            "recommended_bonus": args.score_recommended_bonus,
+        },
+        "ranking": ranking,
         "profile_results": results,
     }
     _write_json(summary_out, summary)

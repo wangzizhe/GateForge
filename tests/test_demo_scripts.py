@@ -450,6 +450,10 @@ class DemoScriptTests(unittest.TestCase):
         self.assertEqual(payload.get("bundle_status"), "PASS")
         self.assertIn(payload.get("best_profile"), {"default", "industrial_strict"})
         self.assertIn(payload.get("best_decision"), {"PASS", "NEEDS_REVIEW", "FAIL"})
+        self.assertIsInstance(payload.get("best_total_score"), int)
+        self.assertIn(payload.get("best_reason"), {"highest_total_score", "recommended_profile_preferred_within_top_total_score"})
+        self.assertIsInstance(payload.get("best_score_breakdown"), dict)
+        self.assertIsInstance(payload.get("ranking_top_2"), list)
         self.assertIn(payload.get("override_best_profile"), {"default", "industrial_strict"})
         self.assertIn(payload.get("override_best_decision"), {"PASS", "NEEDS_REVIEW", "FAIL"})
 
