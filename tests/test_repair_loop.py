@@ -80,6 +80,9 @@ class RepairLoopTests(unittest.TestCase):
             self.assertEqual(payload["before"]["policy_decision"], "FAIL")
             self.assertEqual(payload["after"]["status"], "PASS")
             self.assertEqual(payload["comparison"]["delta"], "improved")
+            self.assertEqual(payload.get("before_status"), "FAIL")
+            self.assertEqual(payload.get("after_status"), "PASS")
+            self.assertFalse(payload.get("safety_guard_triggered"))
 
     def test_repair_loop_gemini_requires_api_key(self) -> None:
         with tempfile.TemporaryDirectory() as d:
@@ -233,6 +236,46 @@ class RepairLoopTests(unittest.TestCase):
             self.assertEqual(payload["before"]["policy_decision"], "PASS")
             self.assertEqual(payload["after"]["policy_decision"], "FAIL")
             self.assertEqual(payload["comparison"]["delta"], "worse")
+
+    def test_repair_loop_blocks_new_critical_reason(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            source = root / "source_pass.json"
+            baseline = root / "baseline_mismatch.json"
+            out = root / "repair_summary_safety.json"
+            self._write_fail_run_summary(source, status="PASS", decision="PASS")
+            self._write_baseline(baseline, backend="openmodelica_docker")
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.repair_loop",
+                    "--source",
+                    str(source),
+                    "--planner-backend",
+                    "rule",
+                    "--baseline",
+                    str(baseline),
+                    "--block-new-reason-prefix",
+                    "strict_",
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertNotEqual(proc.returncode, 0)
+            payload = json.loads(out.read_text(encoding="utf-8"))
+            self.assertTrue(payload.get("safety_guard_triggered"))
+            self.assertEqual(payload.get("after", {}).get("status"), "FAIL")
+            self.assertTrue(
+                any(
+                    str(r).startswith("repair_safety_new_critical_reason:")
+                    for r in payload.get("after", {}).get("reasons", [])
+                )
+            )
 
     def test_repair_loop_risk_based_budget_high_disables_retry(self) -> None:
         with tempfile.TemporaryDirectory() as d:

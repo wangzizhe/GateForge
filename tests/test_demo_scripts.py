@@ -280,6 +280,20 @@ class DemoScriptTests(unittest.TestCase):
         self.assertEqual(payload.get("bundle_status"), "PASS")
         self.assertEqual(payload.get("after_status"), "PASS")
         self.assertEqual(payload.get("delta"), "improved")
+        self.assertFalse(payload.get("safety_guard_triggered"))
+
+    def test_demo_repair_loop_safety_guard_script(self) -> None:
+        proc = subprocess.run(
+            ["bash", "scripts/demo_repair_loop_safety_guard.sh"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+        payload = json.loads(Path("artifacts/repair_loop_safety_demo/demo_summary.json").read_text(encoding="utf-8"))
+        self.assertEqual(payload.get("bundle_status"), "PASS")
+        self.assertEqual(payload.get("after_status"), "FAIL")
+        self.assertTrue(payload.get("safety_guard_triggered"))
 
     def test_demo_repair_batch_script(self) -> None:
         proc = subprocess.run(

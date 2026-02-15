@@ -43,6 +43,7 @@ summary = {
     "before_status": payload.get("before", {}).get("status"),
     "after_status": payload.get("after", {}).get("status"),
     "delta": payload.get("comparison", {}).get("delta"),
+    "safety_guard_triggered": bool(payload.get("safety_guard_triggered")),
     "result_flags": result_flags,
     "bundle_status": bundle_status,
 }
@@ -53,6 +54,7 @@ lines = [
     f"- before_status: `{summary['before_status']}`",
     f"- after_status: `{summary['after_status']}`",
     f"- delta: `{summary['delta']}`",
+    f"- safety_guard_triggered: `{summary['safety_guard_triggered']}`",
     f"- bundle_status: `{bundle_status}`",
     "",
     "## Result Flags",

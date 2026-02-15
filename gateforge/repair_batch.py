@@ -120,6 +120,10 @@ def _run_cases(
     fail_count = 0
     needs_review_count = 0
     unknown_count = 0
+    improved_count = 0
+    unchanged_count = 0
+    worse_count = 0
+    safety_block_count = 0
 
     for idx, case in enumerate(cases):
         source = str(case["source"])
@@ -155,6 +159,7 @@ def _run_cases(
             "source": source,
             "status": status,
             "delta": payload.get("comparison", {}).get("delta"),
+            "safety_guard_triggered": bool(payload.get("safety_guard_triggered")),
             "retry_used": bool(payload.get("retry_used")),
             "selected_attempt": payload.get("selected_attempt"),
             "planner_backend": payload.get("planner_backend"),
@@ -165,6 +170,14 @@ def _run_cases(
             "policy_profile": profile_override,
         }
         results.append(row)
+        if row["delta"] == "improved":
+            improved_count += 1
+        elif row["delta"] == "worse":
+            worse_count += 1
+        else:
+            unchanged_count += 1
+        if row["safety_guard_triggered"]:
+            safety_block_count += 1
 
         if status == "FAIL":
             fail_count += 1
@@ -183,6 +196,10 @@ def _run_cases(
         "fail_count": fail_count,
         "needs_review_count": needs_review_count,
         "unknown_count": unknown_count,
+        "improved_count": improved_count,
+        "unchanged_count": unchanged_count,
+        "worse_count": worse_count,
+        "safety_block_count": safety_block_count,
     }
     return results, summary
 
@@ -271,6 +288,10 @@ def _write_markdown(path: str, summary: dict) -> None:
         f"- fail_count: `{summary.get('fail_count')}`",
         f"- needs_review_count: `{summary.get('needs_review_count')}`",
         f"- unknown_count: `{summary.get('unknown_count')}`",
+        f"- improved_count: `{summary.get('improved_count')}`",
+        f"- unchanged_count: `{summary.get('unchanged_count')}`",
+        f"- worse_count: `{summary.get('worse_count')}`",
+        f"- safety_block_count: `{summary.get('safety_block_count')}`",
         "",
         "## Cases",
         "",
@@ -388,6 +409,10 @@ def main() -> None:
         "fail_count": primary_counts["fail_count"],
         "needs_review_count": primary_counts["needs_review_count"],
         "unknown_count": primary_counts["unknown_count"],
+        "improved_count": primary_counts["improved_count"],
+        "unchanged_count": primary_counts["unchanged_count"],
+        "worse_count": primary_counts["worse_count"],
+        "safety_block_count": primary_counts["safety_block_count"],
         "cases": primary_results,
         "policy_profile": primary_profile,
     }

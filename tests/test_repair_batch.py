@@ -82,6 +82,8 @@ class RepairBatchTests(unittest.TestCase):
             self.assertEqual(payload.get("total_cases"), 2)
             self.assertEqual(payload.get("pass_count"), 2)
             self.assertEqual(payload.get("fail_count"), 0)
+            self.assertEqual(payload.get("improved_count"), 2)
+            self.assertEqual(payload.get("worse_count"), 0)
 
     def test_repair_batch_fails_for_mixed_outcomes(self) -> None:
         with tempfile.TemporaryDirectory() as d:
@@ -139,6 +141,7 @@ class RepairBatchTests(unittest.TestCase):
             statuses = [x.get("status") for x in payload.get("cases", [])]
             self.assertIn("PASS", statuses)
             self.assertIn("FAIL", statuses)
+            self.assertGreaterEqual(payload.get("worse_count", 0), 1)
 
     def test_repair_batch_profile_compare_outputs_transitions(self) -> None:
         with tempfile.TemporaryDirectory() as d:

@@ -230,6 +230,7 @@ What it validates:
 - planner/autopilot proposes a constrained repair run
 - output provides before/after decision delta
 - if first attempt fails, repair loop can retry once with conservative fallback constraints
+- safety guard can block repaired output when new critical reasons appear
 
 Key outputs:
 
@@ -244,6 +245,17 @@ Expected result:
 - `delta = improved`
 - `retry_used` may be `true` when fallback retry is needed
 - retry depth can be controlled with `--max-retries`
+
+Safety-guard variant:
+
+```bash
+bash scripts/demo_repair_loop_safety_guard.sh
+```
+
+Expected result:
+
+- `after_status = FAIL`
+- `safety_guard_triggered = true`
 
 ## 9. Repair Batch Demo (Mixed Case Pack)
 

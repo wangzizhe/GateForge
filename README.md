@@ -120,6 +120,9 @@ bash scripts/demo_planner_confidence_gates.sh
 # fail -> repair -> rerun loop demo
 bash scripts/demo_repair_loop.sh
 
+# safety guard demo (new critical reasons are blocked)
+bash scripts/demo_repair_loop_safety_guard.sh
+
 # human review resolution demo (NEEDS_REVIEW -> human approve/reject -> final PASS/FAIL)
 bash scripts/demo_review_resolution.sh
 
@@ -380,6 +383,12 @@ Demo shortcut:
 bash scripts/demo_repair_loop.sh
 ```
 
+Safety-guard demo:
+
+```bash
+bash scripts/demo_repair_loop_safety_guard.sh
+```
+
 Repair batch (multiple fail summaries -> per-case repair loop -> aggregate summary):
 
 ```bash
@@ -390,6 +399,9 @@ python -m gateforge.repair_batch \
   --report-out artifacts/repair_batch_demo/summary.md
 cat artifacts/repair_batch_demo/summary.json
 ```
+
+`repair_batch` summary includes:
+- `improved_count`, `unchanged_count`, `worse_count`, `safety_block_count`
 
 Demo shortcut:
 
@@ -626,6 +638,8 @@ Repair loop fallback:
 - you can control retry depth with `--max-retries` (set `0` to disable retries)
 - if `--max-retries` is omitted, retry budget is risk-based by default:
   `low -> 1`, `medium -> 2`, `high -> 0` (toggle with `--auto-retry-budget-by-risk`)
+- safety guard blocks repaired output when new reasons match blocked prefixes
+  (default sourced from policy `critical_reason_prefixes`)
 
 Repair tasks (failed summary -> actionable checklist):
 

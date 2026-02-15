@@ -6,6 +6,21 @@ from pathlib import Path
 
 from .policy import evaluate_policy, load_policy, resolve_policy_path, run_required_human_checks
 
+REASON_STRATEGY_MAP: list[tuple[str, str]] = [
+    ("runtime_regression", "tune_runtime_or_solver_config"),
+    ("performance_regression_detected", "optimize_model_or_relax_threshold_with_justification"),
+    ("overshoot_regression_detected", "retune_controller_for_transient_response"),
+    ("settling_time_regression_detected", "retune_controller_for_settling_time"),
+    ("steady_state_regression_detected", "recheck_steady_state_target_and_parameters"),
+    ("event_explosion_detected", "stabilize_event_handling_and_hybrid_switches"),
+    ("nan_inf_detected", "fix_numerical_instability_before_merge"),
+    ("timeout_detected", "investigate_timeout_and_execution_budget"),
+    ("proposal_backend_mismatch", "align_proposal_baseline_candidate_backend"),
+    ("proposal_model_script_mismatch", "align_proposal_baseline_candidate_model_script"),
+    ("change_apply_failed", "fix_changeset_old_new_fragments_and_retry"),
+    ("change_preflight_failed", "fix_changeset_scope_and_file_constraints"),
+]
+
 
 def _write_json(path: str, payload: dict) -> None:
     p = Path(path)
@@ -71,9 +86,18 @@ def _build_tasks(payload: dict, policy: dict, policy_decision: str, policy_reaso
             return "P1", "evidence_review"
         return "P2", "verification"
 
-    def add(category: str, title: str, description: str, source: str) -> None:
+    def strategy_for_reason(reason: str | None) -> str | None:
+        if not isinstance(reason, str):
+            return None
+        for prefix, strategy in REASON_STRATEGY_MAP:
+            if reason.startswith(prefix):
+                return strategy
+        return None
+
+    def add(category: str, title: str, description: str, source: str, reason: str | None = None) -> None:
         nonlocal task_id
         priority, group = classify(category, str(payload.get("risk_level") or "low"), policy_decision)
+        strategy = strategy_for_reason(reason)
         tasks.append(
             {
                 "id": f"T{task_id:03d}",
@@ -83,6 +107,8 @@ def _build_tasks(payload: dict, policy: dict, policy_decision: str, policy_reaso
                 "title": title,
                 "description": description,
                 "source": source,
+                "reason": reason,
+                "recommended_strategy": strategy,
             }
         )
         task_id += 1
@@ -125,6 +151,7 @@ def _build_tasks(payload: dict, policy: dict, policy_decision: str, policy_reaso
             f"Address reason: {reason}",
             f"Create targeted fix proposal for `{reason}` and prepare rerun evidence to confirm resolution.",
             "policy_reasons",
+            reason=reason,
         )
 
     add(
@@ -173,14 +200,23 @@ def _write_markdown(path: str, summary: dict) -> None:
     tasks = summary.get("tasks", [])
     if tasks:
         for item in tasks:
+            strategy = item.get("recommended_strategy")
+            strategy_text = f" strategy=`{strategy}`" if isinstance(strategy, str) else ""
             lines.append(
-                f"- `{item.get('id')}` [{item.get('priority')}/{item.get('group')}/{item.get('category')}] {item.get('title')}: {item.get('description')}"
+                f"- `{item.get('id')}` [{item.get('priority')}/{item.get('group')}/{item.get('category')}] {item.get('title')}: {item.get('description')}{strategy_text}"
             )
     else:
         lines.append("- `none`")
     lines.extend(["", "## Priority Counts", ""])
     for prio in ("P0", "P1", "P2"):
         lines.append(f"- {prio}: `{summary.get('priority_counts', {}).get(prio, 0)}`")
+    lines.extend(["", "## Strategy Counts", ""])
+    strategy_counts = summary.get("strategy_counts", {})
+    if isinstance(strategy_counts, dict) and strategy_counts:
+        for name, count in sorted(strategy_counts.items()):
+            lines.append(f"- {name}: `{count}`")
+    else:
+        lines.append("- `none`")
     lines.append("")
     p.write_text("\n".join(lines), encoding="utf-8")
 
@@ -204,6 +240,11 @@ def main() -> None:
     tasks_by_group = _group_tasks(tasks, "group", ["human_review", "fix_execution", "evidence_review", "verification"])
     priority_counts = {k: len(v) for k, v in tasks_by_priority.items()}
     group_counts = {k: len(v) for k, v in tasks_by_group.items()}
+    strategy_counts: dict[str, int] = {}
+    for task in tasks:
+        strategy = task.get("recommended_strategy")
+        if isinstance(strategy, str):
+            strategy_counts[strategy] = strategy_counts.get(strategy, 0) + 1
 
     summary = {
         "source_path": args.source,
@@ -217,6 +258,7 @@ def main() -> None:
         "task_count": len(tasks),
         "priority_counts": priority_counts,
         "group_counts": group_counts,
+        "strategy_counts": strategy_counts,
         "tasks_by_priority": tasks_by_priority,
         "tasks_by_group": tasks_by_group,
         "tasks": tasks,

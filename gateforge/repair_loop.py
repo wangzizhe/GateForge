@@ -7,6 +7,8 @@ import sys
 import tempfile
 from pathlib import Path
 
+from .policy import load_policy, resolve_policy_path
+
 
 def _write_json(path: str, payload: dict) -> None:
     p = Path(path)
@@ -41,6 +43,7 @@ def _write_markdown(path: str, summary: dict) -> None:
         f"- retry_used: `{summary.get('retry_used')}`",
         f"- max_retries: `{summary.get('max_retries')}`",
         f"- retry_budget_source: `{summary.get('retry_budget_source')}`",
+        f"- safety_guard_triggered: `{summary.get('safety_guard_triggered')}`",
         "",
         "## Before",
         "",
@@ -53,6 +56,7 @@ def _write_markdown(path: str, summary: dict) -> None:
         f"- status: `{after.get('status')}`",
         f"- policy_decision: `{after.get('policy_decision')}`",
         f"- reasons_count: `{len(after.get('reasons', []))}`",
+        f"- safety_override_applied: `{after.get('safety_override_applied')}`",
         f"- autopilot_summary_path: `{after.get('autopilot_summary_path')}`",
         "",
         "## Comparison",
@@ -60,6 +64,7 @@ def _write_markdown(path: str, summary: dict) -> None:
         f"- delta: `{comparison.get('delta')}`",
         f"- score_before: `{comparison.get('score_before')}`",
         f"- score_after: `{comparison.get('score_after')}`",
+        f"- score_delta: `{comparison.get('score_delta')}`",
         "",
         "### Fixed Reasons",
         "",
@@ -190,6 +195,12 @@ def main() -> None:
     parser.add_argument("--policy", default=None, help="Optional policy JSON path")
     parser.add_argument("--policy-profile", default=None, help="Optional policy profile name")
     parser.add_argument(
+        "--block-new-reason-prefix",
+        action="append",
+        default=None,
+        help="Block repair output if new reasons start with this prefix (repeatable).",
+    )
+    parser.add_argument(
         "--save-run-under",
         default="autopilot",
         choices=["autopilot", "agent"],
@@ -266,6 +277,9 @@ def main() -> None:
     source_payload = json.loads(Path(args.source).read_text(encoding="utf-8"))
     before = _normalize_before(source_payload)
     goal = args.goal or _default_goal(before)
+    policy_path = resolve_policy_path(policy_path=args.policy, policy_profile=args.policy_profile)
+    policy = load_policy(policy_path)
+    blocked_prefixes = tuple(args.block_new_reason_prefix or policy.get("critical_reason_prefixes", []))
 
     with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8") as tmp:
         context_path = tmp.name
@@ -470,6 +484,7 @@ def main() -> None:
         "planner_guardrail_violations": after_payload.get("planner_guardrail_violations", []),
         "planner_guardrail_violation_objects": after_payload.get("planner_guardrail_violation_objects", []),
         "planner_guardrail_report_path": after_payload.get("planner_guardrail_report_path"),
+        "policy_path": policy_path,
         "retry_on_failed_attempt": args.retry_on_failed_attempt,
         "max_retries": max_retries,
         "resolved_max_retries": resolved_max_retries,
@@ -484,10 +499,54 @@ def main() -> None:
             "delta": delta,
             "score_before": score_before,
             "score_after": score_after,
+            "score_delta": score_after - score_before,
             "fixed_reasons": sorted(before_reasons - after_reasons),
             "new_reasons": sorted(after_reasons - before_reasons),
         },
+        "blocked_new_reason_prefixes": list(blocked_prefixes),
+        "safety_guard_triggered": False,
     }
+    new_reasons = summary["comparison"]["new_reasons"]
+    blocked_new = [r for r in new_reasons if any(r.startswith(prefix) for prefix in blocked_prefixes)]
+    if blocked_new:
+        safety_reason = f"repair_safety_new_critical_reason:{blocked_new[0]}"
+        summary["safety_guard_triggered"] = True
+        summary["safety_guard_blocked_new_reasons"] = blocked_new
+        after["safety_override_applied"] = True
+        after["status"] = "FAIL"
+        after["policy_decision"] = "FAIL"
+        existing_reasons = after.get("reasons", [])
+        if not isinstance(existing_reasons, list):
+            existing_reasons = []
+        if safety_reason not in existing_reasons:
+            existing_reasons = [safety_reason] + existing_reasons
+        after["reasons"] = existing_reasons
+        summary["status"] = "FAIL"
+        after_reasons = set(after["reasons"])
+        score_after = _status_score(after.get("policy_decision") or after.get("status"))
+        if score_after > score_before:
+            delta = "improved"
+        elif score_after < score_before:
+            delta = "worse"
+        else:
+            delta = "unchanged"
+        summary["comparison"] = {
+            "delta": delta,
+            "score_before": score_before,
+            "score_after": score_after,
+            "score_delta": score_after - score_before,
+            "fixed_reasons": sorted(before_reasons - after_reasons),
+            "new_reasons": sorted(after_reasons - before_reasons),
+        }
+    else:
+        after["safety_override_applied"] = False
+
+    summary["before_status"] = before.get("status")
+    summary["before_policy_decision"] = before.get("policy_decision")
+    summary["before_reasons"] = before.get("reasons", [])
+    summary["after_status"] = after.get("status")
+    summary["after_policy_decision"] = after.get("policy_decision")
+    summary["after_reasons"] = after.get("reasons", [])
     if attempts:
         first = attempts[0]
         selected = next((a for a in attempts if a.get("attempt") == selected_attempt), attempts[-1])
