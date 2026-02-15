@@ -1752,6 +1752,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       POLICY_PROFILE: ${{ inputs.demo_policy_profile }}
+      PROMOTE_APPLY_REQUIRE_RANKING_EXPLANATION: "1"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -1786,6 +1787,7 @@ jobs:
                   "## Governance Promote Apply Summary",
                   "",
                   f"- bundle_status: `{payload.get('bundle_status')}`",
+                  f"- require_ranking_explanation: `{payload.get('require_ranking_explanation')}`",
                   f"- pass_status: `{payload.get('pass_status')}`",
                   f"- missing_ticket_status: `{payload.get('missing_ticket_status')}`",
                   f"- with_ticket_status: `{payload.get('with_ticket_status')}`",

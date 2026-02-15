@@ -932,6 +932,7 @@ Note: `medium_openmodelica_pass` requires Docker/OpenModelica backend access.
   This job publishes best-profile selection over multiple promotion profiles.
 - Provides an optional governance promote apply demo job (`workflow_dispatch` with `run_governance_promote_apply_demo=true`) that does not block the main job.
   This job publishes executable promotion actions and audit ledger outputs with review-ticket enforcement.
+  The job runs with strict ranking explanation gate enabled (`PROMOTE_APPLY_REQUIRE_RANKING_EXPLANATION=1`).
 - Provides an optional agent invariant-guard demo job (`workflow_dispatch` with `run_agent_invariant_guard_demo=true`) that does not block the main job.
   This job publishes PASS/NEEDS_REVIEW/FAIL outcomes for proposal-level physical invariants.
 - Provides an optional invariant repair-loop demo job (`workflow_dispatch` with `run_invariant_repair_loop_demo=true`) that does not block the main job.
