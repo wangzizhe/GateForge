@@ -174,6 +174,48 @@ class RepairOrchestrateTests(unittest.TestCase):
             self.assertNotEqual(compare.get("step_exit_codes", {}).get("repair_pack"), 0)
             self.assertTrue(report.exists())
 
+    def test_repair_orchestrate_rejects_same_compare_profiles(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            source = root / "source_fail.json"
+            out_dir = root / "out"
+            source.write_text(
+                json.dumps(
+                    {
+                        "proposal_id": "orchestrate-compare-invalid-001",
+                        "status": "FAIL",
+                        "policy_decision": "FAIL",
+                        "risk_level": "low",
+                        "policy_reasons": ["runtime_regression:1.2s>1.0s"],
+                        "fail_reasons": ["regression_fail"],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.repair_orchestrate",
+                    "--source",
+                    str(source),
+                    "--planner-backend",
+                    "rule",
+                    "--compare-strategy-profiles",
+                    "default",
+                    "default",
+                    "--baseline",
+                    "baselines/mock_minimal_probe_baseline.json",
+                    "--out-dir",
+                    str(out_dir),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertNotEqual(proc.returncode, 0)
+            self.assertIn("compare profiles must be different", (proc.stderr or proc.stdout))
+
 
 if __name__ == "__main__":
     unittest.main()
