@@ -321,6 +321,27 @@ Key outputs:
 - `artifacts/repair_tasks_demo/demo_summary.json`
 - `artifacts/repair_tasks_demo/demo_summary.md`
 
+## 10.2 Repair Pack From Tasks Demo
+
+Command:
+
+```bash
+bash scripts/demo_repair_pack_from_tasks.sh
+```
+
+What it validates:
+
+- converts `repair_tasks` summary into executable `repair_batch` pack
+- runs generated pack through repair batch and captures effectiveness counters
+
+Key outputs:
+
+- `artifacts/repair_pack_demo/pack.json`
+- `artifacts/repair_pack_demo/summary.json`
+- `artifacts/repair_pack_demo/summary.md`
+- `artifacts/repair_pack_demo/demo_summary.json`
+- `artifacts/repair_pack_demo/demo_summary.md`
+
 ## 11. Governance Snapshot Demo
 
 Command:
