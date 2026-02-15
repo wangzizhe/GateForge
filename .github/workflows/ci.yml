@@ -85,8 +85,18 @@ on:
         required: false
         default: false
         type: boolean
+      run_repair_orchestrate_compare_demo:
+        description: "Run optional repair-orchestrate compare demo job"
+        required: false
+        default: false
+        type: boolean
       run_governance_snapshot_demo:
         description: "Run optional governance snapshot demo job"
+        required: false
+        default: false
+        type: boolean
+      run_governance_snapshot_orchestrate_demo:
+        description: "Run optional governance snapshot from orchestrate-compare demo job"
         required: false
         default: false
         type: boolean
@@ -1237,6 +1247,81 @@ jobs:
             artifacts/repair_orchestrate_demo/demo_summary.json
             artifacts/repair_orchestrate_demo/demo_summary.md
 
+  repair-orchestrate-compare-demo-optional:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_repair_orchestrate_compare_demo }}
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    env:
+      POLICY_PROFILE: ${{ inputs.demo_policy_profile }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Run repair orchestrate compare demo
+        run: bash scripts/demo_repair_orchestrate_compare.sh
+
+      - name: Publish repair orchestrate compare summary to job page
+        if: always()
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          path = Path("artifacts/repair_orchestrate_compare_demo/demo_summary.json")
+          if not path.exists():
+              text = "## Repair Orchestrate Compare Summary\n\n`artifacts/repair_orchestrate_compare_demo/demo_summary.json` not found."
+          else:
+              payload = json.loads(path.read_text(encoding="utf-8"))
+              lines = [
+                  "## Repair Orchestrate Compare Summary",
+                  "",
+                  f"- bundle_status: `{payload.get('bundle_status')}`",
+                  f"- status: `{payload.get('status')}`",
+                  f"- primary_batch_status: `{payload.get('primary_batch_status')}`",
+                  f"- compare_batch_status: `{payload.get('compare_batch_status')}`",
+                  f"- compare_relation: `{payload.get('compare_relation')}`",
+                  "",
+              ]
+              text = "\n".join(lines)
+
+          summary_file = os.getenv("GITHUB_STEP_SUMMARY")
+          if summary_file:
+              with open(summary_file, "a", encoding="utf-8") as f:
+                  f.write(text + "\n")
+          print(text)
+          PY
+
+      - name: Upload repair orchestrate compare artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: repair-orchestrate-compare-demo
+          path: |
+            artifacts/repair_orchestrate_compare_demo/summary.json
+            artifacts/repair_orchestrate_compare_demo/tasks.json
+            artifacts/repair_orchestrate_compare_demo/tasks.md
+            artifacts/repair_orchestrate_compare_demo/pack.json
+            artifacts/repair_orchestrate_compare_demo/batch_summary.json
+            artifacts/repair_orchestrate_compare_demo/batch_summary.md
+            artifacts/repair_orchestrate_compare_demo/compare_industrial_strict/tasks.json
+            artifacts/repair_orchestrate_compare_demo/compare_industrial_strict/tasks.md
+            artifacts/repair_orchestrate_compare_demo/compare_industrial_strict/pack.json
+            artifacts/repair_orchestrate_compare_demo/compare_industrial_strict/batch_summary.json
+            artifacts/repair_orchestrate_compare_demo/compare_industrial_strict/batch_summary.md
+            artifacts/repair_orchestrate_compare_demo/demo_summary.json
+            artifacts/repair_orchestrate_compare_demo/demo_summary.md
+
   governance-snapshot-demo-optional:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_governance_snapshot_demo }}
     continue-on-error: true
@@ -1301,6 +1386,72 @@ jobs:
           path: |
             artifacts/governance_snapshot_demo/summary.json
             artifacts/governance_snapshot_demo/summary.md
+
+  governance-snapshot-orchestrate-demo-optional:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_governance_snapshot_orchestrate_demo }}
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    env:
+      POLICY_PROFILE: ${{ inputs.demo_policy_profile }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Run governance snapshot from orchestrate compare demo
+        run: bash scripts/demo_governance_snapshot_from_orchestrate_compare.sh
+
+      - name: Publish governance snapshot from orchestrate compare summary to job page
+        if: always()
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          path = Path("artifacts/governance_snapshot_orchestrate_demo/demo_summary.json")
+          if not path.exists():
+              text = "## Governance Snapshot (Orchestrate Compare) Summary\n\n`artifacts/governance_snapshot_orchestrate_demo/demo_summary.json` not found."
+          else:
+              payload = json.loads(path.read_text(encoding="utf-8"))
+              lines = [
+                  "## Governance Snapshot (Orchestrate Compare) Summary",
+                  "",
+                  f"- bundle_status: `{payload.get('bundle_status')}`",
+                  f"- status: `{payload.get('status')}`",
+                  f"- strategy_compare_relation: `{payload.get('strategy_compare_relation')}`",
+                  "",
+              ]
+              text = "\n".join(lines)
+
+          summary_file = os.getenv("GITHUB_STEP_SUMMARY")
+          if summary_file:
+              with open(summary_file, "a", encoding="utf-8") as f:
+                  f.write(text + "\n")
+          print(text)
+          PY
+
+      - name: Upload governance snapshot from orchestrate compare artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: governance-snapshot-orchestrate-demo
+          path: |
+            artifacts/governance_snapshot_orchestrate_demo/summary.json
+            artifacts/governance_snapshot_orchestrate_demo/summary.md
+            artifacts/governance_snapshot_orchestrate_demo/demo_summary.json
+            artifacts/governance_snapshot_orchestrate_demo/demo_summary.md
+            artifacts/repair_orchestrate_compare_demo/summary.json
+            artifacts/repair_orchestrate_compare_demo/demo_summary.json
 
   governance-snapshot-trend-demo-optional:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_governance_snapshot_trend_demo }}

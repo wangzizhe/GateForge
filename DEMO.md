@@ -365,6 +365,25 @@ Key outputs:
 - `artifacts/repair_orchestrate_demo/demo_summary.json`
 - `artifacts/repair_orchestrate_demo/demo_summary.md`
 
+## 10.4 Repair Orchestrate Compare Demo
+
+Command:
+
+```bash
+bash scripts/demo_repair_orchestrate_compare.sh
+```
+
+What it validates:
+
+- runs the same failure source through two strategy profiles (`default` vs `industrial_strict`)
+- emits profile-to-profile batch status comparison (`upgraded|unchanged|downgraded`)
+
+Key outputs:
+
+- `artifacts/repair_orchestrate_compare_demo/summary.json`
+- `artifacts/repair_orchestrate_compare_demo/demo_summary.json`
+- `artifacts/repair_orchestrate_compare_demo/demo_summary.md`
+
 ## 11. Governance Snapshot Demo
 
 Command:
@@ -382,6 +401,25 @@ Key outputs:
 
 - `artifacts/governance_snapshot_demo/summary.json`
 - `artifacts/governance_snapshot_demo/summary.md`
+
+## 11.1 Governance Snapshot From Orchestrate Compare Demo
+
+Command:
+
+```bash
+bash scripts/demo_governance_snapshot_from_orchestrate_compare.sh
+```
+
+What it validates:
+
+- governance snapshot can consume `repair_orchestrate` compare summary (`strategy_compare`) directly
+- snapshot emits `kpis.strategy_compare_relation` for operator visibility
+
+Key outputs:
+
+- `artifacts/governance_snapshot_orchestrate_demo/summary.json`
+- `artifacts/governance_snapshot_orchestrate_demo/summary.md`
+- `artifacts/governance_snapshot_orchestrate_demo/demo_summary.json`
 
 ## 12. Governance Snapshot Trend Demo
 

@@ -7,6 +7,58 @@ from pathlib import Path
 
 
 class GovernanceReportTests(unittest.TestCase):
+    def test_governance_report_accepts_orchestrate_strategy_compare_schema(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            repair = {
+                "strategy_compare": {
+                    "from_profile": "default",
+                    "to_profile": "industrial_strict",
+                    "relation": "downgraded",
+                }
+            }
+            review = {
+                "kpis": {
+                    "review_recovery_rate": 0.9,
+                    "strict_non_pass_rate": 0.1,
+                    "approval_rate": 0.8,
+                    "fail_rate": 0.1,
+                }
+            }
+            matrix = {"matrix_status": "PASS"}
+
+            rp = root / "repair.json"
+            lp = root / "ledger.json"
+            mp = root / "matrix.json"
+            out = root / "summary.json"
+            rp.write_text(json.dumps(repair), encoding="utf-8")
+            lp.write_text(json.dumps(review), encoding="utf-8")
+            mp.write_text(json.dumps(matrix), encoding="utf-8")
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.governance_report",
+                    "--repair-batch-summary",
+                    str(rp),
+                    "--review-ledger-summary",
+                    str(lp),
+                    "--ci-matrix-summary",
+                    str(mp),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            payload = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(payload.get("status"), "NEEDS_REVIEW")
+            self.assertIn("strict_profile_downgrade_detected", payload.get("risks", []))
+            self.assertEqual(payload.get("kpis", {}).get("strategy_compare_relation"), "downgraded")
+
     def test_governance_report_needs_review_on_downgrade(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)

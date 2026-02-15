@@ -25,7 +25,7 @@ JSON
 
 bash scripts/demo_governance_snapshot.sh
 # Re-pin ci_matrix summary to a non-recursive selection before trend compare.
-RUN_GOVERNANCE_SNAPSHOT_DEMO=0 RUN_GOVERNANCE_SNAPSHOT_TREND_DEMO=0 RUN_GOVERNANCE_PROMOTE_DEMO=0 bash scripts/demo_ci_matrix.sh
+bash scripts/demo_ci_matrix.sh --none --checker-demo
 
 python3 -m gateforge.governance_report \
   --repair-batch-summary artifacts/repair_batch_compare_demo/summary.json \
