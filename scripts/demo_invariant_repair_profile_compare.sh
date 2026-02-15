@@ -33,44 +33,28 @@ python3 -m gateforge.repair_loop \
   --baseline baselines/mock_minimal_probe_baseline.json \
   --out artifacts/invariant_repair_profile_compare_demo/default.json
 
-set +e
-python3 -m gateforge.repair_loop \
+python3 -m gateforge.invariant_repair_compare \
   --source artifacts/invariant_repair_profile_compare_demo/source_fail.json \
+  --profiles default industrial_strict \
   --planner-backend rule \
-  --invariant-repair-profile industrial_strict \
   --baseline baselines/mock_minimal_probe_baseline.json \
-  --out artifacts/invariant_repair_profile_compare_demo/industrial.json
-IND_RC=$?
-set -e
+  --out-dir artifacts/invariant_repair_profile_compare_demo \
+  --out artifacts/invariant_repair_profile_compare_demo/compare.json \
+  --report artifacts/invariant_repair_profile_compare_demo/compare.md
 
 python3 - <<'PY'
 import json
 from pathlib import Path
 
-default_payload = json.loads(Path("artifacts/invariant_repair_profile_compare_demo/default.json").read_text(encoding="utf-8"))
-industrial_payload = json.loads(Path("artifacts/invariant_repair_profile_compare_demo/industrial.json").read_text(encoding="utf-8"))
-
-def score(status: str) -> int:
-    if status == "PASS":
-        return 2
-    if status == "NEEDS_REVIEW":
-        return 1
-    if status == "FAIL":
-        return 0
-    return -1
-
-default_status = str(default_payload.get("status"))
-industrial_status = str(industrial_payload.get("status"))
-relation = "unchanged"
-if score(industrial_status) > score(default_status):
-    relation = "upgraded"
-elif score(industrial_status) < score(default_status):
-    relation = "downgraded"
+compare_payload = json.loads(Path("artifacts/invariant_repair_profile_compare_demo/compare.json").read_text(encoding="utf-8"))
+rows = compare_payload.get("profile_results", [])
+default_payload = next((x for x in rows if x.get("profile") == "default"), {})
+industrial_payload = next((x for x in rows if x.get("profile") == "industrial_strict"), {})
 
 flags = {
-    "default_profile_name": "PASS" if default_payload.get("invariant_repair_profile") == "default" else "FAIL",
+    "default_profile_name": "PASS" if default_payload.get("profile") == "default" else "FAIL",
     "industrial_profile_name": "PASS"
-    if industrial_payload.get("invariant_repair_profile") == "industrial_strict"
+    if industrial_payload.get("profile") == "industrial_strict"
     else "FAIL",
     "strict_confidence_higher": "PASS"
     if float(industrial_payload.get("planner_change_plan_confidence_min", 0.0))
@@ -79,13 +63,14 @@ flags = {
 }
 bundle_status = "PASS" if all(v == "PASS" for v in flags.values()) else "FAIL"
 summary = {
-    "default_status": default_status,
-    "industrial_status": industrial_status,
-    "relation": relation,
+    "status": compare_payload.get("status"),
+    "best_profile": compare_payload.get("best_profile"),
+    "default_status": default_payload.get("status"),
+    "industrial_status": industrial_payload.get("status"),
     "default_confidence_min": default_payload.get("planner_change_plan_confidence_min"),
     "industrial_confidence_min": industrial_payload.get("planner_change_plan_confidence_min"),
-    "default_profile_version": default_payload.get("invariant_repair_profile_version"),
-    "industrial_profile_version": industrial_payload.get("invariant_repair_profile_version"),
+    "default_total_score": default_payload.get("total_score"),
+    "industrial_total_score": industrial_payload.get("total_score"),
     "result_flags": flags,
     "bundle_status": bundle_status,
 }
@@ -97,9 +82,12 @@ Path("artifacts/invariant_repair_profile_compare_demo/summary.md").write_text(
         [
             "# Invariant Repair Profile Compare Demo",
             "",
+            f"- status: `{summary['status']}`",
+            f"- best_profile: `{summary['best_profile']}`",
             f"- default_status: `{summary['default_status']}`",
             f"- industrial_status: `{summary['industrial_status']}`",
-            f"- relation: `{summary['relation']}`",
+            f"- default_total_score: `{summary['default_total_score']}`",
+            f"- industrial_total_score: `{summary['industrial_total_score']}`",
             f"- default_confidence_min: `{summary['default_confidence_min']}`",
             f"- industrial_confidence_min: `{summary['industrial_confidence_min']}`",
             f"- bundle_status: `{summary['bundle_status']}`",
@@ -119,6 +107,7 @@ if bundle_status != "PASS":
     raise SystemExit(1)
 PY
 
-echo "industrial_exit_code=$IND_RC"
+cat artifacts/invariant_repair_profile_compare_demo/compare.json
+cat artifacts/invariant_repair_profile_compare_demo/compare.md
 cat artifacts/invariant_repair_profile_compare_demo/summary.json
 cat artifacts/invariant_repair_profile_compare_demo/summary.md
