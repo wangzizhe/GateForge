@@ -658,6 +658,12 @@ Promote apply demo shortcut:
 bash scripts/demo_governance_promote_apply.sh
 ```
 
+Strict ranking-explanation gate for demo:
+
+```bash
+PROMOTE_APPLY_REQUIRE_RANKING_EXPLANATION=1 bash scripts/demo_governance_promote_apply.sh
+```
+
 Review ledger summary:
 
 ```bash
@@ -1031,6 +1037,11 @@ You can include governance promote compare demo in local matrix with:
 
 You can include governance promote apply demo in local matrix with:
 `RUN_GOVERNANCE_PROMOTE_APPLY_DEMO=1 bash scripts/demo_ci_matrix.sh`
+
+You can force strict ranking-explanation guard in promote-apply jobs with:
+`PROMOTE_APPLY_REQUIRE_RANKING_EXPLANATION=1 bash scripts/demo_ci_matrix.sh`
+or CLI toggle:
+`bash scripts/demo_ci_matrix.sh --promote-apply-strict-ranking`
 
 You can include agent invariant guard demo in local matrix with:
 `RUN_AGENT_INVARIANT_GUARD_DEMO=1 bash scripts/demo_ci_matrix.sh`

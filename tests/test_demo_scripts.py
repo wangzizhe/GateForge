@@ -140,6 +140,7 @@ class DemoScriptTests(unittest.TestCase):
         payload = json.loads(out_json.read_text(encoding="utf-8"))
         self.assertEqual(payload.get("matrix_status"), "PASS")
         self.assertEqual(payload.get("policy_profile"), "default")
+        self.assertFalse(payload.get("promote_apply_require_ranking_explanation"))
         self.assertGreaterEqual(payload.get("selected_count", 0), 1)
         self.assertIsInstance(payload.get("job_exit_codes"), dict)
         self.assertIn("behavior_metrics_demo", payload.get("selected", {}))
@@ -165,6 +166,24 @@ class DemoScriptTests(unittest.TestCase):
         self.assertIn("invariant_repair_profile_compare_demo", payload.get("selected", {}))
         self.assertIsInstance(payload.get("planner_guardrail_rule_ids"), list)
         self.assertIn("change_plan_confidence_min_below_threshold", payload.get("planner_guardrail_rule_ids", []))
+
+    def test_demo_ci_matrix_accepts_promote_apply_strict_ranking_flag(self) -> None:
+        proc = subprocess.run(
+            [
+                "bash",
+                "scripts/demo_ci_matrix.sh",
+                "--none",
+                "--governance-promote-apply-demo",
+                "--promote-apply-strict-ranking",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+        payload = json.loads(Path("artifacts/ci_matrix_summary.json").read_text(encoding="utf-8"))
+        self.assertTrue(payload.get("promote_apply_require_ranking_explanation"))
+        self.assertEqual(payload.get("matrix_status"), "PASS")
 
     def test_demo_agent_change_loop_script(self) -> None:
         proc = subprocess.run(
@@ -505,6 +524,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
         payload = json.loads(Path("artifacts/governance_promote_apply_demo/summary.json").read_text(encoding="utf-8"))
         self.assertEqual(payload.get("bundle_status"), "PASS")
+        self.assertIn(payload.get("require_ranking_explanation"), {False, None})
         self.assertEqual(payload.get("pass_status"), "PASS")
         self.assertIsInstance(payload.get("pass_ranking_selection_priority"), list)
         self.assertGreaterEqual(int(payload.get("pass_ranking_best_vs_others_count", 0)), 1)
@@ -512,6 +532,21 @@ class DemoScriptTests(unittest.TestCase):
         self.assertEqual(payload.get("with_ticket_status"), "NEEDS_REVIEW")
         self.assertEqual(payload.get("with_ticket_id"), "REV-42")
         self.assertEqual(payload.get("audit_row_count"), 3)
+
+    def test_demo_governance_promote_apply_script_accepts_strict_ranking_flag(self) -> None:
+        env = dict(os.environ)
+        env["PROMOTE_APPLY_REQUIRE_RANKING_EXPLANATION"] = "1"
+        proc = subprocess.run(
+            ["bash", "scripts/demo_governance_promote_apply.sh"],
+            capture_output=True,
+            text=True,
+            check=False,
+            env=env,
+        )
+        self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+        payload = json.loads(Path("artifacts/governance_promote_apply_demo/summary.json").read_text(encoding="utf-8"))
+        self.assertEqual(payload.get("bundle_status"), "PASS")
+        self.assertEqual(payload.get("require_ranking_explanation"), True)
 
     def test_demo_agent_invariant_guard_script(self) -> None:
         proc = subprocess.run(
