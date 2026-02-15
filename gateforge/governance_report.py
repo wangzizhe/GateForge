@@ -30,7 +30,11 @@ def _load_json(path: str | None) -> dict:
 def _status_from_signals(signals: dict) -> str:
     if signals.get("matrix_status") == "FAIL":
         return "FAIL"
+    if signals.get("invariant_repair_compare_status") == "FAIL":
+        return "NEEDS_REVIEW"
     if signals.get("strategy_switch_recommended"):
+        return "NEEDS_REVIEW"
+    if signals.get("invariant_repair_switch_recommended"):
         return "NEEDS_REVIEW"
     if signals.get("repair_compare_has_downgrade"):
         return "NEEDS_REVIEW"
@@ -66,6 +70,40 @@ def _extract_repair_compare(repair: dict) -> dict:
         "downgrade_count": downgrade_count,
         "strict_downgrade_rate": strict_downgrade_rate,
         "strategy_compare_relation": strategy_compare.get("relation"),
+    }
+
+
+def _extract_invariant_compare(invariant: dict) -> dict:
+    if not isinstance(invariant, dict):
+        return {}
+    best_profile = invariant.get("best_profile")
+    ranking = invariant.get("ranking")
+    if not isinstance(best_profile, str):
+        return {}
+    profile_results = invariant.get("profile_results")
+    if not isinstance(profile_results, list):
+        profile_results = []
+    from_profile = None
+    for row in profile_results:
+        if isinstance(row, dict) and isinstance(row.get("profile"), str):
+            from_profile = str(row["profile"])
+            break
+    top_margin = None
+    if isinstance(ranking, list) and len(ranking) >= 2:
+        first = ranking[0]
+        second = ranking[1]
+        if isinstance(first, dict) and isinstance(second, dict):
+            try:
+                top_margin = int(first.get("total_score", 0)) - int(second.get("total_score", 0))
+            except (TypeError, ValueError):
+                top_margin = None
+    return {
+        "status": invariant.get("status"),
+        "from_profile": from_profile,
+        "best_profile": best_profile,
+        "best_reason": invariant.get("best_reason"),
+        "best_total_score": invariant.get("best_total_score"),
+        "top_score_margin": top_margin,
     }
 
 
@@ -111,8 +149,9 @@ def _compute_trend(current: dict, previous: dict) -> dict:
     }
 
 
-def _compute_summary(repair: dict, review: dict, matrix: dict) -> dict:
+def _compute_summary(repair: dict, review: dict, matrix: dict, invariant_compare: dict) -> dict:
     repair_compare = _extract_repair_compare(repair)
+    invariant = _extract_invariant_compare(invariant_compare)
     kpis = review.get("kpis", {}) if isinstance(review, dict) else {}
 
     strict_non_pass_rate = float(kpis.get("strict_non_pass_rate", 0.0) or 0.0)
@@ -127,11 +166,22 @@ def _compute_summary(repair: dict, review: dict, matrix: dict) -> dict:
         and recommended_profile
         and compare_from != recommended_profile
     )
+    invariant_from_profile = invariant.get("from_profile")
+    invariant_best_profile = invariant.get("best_profile")
+    invariant_switch_recommended = bool(
+        isinstance(invariant_from_profile, str)
+        and isinstance(invariant_best_profile, str)
+        and invariant_from_profile
+        and invariant_best_profile
+        and invariant_from_profile != invariant_best_profile
+    )
 
     signals = {
         "matrix_status": matrix.get("matrix_status", "UNKNOWN"),
         "repair_compare_has_downgrade": downgrade_count > 0,
         "strategy_switch_recommended": strategy_switch_recommended,
+        "invariant_repair_switch_recommended": invariant_switch_recommended,
+        "invariant_repair_compare_status": str(invariant.get("status") or "UNKNOWN"),
         "strict_non_pass_rate": strict_non_pass_rate,
         "review_recovery_rate": review_recovery_rate,
     }
@@ -149,6 +199,10 @@ def _compute_summary(repair: dict, review: dict, matrix: dict) -> dict:
         risks.append("review_recovery_rate_low")
     if strategy_switch_recommended:
         risks.append("strategy_profile_switch_recommended")
+    if invariant_switch_recommended:
+        risks.append("invariant_repair_profile_switch_recommended")
+    if str(invariant.get("status") or "").upper() == "FAIL":
+        risks.append("invariant_repair_compare_failed")
 
     return {
         "status": status,
@@ -162,17 +216,26 @@ def _compute_summary(repair: dict, review: dict, matrix: dict) -> dict:
             "strict_non_pass_rate": strict_non_pass_rate,
             "approval_rate": kpis.get("approval_rate"),
             "fail_rate": kpis.get("fail_rate"),
+            "invariant_repair_compare_status": invariant.get("status"),
+            "invariant_repair_recommended_profile": invariant_best_profile,
+            "invariant_repair_compare_relation": (
+                "switched" if invariant_switch_recommended else "unchanged"
+            ),
+            "invariant_repair_top_score_margin": invariant.get("top_score_margin"),
         },
         "policy_profiles": {
             "compare_from": compare_from,
             "compare_to": repair_compare.get("to_policy_profile"),
             "recommended_profile": recommended_profile,
+            "invariant_repair_compare_from": invariant_from_profile,
+            "invariant_repair_recommended_profile": invariant_best_profile,
             "review_counts": review.get("policy_profile_counts", {}),
         },
         "sources": {
             "repair_batch_summary_path": repair.get("_source_path"),
             "review_ledger_summary_path": review.get("_source_path"),
             "ci_matrix_summary_path": matrix.get("_source_path"),
+            "invariant_repair_compare_summary_path": invariant_compare.get("_source_path"),
         },
         "risks": risks,
     }
@@ -250,6 +313,11 @@ def main() -> None:
     parser.add_argument("--repair-batch-summary", default=None, help="Path to repair_batch summary JSON")
     parser.add_argument("--review-ledger-summary", default=None, help="Path to review_ledger summary JSON")
     parser.add_argument("--ci-matrix-summary", default=None, help="Path to ci matrix summary JSON")
+    parser.add_argument(
+        "--invariant-repair-compare-summary",
+        default=None,
+        help="Path to invariant_repair_compare summary JSON",
+    )
     parser.add_argument("--previous-summary", default=None, help="Optional previous governance snapshot JSON")
     parser.add_argument("--out", default="artifacts/governance_snapshot/summary.json", help="Output JSON path")
     parser.add_argument("--report", default=None, help="Output markdown path")
@@ -258,14 +326,17 @@ def main() -> None:
     repair = _load_json(args.repair_batch_summary)
     review = _load_json(args.review_ledger_summary)
     matrix = _load_json(args.ci_matrix_summary)
+    invariant_compare = _load_json(args.invariant_repair_compare_summary)
     if args.repair_batch_summary:
         repair["_source_path"] = args.repair_batch_summary
     if args.review_ledger_summary:
         review["_source_path"] = args.review_ledger_summary
     if args.ci_matrix_summary:
         matrix["_source_path"] = args.ci_matrix_summary
+    if args.invariant_repair_compare_summary:
+        invariant_compare["_source_path"] = args.invariant_repair_compare_summary
 
-    summary = _compute_summary(repair, review, matrix)
+    summary = _compute_summary(repair, review, matrix, invariant_compare)
     if args.previous_summary:
         previous = _load_json(args.previous_summary)
         if previous:

@@ -407,6 +407,17 @@ Invariant-repair profile comparison demo:
 bash scripts/demo_invariant_repair_profile_compare.sh
 ```
 
+Direct compare command (machine-readable ranking + best profile):
+
+```bash
+python -m gateforge.invariant_repair_compare \
+  --source artifacts/invariant_repair_profile_compare_demo/source_fail.json \
+  --profiles default industrial_strict \
+  --baseline baselines/mock_minimal_probe_baseline.json \
+  --out artifacts/invariant_repair_profile_compare_demo/compare.json
+cat artifacts/invariant_repair_profile_compare_demo/compare.json
+```
+
 Repair batch (multiple fail summaries -> per-case repair loop -> aggregate summary):
 
 ```bash
@@ -456,6 +467,7 @@ python -m gateforge.governance_report \
   --repair-batch-summary artifacts/repair_batch_compare_demo/summary.json \
   --review-ledger-summary artifacts/review_kpi_demo/kpi_summary.json \
   --ci-matrix-summary artifacts/ci_matrix_summary.json \
+  --invariant-repair-compare-summary artifacts/invariant_repair_profile_compare_demo/compare.json \
   --out artifacts/governance_snapshot_demo/summary.json \
   --report artifacts/governance_snapshot_demo/summary.md
 cat artifacts/governance_snapshot_demo/summary.json
@@ -468,6 +480,7 @@ python -m gateforge.governance_report \
   --repair-batch-summary artifacts/repair_orchestrate_compare_demo/summary.json \
   --review-ledger-summary artifacts/review_kpi_demo/kpi_summary.json \
   --ci-matrix-summary artifacts/ci_matrix_summary.json \
+  --invariant-repair-compare-summary artifacts/invariant_repair_profile_compare_demo/compare.json \
   --out artifacts/governance_snapshot_orchestrate_demo/summary.json \
   --report artifacts/governance_snapshot_orchestrate_demo/summary.md
 cat artifacts/governance_snapshot_orchestrate_demo/summary.json
@@ -482,6 +495,7 @@ python -m gateforge.governance_report \
   --repair-batch-summary artifacts/repair_batch_compare_demo/summary.json \
   --review-ledger-summary artifacts/review_kpi_demo/kpi_summary.json \
   --ci-matrix-summary artifacts/ci_matrix_summary.json \
+  --invariant-repair-compare-summary artifacts/invariant_repair_profile_compare_demo/compare.json \
   --previous-summary artifacts/governance_snapshot_trend_demo/previous_summary.json \
   --out artifacts/governance_snapshot_trend_demo/summary.json \
   --report artifacts/governance_snapshot_trend_demo/summary.md
@@ -580,6 +594,8 @@ cat artifacts/governance_promote_compare_demo/summary.json
 
 `governance_promote_compare` now emits explicit ranking explainability:
 - `ranking[]` with `rank`, `total_score`, `score_breakdown`
+- `decision_explanations.selection_priority` (the deterministic ranking order)
+- `decision_explanations.best_vs_others[]` (pairwise winner vs challenger margins and component-level advantages)
 - `best_total_score` and `best_score_breakdown`
 - `best_reason` (`highest_total_score` or recommended tie-break preference)
 - `top_score_margin` (`rank1.total_score - rank2.total_score`)

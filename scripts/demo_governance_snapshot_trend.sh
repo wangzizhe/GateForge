@@ -24,6 +24,7 @@ cat > artifacts/governance_snapshot_trend_demo/previous_summary.json <<'JSON'
 JSON
 
 bash scripts/demo_governance_snapshot.sh
+bash scripts/demo_invariant_repair_profile_compare.sh
 # Re-pin ci_matrix summary to a non-recursive selection before trend compare.
 bash scripts/demo_ci_matrix.sh --none --checker-demo
 
@@ -31,6 +32,7 @@ python3 -m gateforge.governance_report \
   --repair-batch-summary artifacts/repair_batch_compare_demo/summary.json \
   --review-ledger-summary artifacts/review_kpi_demo/kpi_summary.json \
   --ci-matrix-summary artifacts/ci_matrix_summary.json \
+  --invariant-repair-compare-summary artifacts/invariant_repair_profile_compare_demo/compare.json \
   --previous-summary artifacts/governance_snapshot_trend_demo/previous_summary.json \
   --out artifacts/governance_snapshot_trend_demo/summary.json \
   --report artifacts/governance_snapshot_trend_demo/summary.md
