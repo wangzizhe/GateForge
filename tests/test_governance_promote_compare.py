@@ -135,6 +135,63 @@ class GovernancePromoteCompareTests(unittest.TestCase):
             self.assertEqual(payload.get("recommended_profile"), "industrial_strict")
             self.assertEqual(payload.get("constraint_reason"), "recommended_profile_failed")
 
+    def test_promote_compare_applies_override_map(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            snapshot = root / "snapshot.json"
+            override = root / "override_allow.json"
+            override_map = root / "override_map.json"
+            out = root / "summary.json"
+            snapshot.write_text(
+                json.dumps(
+                    {
+                        "status": "FAIL",
+                        "risks": ["ci_matrix_failed"],
+                        "kpis": {"recommended_profile": "industrial_strict"},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            override.write_text(
+                json.dumps(
+                    {
+                        "allow_promote": True,
+                        "reason": "compare override",
+                        "approved_by": "human.reviewer",
+                        "expires_utc": "2099-01-01T00:00:00Z",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            override_map.write_text(json.dumps({"industrial_strict": str(override)}), encoding="utf-8")
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.governance_promote_compare",
+                    "--snapshot",
+                    str(snapshot),
+                    "--profiles",
+                    "default",
+                    "industrial_strict",
+                    "--override-map",
+                    str(override_map),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            payload = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(payload.get("status"), "PASS")
+            self.assertEqual(payload.get("best_profile"), "industrial_strict")
+            rows = payload.get("profile_results", [])
+            industrial = next((r for r in rows if r.get("profile") == "industrial_strict"), {})
+            self.assertEqual(industrial.get("decision"), "PASS")
+            self.assertEqual(industrial.get("override_path"), str(override))
+
 
 if __name__ == "__main__":
     unittest.main()
