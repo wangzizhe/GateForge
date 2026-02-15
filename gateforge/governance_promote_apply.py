@@ -79,6 +79,24 @@ def _write_markdown(path: str, summary: dict) -> None:
     p.write_text("\n".join(lines), encoding="utf-8")
 
 
+def _is_valid_ranking_explanation_items(best_vs_others: object) -> bool:
+    if not isinstance(best_vs_others, list) or not best_vs_others:
+        return False
+    for row in best_vs_others:
+        if not isinstance(row, dict):
+            return False
+        winner = row.get("winner_profile")
+        challenger = row.get("challenger_profile")
+        margin = row.get("score_margin")
+        if not isinstance(winner, str) or not winner.strip():
+            return False
+        if not isinstance(challenger, str) or not challenger.strip():
+            return False
+        if not isinstance(margin, int):
+            return False
+    return True
+
+
 def _evaluate(
     compare_payload: dict,
     review_ticket_id: str | None,
@@ -126,7 +144,7 @@ def _evaluate(
     if compare_status == "PASS":
         ranking_explanations = compare_payload.get("decision_explanations", {}).get("best_vs_others")
         if require_ranking_explanation:
-            if not isinstance(ranking_explanations, list) or not ranking_explanations:
+            if not _is_valid_ranking_explanation_items(ranking_explanations):
                 reasons.append("ranking_explanation_required")
         if not isinstance(best_profile, str) or not best_profile.strip():
             reasons.append("best_profile_missing")
