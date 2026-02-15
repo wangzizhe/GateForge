@@ -23,6 +23,10 @@ bash scripts/demo_ci_matrix.sh
 ```bash
 python3 -m gateforge.repair_tasks --source <failing_summary.json> --out artifacts/repair_tasks/summary.json
 ```
+5. Optional one-command repair pipeline:
+```bash
+python3 -m gateforge.repair_orchestrate --source <failing_summary.json> --baseline baselines/mock_minimal_probe_baseline.json --out-dir artifacts/repair_orchestrate
+```
 5. Prioritize repair queue from task summary:
 - execute `P0` tasks first
 - then `P1` evidence/fix tasks

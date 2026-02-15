@@ -343,6 +343,28 @@ Key outputs:
 - `artifacts/repair_pack_demo/demo_summary.json`
 - `artifacts/repair_pack_demo/demo_summary.md`
 
+## 10.3 Repair Orchestrate Demo
+
+Command:
+
+```bash
+bash scripts/demo_repair_orchestrate.sh
+```
+
+What it validates:
+
+- single-command pipeline from failed summary to batch repair outcome
+- step-level exit codes and output artifacts for each stage
+
+Key outputs:
+
+- `artifacts/repair_orchestrate_demo/summary.json`
+- `artifacts/repair_orchestrate_demo/tasks.json`
+- `artifacts/repair_orchestrate_demo/pack.json`
+- `artifacts/repair_orchestrate_demo/batch_summary.json`
+- `artifacts/repair_orchestrate_demo/demo_summary.json`
+- `artifacts/repair_orchestrate_demo/demo_summary.md`
+
 ## 11. Governance Snapshot Demo
 
 Command:

@@ -150,6 +150,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertIn("repair_batch_compare_demo", payload.get("selected", {}))
         self.assertIn("repair_pack_from_tasks_demo", payload.get("selected", {}))
         self.assertIn("repair_tasks_demo", payload.get("selected", {}))
+        self.assertIn("repair_orchestrate_demo", payload.get("selected", {}))
         self.assertIn("governance_snapshot_demo", payload.get("selected", {}))
         self.assertIn("governance_snapshot_trend_demo", payload.get("selected", {}))
         self.assertIn("governance_history_demo", payload.get("selected", {}))
@@ -351,6 +352,17 @@ class DemoScriptTests(unittest.TestCase):
         payload = json.loads(Path("artifacts/repair_pack_demo/demo_summary.json").read_text(encoding="utf-8"))
         self.assertEqual(payload.get("bundle_status"), "PASS")
         self.assertGreater(payload.get("case_count", 0), 0)
+
+    def test_demo_repair_orchestrate_script(self) -> None:
+        proc = subprocess.run(
+            ["bash", "scripts/demo_repair_orchestrate.sh"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+        payload = json.loads(Path("artifacts/repair_orchestrate_demo/demo_summary.json").read_text(encoding="utf-8"))
+        self.assertEqual(payload.get("bundle_status"), "PASS")
 
     def test_demo_governance_snapshot_script(self) -> None:
         proc = subprocess.run(
