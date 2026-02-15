@@ -543,6 +543,9 @@ Promote demo shortcut:
 ```bash
 bash scripts/demo_governance_promote.sh
 ```
+The demo also includes a synthetic `recommended_profile` mismatch case:
+- default profile => `NEEDS_REVIEW`
+- industrial strict profile => `FAIL`
 
 Review ledger summary:
 

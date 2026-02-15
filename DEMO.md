@@ -476,6 +476,8 @@ What it validates:
 - compares default vs industrial strict promotion profile outcomes
 - validates human override path (`override` can force/waive promotion)
 - enforces `recommended_profile_mismatch_decision` from promotion policy
+- verifies mismatch behavior split:
+  default => `NEEDS_REVIEW`, industrial strict => `FAIL`
 
 Key outputs:
 
