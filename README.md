@@ -454,6 +454,8 @@ python -m gateforge.governance_report \
   --report artifacts/governance_snapshot_orchestrate_demo/summary.md
 cat artifacts/governance_snapshot_orchestrate_demo/summary.json
 ```
+This path also exposes `kpis.recommended_profile` and can raise
+`strategy_profile_switch_recommended` as a governance risk.
 
 With trend compare against previous snapshot:
 

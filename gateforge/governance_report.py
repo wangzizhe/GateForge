@@ -30,6 +30,8 @@ def _load_json(path: str | None) -> dict:
 def _status_from_signals(signals: dict) -> str:
     if signals.get("matrix_status") == "FAIL":
         return "FAIL"
+    if signals.get("strategy_switch_recommended"):
+        return "NEEDS_REVIEW"
     if signals.get("repair_compare_has_downgrade"):
         return "NEEDS_REVIEW"
     if signals.get("strict_non_pass_rate", 0.0) >= 0.5:
@@ -60,6 +62,7 @@ def _extract_repair_compare(repair: dict) -> dict:
     return {
         "from_policy_profile": strategy_compare.get("from_profile"),
         "to_policy_profile": strategy_compare.get("to_profile"),
+        "recommended_profile": strategy_compare.get("recommended_profile"),
         "downgrade_count": downgrade_count,
         "strict_downgrade_rate": strict_downgrade_rate,
         "strategy_compare_relation": strategy_compare.get("relation"),
@@ -113,10 +116,20 @@ def _compute_summary(repair: dict, review: dict, matrix: dict) -> dict:
     strict_non_pass_rate = float(kpis.get("strict_non_pass_rate", 0.0) or 0.0)
     review_recovery_rate = float(kpis.get("review_recovery_rate", 0.0) or 0.0)
     downgrade_count = int(repair_compare.get("downgrade_count", 0) or 0)
+    compare_from = repair_compare.get("from_policy_profile")
+    recommended_profile = repair_compare.get("recommended_profile")
+    strategy_switch_recommended = bool(
+        isinstance(compare_from, str)
+        and isinstance(recommended_profile, str)
+        and compare_from
+        and recommended_profile
+        and compare_from != recommended_profile
+    )
 
     signals = {
         "matrix_status": matrix.get("matrix_status", "UNKNOWN"),
         "repair_compare_has_downgrade": downgrade_count > 0,
+        "strategy_switch_recommended": strategy_switch_recommended,
         "strict_non_pass_rate": strict_non_pass_rate,
         "review_recovery_rate": review_recovery_rate,
     }
@@ -132,6 +145,8 @@ def _compute_summary(repair: dict, review: dict, matrix: dict) -> dict:
         risks.append("strict_non_pass_rate_high")
     if review_recovery_rate < 0.5:
         risks.append("review_recovery_rate_low")
+    if strategy_switch_recommended:
+        risks.append("strategy_profile_switch_recommended")
 
     return {
         "status": status,
@@ -140,14 +155,16 @@ def _compute_summary(repair: dict, review: dict, matrix: dict) -> dict:
             "strict_downgrade_rate": repair_compare.get("strict_downgrade_rate"),
             "downgrade_count": downgrade_count,
             "strategy_compare_relation": repair_compare.get("strategy_compare_relation"),
+            "recommended_profile": recommended_profile,
             "review_recovery_rate": review_recovery_rate,
             "strict_non_pass_rate": strict_non_pass_rate,
             "approval_rate": kpis.get("approval_rate"),
             "fail_rate": kpis.get("fail_rate"),
         },
         "policy_profiles": {
-            "compare_from": repair_compare.get("from_policy_profile"),
+            "compare_from": compare_from,
             "compare_to": repair_compare.get("to_policy_profile"),
+            "recommended_profile": recommended_profile,
             "review_counts": review.get("policy_profile_counts", {}),
         },
         "sources": {
@@ -171,6 +188,7 @@ def _write_markdown(path: str, summary: dict) -> None:
         f"- strict_downgrade_rate: `{kpis.get('strict_downgrade_rate')}`",
         f"- downgrade_count: `{kpis.get('downgrade_count')}`",
         f"- strategy_compare_relation: `{kpis.get('strategy_compare_relation')}`",
+        f"- recommended_profile: `{kpis.get('recommended_profile')}`",
         f"- review_recovery_rate: `{kpis.get('review_recovery_rate')}`",
         f"- strict_non_pass_rate: `{kpis.get('strict_non_pass_rate')}`",
         f"- approval_rate: `{kpis.get('approval_rate')}`",
