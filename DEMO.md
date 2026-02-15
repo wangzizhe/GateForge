@@ -502,8 +502,10 @@ What it validates:
 - emits score-based ranking explainability:
   - `best_total_score`
   - `best_score_breakdown`
+  - `top_score_margin`
   - `ranking` with per-profile `total_score`
 - can enforce `--require-recommended-eligible` constraint in decision selection
+- can enforce score-confidence floor via `--min-top-score-margin`
 - supports per-profile override injection via `--override-map`
 
 Key outputs:

@@ -564,11 +564,16 @@ cat artifacts/governance_promote_compare_demo/summary.json
 - `ranking[]` with `rank`, `total_score`, `score_breakdown`
 - `best_total_score` and `best_score_breakdown`
 - `best_reason` (`highest_total_score` or recommended tie-break preference)
+- `top_score_margin` (`rank1.total_score - rank2.total_score`)
 - scoring weights in `scoring`:
   - `--score-decision-weight`
   - `--score-exit-penalty`
   - `--score-reason-penalty`
   - `--score-recommended-bonus`
+
+Optional confidence gate:
+- `--min-top-score-margin N`
+- If top-vs-second margin is below `N`, final status is downgraded to `NEEDS_REVIEW` with `constraint_reason=top_score_margin_low`.
 
 When `--require-recommended-eligible` is enabled:
 - recommended profile missing from `--profiles` => `FAIL`

@@ -11,6 +11,7 @@ bash scripts/demo_governance_snapshot_from_orchestrate_compare.sh
 python3 -m gateforge.governance_promote_compare \
   --snapshot artifacts/governance_snapshot_orchestrate_demo/summary.json \
   --profiles default industrial_strict \
+  --min-top-score-margin 1 \
   --out-dir artifacts/governance_promote_compare_demo \
   --out artifacts/governance_promote_compare_demo/summary.json \
   --report artifacts/governance_promote_compare_demo/summary.md
@@ -33,6 +34,7 @@ JSON
 python3 -m gateforge.governance_promote_compare \
   --snapshot artifacts/governance_snapshot_orchestrate_demo/summary.json \
   --profiles default industrial_strict \
+  --min-top-score-margin 1 \
   --override-map artifacts/governance_promote_compare_demo/override_map.json \
   --out-dir artifacts/governance_promote_compare_demo/with_override \
   --out artifacts/governance_promote_compare_demo/summary_with_override.json \
@@ -59,6 +61,9 @@ flags = {
     "expect_override_compare_present": "PASS"
     if len(payload_override.get("profile_results", [])) == 2
     else "FAIL",
+    "expect_score_margin_present": "PASS"
+    if isinstance(payload.get("top_score_margin"), int)
+    else "FAIL",
 }
 bundle_status = "PASS" if all(v == "PASS" for v in flags.values()) else "FAIL"
 summary = {
@@ -68,6 +73,8 @@ summary = {
     "best_total_score": payload.get("best_total_score"),
     "best_reason": payload.get("best_reason"),
     "best_score_breakdown": payload.get("best_score_breakdown"),
+    "top_score_margin": payload.get("top_score_margin"),
+    "min_top_score_margin": payload.get("min_top_score_margin"),
     "recommended_profile": payload.get("recommended_profile"),
     "override_best_profile": payload_override.get("best_profile"),
     "override_best_decision": payload_override.get("best_decision"),
@@ -88,6 +95,8 @@ Path("artifacts/governance_promote_compare_demo/demo_summary.md").write_text(
             f"- best_decision: `{summary['best_decision']}`",
             f"- best_total_score: `{summary['best_total_score']}`",
             f"- best_reason: `{summary['best_reason']}`",
+            f"- top_score_margin: `{summary['top_score_margin']}`",
+            f"- min_top_score_margin: `{summary['min_top_score_margin']}`",
             f"- recommended_profile: `{summary['recommended_profile']}`",
             f"- override_best_profile: `{summary['override_best_profile']}`",
             f"- override_best_decision: `{summary['override_best_decision']}`",
@@ -106,6 +115,7 @@ Path("artifacts/governance_promote_compare_demo/demo_summary.md").write_text(
             f"- expect_best_profile_present: `{flags['expect_best_profile_present']}`",
             f"- expect_recommended_present: `{flags['expect_recommended_present']}`",
             f"- expect_override_compare_present: `{flags['expect_override_compare_present']}`",
+            f"- expect_score_margin_present: `{flags['expect_score_margin_present']}`",
             "",
         ]
     ),
