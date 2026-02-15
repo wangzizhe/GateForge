@@ -280,6 +280,100 @@ class GovernanceReportTests(unittest.TestCase):
             self.assertIn("strategy_compare_relation_transition", trend.get("kpi_delta", {}))
             self.assertIn("recommended_profile_transition", trend.get("kpi_delta", {}))
 
+    def test_governance_report_flags_invariant_repair_profile_switch(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            repair = {"profile_compare": {"downgrade_count": 0, "strict_downgrade_rate": 0.0}}
+            review = {"kpis": {"review_recovery_rate": 0.9, "strict_non_pass_rate": 0.1}}
+            matrix = {"matrix_status": "PASS"}
+            invariant = {
+                "status": "PASS",
+                "best_profile": "industrial_strict",
+                "profile_results": [
+                    {"profile": "default", "status": "PASS", "total_score": 100},
+                    {"profile": "industrial_strict", "status": "PASS", "total_score": 110},
+                ],
+                "ranking": [
+                    {"profile": "industrial_strict", "total_score": 110},
+                    {"profile": "default", "total_score": 100},
+                ],
+            }
+
+            rp = root / "repair.json"
+            lp = root / "ledger.json"
+            mp = root / "matrix.json"
+            ip = root / "invariant.json"
+            out = root / "summary.json"
+            rp.write_text(json.dumps(repair), encoding="utf-8")
+            lp.write_text(json.dumps(review), encoding="utf-8")
+            mp.write_text(json.dumps(matrix), encoding="utf-8")
+            ip.write_text(json.dumps(invariant), encoding="utf-8")
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.governance_report",
+                    "--repair-batch-summary",
+                    str(rp),
+                    "--review-ledger-summary",
+                    str(lp),
+                    "--ci-matrix-summary",
+                    str(mp),
+                    "--invariant-repair-compare-summary",
+                    str(ip),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            payload = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(payload.get("status"), "NEEDS_REVIEW")
+            self.assertIn("invariant_repair_profile_switch_recommended", payload.get("risks", []))
+            self.assertEqual(payload.get("kpis", {}).get("invariant_repair_recommended_profile"), "industrial_strict")
+            self.assertEqual(payload.get("kpis", {}).get("invariant_repair_top_score_margin"), 10)
+
+    def test_governance_report_marks_invariant_compare_fail_as_risk(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            rp = root / "repair.json"
+            lp = root / "ledger.json"
+            mp = root / "matrix.json"
+            ip = root / "invariant.json"
+            out = root / "summary.json"
+            rp.write_text(json.dumps({"profile_compare": {"downgrade_count": 0}}), encoding="utf-8")
+            lp.write_text(json.dumps({"kpis": {"review_recovery_rate": 0.9, "strict_non_pass_rate": 0.0}}), encoding="utf-8")
+            mp.write_text(json.dumps({"matrix_status": "PASS"}), encoding="utf-8")
+            ip.write_text(json.dumps({"status": "FAIL", "best_profile": "default", "profile_results": [{"profile": "default"}]}), encoding="utf-8")
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.governance_report",
+                    "--repair-batch-summary",
+                    str(rp),
+                    "--review-ledger-summary",
+                    str(lp),
+                    "--ci-matrix-summary",
+                    str(mp),
+                    "--invariant-repair-compare-summary",
+                    str(ip),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            payload = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(payload.get("status"), "NEEDS_REVIEW")
+            self.assertIn("invariant_repair_compare_failed", payload.get("risks", []))
+
 
 if __name__ == "__main__":
     unittest.main()

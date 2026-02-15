@@ -57,6 +57,61 @@ class GovernancePromoteCompareTests(unittest.TestCase):
             self.assertIsInstance(payload.get("best_score_breakdown"), dict)
             self.assertIsInstance(payload.get("ranking"), list)
             self.assertEqual(payload.get("ranking", [])[0].get("rank"), 1)
+            explanation = payload.get("decision_explanations", {})
+            self.assertEqual(
+                explanation.get("selection_priority"),
+                ["total_score", "decision", "exit_code", "recommended_profile_tiebreak"],
+            )
+            self.assertIsInstance(explanation.get("best_vs_others"), list)
+
+    def test_promote_compare_emits_pairwise_ranking_explanations(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            snapshot = root / "snapshot.json"
+            out = root / "summary.json"
+            snapshot.write_text(
+                json.dumps(
+                    {
+                        "status": "PASS",
+                        "risks": [],
+                        "kpis": {
+                            "recommended_profile": "industrial_strict",
+                            "strict_non_pass_rate": 0.0,
+                            "strict_downgrade_rate": 0.0,
+                            "review_recovery_rate": 1.0,
+                            "fail_rate": 0.0,
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.governance_promote_compare",
+                    "--snapshot",
+                    str(snapshot),
+                    "--profiles",
+                    "default",
+                    "industrial_strict",
+                    "--score-recommended-bonus",
+                    "999",
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            payload = json.loads(out.read_text(encoding="utf-8"))
+            explanations = payload.get("decision_explanations", {}).get("best_vs_others", [])
+            self.assertGreaterEqual(len(explanations), 1)
+            pair = explanations[0]
+            self.assertEqual(pair.get("winner_profile"), payload.get("best_profile"))
+            self.assertIn("score_margin", pair)
+            self.assertIsInstance(pair.get("winner_advantages"), list)
 
     def test_promote_compare_fails_when_all_profiles_fail(self) -> None:
         with tempfile.TemporaryDirectory() as d:

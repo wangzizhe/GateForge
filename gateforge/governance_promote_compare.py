@@ -109,6 +109,64 @@ def _select_best_profile(results: list[dict], recommended_profile: str | None) -
     return str(top_row.get("profile")), "highest_total_score"
 
 
+def _score_advantages(winner: dict, challenger: dict) -> list[str]:
+    winner_breakdown = winner.get("score_breakdown", {})
+    challenger_breakdown = challenger.get("score_breakdown", {})
+    if not isinstance(winner_breakdown, dict) or not isinstance(challenger_breakdown, dict):
+        return []
+    labels = [
+        "decision_component",
+        "exit_component",
+        "reasons_component",
+        "recommended_component",
+    ]
+    advantages: list[str] = []
+    for label in labels:
+        try:
+            if int(winner_breakdown.get(label, 0)) > int(challenger_breakdown.get(label, 0)):
+                advantages.append(label)
+        except (TypeError, ValueError):
+            continue
+    return advantages
+
+
+def _build_decision_explanations(
+    ranking: list[dict],
+    best_profile: str | None,
+    best_reason: str,
+) -> dict:
+    if not ranking:
+        return {
+            "best_profile": best_profile,
+            "best_reason": best_reason,
+            "selection_priority": ["total_score", "decision", "exit_code", "recommended_profile_tiebreak"],
+            "best_vs_others": [],
+        }
+    best_row = ranking[0]
+    best_total_score = int(best_row.get("total_score", 0))
+    comparisons = []
+    for row in ranking[1:]:
+        challenger_score = int(row.get("total_score", 0))
+        tie_on_total = challenger_score == best_total_score
+        comparisons.append(
+            {
+                "winner_profile": best_row.get("profile"),
+                "challenger_profile": row.get("profile"),
+                "winner_total_score": best_total_score,
+                "challenger_total_score": challenger_score,
+                "score_margin": best_total_score - challenger_score,
+                "tie_on_total_score": tie_on_total,
+                "winner_advantages": _score_advantages(best_row, row),
+            }
+        )
+    return {
+        "best_profile": best_profile,
+        "best_reason": best_reason,
+        "selection_priority": ["total_score", "decision", "exit_code", "recommended_profile_tiebreak"],
+        "best_vs_others": comparisons,
+    }
+
+
 def _write_markdown(path: str, summary: dict) -> None:
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
@@ -160,6 +218,26 @@ def _write_markdown(path: str, summary: dict) -> None:
             f"- rank={row.get('rank')} profile=`{row.get('profile')}` total_score=`{row.get('total_score')}` "
             f"decision=`{row.get('decision')}` exit_code=`{row.get('exit_code')}` reasons=`{row.get('reasons_count')}`"
         )
+    lines.extend(
+        [
+            "",
+            "## Ranking Explanation",
+            "",
+        ]
+    )
+    explanation = summary.get("decision_explanations", {})
+    if isinstance(explanation, dict):
+        lines.append(
+            f"- selection_priority: `{','.join(explanation.get('selection_priority', []))}`"
+        )
+        for row in explanation.get("best_vs_others", []):
+            lines.append(
+                f"- winner=`{row.get('winner_profile')}` vs challenger=`{row.get('challenger_profile')}` "
+                f"margin=`{row.get('score_margin')}` tie_on_total=`{row.get('tie_on_total_score')}` "
+                f"advantages=`{','.join(row.get('winner_advantages', [])) or 'none'}`"
+            )
+    else:
+        lines.append("- `none`")
     lines.extend(
         [
             "",
@@ -310,6 +388,7 @@ def main() -> None:
     best_profile, best_reason = _select_best_profile(results, recommended_profile)
     best_row = next((r for r in results if r.get("profile") == best_profile), None)
     best_decision = str(best_row.get("decision") if isinstance(best_row, dict) else "UNKNOWN")
+    decision_explanations = _build_decision_explanations(ranking, best_profile, best_reason)
 
     status = "PASS"
     if all(str(r.get("decision")).upper() == "FAIL" for r in results):
@@ -360,6 +439,7 @@ def main() -> None:
             "reason_penalty": args.score_reason_penalty,
             "recommended_bonus": args.score_recommended_bonus,
         },
+        "decision_explanations": decision_explanations,
         "ranking": ranking,
         "profile_results": results,
     }
