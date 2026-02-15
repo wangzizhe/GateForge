@@ -596,6 +596,29 @@ Promote compare demo shortcut:
 bash scripts/demo_governance_promote_compare.sh
 ```
 
+Promote apply command (apply execution action from compare summary):
+
+```bash
+python -m gateforge.governance_promote_apply \
+  --compare-summary artifacts/governance_promote_compare_demo/summary_with_override.json \
+  --review-ticket-id REV-42 \
+  --actor governance.bot \
+  --out artifacts/governance_promote_apply_demo/apply_summary.json \
+  --report artifacts/governance_promote_apply_demo/apply_summary.md \
+  --audit artifacts/governance_promote_apply_demo/decision_audit.jsonl
+```
+
+Decision behavior:
+- compare `status=PASS` -> `final_status=PASS` with `apply_action=promote`
+- compare `status=NEEDS_REVIEW` -> requires `--review-ticket-id`, else `FAIL`
+- compare `status=FAIL` -> `final_status=FAIL` with `apply_action=block`
+
+Promote apply demo shortcut:
+
+```bash
+bash scripts/demo_governance_promote_apply.sh
+```
+
 Review ledger summary:
 
 ```bash
@@ -862,13 +885,15 @@ Note: `medium_openmodelica_pass` requires Docker/OpenModelica backend access.
   This job publishes promotion decisions under default vs industrial profiles.
 - Provides an optional governance promote compare demo job (`workflow_dispatch` with `run_governance_promote_compare_demo=true`) that does not block the main job.
   This job publishes best-profile selection over multiple promotion profiles.
+- Provides an optional governance promote apply demo job (`workflow_dispatch` with `run_governance_promote_apply_demo=true`) that does not block the main job.
+  This job publishes executable promotion actions and audit ledger outputs with review-ticket enforcement.
 
 Manual trigger path in GitHub:
 
 1. Open `Actions` tab.
 2. Select `ci` workflow.
 3. Click `Run workflow`.
-4. Enable `run_benchmark` and/or `run_checker_demo` and/or `run_steady_state_demo` and/or `run_behavior_metrics_demo` and/or `run_demo_bundle` and/or `run_autopilot_dry_run` and/or `run_agent_change_loop` and/or `run_repair_loop` and/or `run_repair_loop_safety_guard` and/or `run_planner_guardrails` and/or `run_planner_output_validate_demo` and/or `run_repair_batch_demo` and/or `run_repair_batch_compare_demo` and/or `run_repair_pack_from_tasks_demo` and/or `run_repair_tasks_demo` and/or `run_repair_orchestrate_demo` and/or `run_repair_orchestrate_compare_demo` and/or `run_governance_snapshot_demo` and/or `run_governance_snapshot_orchestrate_demo` and/or `run_governance_snapshot_trend_demo` and/or `run_governance_history_demo` and/or `run_governance_promote_demo` and/or `run_governance_promote_compare_demo`.
+4. Enable `run_benchmark` and/or `run_checker_demo` and/or `run_steady_state_demo` and/or `run_behavior_metrics_demo` and/or `run_demo_bundle` and/or `run_autopilot_dry_run` and/or `run_agent_change_loop` and/or `run_repair_loop` and/or `run_repair_loop_safety_guard` and/or `run_planner_guardrails` and/or `run_planner_output_validate_demo` and/or `run_repair_batch_demo` and/or `run_repair_batch_compare_demo` and/or `run_repair_pack_from_tasks_demo` and/or `run_repair_tasks_demo` and/or `run_repair_orchestrate_demo` and/or `run_repair_orchestrate_compare_demo` and/or `run_governance_snapshot_demo` and/or `run_governance_snapshot_orchestrate_demo` and/or `run_governance_snapshot_trend_demo` and/or `run_governance_history_demo` and/or `run_governance_promote_demo` and/or `run_governance_promote_compare_demo` and/or `run_governance_promote_apply_demo`.
 5. Optional: set `demo_policy_profile` (for demo jobs) such as `industrial_strict_v0`.
 6. Run and download uploaded artifacts from the selected optional job.
 
@@ -895,6 +920,7 @@ Optional demo artifacts:
 - `governance-history-demo`
 - `governance-promote-demo`
 - `governance-promote-compare-demo`
+- `governance-promote-apply-demo`
 
 Local workflow-dispatch simulation:
 
@@ -954,6 +980,9 @@ You can include governance promote demo in local matrix with:
 
 You can include governance promote compare demo in local matrix with:
 `RUN_GOVERNANCE_PROMOTE_COMPARE_DEMO=1 bash scripts/demo_ci_matrix.sh`
+
+You can include governance promote apply demo in local matrix with:
+`RUN_GOVERNANCE_PROMOTE_APPLY_DEMO=1 bash scripts/demo_ci_matrix.sh`
 
 Operations runbook:
 - `OPERATIONS.md`

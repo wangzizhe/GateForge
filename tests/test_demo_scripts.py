@@ -159,6 +159,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertIn("planner_output_validate_demo", payload.get("selected", {}))
         self.assertIn("governance_promote_demo", payload.get("selected", {}))
         self.assertIn("governance_promote_compare_demo", payload.get("selected", {}))
+        self.assertIn("governance_promote_apply_demo", payload.get("selected", {}))
         self.assertIsInstance(payload.get("planner_guardrail_rule_ids"), list)
         self.assertIn("change_plan_confidence_min_below_threshold", payload.get("planner_guardrail_rule_ids", []))
 
@@ -458,6 +459,22 @@ class DemoScriptTests(unittest.TestCase):
         self.assertIsInstance(payload.get("min_top_score_margin"), int)
         self.assertIn(payload.get("override_best_profile"), {"default", "industrial_strict"})
         self.assertIn(payload.get("override_best_decision"), {"PASS", "NEEDS_REVIEW", "FAIL"})
+
+    def test_demo_governance_promote_apply_script(self) -> None:
+        proc = subprocess.run(
+            ["bash", "scripts/demo_governance_promote_apply.sh"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+        payload = json.loads(Path("artifacts/governance_promote_apply_demo/summary.json").read_text(encoding="utf-8"))
+        self.assertEqual(payload.get("bundle_status"), "PASS")
+        self.assertEqual(payload.get("pass_status"), "PASS")
+        self.assertEqual(payload.get("missing_ticket_status"), "FAIL")
+        self.assertEqual(payload.get("with_ticket_status"), "NEEDS_REVIEW")
+        self.assertEqual(payload.get("with_ticket_id"), "REV-42")
+        self.assertEqual(payload.get("audit_row_count"), 3)
 
     def test_demo_governance_history_script(self) -> None:
         proc = subprocess.run(
