@@ -277,6 +277,8 @@ class GovernanceReportTests(unittest.TestCase):
             self.assertEqual(trend.get("status_transition"), "PASS->NEEDS_REVIEW")
             self.assertIn("strict_profile_downgrade_detected", trend.get("new_risks", []))
             self.assertIn("kpi_delta", trend)
+            self.assertIn("strategy_compare_relation_transition", trend.get("kpi_delta", {}))
+            self.assertIn("recommended_profile_transition", trend.get("kpi_delta", {}))
 
 
 if __name__ == "__main__":

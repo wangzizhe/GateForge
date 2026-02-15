@@ -105,6 +105,8 @@ def _compute_trend(current: dict, previous: dict) -> dict:
                 _to_float(current_kpis.get("fail_rate")) - _to_float(prev_kpis.get("fail_rate")),
                 4,
             ),
+            "strategy_compare_relation_transition": f"{current_kpis.get('strategy_compare_relation')}<-{prev_kpis.get('strategy_compare_relation')}",
+            "recommended_profile_transition": f"{current_kpis.get('recommended_profile')}<-{prev_kpis.get('recommended_profile')}",
         },
     }
 
