@@ -13,6 +13,7 @@ class RepairOrchestrateTests(unittest.TestCase):
             source = root / "source_fail.json"
             out_dir = root / "out"
             out = root / "summary.json"
+            report = root / "summary.md"
             source.write_text(
                 json.dumps(
                     {
@@ -43,6 +44,8 @@ class RepairOrchestrateTests(unittest.TestCase):
                     str(out_dir),
                     "--out",
                     str(out),
+                    "--report",
+                    str(report),
                 ],
                 capture_output=True,
                 text=True,
@@ -54,6 +57,7 @@ class RepairOrchestrateTests(unittest.TestCase):
             self.assertTrue((out_dir / "tasks.json").exists())
             self.assertTrue((out_dir / "pack.json").exists())
             self.assertTrue((out_dir / "batch_summary.json").exists())
+            self.assertTrue(report.exists())
 
     def test_repair_orchestrate_compare_profiles_pass(self) -> None:
         with tempfile.TemporaryDirectory() as d:
@@ -61,6 +65,7 @@ class RepairOrchestrateTests(unittest.TestCase):
             source = root / "source_fail.json"
             out_dir = root / "out"
             out = root / "summary_compare.json"
+            report = root / "summary_compare.md"
             source.write_text(
                 json.dumps(
                     {
@@ -92,6 +97,8 @@ class RepairOrchestrateTests(unittest.TestCase):
                     str(out_dir),
                     "--out",
                     str(out),
+                    "--report",
+                    str(report),
                 ],
                 capture_output=True,
                 text=True,
@@ -107,7 +114,10 @@ class RepairOrchestrateTests(unittest.TestCase):
             self.assertEqual(compare_delta.get("from_profile"), "default")
             self.assertEqual(compare_delta.get("to_profile"), "industrial_strict")
             self.assertIn(compare_delta.get("relation"), {"upgraded", "unchanged", "downgraded"})
+            self.assertIn(compare_delta.get("recommended_profile"), {"default", "industrial_strict"})
+            self.assertIsInstance(compare_delta.get("recommendation_reason"), str)
             self.assertTrue((out_dir / "compare_industrial_strict" / "tasks.json").exists())
+            self.assertTrue(report.exists())
 
     def test_repair_orchestrate_compare_profiles_fail_if_compare_side_fails(self) -> None:
         with tempfile.TemporaryDirectory() as d:
@@ -115,6 +125,7 @@ class RepairOrchestrateTests(unittest.TestCase):
             source = root / "source_fail.json"
             out_dir = root / "out"
             out = root / "summary_compare_fail.json"
+            report = root / "summary_compare_fail.md"
             source.write_text(
                 json.dumps(
                     {
@@ -146,6 +157,8 @@ class RepairOrchestrateTests(unittest.TestCase):
                     str(out_dir),
                     "--out",
                     str(out),
+                    "--report",
+                    str(report),
                 ],
                 capture_output=True,
                 text=True,
@@ -159,6 +172,7 @@ class RepairOrchestrateTests(unittest.TestCase):
             self.assertEqual(compare.get("status"), "FAIL")
             self.assertIn("repair_pack", compare.get("step_exit_codes", {}))
             self.assertNotEqual(compare.get("step_exit_codes", {}).get("repair_pack"), 0)
+            self.assertTrue(report.exists())
 
 
 if __name__ == "__main__":

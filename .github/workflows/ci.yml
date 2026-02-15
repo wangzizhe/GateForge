@@ -1291,6 +1291,7 @@ jobs:
                   f"- primary_batch_status: `{payload.get('primary_batch_status')}`",
                   f"- compare_batch_status: `{payload.get('compare_batch_status')}`",
                   f"- compare_relation: `{payload.get('compare_relation')}`",
+                  f"- recommended_profile: `{payload.get('recommended_profile')}`",
                   "",
               ]
               text = "\n".join(lines)
@@ -1309,6 +1310,7 @@ jobs:
           name: repair-orchestrate-compare-demo
           path: |
             artifacts/repair_orchestrate_compare_demo/summary.json
+            artifacts/repair_orchestrate_compare_demo/summary.md
             artifacts/repair_orchestrate_compare_demo/tasks.json
             artifacts/repair_orchestrate_compare_demo/tasks.md
             artifacts/repair_orchestrate_compare_demo/pack.json

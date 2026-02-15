@@ -377,10 +377,12 @@ What it validates:
 
 - runs the same failure source through two strategy profiles (`default` vs `industrial_strict`)
 - emits profile-to-profile batch status comparison (`upgraded|unchanged|downgraded`)
+- emits `recommended_profile` for operator-side selection decision
 
 Key outputs:
 
 - `artifacts/repair_orchestrate_compare_demo/summary.json`
+- `artifacts/repair_orchestrate_compare_demo/summary.md`
 - `artifacts/repair_orchestrate_compare_demo/demo_summary.json`
 - `artifacts/repair_orchestrate_compare_demo/demo_summary.md`
 

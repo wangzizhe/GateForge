@@ -28,9 +28,11 @@ python3 -m gateforge.repair_orchestrate \
   --compare-strategy-profiles default industrial_strict \
   --baseline baselines/mock_minimal_probe_baseline.json \
   --out-dir artifacts/repair_orchestrate_compare_demo \
-  --out artifacts/repair_orchestrate_compare_demo/summary.json
+  --out artifacts/repair_orchestrate_compare_demo/summary.json \
+  --report artifacts/repair_orchestrate_compare_demo/summary.md
 
 cat artifacts/repair_orchestrate_compare_demo/summary.json
+cat artifacts/repair_orchestrate_compare_demo/summary.md
 
 python3 - <<'PY'
 import json
@@ -45,6 +47,9 @@ flags = {
     else "FAIL",
     "expect_primary_status_pass": "PASS" if summary.get("primary", {}).get("status") == "PASS" else "FAIL",
     "expect_compare_status_pass": "PASS" if summary.get("compare", {}).get("status") == "PASS" else "FAIL",
+    "expect_recommended_profile_present": "PASS"
+    if isinstance(compare.get("recommended_profile"), str) and compare.get("recommended_profile")
+    else "FAIL",
 }
 bundle_status = "PASS" if all(v == "PASS" for v in flags.values()) else "FAIL"
 demo = {
@@ -52,6 +57,7 @@ demo = {
     "primary_batch_status": summary.get("primary", {}).get("batch_status"),
     "compare_batch_status": summary.get("compare", {}).get("batch_status"),
     "compare_relation": compare.get("relation"),
+    "recommended_profile": compare.get("recommended_profile"),
     "result_flags": flags,
     "bundle_status": bundle_status,
 }
@@ -67,6 +73,7 @@ Path("artifacts/repair_orchestrate_compare_demo/demo_summary.md").write_text(
             f"- primary_batch_status: `{demo['primary_batch_status']}`",
             f"- compare_batch_status: `{demo['compare_batch_status']}`",
             f"- compare_relation: `{demo['compare_relation']}`",
+            f"- recommended_profile: `{demo['recommended_profile']}`",
             f"- bundle_status: `{demo['bundle_status']}`",
             "",
             "## Result Flags",
@@ -75,6 +82,7 @@ Path("artifacts/repair_orchestrate_compare_demo/demo_summary.md").write_text(
             f"- expect_profiles_match: `{flags['expect_profiles_match']}`",
             f"- expect_primary_status_pass: `{flags['expect_primary_status_pass']}`",
             f"- expect_compare_status_pass: `{flags['expect_compare_status_pass']}`",
+            f"- expect_recommended_profile_present: `{flags['expect_recommended_profile_present']}`",
             "",
         ]
     ),
