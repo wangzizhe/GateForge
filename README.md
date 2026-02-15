@@ -683,6 +683,24 @@ Demo shortcut:
 bash scripts/demo_repair_pack_from_tasks.sh
 ```
 
+Run full pipeline in one command (`repair_tasks -> repair_pack -> repair_batch`):
+
+```bash
+python -m gateforge.repair_orchestrate \
+  --source artifacts/repair_orchestrate_demo/source_fail.json \
+  --strategy-profile default \
+  --baseline baselines/mock_minimal_probe_baseline.json \
+  --out-dir artifacts/repair_orchestrate_demo \
+  --out artifacts/repair_orchestrate_demo/summary.json
+cat artifacts/repair_orchestrate_demo/summary.json
+```
+
+Demo shortcut:
+
+```bash
+bash scripts/demo_repair_orchestrate.sh
+```
+
 Agent medium intent (OpenModelica medium case):
 
 ```bash
@@ -730,6 +748,8 @@ Note: `medium_openmodelica_pass` requires Docker/OpenModelica backend access.
   This job validates auto-generated repair packs from repair task summaries.
 - Provides an optional repair tasks demo job (`workflow_dispatch` with `run_repair_tasks_demo=true`) that does not block the main job.
   This job publishes operator-facing repair checklist summary from failed governance evidence.
+- Provides an optional repair-orchestrate demo job (`workflow_dispatch` with `run_repair_orchestrate_demo=true`) that does not block the main job.
+  This job validates the one-command repair pipeline from fail summary to batch results.
 - Provides an optional governance snapshot demo job (`workflow_dispatch` with `run_governance_snapshot_demo=true`) that does not block the main job.
   This job publishes a single governance status view and top KPI/risk signals.
 - Provides an optional governance snapshot trend demo job (`workflow_dispatch` with `run_governance_snapshot_trend_demo=true`) that does not block the main job.
@@ -744,7 +764,7 @@ Manual trigger path in GitHub:
 1. Open `Actions` tab.
 2. Select `ci` workflow.
 3. Click `Run workflow`.
-4. Enable `run_benchmark` and/or `run_checker_demo` and/or `run_steady_state_demo` and/or `run_behavior_metrics_demo` and/or `run_demo_bundle` and/or `run_autopilot_dry_run` and/or `run_agent_change_loop` and/or `run_repair_loop` and/or `run_repair_loop_safety_guard` and/or `run_planner_guardrails` and/or `run_planner_output_validate_demo` and/or `run_repair_batch_demo` and/or `run_repair_batch_compare_demo` and/or `run_repair_pack_from_tasks_demo` and/or `run_repair_tasks_demo` and/or `run_governance_snapshot_demo` and/or `run_governance_snapshot_trend_demo` and/or `run_governance_history_demo` and/or `run_governance_promote_demo`.
+4. Enable `run_benchmark` and/or `run_checker_demo` and/or `run_steady_state_demo` and/or `run_behavior_metrics_demo` and/or `run_demo_bundle` and/or `run_autopilot_dry_run` and/or `run_agent_change_loop` and/or `run_repair_loop` and/or `run_repair_loop_safety_guard` and/or `run_planner_guardrails` and/or `run_planner_output_validate_demo` and/or `run_repair_batch_demo` and/or `run_repair_batch_compare_demo` and/or `run_repair_pack_from_tasks_demo` and/or `run_repair_tasks_demo` and/or `run_repair_orchestrate_demo` and/or `run_governance_snapshot_demo` and/or `run_governance_snapshot_trend_demo` and/or `run_governance_history_demo` and/or `run_governance_promote_demo`.
 5. Optional: set `demo_policy_profile` (for demo jobs) such as `industrial_strict_v0`.
 6. Run and download uploaded artifacts from the selected optional job.
 
@@ -763,6 +783,7 @@ Optional demo artifacts:
 - `repair-batch-compare-demo`
 - `repair-pack-from-tasks-demo`
 - `repair-tasks-demo`
+- `repair-orchestrate-demo`
 - `governance-snapshot-demo`
 - `governance-snapshot-trend-demo`
 - `governance-history-demo`
@@ -802,6 +823,9 @@ You can include repair-pack-from-tasks demo in local matrix with:
 
 You can include repair tasks demo in local matrix with:
 `RUN_REPAIR_TASKS_DEMO=1 bash scripts/demo_ci_matrix.sh`
+
+You can include repair orchestrate demo in local matrix with:
+`RUN_REPAIR_ORCHESTRATE_DEMO=1 bash scripts/demo_ci_matrix.sh`
 
 You can include governance snapshot demo in local matrix with:
 `RUN_GOVERNANCE_SNAPSHOT_DEMO=1 bash scripts/demo_ci_matrix.sh`
