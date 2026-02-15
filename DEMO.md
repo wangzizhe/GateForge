@@ -516,6 +516,29 @@ Key outputs:
 - `artifacts/governance_promote_compare_demo/summary.md`
 - `artifacts/governance_promote_compare_demo/demo_summary.json`
 
+## 14.2 Governance Promote Apply Demo
+
+Command:
+
+```bash
+bash scripts/demo_governance_promote_apply.sh
+```
+
+What it validates:
+
+- executes governance action from compare summary (`promote` / `hold_for_review` / `block`)
+- enforces ticket requirement: `NEEDS_REVIEW` without `review_ticket_id` => `FAIL`
+- writes append-only decision audit ledger (`decision_audit.jsonl`)
+
+Key outputs:
+
+- `artifacts/governance_promote_apply_demo/pass_apply.json`
+- `artifacts/governance_promote_apply_demo/review_missing_ticket.json`
+- `artifacts/governance_promote_apply_demo/review_with_ticket.json`
+- `artifacts/governance_promote_apply_demo/decision_audit.jsonl`
+- `artifacts/governance_promote_apply_demo/summary.json`
+- `artifacts/governance_promote_apply_demo/summary.md`
+
 Schema reference:
 
 - `schemas/demo_bundle_summary.schema.json`
@@ -559,6 +582,9 @@ Optional toggles (env vars):
 - `RUN_GOVERNANCE_SNAPSHOT_DEMO=0|1`
 - `RUN_GOVERNANCE_SNAPSHOT_TREND_DEMO=0|1`
 - `RUN_GOVERNANCE_HISTORY_DEMO=0|1`
+- `RUN_GOVERNANCE_PROMOTE_DEMO=0|1`
+- `RUN_GOVERNANCE_PROMOTE_COMPARE_DEMO=0|1`
+- `RUN_GOVERNANCE_PROMOTE_APPLY_DEMO=0|1`
 - `RUN_BENCHMARK=0|1` (default `0`)
 
 ## 8. Agent Change Safety Loop Demo
