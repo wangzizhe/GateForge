@@ -1,0 +1,11 @@
+{
+  "name": "industrial_strict",
+  "version": "0.1.0-industrial",
+  "planner_change_plan_confidence_min": 0.92,
+  "allowed_files": [
+    "examples/openmodelica/MinimalProbe.mo"
+  ],
+  "risk_level_remap": {
+    "high": "high"
+  }
+}

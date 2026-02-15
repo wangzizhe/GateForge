@@ -7,6 +7,8 @@ from pathlib import Path
 INVARIANT_REASON_PREFIX = "physical_invariant_"
 DEFAULT_ALLOWED_FILES = ("examples/openmodelica/MinimalProbe.mo",)
 DEFAULT_CONFIDENCE_MIN = 0.8
+INVARIANT_REPAIR_PROFILE_DIR = Path("policies/invariant_repair")
+DEFAULT_INVARIANT_REPAIR_PROFILE = "default"
 
 
 def _write_json(path: str, payload: dict) -> None:
@@ -66,6 +68,26 @@ def collect_reasons(payload: dict) -> list[str]:
     return []
 
 
+def resolve_invariant_repair_profile_path(profile: str | None, profile_path: str | None) -> str:
+    if profile and profile_path:
+        raise ValueError("Use either --profile or --profile-path, not both")
+    if profile_path:
+        return profile_path
+    name = profile or DEFAULT_INVARIANT_REPAIR_PROFILE
+    filename = name if name.endswith(".json") else f"{name}.json"
+    resolved = INVARIANT_REPAIR_PROFILE_DIR / filename
+    if not resolved.exists():
+        raise ValueError(f"Invariant repair profile not found: {resolved}")
+    return str(resolved)
+
+
+def load_profile(path: str) -> dict:
+    payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError(f"Expected profile JSON object: {path}")
+    return payload
+
+
 def source_kind(payload: dict) -> str:
     if "policy_decision" in payload and "fail_reasons" in payload:
         return "run_summary"
@@ -93,6 +115,9 @@ def build_invariant_repair_plan(
     *,
     allowed_files: list[str] | None = None,
     confidence_min: float = DEFAULT_CONFIDENCE_MIN,
+    profile_name: str = DEFAULT_INVARIANT_REPAIR_PROFILE,
+    profile_version: str | None = None,
+    risk_level_remap: dict | None = None,
 ) -> dict:
     reasons = collect_reasons(source)
     invariant_reasons = [r for r in reasons if r.startswith(INVARIANT_REASON_PREFIX)]
@@ -100,7 +125,8 @@ def build_invariant_repair_plan(
     invariants = _extract_invariants(source)
     allowed = list(allowed_files) if allowed_files else list(DEFAULT_ALLOWED_FILES)
     src_risk = str(source.get("risk_level") or "low").lower()
-    planned_risk = "medium" if src_risk == "high" else src_risk
+    remap = risk_level_remap or {"high": "medium"}
+    planned_risk = str(remap.get(src_risk, src_risk))
     goal = (
         "Repair physical invariant violations and rerun governance gate. "
         "Keep change-set narrow and deterministic."
@@ -118,6 +144,8 @@ def build_invariant_repair_plan(
         context_json["checker_config"] = {"invariant_guard": {"invariants": invariants}}
 
     return {
+        "profile_name": profile_name,
+        "profile_version": profile_version,
         "source_kind": source_kind(source),
         "source_proposal_id": source.get("proposal_id"),
         "source_status": source.get("status") or source.get("decision"),
@@ -136,12 +164,14 @@ def build_invariant_repair_plan(
 def main() -> None:
     parser = argparse.ArgumentParser(description="Build invariant-repair plan from failed run/regression summary")
     parser.add_argument("--source", required=True, help="Path to failed run/regression summary JSON")
+    parser.add_argument("--profile", default=DEFAULT_INVARIANT_REPAIR_PROFILE, help="Invariant repair profile name")
+    parser.add_argument("--profile-path", default=None, help="Explicit invariant repair profile JSON path")
     parser.add_argument("--allowed-file", action="append", default=None, help="Allowed file whitelist (repeatable)")
     parser.add_argument(
         "--confidence-min",
         type=float,
-        default=DEFAULT_CONFIDENCE_MIN,
-        help="Planner min confidence for invariant repair plan",
+        default=None,
+        help="Planner min confidence override for invariant repair plan",
     )
     parser.add_argument("--out", default="artifacts/invariant_repair/plan.json", help="Output plan JSON path")
     parser.add_argument("--report", default=None, help="Output markdown report path")
@@ -151,12 +181,32 @@ def main() -> None:
     if not isinstance(source, dict):
         raise SystemExit("source must be a JSON object")
 
+    profile_path = resolve_invariant_repair_profile_path(args.profile, args.profile_path)
+    profile_payload = load_profile(profile_path)
+    allowed_files = args.allowed_file
+    if allowed_files is None:
+        cfg_files = profile_payload.get("allowed_files")
+        if isinstance(cfg_files, list):
+            allowed_files = [str(item) for item in cfg_files if isinstance(item, str)]
+    resolved_confidence = args.confidence_min
+    if resolved_confidence is None:
+        cfg_conf = profile_payload.get("planner_change_plan_confidence_min")
+        if isinstance(cfg_conf, (int, float)):
+            resolved_confidence = float(cfg_conf)
+    if resolved_confidence is None:
+        resolved_confidence = DEFAULT_CONFIDENCE_MIN
+
     plan = build_invariant_repair_plan(
         source,
-        allowed_files=args.allowed_file,
-        confidence_min=float(args.confidence_min),
+        allowed_files=allowed_files,
+        confidence_min=float(resolved_confidence),
+        profile_name=str(profile_payload.get("name") or args.profile),
+        profile_version=str(profile_payload.get("version")) if profile_payload.get("version") is not None else None,
+        risk_level_remap=profile_payload.get("risk_level_remap")
+        if isinstance(profile_payload.get("risk_level_remap"), dict)
+        else None,
     )
-    summary = {"source_path": args.source, **plan}
+    summary = {"source_path": args.source, "profile_path": profile_path, **plan}
     _write_json(args.out, summary)
     _write_markdown(args.report or _default_md_path(args.out), summary)
     print(

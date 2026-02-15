@@ -588,6 +588,27 @@ Key outputs:
 - `artifacts/invariant_repair_loop_demo/demo_summary.json`
 - `artifacts/invariant_repair_loop_demo/demo_summary.md`
 
+## 17. Invariant Repair Profile Compare Demo
+
+Command:
+
+```bash
+bash scripts/demo_invariant_repair_profile_compare.sh
+```
+
+What it validates:
+
+- compares default vs industrial invariant-repair profiles on the same source fail summary
+- surfaces profile-driven confidence guard differences (`planner_change_plan_confidence_min`)
+- emits profile relation (`upgraded` / `downgraded` / `unchanged`) for governance discussion
+
+Key outputs:
+
+- `artifacts/invariant_repair_profile_compare_demo/default.json`
+- `artifacts/invariant_repair_profile_compare_demo/industrial.json`
+- `artifacts/invariant_repair_profile_compare_demo/summary.json`
+- `artifacts/invariant_repair_profile_compare_demo/summary.md`
+
 Schema reference:
 
 - `schemas/demo_bundle_summary.schema.json`

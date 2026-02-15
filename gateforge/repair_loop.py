@@ -7,7 +7,11 @@ import sys
 import tempfile
 from pathlib import Path
 
-from .invariant_repair import build_invariant_repair_plan
+from .invariant_repair import (
+    build_invariant_repair_plan,
+    load_profile as load_invariant_repair_profile,
+    resolve_invariant_repair_profile_path,
+)
 from .policy import load_policy, resolve_policy_path
 
 
@@ -44,6 +48,9 @@ def _write_markdown(path: str, summary: dict) -> None:
         f"- invariant_repair_detected: `{summary.get('invariant_repair_detected')}`",
         f"- invariant_repair_applied: `{summary.get('invariant_repair_applied')}`",
         f"- invariant_repair_reason_count: `{summary.get('invariant_repair_reason_count')}`",
+        f"- invariant_repair_profile: `{summary.get('invariant_repair_profile')}`",
+        f"- invariant_repair_profile_version: `{summary.get('invariant_repair_profile_version')}`",
+        f"- invariant_repair_profile_path: `{summary.get('invariant_repair_profile_path')}`",
         f"- retry_used: `{summary.get('retry_used')}`",
         f"- max_retries: `{summary.get('max_retries')}`",
         f"- retry_budget_source: `{summary.get('retry_budget_source')}`",
@@ -248,6 +255,16 @@ def main() -> None:
         help="Allowed file whitelist for auto invariant repair (repeatable)",
     )
     parser.add_argument(
+        "--invariant-repair-profile",
+        default="default",
+        help="Invariant repair profile name under policies/invariant_repair",
+    )
+    parser.add_argument(
+        "--invariant-repair-profile-path",
+        default=None,
+        help="Explicit invariant repair profile JSON path",
+    )
+    parser.add_argument(
         "--retry-on-failed-attempt",
         action=argparse.BooleanOptionalAction,
         default=True,
@@ -312,9 +329,22 @@ def main() -> None:
     }
     effective_allowed_files = list(args.planner_change_plan_allowed_file or [])
     effective_conf_min = float(args.planner_change_plan_confidence_min)
+    invariant_profile_path = resolve_invariant_repair_profile_path(
+        args.invariant_repair_profile,
+        args.invariant_repair_profile_path,
+    )
+    invariant_profile = load_invariant_repair_profile(invariant_profile_path)
     invariant_plan = build_invariant_repair_plan(
         source_payload,
         allowed_files=args.invariant_repair_allowed_file,
+        confidence_min=float(invariant_profile.get("planner_change_plan_confidence_min", 0.8)),
+        profile_name=str(invariant_profile.get("name") or args.invariant_repair_profile),
+        profile_version=str(invariant_profile.get("version"))
+        if invariant_profile.get("version") is not None
+        else None,
+        risk_level_remap=invariant_profile.get("risk_level_remap")
+        if isinstance(invariant_profile.get("risk_level_remap"), dict)
+        else None,
     )
     if args.auto_invariant_repair and invariant_plan.get("invariant_repair_applied"):
         if args.goal is None:
@@ -524,6 +554,9 @@ def main() -> None:
         "invariant_repair_applied": bool(args.auto_invariant_repair and invariant_plan.get("invariant_repair_applied")),
         "invariant_repair_reason_count": int(invariant_plan.get("invariant_reason_count") or 0),
         "invariant_reasons": invariant_plan.get("invariant_reasons", []),
+        "invariant_repair_profile": invariant_plan.get("profile_name"),
+        "invariant_repair_profile_version": invariant_plan.get("profile_version"),
+        "invariant_repair_profile_path": invariant_profile_path,
         "planner_guardrail_decision": after_payload.get("planner_guardrail_decision"),
         "planner_guardrail_violations": after_payload.get("planner_guardrail_violations", []),
         "planner_guardrail_violation_objects": after_payload.get("planner_guardrail_violation_objects", []),

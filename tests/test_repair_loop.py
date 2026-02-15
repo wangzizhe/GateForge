@@ -365,6 +365,54 @@ class RepairLoopTests(unittest.TestCase):
             self.assertTrue(payload.get("invariant_repair_applied"))
             self.assertGreaterEqual(payload.get("invariant_repair_reason_count", 0), 1)
             self.assertIn("examples/openmodelica/MinimalProbe.mo", payload.get("planner_change_plan_allowed_files", []))
+            self.assertEqual(payload.get("invariant_repair_profile"), "default")
+            self.assertEqual(payload.get("invariant_repair_profile_version"), "0.1.0")
+
+    def test_repair_loop_invariant_profile_strict(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            source = root / "source_invariant_fail.json"
+            baseline = root / "baseline.json"
+            out = root / "repair_summary_invariant_strict.json"
+            source.write_text(
+                json.dumps(
+                    {
+                        "proposal_id": "proposal-invariant-002",
+                        "risk_level": "high",
+                        "status": "FAIL",
+                        "policy_decision": "FAIL",
+                        "policy_reasons": ["physical_invariant_range_violated:steady_state_error"],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            self._write_baseline(baseline, backend="mock")
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.repair_loop",
+                    "--source",
+                    str(source),
+                    "--planner-backend",
+                    "rule",
+                    "--invariant-repair-profile",
+                    "industrial_strict",
+                    "--baseline",
+                    str(baseline),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertIn(proc.returncode, {0, 1}, msg=proc.stderr or proc.stdout)
+            payload = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(payload.get("invariant_repair_profile"), "industrial_strict")
+            self.assertEqual(payload.get("invariant_repair_profile_version"), "0.1.0-industrial")
+            self.assertGreaterEqual(float(payload.get("planner_change_plan_confidence_min", 0.0)), 0.92)
 
 
 if __name__ == "__main__":
