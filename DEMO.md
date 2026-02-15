@@ -539,6 +539,34 @@ Key outputs:
 - `artifacts/governance_promote_apply_demo/summary.json`
 - `artifacts/governance_promote_apply_demo/summary.md`
 
+Strict mode toggle (same demo, strict explanation requirement):
+
+```bash
+PROMOTE_APPLY_REQUIRE_RANKING_EXPLANATION=1 bash scripts/demo_governance_promote_apply.sh
+```
+
+## 14.3 Governance Promote Apply Strict Guard Demo
+
+Command:
+
+```bash
+bash scripts/demo_governance_promote_apply_strict_guard.sh
+```
+
+What it validates:
+
+- strict apply gate rejects PASS compare summary when ranking explanation is missing
+- strict apply gate allows PASS compare summary when explanation exists
+- both decisions are written to append-only audit ledger
+
+Key outputs:
+
+- `artifacts/governance_promote_apply_strict_guard_demo/apply_without_explanation.json`
+- `artifacts/governance_promote_apply_strict_guard_demo/apply_with_explanation.json`
+- `artifacts/governance_promote_apply_strict_guard_demo/decision_audit.jsonl`
+- `artifacts/governance_promote_apply_strict_guard_demo/summary.json`
+- `artifacts/governance_promote_apply_strict_guard_demo/summary.md`
+
 ## 15. Agent Invariant Guard Demo
 
 Command:

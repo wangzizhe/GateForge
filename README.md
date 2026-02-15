@@ -664,6 +664,12 @@ Strict ranking-explanation gate for demo:
 PROMOTE_APPLY_REQUIRE_RANKING_EXPLANATION=1 bash scripts/demo_governance_promote_apply.sh
 ```
 
+Strict guard behavior demo (missing explanation -> fail, present explanation -> pass):
+
+```bash
+bash scripts/demo_governance_promote_apply_strict_guard.sh
+```
+
 Review ledger summary:
 
 ```bash
@@ -933,6 +939,7 @@ Note: `medium_openmodelica_pass` requires Docker/OpenModelica backend access.
 - Provides an optional governance promote apply demo job (`workflow_dispatch` with `run_governance_promote_apply_demo=true`) that does not block the main job.
   This job publishes executable promotion actions and audit ledger outputs with review-ticket enforcement.
   The job runs with strict ranking explanation gate enabled (`PROMOTE_APPLY_REQUIRE_RANKING_EXPLANATION=1`).
+  It also runs and uploads strict-guard behavior evidence (`missing explanation -> FAIL`, `with explanation -> PASS`).
 - Provides an optional agent invariant-guard demo job (`workflow_dispatch` with `run_agent_invariant_guard_demo=true`) that does not block the main job.
   This job publishes PASS/NEEDS_REVIEW/FAIL outcomes for proposal-level physical invariants.
 - Provides an optional invariant repair-loop demo job (`workflow_dispatch` with `run_invariant_repair_loop_demo=true`) that does not block the main job.
@@ -1043,6 +1050,11 @@ You can force strict ranking-explanation guard in promote-apply jobs with:
 `PROMOTE_APPLY_REQUIRE_RANKING_EXPLANATION=1 bash scripts/demo_ci_matrix.sh`
 or CLI toggle:
 `bash scripts/demo_ci_matrix.sh --promote-apply-strict-ranking`
+
+You can include strict-guard behavior demo in local matrix with:
+`RUN_GOVERNANCE_PROMOTE_APPLY_STRICT_GUARD_DEMO=1 bash scripts/demo_ci_matrix.sh`
+or CLI toggle:
+`bash scripts/demo_ci_matrix.sh --governance-promote-apply-strict-guard-demo`
 
 You can include agent invariant guard demo in local matrix with:
 `RUN_AGENT_INVARIANT_GUARD_DEMO=1 bash scripts/demo_ci_matrix.sh`
