@@ -433,6 +433,8 @@ class DemoScriptTests(unittest.TestCase):
         self.assertIn(payload.get("default_decision"), {"PASS", "NEEDS_REVIEW"})
         self.assertEqual(payload.get("industrial_decision"), "FAIL")
         self.assertEqual(payload.get("override_decision"), "PASS")
+        self.assertEqual(payload.get("mismatch_default_decision"), "NEEDS_REVIEW")
+        self.assertEqual(payload.get("mismatch_industrial_decision"), "FAIL")
         self.assertTrue(payload.get("override_applied"))
 
     def test_demo_governance_history_script(self) -> None:
