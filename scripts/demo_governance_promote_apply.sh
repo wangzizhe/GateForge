@@ -4,17 +4,25 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
+PROMOTE_APPLY_REQUIRE_RANKING_EXPLANATION="${PROMOTE_APPLY_REQUIRE_RANKING_EXPLANATION:-0}"
+
 mkdir -p artifacts/governance_promote_apply_demo
 rm -f artifacts/governance_promote_apply_demo/*.json artifacts/governance_promote_apply_demo/*.md artifacts/governance_promote_apply_demo/*.jsonl
 
 bash scripts/demo_governance_promote_compare.sh
 
-python3 -m gateforge.governance_promote_apply \
-  --compare-summary artifacts/governance_promote_compare_demo/summary_with_override.json \
-  --actor governance.bot \
-  --out artifacts/governance_promote_apply_demo/pass_apply.json \
-  --report artifacts/governance_promote_apply_demo/pass_apply.md \
+cmd=(
+  python3 -m gateforge.governance_promote_apply
+  --compare-summary artifacts/governance_promote_compare_demo/summary_with_override.json
+  --actor governance.bot
+  --out artifacts/governance_promote_apply_demo/pass_apply.json
+  --report artifacts/governance_promote_apply_demo/pass_apply.md
   --audit artifacts/governance_promote_apply_demo/decision_audit.jsonl
+)
+if [[ "$PROMOTE_APPLY_REQUIRE_RANKING_EXPLANATION" == "1" ]]; then
+  cmd+=(--require-ranking-explanation)
+fi
+"${cmd[@]}"
 
 python3 - <<'PY'
 import json
@@ -31,12 +39,18 @@ Path("artifacts/governance_promote_apply_demo/synthetic_needs_review_compare.jso
 PY
 
 set +e
-python3 -m gateforge.governance_promote_apply \
-  --compare-summary artifacts/governance_promote_apply_demo/synthetic_needs_review_compare.json \
-  --actor governance.bot \
-  --out artifacts/governance_promote_apply_demo/review_missing_ticket.json \
-  --report artifacts/governance_promote_apply_demo/review_missing_ticket.md \
+cmd=(
+  python3 -m gateforge.governance_promote_apply
+  --compare-summary artifacts/governance_promote_apply_demo/synthetic_needs_review_compare.json
+  --actor governance.bot
+  --out artifacts/governance_promote_apply_demo/review_missing_ticket.json
+  --report artifacts/governance_promote_apply_demo/review_missing_ticket.md
   --audit artifacts/governance_promote_apply_demo/decision_audit.jsonl
+)
+if [[ "$PROMOTE_APPLY_REQUIRE_RANKING_EXPLANATION" == "1" ]]; then
+  cmd+=(--require-ranking-explanation)
+fi
+"${cmd[@]}"
 MISSING_TICKET_RC=$?
 set -e
 if [[ "$MISSING_TICKET_RC" -ne 1 ]]; then
@@ -44,13 +58,19 @@ if [[ "$MISSING_TICKET_RC" -ne 1 ]]; then
   exit 1
 fi
 
-python3 -m gateforge.governance_promote_apply \
-  --compare-summary artifacts/governance_promote_apply_demo/synthetic_needs_review_compare.json \
-  --review-ticket-id REV-42 \
-  --actor governance.bot \
-  --out artifacts/governance_promote_apply_demo/review_with_ticket.json \
-  --report artifacts/governance_promote_apply_demo/review_with_ticket.md \
+cmd=(
+  python3 -m gateforge.governance_promote_apply
+  --compare-summary artifacts/governance_promote_apply_demo/synthetic_needs_review_compare.json
+  --review-ticket-id REV-42
+  --actor governance.bot
+  --out artifacts/governance_promote_apply_demo/review_with_ticket.json
+  --report artifacts/governance_promote_apply_demo/review_with_ticket.md
   --audit artifacts/governance_promote_apply_demo/decision_audit.jsonl
+)
+if [[ "$PROMOTE_APPLY_REQUIRE_RANKING_EXPLANATION" == "1" ]]; then
+  cmd+=(--require-ranking-explanation)
+fi
+"${cmd[@]}"
 
 python3 - <<'PY'
 import json
@@ -83,6 +103,7 @@ flags = {
 bundle_status = "PASS" if all(v == "PASS" for v in flags.values()) else "FAIL"
 
 summary = {
+    "require_ranking_explanation": pass_payload.get("require_ranking_explanation"),
     "pass_status": pass_payload.get("final_status"),
     "pass_ranking_selection_priority": pass_payload.get("ranking_selection_priority"),
     "pass_ranking_best_vs_others_count": len(pass_payload.get("ranking_best_vs_others") or []),
@@ -100,6 +121,7 @@ Path("artifacts/governance_promote_apply_demo/summary.md").write_text(
         [
             "# Governance Promote Apply Demo",
             "",
+            f"- require_ranking_explanation: `{summary.get('require_ranking_explanation')}`",
             f"- pass_status: `{summary['pass_status']}`",
             f"- pass_ranking_selection_priority: `{','.join(summary.get('pass_ranking_selection_priority') or [])}`",
             f"- pass_ranking_best_vs_others_count: `{summary['pass_ranking_best_vs_others_count']}`",
