@@ -651,6 +651,7 @@ Decision behavior:
   - `ranking_best_vs_others`
 - optional strictness:
   - `--require-ranking-explanation` (if enabled, missing ranking explanation causes `FAIL`)
+  - `--require-min-top-score-margin N` (if enabled, missing margin or margin `< N` causes `FAIL`)
 
 Promote apply demo shortcut:
 
@@ -662,6 +663,12 @@ Strict ranking-explanation gate for demo:
 
 ```bash
 PROMOTE_APPLY_REQUIRE_RANKING_EXPLANATION=1 bash scripts/demo_governance_promote_apply.sh
+```
+
+Optional minimum margin gate for demo:
+
+```bash
+PROMOTE_APPLY_REQUIRED_MIN_TOP_SCORE_MARGIN=2 bash scripts/demo_governance_promote_apply.sh
 ```
 
 Strict guard behavior demo (missing explanation -> fail, present explanation -> pass):
@@ -1050,6 +1057,9 @@ You can force strict ranking-explanation guard in promote-apply jobs with:
 `PROMOTE_APPLY_REQUIRE_RANKING_EXPLANATION=1 bash scripts/demo_ci_matrix.sh`
 or CLI toggle:
 `bash scripts/demo_ci_matrix.sh --promote-apply-strict-ranking`
+
+You can also require minimum top-score margin in promote-apply jobs with:
+`PROMOTE_APPLY_REQUIRED_MIN_TOP_SCORE_MARGIN=2 bash scripts/demo_ci_matrix.sh`
 
 You can include strict-guard behavior demo in local matrix with:
 `RUN_GOVERNANCE_PROMOTE_APPLY_STRICT_GUARD_DEMO=1 bash scripts/demo_ci_matrix.sh`

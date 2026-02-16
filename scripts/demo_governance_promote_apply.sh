@@ -5,6 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
 PROMOTE_APPLY_REQUIRE_RANKING_EXPLANATION="${PROMOTE_APPLY_REQUIRE_RANKING_EXPLANATION:-0}"
+PROMOTE_APPLY_REQUIRED_MIN_TOP_SCORE_MARGIN="${PROMOTE_APPLY_REQUIRED_MIN_TOP_SCORE_MARGIN:-}"
 
 mkdir -p artifacts/governance_promote_apply_demo
 rm -f artifacts/governance_promote_apply_demo/*.json artifacts/governance_promote_apply_demo/*.md artifacts/governance_promote_apply_demo/*.jsonl
@@ -21,6 +22,9 @@ cmd=(
 )
 if [[ "$PROMOTE_APPLY_REQUIRE_RANKING_EXPLANATION" == "1" ]]; then
   cmd+=(--require-ranking-explanation)
+fi
+if [[ -n "$PROMOTE_APPLY_REQUIRED_MIN_TOP_SCORE_MARGIN" ]]; then
+  cmd+=(--require-min-top-score-margin "$PROMOTE_APPLY_REQUIRED_MIN_TOP_SCORE_MARGIN")
 fi
 "${cmd[@]}"
 
@@ -50,6 +54,9 @@ cmd=(
 if [[ "$PROMOTE_APPLY_REQUIRE_RANKING_EXPLANATION" == "1" ]]; then
   cmd+=(--require-ranking-explanation)
 fi
+if [[ -n "$PROMOTE_APPLY_REQUIRED_MIN_TOP_SCORE_MARGIN" ]]; then
+  cmd+=(--require-min-top-score-margin "$PROMOTE_APPLY_REQUIRED_MIN_TOP_SCORE_MARGIN")
+fi
 "${cmd[@]}"
 MISSING_TICKET_RC=$?
 set -e
@@ -69,6 +76,9 @@ cmd=(
 )
 if [[ "$PROMOTE_APPLY_REQUIRE_RANKING_EXPLANATION" == "1" ]]; then
   cmd+=(--require-ranking-explanation)
+fi
+if [[ -n "$PROMOTE_APPLY_REQUIRED_MIN_TOP_SCORE_MARGIN" ]]; then
+  cmd+=(--require-min-top-score-margin "$PROMOTE_APPLY_REQUIRED_MIN_TOP_SCORE_MARGIN")
 fi
 "${cmd[@]}"
 
@@ -104,6 +114,7 @@ bundle_status = "PASS" if all(v == "PASS" for v in flags.values()) else "FAIL"
 
 summary = {
     "require_ranking_explanation": pass_payload.get("require_ranking_explanation"),
+    "require_min_top_score_margin": pass_payload.get("require_min_top_score_margin"),
     "pass_status": pass_payload.get("final_status"),
     "pass_ranking_selection_priority": pass_payload.get("ranking_selection_priority"),
     "pass_ranking_best_vs_others_count": len(pass_payload.get("ranking_best_vs_others") or []),
@@ -122,6 +133,7 @@ Path("artifacts/governance_promote_apply_demo/summary.md").write_text(
             "# Governance Promote Apply Demo",
             "",
             f"- require_ranking_explanation: `{summary.get('require_ranking_explanation')}`",
+            f"- require_min_top_score_margin: `{summary.get('require_min_top_score_margin')}`",
             f"- pass_status: `{summary['pass_status']}`",
             f"- pass_ranking_selection_priority: `{','.join(summary.get('pass_ranking_selection_priority') or [])}`",
             f"- pass_ranking_best_vs_others_count: `{summary['pass_ranking_best_vs_others_count']}`",
