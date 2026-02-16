@@ -1060,6 +1060,8 @@ or CLI toggle:
 
 You can also require minimum top-score margin in promote-apply jobs with:
 `PROMOTE_APPLY_REQUIRED_MIN_TOP_SCORE_MARGIN=2 bash scripts/demo_ci_matrix.sh`
+or CLI toggle:
+`bash scripts/demo_ci_matrix.sh --promote-apply-min-margin 2`
 
 You can include strict-guard behavior demo in local matrix with:
 `RUN_GOVERNANCE_PROMOTE_APPLY_STRICT_GUARD_DEMO=1 bash scripts/demo_ci_matrix.sh`
