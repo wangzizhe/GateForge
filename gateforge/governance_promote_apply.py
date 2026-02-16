@@ -49,6 +49,8 @@ def _write_markdown(path: str, summary: dict) -> None:
         f"- review_ticket_id: `{summary.get('review_ticket_id')}`",
         f"- require_ranking_explanation: `{summary.get('require_ranking_explanation')}`",
         f"- require_min_top_score_margin: `{summary.get('require_min_top_score_margin')}`",
+        f"- require_min_explanation_quality: `{summary.get('require_min_explanation_quality')}`",
+        f"- explanation_quality_score: `{summary.get('explanation_quality_score')}`",
         f"- audit_path: `{summary.get('audit_path')}`",
         "",
         "## Reasons",
@@ -115,6 +117,10 @@ def _human_hints_from_reasons(reasons: list[str]) -> list[str]:
             hints.append("Ensure compare summary includes top_score_margin when min margin guard is enabled.")
         elif reason == "top_score_margin_below_required":
             hints.append("Top score margin is below required threshold; keep current profile or route to human review.")
+        elif reason == "explanation_quality_missing_when_required":
+            hints.append("Ensure compare summary includes explanation_quality.score when quality guard is enabled.")
+        elif reason == "explanation_quality_below_required":
+            hints.append("Explanation quality score is below required threshold; improve explanation quality before apply.")
         elif reason == "needs_review_ticket_required":
             hints.append("Provide a review_ticket_id to proceed with NEEDS_REVIEW apply action.")
         elif reason == "best_profile_missing":
@@ -132,6 +138,7 @@ def _evaluate(
     *,
     require_ranking_explanation: bool,
     require_min_top_score_margin: int | None,
+    require_min_explanation_quality: int | None,
 ) -> dict:
     compare_status = str(compare_payload.get("status") or "UNKNOWN").upper()
     best_profile = compare_payload.get("best_profile")
@@ -182,6 +189,12 @@ def _evaluate(
                 reasons.append("top_score_margin_missing_when_required")
             elif margin < require_min_top_score_margin:
                 reasons.append("top_score_margin_below_required")
+        if isinstance(require_min_explanation_quality, int):
+            quality_score = compare_payload.get("explanation_quality", {}).get("score")
+            if not isinstance(quality_score, int):
+                reasons.append("explanation_quality_missing_when_required")
+            elif quality_score < require_min_explanation_quality:
+                reasons.append("explanation_quality_below_required")
         if not isinstance(best_profile, str) or not best_profile.strip():
             reasons.append("best_profile_missing")
         if best_decision not in {"PASS", "NEEDS_REVIEW", "FAIL"}:
@@ -234,6 +247,12 @@ def main() -> None:
         default=None,
         help="When set, PASS compare summaries must include top_score_margin >= this value",
     )
+    parser.add_argument(
+        "--require-min-explanation-quality",
+        type=int,
+        default=None,
+        help="When set, PASS compare summaries must include explanation_quality.score >= this value",
+    )
     parser.add_argument("--out", default="artifacts/governance_promote_apply/summary.json", help="Output summary JSON")
     parser.add_argument("--report", default=None, help="Output markdown path")
     parser.add_argument(
@@ -249,6 +268,7 @@ def main() -> None:
         args.review_ticket_id,
         require_ranking_explanation=bool(args.require_ranking_explanation),
         require_min_top_score_margin=args.require_min_top_score_margin,
+        require_min_explanation_quality=args.require_min_explanation_quality,
     )
     recorded_at = datetime.now(timezone.utc).isoformat()
 
@@ -258,6 +278,7 @@ def main() -> None:
         "review_ticket_id": args.review_ticket_id,
         "require_ranking_explanation": bool(args.require_ranking_explanation),
         "require_min_top_score_margin": args.require_min_top_score_margin,
+        "require_min_explanation_quality": args.require_min_explanation_quality,
         "compare_summary_path": args.compare_summary,
         "constraint_reason": compare_payload.get("constraint_reason"),
         "top_score_margin": compare_payload.get("top_score_margin"),
@@ -266,6 +287,7 @@ def main() -> None:
         "best_reason": compare_payload.get("best_reason"),
         "ranking_selection_priority": compare_payload.get("decision_explanations", {}).get("selection_priority"),
         "ranking_best_vs_others": compare_payload.get("decision_explanations", {}).get("best_vs_others"),
+        "explanation_quality_score": compare_payload.get("explanation_quality", {}).get("score"),
         "human_hints": _human_hints_from_reasons(evaluated.get("reasons", [])),
         "recorded_at_utc": recorded_at,
         "audit_path": args.audit,
@@ -288,9 +310,11 @@ def main() -> None:
         "review_ticket_id": summary.get("review_ticket_id"),
         "require_ranking_explanation": summary.get("require_ranking_explanation"),
         "require_min_top_score_margin": summary.get("require_min_top_score_margin"),
+        "require_min_explanation_quality": summary.get("require_min_explanation_quality"),
         "constraint_reason": summary.get("constraint_reason"),
         "top_score_margin": summary.get("top_score_margin"),
         "min_top_score_margin": summary.get("min_top_score_margin"),
+        "explanation_quality_score": summary.get("explanation_quality_score"),
         "ranking_selection_priority": summary.get("ranking_selection_priority"),
         "ranking_best_vs_others": summary.get("ranking_best_vs_others"),
     }
