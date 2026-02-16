@@ -91,6 +91,28 @@ def _write_markdown(path: str, summary: dict) -> None:
         lines.extend([f"- `{item}`" for item in guardrail_violations])
     else:
         lines.append("- `none`")
+    lines.extend(["", "## Governance Guardrails", ""])
+    governance_guardrails = summary.get("governance_guardrails", {})
+    if isinstance(governance_guardrails, dict) and governance_guardrails:
+        lines.append(
+            f"- promote_apply_require_ranking_explanation: "
+            f"`{governance_guardrails.get('promote_apply_require_ranking_explanation')}`"
+        )
+        lines.append(
+            f"- promote_apply_required_min_top_score_margin: "
+            f"`{governance_guardrails.get('promote_apply_required_min_top_score_margin')}`"
+        )
+        lines.append(
+            f"- run_policy_decision: `{governance_guardrails.get('run_policy_decision')}`"
+        )
+        lines.append(
+            f"- run_policy_reasons_count: `{governance_guardrails.get('run_policy_reasons_count')}`"
+        )
+        lines.append(
+            f"- run_required_human_checks_count: `{governance_guardrails.get('run_required_human_checks_count')}`"
+        )
+    else:
+        lines.append("- `none`")
     lines.append("")
     p.write_text("\n".join(lines), encoding="utf-8")
 
@@ -229,6 +251,18 @@ def main() -> None:
         "--policy-profile",
         default=None,
         help="Policy profile name under policies/profiles (e.g. industrial_strict_v0)",
+    )
+    parser.add_argument(
+        "--promote-apply-require-ranking-explanation",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Record governance guardrail intent: require ranking explanation at promote-apply stage",
+    )
+    parser.add_argument(
+        "--promote-apply-required-min-top-score-margin",
+        type=int,
+        default=None,
+        help="Record governance guardrail intent: minimum top score margin for promote-apply stage",
     )
     parser.add_argument(
         "--out",
@@ -450,6 +484,8 @@ def main() -> None:
             "baseline_index": args.baseline_index,
             "runtime_threshold": args.runtime_threshold,
             "policy": policy_path,
+            "promote_apply_require_ranking_explanation": bool(args.promote_apply_require_ranking_explanation),
+            "promote_apply_required_min_top_score_margin": args.promote_apply_required_min_top_score_margin,
         },
     }
     if planner_proc.returncode != 0:
@@ -492,6 +528,14 @@ def main() -> None:
         summary["checker_template_path"] = agent_payload.get("checker_template_path")
         summary["run_path"] = agent_payload.get("run_path")
         summary["run_report_path"] = agent_payload.get("run_report_path")
+
+    summary["governance_guardrails"] = {
+        "promote_apply_require_ranking_explanation": bool(args.promote_apply_require_ranking_explanation),
+        "promote_apply_required_min_top_score_margin": args.promote_apply_required_min_top_score_margin,
+        "run_policy_decision": summary.get("policy_decision"),
+        "run_policy_reasons_count": len(summary.get("policy_reasons") or []),
+        "run_required_human_checks_count": len(summary.get("required_human_checks") or []),
+    }
 
     _write_json(args.out, summary)
     _write_markdown(args.report or _default_md_path(args.out), summary)

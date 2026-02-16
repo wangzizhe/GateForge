@@ -91,6 +91,15 @@ class AutopilotTests(unittest.TestCase):
             self.assertEqual(payload["policy_decision"], "PASS")
             self.assertEqual(payload["policy_reasons"], [])
             self.assertEqual(payload["required_human_checks"], [])
+            self.assertIn("governance_guardrails", payload)
+            self.assertEqual(
+                payload["governance_guardrails"]["promote_apply_require_ranking_explanation"],
+                False,
+            )
+            self.assertEqual(
+                payload["governance_guardrails"]["promote_apply_required_min_top_score_margin"],
+                None,
+            )
             self.assertEqual(payload["change_apply_status"], "not_requested")
             self.assertEqual(payload["change_set_hash"], None)
             self.assertEqual(payload["applied_changes_count"], 0)
@@ -622,6 +631,43 @@ class AutopilotTests(unittest.TestCase):
                 payload.get("planner_change_plan_allowed_files"),
                 ["examples/openmodelica/MinimalProbe.mo"],
             )
+
+    def test_autopilot_records_promote_apply_guardrails(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            baseline = root / "baseline.json"
+            out = root / "summary.json"
+            self._write_baseline(baseline)
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.autopilot",
+                    "--goal",
+                    "run demo mock pass",
+                    "--proposal-id",
+                    "autopilot-guardrails-1",
+                    "--baseline",
+                    str(baseline),
+                    "--promote-apply-require-ranking-explanation",
+                    "--promote-apply-required-min-top-score-margin",
+                    "2",
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            payload = json.loads(out.read_text(encoding="utf-8"))
+            guardrails = payload.get("governance_guardrails", {})
+            self.assertEqual(guardrails.get("promote_apply_require_ranking_explanation"), True)
+            self.assertEqual(guardrails.get("promote_apply_required_min_top_score_margin"), 2)
+            planned = payload.get("planned_run", {})
+            self.assertEqual(planned.get("promote_apply_require_ranking_explanation"), True)
+            self.assertEqual(planned.get("promote_apply_required_min_top_score_margin"), 2)
 
 
 if __name__ == "__main__":

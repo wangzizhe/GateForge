@@ -59,6 +59,12 @@ def _write_markdown(path: str, summary: dict) -> None:
         lines.extend([f"- `{r}`" for r in reasons])
     else:
         lines.append("- `none`")
+    lines.extend(["", "## Human Hints", ""])
+    human_hints = summary.get("human_hints", [])
+    if isinstance(human_hints, list) and human_hints:
+        lines.extend([f"- {h}" for h in human_hints])
+    else:
+        lines.append("- `none`")
     lines.extend(
         [
             "",
@@ -96,6 +102,28 @@ def _is_valid_ranking_explanation_items(best_vs_others: object) -> bool:
         if not isinstance(margin, int):
             return False
     return True
+
+
+def _human_hints_from_reasons(reasons: list[str]) -> list[str]:
+    hints: list[str] = []
+    for reason in reasons:
+        if reason == "ranking_explanation_required":
+            hints.append(
+                "Provide decision_explanations.best_vs_others with winner_profile/challenger_profile/score_margin."
+            )
+        elif reason == "top_score_margin_missing_when_required":
+            hints.append("Ensure compare summary includes top_score_margin when min margin guard is enabled.")
+        elif reason == "top_score_margin_below_required":
+            hints.append("Top score margin is below required threshold; keep current profile or route to human review.")
+        elif reason == "needs_review_ticket_required":
+            hints.append("Provide a review_ticket_id to proceed with NEEDS_REVIEW apply action.")
+        elif reason == "best_profile_missing":
+            hints.append("Set best_profile in compare summary before applying promotion.")
+        elif reason == "best_decision_invalid":
+            hints.append("Set best_decision to PASS, NEEDS_REVIEW, or FAIL in compare summary.")
+        elif reason == "compare_status_fail":
+            hints.append("Compare status is FAIL; resolve compare issues before apply.")
+    return hints
 
 
 def _evaluate(
@@ -238,6 +266,7 @@ def main() -> None:
         "best_reason": compare_payload.get("best_reason"),
         "ranking_selection_priority": compare_payload.get("decision_explanations", {}).get("selection_priority"),
         "ranking_best_vs_others": compare_payload.get("decision_explanations", {}).get("best_vs_others"),
+        "human_hints": _human_hints_from_reasons(evaluated.get("reasons", [])),
         "recorded_at_utc": recorded_at,
         "audit_path": args.audit,
     }
@@ -250,6 +279,7 @@ def main() -> None:
         "final_status": summary["final_status"],
         "apply_action": summary["apply_action"],
         "reasons": summary.get("reasons", []),
+        "human_hints": summary.get("human_hints", []),
         "compare_summary_path": args.compare_summary,
         "compare_status": summary.get("compare_status"),
         "best_profile": summary.get("best_profile"),

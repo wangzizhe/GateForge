@@ -353,6 +353,9 @@ Execution-time `required_human_checks` are also policy-driven via `required_huma
 `policy_decision`, `policy_reasons`, `required_human_checks`, `fail_reasons`, `run_report_path`,
 `change_apply_status`, `applied_changes_count`, `change_set_hash`, `policy_version`,
 `planner_guardrail_decision`, and `planner_guardrail_violations`.
+It also includes `governance_guardrails` for promote-apply stage configuration:
+`promote_apply_require_ranking_explanation`, `promote_apply_required_min_top_score_margin`,
+and run-level counts for policy reasons / required human checks.
 
 For planner-driven patches, policy can enforce confidence gates:
 - below `min_confidence_auto_apply`: proposal becomes `NEEDS_REVIEW` (`change_plan_confidence_below_auto_apply`)
