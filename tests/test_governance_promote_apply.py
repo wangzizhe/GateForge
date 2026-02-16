@@ -244,6 +244,66 @@ class GovernancePromoteApplyTests(unittest.TestCase):
             self.assertEqual(payload.get("final_status"), "FAIL")
             self.assertIn("ranking_explanation_required", payload.get("reasons", []))
 
+    def test_apply_fail_when_required_top_score_margin_not_met(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            compare = root / "compare.json"
+            out = root / "apply.json"
+            self._write_compare_summary(compare, status="PASS", best_decision="PASS")
+            payload = json.loads(compare.read_text(encoding="utf-8"))
+            payload["top_score_margin"] = 1
+            compare.write_text(json.dumps(payload), encoding="utf-8")
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.governance_promote_apply",
+                    "--compare-summary",
+                    str(compare),
+                    "--require-min-top-score-margin",
+                    "2",
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 1)
+            applied = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(applied.get("final_status"), "FAIL")
+            self.assertIn("top_score_margin_below_required", applied.get("reasons", []))
+
+    def test_apply_fail_when_required_top_score_margin_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            compare = root / "compare.json"
+            out = root / "apply.json"
+            self._write_compare_summary(compare, status="PASS", best_decision="PASS")
+            payload = json.loads(compare.read_text(encoding="utf-8"))
+            payload.pop("top_score_margin", None)
+            compare.write_text(json.dumps(payload), encoding="utf-8")
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.governance_promote_apply",
+                    "--compare-summary",
+                    str(compare),
+                    "--require-min-top-score-margin",
+                    "2",
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 1)
+            applied = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(applied.get("final_status"), "FAIL")
+            self.assertIn("top_score_margin_missing_when_required", applied.get("reasons", []))
+
 
 if __name__ == "__main__":
     unittest.main()

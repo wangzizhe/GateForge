@@ -543,6 +543,7 @@ class DemoScriptTests(unittest.TestCase):
         payload = json.loads(Path("artifacts/governance_promote_apply_demo/summary.json").read_text(encoding="utf-8"))
         self.assertEqual(payload.get("bundle_status"), "PASS")
         self.assertIn(payload.get("require_ranking_explanation"), {False, None})
+        self.assertIn(payload.get("require_min_top_score_margin"), {None, ""})
         self.assertEqual(payload.get("pass_status"), "PASS")
         self.assertIsInstance(payload.get("pass_ranking_selection_priority"), list)
         self.assertGreaterEqual(int(payload.get("pass_ranking_best_vs_others_count", 0)), 1)

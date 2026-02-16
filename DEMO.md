@@ -545,6 +545,12 @@ Strict mode toggle (same demo, strict explanation requirement):
 PROMOTE_APPLY_REQUIRE_RANKING_EXPLANATION=1 bash scripts/demo_governance_promote_apply.sh
 ```
 
+Optional margin gate toggle (require top score margin):
+
+```bash
+PROMOTE_APPLY_REQUIRED_MIN_TOP_SCORE_MARGIN=2 bash scripts/demo_governance_promote_apply.sh
+```
+
 ## 14.3 Governance Promote Apply Strict Guard Demo
 
 Command:
