@@ -68,6 +68,9 @@ flags = {
     if isinstance(payload.get("decision_explanations", {}).get("best_vs_others"), list)
     and len(payload.get("decision_explanations", {}).get("best_vs_others", [])) >= 1
     else "FAIL",
+    "expect_explanation_quality_score_present": "PASS"
+    if isinstance(payload.get("explanation_quality", {}).get("score"), int)
+    else "FAIL",
 }
 bundle_status = "PASS" if all(v == "PASS" for v in flags.values()) else "FAIL"
 summary = {
@@ -84,6 +87,8 @@ summary = {
     "override_best_decision": payload_override.get("best_decision"),
     "ranking_top_2": payload.get("ranking", [])[:2],
     "ranking_explanations_top_1": payload.get("decision_explanations", {}).get("best_vs_others", [])[:1],
+    "explanation_quality_score": payload.get("explanation_quality", {}).get("score"),
+    "explanation_quality_checks": payload.get("explanation_quality", {}).get("checks"),
     "result_flags": flags,
     "bundle_status": bundle_status,
 }
@@ -122,6 +127,7 @@ Path("artifacts/governance_promote_compare_demo/demo_summary.md").write_text(
             f"- expect_override_compare_present: `{flags['expect_override_compare_present']}`",
             f"- expect_score_margin_present: `{flags['expect_score_margin_present']}`",
             f"- expect_ranking_explanations_present: `{flags['expect_ranking_explanations_present']}`",
+            f"- expect_explanation_quality_score_present: `{flags['expect_explanation_quality_score_present']}`",
             "",
         ]
     ),

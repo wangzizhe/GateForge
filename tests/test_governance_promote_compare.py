@@ -63,6 +63,9 @@ class GovernancePromoteCompareTests(unittest.TestCase):
                 ["total_score", "decision", "exit_code", "recommended_profile_tiebreak"],
             )
             self.assertIsInstance(explanation.get("best_vs_others"), list)
+            quality = payload.get("explanation_quality", {})
+            self.assertIsInstance(quality.get("score"), int)
+            self.assertIsInstance(quality.get("checks"), dict)
 
     def test_promote_compare_emits_pairwise_ranking_explanations(self) -> None:
         with tempfile.TemporaryDirectory() as d:

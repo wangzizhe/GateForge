@@ -599,6 +599,7 @@ cat artifacts/governance_promote_compare_demo/summary.json
 - `ranking[]` with `rank`, `total_score`, `score_breakdown`
 - `decision_explanations.selection_priority` (the deterministic ranking order)
 - `decision_explanations.best_vs_others[]` (pairwise winner vs challenger margins and component-level advantages)
+- `explanation_quality` with `score` and checklist-style `checks`
 - `best_total_score` and `best_score_breakdown`
 - `best_reason` (`highest_total_score` or recommended tie-break preference)
 - `top_score_margin` (`rank1.total_score - rank2.total_score`)
