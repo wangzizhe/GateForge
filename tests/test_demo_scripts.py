@@ -546,6 +546,8 @@ class DemoScriptTests(unittest.TestCase):
         self.assertIsInstance(payload.get("best_score_breakdown"), dict)
         self.assertIsInstance(payload.get("ranking_top_2"), list)
         self.assertIsInstance(payload.get("ranking_explanations_top_1"), list)
+        self.assertIsInstance(payload.get("explanation_quality_score"), int)
+        self.assertIsInstance(payload.get("explanation_quality_checks"), dict)
         self.assertIsInstance(payload.get("top_score_margin"), int)
         self.assertIsInstance(payload.get("min_top_score_margin"), int)
         self.assertIn(payload.get("override_best_profile"), {"default", "industrial_strict"})

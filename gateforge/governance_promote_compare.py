@@ -167,6 +167,46 @@ def _build_decision_explanations(
     }
 
 
+def _compute_explanation_quality(explanations: dict) -> dict:
+    checks = {
+        "has_selection_priority": False,
+        "has_pairwise_rows": False,
+        "all_pairwise_have_margin": False,
+        "all_pairwise_have_profiles": False,
+        "pairwise_advantages_non_empty": False,
+    }
+    if not isinstance(explanations, dict):
+        return {"score": 0, "checks": checks}
+
+    selection_priority = explanations.get("selection_priority")
+    pairwise = explanations.get("best_vs_others")
+    checks["has_selection_priority"] = isinstance(selection_priority, list) and len(selection_priority) >= 2
+    checks["has_pairwise_rows"] = isinstance(pairwise, list) and len(pairwise) >= 1
+    if checks["has_pairwise_rows"]:
+        margins_ok = True
+        profiles_ok = True
+        advantages_ok = True
+        for row in pairwise:
+            if not isinstance(row, dict):
+                margins_ok = False
+                profiles_ok = False
+                advantages_ok = False
+                continue
+            if not isinstance(row.get("score_margin"), int):
+                margins_ok = False
+            if not isinstance(row.get("winner_profile"), str) or not isinstance(row.get("challenger_profile"), str):
+                profiles_ok = False
+            advantages = row.get("winner_advantages")
+            if not isinstance(advantages, list) or len(advantages) == 0:
+                advantages_ok = False
+        checks["all_pairwise_have_margin"] = margins_ok
+        checks["all_pairwise_have_profiles"] = profiles_ok
+        checks["pairwise_advantages_non_empty"] = advantages_ok
+
+    score = sum(1 for ok in checks.values() if ok) * 20
+    return {"score": score, "checks": checks}
+
+
 def _write_markdown(path: str, summary: dict) -> None:
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
@@ -236,6 +276,15 @@ def _write_markdown(path: str, summary: dict) -> None:
                 f"margin=`{row.get('score_margin')}` tie_on_total=`{row.get('tie_on_total_score')}` "
                 f"advantages=`{','.join(row.get('winner_advantages', [])) or 'none'}`"
             )
+    else:
+        lines.append("- `none`")
+    quality = summary.get("explanation_quality", {})
+    lines.extend(["", "## Explanation Quality", ""])
+    lines.append(f"- score: `{quality.get('score')}`")
+    checks = quality.get("checks", {})
+    if isinstance(checks, dict) and checks:
+        for key in sorted(checks.keys()):
+            lines.append(f"- {key}: `{checks.get(key)}`")
     else:
         lines.append("- `none`")
     lines.extend(
@@ -389,6 +438,7 @@ def main() -> None:
     best_row = next((r for r in results if r.get("profile") == best_profile), None)
     best_decision = str(best_row.get("decision") if isinstance(best_row, dict) else "UNKNOWN")
     decision_explanations = _build_decision_explanations(ranking, best_profile, best_reason)
+    explanation_quality = _compute_explanation_quality(decision_explanations)
 
     status = "PASS"
     if all(str(r.get("decision")).upper() == "FAIL" for r in results):
@@ -440,6 +490,7 @@ def main() -> None:
             "recommended_bonus": args.score_recommended_bonus,
         },
         "decision_explanations": decision_explanations,
+        "explanation_quality": explanation_quality,
         "ranking": ranking,
         "profile_results": results,
     }
