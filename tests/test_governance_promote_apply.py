@@ -308,6 +308,68 @@ class GovernancePromoteApplyTests(unittest.TestCase):
             self.assertEqual(applied.get("final_status"), "FAIL")
             self.assertIn("top_score_margin_missing_when_required", applied.get("reasons", []))
 
+    def test_apply_fail_when_required_explanation_quality_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            compare = root / "compare.json"
+            out = root / "apply.json"
+            self._write_compare_summary(compare, status="PASS", best_decision="PASS")
+            payload = json.loads(compare.read_text(encoding="utf-8"))
+            payload.pop("explanation_quality", None)
+            compare.write_text(json.dumps(payload), encoding="utf-8")
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.governance_promote_apply",
+                    "--compare-summary",
+                    str(compare),
+                    "--require-min-explanation-quality",
+                    "80",
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 1)
+            applied = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(applied.get("final_status"), "FAIL")
+            self.assertIn("explanation_quality_missing_when_required", applied.get("reasons", []))
+            self.assertTrue(applied.get("human_hints"))
+
+    def test_apply_fail_when_required_explanation_quality_not_met(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            compare = root / "compare.json"
+            out = root / "apply.json"
+            self._write_compare_summary(compare, status="PASS", best_decision="PASS")
+            payload = json.loads(compare.read_text(encoding="utf-8"))
+            payload["explanation_quality"] = {"score": 60}
+            compare.write_text(json.dumps(payload), encoding="utf-8")
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.governance_promote_apply",
+                    "--compare-summary",
+                    str(compare),
+                    "--require-min-explanation-quality",
+                    "80",
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 1)
+            applied = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(applied.get("final_status"), "FAIL")
+            self.assertIn("explanation_quality_below_required", applied.get("reasons", []))
+            self.assertTrue(applied.get("human_hints"))
+
 
 if __name__ == "__main__":
     unittest.main()
