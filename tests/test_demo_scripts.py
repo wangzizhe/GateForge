@@ -186,6 +186,25 @@ class DemoScriptTests(unittest.TestCase):
         self.assertTrue(payload.get("promote_apply_require_ranking_explanation"))
         self.assertEqual(payload.get("matrix_status"), "PASS")
 
+    def test_demo_ci_matrix_accepts_promote_apply_min_margin_flag(self) -> None:
+        proc = subprocess.run(
+            [
+                "bash",
+                "scripts/demo_ci_matrix.sh",
+                "--none",
+                "--governance-promote-apply-demo",
+                "--promote-apply-min-margin",
+                "2",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+        payload = json.loads(Path("artifacts/ci_matrix_summary.json").read_text(encoding="utf-8"))
+        self.assertEqual(payload.get("promote_apply_required_min_top_score_margin"), "2")
+        self.assertEqual(payload.get("matrix_status"), "PASS")
+
     def test_demo_ci_matrix_accepts_governance_promote_apply_strict_guard_demo_flag(self) -> None:
         proc = subprocess.run(
             [
