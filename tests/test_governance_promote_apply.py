@@ -75,6 +75,7 @@ class GovernancePromoteApplyTests(unittest.TestCase):
             payload = json.loads(out.read_text(encoding="utf-8"))
             self.assertEqual(payload.get("final_status"), "PASS")
             self.assertEqual(payload.get("apply_action"), "promote")
+            self.assertEqual(payload.get("human_hints"), [])
             self.assertEqual(
                 payload.get("ranking_selection_priority"),
                 ["total_score", "decision", "exit_code", "recommended_profile_tiebreak"],
@@ -109,6 +110,7 @@ class GovernancePromoteApplyTests(unittest.TestCase):
             payload = json.loads(out.read_text(encoding="utf-8"))
             self.assertEqual(payload.get("final_status"), "FAIL")
             self.assertIn("needs_review_ticket_required", payload.get("reasons", []))
+            self.assertTrue(payload.get("human_hints"))
 
     def test_apply_needs_review_with_ticket_holds(self) -> None:
         with tempfile.TemporaryDirectory() as d:
@@ -162,6 +164,7 @@ class GovernancePromoteApplyTests(unittest.TestCase):
             payload = json.loads(out.read_text(encoding="utf-8"))
             self.assertEqual(payload.get("final_status"), "FAIL")
             self.assertIn("compare_status_fail", payload.get("reasons", []))
+            self.assertTrue(payload.get("human_hints"))
 
     def test_apply_fail_when_ranking_explanation_required_but_missing(self) -> None:
         with tempfile.TemporaryDirectory() as d:
@@ -198,6 +201,7 @@ class GovernancePromoteApplyTests(unittest.TestCase):
             payload = json.loads(out.read_text(encoding="utf-8"))
             self.assertEqual(payload.get("final_status"), "FAIL")
             self.assertIn("ranking_explanation_required", payload.get("reasons", []))
+            self.assertTrue(payload.get("human_hints"))
 
     def test_apply_fail_when_ranking_explanation_required_but_malformed(self) -> None:
         with tempfile.TemporaryDirectory() as d:
