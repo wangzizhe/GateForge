@@ -2,39 +2,34 @@
 
 GateForge is a Python toolkit for simulation governance and regression gating with reproducible evidence.
 
-It answers three practical questions for each change:
-- Did behavior regress vs baseline?
-- Is this a hard fail or `NEEDS_REVIEW`?
+For each change, it answers:
+- Did behavior regress versus baseline?
+- Should this be `FAIL` or `NEEDS_REVIEW`?
 - What evidence explains the decision?
 
-## Core Outputs
+## What You Get
 
 A typical run writes both machine-readable and human-readable artifacts:
-- Evidence JSON/Markdown
-- Regression JSON/Markdown
-- Run summary JSON/Markdown
+- Evidence summaries (`.json` and `.md`)
+- Regression summaries (`.json` and `.md`)
+- Final decision outputs (`PASS`, `FAIL`, `NEEDS_REVIEW`)
 
-Standard decisions:
-- `PASS`
-- `FAIL`
-- `NEEDS_REVIEW`
+## Repository Layout
 
-## Project Layout
-
-- `gateforge/`: core modules and CLI entry points
-- `examples/`: sample proposals, model scripts, and change sets
+- `gateforge/`: core library + CLI entry modules
+- `examples/`: sample proposals, change sets, and OpenModelica assets
 - `baselines/`: baseline evidence and backend/model mapping (`index.json`)
 - `policies/`: policy profiles and thresholds
-- `schemas/`: proposal/evidence/intent JSON schemas
-- `scripts/`: one-command local demos
-- `artifacts/`: generated outputs
+- `schemas/`: JSON schemas for proposals/evidence/intent
+- `scripts/`: one-command demos and workflows
+- `artifacts/`: generated outputs from runs
 - `DEMO.md`: demo catalog and expected results
 - `OPERATIONS.md`: day-2 triage and release workflow
 
 ## Requirements
 
 - Python `>=3.10`
-- Optional: Docker Desktop for OpenModelica-backed execution
+- Optional: Docker Desktop (for OpenModelica-backed flows)
 
 ## Install
 
@@ -44,13 +39,13 @@ source .venv/bin/activate
 pip install -e .
 ```
 
-Verify with tests:
+Run tests:
 
 ```bash
 python3 -m unittest discover -s tests -v
 ```
 
-## 5-Minute Quick Start
+## Quick Start (5 Minutes)
 
 1. Validate a proposal:
 
@@ -59,7 +54,7 @@ python3 -m gateforge.proposal_validate \
   --in examples/proposals/proposal_v0.json
 ```
 
-2. Run end-to-end proposal flow with automatic baseline resolution:
+2. Run the end-to-end proposal flow with automatic baseline resolution:
 
 ```bash
 python3 -m gateforge.run \
@@ -68,7 +63,7 @@ python3 -m gateforge.run \
   --out artifacts/proposal_run.json
 ```
 
-3. Inspect generated artifacts:
+3. Inspect outputs:
 
 ```bash
 cat artifacts/proposal_run.json
@@ -76,39 +71,66 @@ cat artifacts/proposal_run.md
 cat artifacts/regression_from_proposal.json
 ```
 
-## Fastest Demo Paths
+## Common Workflows
 
-Run one script depending on what you want to validate:
-- Happy-path proposal flow: `bash scripts/demo_proposal_flow.sh`
-- Checker threshold gating: `bash scripts/demo_checker_config.sh`
-- Steady-state drift detection: `bash scripts/demo_steady_state_checker.sh`
-- Behavior metrics (overshoot/settling): `bash scripts/demo_behavior_metrics_checker.sh`
-- Repair loop orchestration: `bash scripts/demo_repair_loop.sh`
-
-Run the local matrix:
+### Fast Local Validation Matrix
 
 ```bash
 bash scripts/demo_ci_matrix.sh
 cat artifacts/ci_matrix_summary.json
 ```
 
-See `DEMO.md` for the full demo set and expected outcomes.
+### Proposal and Regression Demos
+
+- `bash scripts/demo_proposal_flow.sh`
+- `bash scripts/demo_checker_config.sh`
+- `bash scripts/demo_steady_state_checker.sh`
+- `bash scripts/demo_behavior_metrics_checker.sh`
+
+### Repair and Orchestration
+
+- `bash scripts/demo_repair_tasks.sh`
+- `bash scripts/demo_repair_loop.sh`
+- `bash scripts/demo_repair_batch.sh`
+- `bash scripts/demo_repair_orchestrate.sh`
+
+### Governance and Promotion
+
+- `bash scripts/demo_governance_snapshot.sh`
+- `bash scripts/demo_governance_history.sh`
+- `bash scripts/demo_governance_promote.sh`
+- `bash scripts/demo_governance_promote_compare.sh`
+- `bash scripts/demo_governance_promote_apply.sh`
+
+### Agent and Planner Guardrails
+
+- `bash scripts/demo_agent_change_loop.sh`
+- `bash scripts/demo_agent_invariant_guard.sh`
+- `bash scripts/demo_autopilot_dry_run.sh`
+- `bash scripts/demo_planner_guardrails.sh`
+- `bash scripts/demo_planner_output_validate.sh`
+
+Run all bundled demos:
+
+```bash
+bash scripts/demo_all.sh
+```
 
 ## Policy Profiles
 
 By default, commands resolve policy from `policies/`.
 
-Run demos with a stricter profile:
+Run with a stricter profile:
 
 ```bash
 POLICY_PROFILE=industrial_strict_v0 bash scripts/demo_all.sh
 ```
 
-Many governance/repair commands also accept explicit profile arguments (for example: `repair_batch`, `governance_promote`, `governance_promote_compare`).
+Several governance and repair commands also accept explicit profile arguments.
 
-## CLI Reference
+## CLI Modules
 
-Use `--help` on any command for argument details.
+Use `--help` on any module for exact options.
 
 Core execution:
 - `python3 -m gateforge.proposal_validate`
@@ -143,25 +165,23 @@ Planner and invariant tools:
 - `python3 -m gateforge.invariant_repair`
 - `python3 -m gateforge.invariant_repair_compare`
 
-## Optional OpenModelica Backend
+## OpenModelica Support (Optional)
 
-To run OpenModelica-backed flows:
+To run OpenModelica-backed flows, pull the tested container image:
 
 ```bash
 docker pull openmodelica/openmodelica:v1.26.1-minimal
 ```
 
-Then run smoke/proposal flows configured for Docker/OpenModelica in proposal inputs.
+You can then run proposals or smoke/regression flows configured for Docker/OpenModelica.
 
 ## Troubleshooting
 
-- `docker_error`: start Docker Desktop and confirm `docker ps` works.
-- `--baseline auto` resolution fails:
-  - check `baselines/index.json` for a matching backend/model mapping.
-- `NEEDS_REVIEW` decisions:
-  - resolve with `gateforge.review_resolve` and persist to review ledger.
+- `docker_error`: start Docker Desktop and verify `docker ps` works.
+- `--baseline auto` resolution failure: verify mapping in `baselines/index.json`.
+- `NEEDS_REVIEW` decision: resolve with `python3 -m gateforge.review_resolve` and persist via review ledger tools.
 
-## More Docs
+## Documentation
 
 - Demo catalog: `DEMO.md`
 - Operations guide: `OPERATIONS.md`
