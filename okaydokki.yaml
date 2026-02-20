@@ -1,0 +1,4 @@
+sandbox_image: gateforge-okd:latest
+test_command: python3 -m unittest discover -s tests -v
+allowed_test_commands:
+  - python3 -m unittest discover -s tests -v
