@@ -64,3 +64,5 @@ Use `python3 -m gateforge.<module> --help` for module options.
 - `DEMO.md`: demo catalog and expected results
 - `OPERATIONS.md`: triage and release workflows
 - `LICENSE`
+
+failure-path test
