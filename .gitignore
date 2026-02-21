@@ -1,0 +1,17 @@
+.venv/
+__pycache__/
+*.pyc
+
+.env
+.env.*
+!.env.example
+.DS_Store
+
+artifacts/
+tmp/
+
+assets_private/
+assets_internal/
+examples_private/
+CLAUDE.md
+.claude/
