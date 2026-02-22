@@ -1,0 +1,61 @@
+# GateForge crawling policy
+# Keep normal web crawlers accessible, but block major AI/LLM crawlers.
+# Policy-Version: v1.0
+# Last updated: 2026-03-02
+
+User-agent: GPTBot
+Disallow: /
+
+User-agent: ChatGPT-User
+Disallow: /
+
+User-agent: OAI-SearchBot
+Disallow: /
+
+User-agent: Google-Extended
+Disallow: /
+
+User-agent: ClaudeBot
+Disallow: /
+
+User-agent: anthropic-ai
+Disallow: /
+
+User-agent: PerplexityBot
+Disallow: /
+
+User-agent: Perplexity-User
+Disallow: /
+
+User-agent: Bytespider
+Disallow: /
+
+User-agent: ByteSpider
+Disallow: /
+
+User-agent: KimiBot
+Disallow: /
+
+User-agent: MoonshotBot
+Disallow: /
+
+User-agent: DeepSeekBot
+Disallow: /
+
+User-agent: MiniMaxBot
+Disallow: /
+
+User-agent: QwenBot
+Disallow: /
+
+User-agent: Qwen-Search
+Disallow: /
+
+User-agent: GLM-Spider
+Disallow: /
+
+User-agent: MistralAI-User
+Disallow: /
+
+User-agent: *
+Allow: /
