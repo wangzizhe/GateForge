@@ -2,9 +2,6 @@
 
 This is the short demo index for daily use.
 
-For historical/full demo catalog, see:
-- `docs/legacy-demo.md`
-
 ## 0. Environment
 
 Run from repo root. Ensure Python env is active.
