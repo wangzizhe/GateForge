@@ -97,6 +97,7 @@ def main() -> None:
             "final_status": payload.get("final_status"),
             "apply_action": payload.get("apply_action"),
             "approval_decision": payload.get("approval_decision"),
+            "approval_decisions": payload.get("approval_decisions"),
             "applied": bool(payload.get("applied")),
             "reasons_count": len(payload.get("reasons", []) or []),
             "target_policy_path": payload.get("target_policy_path"),
@@ -116,7 +117,13 @@ def main() -> None:
             status_counter[status] += 1
         if bool(row.get("applied")):
             applied_count += 1
-        if str(row.get("approval_decision") or "").lower() == "reject":
+        decisions = row.get("approval_decisions")
+        decision_values: list[str] = []
+        if isinstance(decisions, list):
+            decision_values.extend([str(x or "").lower() for x in decisions])
+        else:
+            decision_values.append(str(row.get("approval_decision") or "").lower())
+        if any(x == "reject" for x in decision_values):
             reject_count += 1
 
     latest_status = rows[-1].get("final_status") if rows else None

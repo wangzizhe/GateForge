@@ -7,7 +7,15 @@ from pathlib import Path
 
 
 class GovernancePolicyPatchHistoryTests(unittest.TestCase):
-    def _write_apply(self, path: Path, proposal_id: str, final_status: str, applied: bool, decision: str | None) -> None:
+    def _write_apply(
+        self,
+        path: Path,
+        proposal_id: str,
+        final_status: str,
+        applied: bool,
+        decision: str | None,
+        decisions: list[str] | None = None,
+    ) -> None:
         path.write_text(
             json.dumps(
                 {
@@ -15,6 +23,7 @@ class GovernancePolicyPatchHistoryTests(unittest.TestCase):
                     "final_status": final_status,
                     "apply_action": "applied" if applied else "hold",
                     "approval_decision": decision,
+                    "approval_decisions": decisions,
                     "applied": applied,
                     "reasons": [] if final_status == "PASS" else ["x"],
                     "target_policy_path": "tmp/policy.json",
@@ -33,7 +42,7 @@ class GovernancePolicyPatchHistoryTests(unittest.TestCase):
             out = root / "summary.json"
 
             self._write_apply(record1, "p1", "NEEDS_REVIEW", False, None)
-            self._write_apply(record2, "p2", "FAIL", False, "reject")
+            self._write_apply(record2, "p2", "FAIL", False, None, ["reject"])
             self._write_apply(record3, "p3", "PASS", True, "approve")
 
             proc = subprocess.run(
