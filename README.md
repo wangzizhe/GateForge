@@ -151,4 +151,3 @@ Artifacts include:
 ## More Documentation
 
 - Detailed demo cookbook: `DEMO.md`
-- Previous full README (archived): `docs/legacy-readme.md`
