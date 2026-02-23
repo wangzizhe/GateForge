@@ -1,0 +1,107 @@
+import json
+import subprocess
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+
+class GovernancePolicyPatchProposalTests(unittest.TestCase):
+    def test_builds_patch_from_advisor_thresholds(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            advisor = root / "advisor.json"
+            policy = root / "policy.json"
+            out = root / "proposal.json"
+            advisor.write_text(
+                json.dumps(
+                    {
+                        "advice": {
+                            "suggested_policy_profile": "industrial_strict",
+                            "confidence": 0.81,
+                            "reasons": ["mismatch_volume_increasing"],
+                            "threshold_patch": {
+                                "require_min_top_score_margin": 2,
+                                "require_min_explanation_quality": 85,
+                            },
+                        }
+                    }
+                ),
+                encoding="utf-8",
+            )
+            policy.write_text(
+                json.dumps(
+                    {
+                        "version": "0.1.0",
+                        "require_ranking_explanation": False,
+                        "require_min_top_score_margin": 1,
+                        "require_min_explanation_quality": 70,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.governance_policy_patch_proposal",
+                    "--advisor-summary",
+                    str(advisor),
+                    "--policy-path",
+                    str(policy),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            payload = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(payload.get("change_count"), 2)
+            after = payload.get("policy_after", {})
+            self.assertEqual(after.get("require_min_top_score_margin"), 2)
+            self.assertEqual(after.get("require_min_explanation_quality"), 85)
+            self.assertEqual(payload.get("approval_status"), "PENDING")
+
+    def test_no_change_when_threshold_patch_empty(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            advisor = root / "advisor.json"
+            policy = root / "policy.json"
+            out = root / "proposal.json"
+            advisor.write_text(json.dumps({"advice": {"threshold_patch": {}}}), encoding="utf-8")
+            policy.write_text(
+                json.dumps(
+                    {
+                        "version": "0.1.0",
+                        "require_ranking_explanation": False,
+                        "require_min_top_score_margin": 1,
+                        "require_min_explanation_quality": 70,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.governance_policy_patch_proposal",
+                    "--advisor-summary",
+                    str(advisor),
+                    "--policy-path",
+                    str(policy),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            payload = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(payload.get("change_count"), 0)
+
+
+if __name__ == "__main__":
+    unittest.main()
