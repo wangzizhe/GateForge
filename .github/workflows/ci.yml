@@ -1752,6 +1752,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       POLICY_PROFILE: ${{ inputs.demo_policy_profile }}
+      PROMOTE_APPLY_POLICY_PROFILE: ${{ inputs.demo_policy_profile }}
       PROMOTE_APPLY_REQUIRE_RANKING_EXPLANATION: "1"
       PROMOTE_APPLY_REQUIRED_MIN_TOP_SCORE_MARGIN: "1"
       PROMOTE_APPLY_REQUIRED_MIN_EXPLANATION_QUALITY: "80"
@@ -1792,9 +1793,14 @@ jobs:
                   "## Governance Promote Apply Summary",
                   "",
                   f"- bundle_status: `{payload.get('bundle_status')}`",
+                  f"- policy_profile: `{payload.get('policy_profile')}`",
+                  f"- policy_version: `{payload.get('policy_version')}`",
                   f"- require_ranking_explanation: `{payload.get('require_ranking_explanation')}`",
+                  f"- source_require_ranking_explanation: `{payload.get('source_require_ranking_explanation')}`",
                   f"- require_min_top_score_margin: `{payload.get('require_min_top_score_margin')}`",
+                  f"- source_require_min_top_score_margin: `{payload.get('source_require_min_top_score_margin')}`",
                   f"- require_min_explanation_quality: `{payload.get('require_min_explanation_quality')}`",
+                  f"- source_require_min_explanation_quality: `{payload.get('source_require_min_explanation_quality')}`",
                   f"- pass_status: `{payload.get('pass_status')}`",
                   f"- missing_ticket_status: `{payload.get('missing_ticket_status')}`",
                   f"- with_ticket_status: `{payload.get('with_ticket_status')}`",

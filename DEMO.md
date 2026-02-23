@@ -524,10 +524,17 @@ Command:
 bash scripts/demo_governance_promote_apply.sh
 ```
 
+Policy profile toggle:
+
+```bash
+PROMOTE_APPLY_POLICY_PROFILE=industrial_strict bash scripts/demo_governance_promote_apply.sh
+```
+
 What it validates:
 
 - executes governance action from compare summary (`promote` / `hold_for_review` / `block`)
 - enforces ticket requirement: `NEEDS_REVIEW` without `review_ticket_id` => `FAIL`
+- supports profile defaults from `policies/promote_apply/*.json` with CLI override precedence
 - writes append-only decision audit ledger (`decision_audit.jsonl`)
 
 Key outputs:

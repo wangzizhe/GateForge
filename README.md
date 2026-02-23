@@ -355,7 +355,7 @@ Execution-time `required_human_checks` are also policy-driven via `required_huma
 `planner_guardrail_decision`, and `planner_guardrail_violations`.
 It also includes `governance_guardrails` for promote-apply stage configuration:
 `promote_apply_require_ranking_explanation`, `promote_apply_required_min_top_score_margin`,
-and run-level counts for policy reasons / required human checks.
+`promote_apply_required_min_explanation_quality`, and run-level counts for policy reasons / required human checks.
 
 For planner-driven patches, policy can enforce confidence gates:
 - below `min_confidence_auto_apply`: proposal becomes `NEEDS_REVIEW` (`change_plan_confidence_below_auto_apply`)
@@ -639,6 +639,7 @@ Promote apply command (apply execution action from compare summary):
 ```bash
 python -m gateforge.governance_promote_apply \
   --compare-summary artifacts/governance_promote_compare_demo/summary_with_override.json \
+  --policy-profile default \
   --review-ticket-id REV-42 \
   --actor governance.bot \
   --out artifacts/governance_promote_apply_demo/apply_summary.json \
@@ -657,11 +658,20 @@ Decision behavior:
   - `--require-ranking-explanation` (if enabled, missing ranking explanation causes `FAIL`)
   - `--require-min-top-score-margin N` (if enabled, missing margin or margin `< N` causes `FAIL`)
   - `--require-min-explanation-quality N` (if enabled, missing score or score `< N` causes `FAIL`)
+- profile defaults:
+  - `--policy-profile default|industrial_strict` from `policies/promote_apply/*.json`
+  - CLI flags override profile defaults and summary records the source (`cli` vs `policy_profile`)
 
 Promote apply demo shortcut:
 
 ```bash
 bash scripts/demo_governance_promote_apply.sh
+```
+
+Policy profile switch for demo:
+
+```bash
+PROMOTE_APPLY_POLICY_PROFILE=industrial_strict bash scripts/demo_governance_promote_apply.sh
 ```
 
 Strict ranking-explanation gate for demo:
@@ -1068,6 +1078,11 @@ You can force strict ranking-explanation guard in promote-apply jobs with:
 `PROMOTE_APPLY_REQUIRE_RANKING_EXPLANATION=1 bash scripts/demo_ci_matrix.sh`
 or CLI toggle:
 `bash scripts/demo_ci_matrix.sh --promote-apply-strict-ranking`
+
+You can pick promote-apply policy profile in local matrix with:
+`PROMOTE_APPLY_POLICY_PROFILE=industrial_strict bash scripts/demo_ci_matrix.sh`
+or CLI toggle:
+`bash scripts/demo_ci_matrix.sh --promote-apply-policy-profile industrial_strict`
 
 You can also require minimum top-score margin in promote-apply jobs with:
 `PROMOTE_APPLY_REQUIRED_MIN_TOP_SCORE_MARGIN=2 bash scripts/demo_ci_matrix.sh`
