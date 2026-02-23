@@ -153,6 +153,39 @@ class GovernanceReplayTests(unittest.TestCase):
             replay = json.loads(out.read_text(encoding="utf-8"))
             self.assertEqual(replay.get("decision"), "FAIL")
 
+    def test_governance_replay_ignore_apply_key(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            compare, apply = self._prepare_source_summaries(root)
+            tampered_apply = root / "apply_tampered.json"
+            payload = json.loads(apply.read_text(encoding="utf-8"))
+            payload["policy_hash"] = "deadbeef"
+            tampered_apply.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+            out = root / "replay.json"
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.governance_replay",
+                    "--compare-summary",
+                    str(compare),
+                    "--apply-summary",
+                    str(tampered_apply),
+                    "--ignore-apply-key",
+                    "policy_hash",
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            replay = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(replay.get("decision"), "PASS")
+            self.assertEqual(replay.get("mismatches"), [])
+            self.assertIn("policy_hash", replay.get("ignore_apply_keys", []))
+
 
 if __name__ == "__main__":
     unittest.main()
