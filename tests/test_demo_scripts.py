@@ -727,6 +727,21 @@ class DemoScriptTests(unittest.TestCase):
         self.assertEqual(payload.get("needs_review_decision"), "NEEDS_REVIEW")
         self.assertEqual(payload.get("strict_fail_decision"), "FAIL")
 
+    def test_demo_governance_replay_history_script(self) -> None:
+        proc = subprocess.run(
+            ["bash", "scripts/demo_governance_replay_history.sh"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+        payload = json.loads(
+            Path("artifacts/governance_replay_history_demo/demo_summary.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(payload.get("bundle_status"), "PASS")
+        self.assertEqual(payload.get("latest_decision"), "FAIL")
+        self.assertIn("mismatch_volume_high", payload.get("alerts", []))
+
 
 if __name__ == "__main__":
     unittest.main()
