@@ -26,6 +26,16 @@ class GovernancePromoteApplyTests(unittest.TestCase):
                     "best_reason": "highest_total_score",
                     "top_score_margin": 3,
                     "min_top_score_margin": 1,
+                    "explanation_quality": {
+                        "score": 90,
+                        "checks": {
+                            "has_selection_priority": True,
+                            "has_pairwise_rows": True,
+                            "all_pairwise_have_margin": True,
+                            "all_pairwise_have_profiles": True,
+                            "pairwise_advantages_non_empty": True,
+                        },
+                    },
                     "decision_explanations": {
                         "selection_priority": [
                             "total_score",
@@ -369,6 +379,77 @@ class GovernancePromoteApplyTests(unittest.TestCase):
             self.assertEqual(applied.get("final_status"), "FAIL")
             self.assertIn("explanation_quality_below_required", applied.get("reasons", []))
             self.assertTrue(applied.get("human_hints"))
+
+    def test_apply_uses_policy_profile_defaults(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            compare = root / "compare.json"
+            out = root / "apply.json"
+            self._write_compare_summary(compare, status="PASS", best_decision="PASS")
+            payload = json.loads(compare.read_text(encoding="utf-8"))
+            payload["top_score_margin"] = 2
+            payload["explanation_quality"] = {"score": 80}
+            compare.write_text(json.dumps(payload), encoding="utf-8")
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.governance_promote_apply",
+                    "--compare-summary",
+                    str(compare),
+                    "--policy-profile",
+                    "industrial_strict",
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 1)
+            applied = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(applied.get("final_status"), "FAIL")
+            self.assertEqual(applied.get("policy_profile"), "industrial_strict")
+            self.assertIn("top_score_margin_below_required", applied.get("reasons", []))
+            self.assertIn("explanation_quality_below_required", applied.get("reasons", []))
+            self.assertEqual(applied.get("source_require_min_top_score_margin"), "policy_profile")
+            self.assertEqual(applied.get("source_require_min_explanation_quality"), "policy_profile")
+
+    def test_apply_cli_overrides_policy_profile_defaults(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            compare = root / "compare.json"
+            out = root / "apply.json"
+            self._write_compare_summary(compare, status="PASS", best_decision="PASS")
+            payload = json.loads(compare.read_text(encoding="utf-8"))
+            payload["top_score_margin"] = 2
+            payload["explanation_quality"] = {"score": 80}
+            compare.write_text(json.dumps(payload), encoding="utf-8")
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.governance_promote_apply",
+                    "--compare-summary",
+                    str(compare),
+                    "--policy-profile",
+                    "industrial_strict",
+                    "--require-min-top-score-margin",
+                    "2",
+                    "--require-min-explanation-quality",
+                    "80",
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            applied = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(applied.get("final_status"), "PASS")
+            self.assertEqual(applied.get("source_require_min_top_score_margin"), "cli")
+            self.assertEqual(applied.get("source_require_min_explanation_quality"), "cli")
 
 
 if __name__ == "__main__":

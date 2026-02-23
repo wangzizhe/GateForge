@@ -7,6 +7,7 @@ cd "$ROOT_DIR"
 PROMOTE_APPLY_REQUIRE_RANKING_EXPLANATION="${PROMOTE_APPLY_REQUIRE_RANKING_EXPLANATION:-0}"
 PROMOTE_APPLY_REQUIRED_MIN_TOP_SCORE_MARGIN="${PROMOTE_APPLY_REQUIRED_MIN_TOP_SCORE_MARGIN:-}"
 PROMOTE_APPLY_REQUIRED_MIN_EXPLANATION_QUALITY="${PROMOTE_APPLY_REQUIRED_MIN_EXPLANATION_QUALITY:-}"
+PROMOTE_APPLY_POLICY_PROFILE="${PROMOTE_APPLY_POLICY_PROFILE:-default}"
 
 mkdir -p artifacts/governance_promote_apply_demo
 rm -f artifacts/governance_promote_apply_demo/*.json artifacts/governance_promote_apply_demo/*.md artifacts/governance_promote_apply_demo/*.jsonl
@@ -64,6 +65,7 @@ cmd=(
   python3 -m gateforge.governance_promote_apply
   --compare-summary artifacts/governance_promote_apply_demo/synthetic_pass_compare.json
   --actor governance.bot
+  --policy-profile "$PROMOTE_APPLY_POLICY_PROFILE"
   --out artifacts/governance_promote_apply_demo/pass_apply.json
   --report artifacts/governance_promote_apply_demo/pass_apply.md
   --audit artifacts/governance_promote_apply_demo/decision_audit.jsonl
@@ -98,6 +100,7 @@ cmd=(
   python3 -m gateforge.governance_promote_apply
   --compare-summary artifacts/governance_promote_apply_demo/synthetic_needs_review_compare.json
   --actor governance.bot
+  --policy-profile "$PROMOTE_APPLY_POLICY_PROFILE"
   --out artifacts/governance_promote_apply_demo/review_missing_ticket.json
   --report artifacts/governance_promote_apply_demo/review_missing_ticket.md
   --audit artifacts/governance_promote_apply_demo/decision_audit.jsonl
@@ -124,6 +127,7 @@ cmd=(
   --compare-summary artifacts/governance_promote_apply_demo/synthetic_needs_review_compare.json
   --review-ticket-id REV-42
   --actor governance.bot
+  --policy-profile "$PROMOTE_APPLY_POLICY_PROFILE"
   --out artifacts/governance_promote_apply_demo/review_with_ticket.json
   --report artifacts/governance_promote_apply_demo/review_with_ticket.md
   --audit artifacts/governance_promote_apply_demo/decision_audit.jsonl
@@ -169,9 +173,15 @@ flags = {
 bundle_status = "PASS" if all(v == "PASS" for v in flags.values()) else "FAIL"
 
 summary = {
+    "policy_profile": pass_payload.get("policy_profile"),
+    "policy_version": pass_payload.get("policy_version"),
+    "policy_path": pass_payload.get("policy_path"),
     "require_ranking_explanation": pass_payload.get("require_ranking_explanation"),
+    "source_require_ranking_explanation": pass_payload.get("source_require_ranking_explanation"),
     "require_min_top_score_margin": pass_payload.get("require_min_top_score_margin"),
+    "source_require_min_top_score_margin": pass_payload.get("source_require_min_top_score_margin"),
     "require_min_explanation_quality": pass_payload.get("require_min_explanation_quality"),
+    "source_require_min_explanation_quality": pass_payload.get("source_require_min_explanation_quality"),
     "pass_status": pass_payload.get("final_status"),
     "pass_ranking_selection_priority": pass_payload.get("ranking_selection_priority"),
     "pass_ranking_best_vs_others_count": len(pass_payload.get("ranking_best_vs_others") or []),
@@ -189,9 +199,15 @@ Path("artifacts/governance_promote_apply_demo/summary.md").write_text(
         [
             "# Governance Promote Apply Demo",
             "",
+            f"- policy_profile: `{summary.get('policy_profile')}`",
+            f"- policy_version: `{summary.get('policy_version')}`",
+            f"- policy_path: `{summary.get('policy_path')}`",
             f"- require_ranking_explanation: `{summary.get('require_ranking_explanation')}`",
+            f"- source_require_ranking_explanation: `{summary.get('source_require_ranking_explanation')}`",
             f"- require_min_top_score_margin: `{summary.get('require_min_top_score_margin')}`",
+            f"- source_require_min_top_score_margin: `{summary.get('source_require_min_top_score_margin')}`",
             f"- require_min_explanation_quality: `{summary.get('require_min_explanation_quality')}`",
+            f"- source_require_min_explanation_quality: `{summary.get('source_require_min_explanation_quality')}`",
             f"- pass_status: `{summary['pass_status']}`",
             f"- pass_ranking_selection_priority: `{','.join(summary.get('pass_ranking_selection_priority') or [])}`",
             f"- pass_ranking_best_vs_others_count: `{summary['pass_ranking_best_vs_others_count']}`",

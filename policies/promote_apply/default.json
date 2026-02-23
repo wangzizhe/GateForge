@@ -1,0 +1,6 @@
+{
+  "version": "0.1.0",
+  "require_ranking_explanation": false,
+  "require_min_top_score_margin": 1,
+  "require_min_explanation_quality": 70
+}

@@ -17,12 +17,14 @@ without_explain = {
     "best_profile": "default",
     "best_decision": "PASS",
     "recommended_profile": "default",
+    "top_score_margin": 10,
 }
 with_explain = {
     "status": "PASS",
     "best_profile": "default",
     "best_decision": "PASS",
     "recommended_profile": "default",
+    "top_score_margin": 10,
     "decision_explanations": {
         "selection_priority": [
             "total_score",

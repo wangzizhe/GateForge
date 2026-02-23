@@ -6,6 +6,8 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+PROMOTE_APPLY_POLICY_DIR = Path("policies/promote_apply")
+
 
 def _write_json(path: str, payload: dict) -> None:
     p = Path(path)
@@ -22,6 +24,56 @@ def _default_md_path(out_json: str) -> str:
 
 def _load_json(path: str) -> dict:
     return json.loads(Path(path).read_text(encoding="utf-8"))
+
+
+def _resolve_promote_apply_policy_path(policy_path: str | None, policy_profile: str | None) -> str:
+    if policy_path and policy_profile:
+        raise ValueError("Use either --policy-path or --policy-profile, not both")
+    if policy_profile:
+        profile = policy_profile if policy_profile.endswith(".json") else f"{policy_profile}.json"
+        resolved = PROMOTE_APPLY_POLICY_DIR / profile
+        if not resolved.exists():
+            raise ValueError(f"Promote-apply policy profile not found: {resolved}")
+        return str(resolved)
+    if policy_path:
+        return policy_path
+    return str(PROMOTE_APPLY_POLICY_DIR / "default.json")
+
+
+def _resolve_effective_guardrails(args: argparse.Namespace, policy_payload: dict) -> dict:
+    rank_from_cli = args.require_ranking_explanation is not None
+    margin_from_cli = args.require_min_top_score_margin is not None
+    quality_from_cli = args.require_min_explanation_quality is not None
+
+    require_ranking = (
+        bool(args.require_ranking_explanation)
+        if rank_from_cli
+        else bool(policy_payload.get("require_ranking_explanation", False))
+    )
+    min_margin = (
+        args.require_min_top_score_margin
+        if margin_from_cli
+        else policy_payload.get("require_min_top_score_margin")
+    )
+    min_quality = (
+        args.require_min_explanation_quality
+        if quality_from_cli
+        else policy_payload.get("require_min_explanation_quality")
+    )
+
+    if min_margin is not None and not isinstance(min_margin, int):
+        raise ValueError("effective require_min_top_score_margin must be int or null")
+    if min_quality is not None and not isinstance(min_quality, int):
+        raise ValueError("effective require_min_explanation_quality must be int or null")
+
+    return {
+        "require_ranking_explanation": require_ranking,
+        "require_min_top_score_margin": min_margin,
+        "require_min_explanation_quality": min_quality,
+        "source_require_ranking_explanation": "cli" if rank_from_cli else "policy_profile",
+        "source_require_min_top_score_margin": "cli" if margin_from_cli else "policy_profile",
+        "source_require_min_explanation_quality": "cli" if quality_from_cli else "policy_profile",
+    }
 
 
 def _append_jsonl(path: str, record: dict) -> None:
@@ -47,9 +99,15 @@ def _write_markdown(path: str, summary: dict) -> None:
         f"- ranking_selection_priority: `{','.join(summary.get('ranking_selection_priority') or [])}`",
         f"- recommended_profile: `{summary.get('recommended_profile')}`",
         f"- review_ticket_id: `{summary.get('review_ticket_id')}`",
+        f"- policy_profile: `{summary.get('policy_profile')}`",
+        f"- policy_version: `{summary.get('policy_version')}`",
+        f"- policy_path: `{summary.get('policy_path')}`",
         f"- require_ranking_explanation: `{summary.get('require_ranking_explanation')}`",
+        f"- source_require_ranking_explanation: `{summary.get('source_require_ranking_explanation')}`",
         f"- require_min_top_score_margin: `{summary.get('require_min_top_score_margin')}`",
+        f"- source_require_min_top_score_margin: `{summary.get('source_require_min_top_score_margin')}`",
         f"- require_min_explanation_quality: `{summary.get('require_min_explanation_quality')}`",
+        f"- source_require_min_explanation_quality: `{summary.get('source_require_min_explanation_quality')}`",
         f"- explanation_quality_score: `{summary.get('explanation_quality_score')}`",
         f"- audit_path: `{summary.get('audit_path')}`",
         "",
@@ -236,22 +294,32 @@ def main() -> None:
     parser.add_argument("--review-ticket-id", default=None, help="Required when compare summary status is NEEDS_REVIEW")
     parser.add_argument("--actor", default="governance.bot", help="Actor identity for audit record")
     parser.add_argument(
+        "--policy-profile",
+        default="default",
+        help="Promote-apply policy profile name in policies/promote_apply (default: default)",
+    )
+    parser.add_argument(
+        "--policy-path",
+        default=None,
+        help="Explicit promote-apply policy path (overrides --policy-profile)",
+    )
+    parser.add_argument(
         "--require-ranking-explanation",
         action=argparse.BooleanOptionalAction,
-        default=False,
+        default=None,
         help="When enabled, PASS compare summaries must include decision_explanations.best_vs_others",
     )
     parser.add_argument(
         "--require-min-top-score-margin",
         type=int,
         default=None,
-        help="When set, PASS compare summaries must include top_score_margin >= this value",
+        help="CLI override: PASS compare summaries must include top_score_margin >= this value",
     )
     parser.add_argument(
         "--require-min-explanation-quality",
         type=int,
         default=None,
-        help="When set, PASS compare summaries must include explanation_quality.score >= this value",
+        help="CLI override: PASS compare summaries must include explanation_quality.score >= this value",
     )
     parser.add_argument("--out", default="artifacts/governance_promote_apply/summary.json", help="Output summary JSON")
     parser.add_argument("--report", default=None, help="Output markdown path")
@@ -263,12 +331,15 @@ def main() -> None:
     args = parser.parse_args()
 
     compare_payload = _load_json(args.compare_summary)
+    policy_path = _resolve_promote_apply_policy_path(args.policy_path, args.policy_profile)
+    policy_payload = _load_json(policy_path)
+    effective = _resolve_effective_guardrails(args, policy_payload)
     evaluated = _evaluate(
         compare_payload,
         args.review_ticket_id,
-        require_ranking_explanation=bool(args.require_ranking_explanation),
-        require_min_top_score_margin=args.require_min_top_score_margin,
-        require_min_explanation_quality=args.require_min_explanation_quality,
+        require_ranking_explanation=bool(effective["require_ranking_explanation"]),
+        require_min_top_score_margin=effective["require_min_top_score_margin"],
+        require_min_explanation_quality=effective["require_min_explanation_quality"],
     )
     recorded_at = datetime.now(timezone.utc).isoformat()
 
@@ -276,9 +347,15 @@ def main() -> None:
         **evaluated,
         "actor": args.actor,
         "review_ticket_id": args.review_ticket_id,
-        "require_ranking_explanation": bool(args.require_ranking_explanation),
-        "require_min_top_score_margin": args.require_min_top_score_margin,
-        "require_min_explanation_quality": args.require_min_explanation_quality,
+        "policy_profile": args.policy_profile,
+        "policy_version": policy_payload.get("version"),
+        "policy_path": policy_path,
+        "require_ranking_explanation": effective["require_ranking_explanation"],
+        "source_require_ranking_explanation": effective["source_require_ranking_explanation"],
+        "require_min_top_score_margin": effective["require_min_top_score_margin"],
+        "source_require_min_top_score_margin": effective["source_require_min_top_score_margin"],
+        "require_min_explanation_quality": effective["require_min_explanation_quality"],
+        "source_require_min_explanation_quality": effective["source_require_min_explanation_quality"],
         "compare_summary_path": args.compare_summary,
         "constraint_reason": compare_payload.get("constraint_reason"),
         "top_score_margin": compare_payload.get("top_score_margin"),
@@ -308,9 +385,15 @@ def main() -> None:
         "best_decision": summary.get("best_decision"),
         "recommended_profile": summary.get("recommended_profile"),
         "review_ticket_id": summary.get("review_ticket_id"),
+        "policy_profile": summary.get("policy_profile"),
+        "policy_version": summary.get("policy_version"),
+        "policy_path": summary.get("policy_path"),
         "require_ranking_explanation": summary.get("require_ranking_explanation"),
+        "source_require_ranking_explanation": summary.get("source_require_ranking_explanation"),
         "require_min_top_score_margin": summary.get("require_min_top_score_margin"),
+        "source_require_min_top_score_margin": summary.get("source_require_min_top_score_margin"),
         "require_min_explanation_quality": summary.get("require_min_explanation_quality"),
+        "source_require_min_explanation_quality": summary.get("source_require_min_explanation_quality"),
         "constraint_reason": summary.get("constraint_reason"),
         "top_score_margin": summary.get("top_score_margin"),
         "min_top_score_margin": summary.get("min_top_score_margin"),
