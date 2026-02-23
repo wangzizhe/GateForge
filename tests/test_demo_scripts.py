@@ -824,6 +824,7 @@ class DemoScriptTests(unittest.TestCase):
         )
         self.assertEqual(payload.get("bundle_status"), "PASS")
         self.assertIsInstance(payload.get("suggested_policy_profile"), str)
+        self.assertIsInstance(payload.get("advice_evidence_count"), int)
 
 
 if __name__ == "__main__":
