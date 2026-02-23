@@ -1,0 +1,5 @@
+loadFile("examples/openmodelica/MediumOscillator.mo");
+checkModel(MediumOscillator);
+this_is_not_valid_syntax(
+simulate(MediumOscillator, stopTime = 2.0, numberOfIntervals = 80);
+getErrorString();

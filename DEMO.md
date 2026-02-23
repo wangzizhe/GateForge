@@ -192,6 +192,14 @@ cat artifacts/bench-pack/summary.json
 cat artifacts/bench-pack/summary.md
 ```
 
+Medium-case benchmark truth set v1:
+
+```bash
+bash scripts/demo_medium_pack_v1.sh
+cat artifacts/benchmark_medium_v1/summary.json
+cat artifacts/benchmark_medium_v1/summary.md
+```
+
 ## 7. Autopilot Dry-Run Demo (Human Review Template)
 
 Command:
