@@ -79,6 +79,11 @@ class GovernancePromoteCompareTests(unittest.TestCase):
             self.assertIsInstance(win_summary, dict)
             self.assertEqual(win_summary.get("best_profile"), payload.get("best_profile"))
             self.assertIsInstance(win_summary.get("decisive_components"), list)
+            ranked = payload.get("decision_explanation_ranked", [])
+            self.assertIsInstance(ranked, list)
+            self.assertGreaterEqual(len(ranked), 2)
+            self.assertIsInstance(ranked[0].get("reason"), str)
+            self.assertIsInstance(payload.get("explanation_completeness"), int)
 
     def test_promote_compare_emits_pairwise_ranking_explanations(self) -> None:
         with tempfile.TemporaryDirectory() as d:

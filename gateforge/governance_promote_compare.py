@@ -288,6 +288,79 @@ def _build_best_profile_win_summary(
     }
 
 
+def _build_decision_explanation_ranked(
+    best_profile_win_summary: dict,
+    best_reason: str,
+    explanation_quality: dict,
+) -> list[dict]:
+    ranked: list[dict] = []
+    top_margin = best_profile_win_summary.get("top_score_margin")
+    decisive = best_profile_win_summary.get("decisive_components", [])
+    if isinstance(top_margin, int):
+        ranked.append(
+            {
+                "reason": "top_score_margin",
+                "value": top_margin,
+                "weight": 100,
+                "note": "Best profile leads the second-best profile by this score margin.",
+            }
+        )
+    if isinstance(decisive, list):
+        for idx, item in enumerate(decisive):
+            if not isinstance(item, dict):
+                continue
+            component = item.get("component")
+            delta = item.get("total_delta")
+            if isinstance(component, str) and isinstance(delta, int):
+                ranked.append(
+                    {
+                        "reason": f"component_delta:{component}",
+                        "value": delta,
+                        "weight": max(0, 90 - (idx * 5)),
+                        "note": "Aggregated score contribution against challengers.",
+                    }
+                )
+    quality_score = explanation_quality.get("score") if isinstance(explanation_quality, dict) else None
+    if isinstance(quality_score, int):
+        ranked.append(
+            {
+                "reason": "explanation_quality_score",
+                "value": quality_score,
+                "weight": 50,
+                "note": "Structural quality of pairwise ranking explanation.",
+            }
+        )
+    ranked.append(
+        {
+            "reason": "best_reason",
+            "value": best_reason,
+            "weight": 40,
+            "note": "Primary selection rule used by compare.",
+        }
+    )
+    return ranked
+
+
+def _compute_explanation_completeness(
+    decision_explanations: dict,
+    decision_ranking: list[dict],
+    best_profile_win_summary: dict,
+    decision_explanation_ranked: list[dict],
+) -> int:
+    checks = [
+        isinstance(decision_explanations.get("selection_priority"), list)
+        and len(decision_explanations.get("selection_priority", [])) >= 2,
+        isinstance(decision_explanations.get("best_vs_others"), list)
+        and len(decision_explanations.get("best_vs_others", [])) >= 1,
+        isinstance(decision_ranking, list) and len(decision_ranking) >= 2,
+        isinstance(best_profile_win_summary.get("decisive_components"), list)
+        and len(best_profile_win_summary.get("decisive_components", [])) >= 1,
+        isinstance(decision_explanation_ranked, list) and len(decision_explanation_ranked) >= 2,
+    ]
+    passed = sum(1 for ok in checks if ok)
+    return int(round((passed / len(checks)) * 100))
+
+
 def _compute_explanation_quality(explanations: dict) -> dict:
     checks = {
         "has_selection_priority": False,
@@ -466,6 +539,12 @@ def _write_markdown(path: str, summary: dict) -> None:
                 lines.append(f"  - `{item.get('component')}:{item.get('total_delta')}`")
     else:
         lines.append("- decisive_components: `none`")
+    lines.extend(["", "## Decision Explanation Ranked Reasons", ""])
+    for row in summary.get("decision_explanation_ranked", []):
+        lines.append(
+            f"- reason=`{row.get('reason')}` value=`{row.get('value')}` weight=`{row.get('weight')}` note=`{row.get('note')}`"
+        )
+    lines.append(f"- explanation_completeness: `{summary.get('explanation_completeness')}`")
     quality = summary.get("explanation_quality", {})
     lines.extend(["", "## Explanation Quality", ""])
     lines.append(f"- score: `{quality.get('score')}`")
@@ -629,6 +708,17 @@ def main() -> None:
     explanation_quality = _compute_explanation_quality(decision_explanations)
     decision_ranking = _build_decision_ranking(ranking)
     best_profile_win_summary = _build_best_profile_win_summary(decision_ranking, decision_explanations, best_reason)
+    decision_explanation_ranked = _build_decision_explanation_ranked(
+        best_profile_win_summary,
+        best_reason,
+        explanation_quality,
+    )
+    explanation_completeness = _compute_explanation_completeness(
+        decision_explanations,
+        decision_ranking,
+        best_profile_win_summary,
+        decision_explanation_ranked,
+    )
 
     status = "PASS"
     if all(str(r.get("decision")).upper() == "FAIL" for r in results):
@@ -682,6 +772,8 @@ def main() -> None:
         "decision_explanations": decision_explanations,
         "explanation_quality": explanation_quality,
         "decision_explanation_score": explanation_quality.get("score"),
+        "decision_explanation_ranked": decision_explanation_ranked,
+        "explanation_completeness": explanation_completeness,
         "decision_ranking": decision_ranking,
         "best_profile_win_summary": best_profile_win_summary,
         "ranking": ranking,
