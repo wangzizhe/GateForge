@@ -462,6 +462,30 @@ Key outputs:
 - `artifacts/governance_history_demo/summary.json`
 - `artifacts/governance_history_demo/summary.md`
 
+## 13.1 Governance Replay Demo
+
+Command:
+
+```bash
+bash scripts/demo_governance_replay.sh
+```
+
+What it validates:
+
+- replays governance compare and apply from source summaries
+- checks deterministic decision fields and guardrail hashes
+- mismatch handling:
+  - default mode => `NEEDS_REVIEW`
+  - strict mode => `FAIL`
+
+Key outputs:
+
+- `artifacts/governance_replay_demo/replay_pass.json`
+- `artifacts/governance_replay_demo/replay_needs_review.json`
+- `artifacts/governance_replay_demo/replay_strict_fail.json`
+- `artifacts/governance_replay_demo/summary.json`
+- `artifacts/governance_replay_demo/summary.md`
+
 ## 14. Governance Promote Demo
 
 Command:

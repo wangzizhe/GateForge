@@ -1553,6 +1553,9 @@ jobs:
       - name: Run governance history demo
         run: bash scripts/demo_governance_history.sh
 
+      - name: Run governance replay demo
+        run: bash scripts/demo_governance_replay.sh
+
       - name: Publish governance history summary to job page
         if: always()
         run: |
@@ -1578,6 +1581,20 @@ jobs:
                   f"- worse_count: `{tk.get('worse_count')}`",
                   "",
               ]
+              replay_path = Path("artifacts/governance_replay_demo/summary.json")
+              if replay_path.exists():
+                  replay = json.loads(replay_path.read_text(encoding="utf-8"))
+                  lines.extend(
+                      [
+                          "## Governance Replay Summary",
+                          "",
+                          f"- bundle_status: `{replay.get('bundle_status')}`",
+                          f"- pass_decision: `{replay.get('pass_decision')}`",
+                          f"- needs_review_decision: `{replay.get('needs_review_decision')}`",
+                          f"- strict_fail_decision: `{replay.get('strict_fail_decision')}`",
+                          "",
+                      ]
+                  )
               text = "\n".join(lines)
 
           summary_file = os.getenv("GITHUB_STEP_SUMMARY")
@@ -1595,6 +1612,18 @@ jobs:
           path: |
             artifacts/governance_history_demo/summary.json
             artifacts/governance_history_demo/summary.md
+            artifacts/governance_replay_demo/snapshot.json
+            artifacts/governance_replay_demo/compare_source.json
+            artifacts/governance_replay_demo/apply_source.json
+            artifacts/governance_replay_demo/apply_tampered.json
+            artifacts/governance_replay_demo/replay_pass.json
+            artifacts/governance_replay_demo/replay_pass.md
+            artifacts/governance_replay_demo/replay_needs_review.json
+            artifacts/governance_replay_demo/replay_needs_review.md
+            artifacts/governance_replay_demo/replay_strict_fail.json
+            artifacts/governance_replay_demo/replay_strict_fail.md
+            artifacts/governance_replay_demo/summary.json
+            artifacts/governance_replay_demo/summary.md
 
   governance-promote-demo-optional:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_governance_promote_demo }}
