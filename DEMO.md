@@ -551,6 +551,32 @@ Key outputs:
 - `artifacts/governance_policy_advisor_bundle_demo/summary.json`
 - `artifacts/governance_policy_advisor_bundle_demo/summary.md`
 
+## 13.5 Governance Policy Patch Apply Demo
+
+Command:
+
+```bash
+bash scripts/demo_governance_policy_patch_apply.sh
+```
+
+What it validates:
+
+- turns advisor output into a human-review policy patch proposal
+- enforces approval gate before policy write
+- exercises all three outcomes:
+  - no approval => `NEEDS_REVIEW`
+  - explicit reject => `FAIL`
+  - approve + `--apply` => `PASS`
+
+Key outputs:
+
+- `artifacts/governance_policy_patch_apply_demo/proposal.json`
+- `artifacts/governance_policy_patch_apply_demo/apply.no_approval.json`
+- `artifacts/governance_policy_patch_apply_demo/apply.reject.json`
+- `artifacts/governance_policy_patch_apply_demo/apply.approve_apply.json`
+- `artifacts/governance_policy_patch_apply_demo/summary.json`
+- `artifacts/governance_policy_patch_apply_demo/summary.md`
+
 ## 14. Governance Promote Demo
 
 Command:

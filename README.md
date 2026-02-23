@@ -668,6 +668,12 @@ Policy advisor bundle demo shortcut:
 bash scripts/demo_governance_policy_advisor_bundle.sh
 ```
 
+Policy patch apply demo shortcut:
+
+```bash
+bash scripts/demo_governance_policy_patch_apply.sh
+```
+
 Governance promote decision (snapshot -> promotion gate decision):
 
 ```bash
