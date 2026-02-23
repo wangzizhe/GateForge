@@ -52,6 +52,7 @@ fi
 python3 -m gateforge.governance_policy_advisor \
   --snapshot artifacts/governance_policy_advisor_bundle_demo/replay_snapshot.json \
   --trend artifacts/governance_policy_advisor_bundle_demo/replay_snapshot_trend.json \
+  --compare-summary artifacts/governance_replay_bundle_demo/replay_compare.json \
   --out artifacts/governance_policy_advisor_bundle_demo/policy_advice.json \
   --report artifacts/governance_policy_advisor_bundle_demo/policy_advice.md
 
@@ -79,6 +80,7 @@ summary = {
     "suggested_policy_profile": advice_payload.get("suggested_policy_profile"),
     "advice_confidence": advice_payload.get("confidence"),
     "advice_reasons_count": len(advice_payload.get("reasons") or []),
+    "advice_evidence_count": len(advice_payload.get("evidence_sources") or []),
     "bundle_status": bundle_status,
     "result_flags": flags,
 }
@@ -93,6 +95,7 @@ summary = {
             f"- suggested_policy_profile: `{summary['suggested_policy_profile']}`",
             f"- advice_confidence: `{summary['advice_confidence']}`",
             f"- advice_reasons_count: `{summary['advice_reasons_count']}`",
+            f"- advice_evidence_count: `{summary['advice_evidence_count']}`",
             f"- bundle_status: `{summary['bundle_status']}`",
             "",
             "## Result Flags",
