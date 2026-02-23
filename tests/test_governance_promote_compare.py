@@ -69,6 +69,16 @@ class GovernancePromoteCompareTests(unittest.TestCase):
             self.assertIn("all_pairwise_have_score_delta", quality.get("checks", {}))
             self.assertIn("pairwise_ranked_advantages_non_empty", quality.get("checks", {}))
             self.assertIsInstance(payload.get("decision_explanation_score"), int)
+            decision_ranking = payload.get("decision_ranking", [])
+            self.assertIsInstance(decision_ranking, list)
+            self.assertGreaterEqual(len(decision_ranking), 2)
+            self.assertEqual(decision_ranking[0].get("rank"), 1)
+            self.assertIn("score_gap_to_best", decision_ranking[0])
+            self.assertIsInstance(decision_ranking[0].get("score_breakdown"), dict)
+            win_summary = payload.get("best_profile_win_summary", {})
+            self.assertIsInstance(win_summary, dict)
+            self.assertEqual(win_summary.get("best_profile"), payload.get("best_profile"))
+            self.assertIsInstance(win_summary.get("decisive_components"), list)
 
     def test_promote_compare_emits_pairwise_ranking_explanations(self) -> None:
         with tempfile.TemporaryDirectory() as d:

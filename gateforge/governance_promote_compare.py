@@ -199,6 +199,95 @@ def _build_decision_explanations(
     }
 
 
+def _build_decision_ranking(ranking: list[dict]) -> list[dict]:
+    if not ranking:
+        return []
+    best = ranking[0]
+    best_score = int(best.get("total_score", 0))
+    out: list[dict] = []
+    for row in ranking:
+        score = int(row.get("total_score", 0))
+        breakdown = row.get("score_breakdown", {})
+        if not isinstance(breakdown, dict):
+            breakdown = {}
+        out.append(
+            {
+                "rank": int(row.get("rank", 0) or 0),
+                "profile": row.get("profile"),
+                "decision": row.get("decision"),
+                "exit_code": row.get("exit_code"),
+                "total_score": score,
+                "score_gap_to_best": best_score - score,
+                "score_breakdown": {
+                    "decision_component": int(breakdown.get("decision_component", 0) or 0),
+                    "exit_component": int(breakdown.get("exit_component", 0) or 0),
+                    "reasons_component": int(breakdown.get("reasons_component", 0) or 0),
+                    "recommended_component": int(breakdown.get("recommended_component", 0) or 0),
+                },
+            }
+        )
+    return out
+
+
+def _build_best_profile_win_summary(
+    decision_ranking: list[dict],
+    decision_explanations: dict,
+    best_reason: str,
+) -> dict:
+    if not decision_ranking:
+        return {
+            "best_profile": None,
+            "best_reason": best_reason,
+            "top_score_margin": None,
+            "decisive_components": [],
+            "pairwise_margins": [],
+        }
+    best = decision_ranking[0]
+    pairwise = decision_explanations.get("best_vs_others", []) if isinstance(decision_explanations, dict) else []
+    component_totals: dict[str, int] = {
+        "decision_component": 0,
+        "exit_component": 0,
+        "reasons_component": 0,
+        "recommended_component": 0,
+    }
+    pairwise_margins: list[dict] = []
+    if isinstance(pairwise, list):
+        for row in pairwise:
+            if not isinstance(row, dict):
+                continue
+            delta = row.get("score_breakdown_delta", {})
+            if isinstance(delta, dict):
+                for key in component_totals:
+                    try:
+                        component_totals[key] += int(delta.get(key, 0) or 0)
+                    except (TypeError, ValueError):
+                        continue
+            pairwise_margins.append(
+                {
+                    "challenger_profile": row.get("challenger_profile"),
+                    "score_margin": row.get("score_margin"),
+                    "tie_on_total_score": row.get("tie_on_total_score"),
+                }
+            )
+    decisive_components = sorted(
+        [{"component": k, "total_delta": v} for k, v in component_totals.items()],
+        key=lambda item: int(item.get("total_delta", 0)),
+        reverse=True,
+    )
+    top_score_margin = None
+    if len(decision_ranking) >= 2:
+        top_score_margin = int(decision_ranking[0].get("total_score", 0)) - int(
+            decision_ranking[1].get("total_score", 0)
+        )
+    return {
+        "best_profile": best.get("profile"),
+        "best_reason": best_reason,
+        "top_score_margin": top_score_margin,
+        "decisive_components": decisive_components,
+        "pairwise_margins": pairwise_margins,
+    }
+
+
 def _compute_explanation_quality(explanations: dict) -> dict:
     checks = {
         "has_selection_priority": False,
@@ -354,6 +443,29 @@ def _write_markdown(path: str, summary: dict) -> None:
             lines.append(f"  - ranked_advantages=`{ranked_text or 'none'}`")
     else:
         lines.append("- `none`")
+    lines.extend(["", "## Ranking Decision Scorecard", ""])
+    for row in summary.get("decision_ranking", []):
+        breakdown = row.get("score_breakdown", {})
+        lines.append(
+            f"- rank={row.get('rank')} profile=`{row.get('profile')}` total_score=`{row.get('total_score')}` "
+            f"gap_to_best=`{row.get('score_gap_to_best')}` "
+            f"components(decision/exit/reasons/recommended)=`"
+            f"{breakdown.get('decision_component')}/{breakdown.get('exit_component')}/"
+            f"{breakdown.get('reasons_component')}/{breakdown.get('recommended_component')}`"
+        )
+    win_summary = summary.get("best_profile_win_summary", {})
+    lines.extend(["", "## Best Profile Win Summary", ""])
+    lines.append(f"- best_profile: `{win_summary.get('best_profile')}`")
+    lines.append(f"- best_reason: `{win_summary.get('best_reason')}`")
+    lines.append(f"- top_score_margin: `{win_summary.get('top_score_margin')}`")
+    decisive = win_summary.get("decisive_components", [])
+    if isinstance(decisive, list) and decisive:
+        lines.append("- decisive_components:")
+        for item in decisive:
+            if isinstance(item, dict):
+                lines.append(f"  - `{item.get('component')}:{item.get('total_delta')}`")
+    else:
+        lines.append("- decisive_components: `none`")
     quality = summary.get("explanation_quality", {})
     lines.extend(["", "## Explanation Quality", ""])
     lines.append(f"- score: `{quality.get('score')}`")
@@ -515,6 +627,8 @@ def main() -> None:
     best_decision = str(best_row.get("decision") if isinstance(best_row, dict) else "UNKNOWN")
     decision_explanations = _build_decision_explanations(ranking, best_profile, best_reason)
     explanation_quality = _compute_explanation_quality(decision_explanations)
+    decision_ranking = _build_decision_ranking(ranking)
+    best_profile_win_summary = _build_best_profile_win_summary(decision_ranking, decision_explanations, best_reason)
 
     status = "PASS"
     if all(str(r.get("decision")).upper() == "FAIL" for r in results):
@@ -568,6 +682,8 @@ def main() -> None:
         "decision_explanations": decision_explanations,
         "explanation_quality": explanation_quality,
         "decision_explanation_score": explanation_quality.get("score"),
+        "decision_ranking": decision_ranking,
+        "best_profile_win_summary": best_profile_win_summary,
         "ranking": ranking,
         "profile_results": results,
     }
