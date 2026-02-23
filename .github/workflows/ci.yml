@@ -1562,6 +1562,9 @@ jobs:
       - name: Run governance replay bundle demo
         run: bash scripts/demo_governance_replay_bundle.sh
 
+      - name: Run governance policy advisor bundle demo
+        run: bash scripts/demo_governance_policy_advisor_bundle.sh
+
       - name: Publish governance history summary to job page
         if: always()
         run: |
@@ -1630,6 +1633,21 @@ jobs:
                           "",
                       ]
                   )
+              advisor_bundle_path = Path("artifacts/governance_policy_advisor_bundle_demo/summary.json")
+              if advisor_bundle_path.exists():
+                  advisor_bundle = json.loads(advisor_bundle_path.read_text(encoding="utf-8"))
+                  lines.extend(
+                      [
+                          "## Governance Policy Advisor Bundle Summary",
+                          "",
+                          f"- bundle_status: `{advisor_bundle.get('bundle_status')}`",
+                          f"- snapshot_status: `{advisor_bundle.get('snapshot_status')}`",
+                          f"- trend_status_transition: `{advisor_bundle.get('trend_status_transition')}`",
+                          f"- suggested_policy_profile: `{advisor_bundle.get('suggested_policy_profile')}`",
+                          f"- advice_confidence: `{advisor_bundle.get('advice_confidence')}`",
+                          "",
+                      ]
+                  )
               text = "\n".join(lines)
 
           summary_file = os.getenv("GITHUB_STEP_SUMMARY")
@@ -1673,6 +1691,15 @@ jobs:
             artifacts/governance_replay_bundle_demo/replay_risk.md
             artifacts/governance_replay_bundle_demo/summary.json
             artifacts/governance_replay_bundle_demo/summary.md
+            artifacts/governance_policy_advisor_bundle_demo/previous_snapshot.json
+            artifacts/governance_policy_advisor_bundle_demo/replay_snapshot.json
+            artifacts/governance_policy_advisor_bundle_demo/replay_snapshot.md
+            artifacts/governance_policy_advisor_bundle_demo/replay_snapshot_trend.json
+            artifacts/governance_policy_advisor_bundle_demo/replay_snapshot_trend.md
+            artifacts/governance_policy_advisor_bundle_demo/policy_advice.json
+            artifacts/governance_policy_advisor_bundle_demo/policy_advice.md
+            artifacts/governance_policy_advisor_bundle_demo/summary.json
+            artifacts/governance_policy_advisor_bundle_demo/summary.md
 
   governance-promote-demo-optional:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_governance_promote_demo }}

@@ -757,6 +757,20 @@ class DemoScriptTests(unittest.TestCase):
         self.assertIsInstance(payload.get("compare_best_profile"), str)
         self.assertIn(payload.get("risk_level"), {"low", "medium", "high"})
 
+    def test_demo_governance_policy_advisor_bundle_script(self) -> None:
+        proc = subprocess.run(
+            ["bash", "scripts/demo_governance_policy_advisor_bundle.sh"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+        payload = json.loads(
+            Path("artifacts/governance_policy_advisor_bundle_demo/summary.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(payload.get("bundle_status"), "PASS")
+        self.assertIsInstance(payload.get("suggested_policy_profile"), str)
+
 
 if __name__ == "__main__":
     unittest.main()

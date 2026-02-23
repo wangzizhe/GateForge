@@ -602,6 +602,41 @@ python -m gateforge.governance_replay_risk \
 cat artifacts/governance_replay/risk.json
 ```
 
+Replay snapshot aggregation:
+
+```bash
+python -m gateforge.governance_replay_snapshot \
+  --replay-ledger artifacts/governance_replay_history_demo/history.jsonl \
+  --replay-history-summary artifacts/governance_replay_history_demo/summary.json \
+  --replay-risk-summary artifacts/governance_replay_bundle_demo/replay_risk.json \
+  --replay-compare-summary artifacts/governance_replay_bundle_demo/replay_compare.json \
+  --out artifacts/governance_replay_snapshot/summary.json \
+  --report artifacts/governance_replay_snapshot/summary.md
+cat artifacts/governance_replay_snapshot/summary.json
+```
+
+Replay snapshot trend:
+
+```bash
+python -m gateforge.governance_replay_snapshot_trend \
+  --summary artifacts/governance_replay_snapshot/summary.json \
+  --previous-summary artifacts/governance_policy_advisor_bundle_demo/previous_snapshot.json \
+  --out artifacts/governance_replay_snapshot_trend/summary.json \
+  --report artifacts/governance_replay_snapshot_trend/summary.md
+cat artifacts/governance_replay_snapshot_trend/summary.json
+```
+
+Policy advisor v0:
+
+```bash
+python -m gateforge.governance_policy_advisor \
+  --snapshot artifacts/governance_replay_snapshot/summary.json \
+  --trend artifacts/governance_replay_snapshot_trend/summary.json \
+  --out artifacts/governance_policy_advisor/summary.json \
+  --report artifacts/governance_policy_advisor/summary.md
+cat artifacts/governance_policy_advisor/summary.json
+```
+
 Replay history summary (trend of replay decisions/mismatches):
 
 ```bash
@@ -625,6 +660,12 @@ Replay bundle demo shortcut:
 
 ```bash
 bash scripts/demo_governance_replay_bundle.sh
+```
+
+Policy advisor bundle demo shortcut:
+
+```bash
+bash scripts/demo_governance_policy_advisor_bundle.sh
 ```
 
 Governance promote decision (snapshot -> promotion gate decision):

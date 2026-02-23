@@ -529,6 +529,28 @@ Key outputs:
 - `artifacts/governance_replay_bundle_demo/summary.json`
 - `artifacts/governance_replay_bundle_demo/summary.md`
 
+## 13.4 Governance Policy Advisor Bundle Demo
+
+Command:
+
+```bash
+bash scripts/demo_governance_policy_advisor_bundle.sh
+```
+
+What it validates:
+
+- replay assets are auto-aggregated into replay snapshot
+- replay snapshot trend is computed against previous baseline
+- policy advisor emits profile recommendation and threshold patch
+
+Key outputs:
+
+- `artifacts/governance_policy_advisor_bundle_demo/replay_snapshot.json`
+- `artifacts/governance_policy_advisor_bundle_demo/replay_snapshot_trend.json`
+- `artifacts/governance_policy_advisor_bundle_demo/policy_advice.json`
+- `artifacts/governance_policy_advisor_bundle_demo/summary.json`
+- `artifacts/governance_policy_advisor_bundle_demo/summary.md`
+
 ## 14. Governance Promote Demo
 
 Command:
