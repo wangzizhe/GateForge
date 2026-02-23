@@ -1572,7 +1572,7 @@ python -m gateforge.batch \
 
 When `--proposal` is used, `proposal_id` is propagated to per-run evidence and batch summary.
 
-### 9. Benchmark Pack v0 (fixed cases + expected outcomes)
+### 9. Benchmark Packs (fixed cases + expected outcomes)
 
 Run benchmark pack and validate expected outcomes:
 
@@ -1602,6 +1602,27 @@ Pack `benchmarks/pack_v0.json` currently defines mixed fixed cases with expected
 - medium model PASS case (`medium_probe`)
 - medium model expected-mismatch case (intentionally failing benchmark check)
 
+Medium-case benchmark pack v1 (stable expected outcomes only):
+
+```bash
+python -m gateforge.medium_benchmark \
+  --pack benchmarks/medium_pack_v1.json \
+  --out-dir artifacts/benchmark_medium_v1 \
+  --summary-out artifacts/benchmark_medium_v1/summary.json \
+  --report-out artifacts/benchmark_medium_v1/summary.md
+```
+
+or one-command shortcut:
+
+```bash
+bash scripts/demo_medium_pack_v1.sh
+```
+
+Pack `benchmarks/medium_pack_v1.json` defines:
+- medium PASS cases across default/short/long probes
+- medium failure taxonomy cases (`script_parse_error`, `model_check_error`, `simulate_error`)
+- no intentionally wrong expected values (designed as a stable truth set)
+
 Benchmark behavior:
 - case matches expected -> PASS
 - any mismatch -> FAIL (process exits `1`)
@@ -1609,7 +1630,9 @@ Benchmark behavior:
 CI optional benchmark:
 - Open GitHub Actions -> `ci` workflow -> `Run workflow`
 - Set `run_benchmark=true`
-- Benchmark job runs as non-blocking (`continue-on-error`) and uploads `benchmark-v0` artifacts.
+- Benchmark job runs as non-blocking (`continue-on-error`) and uploads both:
+  - `artifacts/benchmark_v0`
+  - `artifacts/benchmark_medium_v1`
 
 ## IV. Governance
 

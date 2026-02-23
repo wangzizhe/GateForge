@@ -1,0 +1,4 @@
+loadFile("examples/openmodelica/MediumOscillator.mo");
+checkModel(MediumOscillatorBroken);
+simulate(MediumOscillatorBroken, stopTime = 2.0, numberOfIntervals = 80);
+getErrorString();

@@ -1,0 +1,4 @@
+loadFile("examples/openmodelica/medium_failures/MediumSimFail.mo");
+checkModel(MediumSimFail);
+simulate(MediumSimFail, stopTime = 2.0, numberOfIntervals = 100);
+getErrorString();

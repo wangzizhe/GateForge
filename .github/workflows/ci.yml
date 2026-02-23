@@ -208,6 +208,11 @@ jobs:
             --out-dir artifacts/benchmark_v0 \
             --summary-out artifacts/benchmark_v0/summary.json \
             --report-out artifacts/benchmark_v0/summary.md
+          python -m gateforge.medium_benchmark \
+            --pack benchmarks/medium_pack_v1.json \
+            --out-dir artifacts/benchmark_medium_v1 \
+            --summary-out artifacts/benchmark_medium_v1/summary.json \
+            --report-out artifacts/benchmark_medium_v1/summary.md
 
       - name: Upload benchmark artifact
         if: always()
@@ -216,6 +221,7 @@ jobs:
           name: benchmark-v0
           path: |
             artifacts/benchmark_v0
+            artifacts/benchmark_medium_v1
 
   checker-demo-optional:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_checker_demo }}
