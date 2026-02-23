@@ -200,6 +200,14 @@ cat artifacts/benchmark_medium_v1/summary.json
 cat artifacts/benchmark_medium_v1/summary.md
 ```
 
+Medium-case mismatch analysis v0:
+
+```bash
+bash scripts/demo_medium_pack_v1_analysis.sh
+cat artifacts/benchmark_medium_v1/analysis.json
+cat artifacts/benchmark_medium_v1/analysis.md
+```
+
 ## 7. Autopilot Dry-Run Demo (Human Review Template)
 
 Command:
