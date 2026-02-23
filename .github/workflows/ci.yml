@@ -252,6 +252,35 @@ jobs:
           path: |
             artifacts/benchmark_medium_v1
 
+  mvp-freeze-optional:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_benchmark }}
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Run MVP freeze check
+        run: bash scripts/mvp_freeze_check.sh
+
+      - name: Upload MVP freeze artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mvp-freeze-v1
+          path: |
+            artifacts/mvp_freeze
+
   checker-demo-optional:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_checker_demo }}
     continue-on-error: true

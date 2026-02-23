@@ -1715,6 +1715,9 @@ CI optional benchmark:
 - A separate non-blocking `medium-governance-optional` job is also triggered by `run_benchmark=true`:
   - runs the medium chain (`benchmark -> analysis -> history -> trend -> advisor -> dashboard`)
   - uploads `medium-governance-v1` artifact (`artifacts/benchmark_medium_v1`)
+- A separate non-blocking `mvp-freeze-optional` job is also triggered by `run_benchmark=true`:
+  - runs `bash scripts/mvp_freeze_check.sh`
+  - uploads `mvp-freeze-v1` artifact (`artifacts/mvp_freeze`)
 
 ## IV. Governance
 
