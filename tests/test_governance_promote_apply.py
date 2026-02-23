@@ -451,6 +451,160 @@ class GovernancePromoteApplyTests(unittest.TestCase):
             self.assertEqual(applied.get("source_require_min_top_score_margin"), "cli")
             self.assertEqual(applied.get("source_require_min_explanation_quality"), "cli")
 
+    def test_apply_guardrail_drift_defaults_to_needs_review(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            compare = root / "compare.json"
+            baseline_out = root / "baseline_apply.json"
+            out = root / "apply.json"
+            self._write_compare_summary(compare, status="PASS", best_decision="PASS")
+
+            baseline_proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.governance_promote_apply",
+                    "--compare-summary",
+                    str(compare),
+                    "--policy-profile",
+                    "default",
+                    "--out",
+                    str(baseline_out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(baseline_proc.returncode, 0, msg=baseline_proc.stderr or baseline_proc.stdout)
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.governance_promote_apply",
+                    "--compare-summary",
+                    str(compare),
+                    "--policy-profile",
+                    "industrial_strict",
+                    "--baseline-apply-summary",
+                    str(baseline_out),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            applied = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(applied.get("final_status"), "NEEDS_REVIEW")
+            self.assertEqual(applied.get("apply_action"), "hold_for_review")
+            self.assertTrue(applied.get("guardrail_drift_detected"))
+            self.assertIn("guardrail_policy_hash_drift", applied.get("reasons", []))
+            self.assertIn("guardrail_effective_guardrails_hash_drift", applied.get("reasons", []))
+
+    def test_apply_guardrail_drift_strict_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            compare = root / "compare.json"
+            baseline_out = root / "baseline_apply.json"
+            out = root / "apply.json"
+            self._write_compare_summary(compare, status="PASS", best_decision="PASS")
+
+            baseline_proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.governance_promote_apply",
+                    "--compare-summary",
+                    str(compare),
+                    "--policy-profile",
+                    "default",
+                    "--out",
+                    str(baseline_out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(baseline_proc.returncode, 0, msg=baseline_proc.stderr or baseline_proc.stdout)
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.governance_promote_apply",
+                    "--compare-summary",
+                    str(compare),
+                    "--policy-profile",
+                    "industrial_strict",
+                    "--baseline-apply-summary",
+                    str(baseline_out),
+                    "--strict-guardrail-drift",
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 1)
+            applied = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(applied.get("final_status"), "FAIL")
+            self.assertEqual(applied.get("apply_action"), "block")
+            self.assertTrue(applied.get("strict_guardrail_drift"))
+            self.assertIn("guardrail_policy_hash_drift", applied.get("reasons", []))
+
+    def test_apply_guardrail_no_drift_with_same_baseline(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            compare = root / "compare.json"
+            baseline_out = root / "baseline_apply.json"
+            out = root / "apply.json"
+            self._write_compare_summary(compare, status="PASS", best_decision="PASS")
+
+            baseline_proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.governance_promote_apply",
+                    "--compare-summary",
+                    str(compare),
+                    "--policy-profile",
+                    "default",
+                    "--out",
+                    str(baseline_out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(baseline_proc.returncode, 0, msg=baseline_proc.stderr or baseline_proc.stdout)
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.governance_promote_apply",
+                    "--compare-summary",
+                    str(compare),
+                    "--policy-profile",
+                    "default",
+                    "--baseline-apply-summary",
+                    str(baseline_out),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            applied = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(applied.get("final_status"), "PASS")
+            self.assertFalse(applied.get("guardrail_drift_detected"))
+            self.assertEqual(applied.get("reasons"), [])
+
 
 if __name__ == "__main__":
     unittest.main()

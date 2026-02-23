@@ -1776,6 +1776,9 @@ jobs:
       - name: Run governance promote apply strict-guard demo
         run: bash scripts/demo_governance_promote_apply_strict_guard.sh
 
+      - name: Run governance promote apply drift demo
+        run: bash scripts/demo_governance_promote_apply_drift.sh
+
       - name: Publish governance promote apply summary to job page
         if: always()
         run: |
@@ -1822,6 +1825,20 @@ jobs:
                           "",
                       ]
                   )
+              drift_path = Path("artifacts/governance_promote_apply_drift_demo/summary.json")
+              if drift_path.exists():
+                  drift_payload = json.loads(drift_path.read_text(encoding="utf-8"))
+                  lines.extend(
+                      [
+                          "## Governance Promote Apply Drift Summary",
+                          "",
+                          f"- bundle_status: `{drift_payload.get('bundle_status')}`",
+                          f"- drift_needs_review_status: `{drift_payload.get('drift_needs_review_status')}`",
+                          f"- drift_strict_fail_status: `{drift_payload.get('drift_strict_fail_status')}`",
+                          f"- drift_detected: `{drift_payload.get('drift_detected')}`",
+                          "",
+                      ]
+                  )
               text = "\n".join(lines)
 
           summary_file = os.getenv("GITHUB_STEP_SUMMARY")
@@ -1860,6 +1877,16 @@ jobs:
             artifacts/governance_promote_apply_strict_guard_demo/decision_audit.jsonl
             artifacts/governance_promote_apply_strict_guard_demo/summary.json
             artifacts/governance_promote_apply_strict_guard_demo/summary.md
+            artifacts/governance_promote_apply_drift_demo/synthetic_pass_compare.json
+            artifacts/governance_promote_apply_drift_demo/baseline_apply.json
+            artifacts/governance_promote_apply_drift_demo/baseline_apply.md
+            artifacts/governance_promote_apply_drift_demo/drift_needs_review.json
+            artifacts/governance_promote_apply_drift_demo/drift_needs_review.md
+            artifacts/governance_promote_apply_drift_demo/drift_strict_fail.json
+            artifacts/governance_promote_apply_drift_demo/drift_strict_fail.md
+            artifacts/governance_promote_apply_drift_demo/decision_audit.jsonl
+            artifacts/governance_promote_apply_drift_demo/summary.json
+            artifacts/governance_promote_apply_drift_demo/summary.md
 
   agent-invariant-guard-demo-optional:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_agent_invariant_guard_demo }}
