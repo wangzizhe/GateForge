@@ -588,6 +588,29 @@ Key outputs:
 - `artifacts/governance_promote_apply_strict_guard_demo/summary.json`
 - `artifacts/governance_promote_apply_strict_guard_demo/summary.md`
 
+## 14.4 Governance Promote Apply Drift Demo
+
+Command:
+
+```bash
+bash scripts/demo_governance_promote_apply_drift.sh
+```
+
+What it validates:
+
+- baseline vs current guardrail drift is detected via `policy_hash` and `effective_guardrails_hash`
+- default drift behavior degrades `PASS` path into `NEEDS_REVIEW`
+- strict drift behavior (`--strict-guardrail-drift`) forces `FAIL`
+
+Key outputs:
+
+- `artifacts/governance_promote_apply_drift_demo/baseline_apply.json`
+- `artifacts/governance_promote_apply_drift_demo/drift_needs_review.json`
+- `artifacts/governance_promote_apply_drift_demo/drift_strict_fail.json`
+- `artifacts/governance_promote_apply_drift_demo/decision_audit.jsonl`
+- `artifacts/governance_promote_apply_drift_demo/summary.json`
+- `artifacts/governance_promote_apply_drift_demo/summary.md`
+
 ## 15. Agent Invariant Guard Demo
 
 Command:

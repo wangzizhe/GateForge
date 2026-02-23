@@ -658,6 +658,9 @@ Decision behavior:
   - `--require-ranking-explanation` (if enabled, missing ranking explanation causes `FAIL`)
   - `--require-min-top-score-margin N` (if enabled, missing margin or margin `< N` causes `FAIL`)
   - `--require-min-explanation-quality N` (if enabled, missing score or score `< N` causes `FAIL`)
+  - `--baseline-apply-summary <path>` (detects guardrail drift via `policy_hash` and `effective_guardrails_hash`)
+  - default drift behavior: if drift is detected on a pass path, result becomes `NEEDS_REVIEW`
+  - strict drift behavior: `--strict-guardrail-drift` upgrades drift outcome to `FAIL`
 - profile defaults:
   - `--policy-profile default|industrial_strict` from `policies/promote_apply/*.json`
   - CLI flags override profile defaults and summary records the source (`cli` vs `policy_profile`)
@@ -696,6 +699,12 @@ Strict guard behavior demo (missing explanation -> fail, present explanation -> 
 
 ```bash
 bash scripts/demo_governance_promote_apply_strict_guard.sh
+```
+
+Guardrail drift behavior demo (baseline compare):
+
+```bash
+bash scripts/demo_governance_promote_apply_drift.sh
 ```
 
 Review ledger summary:

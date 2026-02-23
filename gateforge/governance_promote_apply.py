@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import sys
 from datetime import datetime, timezone
@@ -76,6 +77,63 @@ def _resolve_effective_guardrails(args: argparse.Namespace, policy_payload: dict
     }
 
 
+def _stable_hash(payload: object) -> str:
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+def _baseline_effective_guardrails_hash(summary: dict) -> str | None:
+    from_hash = summary.get("effective_guardrails_hash")
+    if isinstance(from_hash, str) and from_hash:
+        return from_hash
+    baseline_effective = {
+        "require_ranking_explanation": summary.get("require_ranking_explanation"),
+        "require_min_top_score_margin": summary.get("require_min_top_score_margin"),
+        "require_min_explanation_quality": summary.get("require_min_explanation_quality"),
+    }
+    if not isinstance(baseline_effective["require_ranking_explanation"], bool):
+        return None
+    if baseline_effective["require_min_top_score_margin"] is not None and not isinstance(
+        baseline_effective["require_min_top_score_margin"], int
+    ):
+        return None
+    if baseline_effective["require_min_explanation_quality"] is not None and not isinstance(
+        baseline_effective["require_min_explanation_quality"], int
+    ):
+        return None
+    return _stable_hash(baseline_effective)
+
+
+def _detect_guardrail_drift(
+    *,
+    baseline_summary_path: str | None,
+    current_policy_hash: str,
+    current_effective_hash: str,
+) -> dict:
+    if not baseline_summary_path:
+        return {
+            "baseline_apply_summary_path": None,
+            "baseline_policy_hash": None,
+            "baseline_effective_guardrails_hash": None,
+            "drift_reasons": [],
+        }
+
+    baseline_payload = _load_json(baseline_summary_path)
+    baseline_policy_hash = baseline_payload.get("policy_hash")
+    baseline_effective_hash = _baseline_effective_guardrails_hash(baseline_payload)
+    reasons: list[str] = []
+    if isinstance(baseline_policy_hash, str) and baseline_policy_hash and baseline_policy_hash != current_policy_hash:
+        reasons.append("guardrail_policy_hash_drift")
+    if isinstance(baseline_effective_hash, str) and baseline_effective_hash and baseline_effective_hash != current_effective_hash:
+        reasons.append("guardrail_effective_guardrails_hash_drift")
+    return {
+        "baseline_apply_summary_path": baseline_summary_path,
+        "baseline_policy_hash": baseline_policy_hash if isinstance(baseline_policy_hash, str) else None,
+        "baseline_effective_guardrails_hash": baseline_effective_hash,
+        "drift_reasons": reasons,
+    }
+
+
 def _append_jsonl(path: str, record: dict) -> None:
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
@@ -109,6 +167,13 @@ def _write_markdown(path: str, summary: dict) -> None:
         f"- require_min_explanation_quality: `{summary.get('require_min_explanation_quality')}`",
         f"- source_require_min_explanation_quality: `{summary.get('source_require_min_explanation_quality')}`",
         f"- explanation_quality_score: `{summary.get('explanation_quality_score')}`",
+        f"- policy_hash: `{summary.get('policy_hash')}`",
+        f"- effective_guardrails_hash: `{summary.get('effective_guardrails_hash')}`",
+        f"- baseline_apply_summary_path: `{summary.get('baseline_apply_summary_path')}`",
+        f"- baseline_policy_hash: `{summary.get('baseline_policy_hash')}`",
+        f"- baseline_effective_guardrails_hash: `{summary.get('baseline_effective_guardrails_hash')}`",
+        f"- strict_guardrail_drift: `{summary.get('strict_guardrail_drift')}`",
+        f"- guardrail_drift_detected: `{summary.get('guardrail_drift_detected')}`",
         f"- audit_path: `{summary.get('audit_path')}`",
         "",
         "## Reasons",
@@ -187,6 +252,10 @@ def _human_hints_from_reasons(reasons: list[str]) -> list[str]:
             hints.append("Set best_decision to PASS, NEEDS_REVIEW, or FAIL in compare summary.")
         elif reason == "compare_status_fail":
             hints.append("Compare status is FAIL; resolve compare issues before apply.")
+        elif reason == "guardrail_policy_hash_drift":
+            hints.append("Policy hash drift detected versus baseline apply summary; confirm policy change before promote.")
+        elif reason == "guardrail_effective_guardrails_hash_drift":
+            hints.append("Effective guardrails drift detected versus baseline; review threshold/flag changes before promote.")
     return hints
 
 
@@ -321,6 +390,17 @@ def main() -> None:
         default=None,
         help="CLI override: PASS compare summaries must include explanation_quality.score >= this value",
     )
+    parser.add_argument(
+        "--baseline-apply-summary",
+        default=None,
+        help="Optional previous promote-apply summary JSON used to detect guardrail drift",
+    )
+    parser.add_argument(
+        "--strict-guardrail-drift",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="When enabled, guardrail drift versus baseline apply summary is FAIL (default is NEEDS_REVIEW)",
+    )
     parser.add_argument("--out", default="artifacts/governance_promote_apply/summary.json", help="Output summary JSON")
     parser.add_argument("--report", default=None, help="Output markdown path")
     parser.add_argument(
@@ -334,6 +414,14 @@ def main() -> None:
     policy_path = _resolve_promote_apply_policy_path(args.policy_path, args.policy_profile)
     policy_payload = _load_json(policy_path)
     effective = _resolve_effective_guardrails(args, policy_payload)
+    policy_hash = _stable_hash(policy_payload)
+    effective_guardrails_hash = _stable_hash(
+        {
+            "require_ranking_explanation": effective["require_ranking_explanation"],
+            "require_min_top_score_margin": effective["require_min_top_score_margin"],
+            "require_min_explanation_quality": effective["require_min_explanation_quality"],
+        }
+    )
     evaluated = _evaluate(
         compare_payload,
         args.review_ticket_id,
@@ -341,6 +429,24 @@ def main() -> None:
         require_min_top_score_margin=effective["require_min_top_score_margin"],
         require_min_explanation_quality=effective["require_min_explanation_quality"],
     )
+    drift = _detect_guardrail_drift(
+        baseline_summary_path=args.baseline_apply_summary,
+        current_policy_hash=policy_hash,
+        current_effective_hash=effective_guardrails_hash,
+    )
+    if drift["drift_reasons"]:
+        existing_reasons = [str(r) for r in evaluated.get("reasons", [])]
+        merged_reasons: list[str] = []
+        for reason in [*existing_reasons, *drift["drift_reasons"]]:
+            if reason not in merged_reasons:
+                merged_reasons.append(reason)
+        evaluated["reasons"] = merged_reasons
+        if args.strict_guardrail_drift:
+            evaluated["final_status"] = "FAIL"
+            evaluated["apply_action"] = "block"
+        elif evaluated.get("final_status") == "PASS":
+            evaluated["final_status"] = "NEEDS_REVIEW"
+            evaluated["apply_action"] = "hold_for_review"
     recorded_at = datetime.now(timezone.utc).isoformat()
 
     summary = {
@@ -350,6 +456,8 @@ def main() -> None:
         "policy_profile": args.policy_profile,
         "policy_version": policy_payload.get("version"),
         "policy_path": policy_path,
+        "policy_hash": policy_hash,
+        "effective_guardrails_hash": effective_guardrails_hash,
         "require_ranking_explanation": effective["require_ranking_explanation"],
         "source_require_ranking_explanation": effective["source_require_ranking_explanation"],
         "require_min_top_score_margin": effective["require_min_top_score_margin"],
@@ -365,6 +473,11 @@ def main() -> None:
         "ranking_selection_priority": compare_payload.get("decision_explanations", {}).get("selection_priority"),
         "ranking_best_vs_others": compare_payload.get("decision_explanations", {}).get("best_vs_others"),
         "explanation_quality_score": compare_payload.get("explanation_quality", {}).get("score"),
+        "baseline_apply_summary_path": drift["baseline_apply_summary_path"],
+        "baseline_policy_hash": drift["baseline_policy_hash"],
+        "baseline_effective_guardrails_hash": drift["baseline_effective_guardrails_hash"],
+        "strict_guardrail_drift": bool(args.strict_guardrail_drift),
+        "guardrail_drift_detected": bool(drift["drift_reasons"]),
         "human_hints": _human_hints_from_reasons(evaluated.get("reasons", [])),
         "recorded_at_utc": recorded_at,
         "audit_path": args.audit,
@@ -388,12 +501,19 @@ def main() -> None:
         "policy_profile": summary.get("policy_profile"),
         "policy_version": summary.get("policy_version"),
         "policy_path": summary.get("policy_path"),
+        "policy_hash": summary.get("policy_hash"),
+        "effective_guardrails_hash": summary.get("effective_guardrails_hash"),
         "require_ranking_explanation": summary.get("require_ranking_explanation"),
         "source_require_ranking_explanation": summary.get("source_require_ranking_explanation"),
         "require_min_top_score_margin": summary.get("require_min_top_score_margin"),
         "source_require_min_top_score_margin": summary.get("source_require_min_top_score_margin"),
         "require_min_explanation_quality": summary.get("require_min_explanation_quality"),
         "source_require_min_explanation_quality": summary.get("source_require_min_explanation_quality"),
+        "baseline_apply_summary_path": summary.get("baseline_apply_summary_path"),
+        "baseline_policy_hash": summary.get("baseline_policy_hash"),
+        "baseline_effective_guardrails_hash": summary.get("baseline_effective_guardrails_hash"),
+        "strict_guardrail_drift": summary.get("strict_guardrail_drift"),
+        "guardrail_drift_detected": summary.get("guardrail_drift_detected"),
         "constraint_reason": summary.get("constraint_reason"),
         "top_score_margin": summary.get("top_score_margin"),
         "min_top_score_margin": summary.get("min_top_score_margin"),
