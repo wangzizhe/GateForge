@@ -5,6 +5,8 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
+APPROVAL_PROFILE_DIR = Path("policies/patch_apply")
+
 
 def _write_json(path: str, payload: dict) -> None:
     p = Path(path)
@@ -23,6 +25,37 @@ def _load_json(path: str) -> dict:
     return json.loads(Path(path).read_text(encoding="utf-8"))
 
 
+def _resolve_approval_policy_path(profile: str | None, policy_path: str | None) -> str:
+    if profile and policy_path:
+        raise ValueError("Use either --approval-profile or --approval-policy-path, not both")
+    if policy_path:
+        return policy_path
+    if profile:
+        p = profile if profile.endswith(".json") else f"{profile}.json"
+        return str(APPROVAL_PROFILE_DIR / p)
+    return str(APPROVAL_PROFILE_DIR / "default.json")
+
+
+def _normalize_approvals(approval_payload: dict) -> list[dict]:
+    approvals = approval_payload.get("approvals")
+    if isinstance(approvals, list):
+        out = []
+        for row in approvals:
+            if isinstance(row, dict):
+                out.append(
+                    {
+                        "decision": str(row.get("decision") or "").lower(),
+                        "reviewer": row.get("reviewer"),
+                    }
+                )
+        return out
+    decision = str(approval_payload.get("decision") or "").lower()
+    reviewer = approval_payload.get("reviewer")
+    if decision:
+        return [{"decision": decision, "reviewer": reviewer}]
+    return []
+
+
 def _write_markdown(path: str, summary: dict) -> None:
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
@@ -34,8 +67,10 @@ def _write_markdown(path: str, summary: dict) -> None:
         f"- apply_action: `{summary.get('apply_action')}`",
         f"- target_policy_path: `{summary.get('target_policy_path')}`",
         f"- applied: `{summary.get('applied')}`",
-        f"- approval_decision: `{summary.get('approval_decision')}`",
-        f"- approval_reviewer: `{summary.get('approval_reviewer')}`",
+        f"- approval_profile: `{summary.get('approval_profile')}`",
+        f"- approval_policy_path: `{summary.get('approval_policy_path')}`",
+        f"- approvals_count: `{summary.get('approvals_count')}`",
+        f"- unique_reviewers_count: `{summary.get('unique_reviewers_count')}`",
         "",
         "## Reasons",
         "",
@@ -55,6 +90,12 @@ def main() -> None:
     parser.add_argument("--proposal", required=True, help="Policy patch proposal JSON path")
     parser.add_argument("--approval", default=None, help="Approval decision JSON path")
     parser.add_argument(
+        "--approval-profile",
+        default=None,
+        help="Approval profile name under policies/patch_apply (e.g. default, dual_reviewer)",
+    )
+    parser.add_argument("--approval-policy-path", default=None, help="Approval policy JSON path override")
+    parser.add_argument(
         "--apply",
         action=argparse.BooleanOptionalAction,
         default=False,
@@ -65,13 +106,27 @@ def main() -> None:
     args = parser.parse_args()
 
     proposal = _load_json(args.proposal)
+    approval_policy_path = _resolve_approval_policy_path(args.approval_profile, args.approval_policy_path)
+    approval_policy = _load_json(approval_policy_path)
+    required_approvals = int(approval_policy.get("required_approvals", 1))
+    require_unique_reviewers = bool(approval_policy.get("require_unique_reviewers", True))
+    allow_reject_short_circuit = bool(approval_policy.get("allow_reject_short_circuit", True))
+    profile_name = str(
+        approval_policy.get("profile")
+        or args.approval_profile
+        or Path(approval_policy_path).stem
+    )
+
     reasons: list[str] = []
     final_status = "NEEDS_REVIEW"
     apply_action = "hold"
     applied = False
     approval = _load_json(args.approval) if args.approval else {}
-    decision = str(approval.get("decision") or "").lower()
-    reviewer = approval.get("reviewer")
+    normalized_approvals = _normalize_approvals(approval)
+    approvals_count = len(normalized_approvals)
+    unique_reviewers = {str(x.get("reviewer") or "").strip() for x in normalized_approvals if x.get("reviewer")}
+    unique_reviewers_count = len(unique_reviewers)
+    decisions = [str(x.get("decision") or "").lower() for x in normalized_approvals]
 
     target_policy_path = str(proposal.get("target_policy_path") or "")
     if not target_policy_path:
@@ -80,12 +135,16 @@ def main() -> None:
         reasons.append("target_policy_path_missing")
     elif not args.approval:
         reasons.append("approval_required")
-    elif decision not in {"approve", "reject"}:
+    elif any(d not in {"approve", "reject"} for d in decisions):
         reasons.append("approval_decision_invalid")
-    elif decision == "reject":
+    elif allow_reject_short_circuit and any(d == "reject" for d in decisions):
         final_status = "FAIL"
         apply_action = "block"
         reasons.append("approval_rejected")
+    elif approvals_count < required_approvals:
+        reasons.append("approval_count_insufficient")
+    elif require_unique_reviewers and unique_reviewers_count < required_approvals:
+        reasons.append("approval_unique_reviewer_insufficient")
     elif not args.apply:
         reasons.append("approval_granted_apply_flag_required")
     else:
@@ -105,8 +164,14 @@ def main() -> None:
         "recorded_at_utc": datetime.now(timezone.utc).isoformat(),
         "proposal_path": args.proposal,
         "approval_path": args.approval,
-        "approval_decision": decision or None,
-        "approval_reviewer": reviewer,
+        "approval_profile": profile_name,
+        "approval_policy_path": approval_policy_path,
+        "approval_policy_required_approvals": required_approvals,
+        "approval_policy_require_unique_reviewers": require_unique_reviewers,
+        "approval_decisions": decisions,
+        "approval_reviewers": sorted(unique_reviewers),
+        "approvals_count": approvals_count,
+        "unique_reviewers_count": unique_reviewers_count,
         "target_policy_path": target_policy_path,
         "final_status": final_status,
         "apply_action": apply_action,
