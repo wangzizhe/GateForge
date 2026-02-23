@@ -547,6 +547,28 @@ History demo shortcut:
 bash scripts/demo_governance_history.sh
 ```
 
+Governance replay (re-run compare/apply and verify decision consistency):
+
+```bash
+python -m gateforge.governance_replay \
+  --compare-summary artifacts/governance_promote_compare_demo/summary_with_override.json \
+  --apply-summary artifacts/governance_promote_apply_demo/pass_apply.json \
+  --out artifacts/governance_replay/summary.json \
+  --report artifacts/governance_replay/summary.md
+cat artifacts/governance_replay/summary.json
+```
+
+Replay behavior:
+- no mismatch => `PASS`
+- mismatch + default mode => `NEEDS_REVIEW`
+- mismatch + `--strict` => `FAIL`
+
+Replay demo shortcut:
+
+```bash
+bash scripts/demo_governance_replay.sh
+```
+
 Governance promote decision (snapshot -> promotion gate decision):
 
 ```bash

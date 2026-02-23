@@ -713,6 +713,20 @@ class DemoScriptTests(unittest.TestCase):
         self.assertEqual(payload.get("latest_status"), "FAIL")
         self.assertIn("consecutive_worsening_detected", payload.get("alerts", []))
 
+    def test_demo_governance_replay_script(self) -> None:
+        proc = subprocess.run(
+            ["bash", "scripts/demo_governance_replay.sh"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+        payload = json.loads(Path("artifacts/governance_replay_demo/summary.json").read_text(encoding="utf-8"))
+        self.assertEqual(payload.get("bundle_status"), "PASS")
+        self.assertEqual(payload.get("pass_decision"), "PASS")
+        self.assertEqual(payload.get("needs_review_decision"), "NEEDS_REVIEW")
+        self.assertEqual(payload.get("strict_fail_decision"), "FAIL")
+
 
 if __name__ == "__main__":
     unittest.main()
