@@ -141,6 +141,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertEqual(payload.get("matrix_status"), "PASS")
         self.assertEqual(payload.get("policy_profile"), "default")
         self.assertFalse(payload.get("promote_apply_require_ranking_explanation"))
+        self.assertIn(payload.get("promote_apply_required_min_explanation_quality"), {"", None})
         self.assertGreaterEqual(payload.get("selected_count", 0), 1)
         self.assertIsInstance(payload.get("job_exit_codes"), dict)
         self.assertIn("behavior_metrics_demo", payload.get("selected", {}))
@@ -203,6 +204,25 @@ class DemoScriptTests(unittest.TestCase):
         self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
         payload = json.loads(Path("artifacts/ci_matrix_summary.json").read_text(encoding="utf-8"))
         self.assertEqual(payload.get("promote_apply_required_min_top_score_margin"), "2")
+        self.assertEqual(payload.get("matrix_status"), "PASS")
+
+    def test_demo_ci_matrix_accepts_promote_apply_min_explanation_quality_flag(self) -> None:
+        proc = subprocess.run(
+            [
+                "bash",
+                "scripts/demo_ci_matrix.sh",
+                "--none",
+                "--governance-promote-apply-demo",
+                "--promote-apply-min-explanation-quality",
+                "80",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+        payload = json.loads(Path("artifacts/ci_matrix_summary.json").read_text(encoding="utf-8"))
+        self.assertEqual(payload.get("promote_apply_required_min_explanation_quality"), "80")
         self.assertEqual(payload.get("matrix_status"), "PASS")
 
     def test_demo_ci_matrix_accepts_governance_promote_apply_strict_guard_demo_flag(self) -> None:
@@ -565,6 +585,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertEqual(payload.get("bundle_status"), "PASS")
         self.assertIn(payload.get("require_ranking_explanation"), {False, None})
         self.assertIn(payload.get("require_min_top_score_margin"), {None, ""})
+        self.assertIn(payload.get("require_min_explanation_quality"), {None, ""})
         self.assertEqual(payload.get("pass_status"), "PASS")
         self.assertIsInstance(payload.get("pass_ranking_selection_priority"), list)
         self.assertGreaterEqual(int(payload.get("pass_ranking_best_vs_others_count", 0)), 1)
@@ -602,6 +623,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertEqual(payload.get("bundle_status"), "PASS")
         self.assertEqual(payload.get("without_explanation_status"), "FAIL")
         self.assertEqual(payload.get("with_explanation_status"), "PASS")
+        self.assertEqual(payload.get("with_low_quality_status"), "FAIL")
         self.assertEqual(payload.get("with_explanation_apply_action"), "promote")
 
     def test_demo_agent_invariant_guard_script(self) -> None:
