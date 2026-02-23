@@ -611,6 +611,31 @@ Key outputs:
 - `artifacts/governance_promote_apply_drift_demo/summary.json`
 - `artifacts/governance_promote_apply_drift_demo/summary.md`
 
+## 14.5 Governance Promote Apply Explanation Structure Demo
+
+Command:
+
+```bash
+bash scripts/demo_governance_promote_apply_explanation_structure.sh
+```
+
+What it validates:
+
+- incomplete ranking explanation structure is downgraded to `NEEDS_REVIEW`
+- strict structure mode upgrades the same case to `FAIL`
+- complete structure passes under strict mode
+
+Key outputs:
+
+- `artifacts/governance_promote_apply_explanation_structure_demo/compare_incomplete.json`
+- `artifacts/governance_promote_apply_explanation_structure_demo/compare_complete.json`
+- `artifacts/governance_promote_apply_explanation_structure_demo/apply_incomplete_needs_review.json`
+- `artifacts/governance_promote_apply_explanation_structure_demo/apply_incomplete_strict_fail.json`
+- `artifacts/governance_promote_apply_explanation_structure_demo/apply_complete_pass.json`
+- `artifacts/governance_promote_apply_explanation_structure_demo/decision_audit.jsonl`
+- `artifacts/governance_promote_apply_explanation_structure_demo/summary.json`
+- `artifacts/governance_promote_apply_explanation_structure_demo/summary.md`
+
 ## 15. Agent Invariant Guard Demo
 
 Command:

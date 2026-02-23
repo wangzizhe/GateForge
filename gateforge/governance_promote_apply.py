@@ -174,6 +174,8 @@ def _write_markdown(path: str, summary: dict) -> None:
         f"- baseline_effective_guardrails_hash: `{summary.get('baseline_effective_guardrails_hash')}`",
         f"- strict_guardrail_drift: `{summary.get('strict_guardrail_drift')}`",
         f"- guardrail_drift_detected: `{summary.get('guardrail_drift_detected')}`",
+        f"- require_ranking_explanation_structure: `{summary.get('require_ranking_explanation_structure')}`",
+        f"- strict_ranking_explanation_structure: `{summary.get('strict_ranking_explanation_structure')}`",
         f"- audit_path: `{summary.get('audit_path')}`",
         "",
         "## Reasons",
@@ -188,6 +190,12 @@ def _write_markdown(path: str, summary: dict) -> None:
     human_hints = summary.get("human_hints", [])
     if isinstance(human_hints, list) and human_hints:
         lines.extend([f"- {h}" for h in human_hints])
+    else:
+        lines.append("- `none`")
+    lines.extend(["", "## Ranking Structure Errors", ""])
+    structure_errors = summary.get("ranking_explanation_structure_errors", [])
+    if isinstance(structure_errors, list) and structure_errors:
+        lines.extend([f"- `{err}`" for err in structure_errors])
     else:
         lines.append("- `none`")
     lines.extend(
@@ -229,6 +237,54 @@ def _is_valid_ranking_explanation_items(best_vs_others: object) -> bool:
     return True
 
 
+def _ranking_explanation_structure_errors(best_vs_others: object) -> list[str]:
+    errors: list[str] = []
+    if not isinstance(best_vs_others, list) or not best_vs_others:
+        return ["best_vs_others_missing_or_empty"]
+    for idx, row in enumerate(best_vs_others):
+        prefix = f"row[{idx}]"
+        if not isinstance(row, dict):
+            errors.append(f"{prefix}_not_object")
+            continue
+        for key in ("winner_profile", "challenger_profile"):
+            value = row.get(key)
+            if not isinstance(value, str) or not value.strip():
+                errors.append(f"{prefix}_{key}_invalid")
+        if not isinstance(row.get("score_margin"), int):
+            errors.append(f"{prefix}_score_margin_invalid")
+        if not isinstance(row.get("tie_on_total_score"), bool):
+            errors.append(f"{prefix}_tie_on_total_score_invalid")
+        advantages = row.get("winner_advantages")
+        if not isinstance(advantages, list) or not advantages or not all(isinstance(v, str) for v in advantages):
+            errors.append(f"{prefix}_winner_advantages_invalid")
+        delta = row.get("score_breakdown_delta")
+        if not isinstance(delta, dict):
+            errors.append(f"{prefix}_score_breakdown_delta_invalid")
+        else:
+            for key in (
+                "decision_component",
+                "exit_component",
+                "reasons_component",
+                "recommended_component",
+                "total_score",
+            ):
+                if not isinstance(delta.get(key), int):
+                    errors.append(f"{prefix}_score_breakdown_delta_{key}_invalid")
+        ranked = row.get("ranked_advantages")
+        if not isinstance(ranked, list) or not ranked:
+            errors.append(f"{prefix}_ranked_advantages_invalid")
+        else:
+            for sub_idx, item in enumerate(ranked):
+                if not isinstance(item, dict):
+                    errors.append(f"{prefix}_ranked_advantages[{sub_idx}]_not_object")
+                    continue
+                if not isinstance(item.get("component"), str) or not item.get("component"):
+                    errors.append(f"{prefix}_ranked_advantages[{sub_idx}]_component_invalid")
+                if not isinstance(item.get("delta"), int):
+                    errors.append(f"{prefix}_ranked_advantages[{sub_idx}]_delta_invalid")
+    return errors
+
+
 def _human_hints_from_reasons(reasons: list[str]) -> list[str]:
     hints: list[str] = []
     for reason in reasons:
@@ -256,6 +312,8 @@ def _human_hints_from_reasons(reasons: list[str]) -> list[str]:
             hints.append("Policy hash drift detected versus baseline apply summary; confirm policy change before promote.")
         elif reason == "guardrail_effective_guardrails_hash_drift":
             hints.append("Effective guardrails drift detected versus baseline; review threshold/flag changes before promote.")
+        elif reason == "ranking_explanation_structure_invalid":
+            hints.append("Ranking explanation structure is incomplete; include score delta and ranked advantages for each pair.")
     return hints
 
 
@@ -391,6 +449,18 @@ def main() -> None:
         help="CLI override: PASS compare summaries must include explanation_quality.score >= this value",
     )
     parser.add_argument(
+        "--require-ranking-explanation-structure",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="When enabled, PASS compare summaries must include full ranking explanation structure",
+    )
+    parser.add_argument(
+        "--strict-ranking-explanation-structure",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="When enabled with --require-ranking-explanation-structure, invalid structure becomes FAIL (default is NEEDS_REVIEW)",
+    )
+    parser.add_argument(
         "--baseline-apply-summary",
         default=None,
         help="Optional previous promote-apply summary JSON used to detect guardrail drift",
@@ -429,6 +499,22 @@ def main() -> None:
         require_min_top_score_margin=effective["require_min_top_score_margin"],
         require_min_explanation_quality=effective["require_min_explanation_quality"],
     )
+    structure_errors: list[str] = []
+    if bool(args.require_ranking_explanation_structure) and str(compare_payload.get("status", "")).upper() == "PASS":
+        structure_errors = _ranking_explanation_structure_errors(
+            compare_payload.get("decision_explanations", {}).get("best_vs_others")
+        )
+        if structure_errors:
+            existing_reasons = [str(r) for r in evaluated.get("reasons", [])]
+            if "ranking_explanation_structure_invalid" not in existing_reasons:
+                existing_reasons.append("ranking_explanation_structure_invalid")
+            evaluated["reasons"] = existing_reasons
+            if bool(args.strict_ranking_explanation_structure):
+                evaluated["final_status"] = "FAIL"
+                evaluated["apply_action"] = "block"
+            elif evaluated.get("final_status") == "PASS":
+                evaluated["final_status"] = "NEEDS_REVIEW"
+                evaluated["apply_action"] = "hold_for_review"
     drift = _detect_guardrail_drift(
         baseline_summary_path=args.baseline_apply_summary,
         current_policy_hash=policy_hash,
@@ -478,6 +564,9 @@ def main() -> None:
         "baseline_effective_guardrails_hash": drift["baseline_effective_guardrails_hash"],
         "strict_guardrail_drift": bool(args.strict_guardrail_drift),
         "guardrail_drift_detected": bool(drift["drift_reasons"]),
+        "require_ranking_explanation_structure": bool(args.require_ranking_explanation_structure),
+        "strict_ranking_explanation_structure": bool(args.strict_ranking_explanation_structure),
+        "ranking_explanation_structure_errors": structure_errors,
         "human_hints": _human_hints_from_reasons(evaluated.get("reasons", [])),
         "recorded_at_utc": recorded_at,
         "audit_path": args.audit,
@@ -514,6 +603,9 @@ def main() -> None:
         "baseline_effective_guardrails_hash": summary.get("baseline_effective_guardrails_hash"),
         "strict_guardrail_drift": summary.get("strict_guardrail_drift"),
         "guardrail_drift_detected": summary.get("guardrail_drift_detected"),
+        "require_ranking_explanation_structure": summary.get("require_ranking_explanation_structure"),
+        "strict_ranking_explanation_structure": summary.get("strict_ranking_explanation_structure"),
+        "ranking_explanation_structure_errors": summary.get("ranking_explanation_structure_errors"),
         "constraint_reason": summary.get("constraint_reason"),
         "top_score_margin": summary.get("top_score_margin"),
         "min_top_score_margin": summary.get("min_top_score_margin"),

@@ -66,6 +66,9 @@ class GovernancePromoteCompareTests(unittest.TestCase):
             quality = payload.get("explanation_quality", {})
             self.assertIsInstance(quality.get("score"), int)
             self.assertIsInstance(quality.get("checks"), dict)
+            self.assertIn("all_pairwise_have_score_delta", quality.get("checks", {}))
+            self.assertIn("pairwise_ranked_advantages_non_empty", quality.get("checks", {}))
+            self.assertIsInstance(payload.get("decision_explanation_score"), int)
 
     def test_promote_compare_emits_pairwise_ranking_explanations(self) -> None:
         with tempfile.TemporaryDirectory() as d:
@@ -115,6 +118,8 @@ class GovernancePromoteCompareTests(unittest.TestCase):
             self.assertEqual(pair.get("winner_profile"), payload.get("best_profile"))
             self.assertIn("score_margin", pair)
             self.assertIsInstance(pair.get("winner_advantages"), list)
+            self.assertIsInstance(pair.get("score_breakdown_delta"), dict)
+            self.assertIsInstance(pair.get("ranked_advantages"), list)
 
     def test_promote_compare_fails_when_all_profiles_fail(self) -> None:
         with tempfile.TemporaryDirectory() as d:

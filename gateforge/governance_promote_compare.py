@@ -130,6 +130,35 @@ def _score_advantages(winner: dict, challenger: dict) -> list[str]:
     return advantages
 
 
+def _score_delta_details(winner: dict, challenger: dict) -> tuple[dict, list[dict]]:
+    winner_breakdown = winner.get("score_breakdown", {})
+    challenger_breakdown = challenger.get("score_breakdown", {})
+    if not isinstance(winner_breakdown, dict) or not isinstance(challenger_breakdown, dict):
+        return ({}, [])
+    labels = [
+        "decision_component",
+        "exit_component",
+        "reasons_component",
+        "recommended_component",
+    ]
+    delta: dict[str, int] = {}
+    ranked: list[dict] = []
+    for label in labels:
+        try:
+            d = int(winner_breakdown.get(label, 0)) - int(challenger_breakdown.get(label, 0))
+        except (TypeError, ValueError):
+            continue
+        delta[label] = d
+        if d > 0:
+            ranked.append({"component": label, "delta": d})
+    try:
+        delta["total_score"] = int(winner.get("total_score", 0)) - int(challenger.get("total_score", 0))
+    except (TypeError, ValueError):
+        pass
+    ranked.sort(key=lambda item: int(item.get("delta", 0)), reverse=True)
+    return (delta, ranked)
+
+
 def _build_decision_explanations(
     ranking: list[dict],
     best_profile: str | None,
@@ -148,6 +177,7 @@ def _build_decision_explanations(
     for row in ranking[1:]:
         challenger_score = int(row.get("total_score", 0))
         tie_on_total = challenger_score == best_total_score
+        score_delta, ranked_advantages = _score_delta_details(best_row, row)
         comparisons.append(
             {
                 "winner_profile": best_row.get("profile"),
@@ -157,6 +187,8 @@ def _build_decision_explanations(
                 "score_margin": best_total_score - challenger_score,
                 "tie_on_total_score": tie_on_total,
                 "winner_advantages": _score_advantages(best_row, row),
+                "score_breakdown_delta": score_delta,
+                "ranked_advantages": ranked_advantages,
             }
         )
     return {
@@ -174,6 +206,8 @@ def _compute_explanation_quality(explanations: dict) -> dict:
         "all_pairwise_have_margin": False,
         "all_pairwise_have_profiles": False,
         "pairwise_advantages_non_empty": False,
+        "all_pairwise_have_score_delta": False,
+        "pairwise_ranked_advantages_non_empty": False,
     }
     if not isinstance(explanations, dict):
         return {"score": 0, "checks": checks}
@@ -186,11 +220,15 @@ def _compute_explanation_quality(explanations: dict) -> dict:
         margins_ok = True
         profiles_ok = True
         advantages_ok = True
+        score_delta_ok = True
+        ranked_advantages_ok = True
         for row in pairwise:
             if not isinstance(row, dict):
                 margins_ok = False
                 profiles_ok = False
                 advantages_ok = False
+                score_delta_ok = False
+                ranked_advantages_ok = False
                 continue
             if not isinstance(row.get("score_margin"), int):
                 margins_ok = False
@@ -199,11 +237,38 @@ def _compute_explanation_quality(explanations: dict) -> dict:
             advantages = row.get("winner_advantages")
             if not isinstance(advantages, list) or len(advantages) == 0:
                 advantages_ok = False
+            score_delta = row.get("score_breakdown_delta")
+            if not isinstance(score_delta, dict):
+                score_delta_ok = False
+            else:
+                for key in (
+                    "decision_component",
+                    "exit_component",
+                    "reasons_component",
+                    "recommended_component",
+                    "total_score",
+                ):
+                    if not isinstance(score_delta.get(key), int):
+                        score_delta_ok = False
+            ranked = row.get("ranked_advantages")
+            if not isinstance(ranked, list) or len(ranked) == 0:
+                ranked_advantages_ok = False
+            else:
+                for item in ranked:
+                    if not isinstance(item, dict):
+                        ranked_advantages_ok = False
+                        continue
+                    if not isinstance(item.get("component"), str) or not isinstance(item.get("delta"), int):
+                        ranked_advantages_ok = False
         checks["all_pairwise_have_margin"] = margins_ok
         checks["all_pairwise_have_profiles"] = profiles_ok
         checks["pairwise_advantages_non_empty"] = advantages_ok
+        checks["all_pairwise_have_score_delta"] = score_delta_ok
+        checks["pairwise_ranked_advantages_non_empty"] = ranked_advantages_ok
 
-    score = sum(1 for ok in checks.values() if ok) * 20
+    total_checks = max(len(checks), 1)
+    passed_checks = sum(1 for ok in checks.values() if ok)
+    score = int(round((passed_checks / total_checks) * 100))
     return {"score": score, "checks": checks}
 
 
@@ -276,6 +341,17 @@ def _write_markdown(path: str, summary: dict) -> None:
                 f"margin=`{row.get('score_margin')}` tie_on_total=`{row.get('tie_on_total_score')}` "
                 f"advantages=`{','.join(row.get('winner_advantages', [])) or 'none'}`"
             )
+            delta = row.get("score_breakdown_delta", {})
+            lines.append(
+                f"  - score_delta(total/decision/exit/reasons/recommended)=`"
+                f"{delta.get('total_score')}/{delta.get('decision_component')}/{delta.get('exit_component')}/"
+                f"{delta.get('reasons_component')}/{delta.get('recommended_component')}`"
+            )
+            ranked = row.get("ranked_advantages", [])
+            ranked_text = ",".join(
+                f"{item.get('component')}:{item.get('delta')}" for item in ranked if isinstance(item, dict)
+            )
+            lines.append(f"  - ranked_advantages=`{ranked_text or 'none'}`")
     else:
         lines.append("- `none`")
     quality = summary.get("explanation_quality", {})
@@ -491,6 +567,7 @@ def main() -> None:
         },
         "decision_explanations": decision_explanations,
         "explanation_quality": explanation_quality,
+        "decision_explanation_score": explanation_quality.get("score"),
         "ranking": ranking,
         "profile_results": results,
     }

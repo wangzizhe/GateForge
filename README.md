@@ -654,6 +654,7 @@ Decision behavior:
 - apply summary and audit now carry compare ranking explanation fields:
   - `ranking_selection_priority`
   - `ranking_best_vs_others`
+  - `policy_hash` / `effective_guardrails_hash`
 - optional strictness:
   - `--require-ranking-explanation` (if enabled, missing ranking explanation causes `FAIL`)
   - `--require-min-top-score-margin N` (if enabled, missing margin or margin `< N` causes `FAIL`)
@@ -661,6 +662,10 @@ Decision behavior:
   - `--baseline-apply-summary <path>` (detects guardrail drift via `policy_hash` and `effective_guardrails_hash`)
   - default drift behavior: if drift is detected on a pass path, result becomes `NEEDS_REVIEW`
   - strict drift behavior: `--strict-guardrail-drift` upgrades drift outcome to `FAIL`
+  - `--require-ranking-explanation-structure` validates each pairwise explanation row has:
+    winner/challenger, score margin, tie flag, advantages, score delta, ranked advantages
+  - default structure behavior: invalid structure on pass path becomes `NEEDS_REVIEW`
+  - strict structure behavior: `--strict-ranking-explanation-structure` upgrades invalid structure to `FAIL`
 - profile defaults:
   - `--policy-profile default|industrial_strict` from `policies/promote_apply/*.json`
   - CLI flags override profile defaults and summary records the source (`cli` vs `policy_profile`)
@@ -705,6 +710,12 @@ Guardrail drift behavior demo (baseline compare):
 
 ```bash
 bash scripts/demo_governance_promote_apply_drift.sh
+```
+
+Ranking explanation structure gate demo:
+
+```bash
+bash scripts/demo_governance_promote_apply_explanation_structure.sh
 ```
 
 Review ledger summary:

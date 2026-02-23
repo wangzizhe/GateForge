@@ -667,6 +667,24 @@ class DemoScriptTests(unittest.TestCase):
         self.assertEqual(payload.get("drift_strict_fail_status"), "FAIL")
         self.assertEqual(payload.get("drift_detected"), True)
 
+    def test_demo_governance_promote_apply_explanation_structure_script(self) -> None:
+        proc = subprocess.run(
+            ["bash", "scripts/demo_governance_promote_apply_explanation_structure.sh"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+        payload = json.loads(
+            Path("artifacts/governance_promote_apply_explanation_structure_demo/summary.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        self.assertEqual(payload.get("bundle_status"), "PASS")
+        self.assertEqual(payload.get("incomplete_needs_review_status"), "NEEDS_REVIEW")
+        self.assertEqual(payload.get("incomplete_strict_fail_status"), "FAIL")
+        self.assertEqual(payload.get("complete_pass_status"), "PASS")
+
     def test_demo_agent_invariant_guard_script(self) -> None:
         proc = subprocess.run(
             ["bash", "scripts/demo_agent_invariant_guard.sh"],
