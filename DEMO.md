@@ -551,6 +551,12 @@ Optional margin gate toggle (require top score margin):
 PROMOTE_APPLY_REQUIRED_MIN_TOP_SCORE_MARGIN=2 bash scripts/demo_governance_promote_apply.sh
 ```
 
+Optional explanation-quality gate toggle:
+
+```bash
+PROMOTE_APPLY_REQUIRED_MIN_EXPLANATION_QUALITY=80 bash scripts/demo_governance_promote_apply.sh
+```
+
 ## 14.3 Governance Promote Apply Strict Guard Demo
 
 Command:
@@ -563,12 +569,14 @@ What it validates:
 
 - strict apply gate rejects PASS compare summary when ranking explanation is missing
 - strict apply gate allows PASS compare summary when explanation exists
+- strict apply gate rejects low explanation-quality summary when threshold is enabled
 - both decisions are written to append-only audit ledger
 
 Key outputs:
 
 - `artifacts/governance_promote_apply_strict_guard_demo/apply_without_explanation.json`
 - `artifacts/governance_promote_apply_strict_guard_demo/apply_with_explanation.json`
+- `artifacts/governance_promote_apply_strict_guard_demo/apply_with_low_quality.json`
 - `artifacts/governance_promote_apply_strict_guard_demo/decision_audit.jsonl`
 - `artifacts/governance_promote_apply_strict_guard_demo/summary.json`
 - `artifacts/governance_promote_apply_strict_guard_demo/summary.md`

@@ -1754,6 +1754,7 @@ jobs:
       POLICY_PROFILE: ${{ inputs.demo_policy_profile }}
       PROMOTE_APPLY_REQUIRE_RANKING_EXPLANATION: "1"
       PROMOTE_APPLY_REQUIRED_MIN_TOP_SCORE_MARGIN: "1"
+      PROMOTE_APPLY_REQUIRED_MIN_EXPLANATION_QUALITY: "80"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -1793,6 +1794,7 @@ jobs:
                   f"- bundle_status: `{payload.get('bundle_status')}`",
                   f"- require_ranking_explanation: `{payload.get('require_ranking_explanation')}`",
                   f"- require_min_top_score_margin: `{payload.get('require_min_top_score_margin')}`",
+                  f"- require_min_explanation_quality: `{payload.get('require_min_explanation_quality')}`",
                   f"- pass_status: `{payload.get('pass_status')}`",
                   f"- missing_ticket_status: `{payload.get('missing_ticket_status')}`",
                   f"- with_ticket_status: `{payload.get('with_ticket_status')}`",
@@ -1810,6 +1812,7 @@ jobs:
                           f"- bundle_status: `{strict_payload.get('bundle_status')}`",
                           f"- without_explanation_status: `{strict_payload.get('without_explanation_status')}`",
                           f"- with_explanation_status: `{strict_payload.get('with_explanation_status')}`",
+                          f"- with_low_quality_status: `{strict_payload.get('with_low_quality_status')}`",
                           "",
                       ]
                   )
@@ -1830,6 +1833,7 @@ jobs:
           path: |
             artifacts/governance_promote_apply_demo/pass_apply.json
             artifacts/governance_promote_apply_demo/pass_apply.md
+            artifacts/governance_promote_apply_demo/synthetic_pass_compare.json
             artifacts/governance_promote_apply_demo/synthetic_needs_review_compare.json
             artifacts/governance_promote_apply_demo/review_missing_ticket.json
             artifacts/governance_promote_apply_demo/review_missing_ticket.md
@@ -1840,10 +1844,13 @@ jobs:
             artifacts/governance_promote_apply_demo/summary.md
             artifacts/governance_promote_apply_strict_guard_demo/compare_without_explanation.json
             artifacts/governance_promote_apply_strict_guard_demo/compare_with_explanation.json
+            artifacts/governance_promote_apply_strict_guard_demo/compare_with_explanation_low_quality.json
             artifacts/governance_promote_apply_strict_guard_demo/apply_without_explanation.json
             artifacts/governance_promote_apply_strict_guard_demo/apply_without_explanation.md
             artifacts/governance_promote_apply_strict_guard_demo/apply_with_explanation.json
             artifacts/governance_promote_apply_strict_guard_demo/apply_with_explanation.md
+            artifacts/governance_promote_apply_strict_guard_demo/apply_with_low_quality.json
+            artifacts/governance_promote_apply_strict_guard_demo/apply_with_low_quality.md
             artifacts/governance_promote_apply_strict_guard_demo/decision_audit.jsonl
             artifacts/governance_promote_apply_strict_guard_demo/summary.json
             artifacts/governance_promote_apply_strict_guard_demo/summary.md
