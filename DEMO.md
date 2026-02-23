@@ -599,6 +599,29 @@ Key outputs:
 - `artifacts/governance_policy_patch_history_demo/demo_summary.json`
 - `artifacts/governance_policy_patch_history_demo/demo_summary.md`
 
+## 13.7 Governance Policy Patch Dashboard Demo
+
+Command:
+
+```bash
+bash scripts/demo_governance_policy_patch_dashboard.sh
+```
+
+What it validates:
+
+- assembles policy patch proposal/apply/history/trend/rollback into one governance dashboard
+- emits a compact decision-ready summary for CI/demo consumption
+- verifies rollback signal is wired into dashboard output
+
+Key outputs:
+
+- `artifacts/governance_policy_patch_dashboard_demo/trend.json`
+- `artifacts/governance_policy_patch_dashboard_demo/rollback_advice.json`
+- `artifacts/governance_policy_patch_dashboard_demo/summary.json`
+- `artifacts/governance_policy_patch_dashboard_demo/summary.md`
+- `artifacts/governance_policy_patch_dashboard_demo/demo_summary.json`
+- `artifacts/governance_policy_patch_dashboard_demo/demo_summary.md`
+
 ## 14. Governance Promote Demo
 
 Command:

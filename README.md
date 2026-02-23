@@ -680,6 +680,12 @@ Policy patch history demo shortcut:
 bash scripts/demo_governance_policy_patch_history.sh
 ```
 
+Policy patch dashboard demo shortcut:
+
+```bash
+bash scripts/demo_governance_policy_patch_dashboard.sh
+```
+
 Governance promote decision (snapshot -> promotion gate decision):
 
 ```bash
