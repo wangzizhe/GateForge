@@ -1649,6 +1649,37 @@ One-command benchmark + synthetic degraded replay history:
 bash scripts/demo_medium_pack_v1_history.sh
 ```
 
+Medium benchmark trend + advisor + dashboard:
+
+```bash
+python -m gateforge.medium_benchmark_history_trend \
+  --summary artifacts/benchmark_medium_v1/history_summary.json \
+  --previous-summary artifacts/benchmark_medium_v1/history_summary_previous.json \
+  --out artifacts/benchmark_medium_v1/history_trend.json \
+  --report-out artifacts/benchmark_medium_v1/history_trend.md
+
+python -m gateforge.medium_benchmark_advisor \
+  --history-summary artifacts/benchmark_medium_v1/history_summary.json \
+  --trend-summary artifacts/benchmark_medium_v1/history_trend.json \
+  --out artifacts/benchmark_medium_v1/advisor.json \
+  --report-out artifacts/benchmark_medium_v1/advisor.md
+
+python -m gateforge.medium_benchmark_dashboard \
+  --summary artifacts/benchmark_medium_v1/summary.json \
+  --analysis artifacts/benchmark_medium_v1/analysis.json \
+  --history artifacts/benchmark_medium_v1/history_summary.json \
+  --trend artifacts/benchmark_medium_v1/history_trend.json \
+  --advisor artifacts/benchmark_medium_v1/advisor.json \
+  --out artifacts/benchmark_medium_v1/dashboard.json \
+  --report-out artifacts/benchmark_medium_v1/dashboard.md
+```
+
+One-command chain:
+
+```bash
+bash scripts/demo_medium_pack_v1_dashboard.sh
+```
+
 Pack `benchmarks/medium_pack_v1.json` defines:
 - medium PASS cases across default/short/long probes
 - medium failure taxonomy cases (`script_parse_error`, `model_check_error`, `simulate_error`)

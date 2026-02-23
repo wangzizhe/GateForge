@@ -216,6 +216,16 @@ cat artifacts/benchmark_medium_v1/history_summary.json
 cat artifacts/benchmark_medium_v1/history_summary.md
 ```
 
+Medium-case governance dashboard v0:
+
+```bash
+bash scripts/demo_medium_pack_v1_dashboard.sh
+cat artifacts/benchmark_medium_v1/history_trend.json
+cat artifacts/benchmark_medium_v1/advisor.json
+cat artifacts/benchmark_medium_v1/dashboard.json
+cat artifacts/benchmark_medium_v1/dashboard.md
+```
+
 ## 7. Autopilot Dry-Run Demo (Human Review Template)
 
 Command:
