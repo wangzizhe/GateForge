@@ -569,6 +569,39 @@ Replay demo shortcut:
 bash scripts/demo_governance_replay.sh
 ```
 
+Replay profile compare (cross-profile apply outcomes on same compare summary):
+
+```bash
+python -m gateforge.governance_replay_compare \
+  --compare-summary artifacts/governance_replay_demo/compare_source.json \
+  --profiles default industrial_strict \
+  --out artifacts/governance_replay_compare/summary.json \
+  --report artifacts/governance_replay_compare/summary.md
+cat artifacts/governance_replay_compare/summary.json
+```
+
+Replay query (filter replay ledger):
+
+```bash
+python -m gateforge.governance_replay_query \
+  --ledger artifacts/governance_replay_history_demo/history.jsonl \
+  --mismatch-code apply_policy_hash_mismatch \
+  --out artifacts/governance_replay/query_summary.json \
+  --report artifacts/governance_replay/query_summary.md \
+  --export-out artifacts/governance_replay/query_rows.json
+cat artifacts/governance_replay/query_summary.json
+```
+
+Replay risk scoring:
+
+```bash
+python -m gateforge.governance_replay_risk \
+  --ledger artifacts/governance_replay_history_demo/history.jsonl \
+  --out artifacts/governance_replay/risk.json \
+  --report artifacts/governance_replay/risk.md
+cat artifacts/governance_replay/risk.json
+```
+
 Replay history summary (trend of replay decisions/mismatches):
 
 ```bash
@@ -586,6 +619,12 @@ Replay history demo shortcut:
 
 ```bash
 bash scripts/demo_governance_replay_history.sh
+```
+
+Replay bundle demo shortcut:
+
+```bash
+bash scripts/demo_governance_replay_bundle.sh
 ```
 
 Governance promote decision (snapshot -> promotion gate decision):

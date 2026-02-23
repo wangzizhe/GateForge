@@ -508,6 +508,27 @@ Key outputs:
 - `artifacts/governance_replay_history_demo/demo_summary.json`
 - `artifacts/governance_replay_history_demo/demo_summary.md`
 
+## 13.3 Governance Replay Bundle Demo
+
+Command:
+
+```bash
+bash scripts/demo_governance_replay_bundle.sh
+```
+
+What it validates:
+
+- one-command replay governance bundle across replay/compare/query/risk stages
+- emits consolidated summary for external demo and CI job page
+
+Key outputs:
+
+- `artifacts/governance_replay_bundle_demo/replay_compare.json`
+- `artifacts/governance_replay_bundle_demo/replay_query.json`
+- `artifacts/governance_replay_bundle_demo/replay_risk.json`
+- `artifacts/governance_replay_bundle_demo/summary.json`
+- `artifacts/governance_replay_bundle_demo/summary.md`
+
 ## 14. Governance Promote Demo
 
 Command:
