@@ -577,6 +577,28 @@ Key outputs:
 - `artifacts/governance_policy_patch_apply_demo/summary.json`
 - `artifacts/governance_policy_patch_apply_demo/summary.md`
 
+## 13.6 Governance Policy Patch History Demo
+
+Command:
+
+```bash
+bash scripts/demo_governance_policy_patch_history.sh
+```
+
+What it validates:
+
+- appends multiple patch-apply outcomes into a JSONL governance ledger
+- aggregates governance KPIs (`status_counts`, `applied_count`, `reject_count`)
+- emits a compact demo summary for CI and external review
+
+Key outputs:
+
+- `artifacts/governance_policy_patch_history_demo/history.jsonl`
+- `artifacts/governance_policy_patch_history_demo/summary.json`
+- `artifacts/governance_policy_patch_history_demo/summary.md`
+- `artifacts/governance_policy_patch_history_demo/demo_summary.json`
+- `artifacts/governance_policy_patch_history_demo/demo_summary.md`
+
 ## 14. Governance Promote Demo
 
 Command:
