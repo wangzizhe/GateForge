@@ -1695,6 +1695,9 @@ CI optional benchmark:
 - Benchmark job runs as non-blocking (`continue-on-error`) and uploads both:
   - `artifacts/benchmark_v0`
   - `artifacts/benchmark_medium_v1`
+- A separate non-blocking `medium-governance-optional` job is also triggered by `run_benchmark=true`:
+  - runs the medium chain (`benchmark -> analysis -> history -> trend -> advisor -> dashboard`)
+  - uploads `medium-governance-v1` artifact (`artifacts/benchmark_medium_v1`)
 
 ## IV. Governance
 
