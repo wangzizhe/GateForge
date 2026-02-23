@@ -569,6 +569,25 @@ Replay demo shortcut:
 bash scripts/demo_governance_replay.sh
 ```
 
+Replay history summary (trend of replay decisions/mismatches):
+
+```bash
+python -m gateforge.governance_replay_history \
+  --ledger artifacts/governance_replay_history_demo/history.jsonl \
+  --last-n 7 \
+  --mismatch-threshold 5 \
+  --non-pass-streak-threshold 2 \
+  --out artifacts/governance_replay_history/summary.json \
+  --report artifacts/governance_replay_history/summary.md
+cat artifacts/governance_replay_history/summary.json
+```
+
+Replay history demo shortcut:
+
+```bash
+bash scripts/demo_governance_replay_history.sh
+```
+
 Governance promote decision (snapshot -> promotion gate decision):
 
 ```bash

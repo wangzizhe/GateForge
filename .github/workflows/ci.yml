@@ -1556,6 +1556,9 @@ jobs:
       - name: Run governance replay demo
         run: bash scripts/demo_governance_replay.sh
 
+      - name: Run governance replay history demo
+        run: bash scripts/demo_governance_replay_history.sh
+
       - name: Publish governance history summary to job page
         if: always()
         run: |
@@ -1595,6 +1598,20 @@ jobs:
                           "",
                       ]
                   )
+              replay_hist_path = Path("artifacts/governance_replay_history_demo/demo_summary.json")
+              if replay_hist_path.exists():
+                  replay_hist = json.loads(replay_hist_path.read_text(encoding="utf-8"))
+                  lines.extend(
+                      [
+                          "## Governance Replay History Summary",
+                          "",
+                          f"- bundle_status: `{replay_hist.get('bundle_status')}`",
+                          f"- latest_decision: `{replay_hist.get('latest_decision')}`",
+                          f"- mismatch_total: `{replay_hist.get('mismatch_total')}`",
+                          f"- alerts: `{','.join(replay_hist.get('alerts') or []) or 'none'}`",
+                          "",
+                      ]
+                  )
               text = "\n".join(lines)
 
           summary_file = os.getenv("GITHUB_STEP_SUMMARY")
@@ -1624,6 +1641,11 @@ jobs:
             artifacts/governance_replay_demo/replay_strict_fail.md
             artifacts/governance_replay_demo/summary.json
             artifacts/governance_replay_demo/summary.md
+            artifacts/governance_replay_history_demo/history.jsonl
+            artifacts/governance_replay_history_demo/summary.json
+            artifacts/governance_replay_history_demo/summary.md
+            artifacts/governance_replay_history_demo/demo_summary.json
+            artifacts/governance_replay_history_demo/demo_summary.md
 
   governance-promote-demo-optional:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_governance_promote_demo }}

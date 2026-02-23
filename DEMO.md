@@ -486,6 +486,28 @@ Key outputs:
 - `artifacts/governance_replay_demo/summary.json`
 - `artifacts/governance_replay_demo/summary.md`
 
+## 13.2 Governance Replay History Demo
+
+Command:
+
+```bash
+bash scripts/demo_governance_replay_history.sh
+```
+
+What it validates:
+
+- summarizes replay history from JSONL ledger
+- tracks mismatch volume and non-pass streaks
+- emits replay-specific alerts for governance stability
+
+Key outputs:
+
+- `artifacts/governance_replay_history_demo/history.jsonl`
+- `artifacts/governance_replay_history_demo/summary.json`
+- `artifacts/governance_replay_history_demo/summary.md`
+- `artifacts/governance_replay_history_demo/demo_summary.json`
+- `artifacts/governance_replay_history_demo/demo_summary.md`
+
 ## 14. Governance Promote Demo
 
 Command:
