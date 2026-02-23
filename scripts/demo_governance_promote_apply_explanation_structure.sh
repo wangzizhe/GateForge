@@ -39,6 +39,27 @@ base = {
 }
 complete = {
     **base,
+    "decision_explanation_ranked": [
+        {
+            "reason": "top_score_margin",
+            "value": 4,
+            "weight": 100,
+            "note": "Best profile leads second-best by score margin.",
+        },
+        {
+            "reason": "component_delta:decision_component",
+            "value": 100,
+            "weight": 90,
+            "note": "Decision component drives most of the margin.",
+        },
+        {
+            "reason": "best_reason",
+            "value": "highest_total_score",
+            "weight": 40,
+            "note": "Primary selection rule.",
+        },
+    ],
+    "explanation_completeness": 100,
     "decision_explanations": {
         **base["decision_explanations"],
         "best_vs_others": [
