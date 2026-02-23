@@ -236,6 +236,15 @@ class GovernancePromoteApplyTests(unittest.TestCase):
                                 }
                             ]
                         },
+                        "decision_explanation_ranked": [
+                            {
+                                "reason": "top_score_margin",
+                                "value": 3,
+                                "weight": 100,
+                                "note": "best profile leads by margin",
+                            }
+                        ],
+                        "explanation_completeness": 100,
                     }
                 ),
                 encoding="utf-8",
@@ -700,6 +709,21 @@ class GovernancePromoteApplyTests(unittest.TestCase):
                                 }
                             ]
                         },
+                        "decision_explanation_ranked": [
+                            {
+                                "reason": "top_score_margin",
+                                "value": 3,
+                                "weight": 100,
+                                "note": "best profile leads by margin",
+                            },
+                            {
+                                "reason": "best_reason",
+                                "value": "highest_total_score",
+                                "weight": 40,
+                                "note": "selection rule",
+                            },
+                        ],
+                        "explanation_completeness": 100,
                     }
                 ),
                 encoding="utf-8",
@@ -724,6 +748,69 @@ class GovernancePromoteApplyTests(unittest.TestCase):
             applied = json.loads(out.read_text(encoding="utf-8"))
             self.assertEqual(applied.get("final_status"), "PASS")
             self.assertEqual(applied.get("ranking_explanation_structure_errors"), [])
+
+    def test_apply_ranking_structure_strict_fail_when_meta_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            compare = root / "compare.json"
+            out = root / "apply.json"
+            compare.write_text(
+                json.dumps(
+                    {
+                        "status": "PASS",
+                        "best_profile": "default",
+                        "best_decision": "PASS",
+                        "recommended_profile": "default",
+                        "top_score_margin": 3,
+                        "explanation_quality": {"score": 100},
+                        "decision_explanations": {
+                            "best_vs_others": [
+                                {
+                                    "winner_profile": "default",
+                                    "challenger_profile": "industrial_strict",
+                                    "score_margin": 3,
+                                    "tie_on_total_score": False,
+                                    "winner_advantages": ["decision_component"],
+                                    "score_breakdown_delta": {
+                                        "decision_component": 100,
+                                        "exit_component": 0,
+                                        "reasons_component": 0,
+                                        "recommended_component": 3,
+                                        "total_score": 103,
+                                    },
+                                    "ranked_advantages": [
+                                        {"component": "decision_component", "delta": 100},
+                                        {"component": "recommended_component", "delta": 3},
+                                    ],
+                                }
+                            ]
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.governance_promote_apply",
+                    "--compare-summary",
+                    str(compare),
+                    "--require-ranking-explanation-structure",
+                    "--strict-ranking-explanation-structure",
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 1)
+            applied = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(applied.get("final_status"), "FAIL")
+            errors = applied.get("ranking_explanation_structure_errors") or []
+            self.assertIn("decision_explanation_ranked_missing_or_empty", errors)
+            self.assertIn("explanation_completeness_invalid", errors)
 
 
 if __name__ == "__main__":

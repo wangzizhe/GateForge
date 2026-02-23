@@ -167,6 +167,7 @@ def _write_markdown(path: str, summary: dict) -> None:
         f"- require_min_explanation_quality: `{summary.get('require_min_explanation_quality')}`",
         f"- source_require_min_explanation_quality: `{summary.get('source_require_min_explanation_quality')}`",
         f"- explanation_quality_score: `{summary.get('explanation_quality_score')}`",
+        f"- explanation_completeness: `{summary.get('explanation_completeness')}`",
         f"- policy_hash: `{summary.get('policy_hash')}`",
         f"- effective_guardrails_hash: `{summary.get('effective_guardrails_hash')}`",
         f"- baseline_apply_summary_path: `{summary.get('baseline_apply_summary_path')}`",
@@ -212,6 +213,15 @@ def _write_markdown(path: str, summary: dict) -> None:
                 f"- winner=`{row.get('winner_profile')}` challenger=`{row.get('challenger_profile')}` "
                 f"margin=`{row.get('score_margin')}` tie_on_total=`{row.get('tie_on_total_score')}` "
                 f"advantages=`{','.join(row.get('winner_advantages') or []) or 'none'}`"
+            )
+    else:
+        lines.append("- `none`")
+    lines.extend(["", "## Ranking Explanation Ranked Reasons", ""])
+    ranked = summary.get("ranking_decision_explanation_ranked", [])
+    if isinstance(ranked, list) and ranked:
+        for row in ranked:
+            lines.append(
+                f"- reason=`{row.get('reason')}` value=`{row.get('value')}` weight=`{row.get('weight')}` note=`{row.get('note')}`"
             )
     else:
         lines.append("- `none`")
@@ -282,6 +292,34 @@ def _ranking_explanation_structure_errors(best_vs_others: object) -> list[str]:
                     errors.append(f"{prefix}_ranked_advantages[{sub_idx}]_component_invalid")
                 if not isinstance(item.get("delta"), int):
                     errors.append(f"{prefix}_ranked_advantages[{sub_idx}]_delta_invalid")
+    return errors
+
+
+def _ranking_explanation_meta_errors(compare_payload: dict) -> list[str]:
+    errors: list[str] = []
+    ranked = compare_payload.get("decision_explanation_ranked")
+    if not isinstance(ranked, list) or not ranked:
+        errors.append("decision_explanation_ranked_missing_or_empty")
+    else:
+        for idx, row in enumerate(ranked):
+            prefix = f"decision_explanation_ranked[{idx}]"
+            if not isinstance(row, dict):
+                errors.append(f"{prefix}_not_object")
+                continue
+            if not isinstance(row.get("reason"), str) or not row.get("reason"):
+                errors.append(f"{prefix}_reason_invalid")
+            if not isinstance(row.get("weight"), int):
+                errors.append(f"{prefix}_weight_invalid")
+            if "value" not in row:
+                errors.append(f"{prefix}_value_missing")
+            note = row.get("note")
+            if note is not None and not isinstance(note, str):
+                errors.append(f"{prefix}_note_invalid")
+    completeness = compare_payload.get("explanation_completeness")
+    if not isinstance(completeness, int):
+        errors.append("explanation_completeness_invalid")
+    elif completeness < 0 or completeness > 100:
+        errors.append("explanation_completeness_out_of_range")
     return errors
 
 
@@ -504,6 +542,7 @@ def main() -> None:
         structure_errors = _ranking_explanation_structure_errors(
             compare_payload.get("decision_explanations", {}).get("best_vs_others")
         )
+        structure_errors.extend(_ranking_explanation_meta_errors(compare_payload))
         if structure_errors:
             existing_reasons = [str(r) for r in evaluated.get("reasons", [])]
             if "ranking_explanation_structure_invalid" not in existing_reasons:
@@ -558,7 +597,9 @@ def main() -> None:
         "best_reason": compare_payload.get("best_reason"),
         "ranking_selection_priority": compare_payload.get("decision_explanations", {}).get("selection_priority"),
         "ranking_best_vs_others": compare_payload.get("decision_explanations", {}).get("best_vs_others"),
+        "ranking_decision_explanation_ranked": compare_payload.get("decision_explanation_ranked"),
         "explanation_quality_score": compare_payload.get("explanation_quality", {}).get("score"),
+        "explanation_completeness": compare_payload.get("explanation_completeness"),
         "baseline_apply_summary_path": drift["baseline_apply_summary_path"],
         "baseline_policy_hash": drift["baseline_policy_hash"],
         "baseline_effective_guardrails_hash": drift["baseline_effective_guardrails_hash"],
@@ -612,6 +653,8 @@ def main() -> None:
         "explanation_quality_score": summary.get("explanation_quality_score"),
         "ranking_selection_priority": summary.get("ranking_selection_priority"),
         "ranking_best_vs_others": summary.get("ranking_best_vs_others"),
+        "ranking_decision_explanation_ranked": summary.get("ranking_decision_explanation_ranked"),
+        "explanation_completeness": summary.get("explanation_completeness"),
     }
     _append_jsonl(args.audit, audit_record)
 
