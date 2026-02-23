@@ -7,6 +7,41 @@ import sys
 import tempfile
 from pathlib import Path
 
+DEFAULT_COMPARE_KEYS = [
+    "status",
+    "best_profile",
+    "best_decision",
+    "best_reason",
+    "best_total_score",
+    "top_score_margin",
+    "min_top_score_margin",
+    "constraint_reason",
+    "decision_explanation_score",
+    "recommended_profile",
+    "recommended_profile_decision",
+    "require_recommended_eligible",
+    "scoring",
+]
+
+DEFAULT_APPLY_KEYS = [
+    "final_status",
+    "apply_action",
+    "best_profile",
+    "best_decision",
+    "recommended_profile",
+    "policy_profile",
+    "policy_version",
+    "policy_hash",
+    "effective_guardrails_hash",
+    "require_ranking_explanation",
+    "require_min_top_score_margin",
+    "require_min_explanation_quality",
+    "require_ranking_explanation_structure",
+    "strict_ranking_explanation_structure",
+    "strict_guardrail_drift",
+    "guardrail_drift_detected",
+]
+
 
 def _write_json(path: str, payload: dict) -> None:
     p = Path(path)
@@ -53,6 +88,12 @@ def _compare_key(
         )
 
 
+def _parse_keys_csv(raw: str | None) -> list[str]:
+    if not isinstance(raw, str) or not raw.strip():
+        return []
+    return [item.strip() for item in raw.split(",") if item.strip()]
+
+
 def _normalize_reasons(payload: dict, key: str) -> list[str]:
     value = payload.get(key)
     if not isinstance(value, list):
@@ -60,51 +101,12 @@ def _normalize_reasons(payload: dict, key: str) -> list[str]:
     return sorted(str(item) for item in value)
 
 
-def _compare_compare_summary(mismatches: list[dict], source: dict, replayed: dict) -> None:
-    keys = [
-        "status",
-        "best_profile",
-        "best_decision",
-        "best_reason",
-        "best_total_score",
-        "top_score_margin",
-        "min_top_score_margin",
-        "constraint_reason",
-        "decision_explanation_score",
-        "recommended_profile",
-        "recommended_profile_decision",
-        "require_recommended_eligible",
-    ]
+def _compare_compare_summary(mismatches: list[dict], source: dict, replayed: dict, keys: list[str]) -> None:
     for key in keys:
         _compare_key(mismatches, domain="compare", key=key, expected_payload=source, actual_payload=replayed)
-    _compare_key(
-        mismatches,
-        domain="compare",
-        key="scoring",
-        expected_payload=source,
-        actual_payload=replayed,
-    )
 
 
-def _compare_apply_summary(mismatches: list[dict], source: dict, replayed: dict) -> None:
-    keys = [
-        "final_status",
-        "apply_action",
-        "best_profile",
-        "best_decision",
-        "recommended_profile",
-        "policy_profile",
-        "policy_version",
-        "policy_hash",
-        "effective_guardrails_hash",
-        "require_ranking_explanation",
-        "require_min_top_score_margin",
-        "require_min_explanation_quality",
-        "require_ranking_explanation_structure",
-        "strict_ranking_explanation_structure",
-        "strict_guardrail_drift",
-        "guardrail_drift_detected",
-    ]
+def _compare_apply_summary(mismatches: list[dict], source: dict, replayed: dict, keys: list[str]) -> None:
     for key in keys:
         _compare_key(mismatches, domain="apply", key=key, expected_payload=source, actual_payload=replayed)
 
@@ -133,6 +135,10 @@ def _write_markdown(path: str, summary: dict) -> None:
         f"- replay_apply_summary_path: `{summary.get('replay_apply_summary_path')}`",
         f"- compare_exit_code: `{summary.get('compare_exit_code')}`",
         f"- apply_exit_code: `{summary.get('apply_exit_code')}`",
+        f"- compare_keys: `{','.join(summary.get('compare_keys') or [])}`",
+        f"- apply_keys: `{','.join(summary.get('apply_keys') or [])}`",
+        f"- ignore_compare_keys: `{','.join(summary.get('ignore_compare_keys') or [])}`",
+        f"- ignore_apply_keys: `{','.join(summary.get('ignore_apply_keys') or [])}`",
         "",
         "## Mismatches",
         "",
@@ -159,6 +165,28 @@ def main() -> None:
         default=False,
         help="When enabled, any mismatch is FAIL (otherwise NEEDS_REVIEW)",
     )
+    parser.add_argument(
+        "--compare-keys",
+        default=None,
+        help="Comma-separated compare summary keys to validate (default built-in keyset)",
+    )
+    parser.add_argument(
+        "--apply-keys",
+        default=None,
+        help="Comma-separated apply summary keys to validate (default built-in keyset)",
+    )
+    parser.add_argument(
+        "--ignore-compare-key",
+        action="append",
+        default=[],
+        help="Compare summary key to ignore (repeatable)",
+    )
+    parser.add_argument(
+        "--ignore-apply-key",
+        action="append",
+        default=[],
+        help="Apply summary key to ignore (repeatable)",
+    )
     parser.add_argument("--out", default="artifacts/governance_replay/summary.json", help="Replay summary output JSON")
     parser.add_argument("--report", default=None, help="Replay summary markdown path")
     args = parser.parse_args()
@@ -166,6 +194,12 @@ def main() -> None:
     source_compare = _load_json(args.compare_summary)
     source_apply = _load_json(args.apply_summary)
     mismatches: list[dict] = []
+    compare_keys = _parse_keys_csv(args.compare_keys) or list(DEFAULT_COMPARE_KEYS)
+    apply_keys = _parse_keys_csv(args.apply_keys) or list(DEFAULT_APPLY_KEYS)
+    ignore_compare = {str(k) for k in (args.ignore_compare_key or [])}
+    ignore_apply = {str(k) for k in (args.ignore_apply_key or [])}
+    compare_keys = [key for key in compare_keys if key not in ignore_compare]
+    apply_keys = [key for key in apply_keys if key not in ignore_apply]
 
     with tempfile.TemporaryDirectory() as td:
         root = Path(td)
@@ -216,7 +250,7 @@ def main() -> None:
                 actual=compare_rc,
             )
         if replay_compare:
-            _compare_compare_summary(mismatches, source_compare, replay_compare)
+            _compare_compare_summary(mismatches, source_compare, replay_compare, compare_keys)
 
         apply_cmd = [
             sys.executable,
@@ -261,7 +295,7 @@ def main() -> None:
                 actual=apply_rc,
             )
         if replay_apply:
-            _compare_apply_summary(mismatches, source_apply, replay_apply)
+            _compare_apply_summary(mismatches, source_apply, replay_apply, apply_keys)
 
         decision = "PASS"
         if mismatches:
@@ -275,6 +309,10 @@ def main() -> None:
             "replay_apply_summary_path": str(replay_apply_path),
             "compare_exit_code": compare_rc,
             "apply_exit_code": apply_rc,
+            "compare_keys": compare_keys,
+            "apply_keys": apply_keys,
+            "ignore_compare_keys": sorted(ignore_compare),
+            "ignore_apply_keys": sorted(ignore_apply),
             "mismatches": mismatches,
         }
 
