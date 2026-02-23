@@ -164,6 +164,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertIn("governance_promote_compare_demo", payload.get("selected", {}))
         self.assertIn("governance_promote_apply_demo", payload.get("selected", {}))
         self.assertIn("governance_promote_apply_strict_guard_demo", payload.get("selected", {}))
+        self.assertIn("governance_policy_patch_apply_demo", payload.get("selected", {}))
         self.assertIn("agent_invariant_guard_demo", payload.get("selected", {}))
         self.assertIn("invariant_repair_loop_demo", payload.get("selected", {}))
         self.assertIn("invariant_repair_profile_compare_demo", payload.get("selected", {}))
@@ -681,9 +682,24 @@ class DemoScriptTests(unittest.TestCase):
             )
         )
         self.assertEqual(payload.get("bundle_status"), "PASS")
-        self.assertEqual(payload.get("incomplete_needs_review_status"), "NEEDS_REVIEW")
-        self.assertEqual(payload.get("incomplete_strict_fail_status"), "FAIL")
-        self.assertEqual(payload.get("complete_pass_status"), "PASS")
+
+    def test_demo_governance_policy_patch_apply_script(self) -> None:
+        proc = subprocess.run(
+            ["bash", "scripts/demo_governance_policy_patch_apply.sh"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+        payload = json.loads(
+            Path("artifacts/governance_policy_patch_apply_demo/summary.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(payload.get("bundle_status"), "PASS")
+        statuses = payload.get("statuses", {})
+        self.assertEqual(statuses.get("no_approval"), "NEEDS_REVIEW")
+        self.assertEqual(statuses.get("reject"), "FAIL")
+        self.assertEqual(statuses.get("approve_hold"), "NEEDS_REVIEW")
+        self.assertEqual(statuses.get("approve_apply"), "PASS")
 
     def test_demo_agent_invariant_guard_script(self) -> None:
         proc = subprocess.run(
