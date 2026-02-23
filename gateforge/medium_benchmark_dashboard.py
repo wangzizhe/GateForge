@@ -7,7 +7,10 @@ from pathlib import Path
 
 
 def _load_json(path: str) -> dict:
-    return json.loads(Path(path).read_text(encoding="utf-8"))
+    p = Path(path)
+    if not p.exists():
+        return {}
+    return json.loads(p.read_text(encoding="utf-8"))
 
 
 def _write_json(path: str, payload: dict) -> None:
@@ -72,6 +75,11 @@ def main() -> None:
     advice = advisor.get("advice", {}) if isinstance(advisor.get("advice"), dict) else {}
 
     flags = {
+        "summary_file_exists": "PASS" if Path(args.summary).exists() else "FAIL",
+        "analysis_file_exists": "PASS" if Path(args.analysis).exists() else "FAIL",
+        "history_file_exists": "PASS" if Path(args.history).exists() else "FAIL",
+        "trend_file_exists": "PASS" if Path(args.trend).exists() else "FAIL",
+        "advisor_file_exists": "PASS" if Path(args.advisor).exists() else "FAIL",
         "summary_present": "PASS" if isinstance(summary.get("pack_id"), str) else "FAIL",
         "analysis_present": "PASS" if isinstance(analysis.get("mismatch_case_count"), int) else "FAIL",
         "history_present": "PASS" if isinstance(history.get("total_records"), int) else "FAIL",

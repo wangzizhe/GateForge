@@ -8,7 +8,9 @@ OUT_DIR="artifacts/benchmark_medium_v1"
 mkdir -p "$OUT_DIR"
 rm -f "$OUT_DIR"/history.jsonl "$OUT_DIR"/history_summary.json "$OUT_DIR"/history_summary.md "$OUT_DIR"/summary_degraded.json
 
-bash scripts/demo_medium_pack_v1.sh >/dev/null
+if [[ ! -f "$OUT_DIR/summary.json" ]]; then
+  bash scripts/demo_medium_pack_v1.sh >/dev/null
+fi
 
 python3 - <<'PY'
 import json

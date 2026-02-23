@@ -7,7 +7,10 @@ from pathlib import Path
 
 
 def _load_json(path: str) -> dict:
-    return json.loads(Path(path).read_text(encoding="utf-8"))
+    p = Path(path)
+    if not p.exists():
+        return {}
+    return json.loads(p.read_text(encoding="utf-8"))
 
 
 def _write_json(path: str, payload: dict) -> None:
@@ -93,7 +96,8 @@ def main() -> None:
             "exit_code": int(args.medium_dashboard_rc),
             "status": _step_status(
                 int(args.medium_dashboard_rc),
-                str(medium.get("bundle_status")) == "PASS",
+                Path(args.medium_dashboard_json).exists()
+                and str(medium.get("bundle_status")) == "PASS",
             ),
         },
         {
@@ -101,7 +105,8 @@ def main() -> None:
             "exit_code": int(args.policy_dashboard_rc),
             "status": _step_status(
                 int(args.policy_dashboard_rc),
-                str(policy.get("bundle_status")) == "PASS",
+                Path(args.policy_dashboard_json).exists()
+                and str(policy.get("bundle_status")) == "PASS",
             ),
         },
         {
@@ -109,7 +114,8 @@ def main() -> None:
             "exit_code": int(args.ci_matrix_rc),
             "status": _step_status(
                 int(args.ci_matrix_rc),
-                str(matrix.get("matrix_status")) == "PASS",
+                Path(args.ci_matrix_json).exists()
+                and str(matrix.get("matrix_status")) == "PASS",
             ),
         },
     ]
