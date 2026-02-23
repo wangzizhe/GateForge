@@ -591,6 +591,8 @@ class DemoScriptTests(unittest.TestCase):
         self.assertIsInstance(payload.get("decision_ranking_top_2"), list)
         self.assertIsInstance(payload.get("ranking_explanations_top_1"), list)
         self.assertIsInstance(payload.get("best_profile_win_summary"), dict)
+        self.assertIsInstance(payload.get("decision_explanation_ranked_top_3"), list)
+        self.assertIsInstance(payload.get("explanation_completeness"), int)
         self.assertIsInstance(payload.get("explanation_quality_score"), int)
         self.assertIsInstance(payload.get("explanation_quality_checks"), dict)
         self.assertIsInstance(payload.get("top_score_margin"), int)
