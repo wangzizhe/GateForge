@@ -1612,10 +1612,25 @@ python -m gateforge.medium_benchmark \
   --report-out artifacts/benchmark_medium_v1/summary.md
 ```
 
+Mismatch analyzer (priority-ranked debugging hints):
+
+```bash
+python -m gateforge.medium_benchmark_analyze \
+  --summary artifacts/benchmark_medium_v1/summary.json \
+  --out artifacts/benchmark_medium_v1/analysis.json \
+  --report-out artifacts/benchmark_medium_v1/analysis.md
+```
+
 or one-command shortcut:
 
 ```bash
 bash scripts/demo_medium_pack_v1.sh
+```
+
+One-command benchmark + analysis:
+
+```bash
+bash scripts/demo_medium_pack_v1_analysis.sh
 ```
 
 Pack `benchmarks/medium_pack_v1.json` defines:
