@@ -203,11 +203,17 @@ jobs:
 
       - name: Run benchmark pack v0
         run: |
+          set +e
           python -m gateforge.benchmark \
             --pack benchmarks/pack_v0.json \
             --out-dir artifacts/benchmark_v0 \
             --summary-out artifacts/benchmark_v0/summary.json \
             --report-out artifacts/benchmark_v0/summary.md
+          PACK_V0_RC=$?
+          set -e
+          if [ "$PACK_V0_RC" -ne 0 ]; then
+            echo "pack_v0 returned non-zero (expected for mismatch sentinel cases): rc=$PACK_V0_RC"
+          fi
           python -m gateforge.medium_benchmark \
             --pack benchmarks/medium_pack_v1.json \
             --out-dir artifacts/benchmark_medium_v1 \
