@@ -226,6 +226,14 @@ cat artifacts/benchmark_medium_v1/dashboard.json
 cat artifacts/benchmark_medium_v1/dashboard.md
 ```
 
+MVP freeze check:
+
+```bash
+bash scripts/mvp_freeze_check.sh
+cat artifacts/mvp_freeze/summary.json
+cat artifacts/mvp_freeze/summary.md
+```
+
 ## 7. Autopilot Dry-Run Demo (Human Review Template)
 
 Command:

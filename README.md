@@ -1680,6 +1680,23 @@ One-command chain:
 bash scripts/demo_medium_pack_v1_dashboard.sh
 ```
 
+### 10. MVP Freeze Check
+
+Run one-command freeze validation for core governance loops:
+
+```bash
+bash scripts/mvp_freeze_check.sh
+```
+
+This writes:
+- `artifacts/mvp_freeze/summary.json`
+- `artifacts/mvp_freeze/summary.md`
+- step logs under `artifacts/mvp_freeze/*.log`
+
+Verdict values:
+- `MVP_FREEZE_PASS`
+- `MVP_FREEZE_FAIL` (with `blocking_step`)
+
 Pack `benchmarks/medium_pack_v1.json` defines:
 - medium PASS cases across default/short/long probes
 - medium failure taxonomy cases (`script_parse_error`, `model_check_error`, `simulate_error`)
