@@ -186,6 +186,39 @@ class GovernanceReplayTests(unittest.TestCase):
             self.assertEqual(replay.get("mismatches"), [])
             self.assertIn("policy_hash", replay.get("ignore_apply_keys", []))
 
+    def test_governance_replay_writes_ledger_row(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            compare, apply = self._prepare_source_summaries(root)
+            out = root / "replay.json"
+            ledger = root / "history.jsonl"
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.governance_replay",
+                    "--compare-summary",
+                    str(compare),
+                    "--apply-summary",
+                    str(apply),
+                    "--ledger",
+                    str(ledger),
+                    "--tag",
+                    "unit",
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            lines = [line for line in ledger.read_text(encoding="utf-8").splitlines() if line.strip()]
+            self.assertEqual(len(lines), 1)
+            row = json.loads(lines[0])
+            self.assertEqual(row.get("decision"), "PASS")
+            self.assertEqual(row.get("tag"), "unit")
+
 
 if __name__ == "__main__":
     unittest.main()

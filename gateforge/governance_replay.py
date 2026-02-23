@@ -5,6 +5,7 @@ import json
 import subprocess
 import sys
 import tempfile
+from datetime import datetime, timezone
 from pathlib import Path
 
 DEFAULT_COMPARE_KEYS = [
@@ -47,6 +48,13 @@ def _write_json(path: str, payload: dict) -> None:
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+
+def _append_jsonl(path: str, row: dict) -> None:
+    p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    with p.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(row, ensure_ascii=True) + "\n")
 
 
 def _default_md_path(out_json: str) -> str:
@@ -187,6 +195,16 @@ def main() -> None:
         default=[],
         help="Apply summary key to ignore (repeatable)",
     )
+    parser.add_argument(
+        "--ledger",
+        default=None,
+        help="Optional JSONL path to append replay result rows",
+    )
+    parser.add_argument(
+        "--tag",
+        default=None,
+        help="Optional short tag recorded in replay ledger row",
+    )
     parser.add_argument("--out", default="artifacts/governance_replay/summary.json", help="Replay summary output JSON")
     parser.add_argument("--report", default=None, help="Replay summary markdown path")
     args = parser.parse_args()
@@ -318,6 +336,25 @@ def main() -> None:
 
     _write_json(args.out, summary)
     _write_markdown(args.report or _default_md_path(args.out), summary)
+    if args.ledger:
+        row = {
+            "recorded_at_utc": datetime.now(timezone.utc).isoformat(),
+            "tag": args.tag,
+            "decision": summary.get("decision"),
+            "strict": summary.get("strict"),
+            "source_compare_summary_path": summary.get("source_compare_summary_path"),
+            "source_apply_summary_path": summary.get("source_apply_summary_path"),
+            "compare_exit_code": summary.get("compare_exit_code"),
+            "apply_exit_code": summary.get("apply_exit_code"),
+            "mismatch_count": len(summary.get("mismatches", [])),
+            "mismatches": summary.get("mismatches", []),
+            "compare_keys": summary.get("compare_keys", []),
+            "apply_keys": summary.get("apply_keys", []),
+            "ignore_compare_keys": summary.get("ignore_compare_keys", []),
+            "ignore_apply_keys": summary.get("ignore_apply_keys", []),
+            "summary_path": args.out,
+        }
+        _append_jsonl(args.ledger, row)
     print(json.dumps({"decision": summary["decision"], "mismatch_count": len(summary["mismatches"])}))
     if summary["decision"] == "FAIL":
         raise SystemExit(1)
