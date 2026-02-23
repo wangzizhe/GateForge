@@ -1633,6 +1633,22 @@ One-command benchmark + analysis:
 bash scripts/demo_medium_pack_v1_analysis.sh
 ```
 
+Medium benchmark history ledger (trend/alerts over runs):
+
+```bash
+python -m gateforge.medium_benchmark_history \
+  --record artifacts/benchmark_medium_v1/summary.json \
+  --ledger artifacts/benchmark_medium_v1/history.jsonl \
+  --out artifacts/benchmark_medium_v1/history_summary.json \
+  --report-out artifacts/benchmark_medium_v1/history_summary.md
+```
+
+One-command benchmark + synthetic degraded replay history:
+
+```bash
+bash scripts/demo_medium_pack_v1_history.sh
+```
+
 Pack `benchmarks/medium_pack_v1.json` defines:
 - medium PASS cases across default/short/long probes
 - medium failure taxonomy cases (`script_parse_error`, `model_check_error`, `simulate_error`)

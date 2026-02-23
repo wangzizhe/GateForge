@@ -208,6 +208,14 @@ cat artifacts/benchmark_medium_v1/analysis.json
 cat artifacts/benchmark_medium_v1/analysis.md
 ```
 
+Medium-case benchmark history v0:
+
+```bash
+bash scripts/demo_medium_pack_v1_history.sh
+cat artifacts/benchmark_medium_v1/history_summary.json
+cat artifacts/benchmark_medium_v1/history_summary.md
+```
+
 ## 7. Autopilot Dry-Run Demo (Human Review Template)
 
 Command:
