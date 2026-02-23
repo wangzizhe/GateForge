@@ -225,6 +225,8 @@ class GovernancePromoteApplyTests(unittest.TestCase):
                         "best_profile": "default",
                         "best_decision": "PASS",
                         "recommended_profile": "default",
+                        "top_score_margin": 3,
+                        "explanation_quality": {"score": 100},
                         "decision_explanations": {
                             "best_vs_others": [
                                 {
@@ -604,6 +606,124 @@ class GovernancePromoteApplyTests(unittest.TestCase):
             self.assertEqual(applied.get("final_status"), "PASS")
             self.assertFalse(applied.get("guardrail_drift_detected"))
             self.assertEqual(applied.get("reasons"), [])
+
+    def test_apply_ranking_structure_default_needs_review(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            compare = root / "compare.json"
+            out = root / "apply.json"
+            self._write_compare_summary(compare, status="PASS", best_decision="PASS")
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.governance_promote_apply",
+                    "--compare-summary",
+                    str(compare),
+                    "--require-ranking-explanation-structure",
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            applied = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(applied.get("final_status"), "NEEDS_REVIEW")
+            self.assertEqual(applied.get("apply_action"), "hold_for_review")
+            self.assertIn("ranking_explanation_structure_invalid", applied.get("reasons", []))
+            self.assertIsInstance(applied.get("ranking_explanation_structure_errors"), list)
+            self.assertGreater(len(applied.get("ranking_explanation_structure_errors") or []), 0)
+
+    def test_apply_ranking_structure_strict_fail(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            compare = root / "compare.json"
+            out = root / "apply.json"
+            self._write_compare_summary(compare, status="PASS", best_decision="PASS")
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.governance_promote_apply",
+                    "--compare-summary",
+                    str(compare),
+                    "--require-ranking-explanation-structure",
+                    "--strict-ranking-explanation-structure",
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 1)
+            applied = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(applied.get("final_status"), "FAIL")
+            self.assertEqual(applied.get("apply_action"), "block")
+            self.assertIn("ranking_explanation_structure_invalid", applied.get("reasons", []))
+
+    def test_apply_ranking_structure_strict_pass_when_complete(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            compare = root / "compare.json"
+            out = root / "apply.json"
+            compare.write_text(
+                json.dumps(
+                    {
+                        "status": "PASS",
+                        "best_profile": "default",
+                        "best_decision": "PASS",
+                        "recommended_profile": "default",
+                        "top_score_margin": 3,
+                        "explanation_quality": {"score": 100},
+                        "decision_explanations": {
+                            "best_vs_others": [
+                                {
+                                    "winner_profile": "default",
+                                    "challenger_profile": "industrial_strict",
+                                    "score_margin": 3,
+                                    "tie_on_total_score": False,
+                                    "winner_advantages": ["decision_component"],
+                                    "score_breakdown_delta": {
+                                        "decision_component": 100,
+                                        "exit_component": 0,
+                                        "reasons_component": 0,
+                                        "recommended_component": 3,
+                                        "total_score": 103,
+                                    },
+                                    "ranked_advantages": [
+                                        {"component": "decision_component", "delta": 100},
+                                        {"component": "recommended_component", "delta": 3},
+                                    ],
+                                }
+                            ]
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.governance_promote_apply",
+                    "--compare-summary",
+                    str(compare),
+                    "--require-ranking-explanation-structure",
+                    "--strict-ranking-explanation-structure",
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            applied = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(applied.get("final_status"), "PASS")
+            self.assertEqual(applied.get("ranking_explanation_structure_errors"), [])
 
 
 if __name__ == "__main__":

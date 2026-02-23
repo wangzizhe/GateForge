@@ -1779,6 +1779,9 @@ jobs:
       - name: Run governance promote apply drift demo
         run: bash scripts/demo_governance_promote_apply_drift.sh
 
+      - name: Run governance promote apply explanation structure demo
+        run: bash scripts/demo_governance_promote_apply_explanation_structure.sh
+
       - name: Publish governance promote apply summary to job page
         if: always()
         run: |
@@ -1839,6 +1842,20 @@ jobs:
                           "",
                       ]
                   )
+              structure_path = Path("artifacts/governance_promote_apply_explanation_structure_demo/summary.json")
+              if structure_path.exists():
+                  structure_payload = json.loads(structure_path.read_text(encoding="utf-8"))
+                  lines.extend(
+                      [
+                          "## Governance Promote Apply Explanation Structure Summary",
+                          "",
+                          f"- bundle_status: `{structure_payload.get('bundle_status')}`",
+                          f"- incomplete_needs_review_status: `{structure_payload.get('incomplete_needs_review_status')}`",
+                          f"- incomplete_strict_fail_status: `{structure_payload.get('incomplete_strict_fail_status')}`",
+                          f"- complete_pass_status: `{structure_payload.get('complete_pass_status')}`",
+                          "",
+                      ]
+                  )
               text = "\n".join(lines)
 
           summary_file = os.getenv("GITHUB_STEP_SUMMARY")
@@ -1887,6 +1904,17 @@ jobs:
             artifacts/governance_promote_apply_drift_demo/decision_audit.jsonl
             artifacts/governance_promote_apply_drift_demo/summary.json
             artifacts/governance_promote_apply_drift_demo/summary.md
+            artifacts/governance_promote_apply_explanation_structure_demo/compare_incomplete.json
+            artifacts/governance_promote_apply_explanation_structure_demo/compare_complete.json
+            artifacts/governance_promote_apply_explanation_structure_demo/apply_incomplete_needs_review.json
+            artifacts/governance_promote_apply_explanation_structure_demo/apply_incomplete_needs_review.md
+            artifacts/governance_promote_apply_explanation_structure_demo/apply_incomplete_strict_fail.json
+            artifacts/governance_promote_apply_explanation_structure_demo/apply_incomplete_strict_fail.md
+            artifacts/governance_promote_apply_explanation_structure_demo/apply_complete_pass.json
+            artifacts/governance_promote_apply_explanation_structure_demo/apply_complete_pass.md
+            artifacts/governance_promote_apply_explanation_structure_demo/decision_audit.jsonl
+            artifacts/governance_promote_apply_explanation_structure_demo/summary.json
+            artifacts/governance_promote_apply_explanation_structure_demo/summary.md
 
   agent-invariant-guard-demo-optional:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_agent_invariant_guard_demo }}
