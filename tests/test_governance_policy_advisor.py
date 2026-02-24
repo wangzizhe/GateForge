@@ -209,6 +209,7 @@ class GovernancePolicyAdvisorTests(unittest.TestCase):
             self.assertIn("compare_pairwise_net_margin_low", advice.get("reasons", []))
             patch = advice.get("threshold_patch", {})
             self.assertEqual(patch.get("require_min_pairwise_net_margin"), 2)
+            self.assertGreaterEqual(float(advice.get("confidence") or 0.0), 0.66)
 
     def test_advisor_uses_mutation_summary_signals(self) -> None:
         with tempfile.TemporaryDirectory() as d:
