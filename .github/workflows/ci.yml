@@ -388,7 +388,7 @@ jobs:
           pip install -e .
 
       - name: Run MVP freeze check
-        run: bash scripts/mvp_freeze_check.sh
+        run: bash scripts/mvp_freeze_check_fast.sh
 
       - name: Upload MVP freeze artifact
         if: always()
