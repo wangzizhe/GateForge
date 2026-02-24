@@ -321,7 +321,7 @@ Set `run_benchmark=true` to run non-blocking optional chains:
 - benchmark optional
 - medium governance optional
 - policy autotune optional
-- mvp freeze optional
+- mvp freeze optional (fast targeted mode)
 
 Artifacts include:
 - `benchmark-v0`
