@@ -292,6 +292,12 @@ Outputs:
 - `artifacts/mvp_freeze/summary.json`
 - `artifacts/mvp_freeze/summary.md`
 
+Fast local pre-check (targeted test scope):
+
+```bash
+bash scripts/mvp_freeze_check_fast.sh
+```
+
 Current freeze inputs:
 - full unit test suite
 - medium governance dashboard chain
