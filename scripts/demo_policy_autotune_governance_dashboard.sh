@@ -56,6 +56,10 @@ flags = {
     "tuned_pairwise_signal_present": "PASS"
     if isinstance(dashboard.get("tuned_pairwise_net_margin"), int)
     else "FAIL",
+    "tuned_leaderboard_signal_present": "PASS"
+    if isinstance(dashboard.get("tuned_leader_profile"), str)
+    and isinstance(dashboard.get("tuned_runner_up_score_gap_to_best"), int)
+    else "FAIL",
 }
 bundle_status = "PASS" if all(v == "PASS" for v in flags.values()) else "FAIL"
 result = {
@@ -66,6 +70,11 @@ result = {
     "tuned_top_score_margin": dashboard.get("tuned_top_score_margin"),
     "tuned_explanation_completeness": dashboard.get("tuned_explanation_completeness"),
     "tuned_pairwise_net_margin": dashboard.get("tuned_pairwise_net_margin"),
+    "tuned_leader_profile": dashboard.get("tuned_leader_profile"),
+    "tuned_leader_pairwise_win_count": dashboard.get("tuned_leader_pairwise_win_count"),
+    "tuned_leader_pairwise_loss_count": dashboard.get("tuned_leader_pairwise_loss_count"),
+    "tuned_leader_total_score": dashboard.get("tuned_leader_total_score"),
+    "tuned_runner_up_score_gap_to_best": dashboard.get("tuned_runner_up_score_gap_to_best"),
     "bundle_status": bundle_status,
     "result_flags": flags,
 }
@@ -82,6 +91,11 @@ result = {
             f"- tuned_top_score_margin: `{result['tuned_top_score_margin']}`",
             f"- tuned_explanation_completeness: `{result['tuned_explanation_completeness']}`",
             f"- tuned_pairwise_net_margin: `{result['tuned_pairwise_net_margin']}`",
+            f"- tuned_leader_profile: `{result['tuned_leader_profile']}`",
+            f"- tuned_leader_pairwise_win_count: `{result['tuned_leader_pairwise_win_count']}`",
+            f"- tuned_leader_pairwise_loss_count: `{result['tuned_leader_pairwise_loss_count']}`",
+            f"- tuned_leader_total_score: `{result['tuned_leader_total_score']}`",
+            f"- tuned_runner_up_score_gap_to_best: `{result['tuned_runner_up_score_gap_to_best']}`",
             f"- bundle_status: `{result['bundle_status']}`",
             "",
             "## Result Flags",
