@@ -9,6 +9,7 @@ mkdir -p artifacts/governance_snapshot_demo
 bash scripts/demo_review_kpis.sh
 bash scripts/demo_repair_batch_compare.sh
 bash scripts/demo_invariant_repair_profile_compare.sh
+bash scripts/demo_mutation_dashboard.sh
 bash scripts/demo_ci_matrix.sh --none --checker-demo
 
 python3 -m gateforge.governance_report \
@@ -16,6 +17,7 @@ python3 -m gateforge.governance_report \
   --review-ledger-summary artifacts/review_kpi_demo/kpi_summary.json \
   --ci-matrix-summary artifacts/ci_matrix_summary.json \
   --invariant-repair-compare-summary artifacts/invariant_repair_profile_compare_demo/compare.json \
+  --mutation-dashboard-summary artifacts/mutation_dashboard_demo/summary.json \
   --out artifacts/governance_snapshot_demo/summary.json \
   --report artifacts/governance_snapshot_demo/summary.md
 

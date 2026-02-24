@@ -30,6 +30,10 @@ def _load_json(path: str | None) -> dict:
 def _status_from_signals(signals: dict) -> str:
     if signals.get("matrix_status") == "FAIL":
         return "FAIL"
+    if signals.get("mutation_compare_failed"):
+        return "NEEDS_REVIEW"
+    if signals.get("mutation_trend_needs_review"):
+        return "NEEDS_REVIEW"
     if signals.get("invariant_repair_compare_status") == "FAIL":
         return "NEEDS_REVIEW"
     if signals.get("strategy_switch_recommended"):
@@ -149,9 +153,22 @@ def _compute_trend(current: dict, previous: dict) -> dict:
     }
 
 
-def _compute_summary(repair: dict, review: dict, matrix: dict, invariant_compare: dict) -> dict:
+def _extract_mutation(mutation: dict) -> dict:
+    if not isinstance(mutation, dict):
+        return {}
+    return {
+        "bundle_status": str(mutation.get("bundle_status") or "UNKNOWN"),
+        "latest_match_rate": _to_float(mutation.get("latest_match_rate"), 0.0),
+        "latest_gate_pass_rate": _to_float(mutation.get("latest_gate_pass_rate"), 0.0),
+        "trend_status": str(mutation.get("trend_status") or "UNKNOWN"),
+        "compare_decision": str(mutation.get("compare_decision") or "UNKNOWN"),
+    }
+
+
+def _compute_summary(repair: dict, review: dict, matrix: dict, invariant_compare: dict, mutation_dashboard: dict) -> dict:
     repair_compare = _extract_repair_compare(repair)
     invariant = _extract_invariant_compare(invariant_compare)
+    mutation = _extract_mutation(mutation_dashboard)
     kpis = review.get("kpis", {}) if isinstance(review, dict) else {}
 
     strict_non_pass_rate = float(kpis.get("strict_non_pass_rate", 0.0) or 0.0)
@@ -176,6 +193,11 @@ def _compute_summary(repair: dict, review: dict, matrix: dict, invariant_compare
         and invariant_from_profile != invariant_best_profile
     )
 
+    mutation_match_rate = float(mutation.get("latest_match_rate", 0.0) or 0.0)
+    mutation_gate_pass_rate = float(mutation.get("latest_gate_pass_rate", 0.0) or 0.0)
+    mutation_trend_status = str(mutation.get("trend_status") or "UNKNOWN")
+    mutation_compare_decision = str(mutation.get("compare_decision") or "UNKNOWN")
+
     signals = {
         "matrix_status": matrix.get("matrix_status", "UNKNOWN"),
         "repair_compare_has_downgrade": downgrade_count > 0,
@@ -184,6 +206,8 @@ def _compute_summary(repair: dict, review: dict, matrix: dict, invariant_compare
         "invariant_repair_compare_status": str(invariant.get("status") or "UNKNOWN"),
         "strict_non_pass_rate": strict_non_pass_rate,
         "review_recovery_rate": review_recovery_rate,
+        "mutation_trend_needs_review": mutation_trend_status == "NEEDS_REVIEW",
+        "mutation_compare_failed": mutation_compare_decision == "FAIL",
     }
 
     status = _status_from_signals(signals)
@@ -203,6 +227,14 @@ def _compute_summary(repair: dict, review: dict, matrix: dict, invariant_compare
         risks.append("invariant_repair_profile_switch_recommended")
     if str(invariant.get("status") or "").upper() == "FAIL":
         risks.append("invariant_repair_compare_failed")
+    if signals["mutation_trend_needs_review"]:
+        risks.append("mutation_trend_needs_review")
+    if signals["mutation_compare_failed"]:
+        risks.append("mutation_compare_regressed")
+    if mutation_match_rate < 0.98:
+        risks.append("mutation_match_rate_below_target")
+    if mutation_gate_pass_rate < 0.98:
+        risks.append("mutation_gate_pass_rate_below_target")
 
     return {
         "status": status,
@@ -222,6 +254,10 @@ def _compute_summary(repair: dict, review: dict, matrix: dict, invariant_compare
                 "switched" if invariant_switch_recommended else "unchanged"
             ),
             "invariant_repair_top_score_margin": invariant.get("top_score_margin"),
+            "mutation_latest_match_rate": mutation_match_rate,
+            "mutation_latest_gate_pass_rate": mutation_gate_pass_rate,
+            "mutation_trend_status": mutation_trend_status,
+            "mutation_compare_decision": mutation_compare_decision,
         },
         "policy_profiles": {
             "compare_from": compare_from,
@@ -236,6 +272,7 @@ def _compute_summary(repair: dict, review: dict, matrix: dict, invariant_compare
             "review_ledger_summary_path": review.get("_source_path"),
             "ci_matrix_summary_path": matrix.get("_source_path"),
             "invariant_repair_compare_summary_path": invariant_compare.get("_source_path"),
+            "mutation_dashboard_summary_path": mutation_dashboard.get("_source_path"),
         },
         "risks": risks,
     }
@@ -318,6 +355,11 @@ def main() -> None:
         default=None,
         help="Path to invariant_repair_compare summary JSON",
     )
+    parser.add_argument(
+        "--mutation-dashboard-summary",
+        default=None,
+        help="Path to mutation dashboard summary JSON",
+    )
     parser.add_argument("--previous-summary", default=None, help="Optional previous governance snapshot JSON")
     parser.add_argument("--out", default="artifacts/governance_snapshot/summary.json", help="Output JSON path")
     parser.add_argument("--report", default=None, help="Output markdown path")
@@ -327,6 +369,7 @@ def main() -> None:
     review = _load_json(args.review_ledger_summary)
     matrix = _load_json(args.ci_matrix_summary)
     invariant_compare = _load_json(args.invariant_repair_compare_summary)
+    mutation_dashboard = _load_json(args.mutation_dashboard_summary)
     if args.repair_batch_summary:
         repair["_source_path"] = args.repair_batch_summary
     if args.review_ledger_summary:
@@ -335,8 +378,10 @@ def main() -> None:
         matrix["_source_path"] = args.ci_matrix_summary
     if args.invariant_repair_compare_summary:
         invariant_compare["_source_path"] = args.invariant_repair_compare_summary
+    if args.mutation_dashboard_summary:
+        mutation_dashboard["_source_path"] = args.mutation_dashboard_summary
 
-    summary = _compute_summary(repair, review, matrix, invariant_compare)
+    summary = _compute_summary(repair, review, matrix, invariant_compare, mutation_dashboard)
     if args.previous_summary:
         previous = _load_json(args.previous_summary)
         if previous:
