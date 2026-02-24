@@ -2202,6 +2202,78 @@ jobs:
             artifacts/governance_promote_apply_explanation_structure_demo/summary.json
             artifacts/governance_promote_apply_explanation_structure_demo/summary.md
 
+  governance-policy-patch-explainable-optional:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_governance_promote_apply_demo }}
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Run explainable policy patch flow demo
+        run: bash scripts/demo_governance_policy_patch_explainable_flow.sh
+
+      - name: Publish explainable policy patch summary to job page
+        if: always()
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          path = Path("artifacts/governance_policy_patch_explainable_demo/summary.json")
+          if not path.exists():
+              text = "## Governance Policy Patch Explainable Summary\n\n`artifacts/governance_policy_patch_explainable_demo/summary.json` not found."
+          else:
+              payload = json.loads(path.read_text(encoding="utf-8"))
+              lines = [
+                  "## Governance Policy Patch Explainable Summary",
+                  "",
+                  f"- bundle_status: `{payload.get('bundle_status')}`",
+                  f"- proposal_id: `{payload.get('proposal_id')}`",
+                  f"- why_now_urgency: `{payload.get('why_now_urgency')}`",
+                  f"- scorecard_priority: `{payload.get('scorecard_priority')}`",
+                  f"- proposal_change_count: `{payload.get('proposal_change_count')}`",
+                  f"- preview_status: `{payload.get('preview_status')}`",
+                  f"- apply_status: `{payload.get('apply_status')}`",
+                  "",
+              ]
+              text = "\n".join(lines)
+
+          summary_file = os.getenv("GITHUB_STEP_SUMMARY")
+          if summary_file:
+              with open(summary_file, "a", encoding="utf-8") as f:
+                  f.write(text + "\n")
+          print(text)
+          PY
+
+      - name: Upload explainable policy patch artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: governance-policy-patch-explainable-demo
+          path: |
+            artifacts/governance_policy_patch_explainable_demo/advisor.json
+            artifacts/governance_policy_patch_explainable_demo/advisor.md
+            artifacts/governance_policy_patch_explainable_demo/proposal.json
+            artifacts/governance_policy_patch_explainable_demo/proposal.md
+            artifacts/governance_policy_patch_explainable_demo/preview.json
+            artifacts/governance_policy_patch_explainable_demo/preview.md
+            artifacts/governance_policy_patch_explainable_demo/apply.json
+            artifacts/governance_policy_patch_explainable_demo/apply.md
+            artifacts/governance_policy_patch_explainable_demo/summary.json
+            artifacts/governance_policy_patch_explainable_demo/summary.md
+
   agent-invariant-guard-demo-optional:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_agent_invariant_guard_demo }}
     continue-on-error: true

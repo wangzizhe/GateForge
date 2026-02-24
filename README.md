@@ -338,6 +338,7 @@ Set `run_benchmark=true` to run non-blocking optional chains:
 - medium governance optional
 - policy autotune optional
 - mvp freeze optional (fast targeted mode)
+- governance policy patch explainable optional (triggered with promote-apply demo switch)
 
 Artifacts include:
 - `benchmark-v0`
@@ -350,6 +351,7 @@ Artifacts include:
 - `mvp-freeze-v1`
 - `mutation-pack-v0`
 - `mutation-policy-patch-v1`
+- `governance-policy-patch-explainable-demo`
 
 ## Repository Map
 
