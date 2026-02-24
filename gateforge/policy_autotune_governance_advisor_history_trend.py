@@ -38,6 +38,7 @@ def _write_markdown(path: str, payload: dict) -> None:
         f"- status: `{payload.get('status')}`",
         f"- delta_tighten_rate: `{trend.get('delta_tighten_rate')}`",
         f"- delta_rollback_review_rate: `{trend.get('delta_rollback_review_rate')}`",
+        f"- delta_pairwise_patch_rate: `{trend.get('delta_pairwise_patch_rate')}`",
         "",
         "## Alerts",
         "",
@@ -67,12 +68,17 @@ def main() -> None:
     d_rollback = round(
         _to_float(current.get("rollback_review_rate")) - _to_float(previous.get("rollback_review_rate")), 4
     )
+    d_pairwise_patch = round(
+        _to_float(current.get("pairwise_patch_rate")) - _to_float(previous.get("pairwise_patch_rate")), 4
+    )
 
     alerts: list[str] = []
     if d_tighten > 0:
         alerts.append("tighten_rate_increasing")
     if d_rollback > 0:
         alerts.append("rollback_review_rate_increasing")
+    if d_pairwise_patch > 0:
+        alerts.append("pairwise_patch_rate_increasing")
 
     status = "PASS" if not alerts else "NEEDS_REVIEW"
     payload = {
@@ -80,6 +86,7 @@ def main() -> None:
         "trend": {
             "delta_tighten_rate": d_tighten,
             "delta_rollback_review_rate": d_rollback,
+            "delta_pairwise_patch_rate": d_pairwise_patch,
             "alerts": alerts,
         },
     }

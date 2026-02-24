@@ -15,11 +15,31 @@ class PolicyAutotuneGovernanceAdvisorHistoryTests(unittest.TestCase):
             ledger = root / "history.jsonl"
             out = root / "summary.json"
             a1.write_text(
-                json.dumps({"advice": {"action": "KEEP", "suggested_policy_profile": "default", "confidence": 0.6, "reasons": ["s"]}}),
+                json.dumps(
+                    {
+                        "advice": {
+                            "action": "KEEP",
+                            "suggested_policy_profile": "default",
+                            "confidence": 0.6,
+                            "reasons": ["s"],
+                            "threshold_patch": {"require_min_pairwise_net_margin": None},
+                        }
+                    }
+                ),
                 encoding="utf-8",
             )
             a2.write_text(
-                json.dumps({"advice": {"action": "ROLLBACK_REVIEW", "suggested_policy_profile": "industrial_strict", "confidence": 0.9, "reasons": ["r"]}}),
+                json.dumps(
+                    {
+                        "advice": {
+                            "action": "ROLLBACK_REVIEW",
+                            "suggested_policy_profile": "industrial_strict",
+                            "confidence": 0.9,
+                            "reasons": ["r"],
+                            "threshold_patch": {"require_min_pairwise_net_margin": 2},
+                        }
+                    }
+                ),
                 encoding="utf-8",
             )
             proc = subprocess.run(
@@ -45,6 +65,8 @@ class PolicyAutotuneGovernanceAdvisorHistoryTests(unittest.TestCase):
             self.assertEqual(payload.get("total_records"), 2)
             self.assertEqual(payload.get("latest_action"), "ROLLBACK_REVIEW")
             self.assertIsInstance(payload.get("rollback_review_rate"), float)
+            self.assertEqual(payload.get("pairwise_patch_count"), 1)
+            self.assertAlmostEqual(float(payload.get("pairwise_patch_rate")), 0.5)
 
 
 if __name__ == "__main__":
