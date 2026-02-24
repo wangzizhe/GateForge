@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       run_benchmark:
-        description: "Run optional benchmark job"
+        description: "Run benchmark-optional job only"
         required: false
         default: false
         type: boolean
@@ -91,12 +91,12 @@ on:
         default: false
         type: boolean
       run_governance_snapshot_demo:
-        description: "Run optional governance snapshot demo job"
+        description: "Run governance-snapshot-demo-optional and medium-governance-optional"
         required: false
         default: false
         type: boolean
       run_governance_history_demo:
-        description: "Run optional governance history demo job"
+        description: "Run governance-history-demo-optional and policy-autotune-optional"
         required: false
         default: false
         type: boolean
@@ -106,12 +106,12 @@ on:
         default: false
         type: boolean
       run_governance_promote_compare_demo:
-        description: "Run optional governance promote compare demo job"
+        description: "Run governance-promote-compare-demo-optional and governance-policy-patch-explainable-optional"
         required: false
         default: false
         type: boolean
       run_governance_promote_apply_demo:
-        description: "Run optional governance promote apply demo job"
+        description: "Run governance-promote-apply-demo-optional only"
         required: false
         default: false
         type: boolean
