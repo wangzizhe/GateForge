@@ -283,6 +283,23 @@ class DemoScriptTests(unittest.TestCase):
         self.assertTrue(payload.get("selected", {}).get("policy_autotune_governance_advisor_history_demo"))
         self.assertEqual(payload.get("job_exit_codes", {}).get("policy_autotune_governance_advisor_history_demo"), 0)
 
+    def test_demo_ci_matrix_accepts_policy_autotune_full_chain_demo_flag(self) -> None:
+        proc = subprocess.run(
+            [
+                "bash",
+                "scripts/demo_ci_matrix.sh",
+                "--none",
+                "--policy-autotune-full-chain-demo",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+        payload = json.loads(Path("artifacts/ci_matrix_summary.json").read_text(encoding="utf-8"))
+        self.assertTrue(payload.get("selected", {}).get("policy_autotune_full_chain_demo"))
+        self.assertEqual(payload.get("job_exit_codes", {}).get("policy_autotune_full_chain_demo"), 0)
+
     def test_demo_agent_change_loop_script(self) -> None:
         proc = subprocess.run(
             ["bash", "scripts/demo_agent_change_loop.sh"],
