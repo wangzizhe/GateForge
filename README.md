@@ -11,28 +11,11 @@
   <strong>GateForge determines whether AI- or simulation-driven changes can be safely deployed to production for Physical AI systems.</strong>
 </p>
 
-GateForge turns a change into an engineering decision flow that is:
-- verifiable
-- reproducible
-- auditable
-- policy-driven
+GateForge is a decision gate around model changes, not a modeling copilot.
 
-## What It Is
-
-GateForge is not a modeling copilot. It is a gate around model changes:
-
-`proposal -> run -> evidence -> regress -> policy -> review`
+Flow: `proposal -> run -> evidence -> regress -> policy -> review`
 
 Current scope: Modelica workflows as the first Physical AI pressure-test domain.
-
-Current first backend: `openmodelica_docker`.
-
-## What It Is Not (Current Scope)
-
-- Not a full agent platform
-- Not a full UI/SaaS product
-- Not all simulation tools/backends yet
-- Not tied to a single simulator long-term (OpenModelica is the current backend)
 
 ## Quickstart (5 Minutes)
 
@@ -60,15 +43,35 @@ python -m gateforge.run \
 cat artifacts/proposal_run.json
 ```
 
-## Core Commands
+## MVP Scope (Current)
 
-### Smoke / Evidence
+- Proposal schema + validation
+- Run pipeline with structured evidence output
+- Regression gate with strict comparability controls
+- Policy engine: `PASS` / `NEEDS_REVIEW` / `FAIL`
+- Human review resolution path
+- Agent/autopilot entrypoints with guarded execution
+- Runtime decision ledger + history + trend
+- Governance snapshot/report from multi-source signals
+
+## Most Used Commands
+
+### 1) Validate proposal
 
 ```bash
-python -m gateforge.smoke --backend mock --out artifacts/evidence.json
+python -m gateforge.proposal_validate --in examples/proposals/proposal_v0.json
 ```
 
-### Regression Gate
+### 2) Run proposal
+
+```bash
+python -m gateforge.run \
+  --proposal examples/proposals/proposal_v0.json \
+  --baseline auto \
+  --out artifacts/proposal_run.json
+```
+
+### 3) Regression gate only
 
 ```bash
 python -m gateforge.regress \
@@ -77,341 +80,33 @@ python -m gateforge.regress \
   --out artifacts/regression.json
 ```
 
-### Proposal Validate
-
-```bash
-python -m gateforge.proposal_validate --in examples/proposals/proposal_v0.json
-```
-
-### Runtime Decision Ledger
+### 4) Runtime ledger demo
 
 ```bash
 bash scripts/demo_runtime_decision_ledger.sh
 ```
 
-Runtime ledger trend demo:
-
-```bash
-bash scripts/demo_runtime_decision_ledger_trend.sh
-```
-
-Runtime ledger history + history trend demo:
-
-```bash
-bash scripts/demo_runtime_decision_ledger_history.sh
-```
-
-Runtime history signal into governance snapshot:
-
-```bash
-bash scripts/demo_governance_runtime_history.sh
-```
-
-### Promote-Compare Output Validate
-
-```bash
-python -m gateforge.governance_promote_compare_validate \
-  --in artifacts/governance_promote_apply_demo/synthetic_pass_compare.json \
-  --require-apply-ready
-```
-
-Validation demo bundle:
-
-```bash
-bash scripts/demo_governance_promote_compare_validate.sh
-```
-
-Enable the same check inline during apply:
-
-```bash
-python -m gateforge.governance_promote_apply \
-  --compare-summary artifacts/governance_promote_apply_demo/synthetic_pass_compare.json \
-  --validate-compare-summary \
-  --out artifacts/governance_promote_apply_demo/pass_apply.json
-```
-
-## Medium Governance Chain (Current Mainline)
-
-### 1) Medium benchmark truth set
-
-```bash
-bash scripts/demo_medium_pack_v1.sh
-```
-
-### 2) Mismatch analysis
-
-```bash
-bash scripts/demo_medium_pack_v1_analysis.sh
-```
-
-### 3) History / trend / advisor / dashboard
+### 5) Medium governance chain
 
 ```bash
 bash scripts/demo_medium_pack_v1_dashboard.sh
 ```
 
-Main artifacts are under:
-- `artifacts/benchmark_medium_v1/summary.json`
-- `artifacts/benchmark_medium_v1/analysis.json`
-- `artifacts/benchmark_medium_v1/history_summary.json`
-- `artifacts/benchmark_medium_v1/history_trend.json`
-- `artifacts/benchmark_medium_v1/advisor.json`
-- `artifacts/benchmark_medium_v1/dashboard.json`
-
-## Policy Patch Governance Chain
-
-```bash
-bash scripts/demo_governance_policy_patch_dashboard.sh
-```
-
-Main artifacts are under:
-- `artifacts/governance_policy_patch_apply_demo/`
-- `artifacts/governance_policy_patch_history_demo/`
-- `artifacts/governance_policy_patch_dashboard_demo/`
-
-## Mutation Data Flywheel (v0)
-
-Generate synthetic mutation cases, compile a benchmark pack, and run it end-to-end:
-
-```bash
-bash scripts/demo_mutation_pack_v0.sh
-```
-
-Use a fast local mode (for tests/dev loop):
-
-```bash
-MUTATION_BACKEND=mock MUTATION_COUNT=8 bash scripts/demo_mutation_pack_v0.sh
-```
-
-Main artifacts are under:
-- `artifacts/mutation_pack_v0/manifest.json`
-- `artifacts/mutation_pack_v0/pack.json`
-- `artifacts/mutation_pack_v0/summary.json`
-- `artifacts/mutation_pack_v0/demo_summary.json`
-
-### v1 (metrics-enabled mutation pack)
-
-```bash
-bash scripts/demo_mutation_pack_v1.sh
-```
-
-Fast mode:
-
-```bash
-MUTATION_BACKEND=mock MUTATION_COUNT=24 bash scripts/demo_mutation_pack_v1.sh
-```
-
-Main artifacts are under:
-- `artifacts/mutation_pack_v1/manifest.json`
-- `artifacts/mutation_pack_v1/pack.json`
-- `artifacts/mutation_pack_v1/summary.json`
-- `artifacts/mutation_pack_v1/metrics.json`
-- `artifacts/mutation_pack_v1/demo_summary.json`
-
-Compare mutation pack quality between versions:
-
-```bash
-bash scripts/demo_mutation_pack_compare.sh
-```
-
-Output:
-- `artifacts/mutation_pack_compare_demo/summary.json`
-- `artifacts/mutation_pack_compare_demo/summary.md`
-
-Mutation governance dashboard (metrics + history + trend + compare):
-
-```bash
-bash scripts/demo_mutation_dashboard.sh
-```
-
-Output:
-- `artifacts/mutation_dashboard_demo/summary.json`
-- `artifacts/mutation_dashboard_demo/summary.md`
-
-Mutation-driven policy patch flow (advisor -> proposal -> apply):
-
-```bash
-bash scripts/demo_mutation_policy_patch.sh
-```
-
-Output:
-- `artifacts/mutation_policy_patch_demo/advisor.json`
-- `artifacts/mutation_policy_patch_demo/proposal.json`
-- `artifacts/mutation_policy_patch_demo/apply.json`
-- `artifacts/mutation_policy_patch_demo/summary.json`
-
-Cross-layer policy auto-tuning (governance + mutation + medium benchmark):
-
-```bash
-bash scripts/demo_policy_autotune.sh
-```
-
-Output:
-- `artifacts/policy_autotune_demo/advisor.json`
-- `artifacts/policy_autotune_demo/proposal.json`
-- `artifacts/policy_autotune_demo/apply.json`
-- `artifacts/policy_autotune_demo/summary.json`
-
-Policy auto-tuning history/trend:
-
-```bash
-bash scripts/demo_policy_autotune_history.sh
-```
-
-Output:
-- `artifacts/policy_autotune_history_demo/summary.json`
-- `artifacts/policy_autotune_history_demo/trend.json`
-- `artifacts/policy_autotune_history_demo/demo_summary.json`
-
-Policy auto-tuning governance flow (advisor-driven promote compare/apply + effectiveness):
-
-```bash
-bash scripts/demo_policy_autotune_governance.sh
-```
-
-Output:
-- `artifacts/policy_autotune_governance_demo/flow_summary.json`
-- `artifacts/policy_autotune_governance_demo/effectiveness.json`
-- `artifacts/policy_autotune_governance_demo/summary.json`
-  - includes compare quality deltas (`delta_top_score_margin`, `delta_explanation_completeness`, `delta_pairwise_net_margin`)
-
-Policy auto-tuning governance history dashboard:
-
-```bash
-bash scripts/demo_policy_autotune_governance_dashboard.sh
-```
-
-Output:
-- `artifacts/policy_autotune_governance_history_demo/summary.json`
-- `artifacts/policy_autotune_governance_history_demo/trend.json`
-- `artifacts/policy_autotune_governance_history_demo/dashboard.json`
-- `artifacts/policy_autotune_governance_history_demo/demo_summary.json`
-  - includes tuned compare explanation signals (`tuned_top_score_margin`, `tuned_explanation_completeness`, `tuned_pairwise_net_margin`, `tuned_runner_up_score_gap_to_best`) and `quality_regressed_rate`
-
-Policy auto-tuning governance advisor (dashboard -> action -> patch apply):
-
-```bash
-bash scripts/demo_policy_autotune_governance_advisor.sh
-```
-
-Output:
-- `artifacts/policy_autotune_governance_advisor_demo/advisor.json`
-- `artifacts/policy_autotune_governance_advisor_demo/proposal.json`
-- `artifacts/policy_autotune_governance_advisor_demo/apply.json`
-- `artifacts/policy_autotune_governance_advisor_demo/summary.json`
-
-Explainable policy patch flow (advisor why-now + scorecard + preview + apply):
-
-```bash
-bash scripts/demo_governance_policy_patch_explainable_flow.sh
-```
-
-Output:
-- `artifacts/governance_policy_patch_explainable_demo/advisor.json`
-- `artifacts/governance_policy_patch_explainable_demo/proposal.json`
-- `artifacts/governance_policy_patch_explainable_demo/preview.json`
-- `artifacts/governance_policy_patch_explainable_demo/apply.json`
-- `artifacts/governance_policy_patch_explainable_demo/summary.json`
-
-Policy auto-tuning governance advisor history (advisor records -> history -> trend):
-
-```bash
-bash scripts/demo_policy_autotune_governance_advisor_history.sh
-```
-
-Output:
-- `artifacts/policy_autotune_governance_advisor_history_demo/history.jsonl`
-- `artifacts/policy_autotune_governance_advisor_history_demo/summary.json`
-- `artifacts/policy_autotune_governance_advisor_history_demo/trend.json`
-- `artifacts/policy_autotune_governance_advisor_history_demo/demo_summary.json`
-  - includes advisor patch adoption rates (`pairwise_patch_rate`, `leaderboard_instability_rate`)
-
-Governance snapshot (with advisor history signal):
-
-```bash
-bash scripts/demo_governance_snapshot_with_advisor_history.sh
-```
-
-Output:
-- `artifacts/governance_snapshot_advisor_history_demo/summary.json`
-- `artifacts/governance_snapshot_advisor_history_demo/demo_summary.json`
-
-Policy auto-tuning full chain (autotune -> governance -> advisor -> snapshot):
+### 6) Policy autotune full chain
 
 ```bash
 bash scripts/demo_policy_autotune_full_chain.sh
 ```
 
-Output:
-- `artifacts/policy_autotune_full_chain_demo/summary.json`
+## Documentation Map
 
-## MVP Freeze (Release Readiness)
+- Daily demo cookbook: `DEMO.md`
+- End-to-end scripts: `scripts/`
+- Core modules: `gateforge/`
+- Tests: `tests/`
 
-```bash
-bash scripts/mvp_freeze_check.sh
-```
+## Non-Goals (Current)
 
-Outputs:
-- `artifacts/mvp_freeze/summary.json`
-- `artifacts/mvp_freeze/summary.md`
-
-Fast local pre-check (targeted test scope):
-
-```bash
-bash scripts/mvp_freeze_check_fast.sh
-```
-
-Current freeze inputs:
-- full unit test suite
-- medium governance dashboard chain
-- mutation governance dashboard chain
-- policy autotune history chain
-- policy autotune governance dashboard chain
-- policy autotune governance advisor history chain
-- governance snapshot with advisor history chain
-- policy patch dashboard chain
-- targeted local CI matrix
-
-Verdict values:
-- `MVP_FREEZE_PASS`
-- `MVP_FREEZE_FAIL` (with `blocking_step`)
-
-## CI (Optional Manual Jobs)
-
-Workflow: `ci` (`workflow_dispatch`)
-
-Set `run_benchmark=true` to run non-blocking optional chains:
-- benchmark optional
-- medium governance optional
-- policy autotune optional
-- mvp freeze optional (fast targeted mode)
-- governance policy patch explainable optional (triggered with promote-apply demo switch)
-- governance compare-to-patch chain optional (triggered with promote-compare demo switch)
-
-Artifacts include:
-- `benchmark-v0`
-- `medium-governance-v1`
-- `policy-autotune-governance-v1`
-- `policy-autotune-governance-history-v1`
-- `policy-autotune-governance-advisor-v1`
-- `policy-autotune-governance-advisor-history-v1`
-- `policy-autotune-full-chain-v1`
-- `mvp-freeze-v1`
-- `mutation-pack-v0`
-- `mutation-policy-patch-v1`
-- `governance-policy-patch-explainable-demo`
-- `governance-compare-to-patch-chain-demo`
-
-## Repository Map
-
-- `gateforge/` core commands and logic
-- `benchmarks/` benchmark packs
-- `examples/` Physical AI simulation examples (currently Modelica), fixtures, proposals
-- `policies/` governance policy configs
-- `schemas/` JSON schemas
-- `scripts/` one-command demo and ops scripts
-- `tests/` unit/integration tests
-
-## More Documentation
-
-- Detailed demo cookbook: `DEMO.md`
+- Full agent platform
+- Full UI/SaaS product
+- Multi-simulator production support (OpenModelica is current first backend)
