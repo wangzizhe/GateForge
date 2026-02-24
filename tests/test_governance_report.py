@@ -7,6 +7,64 @@ from pathlib import Path
 
 
 class GovernanceReportTests(unittest.TestCase):
+    def test_governance_report_flags_mutation_regression(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            repair = {"profile_compare": {"downgrade_count": 0, "strict_downgrade_rate": 0.0}}
+            review = {
+                "kpis": {
+                    "review_recovery_rate": 0.9,
+                    "strict_non_pass_rate": 0.1,
+                    "approval_rate": 0.8,
+                    "fail_rate": 0.1,
+                }
+            }
+            matrix = {"matrix_status": "PASS"}
+            mutation = {
+                "bundle_status": "PASS",
+                "latest_match_rate": 0.9,
+                "latest_gate_pass_rate": 0.95,
+                "trend_status": "NEEDS_REVIEW",
+                "compare_decision": "FAIL",
+            }
+
+            rp = root / "repair.json"
+            lp = root / "ledger.json"
+            mp = root / "matrix.json"
+            mup = root / "mutation.json"
+            out = root / "summary.json"
+            rp.write_text(json.dumps(repair), encoding="utf-8")
+            lp.write_text(json.dumps(review), encoding="utf-8")
+            mp.write_text(json.dumps(matrix), encoding="utf-8")
+            mup.write_text(json.dumps(mutation), encoding="utf-8")
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.governance_report",
+                    "--repair-batch-summary",
+                    str(rp),
+                    "--review-ledger-summary",
+                    str(lp),
+                    "--ci-matrix-summary",
+                    str(mp),
+                    "--mutation-dashboard-summary",
+                    str(mup),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            payload = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(payload.get("status"), "NEEDS_REVIEW")
+            self.assertIn("mutation_compare_regressed", payload.get("risks", []))
+            self.assertIn("mutation_trend_needs_review", payload.get("risks", []))
+            self.assertLess(payload.get("kpis", {}).get("mutation_latest_match_rate"), 0.98)
+
     def test_governance_report_flags_strategy_switch_recommendation(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
