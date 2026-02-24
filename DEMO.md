@@ -133,11 +133,25 @@ cat artifacts/mvp_freeze/summary.json
 cat artifacts/mvp_freeze/summary.md
 ```
 
+Fast pre-check (targeted tests + full governance chains):
+
+```bash
+bash scripts/mvp_freeze_check_fast.sh
+cat artifacts/mvp_freeze/summary.json
+```
+
 Verdict:
 - `MVP_FREEZE_PASS`
 - `MVP_FREEZE_FAIL` (with `blocking_step`)
 
-## 8. Optional CI (GitHub Actions)
+## 8. Policy Auto-Tune Full Chain
+
+```bash
+bash scripts/demo_policy_autotune_full_chain.sh
+cat artifacts/policy_autotune_full_chain_demo/summary.json
+```
+
+## 9. Optional CI (GitHub Actions)
 
 Workflow: `ci` (`workflow_dispatch`)
 
