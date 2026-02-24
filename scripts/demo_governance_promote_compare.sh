@@ -71,6 +71,11 @@ flags = {
     "expect_explanation_quality_score_present": "PASS"
     if isinstance(payload.get("explanation_quality", {}).get("score"), int)
     else "FAIL",
+    "expect_ranking_details_present": "PASS"
+    if isinstance(payload.get("decision_explanation_ranking_details", {}).get("drivers"), list)
+    and len(payload.get("decision_explanation_ranking_details", {}).get("drivers", [])) >= 1
+    and isinstance(payload.get("decision_explanation_ranking_details", {}).get("top_driver"), str)
+    else "FAIL",
 }
 bundle_status = "PASS" if all(v == "PASS" for v in flags.values()) else "FAIL"
 summary = {
@@ -90,6 +95,8 @@ summary = {
     "ranking_explanations_top_1": payload.get("decision_explanations", {}).get("best_vs_others", [])[:1],
     "best_profile_win_summary": payload.get("best_profile_win_summary"),
     "decision_explanation_ranked_top_3": payload.get("decision_explanation_ranked", [])[:3],
+    "decision_explanation_top_driver": payload.get("decision_explanation_ranking_details", {}).get("top_driver"),
+    "decision_explanation_ranking_top_3": payload.get("decision_explanation_ranking_details", {}).get("drivers", [])[:3],
     "decision_explanation_leaderboard_top_2": payload.get("decision_explanation_leaderboard", [])[:2],
     "explanation_completeness": payload.get("explanation_completeness"),
     "explanation_quality_score": payload.get("explanation_quality", {}).get("score"),
@@ -134,6 +141,7 @@ Path("artifacts/governance_promote_compare_demo/demo_summary.md").write_text(
             f"- expect_score_margin_present: `{flags['expect_score_margin_present']}`",
             f"- expect_ranking_explanations_present: `{flags['expect_ranking_explanations_present']}`",
             f"- expect_explanation_quality_score_present: `{flags['expect_explanation_quality_score_present']}`",
+            f"- expect_ranking_details_present: `{flags['expect_ranking_details_present']}`",
             "",
         ]
     ),
