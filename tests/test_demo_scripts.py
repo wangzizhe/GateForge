@@ -162,6 +162,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertIn("planner_output_validate_demo", payload.get("selected", {}))
         self.assertIn("governance_promote_demo", payload.get("selected", {}))
         self.assertIn("governance_promote_compare_demo", payload.get("selected", {}))
+        self.assertIn("governance_compare_to_patch_chain_demo", payload.get("selected", {}))
         self.assertIn("governance_promote_apply_demo", payload.get("selected", {}))
         self.assertIn("governance_promote_apply_strict_guard_demo", payload.get("selected", {}))
         self.assertIn("governance_policy_patch_apply_demo", payload.get("selected", {}))
@@ -284,6 +285,23 @@ class DemoScriptTests(unittest.TestCase):
         payload = json.loads(Path("artifacts/ci_matrix_summary.json").read_text(encoding="utf-8"))
         self.assertTrue(payload.get("selected", {}).get("governance_policy_patch_explainable_demo"))
         self.assertEqual(payload.get("job_exit_codes", {}).get("governance_policy_patch_explainable_demo"), 0)
+
+    def test_demo_ci_matrix_accepts_governance_compare_to_patch_chain_demo_flag(self) -> None:
+        proc = subprocess.run(
+            [
+                "bash",
+                "scripts/demo_ci_matrix.sh",
+                "--none",
+                "--governance-compare-to-patch-chain-demo",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+        payload = json.loads(Path("artifacts/ci_matrix_summary.json").read_text(encoding="utf-8"))
+        self.assertTrue(payload.get("selected", {}).get("governance_compare_to_patch_chain_demo"))
+        self.assertEqual(payload.get("job_exit_codes", {}).get("governance_compare_to_patch_chain_demo"), 0)
 
     def test_demo_ci_matrix_accepts_policy_autotune_governance_advisor_history_demo_flag(self) -> None:
         proc = subprocess.run(
@@ -832,6 +850,23 @@ class DemoScriptTests(unittest.TestCase):
         self.assertIn(payload.get("rollback_decision"), {"KEEP", "ROLLBACK_RECOMMENDED"})
         self.assertGreaterEqual(int(payload.get("total_records", 0)), 1)
         self.assertIsInstance(payload.get("pairwise_threshold_enabled_count"), int)
+
+    def test_demo_governance_compare_to_patch_chain_script(self) -> None:
+        proc = subprocess.run(
+            ["bash", "scripts/demo_governance_compare_to_patch_chain.sh"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+        payload = json.loads(
+            Path("artifacts/governance_compare_to_patch_chain_demo/summary.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(payload.get("bundle_status"), "PASS")
+        self.assertEqual(payload.get("apply_status"), "PASS")
+        self.assertEqual(payload.get("preview_status"), "PREVIEW")
+        self.assertIsInstance(payload.get("advisor_top_driver"), str)
+        self.assertIsInstance(payload.get("proposal_change_count"), int)
 
     def test_demo_agent_invariant_guard_script(self) -> None:
         proc = subprocess.run(

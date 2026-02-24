@@ -163,6 +163,19 @@ def main() -> None:
             ),
         },
         {
+            "name": "advisor_top_driver_signal",
+            "exit_code": int(args.policy_autotune_governance_rc),
+            "status": _step_status(
+                int(args.policy_autotune_governance_rc),
+                Path(args.policy_autotune_governance_json).exists()
+                and isinstance(policy_autotune_governance.get("advisor_history_latest_top_driver"), str)
+                and str(policy_autotune_governance.get("advisor_history_latest_top_driver")).strip() != ""
+                and isinstance(policy_autotune_governance.get("advisor_history_top_driver_non_null_rate"), (int, float))
+                and float(policy_autotune_governance.get("advisor_history_top_driver_non_null_rate", 0.0)) >= 0.5
+                and str(policy_autotune_governance.get("advisor_history_trend_status")) in {"PASS", "NEEDS_REVIEW"},
+            ),
+        },
+        {
             "name": "policy_autotune_governance_advisor_history",
             "exit_code": int(args.policy_autotune_governance_advisor_history_rc),
             "status": _step_status(
