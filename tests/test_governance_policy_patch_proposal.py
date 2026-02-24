@@ -22,6 +22,7 @@ class GovernancePolicyPatchProposalTests(unittest.TestCase):
                             "reasons": ["mismatch_volume_increasing"],
                             "threshold_patch": {
                                 "require_min_top_score_margin": 2,
+                                "require_min_pairwise_net_margin": 3,
                                 "require_min_explanation_quality": 85,
                             },
                         }
@@ -35,6 +36,7 @@ class GovernancePolicyPatchProposalTests(unittest.TestCase):
                         "version": "0.1.0",
                         "require_ranking_explanation": False,
                         "require_min_top_score_margin": 1,
+                        "require_min_pairwise_net_margin": 1,
                         "require_min_explanation_quality": 70,
                     }
                 ),
@@ -58,9 +60,10 @@ class GovernancePolicyPatchProposalTests(unittest.TestCase):
             )
             self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
             payload = json.loads(out.read_text(encoding="utf-8"))
-            self.assertEqual(payload.get("change_count"), 2)
+            self.assertEqual(payload.get("change_count"), 3)
             after = payload.get("policy_after", {})
             self.assertEqual(after.get("require_min_top_score_margin"), 2)
+            self.assertEqual(after.get("require_min_pairwise_net_margin"), 3)
             self.assertEqual(after.get("require_min_explanation_quality"), 85)
             self.assertEqual(payload.get("approval_status"), "PENDING")
 
@@ -77,6 +80,7 @@ class GovernancePolicyPatchProposalTests(unittest.TestCase):
                         "version": "0.1.0",
                         "require_ranking_explanation": False,
                         "require_min_top_score_margin": 1,
+                        "require_min_pairwise_net_margin": 1,
                         "require_min_explanation_quality": 70,
                     }
                 ),

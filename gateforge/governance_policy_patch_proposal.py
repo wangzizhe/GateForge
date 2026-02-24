@@ -104,6 +104,8 @@ def main() -> None:
 
     if "require_min_top_score_margin" in patch and patch.get("require_min_top_score_margin") is not None:
         after_policy["require_min_top_score_margin"] = int(patch["require_min_top_score_margin"])
+    if "require_min_pairwise_net_margin" in patch and patch.get("require_min_pairwise_net_margin") is not None:
+        after_policy["require_min_pairwise_net_margin"] = int(patch["require_min_pairwise_net_margin"])
     if "require_min_explanation_quality" in patch and patch.get("require_min_explanation_quality") is not None:
         after_policy["require_min_explanation_quality"] = int(patch["require_min_explanation_quality"])
 
