@@ -68,6 +68,23 @@ def _expected_for(kind: str, backend: str) -> dict:
     }
 
 
+def _sequence_for_version(version: str, count: int) -> list[str]:
+    if version == "v1":
+        # v1 uses grouped waves per mutation type so distribution is deterministic and easy to inspect.
+        per_type = max(1, count // len(MUTATION_TYPES))
+        seq: list[str] = []
+        for kind in MUTATION_TYPES:
+            seq.extend([kind] * per_type)
+        # Fill remainder in fixed order.
+        i = 0
+        while len(seq) < count:
+            seq.append(MUTATION_TYPES[i % len(MUTATION_TYPES)])
+            i += 1
+        return seq[:count]
+    # v0 default: cyclic alternation
+    return [MUTATION_TYPES[i % len(MUTATION_TYPES)] for i in range(count)]
+
+
 def _make_case(index: int, kind: str, out_dir: Path, backend: str, repo_root: Path) -> dict:
     prefix = f"mut_{index:03d}_{kind}"
     script_path = out_dir / f"{prefix}.mos"
@@ -156,6 +173,12 @@ def main() -> None:
     )
     parser.add_argument("--pack-id", default="mutation_pack_v0", help="Pack identifier")
     parser.add_argument(
+        "--pack-version",
+        default="v0",
+        choices=["v0", "v1"],
+        help="Mutation pack generation strategy version",
+    )
+    parser.add_argument(
         "--backend",
         default="openmodelica_docker",
         choices=["mock", "openmodelica", "openmodelica_docker"],
@@ -177,13 +200,14 @@ def main() -> None:
             p.unlink()
 
     cases: list[dict] = []
-    for i in range(args.count):
-        kind = MUTATION_TYPES[i % len(MUTATION_TYPES)]
+    sequence = _sequence_for_version(args.pack_version, args.count)
+    for i, kind in enumerate(sequence):
         cases.append(_make_case(i + 1, kind, out_dir, args.backend, repo_root))
 
     manifest = {
         "schema_version": "0.1.0",
         "pack_id": args.pack_id,
+        "pack_version": args.pack_version,
         "backend": args.backend,
         "total_cases": len(cases),
         "mutation_types": sorted({c["mutation_type"] for c in cases}),
@@ -191,6 +215,7 @@ def main() -> None:
     }
     pack = {
         "pack_id": args.pack_id,
+        "pack_version": args.pack_version,
         "backend": args.backend,
         "cases": [
             {
@@ -208,6 +233,7 @@ def main() -> None:
         json.dumps(
             {
                 "pack_id": args.pack_id,
+                "pack_version": args.pack_version,
                 "backend": args.backend,
                 "total_cases": len(cases),
                 "manifest": args.manifest_out,

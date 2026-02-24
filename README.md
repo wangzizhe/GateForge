@@ -130,6 +130,25 @@ Main artifacts are under:
 - `artifacts/mutation_pack_v0/summary.json`
 - `artifacts/mutation_pack_v0/demo_summary.json`
 
+### v1 (metrics-enabled mutation pack)
+
+```bash
+bash scripts/demo_mutation_pack_v1.sh
+```
+
+Fast mode:
+
+```bash
+MUTATION_BACKEND=mock MUTATION_COUNT=24 bash scripts/demo_mutation_pack_v1.sh
+```
+
+Main artifacts are under:
+- `artifacts/mutation_pack_v1/manifest.json`
+- `artifacts/mutation_pack_v1/pack.json`
+- `artifacts/mutation_pack_v1/summary.json`
+- `artifacts/mutation_pack_v1/metrics.json`
+- `artifacts/mutation_pack_v1/demo_summary.json`
+
 ## MVP Freeze (Release Readiness)
 
 ```bash

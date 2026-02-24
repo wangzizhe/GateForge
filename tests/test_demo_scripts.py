@@ -860,6 +860,28 @@ class DemoScriptTests(unittest.TestCase):
         self.assertEqual(payload.get("backend"), "mock")
         self.assertEqual(payload.get("total_cases"), 8)
 
+    def test_demo_mutation_pack_v1_script(self) -> None:
+        env = dict(os.environ)
+        env["MUTATION_BACKEND"] = "mock"
+        env["MUTATION_COUNT"] = "24"
+        proc = subprocess.run(
+            ["bash", "scripts/demo_mutation_pack_v1.sh"],
+            capture_output=True,
+            text=True,
+            check=False,
+            env=env,
+        )
+        self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+        demo = json.loads(Path("artifacts/mutation_pack_v1/demo_summary.json").read_text(encoding="utf-8"))
+        metrics = json.loads(Path("artifacts/mutation_pack_v1/metrics.json").read_text(encoding="utf-8"))
+        self.assertEqual(demo.get("bundle_status"), "PASS")
+        self.assertEqual(demo.get("pack_version"), "v1")
+        self.assertEqual(demo.get("backend"), "mock")
+        self.assertEqual(demo.get("total_cases"), 24)
+        self.assertIsInstance(metrics.get("expected_vs_actual_match_rate"), float)
+        self.assertIsInstance(metrics.get("gate_pass_rate"), float)
+        self.assertIsInstance(metrics.get("failure_type_distribution"), dict)
+
 
 if __name__ == "__main__":
     unittest.main()
