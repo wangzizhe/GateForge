@@ -53,6 +53,43 @@ class GovernancePromoteApplyTests(unittest.TestCase):
                             }
                         ],
                     },
+                    "decision_explanation_ranked": [
+                        {
+                            "reason": "top_score_margin",
+                            "value": 3,
+                            "weight": 100,
+                            "note": "best profile leads by margin",
+                        },
+                        {
+                            "reason": "best_reason",
+                            "value": "highest_total_score",
+                            "weight": 40,
+                            "note": "selection rule",
+                        },
+                    ],
+                    "decision_explanation_ranking_details": {
+                        "top_driver": "top_score_margin",
+                        "numeric_reason_count": 1,
+                        "drivers": [
+                            {
+                                "rank": 1,
+                                "reason": "top_score_margin",
+                                "weight": 100,
+                                "value": 3,
+                                "impact_score": 300,
+                                "impact_share_pct": 88.24,
+                            },
+                            {
+                                "rank": 2,
+                                "reason": "best_reason",
+                                "weight": 40,
+                                "value": "highest_total_score",
+                                "impact_score": 40,
+                                "impact_share_pct": 11.76,
+                            },
+                        ],
+                    },
+                    "explanation_completeness": 100,
                     "decision_explanation_leaderboard": [
                         {
                             "profile": best_profile,
@@ -101,6 +138,8 @@ class GovernancePromoteApplyTests(unittest.TestCase):
                 ["total_score", "decision", "exit_code", "recommended_profile_tiebreak"],
             )
             self.assertIsInstance(payload.get("ranking_best_vs_others"), list)
+            self.assertEqual(payload.get("ranking_explanation_top_driver"), "top_score_margin")
+            self.assertIsInstance(payload.get("ranking_decision_explanation_details"), list)
             rows = [json.loads(x) for x in audit.read_text(encoding="utf-8").splitlines() if x.strip()]
             self.assertEqual(len(rows), 1)
             self.assertEqual(rows[0].get("final_status"), "PASS")
@@ -793,6 +832,28 @@ class GovernancePromoteApplyTests(unittest.TestCase):
                                 "note": "selection rule",
                             },
                         ],
+                        "decision_explanation_ranking_details": {
+                            "top_driver": "top_score_margin",
+                            "numeric_reason_count": 1,
+                            "drivers": [
+                                {
+                                    "rank": 1,
+                                    "reason": "top_score_margin",
+                                    "weight": 100,
+                                    "value": 3,
+                                    "impact_score": 300,
+                                    "impact_share_pct": 88.24,
+                                },
+                                {
+                                    "rank": 2,
+                                    "reason": "best_reason",
+                                    "weight": 40,
+                                    "value": "highest_total_score",
+                                    "impact_score": 40,
+                                    "impact_share_pct": 11.76,
+                                },
+                            ],
+                        },
                         "explanation_completeness": 100,
                     }
                 ),
@@ -881,6 +942,7 @@ class GovernancePromoteApplyTests(unittest.TestCase):
             errors = applied.get("ranking_explanation_structure_errors") or []
             self.assertIn("decision_explanation_ranked_missing_or_empty", errors)
             self.assertIn("explanation_completeness_invalid", errors)
+            self.assertIn("decision_explanation_ranking_details_invalid", errors)
 
 
 if __name__ == "__main__":

@@ -242,6 +242,20 @@ def _write_markdown(path: str, summary: dict) -> None:
             )
     else:
         lines.append("- `none`")
+    lines.extend(["", "## Ranking Explanation Details", ""])
+    lines.append(f"- top_driver: `{summary.get('ranking_explanation_top_driver')}`")
+    lines.append(f"- numeric_reason_count: `{summary.get('ranking_explanation_numeric_reason_count')}`")
+    details = summary.get("ranking_decision_explanation_details", [])
+    if isinstance(details, list) and details:
+        for row in details:
+            if not isinstance(row, dict):
+                continue
+            lines.append(
+                f"- rank=`{row.get('rank')}` reason=`{row.get('reason')}` impact_score=`{row.get('impact_score')}` "
+                f"impact_share_pct=`{row.get('impact_share_pct')}` weight=`{row.get('weight')}` value=`{row.get('value')}`"
+            )
+    else:
+        lines.append("- `none`")
     lines.append("")
     p.write_text("\n".join(lines), encoding="utf-8")
 
@@ -337,6 +351,37 @@ def _ranking_explanation_meta_errors(compare_payload: dict) -> list[str]:
         errors.append("explanation_completeness_invalid")
     elif completeness < 0 or completeness > 100:
         errors.append("explanation_completeness_out_of_range")
+    ranking_details = compare_payload.get("decision_explanation_ranking_details")
+    if not isinstance(ranking_details, dict):
+        errors.append("decision_explanation_ranking_details_invalid")
+    else:
+        top_driver = ranking_details.get("top_driver")
+        if not isinstance(top_driver, str) or not top_driver:
+            errors.append("decision_explanation_ranking_details_top_driver_invalid")
+        numeric_reason_count = ranking_details.get("numeric_reason_count")
+        if not isinstance(numeric_reason_count, int) or numeric_reason_count < 0:
+            errors.append("decision_explanation_ranking_details_numeric_reason_count_invalid")
+        drivers = ranking_details.get("drivers")
+        if not isinstance(drivers, list) or not drivers:
+            errors.append("decision_explanation_ranking_details_drivers_missing_or_empty")
+        else:
+            for idx, row in enumerate(drivers):
+                prefix = f"decision_explanation_ranking_details.drivers[{idx}]"
+                if not isinstance(row, dict):
+                    errors.append(f"{prefix}_not_object")
+                    continue
+                if not isinstance(row.get("rank"), int):
+                    errors.append(f"{prefix}_rank_invalid")
+                if not isinstance(row.get("reason"), str) or not row.get("reason"):
+                    errors.append(f"{prefix}_reason_invalid")
+                if not isinstance(row.get("weight"), int):
+                    errors.append(f"{prefix}_weight_invalid")
+                if not isinstance(row.get("impact_score"), int):
+                    errors.append(f"{prefix}_impact_score_invalid")
+                if not isinstance(row.get("impact_share_pct"), (int, float)):
+                    errors.append(f"{prefix}_impact_share_pct_invalid")
+                if "value" not in row:
+                    errors.append(f"{prefix}_value_missing")
     return errors
 
 
@@ -646,6 +691,15 @@ def main() -> None:
         "ranking_selection_priority": compare_payload.get("decision_explanations", {}).get("selection_priority"),
         "ranking_best_vs_others": compare_payload.get("decision_explanations", {}).get("best_vs_others"),
         "ranking_decision_explanation_ranked": compare_payload.get("decision_explanation_ranked"),
+        "ranking_explanation_top_driver": compare_payload.get("decision_explanation_ranking_details", {}).get(
+            "top_driver"
+        ),
+        "ranking_explanation_numeric_reason_count": compare_payload.get(
+            "decision_explanation_ranking_details", {}
+        ).get("numeric_reason_count"),
+        "ranking_decision_explanation_details": compare_payload.get("decision_explanation_ranking_details", {}).get(
+            "drivers"
+        ),
         "explanation_quality_score": compare_payload.get("explanation_quality", {}).get("score"),
         "explanation_completeness": compare_payload.get("explanation_completeness"),
         "baseline_apply_summary_path": drift["baseline_apply_summary_path"],
@@ -704,6 +758,9 @@ def main() -> None:
         "ranking_selection_priority": summary.get("ranking_selection_priority"),
         "ranking_best_vs_others": summary.get("ranking_best_vs_others"),
         "ranking_decision_explanation_ranked": summary.get("ranking_decision_explanation_ranked"),
+        "ranking_explanation_top_driver": summary.get("ranking_explanation_top_driver"),
+        "ranking_explanation_numeric_reason_count": summary.get("ranking_explanation_numeric_reason_count"),
+        "ranking_decision_explanation_details": summary.get("ranking_decision_explanation_details"),
         "explanation_completeness": summary.get("explanation_completeness"),
     }
     _append_jsonl(args.audit, audit_record)
