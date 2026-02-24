@@ -859,6 +859,10 @@ class DemoScriptTests(unittest.TestCase):
         self.assertEqual(payload.get("bundle_status"), "PASS")
         self.assertEqual(payload.get("backend"), "mock")
         self.assertEqual(payload.get("total_cases"), 8)
+        self.assertEqual(payload.get("metrics_path"), "artifacts/mutation_pack_v0/metrics.json")
+        metrics = json.loads(Path("artifacts/mutation_pack_v0/metrics.json").read_text(encoding="utf-8"))
+        self.assertIsInstance(metrics.get("expected_vs_actual_match_rate"), float)
+        self.assertIsInstance(metrics.get("gate_pass_rate"), float)
 
     def test_demo_mutation_pack_v1_script(self) -> None:
         env = dict(os.environ)

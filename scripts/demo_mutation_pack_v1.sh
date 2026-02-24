@@ -30,6 +30,12 @@ python3 -m gateforge.benchmark \
 BENCH_RC=$?
 set -e
 
+python3 -m gateforge.mutation_metrics \
+  --manifest "$OUT_ROOT/manifest.json" \
+  --summary "$OUT_ROOT/summary.json" \
+  --out "$OUT_ROOT/metrics.json" \
+  --report-out "$OUT_ROOT/metrics.md"
+
 python3 - <<'PY'
 import json
 from pathlib import Path
@@ -37,43 +43,7 @@ from pathlib import Path
 root = Path("artifacts/mutation_pack_v1")
 manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
 summary = json.loads((root / "summary.json").read_text(encoding="utf-8"))
-
-manifest_cases = manifest.get("cases", [])
-summary_cases = summary.get("cases", [])
-
-expected_by_name = {str(c.get("name")): (c.get("expected") or {}) for c in manifest_cases if isinstance(c, dict)}
-actual_by_name = {str(c.get("name")): c for c in summary_cases if isinstance(c, dict)}
-
-matched = 0
-total = 0
-for name, expected in expected_by_name.items():
-    actual = actual_by_name.get(name) or {}
-    total += 1
-    if (
-        actual.get("failure_type") == expected.get("failure_type")
-        and actual.get("result") == "PASS"
-    ):
-        matched += 1
-
-failure_dist = {}
-for row in summary_cases:
-    if not isinstance(row, dict):
-        continue
-    k = str(row.get("failure_type") or "unknown")
-    failure_dist[k] = failure_dist.get(k, 0) + 1
-
-metrics = {
-    "pack_id": manifest.get("pack_id"),
-    "pack_version": manifest.get("pack_version"),
-    "total_cases": int(summary.get("total_cases", 0) or 0),
-    "gate_pass_rate": round(
-        (int(summary.get("pass_count", 0) or 0) / max(1, int(summary.get("total_cases", 0) or 0))),
-        4,
-    ),
-    "expected_vs_actual_match_rate": round((matched / max(1, total)), 4),
-    "failure_type_distribution": failure_dist,
-}
-(root / "metrics.json").write_text(json.dumps(metrics, indent=2), encoding="utf-8")
+metrics = json.loads((root / "metrics.json").read_text(encoding="utf-8"))
 
 flags = {
     "manifest_case_count_matches": "PASS"
