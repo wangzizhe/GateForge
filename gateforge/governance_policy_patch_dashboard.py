@@ -35,6 +35,9 @@ def _write_markdown(path: str, payload: dict) -> None:
         f"- rollback_decision: `{payload.get('rollback_decision')}`",
         f"- rollback_recommended: `{payload.get('rollback_recommended')}`",
         f"- total_records: `{payload.get('total_records')}`",
+        f"- pairwise_threshold_enabled_count: `{payload.get('pairwise_threshold_enabled_count')}`",
+        f"- latest_pairwise_threshold: `{payload.get('latest_pairwise_threshold')}`",
+        f"- pairwise_threshold_enable_rate_delta: `{payload.get('pairwise_threshold_enable_rate_delta')}`",
         "",
         "## Result Flags",
         "",
@@ -76,6 +79,9 @@ def main() -> None:
         "rollback_decision_present": "PASS"
         if rollback_advice.get("decision") in {"KEEP", "ROLLBACK_RECOMMENDED"}
         else "FAIL",
+        "pairwise_threshold_signal_present": "PASS"
+        if isinstance(history.get("pairwise_threshold_enabled_count"), int)
+        else "FAIL",
     }
     bundle_status = "PASS" if all(v == "PASS" for v in flags.values()) else "FAIL"
 
@@ -88,8 +94,11 @@ def main() -> None:
         "rollback_decision": rollback_advice.get("decision"),
         "rollback_recommended": rollback_advice.get("rollback_recommended"),
         "total_records": history.get("total_records"),
+        "pairwise_threshold_enabled_count": history.get("pairwise_threshold_enabled_count"),
+        "latest_pairwise_threshold": history.get("latest_pairwise_threshold"),
         "fail_rate_delta": trend.get("delta_fail_rate"),
         "reject_rate_delta": trend.get("delta_reject_rate"),
+        "pairwise_threshold_enable_rate_delta": trend.get("delta_pairwise_threshold_enable_rate"),
         "paths": {
             "proposal": args.proposal,
             "apply": args.apply,

@@ -57,7 +57,9 @@ def _write_markdown(path: str, summary: dict) -> None:
         f"- needs_review_count: `{status_counts.get('NEEDS_REVIEW', 0)}`",
         f"- fail_count: `{status_counts.get('FAIL', 0)}`",
         f"- applied_count: `{summary.get('applied_count', 0)}`",
-        f"- reject_count: `{summary.get('reject_count', 0)}`",
+            f"- reject_count: `{summary.get('reject_count', 0)}`",
+        f"- pairwise_threshold_enabled_count: `{summary.get('pairwise_threshold_enabled_count', 0)}`",
+        f"- latest_pairwise_threshold: `{summary.get('latest_pairwise_threshold')}`",
         "",
     ]
     p.write_text("\n".join(lines), encoding="utf-8")
@@ -90,6 +92,14 @@ def main() -> None:
     append_rows: list[dict] = []
     for record_path in args.record:
         payload = _load_json(record_path)
+        proposal_path = payload.get("proposal_path")
+        proposal_payload = {}
+        if isinstance(proposal_path, str) and proposal_path:
+            proposal_file = Path(proposal_path)
+            if proposal_file.exists():
+                proposal_payload = _load_json(str(proposal_file))
+        policy_after = proposal_payload.get("policy_after") if isinstance(proposal_payload.get("policy_after"), dict) else {}
+        pairwise_threshold = policy_after.get("require_min_pairwise_net_margin")
         row = {
             "recorded_at_utc": now,
             "source_record_path": record_path,
@@ -101,6 +111,8 @@ def main() -> None:
             "applied": bool(payload.get("applied")),
             "reasons_count": len(payload.get("reasons", []) or []),
             "target_policy_path": payload.get("target_policy_path"),
+            "proposal_path": proposal_path,
+            "pairwise_threshold": pairwise_threshold,
         }
         append_rows.append(row)
 
@@ -111,6 +123,8 @@ def main() -> None:
     status_counter = Counter()
     applied_count = 0
     reject_count = 0
+    pairwise_threshold_enabled_count = 0
+    latest_pairwise_threshold: int | None = None
     for row in rows:
         status = str(row.get("final_status") or "")
         if status:
@@ -125,6 +139,10 @@ def main() -> None:
             decision_values.append(str(row.get("approval_decision") or "").lower())
         if any(x == "reject" for x in decision_values):
             reject_count += 1
+        pairwise_threshold = row.get("pairwise_threshold")
+        if isinstance(pairwise_threshold, int) and pairwise_threshold > 0:
+            pairwise_threshold_enabled_count += 1
+            latest_pairwise_threshold = pairwise_threshold
 
     latest_status = rows[-1].get("final_status") if rows else None
     summary = {
@@ -136,6 +154,8 @@ def main() -> None:
         "status_counts": dict(status_counter),
         "applied_count": applied_count,
         "reject_count": reject_count,
+        "pairwise_threshold_enabled_count": pairwise_threshold_enabled_count,
+        "latest_pairwise_threshold": latest_pairwise_threshold,
     }
     _write_json(args.out, summary)
     _write_markdown(args.report or _default_md_path(args.out), summary)

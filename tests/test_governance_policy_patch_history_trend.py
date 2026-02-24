@@ -21,6 +21,7 @@ class GovernancePolicyPatchHistoryTrendTests(unittest.TestCase):
                         "status_counts": {"PASS": 6, "NEEDS_REVIEW": 2, "FAIL": 2},
                         "applied_count": 6,
                         "reject_count": 2,
+                        "pairwise_threshold_enabled_count": 4,
                     }
                 ),
                 encoding="utf-8",
@@ -33,6 +34,7 @@ class GovernancePolicyPatchHistoryTrendTests(unittest.TestCase):
                         "status_counts": {"PASS": 2, "NEEDS_REVIEW": 1, "FAIL": 2},
                         "applied_count": 2,
                         "reject_count": 2,
+                        "pairwise_threshold_enabled_count": 1,
                     }
                 ),
                 encoding="utf-8",
@@ -64,6 +66,9 @@ class GovernancePolicyPatchHistoryTrendTests(unittest.TestCase):
             self.assertAlmostEqual(trend.get("current_apply_rate"), 0.6)
             self.assertAlmostEqual(trend.get("previous_apply_rate"), 0.4)
             self.assertAlmostEqual(trend.get("delta_apply_rate"), 0.2)
+            self.assertAlmostEqual(trend.get("current_pairwise_threshold_enable_rate"), 0.4)
+            self.assertAlmostEqual(trend.get("previous_pairwise_threshold_enable_rate"), 0.2)
+            self.assertAlmostEqual(trend.get("delta_pairwise_threshold_enable_rate"), 0.2)
 
     def test_trend_without_previous_summary(self) -> None:
         with tempfile.TemporaryDirectory() as d:
@@ -78,6 +83,7 @@ class GovernancePolicyPatchHistoryTrendTests(unittest.TestCase):
                         "status_counts": {"PASS": 1, "NEEDS_REVIEW": 1, "FAIL": 1},
                         "applied_count": 1,
                         "reject_count": 1,
+                        "pairwise_threshold_enabled_count": 0,
                     }
                 ),
                 encoding="utf-8",
@@ -102,6 +108,7 @@ class GovernancePolicyPatchHistoryTrendTests(unittest.TestCase):
             self.assertEqual(trend.get("delta_total_records"), 3)
             self.assertEqual(trend.get("previous_fail_rate"), 0.0)
             self.assertEqual(trend.get("previous_apply_rate"), 0.0)
+            self.assertEqual(trend.get("previous_pairwise_threshold_enable_rate"), 0.0)
             self.assertEqual(payload.get("status"), "NEEDS_REVIEW")
 
 
