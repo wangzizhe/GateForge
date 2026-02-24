@@ -484,6 +484,34 @@ class DemoScriptTests(unittest.TestCase):
         self.assertGreaterEqual(fail_payload.get("total_records", 0), 1)
         self.assertGreaterEqual(proposal_payload.get("total_records", 0), 1)
 
+    def test_demo_runtime_decision_ledger_script(self) -> None:
+        proc = subprocess.run(
+            ["bash", "scripts/demo_runtime_decision_ledger.sh"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+        payload = json.loads(
+            Path("artifacts/runtime_decision_ledger_demo/summary.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(payload.get("bundle_status"), "PASS")
+        self.assertGreaterEqual(int(payload.get("total_records", 0)), 2)
+
+    def test_demo_runtime_decision_ledger_trend_script(self) -> None:
+        proc = subprocess.run(
+            ["bash", "scripts/demo_runtime_decision_ledger_trend.sh"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+        payload = json.loads(
+            Path("artifacts/runtime_decision_ledger_trend_demo/summary.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(payload.get("bundle_status"), "PASS")
+        self.assertEqual(payload.get("trend_status"), "NEEDS_REVIEW")
+
     def test_demo_review_kpis_script(self) -> None:
         proc = subprocess.run(
             ["bash", "scripts/demo_review_kpis.sh"],
