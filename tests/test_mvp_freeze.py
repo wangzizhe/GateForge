@@ -6,21 +6,23 @@ from pathlib import Path
 
 
 class MVPFreezeTests(unittest.TestCase):
-    def _write_artifacts(self, root: Path, matrix_status: str = "PASS") -> tuple[Path, Path, Path, Path]:
+    def _write_artifacts(self, root: Path, matrix_status: str = "PASS") -> tuple[Path, Path, Path, Path, Path]:
         medium = root / "medium.json"
         mutation = root / "mutation.json"
+        autotune = root / "policy_autotune.json"
         policy = root / "policy.json"
         matrix = root / "matrix.json"
         medium.write_text(json.dumps({"bundle_status": "PASS"}), encoding="utf-8")
         mutation.write_text(json.dumps({"bundle_status": "PASS"}), encoding="utf-8")
+        autotune.write_text(json.dumps({"bundle_status": "PASS"}), encoding="utf-8")
         policy.write_text(json.dumps({"bundle_status": "PASS"}), encoding="utf-8")
         matrix.write_text(json.dumps({"matrix_status": matrix_status}), encoding="utf-8")
-        return medium, mutation, policy, matrix
+        return medium, mutation, autotune, policy, matrix
 
     def test_mvp_freeze_pass(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
-            medium, mutation, policy, matrix = self._write_artifacts(root)
+            medium, mutation, autotune, policy, matrix = self._write_artifacts(root)
             out = root / "summary.json"
             proc = subprocess.run(
                 [
@@ -33,6 +35,8 @@ class MVPFreezeTests(unittest.TestCase):
                     "0",
                     "--mutation-dashboard-rc",
                     "0",
+                    "--policy-autotune-rc",
+                    "0",
                     "--policy-dashboard-rc",
                     "0",
                     "--ci-matrix-rc",
@@ -41,6 +45,8 @@ class MVPFreezeTests(unittest.TestCase):
                     str(medium),
                     "--mutation-dashboard-json",
                     str(mutation),
+                    "--policy-autotune-json",
+                    str(autotune),
                     "--policy-dashboard-json",
                     str(policy),
                     "--ci-matrix-json",
@@ -60,7 +66,7 @@ class MVPFreezeTests(unittest.TestCase):
     def test_mvp_freeze_fail(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
-            medium, mutation, policy, matrix = self._write_artifacts(root, matrix_status="FAIL")
+            medium, mutation, autotune, policy, matrix = self._write_artifacts(root, matrix_status="FAIL")
             out = root / "summary.json"
             proc = subprocess.run(
                 [
@@ -73,6 +79,8 @@ class MVPFreezeTests(unittest.TestCase):
                     "0",
                     "--mutation-dashboard-rc",
                     "0",
+                    "--policy-autotune-rc",
+                    "0",
                     "--policy-dashboard-rc",
                     "0",
                     "--ci-matrix-rc",
@@ -81,6 +89,8 @@ class MVPFreezeTests(unittest.TestCase):
                     str(medium),
                     "--mutation-dashboard-json",
                     str(mutation),
+                    "--policy-autotune-json",
+                    str(autotune),
                     "--policy-dashboard-json",
                     str(policy),
                     "--ci-matrix-json",
