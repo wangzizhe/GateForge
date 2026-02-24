@@ -38,6 +38,10 @@ def _status_from_signals(signals: dict) -> str:
         return "NEEDS_REVIEW"
     if signals.get("advisor_history_latest_action_rollback_review"):
         return "NEEDS_REVIEW"
+    if signals.get("advisor_history_top_driver_recommended_component_dominant"):
+        return "NEEDS_REVIEW"
+    if signals.get("advisor_history_dominant_top_driver_changed"):
+        return "NEEDS_REVIEW"
     if signals.get("mutation_trend_needs_review"):
         return "NEEDS_REVIEW"
     if signals.get("invariant_repair_compare_status") == "FAIL":
@@ -180,6 +184,17 @@ def _extract_policy_autotune_advisor_history(payload: dict) -> dict:
         "tighten_rate": _to_float(payload.get("tighten_rate"), 0.0),
         "rollback_review_rate": _to_float(payload.get("rollback_review_rate"), 0.0),
         "trend_status": str(payload.get("trend_status") or "UNKNOWN"),
+        "latest_top_driver": (
+            str(payload.get("latest_top_driver"))
+            if isinstance(payload.get("latest_top_driver"), str)
+            else None
+        ),
+        "top_driver_non_null_rate": _to_float(payload.get("top_driver_non_null_rate"), 0.0),
+        "trend_alerts": (
+            payload.get("trend_alerts")
+            if isinstance(payload.get("trend_alerts"), list)
+            else []
+        ),
     }
 
 
@@ -227,6 +242,13 @@ def _compute_summary(
     advisor_history_latest_action = str(advisor_history.get("latest_action") or "UNKNOWN")
     advisor_history_rollback_rate = float(advisor_history.get("rollback_review_rate", 0.0) or 0.0)
     advisor_history_tighten_rate = float(advisor_history.get("tighten_rate", 0.0) or 0.0)
+    advisor_history_latest_top_driver = (
+        str(advisor_history.get("latest_top_driver"))
+        if isinstance(advisor_history.get("latest_top_driver"), str)
+        else None
+    )
+    advisor_history_top_driver_non_null_rate = float(advisor_history.get("top_driver_non_null_rate", 0.0) or 0.0)
+    advisor_history_trend_alerts = advisor_history.get("trend_alerts") if isinstance(advisor_history.get("trend_alerts"), list) else []
 
     signals = {
         "matrix_status": matrix.get("matrix_status", "UNKNOWN"),
@@ -241,6 +263,13 @@ def _compute_summary(
         "advisor_history_trend_needs_review": advisor_history_trend_status == "NEEDS_REVIEW",
         "advisor_history_rollback_rate_high": advisor_history_rollback_rate >= 0.3,
         "advisor_history_latest_action_rollback_review": advisor_history_latest_action == "ROLLBACK_REVIEW",
+        "advisor_history_top_driver_recommended_component_dominant": (
+            advisor_history_latest_top_driver == "component_delta:recommended_component"
+            and advisor_history_top_driver_non_null_rate >= 0.5
+        ),
+        "advisor_history_dominant_top_driver_changed": (
+            any(str(a) == "dominant_top_driver_changed" for a in advisor_history_trend_alerts)
+        ),
     }
 
     status = _status_from_signals(signals)
@@ -274,6 +303,10 @@ def _compute_summary(
         risks.append("policy_autotune_advisor_rollback_rate_high")
     if signals["advisor_history_latest_action_rollback_review"]:
         risks.append("policy_autotune_advisor_latest_action_rollback_review")
+    if signals["advisor_history_top_driver_recommended_component_dominant"]:
+        risks.append("policy_autotune_advisor_top_driver_recommended_component_dominant")
+    if signals["advisor_history_dominant_top_driver_changed"]:
+        risks.append("policy_autotune_advisor_dominant_top_driver_changed")
 
     return {
         "status": status,
@@ -301,6 +334,8 @@ def _compute_summary(
             "policy_autotune_advisor_tighten_rate": advisor_history_tighten_rate,
             "policy_autotune_advisor_rollback_review_rate": advisor_history_rollback_rate,
             "policy_autotune_advisor_trend_status": advisor_history_trend_status,
+            "policy_autotune_advisor_latest_top_driver": advisor_history_latest_top_driver,
+            "policy_autotune_advisor_top_driver_non_null_rate": advisor_history_top_driver_non_null_rate,
         },
         "policy_profiles": {
             "compare_from": compare_from,
@@ -343,6 +378,8 @@ def _write_markdown(path: str, summary: dict) -> None:
         f"- policy_autotune_advisor_tighten_rate: `{kpis.get('policy_autotune_advisor_tighten_rate')}`",
         f"- policy_autotune_advisor_rollback_review_rate: `{kpis.get('policy_autotune_advisor_rollback_review_rate')}`",
         f"- policy_autotune_advisor_trend_status: `{kpis.get('policy_autotune_advisor_trend_status')}`",
+        f"- policy_autotune_advisor_latest_top_driver: `{kpis.get('policy_autotune_advisor_latest_top_driver')}`",
+        f"- policy_autotune_advisor_top_driver_non_null_rate: `{kpis.get('policy_autotune_advisor_top_driver_non_null_rate')}`",
         "",
         "## Risks",
         "",

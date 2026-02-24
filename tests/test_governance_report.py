@@ -26,6 +26,9 @@ class GovernanceReportTests(unittest.TestCase):
                 "tighten_rate": 0.5,
                 "rollback_review_rate": 0.4,
                 "trend_status": "NEEDS_REVIEW",
+                "latest_top_driver": "component_delta:recommended_component",
+                "top_driver_non_null_rate": 1.0,
+                "trend_alerts": ["dominant_top_driver_changed"],
             }
 
             rp = root / "repair.json"
@@ -64,11 +67,14 @@ class GovernanceReportTests(unittest.TestCase):
             self.assertIn("policy_autotune_advisor_history_trend_needs_review", payload.get("risks", []))
             self.assertIn("policy_autotune_advisor_rollback_rate_high", payload.get("risks", []))
             self.assertIn("policy_autotune_advisor_latest_action_rollback_review", payload.get("risks", []))
+            self.assertIn("policy_autotune_advisor_top_driver_recommended_component_dominant", payload.get("risks", []))
+            self.assertIn("policy_autotune_advisor_dominant_top_driver_changed", payload.get("risks", []))
             md = out.with_suffix(".md")
             self.assertTrue(md.exists())
             md_text = md.read_text(encoding="utf-8")
             self.assertIn("policy_autotune_advisor_latest_action", md_text)
             self.assertIn("policy_autotune_advisor_trend_status", md_text)
+            self.assertIn("policy_autotune_advisor_latest_top_driver", md_text)
 
     def test_governance_report_flags_mutation_regression(self) -> None:
         with tempfile.TemporaryDirectory() as d:
