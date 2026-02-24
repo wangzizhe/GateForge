@@ -8,6 +8,7 @@ mkdir -p artifacts/governance_policy_advisor_bundle_demo
 rm -f artifacts/governance_policy_advisor_bundle_demo/*.json artifacts/governance_policy_advisor_bundle_demo/*.md
 
 bash scripts/demo_governance_replay_bundle.sh >/dev/null
+bash scripts/demo_mutation_dashboard.sh >/dev/null
 
 cat > artifacts/governance_policy_advisor_bundle_demo/previous_snapshot.json <<'JSON'
 {
@@ -53,6 +54,7 @@ python3 -m gateforge.governance_policy_advisor \
   --snapshot artifacts/governance_policy_advisor_bundle_demo/replay_snapshot.json \
   --trend artifacts/governance_policy_advisor_bundle_demo/replay_snapshot_trend.json \
   --compare-summary artifacts/governance_replay_bundle_demo/replay_compare.json \
+  --mutation-summary artifacts/mutation_dashboard_demo/summary.json \
   --out artifacts/governance_policy_advisor_bundle_demo/policy_advice.json \
   --report artifacts/governance_policy_advisor_bundle_demo/policy_advice.md
 
