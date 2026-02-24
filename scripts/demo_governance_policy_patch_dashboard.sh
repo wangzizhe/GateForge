@@ -20,7 +20,9 @@ cat > "$OUT_DIR/previous_history_summary.json" <<'JSON'
     "FAIL": 1
   },
   "applied_count": 0,
-  "reject_count": 1
+  "reject_count": 1,
+  "pairwise_threshold_enabled_count": 0,
+  "latest_pairwise_threshold": null
 }
 JSON
 
@@ -58,6 +60,7 @@ flags = {
     "proposal_present": "PASS" if bool(summary.get("proposal_id")) else "FAIL",
     "history_records_present": "PASS" if int(summary.get("total_records", 0)) >= 1 else "FAIL",
     "rollback_decision_present": "PASS" if rollback.get("advice", {}).get("decision") in {"KEEP", "ROLLBACK_RECOMMENDED"} else "FAIL",
+    "pairwise_signal_present": "PASS" if isinstance(summary.get("pairwise_threshold_enabled_count"), int) else "FAIL",
 }
 bundle_status = "PASS" if all(v == "PASS" for v in flags.values()) else "FAIL"
 
@@ -67,6 +70,9 @@ demo = {
     "rollback_decision": summary.get("rollback_decision"),
     "rollback_recommended": summary.get("rollback_recommended"),
     "total_records": summary.get("total_records"),
+    "pairwise_threshold_enabled_count": summary.get("pairwise_threshold_enabled_count"),
+    "latest_pairwise_threshold": summary.get("latest_pairwise_threshold"),
+    "pairwise_threshold_enable_rate_delta": summary.get("pairwise_threshold_enable_rate_delta"),
     "result_flags": flags,
 }
 (out / "demo_summary.json").write_text(json.dumps(demo, indent=2), encoding="utf-8")
@@ -80,6 +86,9 @@ demo = {
             f"- rollback_decision: `{demo['rollback_decision']}`",
             f"- rollback_recommended: `{demo['rollback_recommended']}`",
             f"- total_records: `{demo['total_records']}`",
+            f"- pairwise_threshold_enabled_count: `{demo['pairwise_threshold_enabled_count']}`",
+            f"- latest_pairwise_threshold: `{demo['latest_pairwise_threshold']}`",
+            f"- pairwise_threshold_enable_rate_delta: `{demo['pairwise_threshold_enable_rate_delta']}`",
             "",
             "## Result Flags",
             "",
@@ -87,6 +96,7 @@ demo = {
             f"- proposal_present: `{flags['proposal_present']}`",
             f"- history_records_present: `{flags['history_records_present']}`",
             f"- rollback_decision_present: `{flags['rollback_decision_present']}`",
+            f"- pairwise_signal_present: `{flags['pairwise_signal_present']}`",
             "",
         ]
     ),

@@ -33,6 +33,12 @@ flags = {
     "has_fail_count": "PASS" if status_counts.get("FAIL") == 1 else "FAIL",
     "has_applied_count": "PASS" if summary.get("applied_count") == 1 else "FAIL",
     "has_reject_count": "PASS" if summary.get("reject_count") == 1 else "FAIL",
+    "has_pairwise_threshold_enabled_count": "PASS"
+    if isinstance(summary.get("pairwise_threshold_enabled_count"), int)
+    else "FAIL",
+    "has_latest_pairwise_threshold_field": "PASS"
+    if "latest_pairwise_threshold" in summary
+    else "FAIL",
     "latest_is_pass": "PASS" if summary.get("latest_status") == "PASS" else "FAIL",
 }
 bundle_status = "PASS" if all(v == "PASS" for v in flags.values()) else "FAIL"
@@ -43,6 +49,8 @@ demo_summary = {
     "status_counts": status_counts,
     "applied_count": summary.get("applied_count"),
     "reject_count": summary.get("reject_count"),
+    "pairwise_threshold_enabled_count": summary.get("pairwise_threshold_enabled_count"),
+    "latest_pairwise_threshold": summary.get("latest_pairwise_threshold"),
     "bundle_status": bundle_status,
     "result_flags": flags,
 }
@@ -59,6 +67,8 @@ demo_summary = {
             f"- fail_count: `{status_counts.get('FAIL', 0)}`",
             f"- applied_count: `{demo_summary['applied_count']}`",
             f"- reject_count: `{demo_summary['reject_count']}`",
+            f"- pairwise_threshold_enabled_count: `{demo_summary['pairwise_threshold_enabled_count']}`",
+            f"- latest_pairwise_threshold: `{demo_summary['latest_pairwise_threshold']}`",
             f"- bundle_status: `{demo_summary['bundle_status']}`",
             "",
             "## Result Flags",
@@ -69,6 +79,8 @@ demo_summary = {
             f"- has_fail_count: `{flags['has_fail_count']}`",
             f"- has_applied_count: `{flags['has_applied_count']}`",
             f"- has_reject_count: `{flags['has_reject_count']}`",
+            f"- has_pairwise_threshold_enabled_count: `{flags['has_pairwise_threshold_enabled_count']}`",
+            f"- has_latest_pairwise_threshold_field: `{flags['has_latest_pairwise_threshold_field']}`",
             f"- latest_is_pass: `{flags['latest_is_pass']}`",
             "",
         ]
