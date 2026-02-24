@@ -149,6 +149,16 @@ Main artifacts are under:
 - `artifacts/mutation_pack_v1/metrics.json`
 - `artifacts/mutation_pack_v1/demo_summary.json`
 
+Compare mutation pack quality between versions:
+
+```bash
+bash scripts/demo_mutation_pack_compare.sh
+```
+
+Output:
+- `artifacts/mutation_pack_compare_demo/summary.json`
+- `artifacts/mutation_pack_compare_demo/summary.md`
+
 ## MVP Freeze (Release Readiness)
 
 ```bash

@@ -886,6 +886,18 @@ class DemoScriptTests(unittest.TestCase):
         self.assertIsInstance(metrics.get("gate_pass_rate"), float)
         self.assertIsInstance(metrics.get("failure_type_distribution"), dict)
 
+    def test_demo_mutation_pack_compare_script(self) -> None:
+        proc = subprocess.run(
+            ["bash", "scripts/demo_mutation_pack_compare.sh"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+        payload = json.loads(Path("artifacts/mutation_pack_compare_demo/summary.json").read_text(encoding="utf-8"))
+        self.assertEqual(payload.get("decision"), "PASS")
+        self.assertIsInstance(payload.get("delta_match_rate"), float)
+
 
 if __name__ == "__main__":
     unittest.main()
