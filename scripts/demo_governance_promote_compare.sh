@@ -90,6 +90,7 @@ summary = {
     "ranking_explanations_top_1": payload.get("decision_explanations", {}).get("best_vs_others", [])[:1],
     "best_profile_win_summary": payload.get("best_profile_win_summary"),
     "decision_explanation_ranked_top_3": payload.get("decision_explanation_ranked", [])[:3],
+    "decision_explanation_leaderboard_top_2": payload.get("decision_explanation_leaderboard", [])[:2],
     "explanation_completeness": payload.get("explanation_completeness"),
     "explanation_quality_score": payload.get("explanation_quality", {}).get("score"),
     "explanation_quality_checks": payload.get("explanation_quality", {}).get("checks"),

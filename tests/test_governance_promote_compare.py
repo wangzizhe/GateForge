@@ -83,6 +83,11 @@ class GovernancePromoteCompareTests(unittest.TestCase):
             self.assertIsInstance(ranked, list)
             self.assertGreaterEqual(len(ranked), 2)
             self.assertIsInstance(ranked[0].get("reason"), str)
+            leaderboard = payload.get("decision_explanation_leaderboard", [])
+            self.assertIsInstance(leaderboard, list)
+            self.assertGreaterEqual(len(leaderboard), 2)
+            self.assertEqual(leaderboard[0].get("profile"), payload.get("best_profile"))
+            self.assertIsInstance(leaderboard[0].get("pairwise_against_others"), list)
             self.assertIsInstance(payload.get("explanation_completeness"), int)
 
     def test_promote_compare_emits_pairwise_ranking_explanations(self) -> None:
