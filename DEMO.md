@@ -17,30 +17,56 @@ bash scripts/demo_proposal_flow.sh
 cat artifacts/proposal_flow_summary.json
 ```
 
-## 2. Medium Governance Mainline
+## 2. Runtime Decision Ledger Governance
 
-### 2.1 Medium benchmark truth set
+### 2.1 Runtime ledger
+
+```bash
+bash scripts/demo_runtime_decision_ledger.sh
+cat artifacts/runtime_decision_ledger_demo/summary.json
+```
+
+### 2.2 Runtime ledger trend
+
+```bash
+bash scripts/demo_runtime_decision_ledger_trend.sh
+cat artifacts/runtime_decision_ledger_trend_demo/summary.json
+```
+
+### 2.3 Runtime history + governance snapshot linkage
+
+```bash
+bash scripts/demo_runtime_decision_ledger_history.sh
+cat artifacts/runtime_decision_ledger_history_demo/summary.json
+
+bash scripts/demo_governance_runtime_history.sh
+cat artifacts/governance_runtime_history_demo/summary.json
+```
+
+## 3. Medium Governance Mainline
+
+### 3.1 Medium benchmark truth set
 
 ```bash
 bash scripts/demo_medium_pack_v1.sh
 cat artifacts/benchmark_medium_v1/summary.json
 ```
 
-### 2.2 Mismatch analysis
+### 3.2 Mismatch analysis
 
 ```bash
 bash scripts/demo_medium_pack_v1_analysis.sh
 cat artifacts/benchmark_medium_v1/analysis.json
 ```
 
-### 2.3 History alerts
+### 3.3 History alerts
 
 ```bash
 bash scripts/demo_medium_pack_v1_history.sh
 cat artifacts/benchmark_medium_v1/history_summary.json
 ```
 
-### 2.4 Trend + advisor + dashboard
+### 3.4 Trend + advisor + dashboard
 
 ```bash
 bash scripts/demo_medium_pack_v1_dashboard.sh
@@ -49,69 +75,69 @@ cat artifacts/benchmark_medium_v1/advisor.json
 cat artifacts/benchmark_medium_v1/dashboard.json
 ```
 
-## 3. Policy Patch Governance
+## 4. Policy Patch Governance
 
-### 3.1 Patch apply flow
+### 4.1 Patch apply flow
 
 ```bash
 bash scripts/demo_governance_policy_patch_apply.sh
 cat artifacts/governance_policy_patch_apply_demo/summary.json
 ```
 
-### 3.2 Patch history flow
+### 4.2 Patch history flow
 
 ```bash
 bash scripts/demo_governance_policy_patch_history.sh
 cat artifacts/governance_policy_patch_history_demo/demo_summary.json
 ```
 
-### 3.3 Patch dashboard flow
+### 4.3 Patch dashboard flow
 
 ```bash
 bash scripts/demo_governance_policy_patch_dashboard.sh
 cat artifacts/governance_policy_patch_dashboard_demo/demo_summary.json
 ```
 
-## 4. Agent / Planner Governance
+## 5. Agent / Planner Governance
 
-### 4.1 Agent change safety loop
+### 5.1 Agent change safety loop
 
 ```bash
 bash scripts/demo_agent_change_loop.sh
 cat artifacts/agent_change_loop/summary.json
 ```
 
-### 4.2 Planner confidence gates
+### 5.2 Planner confidence gates
 
 ```bash
 bash scripts/demo_planner_confidence_gates.sh
 cat artifacts/planner_confidence_demo/summary.json
 ```
 
-### 4.3 Planner guardrails
+### 5.3 Planner guardrails
 
 ```bash
 bash scripts/demo_planner_guardrails.sh
 cat artifacts/planner_guardrails_demo/summary.json
 ```
 
-## 5. Repair Loop Governance
+## 6. Repair Loop Governance
 
-### 5.1 Repair loop
+### 6.1 Repair loop
 
 ```bash
 bash scripts/demo_repair_loop.sh
 cat artifacts/repair_loop/demo_summary.json
 ```
 
-### 5.2 Safety guard
+### 6.2 Safety guard
 
 ```bash
 bash scripts/demo_repair_loop_safety_guard.sh
 cat artifacts/repair_loop_safety_demo/demo_summary.json
 ```
 
-## 6. Local CI Matrix Simulation
+## 7. Local CI Matrix Simulation
 
 ```bash
 bash scripts/demo_ci_matrix.sh
@@ -132,7 +158,7 @@ bash scripts/demo_ci_matrix.sh --none --policy-autotune-full-chain-demo
 cat artifacts/ci_matrix_summary.json
 ```
 
-## 7. MVP Freeze Check
+## 8. MVP Freeze Check
 
 ```bash
 bash scripts/mvp_freeze_check.sh
@@ -151,18 +177,18 @@ Verdict:
 - `MVP_FREEZE_PASS`
 - `MVP_FREEZE_FAIL` (with `blocking_step`)
 
-## 8. Policy Auto-Tune Full Chain
+## 9. Policy Auto-Tune Full Chain
 
 ```bash
 bash scripts/demo_policy_autotune_full_chain.sh
 cat artifacts/policy_autotune_full_chain_demo/summary.json
 ```
 
-## 9. Optional CI (GitHub Actions)
+## 10. Optional CI (GitHub Actions)
 
 Workflow: `ci` (`workflow_dispatch`)
 
-Use `run_benchmark=true` to trigger optional non-blocking jobs:
-- `benchmark-optional`
-- `medium-governance-optional`
-- `mvp-freeze-optional`
+Common toggles:
+- `run_benchmark=true` -> `benchmark-optional`, `mvp-freeze-optional`
+- `run_governance_snapshot_demo=true` -> `medium-governance-optional`
+- `run_governance_history_demo=true` -> `policy-autotune-optional`, `runtime-governance-history-optional`
