@@ -666,6 +666,8 @@ class DemoScriptTests(unittest.TestCase):
         self.assertEqual(payload.get("source_require_ranking_explanation"), "policy_profile")
         self.assertEqual(payload.get("require_min_top_score_margin"), 1)
         self.assertEqual(payload.get("source_require_min_top_score_margin"), "policy_profile")
+        self.assertIn(payload.get("require_min_pairwise_net_margin"), {None, 3})
+        self.assertEqual(payload.get("source_require_min_pairwise_net_margin"), "policy_profile")
         self.assertEqual(payload.get("require_min_explanation_quality"), 70)
         self.assertEqual(payload.get("source_require_min_explanation_quality"), "policy_profile")
         self.assertEqual(payload.get("pass_status"), "PASS")

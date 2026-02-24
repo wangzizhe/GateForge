@@ -2,5 +2,6 @@
   "version": "0.1.0-industrial",
   "require_ranking_explanation": true,
   "require_min_top_score_margin": 3,
+  "require_min_pairwise_net_margin": 3,
   "require_min_explanation_quality": 90
 }

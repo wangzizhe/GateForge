@@ -44,6 +44,7 @@ def _resolve_promote_apply_policy_path(policy_path: str | None, policy_profile: 
 def _resolve_effective_guardrails(args: argparse.Namespace, policy_payload: dict) -> dict:
     rank_from_cli = args.require_ranking_explanation is not None
     margin_from_cli = args.require_min_top_score_margin is not None
+    pairwise_net_margin_from_cli = args.require_min_pairwise_net_margin is not None
     quality_from_cli = args.require_min_explanation_quality is not None
 
     require_ranking = (
@@ -56,6 +57,11 @@ def _resolve_effective_guardrails(args: argparse.Namespace, policy_payload: dict
         if margin_from_cli
         else policy_payload.get("require_min_top_score_margin")
     )
+    min_pairwise_net_margin = (
+        args.require_min_pairwise_net_margin
+        if pairwise_net_margin_from_cli
+        else policy_payload.get("require_min_pairwise_net_margin")
+    )
     min_quality = (
         args.require_min_explanation_quality
         if quality_from_cli
@@ -64,15 +70,19 @@ def _resolve_effective_guardrails(args: argparse.Namespace, policy_payload: dict
 
     if min_margin is not None and not isinstance(min_margin, int):
         raise ValueError("effective require_min_top_score_margin must be int or null")
+    if min_pairwise_net_margin is not None and not isinstance(min_pairwise_net_margin, int):
+        raise ValueError("effective require_min_pairwise_net_margin must be int or null")
     if min_quality is not None and not isinstance(min_quality, int):
         raise ValueError("effective require_min_explanation_quality must be int or null")
 
     return {
         "require_ranking_explanation": require_ranking,
         "require_min_top_score_margin": min_margin,
+        "require_min_pairwise_net_margin": min_pairwise_net_margin,
         "require_min_explanation_quality": min_quality,
         "source_require_ranking_explanation": "cli" if rank_from_cli else "policy_profile",
         "source_require_min_top_score_margin": "cli" if margin_from_cli else "policy_profile",
+        "source_require_min_pairwise_net_margin": "cli" if pairwise_net_margin_from_cli else "policy_profile",
         "source_require_min_explanation_quality": "cli" if quality_from_cli else "policy_profile",
     }
 
@@ -89,12 +99,17 @@ def _baseline_effective_guardrails_hash(summary: dict) -> str | None:
     baseline_effective = {
         "require_ranking_explanation": summary.get("require_ranking_explanation"),
         "require_min_top_score_margin": summary.get("require_min_top_score_margin"),
+        "require_min_pairwise_net_margin": summary.get("require_min_pairwise_net_margin"),
         "require_min_explanation_quality": summary.get("require_min_explanation_quality"),
     }
     if not isinstance(baseline_effective["require_ranking_explanation"], bool):
         return None
     if baseline_effective["require_min_top_score_margin"] is not None and not isinstance(
         baseline_effective["require_min_top_score_margin"], int
+    ):
+        return None
+    if baseline_effective["require_min_pairwise_net_margin"] is not None and not isinstance(
+        baseline_effective["require_min_pairwise_net_margin"], int
     ):
         return None
     if baseline_effective["require_min_explanation_quality"] is not None and not isinstance(
@@ -164,6 +179,8 @@ def _write_markdown(path: str, summary: dict) -> None:
         f"- source_require_ranking_explanation: `{summary.get('source_require_ranking_explanation')}`",
         f"- require_min_top_score_margin: `{summary.get('require_min_top_score_margin')}`",
         f"- source_require_min_top_score_margin: `{summary.get('source_require_min_top_score_margin')}`",
+        f"- require_min_pairwise_net_margin: `{summary.get('require_min_pairwise_net_margin')}`",
+        f"- source_require_min_pairwise_net_margin: `{summary.get('source_require_min_pairwise_net_margin')}`",
         f"- require_min_explanation_quality: `{summary.get('require_min_explanation_quality')}`",
         f"- source_require_min_explanation_quality: `{summary.get('source_require_min_explanation_quality')}`",
         f"- explanation_quality_score: `{summary.get('explanation_quality_score')}`",
@@ -334,6 +351,10 @@ def _human_hints_from_reasons(reasons: list[str]) -> list[str]:
             hints.append("Ensure compare summary includes top_score_margin when min margin guard is enabled.")
         elif reason == "top_score_margin_below_required":
             hints.append("Top score margin is below required threshold; keep current profile or route to human review.")
+        elif reason == "pairwise_net_margin_missing_when_required":
+            hints.append("Ensure compare summary includes decision_explanation_leaderboard[0].pairwise_net_margin.")
+        elif reason == "pairwise_net_margin_below_required":
+            hints.append("Pairwise net margin is below required threshold; keep current profile or route to human review.")
         elif reason == "explanation_quality_missing_when_required":
             hints.append("Ensure compare summary includes explanation_quality.score when quality guard is enabled.")
         elif reason == "explanation_quality_below_required":
@@ -361,6 +382,7 @@ def _evaluate(
     *,
     require_ranking_explanation: bool,
     require_min_top_score_margin: int | None,
+    require_min_pairwise_net_margin: int | None,
     require_min_explanation_quality: int | None,
 ) -> dict:
     compare_status = str(compare_payload.get("status") or "UNKNOWN").upper()
@@ -412,6 +434,15 @@ def _evaluate(
                 reasons.append("top_score_margin_missing_when_required")
             elif margin < require_min_top_score_margin:
                 reasons.append("top_score_margin_below_required")
+        if isinstance(require_min_pairwise_net_margin, int):
+            leaderboard = compare_payload.get("decision_explanation_leaderboard")
+            pairwise_net_margin = None
+            if isinstance(leaderboard, list) and leaderboard and isinstance(leaderboard[0], dict):
+                pairwise_net_margin = leaderboard[0].get("pairwise_net_margin")
+            if not isinstance(pairwise_net_margin, int):
+                reasons.append("pairwise_net_margin_missing_when_required")
+            elif pairwise_net_margin < require_min_pairwise_net_margin:
+                reasons.append("pairwise_net_margin_below_required")
         if isinstance(require_min_explanation_quality, int):
             quality_score = compare_payload.get("explanation_quality", {}).get("score")
             if not isinstance(quality_score, int):
@@ -481,6 +512,12 @@ def main() -> None:
         help="CLI override: PASS compare summaries must include top_score_margin >= this value",
     )
     parser.add_argument(
+        "--require-min-pairwise-net-margin",
+        type=int,
+        default=None,
+        help="CLI override: PASS compare summaries must include decision_explanation_leaderboard[0].pairwise_net_margin >= this value",
+    )
+    parser.add_argument(
         "--require-min-explanation-quality",
         type=int,
         default=None,
@@ -527,6 +564,7 @@ def main() -> None:
         {
             "require_ranking_explanation": effective["require_ranking_explanation"],
             "require_min_top_score_margin": effective["require_min_top_score_margin"],
+            "require_min_pairwise_net_margin": effective["require_min_pairwise_net_margin"],
             "require_min_explanation_quality": effective["require_min_explanation_quality"],
         }
     )
@@ -535,6 +573,7 @@ def main() -> None:
         args.review_ticket_id,
         require_ranking_explanation=bool(effective["require_ranking_explanation"]),
         require_min_top_score_margin=effective["require_min_top_score_margin"],
+        require_min_pairwise_net_margin=effective["require_min_pairwise_net_margin"],
         require_min_explanation_quality=effective["require_min_explanation_quality"],
     )
     structure_errors: list[str] = []
@@ -587,11 +626,20 @@ def main() -> None:
         "source_require_ranking_explanation": effective["source_require_ranking_explanation"],
         "require_min_top_score_margin": effective["require_min_top_score_margin"],
         "source_require_min_top_score_margin": effective["source_require_min_top_score_margin"],
+        "require_min_pairwise_net_margin": effective["require_min_pairwise_net_margin"],
+        "source_require_min_pairwise_net_margin": effective["source_require_min_pairwise_net_margin"],
         "require_min_explanation_quality": effective["require_min_explanation_quality"],
         "source_require_min_explanation_quality": effective["source_require_min_explanation_quality"],
         "compare_summary_path": args.compare_summary,
         "constraint_reason": compare_payload.get("constraint_reason"),
         "top_score_margin": compare_payload.get("top_score_margin"),
+        "pairwise_net_margin": (
+            compare_payload.get("decision_explanation_leaderboard", [{}])[0].get("pairwise_net_margin")
+            if isinstance(compare_payload.get("decision_explanation_leaderboard"), list)
+            and compare_payload.get("decision_explanation_leaderboard")
+            and isinstance(compare_payload.get("decision_explanation_leaderboard")[0], dict)
+            else None
+        ),
         "min_top_score_margin": compare_payload.get("min_top_score_margin"),
         "best_total_score": compare_payload.get("best_total_score"),
         "best_reason": compare_payload.get("best_reason"),
@@ -637,6 +685,8 @@ def main() -> None:
         "source_require_ranking_explanation": summary.get("source_require_ranking_explanation"),
         "require_min_top_score_margin": summary.get("require_min_top_score_margin"),
         "source_require_min_top_score_margin": summary.get("source_require_min_top_score_margin"),
+        "require_min_pairwise_net_margin": summary.get("require_min_pairwise_net_margin"),
+        "source_require_min_pairwise_net_margin": summary.get("source_require_min_pairwise_net_margin"),
         "require_min_explanation_quality": summary.get("require_min_explanation_quality"),
         "source_require_min_explanation_quality": summary.get("source_require_min_explanation_quality"),
         "baseline_apply_summary_path": summary.get("baseline_apply_summary_path"),
