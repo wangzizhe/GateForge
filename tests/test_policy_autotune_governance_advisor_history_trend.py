@@ -14,11 +14,25 @@ class PolicyAutotuneGovernanceAdvisorHistoryTrendTests(unittest.TestCase):
             previous = root / "previous.json"
             out = root / "trend.json"
             current.write_text(
-                json.dumps({"tighten_rate": 0.8, "rollback_review_rate": 0.2, "pairwise_patch_rate": 0.5}),
+                json.dumps(
+                    {
+                        "tighten_rate": 0.8,
+                        "rollback_review_rate": 0.2,
+                        "pairwise_patch_rate": 0.5,
+                        "leaderboard_instability_rate": 0.6,
+                    }
+                ),
                 encoding="utf-8",
             )
             previous.write_text(
-                json.dumps({"tighten_rate": 0.2, "rollback_review_rate": 0.0, "pairwise_patch_rate": 0.0}),
+                json.dumps(
+                    {
+                        "tighten_rate": 0.2,
+                        "rollback_review_rate": 0.0,
+                        "pairwise_patch_rate": 0.0,
+                        "leaderboard_instability_rate": 0.1,
+                    }
+                ),
                 encoding="utf-8",
             )
             proc = subprocess.run(
@@ -43,6 +57,7 @@ class PolicyAutotuneGovernanceAdvisorHistoryTrendTests(unittest.TestCase):
             alerts = (payload.get("trend") or {}).get("alerts", [])
             self.assertIn("tighten_rate_increasing", alerts)
             self.assertIn("pairwise_patch_rate_increasing", alerts)
+            self.assertIn("leaderboard_instability_rate_increasing", alerts)
 
 
 if __name__ == "__main__":

@@ -39,6 +39,7 @@ def _write_markdown(path: str, payload: dict) -> None:
         f"- delta_tighten_rate: `{trend.get('delta_tighten_rate')}`",
         f"- delta_rollback_review_rate: `{trend.get('delta_rollback_review_rate')}`",
         f"- delta_pairwise_patch_rate: `{trend.get('delta_pairwise_patch_rate')}`",
+        f"- delta_leaderboard_instability_rate: `{trend.get('delta_leaderboard_instability_rate')}`",
         "",
         "## Alerts",
         "",
@@ -71,6 +72,11 @@ def main() -> None:
     d_pairwise_patch = round(
         _to_float(current.get("pairwise_patch_rate")) - _to_float(previous.get("pairwise_patch_rate")), 4
     )
+    d_leaderboard_instability = round(
+        _to_float(current.get("leaderboard_instability_rate"))
+        - _to_float(previous.get("leaderboard_instability_rate")),
+        4,
+    )
 
     alerts: list[str] = []
     if d_tighten > 0:
@@ -79,6 +85,8 @@ def main() -> None:
         alerts.append("rollback_review_rate_increasing")
     if d_pairwise_patch > 0:
         alerts.append("pairwise_patch_rate_increasing")
+    if d_leaderboard_instability > 0:
+        alerts.append("leaderboard_instability_rate_increasing")
 
     status = "PASS" if not alerts else "NEEDS_REVIEW"
     payload = {
@@ -87,6 +95,7 @@ def main() -> None:
             "delta_tighten_rate": d_tighten,
             "delta_rollback_review_rate": d_rollback,
             "delta_pairwise_patch_rate": d_pairwise_patch,
+            "delta_leaderboard_instability_rate": d_leaderboard_instability,
             "alerts": alerts,
         },
     }
