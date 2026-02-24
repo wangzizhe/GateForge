@@ -32,6 +32,12 @@ def _status_from_signals(signals: dict) -> str:
         return "FAIL"
     if signals.get("mutation_compare_failed"):
         return "NEEDS_REVIEW"
+    if signals.get("advisor_history_trend_needs_review"):
+        return "NEEDS_REVIEW"
+    if signals.get("advisor_history_rollback_rate_high"):
+        return "NEEDS_REVIEW"
+    if signals.get("advisor_history_latest_action_rollback_review"):
+        return "NEEDS_REVIEW"
     if signals.get("mutation_trend_needs_review"):
         return "NEEDS_REVIEW"
     if signals.get("invariant_repair_compare_status") == "FAIL":
@@ -165,10 +171,30 @@ def _extract_mutation(mutation: dict) -> dict:
     }
 
 
-def _compute_summary(repair: dict, review: dict, matrix: dict, invariant_compare: dict, mutation_dashboard: dict) -> dict:
+def _extract_policy_autotune_advisor_history(payload: dict) -> dict:
+    if not isinstance(payload, dict):
+        return {}
+    return {
+        "bundle_status": str(payload.get("bundle_status") or "UNKNOWN"),
+        "latest_action": str(payload.get("latest_action") or "UNKNOWN"),
+        "tighten_rate": _to_float(payload.get("tighten_rate"), 0.0),
+        "rollback_review_rate": _to_float(payload.get("rollback_review_rate"), 0.0),
+        "trend_status": str(payload.get("trend_status") or "UNKNOWN"),
+    }
+
+
+def _compute_summary(
+    repair: dict,
+    review: dict,
+    matrix: dict,
+    invariant_compare: dict,
+    mutation_dashboard: dict,
+    policy_autotune_advisor_history: dict,
+) -> dict:
     repair_compare = _extract_repair_compare(repair)
     invariant = _extract_invariant_compare(invariant_compare)
     mutation = _extract_mutation(mutation_dashboard)
+    advisor_history = _extract_policy_autotune_advisor_history(policy_autotune_advisor_history)
     kpis = review.get("kpis", {}) if isinstance(review, dict) else {}
 
     strict_non_pass_rate = float(kpis.get("strict_non_pass_rate", 0.0) or 0.0)
@@ -197,6 +223,10 @@ def _compute_summary(repair: dict, review: dict, matrix: dict, invariant_compare
     mutation_gate_pass_rate = float(mutation.get("latest_gate_pass_rate", 0.0) or 0.0)
     mutation_trend_status = str(mutation.get("trend_status") or "UNKNOWN")
     mutation_compare_decision = str(mutation.get("compare_decision") or "UNKNOWN")
+    advisor_history_trend_status = str(advisor_history.get("trend_status") or "UNKNOWN")
+    advisor_history_latest_action = str(advisor_history.get("latest_action") or "UNKNOWN")
+    advisor_history_rollback_rate = float(advisor_history.get("rollback_review_rate", 0.0) or 0.0)
+    advisor_history_tighten_rate = float(advisor_history.get("tighten_rate", 0.0) or 0.0)
 
     signals = {
         "matrix_status": matrix.get("matrix_status", "UNKNOWN"),
@@ -208,6 +238,9 @@ def _compute_summary(repair: dict, review: dict, matrix: dict, invariant_compare
         "review_recovery_rate": review_recovery_rate,
         "mutation_trend_needs_review": mutation_trend_status == "NEEDS_REVIEW",
         "mutation_compare_failed": mutation_compare_decision == "FAIL",
+        "advisor_history_trend_needs_review": advisor_history_trend_status == "NEEDS_REVIEW",
+        "advisor_history_rollback_rate_high": advisor_history_rollback_rate >= 0.3,
+        "advisor_history_latest_action_rollback_review": advisor_history_latest_action == "ROLLBACK_REVIEW",
     }
 
     status = _status_from_signals(signals)
@@ -235,6 +268,12 @@ def _compute_summary(repair: dict, review: dict, matrix: dict, invariant_compare
         risks.append("mutation_match_rate_below_target")
     if mutation_gate_pass_rate < 0.98:
         risks.append("mutation_gate_pass_rate_below_target")
+    if signals["advisor_history_trend_needs_review"]:
+        risks.append("policy_autotune_advisor_history_trend_needs_review")
+    if signals["advisor_history_rollback_rate_high"]:
+        risks.append("policy_autotune_advisor_rollback_rate_high")
+    if signals["advisor_history_latest_action_rollback_review"]:
+        risks.append("policy_autotune_advisor_latest_action_rollback_review")
 
     return {
         "status": status,
@@ -258,6 +297,10 @@ def _compute_summary(repair: dict, review: dict, matrix: dict, invariant_compare
             "mutation_latest_gate_pass_rate": mutation_gate_pass_rate,
             "mutation_trend_status": mutation_trend_status,
             "mutation_compare_decision": mutation_compare_decision,
+            "policy_autotune_advisor_latest_action": advisor_history_latest_action,
+            "policy_autotune_advisor_tighten_rate": advisor_history_tighten_rate,
+            "policy_autotune_advisor_rollback_review_rate": advisor_history_rollback_rate,
+            "policy_autotune_advisor_trend_status": advisor_history_trend_status,
         },
         "policy_profiles": {
             "compare_from": compare_from,
@@ -273,6 +316,7 @@ def _compute_summary(repair: dict, review: dict, matrix: dict, invariant_compare
             "ci_matrix_summary_path": matrix.get("_source_path"),
             "invariant_repair_compare_summary_path": invariant_compare.get("_source_path"),
             "mutation_dashboard_summary_path": mutation_dashboard.get("_source_path"),
+            "policy_autotune_advisor_history_summary_path": policy_autotune_advisor_history.get("_source_path"),
         },
         "risks": risks,
     }
@@ -360,6 +404,11 @@ def main() -> None:
         default=None,
         help="Path to mutation dashboard summary JSON",
     )
+    parser.add_argument(
+        "--policy-autotune-advisor-history-summary",
+        default=None,
+        help="Path to policy autotune advisor history demo summary JSON",
+    )
     parser.add_argument("--previous-summary", default=None, help="Optional previous governance snapshot JSON")
     parser.add_argument("--out", default="artifacts/governance_snapshot/summary.json", help="Output JSON path")
     parser.add_argument("--report", default=None, help="Output markdown path")
@@ -370,6 +419,7 @@ def main() -> None:
     matrix = _load_json(args.ci_matrix_summary)
     invariant_compare = _load_json(args.invariant_repair_compare_summary)
     mutation_dashboard = _load_json(args.mutation_dashboard_summary)
+    policy_autotune_advisor_history = _load_json(args.policy_autotune_advisor_history_summary)
     if args.repair_batch_summary:
         repair["_source_path"] = args.repair_batch_summary
     if args.review_ledger_summary:
@@ -380,8 +430,17 @@ def main() -> None:
         invariant_compare["_source_path"] = args.invariant_repair_compare_summary
     if args.mutation_dashboard_summary:
         mutation_dashboard["_source_path"] = args.mutation_dashboard_summary
+    if args.policy_autotune_advisor_history_summary:
+        policy_autotune_advisor_history["_source_path"] = args.policy_autotune_advisor_history_summary
 
-    summary = _compute_summary(repair, review, matrix, invariant_compare, mutation_dashboard)
+    summary = _compute_summary(
+        repair,
+        review,
+        matrix,
+        invariant_compare,
+        mutation_dashboard,
+        policy_autotune_advisor_history,
+    )
     if args.previous_summary:
         previous = _load_json(args.previous_summary)
         if previous:
