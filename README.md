@@ -238,7 +238,7 @@ Output:
 - `artifacts/policy_autotune_governance_history_demo/trend.json`
 - `artifacts/policy_autotune_governance_history_demo/dashboard.json`
 - `artifacts/policy_autotune_governance_history_demo/demo_summary.json`
-  - includes tuned compare explanation signals (`tuned_top_score_margin`, `tuned_explanation_completeness`)
+  - includes tuned compare explanation signals (`tuned_top_score_margin`, `tuned_explanation_completeness`, `tuned_pairwise_net_margin`)
 
 Policy auto-tuning governance advisor (dashboard -> action -> patch apply):
 
