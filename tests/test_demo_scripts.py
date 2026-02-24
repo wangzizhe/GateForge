@@ -1049,6 +1049,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertEqual(payload.get("bundle_status"), "PASS")
         self.assertIn(payload.get("trend_status"), {"PASS", "NEEDS_REVIEW"})
         self.assertIsInstance(payload.get("improvement_rate"), float)
+        self.assertIsInstance(payload.get("quality_regressed_rate"), float)
         self.assertIsInstance(payload.get("tuned_top_score_margin"), int)
         self.assertIsInstance(payload.get("tuned_explanation_completeness"), int)
         self.assertIsInstance(payload.get("tuned_pairwise_net_margin"), int)
