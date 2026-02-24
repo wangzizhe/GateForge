@@ -263,6 +263,16 @@ Output:
 - `artifacts/policy_autotune_governance_advisor_history_demo/trend.json`
 - `artifacts/policy_autotune_governance_advisor_history_demo/demo_summary.json`
 
+Governance snapshot (with advisor history signal):
+
+```bash
+bash scripts/demo_governance_snapshot_with_advisor_history.sh
+```
+
+Output:
+- `artifacts/governance_snapshot_advisor_history_demo/summary.json`
+- `artifacts/governance_snapshot_advisor_history_demo/demo_summary.json`
+
 ## MVP Freeze (Release Readiness)
 
 ```bash
