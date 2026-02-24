@@ -6,3 +6,4 @@ artifacts/
 .env.*
 !.env.example
 .DS_Store
+examples/mutants/

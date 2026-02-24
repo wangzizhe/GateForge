@@ -258,6 +258,39 @@ jobs:
           path: |
             artifacts/benchmark_medium_v1
 
+  mutation-pack-optional:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_benchmark }}
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Run mutation pack v0 demo
+        env:
+          MUTATION_BACKEND: mock
+          MUTATION_COUNT: "12"
+        run: bash scripts/demo_mutation_pack_v0.sh
+
+      - name: Upload mutation pack artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mutation-pack-v0
+          path: |
+            artifacts/mutation_pack_v0
+            examples/mutants/v0
+
   mvp-freeze-optional:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_benchmark }}
     continue-on-error: true

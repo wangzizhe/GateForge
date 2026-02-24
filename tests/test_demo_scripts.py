@@ -843,6 +843,23 @@ class DemoScriptTests(unittest.TestCase):
         self.assertIn(payload.get("apply_final_status"), {"PASS", "NEEDS_REVIEW", "FAIL"})
         self.assertIsInstance(payload.get("advisor_suggested_policy_profile"), str)
 
+    def test_demo_mutation_pack_v0_script(self) -> None:
+        env = dict(os.environ)
+        env["MUTATION_BACKEND"] = "mock"
+        env["MUTATION_COUNT"] = "8"
+        proc = subprocess.run(
+            ["bash", "scripts/demo_mutation_pack_v0.sh"],
+            capture_output=True,
+            text=True,
+            check=False,
+            env=env,
+        )
+        self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+        payload = json.loads(Path("artifacts/mutation_pack_v0/demo_summary.json").read_text(encoding="utf-8"))
+        self.assertEqual(payload.get("bundle_status"), "PASS")
+        self.assertEqual(payload.get("backend"), "mock")
+        self.assertEqual(payload.get("total_cases"), 8)
+
 
 if __name__ == "__main__":
     unittest.main()
