@@ -1048,6 +1048,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertIsInstance(payload.get("improvement_rate"), float)
         self.assertIsInstance(payload.get("tuned_top_score_margin"), int)
         self.assertIsInstance(payload.get("tuned_explanation_completeness"), int)
+        self.assertIsInstance(payload.get("tuned_pairwise_net_margin"), int)
 
 
 if __name__ == "__main__":

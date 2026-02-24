@@ -19,6 +19,7 @@ cat > "$OUT_DIR/advisor_previous.json" <<'JSON'
     "reasons": ["stable"],
     "threshold_patch": {
       "require_min_top_score_margin": null,
+      "require_min_pairwise_net_margin": null,
       "require_min_explanation_quality": null
     },
     "dry_run": true
@@ -64,6 +65,7 @@ result = {
     "latest_action": summary.get("latest_action"),
     "tighten_rate": summary.get("tighten_rate"),
     "rollback_review_rate": summary.get("rollback_review_rate"),
+    "pairwise_patch_rate": summary.get("pairwise_patch_rate"),
     "trend_status": trend.get("status"),
     "trend_alerts": (trend.get("trend") or {}).get("alerts", []),
     "bundle_status": bundle_status,
@@ -78,6 +80,7 @@ result = {
             f"- latest_action: `{result['latest_action']}`",
             f"- tighten_rate: `{result['tighten_rate']}`",
             f"- rollback_review_rate: `{result['rollback_review_rate']}`",
+            f"- pairwise_patch_rate: `{result['pairwise_patch_rate']}`",
             f"- trend_status: `{result['trend_status']}`",
             f"- bundle_status: `{result['bundle_status']}`",
             "",
