@@ -911,6 +911,19 @@ class DemoScriptTests(unittest.TestCase):
         self.assertIn(payload.get("trend_status"), {"PASS", "NEEDS_REVIEW"})
         self.assertIsInstance(payload.get("latest_match_rate"), float)
 
+    def test_demo_mutation_policy_patch_script(self) -> None:
+        proc = subprocess.run(
+            ["bash", "scripts/demo_mutation_policy_patch.sh"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+        payload = json.loads(Path("artifacts/mutation_policy_patch_demo/summary.json").read_text(encoding="utf-8"))
+        self.assertEqual(payload.get("bundle_status"), "PASS")
+        self.assertIn(payload.get("advisor_profile"), {"default", "industrial_strict"})
+        self.assertIn(payload.get("apply_final_status"), {"PASS", "NEEDS_REVIEW"})
+
 
 if __name__ == "__main__":
     unittest.main()

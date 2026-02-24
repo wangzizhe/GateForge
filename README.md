@@ -169,6 +169,18 @@ Output:
 - `artifacts/mutation_dashboard_demo/summary.json`
 - `artifacts/mutation_dashboard_demo/summary.md`
 
+Mutation-driven policy patch flow (advisor -> proposal -> apply):
+
+```bash
+bash scripts/demo_mutation_policy_patch.sh
+```
+
+Output:
+- `artifacts/mutation_policy_patch_demo/advisor.json`
+- `artifacts/mutation_policy_patch_demo/proposal.json`
+- `artifacts/mutation_policy_patch_demo/apply.json`
+- `artifacts/mutation_policy_patch_demo/summary.json`
+
 ## MVP Freeze (Release Readiness)
 
 ```bash
@@ -197,6 +209,7 @@ Artifacts include:
 - `medium-governance-v1`
 - `mvp-freeze-v1`
 - `mutation-pack-v0`
+- `mutation-policy-patch-v1`
 
 ## Repository Map
 
