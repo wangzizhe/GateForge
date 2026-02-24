@@ -924,6 +924,19 @@ class DemoScriptTests(unittest.TestCase):
         self.assertIn(payload.get("advisor_profile"), {"default", "industrial_strict"})
         self.assertIn(payload.get("apply_final_status"), {"PASS", "NEEDS_REVIEW"})
 
+    def test_demo_policy_autotune_script(self) -> None:
+        proc = subprocess.run(
+            ["bash", "scripts/demo_policy_autotune.sh"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+        payload = json.loads(Path("artifacts/policy_autotune_demo/summary.json").read_text(encoding="utf-8"))
+        self.assertEqual(payload.get("bundle_status"), "PASS")
+        self.assertIn(payload.get("advisor_profile"), {"default", "industrial_strict"})
+        self.assertIn(payload.get("apply_final_status"), {"PASS", "NEEDS_REVIEW"})
+
 
 if __name__ == "__main__":
     unittest.main()
