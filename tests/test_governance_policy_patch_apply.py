@@ -13,6 +13,13 @@ class GovernancePolicyPatchApplyTests(unittest.TestCase):
                 {
                     "proposal_id": "patch-001",
                     "target_policy_path": str(target_policy),
+                    "changes": [
+                        {
+                            "key": "require_min_top_score_margin",
+                            "old": 1,
+                            "new": 2,
+                        }
+                    ],
                     "policy_after": {
                         "version": "0.1.0",
                         "require_ranking_explanation": False,
@@ -51,6 +58,7 @@ class GovernancePolicyPatchApplyTests(unittest.TestCase):
             self.assertEqual(payload.get("final_status"), "NEEDS_REVIEW")
             self.assertIn("approval_required", payload.get("reasons", []))
             self.assertEqual(payload.get("approval_profile"), "default")
+            self.assertIsInstance(payload.get("impact_preview"), list)
 
     def test_apply_fails_on_reject(self) -> None:
         with tempfile.TemporaryDirectory() as d:
@@ -129,6 +137,7 @@ class GovernancePolicyPatchApplyTests(unittest.TestCase):
             updated = json.loads(policy.read_text(encoding="utf-8"))
             self.assertEqual(updated.get("require_min_top_score_margin"), 2)
             self.assertEqual(updated.get("require_min_explanation_quality"), 85)
+            self.assertEqual((payload.get("impact_preview") or [])[0].get("expected_effect"), "stricter_compare_margin_gate")
 
     def test_dual_reviewer_profile_requires_two_approvals(self) -> None:
         with tempfile.TemporaryDirectory() as d:
@@ -208,6 +217,36 @@ class GovernancePolicyPatchApplyTests(unittest.TestCase):
             self.assertEqual(payload.get("approval_profile"), "dual_reviewer")
             self.assertEqual(payload.get("approvals_count"), 2)
             self.assertEqual(payload.get("unique_reviewers_count"), 2)
+
+    def test_preview_only_outputs_preview_without_apply(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            policy = root / "policy.json"
+            proposal = root / "proposal.json"
+            out = root / "preview.json"
+            policy.write_text(json.dumps({"version": "0.1.0", "require_min_top_score_margin": 1}), encoding="utf-8")
+            self._write_proposal(proposal, policy)
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.governance_policy_patch_apply",
+                    "--proposal",
+                    str(proposal),
+                    "--preview-only",
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            payload = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(payload.get("final_status"), "PREVIEW")
+            self.assertEqual(payload.get("apply_action"), "preview_only")
+            self.assertFalse(payload.get("applied"))
+            self.assertIn("preview_only_no_apply", payload.get("reasons", []))
 
 
 if __name__ == "__main__":
