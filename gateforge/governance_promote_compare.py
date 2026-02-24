@@ -288,6 +288,75 @@ def _build_best_profile_win_summary(
     }
 
 
+def _build_decision_explanation_leaderboard(decision_ranking: list[dict]) -> list[dict]:
+    if not isinstance(decision_ranking, list) or not decision_ranking:
+        return []
+    rows: list[dict] = []
+    for row in decision_ranking:
+        if not isinstance(row, dict):
+            continue
+        profile = row.get("profile")
+        if not isinstance(profile, str):
+            continue
+        own_score = int(row.get("total_score", 0))
+        pairwise_rows: list[dict] = []
+        win_count = 0
+        loss_count = 0
+        tie_count = 0
+        net_margin = 0
+        for other in decision_ranking:
+            if not isinstance(other, dict):
+                continue
+            other_profile = other.get("profile")
+            if not isinstance(other_profile, str) or other_profile == profile:
+                continue
+            other_score = int(other.get("total_score", 0))
+            margin = own_score - other_score
+            if margin > 0:
+                relation = "win"
+                win_count += 1
+            elif margin < 0:
+                relation = "loss"
+                loss_count += 1
+            else:
+                relation = "tie"
+                tie_count += 1
+            net_margin += margin
+            pairwise_rows.append(
+                {
+                    "challenger_profile": other_profile,
+                    "margin": margin,
+                    "relation": relation,
+                }
+            )
+        pairwise_rows.sort(key=lambda item: int(item.get("margin", 0)), reverse=True)
+        rows.append(
+            {
+                "profile": profile,
+                "rank": row.get("rank"),
+                "decision": row.get("decision"),
+                "total_score": own_score,
+                "score_gap_to_best": row.get("score_gap_to_best"),
+                "pairwise_win_count": win_count,
+                "pairwise_loss_count": loss_count,
+                "pairwise_tie_count": tie_count,
+                "pairwise_net_margin": net_margin,
+                "pairwise_against_others": pairwise_rows,
+            }
+        )
+    rows.sort(
+        key=lambda item: (
+            int(item.get("total_score", -999999)),
+            int(item.get("pairwise_net_margin", -999999)),
+            -int(item.get("pairwise_loss_count", 999999)),
+        ),
+        reverse=True,
+    )
+    for idx, row in enumerate(rows, start=1):
+        row["leaderboard_rank"] = idx
+    return rows
+
+
 def _build_decision_explanation_ranked(
     best_profile_win_summary: dict,
     best_reason: str,
@@ -545,6 +614,17 @@ def _write_markdown(path: str, summary: dict) -> None:
             f"- reason=`{row.get('reason')}` value=`{row.get('value')}` weight=`{row.get('weight')}` note=`{row.get('note')}`"
         )
     lines.append(f"- explanation_completeness: `{summary.get('explanation_completeness')}`")
+    lines.extend(["", "## Decision Explanation Leaderboard", ""])
+    for row in summary.get("decision_explanation_leaderboard", []):
+        lines.append(
+            f"- leaderboard_rank={row.get('leaderboard_rank')} profile=`{row.get('profile')}` "
+            f"rank=`{row.get('rank')}` total_score=`{row.get('total_score')}` gap_to_best=`{row.get('score_gap_to_best')}` "
+            f"pairwise(win/loss/tie/net)=`{row.get('pairwise_win_count')}/{row.get('pairwise_loss_count')}/{row.get('pairwise_tie_count')}/{row.get('pairwise_net_margin')}`"
+        )
+        for pair in row.get("pairwise_against_others", []):
+            lines.append(
+                f"  - vs `{pair.get('challenger_profile')}`: relation=`{pair.get('relation')}` margin=`{pair.get('margin')}`"
+            )
     quality = summary.get("explanation_quality", {})
     lines.extend(["", "## Explanation Quality", ""])
     lines.append(f"- score: `{quality.get('score')}`")
@@ -708,6 +788,7 @@ def main() -> None:
     explanation_quality = _compute_explanation_quality(decision_explanations)
     decision_ranking = _build_decision_ranking(ranking)
     best_profile_win_summary = _build_best_profile_win_summary(decision_ranking, decision_explanations, best_reason)
+    decision_explanation_leaderboard = _build_decision_explanation_leaderboard(decision_ranking)
     decision_explanation_ranked = _build_decision_explanation_ranked(
         best_profile_win_summary,
         best_reason,
@@ -773,6 +854,7 @@ def main() -> None:
         "explanation_quality": explanation_quality,
         "decision_explanation_score": explanation_quality.get("score"),
         "decision_explanation_ranked": decision_explanation_ranked,
+        "decision_explanation_leaderboard": decision_explanation_leaderboard,
         "explanation_completeness": explanation_completeness,
         "decision_ranking": decision_ranking,
         "best_profile_win_summary": best_profile_win_summary,
