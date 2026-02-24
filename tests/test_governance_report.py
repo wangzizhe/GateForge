@@ -7,6 +7,64 @@ from pathlib import Path
 
 
 class GovernanceReportTests(unittest.TestCase):
+    def test_governance_report_flags_policy_autotune_advisor_history_risk(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            repair = {"profile_compare": {"downgrade_count": 0, "strict_downgrade_rate": 0.0}}
+            review = {
+                "kpis": {
+                    "review_recovery_rate": 0.9,
+                    "strict_non_pass_rate": 0.1,
+                    "approval_rate": 0.8,
+                    "fail_rate": 0.1,
+                }
+            }
+            matrix = {"matrix_status": "PASS"}
+            advisor_history = {
+                "bundle_status": "PASS",
+                "latest_action": "ROLLBACK_REVIEW",
+                "tighten_rate": 0.5,
+                "rollback_review_rate": 0.4,
+                "trend_status": "NEEDS_REVIEW",
+            }
+
+            rp = root / "repair.json"
+            lp = root / "ledger.json"
+            mp = root / "matrix.json"
+            ap = root / "advisor_history.json"
+            out = root / "summary.json"
+            rp.write_text(json.dumps(repair), encoding="utf-8")
+            lp.write_text(json.dumps(review), encoding="utf-8")
+            mp.write_text(json.dumps(matrix), encoding="utf-8")
+            ap.write_text(json.dumps(advisor_history), encoding="utf-8")
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.governance_report",
+                    "--repair-batch-summary",
+                    str(rp),
+                    "--review-ledger-summary",
+                    str(lp),
+                    "--ci-matrix-summary",
+                    str(mp),
+                    "--policy-autotune-advisor-history-summary",
+                    str(ap),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            payload = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(payload.get("status"), "NEEDS_REVIEW")
+            self.assertIn("policy_autotune_advisor_history_trend_needs_review", payload.get("risks", []))
+            self.assertIn("policy_autotune_advisor_rollback_rate_high", payload.get("risks", []))
+            self.assertIn("policy_autotune_advisor_latest_action_rollback_review", payload.get("risks", []))
+
     def test_governance_report_flags_mutation_regression(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
