@@ -64,6 +64,11 @@ class GovernanceReportTests(unittest.TestCase):
             self.assertIn("policy_autotune_advisor_history_trend_needs_review", payload.get("risks", []))
             self.assertIn("policy_autotune_advisor_rollback_rate_high", payload.get("risks", []))
             self.assertIn("policy_autotune_advisor_latest_action_rollback_review", payload.get("risks", []))
+            md = out.with_suffix(".md")
+            self.assertTrue(md.exists())
+            md_text = md.read_text(encoding="utf-8")
+            self.assertIn("policy_autotune_advisor_latest_action", md_text)
+            self.assertIn("policy_autotune_advisor_trend_status", md_text)
 
     def test_governance_report_flags_mutation_regression(self) -> None:
         with tempfile.TemporaryDirectory() as d:
