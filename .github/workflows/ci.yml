@@ -252,7 +252,6 @@ jobs:
           bash scripts/demo_medium_pack_v1_dashboard.sh
           bash scripts/demo_policy_autotune.sh
           bash scripts/demo_policy_autotune_history.sh
-          bash scripts/demo_policy_autotune_governance.sh
 
       - name: Upload medium governance artifact
         if: always()
@@ -263,6 +262,34 @@ jobs:
             artifacts/benchmark_medium_v1
             artifacts/policy_autotune_demo
             artifacts/policy_autotune_history_demo
+
+  policy-autotune-optional:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_benchmark }}
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Run policy autotune governance chain
+        run: bash scripts/demo_policy_autotune_governance.sh
+
+      - name: Upload policy autotune governance artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: policy-autotune-governance-v1
+          path: |
             artifacts/policy_autotune_governance_demo
 
   mutation-pack-optional:

@@ -247,11 +247,13 @@ Workflow: `ci` (`workflow_dispatch`)
 Set `run_benchmark=true` to run non-blocking optional chains:
 - benchmark optional
 - medium governance optional
+- policy autotune optional
 - mvp freeze optional
 
 Artifacts include:
 - `benchmark-v0`
 - `medium-governance-v1`
+- `policy-autotune-governance-v1`
 - `mvp-freeze-v1`
 - `mutation-pack-v0`
 - `mutation-policy-patch-v1`
