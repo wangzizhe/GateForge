@@ -53,6 +53,7 @@ def _write_markdown(path: str, payload: dict) -> None:
         f"- latest_action: `{payload.get('latest_action')}`",
         f"- tighten_rate: `{payload.get('tighten_rate')}`",
         f"- rollback_review_rate: `{payload.get('rollback_review_rate')}`",
+        f"- pairwise_patch_rate: `{payload.get('pairwise_patch_rate')}`",
         "",
         "## Alerts",
         "",
@@ -90,6 +91,8 @@ def main() -> None:
         payload = _load_json(path)
         advice = payload.get("advice") if isinstance(payload.get("advice"), dict) else {}
         action = str(advice.get("action") or "UNKNOWN")
+        patch = advice.get("threshold_patch") if isinstance(advice.get("threshold_patch"), dict) else {}
+        pairwise_patch = patch.get("require_min_pairwise_net_margin")
         append_rows.append(
             {
                 "recorded_at_utc": now,
@@ -100,6 +103,8 @@ def main() -> None:
                 "reasons_count": len(advice.get("reasons") or []),
                 "is_tighten": action == "TIGHTEN",
                 "is_rollback_review": action == "ROLLBACK_REVIEW",
+                "pairwise_patch": pairwise_patch,
+                "is_pairwise_patch_enabled": isinstance(pairwise_patch, int) and pairwise_patch > 0,
             }
         )
     if append_rows:
@@ -111,10 +116,12 @@ def main() -> None:
 
     tighten_count = sum(1 for r in rows if bool(r.get("is_tighten")))
     rollback_count = sum(1 for r in rows if bool(r.get("is_rollback_review")))
+    pairwise_patch_count = sum(1 for r in rows if bool(r.get("is_pairwise_patch_enabled")))
     keep_count = sum(1 for r in rows if str(r.get("action")) == "KEEP")
 
     tighten_rate = round(tighten_count / max(1, total), 4)
     rollback_rate = round(rollback_count / max(1, total), 4)
+    pairwise_patch_rate = round(pairwise_patch_count / max(1, total), 4)
 
     alerts: list[str] = []
     if str(latest.get("action")) == "ROLLBACK_REVIEW":
@@ -123,6 +130,8 @@ def main() -> None:
         alerts.append("rollback_review_rate_high")
     if tighten_rate >= 0.7 and total >= 3:
         alerts.append("tighten_rate_high")
+    if pairwise_patch_rate >= 0.5 and total >= 3:
+        alerts.append("pairwise_patch_rate_high")
 
     summary = {
         "generated_at_utc": now,
@@ -135,8 +144,10 @@ def main() -> None:
         "keep_count": keep_count,
         "tighten_count": tighten_count,
         "rollback_review_count": rollback_count,
+        "pairwise_patch_count": pairwise_patch_count,
         "tighten_rate": tighten_rate,
         "rollback_review_rate": rollback_rate,
+        "pairwise_patch_rate": pairwise_patch_rate,
         "alerts": alerts,
     }
     _write_json(args.out, summary)
