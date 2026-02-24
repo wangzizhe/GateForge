@@ -34,6 +34,7 @@ def _write_markdown(path: str, payload: dict) -> None:
         f"- confidence: `{advice.get('confidence')}`",
         f"- rollback_recommended: `{advice.get('rollback_recommended')}`",
         f"- latest_status: `{payload.get('latest_status')}`",
+        f"- delta_pairwise_threshold_enable_rate: `{payload.get('metrics', {}).get('delta_pairwise_threshold_enable_rate')}`",
         "",
         "## Reasons",
         "",
@@ -57,6 +58,12 @@ def main() -> None:
     parser.add_argument("--max-fail-rate-delta", type=float, default=0.15, help="Max acceptable fail-rate increase")
     parser.add_argument("--max-reject-rate-delta", type=float, default=0.15, help="Max acceptable reject-rate increase")
     parser.add_argument(
+        "--max-pairwise-threshold-enable-rate-delta",
+        type=float,
+        default=0.30,
+        help="Max acceptable increase of pairwise-threshold enable rate",
+    )
+    parser.add_argument(
         "--require-non-fail-latest-status",
         action=argparse.BooleanOptionalAction,
         default=True,
@@ -79,6 +86,7 @@ def main() -> None:
     current_reject_rate = float(trend.get("current_reject_rate", 0.0) or 0.0)
     delta_fail_rate = float(trend.get("delta_fail_rate", 0.0) or 0.0)
     delta_reject_rate = float(trend.get("delta_reject_rate", 0.0) or 0.0)
+    delta_pairwise_threshold_enable_rate = float(trend.get("delta_pairwise_threshold_enable_rate", 0.0) or 0.0)
     reasons: list[str] = []
 
     if args.require_non_fail_latest_status and latest_status == "FAIL":
@@ -91,6 +99,11 @@ def main() -> None:
         reasons.append(f"fail_rate_delta_high:{delta_fail_rate:.4f}>{args.max_fail_rate_delta:.4f}")
     if delta_reject_rate > args.max_reject_rate_delta:
         reasons.append(f"reject_rate_delta_high:{delta_reject_rate:.4f}>{args.max_reject_rate_delta:.4f}")
+    if delta_pairwise_threshold_enable_rate > args.max_pairwise_threshold_enable_rate_delta:
+        reasons.append(
+            "pairwise_threshold_enable_rate_delta_high:"
+            f"{delta_pairwise_threshold_enable_rate:.4f}>{args.max_pairwise_threshold_enable_rate_delta:.4f}"
+        )
 
     rollback_recommended = bool(reasons)
     decision = "ROLLBACK_RECOMMENDED" if rollback_recommended else "KEEP"
@@ -106,12 +119,14 @@ def main() -> None:
             "current_reject_rate": current_reject_rate,
             "delta_fail_rate": delta_fail_rate,
             "delta_reject_rate": delta_reject_rate,
+            "delta_pairwise_threshold_enable_rate": delta_pairwise_threshold_enable_rate,
         },
         "thresholds": {
             "max_fail_rate": args.max_fail_rate,
             "max_reject_rate": args.max_reject_rate,
             "max_fail_rate_delta": args.max_fail_rate_delta,
             "max_reject_rate_delta": args.max_reject_rate_delta,
+            "max_pairwise_threshold_enable_rate_delta": args.max_pairwise_threshold_enable_rate_delta,
             "require_non_fail_latest_status": args.require_non_fail_latest_status,
         },
         "advice": {
