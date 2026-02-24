@@ -49,6 +49,7 @@ def _advise(
     reasons: list[str] = []
     threshold_patch = {
         "require_min_top_score_margin": None,
+        "require_min_pairwise_net_margin": None,
         "require_min_explanation_quality": None,
     }
     evidence_sources: list[dict] = []
@@ -87,6 +88,17 @@ def _advise(
                 85,
             )
             evidence_sources.append({"source": "compare.explanation_completeness", "value": completeness})
+        leaderboard = compare_summary.get("decision_explanation_leaderboard")
+        pairwise_net_margin = None
+        if isinstance(leaderboard, list) and leaderboard and isinstance(leaderboard[0], dict):
+            pairwise_net_margin = leaderboard[0].get("pairwise_net_margin")
+        if isinstance(pairwise_net_margin, int) and pairwise_net_margin <= 1:
+            reasons.append("compare_pairwise_net_margin_low")
+            threshold_patch["require_min_pairwise_net_margin"] = max(
+                int(threshold_patch["require_min_pairwise_net_margin"] or 0),
+                2,
+            )
+            evidence_sources.append({"source": "compare.decision_explanation_leaderboard[0].pairwise_net_margin", "value": pairwise_net_margin})
 
     if isinstance(apply_summary, dict) and apply_summary:
         apply_status = str(apply_summary.get("final_status") or "").upper()
@@ -155,6 +167,7 @@ def _write_markdown(path: str, summary: dict) -> None:
         f"- confidence: `{advice.get('confidence')}`",
         f"- dry_run: `{advice.get('dry_run')}`",
         f"- require_min_top_score_margin_patch: `{patch.get('require_min_top_score_margin')}`",
+        f"- require_min_pairwise_net_margin_patch: `{patch.get('require_min_pairwise_net_margin')}`",
         f"- require_min_explanation_quality_patch: `{patch.get('require_min_explanation_quality')}`",
         "",
         "## Reasons",
