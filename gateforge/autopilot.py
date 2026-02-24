@@ -8,6 +8,14 @@ from pathlib import Path
 
 from .change_plan import materialize_change_set_from_plan
 from .policy import DEFAULT_POLICY_PATH, dry_run_human_checks, load_policy, resolve_policy_path
+from .runtime_ledger import (
+    append_runtime_ledger,
+    build_runtime_record,
+    load_runtime_ledger,
+    summarize_runtime_ledger,
+    write_json as write_runtime_json,
+    write_markdown as write_runtime_markdown,
+)
 
 
 def _write_json(path: str, payload: dict) -> None:
@@ -45,6 +53,9 @@ def _write_markdown(path: str, summary: dict) -> None:
         f"- change_apply_status: `{summary.get('change_apply_status')}`",
         f"- applied_changes_count: `{summary.get('applied_changes_count')}`",
         f"- change_set_hash: `{summary.get('change_set_hash')}`",
+        f"- decision_ledger_path: `{summary.get('decision_ledger_path')}`",
+        f"- decision_ledger_append_status: `{summary.get('decision_ledger_append_status')}`",
+        f"- decision_ledger_summary_path: `{summary.get('decision_ledger_summary_path')}`",
         f"- change_plan_confidence_min: `{summary.get('change_plan_confidence_min')}`",
         f"- change_plan_confidence_avg: `{summary.get('change_plan_confidence_avg')}`",
         f"- change_plan_confidence_max: `{summary.get('change_plan_confidence_max')}`",
@@ -279,6 +290,16 @@ def main() -> None:
         action="store_true",
         help="Plan only: run planner and write execution plan without executing agent_run",
     )
+    parser.add_argument(
+        "--decision-ledger",
+        default=None,
+        help="Optional runtime ledger JSONL path; append this autopilot summary",
+    )
+    parser.add_argument(
+        "--decision-ledger-summary-out",
+        default=None,
+        help="Optional runtime ledger summary JSON output path",
+    )
     args = parser.parse_args()
 
     run_root = Path("artifacts") / args.save_run_under
@@ -487,6 +508,9 @@ def main() -> None:
             "promote_apply_require_ranking_explanation": bool(args.promote_apply_require_ranking_explanation),
             "promote_apply_required_min_top_score_margin": args.promote_apply_required_min_top_score_margin,
         },
+        "decision_ledger_path": args.decision_ledger,
+        "decision_ledger_append_status": "not_requested",
+        "decision_ledger_summary_path": args.decision_ledger_summary_out,
     }
     if planner_proc.returncode != 0:
         summary["planner_stderr_tail"] = (planner_proc.stderr or planner_proc.stdout)[-500:]
@@ -539,6 +563,26 @@ def main() -> None:
 
     _write_json(args.out, summary)
     _write_markdown(args.report or _default_md_path(args.out), summary)
+
+    if args.decision_ledger:
+        try:
+            append_runtime_ledger(args.decision_ledger, build_runtime_record(summary, source="autopilot"))
+            summary["decision_ledger_append_status"] = "appended"
+            if args.decision_ledger_summary_out:
+                ledger_rows = load_runtime_ledger(args.decision_ledger)
+                ledger_summary = summarize_runtime_ledger(ledger_rows)
+                write_runtime_json(args.decision_ledger_summary_out, ledger_summary)
+                write_runtime_markdown(_default_md_path(args.decision_ledger_summary_out), ledger_summary)
+        except Exception as exc:  # pragma: no cover
+            summary["decision_ledger_append_status"] = "failed"
+            human_hints = summary.get("human_hints")
+            if not isinstance(human_hints, list):
+                human_hints = []
+            human_hints.append(f"Decision ledger append failed: {exc}")
+            summary["human_hints"] = human_hints
+        _write_json(args.out, summary)
+        _write_markdown(args.report or _default_md_path(args.out), summary)
+
     print(
         json.dumps(
             {

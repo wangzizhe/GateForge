@@ -127,6 +127,50 @@ class RunTests(unittest.TestCase):
             regression_payload = json.loads(regression.read_text(encoding="utf-8"))
             self.assertEqual(regression_payload["proposal_id"], "proposal-run-1")
 
+    def test_run_proposal_appends_decision_ledger(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            proposal = root / "proposal.json"
+            baseline = root / "baseline.json"
+            out = root / "run_summary.json"
+            ledger = root / "decision_ledger.jsonl"
+            ledger_summary = root / "decision_ledger_summary.json"
+
+            self._write_proposal(proposal, ["check", "simulate", "regress"])
+            self._write_baseline(baseline)
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.run",
+                    "--proposal",
+                    str(proposal),
+                    "--baseline",
+                    str(baseline),
+                    "--decision-ledger",
+                    str(ledger),
+                    "--decision-ledger-summary-out",
+                    str(ledger_summary),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            summary = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(summary.get("decision_ledger_append_status"), "appended")
+            self.assertEqual(summary.get("decision_ledger_path"), str(ledger))
+            self.assertTrue(ledger.exists())
+            self.assertTrue(ledger_summary.exists())
+            lines = [x for x in ledger.read_text(encoding="utf-8").splitlines() if x.strip()]
+            self.assertEqual(len(lines), 1)
+            record = json.loads(lines[0])
+            self.assertEqual(record.get("source"), "run")
+            self.assertEqual(record.get("proposal_id"), "proposal-run-1")
+
     def test_run_proposal_regress_fails_on_baseline_mismatch(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
