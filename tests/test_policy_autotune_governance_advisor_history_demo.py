@@ -20,6 +20,7 @@ class PolicyAutotuneGovernanceAdvisorHistoryDemoTests(unittest.TestCase):
         )
         self.assertEqual(payload.get("bundle_status"), "PASS")
         self.assertIn(payload.get("latest_action"), {"KEEP", "TIGHTEN", "ROLLBACK_REVIEW"})
+        self.assertIsInstance(payload.get("leaderboard_instability_rate"), float)
 
 
 if __name__ == "__main__":

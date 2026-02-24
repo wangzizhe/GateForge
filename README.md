@@ -263,6 +263,7 @@ Output:
 - `artifacts/policy_autotune_governance_advisor_history_demo/summary.json`
 - `artifacts/policy_autotune_governance_advisor_history_demo/trend.json`
 - `artifacts/policy_autotune_governance_advisor_history_demo/demo_summary.json`
+  - includes advisor patch adoption rates (`pairwise_patch_rate`, `leaderboard_instability_rate`)
 
 Governance snapshot (with advisor history signal):
 
