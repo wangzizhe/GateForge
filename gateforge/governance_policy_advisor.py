@@ -108,6 +108,7 @@ def _advise(
         "require_min_explanation_quality": None,
     }
     evidence_sources: list[dict] = []
+    ranking_driver_signal: dict | None = None
 
     if risk_score >= 60 or "replay_risk_level_high" in risks:
         suggested_profile = "industrial_strict"
@@ -154,6 +155,52 @@ def _advise(
                 2,
             )
             evidence_sources.append({"source": "compare.decision_explanation_leaderboard[0].pairwise_net_margin", "value": pairwise_net_margin})
+        ranking_details = compare_summary.get("decision_explanation_ranking_details")
+        if isinstance(ranking_details, dict):
+            top_driver = ranking_details.get("top_driver")
+            drivers = ranking_details.get("drivers")
+            top_share = None
+            top_value = None
+            if isinstance(drivers, list) and drivers and isinstance(drivers[0], dict):
+                top_share = drivers[0].get("impact_share_pct")
+                top_value = drivers[0].get("value")
+            ranking_driver_signal = {
+                "top_driver": top_driver,
+                "top_driver_impact_share_pct": top_share,
+                "top_driver_value": top_value,
+            }
+            evidence_sources.append(
+                {
+                    "source": "compare.decision_explanation_ranking_details.top_driver",
+                    "value": top_driver,
+                }
+            )
+            evidence_sources.append(
+                {
+                    "source": "compare.decision_explanation_ranking_details.top_driver_impact_share_pct",
+                    "value": top_share,
+                }
+            )
+            if top_driver == "component_delta:recommended_component" and isinstance(top_share, (int, float)) and top_share >= 50:
+                reasons.append("compare_recommended_component_dominant")
+                threshold_patch["require_min_top_score_margin"] = max(
+                    int(threshold_patch["require_min_top_score_margin"] or 0),
+                    2,
+                )
+                threshold_patch["require_min_pairwise_net_margin"] = max(
+                    int(threshold_patch["require_min_pairwise_net_margin"] or 0),
+                    2,
+                )
+                suggested_profile = "industrial_strict"
+                confidence = max(confidence, 0.74)
+            if top_driver == "explanation_quality_score" and isinstance(top_value, int) and top_value < 90:
+                reasons.append("compare_explanation_quality_driver_low")
+                threshold_patch["require_min_explanation_quality"] = max(
+                    int(threshold_patch["require_min_explanation_quality"] or 0),
+                    90,
+                )
+        else:
+            ranking_driver_signal = None
 
     if isinstance(apply_summary, dict) and apply_summary:
         apply_status = str(apply_summary.get("final_status") or "").upper()
@@ -212,6 +259,7 @@ def _advise(
         "reasons": reasons,
         "threshold_patch": threshold_patch,
         "evidence_sources": evidence_sources,
+        "ranking_driver_signal": ranking_driver_signal,
         "why_now": why_now,
         "recommendation_scorecard": scorecard,
         "dry_run": True,
@@ -254,6 +302,14 @@ def _write_markdown(path: str, summary: dict) -> None:
     why_now = advice.get("why_now", {})
     lines.append(f"- urgency: `{why_now.get('urgency')}`")
     lines.append(f"- summary: `{why_now.get('summary')}`")
+    lines.extend(["", "## Ranking Driver Signal", ""])
+    driver_signal = advice.get("ranking_driver_signal")
+    if isinstance(driver_signal, dict) and driver_signal:
+        lines.append(f"- top_driver: `{driver_signal.get('top_driver')}`")
+        lines.append(f"- top_driver_impact_share_pct: `{driver_signal.get('top_driver_impact_share_pct')}`")
+        lines.append(f"- top_driver_value: `{driver_signal.get('top_driver_value')}`")
+    else:
+        lines.append("- `none`")
     lines.extend(["", "## Recommendation Scorecard", ""])
     scorecard = advice.get("recommendation_scorecard", {})
     lines.append(f"- impact: `{scorecard.get('impact')}`")
