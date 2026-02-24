@@ -410,6 +410,55 @@ def _build_decision_explanation_ranked(
     return ranked
 
 
+def _build_decision_explanation_ranking_details(decision_explanation_ranked: list[dict]) -> dict:
+    if not isinstance(decision_explanation_ranked, list) or not decision_explanation_ranked:
+        return {
+            "top_driver": None,
+            "numeric_reason_count": 0,
+            "drivers": [],
+        }
+    drivers: list[dict] = []
+    numeric_reason_count = 0
+    total_impact = 0
+    for row in decision_explanation_ranked:
+        if not isinstance(row, dict):
+            continue
+        reason = row.get("reason")
+        weight = row.get("weight")
+        value = row.get("value")
+        if not isinstance(reason, str) or not isinstance(weight, int):
+            continue
+        if isinstance(value, int):
+            impact_score = abs(value) * max(weight, 0)
+            numeric_reason_count += 1
+        else:
+            # Keep non-numeric reasons in the ranking as a lower-confidence qualitative driver.
+            impact_score = max(weight, 0)
+        total_impact += impact_score
+        drivers.append(
+            {
+                "reason": reason,
+                "weight": weight,
+                "value": value,
+                "impact_score": impact_score,
+            }
+        )
+    drivers.sort(
+        key=lambda item: (int(item.get("impact_score", 0)), int(item.get("weight", 0))),
+        reverse=True,
+    )
+    for idx, row in enumerate(drivers, start=1):
+        impact = int(row.get("impact_score", 0))
+        share_pct = round((impact / total_impact) * 100, 2) if total_impact > 0 else 0.0
+        row["rank"] = idx
+        row["impact_share_pct"] = share_pct
+    return {
+        "top_driver": drivers[0].get("reason") if drivers else None,
+        "numeric_reason_count": numeric_reason_count,
+        "drivers": drivers,
+    }
+
+
 def _compute_explanation_completeness(
     decision_explanations: dict,
     decision_ranking: list[dict],
@@ -613,6 +662,15 @@ def _write_markdown(path: str, summary: dict) -> None:
         lines.append(
             f"- reason=`{row.get('reason')}` value=`{row.get('value')}` weight=`{row.get('weight')}` note=`{row.get('note')}`"
         )
+    ranking_details = summary.get("decision_explanation_ranking_details", {})
+    lines.extend(["", "## Decision Explanation Ranking Details", ""])
+    lines.append(f"- top_driver: `{ranking_details.get('top_driver')}`")
+    lines.append(f"- numeric_reason_count: `{ranking_details.get('numeric_reason_count')}`")
+    for row in ranking_details.get("drivers", []):
+        lines.append(
+            f"- rank={row.get('rank')} reason=`{row.get('reason')}` impact_score=`{row.get('impact_score')}` "
+            f"impact_share_pct=`{row.get('impact_share_pct')}` weight=`{row.get('weight')}` value=`{row.get('value')}`"
+        )
     lines.append(f"- explanation_completeness: `{summary.get('explanation_completeness')}`")
     lines.extend(["", "## Decision Explanation Leaderboard", ""])
     for row in summary.get("decision_explanation_leaderboard", []):
@@ -794,6 +852,7 @@ def main() -> None:
         best_reason,
         explanation_quality,
     )
+    decision_explanation_ranking_details = _build_decision_explanation_ranking_details(decision_explanation_ranked)
     explanation_completeness = _compute_explanation_completeness(
         decision_explanations,
         decision_ranking,
@@ -854,6 +913,7 @@ def main() -> None:
         "explanation_quality": explanation_quality,
         "decision_explanation_score": explanation_quality.get("score"),
         "decision_explanation_ranked": decision_explanation_ranked,
+        "decision_explanation_ranking_details": decision_explanation_ranking_details,
         "decision_explanation_leaderboard": decision_explanation_leaderboard,
         "explanation_completeness": explanation_completeness,
         "decision_ranking": decision_ranking,
