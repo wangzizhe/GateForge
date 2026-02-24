@@ -96,7 +96,7 @@ on:
         default: false
         type: boolean
       run_governance_history_demo:
-        description: "Run governance-history-demo-optional and policy-autotune-optional"
+        description: "Run governance-history-demo-optional, policy-autotune-optional, and runtime-governance-history-optional"
         required: false
         default: false
         type: boolean
@@ -318,6 +318,38 @@ jobs:
           name: policy-autotune-governance-advisor-history-v1
           path: |
             artifacts/policy_autotune_governance_advisor_history_demo
+
+  runtime-governance-history-optional:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_governance_history_demo }}
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Run runtime governance history demo chain
+        run: |
+          bash scripts/demo_governance_runtime_history.sh
+
+      - name: Upload runtime governance history artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: runtime-governance-history-v1
+          path: |
+            artifacts/runtime_decision_ledger_demo
+            artifacts/runtime_decision_ledger_history_demo
+            artifacts/governance_runtime_history_demo
 
       - name: Upload policy autotune full chain artifact
         if: always()
