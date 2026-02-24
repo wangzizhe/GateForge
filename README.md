@@ -95,6 +95,12 @@ Runtime ledger trend demo:
 bash scripts/demo_runtime_decision_ledger_trend.sh
 ```
 
+Runtime ledger history + history trend demo:
+
+```bash
+bash scripts/demo_runtime_decision_ledger_history.sh
+```
+
 ### Promote-Compare Output Validate
 
 ```bash
