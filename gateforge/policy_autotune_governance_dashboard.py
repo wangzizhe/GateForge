@@ -40,6 +40,7 @@ def _write_markdown(path: str, payload: dict) -> None:
         f"- trend_alerts_count: `{payload.get('trend_alerts_count')}`",
         f"- tuned_top_score_margin: `{payload.get('tuned_top_score_margin')}`",
         f"- tuned_explanation_completeness: `{payload.get('tuned_explanation_completeness')}`",
+        f"- tuned_pairwise_net_margin: `{payload.get('tuned_pairwise_net_margin')}`",
         "",
         "## Result Flags",
         "",
@@ -70,6 +71,10 @@ def main() -> None:
     trend = _load_json(args.trend)
     baseline_compare = _load_json(str((flow.get("baseline") or {}).get("compare_path") or ""))
     tuned_compare = _load_json(str((flow.get("tuned") or {}).get("compare_path") or ""))
+    tuned_leaderboard = tuned_compare.get("decision_explanation_leaderboard")
+    tuned_pairwise_net_margin = None
+    if isinstance(tuned_leaderboard, list) and tuned_leaderboard and isinstance(tuned_leaderboard[0], dict):
+        tuned_pairwise_net_margin = tuned_leaderboard[0].get("pairwise_net_margin")
 
     trend_payload = trend.get("trend") if isinstance(trend.get("trend"), dict) else {}
 
@@ -98,6 +103,7 @@ def main() -> None:
         "baseline_explanation_completeness": baseline_compare.get("explanation_completeness"),
         "tuned_top_score_margin": tuned_compare.get("top_score_margin"),
         "tuned_explanation_completeness": tuned_compare.get("explanation_completeness"),
+        "tuned_pairwise_net_margin": tuned_pairwise_net_margin,
         "paths": {
             "flow_summary": args.flow_summary,
             "effectiveness": args.effectiveness,
@@ -111,6 +117,9 @@ def main() -> None:
         if isinstance(payload.get("tuned_top_score_margin"), int)
         and isinstance(payload.get("tuned_explanation_completeness"), int)
         else "FAIL"
+    )
+    payload["result_flags"]["tuned_pairwise_signal_present"] = (
+        "PASS" if isinstance(payload.get("tuned_pairwise_net_margin"), int) else "FAIL"
     )
     payload["bundle_status"] = "PASS" if all(v == "PASS" for v in payload["result_flags"].values()) else "FAIL"
     _write_json(args.out, payload)

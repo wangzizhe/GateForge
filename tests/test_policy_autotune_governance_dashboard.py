@@ -18,7 +18,16 @@ class PolicyAutotuneGovernanceDashboardTests(unittest.TestCase):
             tuned_compare = root / "tuned_compare.json"
             out = root / "dashboard.json"
             baseline_compare.write_text(json.dumps({"top_score_margin": 2, "explanation_completeness": 90}), encoding="utf-8")
-            tuned_compare.write_text(json.dumps({"top_score_margin": 3, "explanation_completeness": 95}), encoding="utf-8")
+            tuned_compare.write_text(
+                json.dumps(
+                    {
+                        "top_score_margin": 3,
+                        "explanation_completeness": 95,
+                        "decision_explanation_leaderboard": [{"pairwise_net_margin": 4}],
+                    }
+                ),
+                encoding="utf-8",
+            )
             flow.write_text(
                 json.dumps(
                     {
@@ -61,6 +70,7 @@ class PolicyAutotuneGovernanceDashboardTests(unittest.TestCase):
             self.assertEqual(payload.get("latest_effectiveness_decision"), "UNCHANGED")
             self.assertEqual(payload.get("tuned_top_score_margin"), 3)
             self.assertEqual(payload.get("tuned_explanation_completeness"), 95)
+            self.assertEqual(payload.get("tuned_pairwise_net_margin"), 4)
 
 
 if __name__ == "__main__":
