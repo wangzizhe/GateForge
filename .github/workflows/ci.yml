@@ -285,10 +285,7 @@ jobs:
 
       - name: Run policy autotune governance chain
         run: |
-          bash scripts/demo_policy_autotune_governance.sh
-          bash scripts/demo_policy_autotune_governance_dashboard.sh
-          bash scripts/demo_policy_autotune_governance_advisor.sh
-          bash scripts/demo_policy_autotune_governance_advisor_history.sh
+          bash scripts/demo_policy_autotune_full_chain.sh
 
       - name: Upload policy autotune governance artifact
         if: always()
@@ -321,6 +318,14 @@ jobs:
           name: policy-autotune-governance-advisor-history-v1
           path: |
             artifacts/policy_autotune_governance_advisor_history_demo
+
+      - name: Upload policy autotune full chain artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: policy-autotune-full-chain-v1
+          path: |
+            artifacts/policy_autotune_full_chain_demo
 
   mutation-pack-optional:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_benchmark }}

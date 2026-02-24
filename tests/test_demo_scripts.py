@@ -786,6 +786,19 @@ class DemoScriptTests(unittest.TestCase):
         self.assertEqual(payload.get("medium_decision"), "NEEDS_REVIEW")
         self.assertEqual(payload.get("high_decision"), "FAIL")
 
+    def test_demo_policy_autotune_full_chain_script(self) -> None:
+        proc = subprocess.run(
+            ["bash", "scripts/demo_policy_autotune_full_chain.sh"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+        payload = json.loads(Path("artifacts/policy_autotune_full_chain_demo/summary.json").read_text(encoding="utf-8"))
+        self.assertEqual(payload.get("bundle_status"), "PASS")
+        self.assertIn(payload.get("advisor_action"), {"KEEP", "TIGHTEN", "ROLLBACK_REVIEW"})
+        self.assertIn(payload.get("snapshot_status"), {"PASS", "NEEDS_REVIEW", "FAIL"})
+
     def test_demo_governance_history_script(self) -> None:
         proc = subprocess.run(
             ["bash", "scripts/demo_governance_history.sh"],
