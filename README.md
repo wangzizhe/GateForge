@@ -226,6 +226,7 @@ Output:
 - `artifacts/policy_autotune_governance_demo/flow_summary.json`
 - `artifacts/policy_autotune_governance_demo/effectiveness.json`
 - `artifacts/policy_autotune_governance_demo/summary.json`
+  - includes compare quality deltas (`delta_top_score_margin`, `delta_explanation_completeness`, `delta_pairwise_net_margin`)
 
 Policy auto-tuning governance history dashboard:
 
