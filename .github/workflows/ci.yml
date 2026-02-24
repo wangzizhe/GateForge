@@ -284,6 +284,7 @@ jobs:
           MUTATION_COUNT=24 bash scripts/demo_mutation_pack_v1.sh
           bash scripts/demo_mutation_pack_compare.sh
           bash scripts/demo_mutation_dashboard.sh
+          bash scripts/demo_mutation_policy_patch.sh
 
       - name: Upload mutation pack artifacts
         if: always()
@@ -293,6 +294,9 @@ jobs:
           path: |
             artifacts/mutation_pack_v0
             artifacts/mutation_pack_v1
+            artifacts/mutation_pack_compare_demo
+            artifacts/mutation_dashboard_demo
+            artifacts/mutation_policy_patch_demo
             examples/mutants/v0
             examples/mutants/v1
 
