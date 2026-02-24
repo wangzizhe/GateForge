@@ -276,20 +276,23 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e .
 
-      - name: Run mutation pack v0 demo
+      - name: Run mutation pack demos (v0 + v1)
         env:
           MUTATION_BACKEND: mock
-          MUTATION_COUNT: "12"
-        run: bash scripts/demo_mutation_pack_v0.sh
+        run: |
+          MUTATION_COUNT=12 bash scripts/demo_mutation_pack_v0.sh
+          MUTATION_COUNT=24 bash scripts/demo_mutation_pack_v1.sh
 
-      - name: Upload mutation pack artifact
+      - name: Upload mutation pack artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: mutation-pack-v0
+          name: mutation-pack
           path: |
             artifacts/mutation_pack_v0
+            artifacts/mutation_pack_v1
             examples/mutants/v0
+            examples/mutants/v1
 
   mvp-freeze-optional:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_benchmark }}

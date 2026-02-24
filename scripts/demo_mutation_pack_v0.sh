@@ -28,6 +28,12 @@ python3 -m gateforge.benchmark \
 BENCH_RC=$?
 set -e
 
+python3 -m gateforge.mutation_metrics \
+  --manifest "$OUT_ROOT/manifest.json" \
+  --summary "$OUT_ROOT/summary.json" \
+  --out "$OUT_ROOT/metrics.json" \
+  --report-out "$OUT_ROOT/metrics.md"
+
 python3 - <<'PY'
 import json
 from pathlib import Path
@@ -35,7 +41,7 @@ from pathlib import Path
 root = Path("artifacts/mutation_pack_v0")
 manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
 summary = json.loads((root / "summary.json").read_text(encoding="utf-8"))
-
+metrics = json.loads((root / "metrics.json").read_text(encoding="utf-8"))
 mutation_counts = {}
 for row in manifest.get("cases", []):
     k = str(row.get("mutation_type") or "unknown")
@@ -58,6 +64,7 @@ demo = {
     "pass_count": summary.get("pass_count"),
     "fail_count": summary.get("fail_count"),
     "mutation_type_counts": mutation_counts,
+    "metrics_path": "artifacts/mutation_pack_v0/metrics.json",
     "result_flags": flags,
     "bundle_status": bundle_status,
 }
@@ -72,6 +79,7 @@ demo = {
             f"- total_cases: `{demo['total_cases']}`",
             f"- pass_count: `{demo['pass_count']}`",
             f"- fail_count: `{demo['fail_count']}`",
+            f"- metrics_path: `{demo['metrics_path']}`",
             f"- bundle_status: `{demo['bundle_status']}`",
             "",
             "## Mutation Type Counts",
