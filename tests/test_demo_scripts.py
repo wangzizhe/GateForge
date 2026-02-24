@@ -167,6 +167,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertIn("governance_policy_patch_apply_demo", payload.get("selected", {}))
         self.assertIn("governance_policy_patch_history_demo", payload.get("selected", {}))
         self.assertIn("governance_policy_patch_dashboard_demo", payload.get("selected", {}))
+        self.assertIn("policy_autotune_governance_advisor_history_demo", payload.get("selected", {}))
         self.assertIn("agent_invariant_guard_demo", payload.get("selected", {}))
         self.assertIn("invariant_repair_loop_demo", payload.get("selected", {}))
         self.assertIn("invariant_repair_profile_compare_demo", payload.get("selected", {}))
