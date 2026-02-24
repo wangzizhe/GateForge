@@ -798,6 +798,21 @@ class DemoScriptTests(unittest.TestCase):
         )
         self.assertEqual(payload.get("bundle_status"), "PASS")
 
+    def test_demo_governance_promote_compare_validate_script(self) -> None:
+        proc = subprocess.run(
+            ["bash", "scripts/demo_governance_promote_compare_validate.sh"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+        payload = json.loads(
+            Path("artifacts/governance_promote_compare_validate_demo/summary.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(payload.get("bundle_status"), "PASS")
+        self.assertEqual(payload.get("good_status"), "PASS")
+        self.assertEqual(payload.get("bad_status"), "FAIL")
+
     def test_demo_governance_policy_patch_apply_script(self) -> None:
         proc = subprocess.run(
             ["bash", "scripts/demo_governance_policy_patch_apply.sh"],
