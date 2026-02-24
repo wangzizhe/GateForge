@@ -1049,6 +1049,10 @@ class DemoScriptTests(unittest.TestCase):
         self.assertIsInstance(payload.get("tuned_top_score_margin"), int)
         self.assertIsInstance(payload.get("tuned_explanation_completeness"), int)
         self.assertIsInstance(payload.get("tuned_pairwise_net_margin"), int)
+        self.assertIsInstance(payload.get("tuned_leader_profile"), str)
+        self.assertIsInstance(payload.get("tuned_leader_pairwise_win_count"), int)
+        self.assertIsInstance(payload.get("tuned_leader_pairwise_loss_count"), int)
+        self.assertIsInstance(payload.get("tuned_runner_up_score_gap_to_best"), int)
 
 
 if __name__ == "__main__":
