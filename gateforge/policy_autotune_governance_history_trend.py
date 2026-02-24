@@ -38,6 +38,7 @@ def _write_markdown(path: str, payload: dict) -> None:
         f"- status: `{payload.get('status')}`",
         f"- delta_improvement_rate: `{trend.get('delta_improvement_rate')}`",
         f"- delta_regression_rate: `{trend.get('delta_regression_rate')}`",
+        f"- delta_quality_regressed_rate: `{trend.get('delta_quality_regressed_rate')}`",
         "",
         "## Alerts",
         "",
@@ -65,12 +66,18 @@ def main() -> None:
 
     d_improvement = round(_to_float(current.get("improvement_rate")) - _to_float(previous.get("improvement_rate")), 4)
     d_regression = round(_to_float(current.get("regression_rate")) - _to_float(previous.get("regression_rate")), 4)
+    d_quality_regressed = round(
+        _to_float(current.get("quality_regressed_rate")) - _to_float(previous.get("quality_regressed_rate")),
+        4,
+    )
 
     alerts: list[str] = []
     if d_improvement < 0:
         alerts.append("improvement_rate_decreasing")
     if d_regression > 0:
         alerts.append("regression_rate_increasing")
+    if d_quality_regressed > 0:
+        alerts.append("quality_regressed_rate_increasing")
 
     status = "PASS" if not alerts else "NEEDS_REVIEW"
     payload = {
@@ -78,6 +85,7 @@ def main() -> None:
         "trend": {
             "delta_improvement_rate": d_improvement,
             "delta_regression_rate": d_regression,
+            "delta_quality_regressed_rate": d_quality_regressed,
             "alerts": alerts,
         },
     }
