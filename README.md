@@ -227,6 +227,18 @@ Output:
 - `artifacts/policy_autotune_governance_demo/effectiveness.json`
 - `artifacts/policy_autotune_governance_demo/summary.json`
 
+Policy auto-tuning governance history dashboard:
+
+```bash
+bash scripts/demo_policy_autotune_governance_dashboard.sh
+```
+
+Output:
+- `artifacts/policy_autotune_governance_history_demo/summary.json`
+- `artifacts/policy_autotune_governance_history_demo/trend.json`
+- `artifacts/policy_autotune_governance_history_demo/dashboard.json`
+- `artifacts/policy_autotune_governance_history_demo/demo_summary.json`
+
 ## MVP Freeze (Release Readiness)
 
 ```bash
@@ -263,6 +275,7 @@ Artifacts include:
 - `benchmark-v0`
 - `medium-governance-v1`
 - `policy-autotune-governance-v1`
+- `policy-autotune-governance-history-v1`
 - `mvp-freeze-v1`
 - `mutation-pack-v0`
 - `mutation-policy-patch-v1`
