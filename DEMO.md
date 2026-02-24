@@ -125,6 +125,13 @@ bash scripts/demo_ci_matrix.sh --none --checker-demo --autopilot-dry-run --gover
 cat artifacts/ci_matrix_summary.json
 ```
 
+Policy autotune full-chain only:
+
+```bash
+bash scripts/demo_ci_matrix.sh --none --policy-autotune-full-chain-demo
+cat artifacts/ci_matrix_summary.json
+```
+
 ## 7. MVP Freeze Check
 
 ```bash
