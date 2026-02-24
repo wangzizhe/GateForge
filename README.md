@@ -1,6 +1,6 @@
 # GateForge
 
-Governance layer for AI/Agent-authored Modelica simulation changes.
+GateForge determines whether AI- or simulation-driven changes can be safely deployed to production for Physical AI systems.
 
 GateForge turns a change into an engineering decision flow that is:
 - verifiable
@@ -14,6 +14,8 @@ GateForge is not a modeling copilot. It is a gate around model changes:
 
 `proposal -> run -> evidence -> regress -> policy -> review`
 
+Current scope: Modelica workflows as the first Physical AI pressure-test domain.
+
 Current first backend: `openmodelica_docker`.
 
 ## What It Is Not (Current Scope)
@@ -21,6 +23,7 @@ Current first backend: `openmodelica_docker`.
 - Not a full agent platform
 - Not a full UI/SaaS product
 - Not all simulation tools/backends yet
+- Not tied to a single simulator long-term (OpenModelica is the current backend)
 
 ## Quickstart (5 Minutes)
 
@@ -246,7 +249,7 @@ Artifacts include:
 
 - `gateforge/` core commands and logic
 - `benchmarks/` benchmark packs
-- `examples/` Modelica scripts, fixtures, proposals
+- `examples/` Physical AI simulation examples (currently Modelica), fixtures, proposals
 - `policies/` governance policy configs
 - `schemas/` JSON schemas
 - `scripts/` one-command demo and ops scripts
