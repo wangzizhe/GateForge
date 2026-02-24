@@ -132,6 +132,10 @@ Path("artifacts/governance_promote_apply_demo/synthetic_pass_compare.json").writ
 )
 PY
 
+python3 -m gateforge.governance_promote_compare_validate \
+  --in artifacts/governance_promote_apply_demo/synthetic_pass_compare.json \
+  --require-apply-ready
+
 cmd=(
   python3 -m gateforge.governance_promote_apply
   --compare-summary artifacts/governance_promote_apply_demo/synthetic_pass_compare.json
@@ -165,6 +169,10 @@ Path("artifacts/governance_promote_apply_demo/synthetic_needs_review_compare.jso
     encoding="utf-8",
 )
 PY
+
+python3 -m gateforge.governance_promote_compare_validate \
+  --in artifacts/governance_promote_apply_demo/synthetic_needs_review_compare.json \
+  --no-require-apply-ready
 
 set +e
 cmd=(

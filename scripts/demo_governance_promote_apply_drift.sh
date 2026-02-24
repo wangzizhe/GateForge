@@ -127,6 +127,10 @@ Path("artifacts/governance_promote_apply_drift_demo/synthetic_pass_compare.json"
 )
 PY
 
+python3 -m gateforge.governance_promote_compare_validate \
+  --in artifacts/governance_promote_apply_drift_demo/synthetic_pass_compare.json \
+  --require-apply-ready
+
 python3 -m gateforge.governance_promote_apply \
   --compare-summary artifacts/governance_promote_apply_drift_demo/synthetic_pass_compare.json \
   --policy-profile default \
