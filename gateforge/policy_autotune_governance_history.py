@@ -53,6 +53,7 @@ def _write_markdown(path: str, payload: dict) -> None:
         f"- latest_effectiveness_decision: `{payload.get('latest_effectiveness_decision')}`",
         f"- improvement_rate: `{payload.get('improvement_rate')}`",
         f"- regression_rate: `{payload.get('regression_rate')}`",
+        f"- quality_regressed_rate: `{payload.get('quality_regressed_rate')}`",
         "",
         "## Alerts",
         "",
@@ -90,6 +91,12 @@ def main() -> None:
     for path in args.record:
         payload = _load_json(path)
         decision = str(payload.get("effectiveness_decision") or "UNKNOWN")
+        delta_top_margin = payload.get("delta_top_score_margin")
+        delta_expl = payload.get("delta_explanation_completeness")
+        delta_pairwise = payload.get("delta_pairwise_net_margin")
+        is_quality_regressed = any(
+            isinstance(v, int) and v < 0 for v in (delta_top_margin, delta_expl, delta_pairwise)
+        )
         append_rows.append(
             {
                 "recorded_at_utc": now,
@@ -102,8 +109,12 @@ def main() -> None:
                 "effectiveness_decision": decision,
                 "delta_apply_score": payload.get("delta_apply_score"),
                 "delta_compare_score": payload.get("delta_compare_score"),
+                "delta_top_score_margin": delta_top_margin,
+                "delta_explanation_completeness": delta_expl,
+                "delta_pairwise_net_margin": delta_pairwise,
                 "is_improved": decision == "IMPROVED",
                 "is_regressed": decision == "REGRESSED",
+                "is_quality_regressed": is_quality_regressed,
             }
         )
 
@@ -116,10 +127,12 @@ def main() -> None:
 
     improved_count = sum(1 for r in rows if bool(r.get("is_improved")))
     regressed_count = sum(1 for r in rows if bool(r.get("is_regressed")))
+    quality_regressed_count = sum(1 for r in rows if bool(r.get("is_quality_regressed")))
     unchanged_count = total - improved_count - regressed_count
 
     improvement_rate = round(improved_count / max(1, total), 4)
     regression_rate = round(regressed_count / max(1, total), 4)
+    quality_regressed_rate = round(quality_regressed_count / max(1, total), 4)
 
     alerts: list[str] = []
     if bool(latest.get("is_regressed")):
@@ -128,6 +141,8 @@ def main() -> None:
         alerts.append("regression_rate_high")
     if improvement_rate <= 0.2 and total >= 3:
         alerts.append("improvement_rate_low")
+    if quality_regressed_rate >= 0.4 and total >= 3:
+        alerts.append("quality_regressed_rate_high")
 
     summary = {
         "generated_at_utc": now,
@@ -138,9 +153,11 @@ def main() -> None:
         "latest_advisor_profile": latest.get("advisor_profile"),
         "improved_count": improved_count,
         "regressed_count": regressed_count,
+        "quality_regressed_count": quality_regressed_count,
         "unchanged_count": unchanged_count,
         "improvement_rate": improvement_rate,
         "regression_rate": regression_rate,
+        "quality_regressed_rate": quality_regressed_rate,
         "alerts": alerts,
     }
     _write_json(args.out, summary)

@@ -15,11 +15,29 @@ class PolicyAutotuneGovernanceHistoryTests(unittest.TestCase):
             ledger = root / "history.jsonl"
             out = root / "summary.json"
             r1.write_text(
-                json.dumps({"advisor_profile": "default", "effectiveness_decision": "UNCHANGED", "delta_apply_score": 0}),
+                json.dumps(
+                    {
+                        "advisor_profile": "default",
+                        "effectiveness_decision": "UNCHANGED",
+                        "delta_apply_score": 0,
+                        "delta_top_score_margin": 0,
+                        "delta_explanation_completeness": 0,
+                        "delta_pairwise_net_margin": 0,
+                    }
+                ),
                 encoding="utf-8",
             )
             r2.write_text(
-                json.dumps({"advisor_profile": "industrial_strict", "effectiveness_decision": "REGRESSED", "delta_apply_score": -1}),
+                json.dumps(
+                    {
+                        "advisor_profile": "industrial_strict",
+                        "effectiveness_decision": "REGRESSED",
+                        "delta_apply_score": -1,
+                        "delta_top_score_margin": -2,
+                        "delta_explanation_completeness": -3,
+                        "delta_pairwise_net_margin": -1,
+                    }
+                ),
                 encoding="utf-8",
             )
             proc = subprocess.run(
@@ -45,6 +63,8 @@ class PolicyAutotuneGovernanceHistoryTests(unittest.TestCase):
             self.assertEqual(payload.get("total_records"), 2)
             self.assertEqual(payload.get("latest_effectiveness_decision"), "REGRESSED")
             self.assertIsInstance(payload.get("regression_rate"), float)
+            self.assertEqual(payload.get("quality_regressed_count"), 1)
+            self.assertAlmostEqual(float(payload.get("quality_regressed_rate")), 0.5)
 
 
 if __name__ == "__main__":

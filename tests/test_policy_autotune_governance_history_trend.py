@@ -13,8 +13,14 @@ class PolicyAutotuneGovernanceHistoryTrendTests(unittest.TestCase):
             current = root / "current.json"
             previous = root / "previous.json"
             out = root / "trend.json"
-            current.write_text(json.dumps({"improvement_rate": 0.2, "regression_rate": 0.4}), encoding="utf-8")
-            previous.write_text(json.dumps({"improvement_rate": 0.5, "regression_rate": 0.1}), encoding="utf-8")
+            current.write_text(
+                json.dumps({"improvement_rate": 0.2, "regression_rate": 0.4, "quality_regressed_rate": 0.5}),
+                encoding="utf-8",
+            )
+            previous.write_text(
+                json.dumps({"improvement_rate": 0.5, "regression_rate": 0.1, "quality_regressed_rate": 0.1}),
+                encoding="utf-8",
+            )
             proc = subprocess.run(
                 [
                     sys.executable,
@@ -36,6 +42,7 @@ class PolicyAutotuneGovernanceHistoryTrendTests(unittest.TestCase):
             self.assertEqual(payload.get("status"), "NEEDS_REVIEW")
             alerts = (payload.get("trend") or {}).get("alerts", [])
             self.assertIn("regression_rate_increasing", alerts)
+            self.assertIn("quality_regressed_rate_increasing", alerts)
 
 
 if __name__ == "__main__":

@@ -52,7 +52,7 @@ class PolicyAutotuneGovernanceDashboardTests(unittest.TestCase):
             )
             eff.write_text(json.dumps({"decision": "UNCHANGED", "delta_apply_score": 0, "delta_compare_score": 0}), encoding="utf-8")
             history.write_text(
-                json.dumps({"total_records": 2, "improvement_rate": 0.4, "regression_rate": 0.1}),
+                json.dumps({"total_records": 2, "improvement_rate": 0.4, "regression_rate": 0.1, "quality_regressed_rate": 0.2}),
                 encoding="utf-8",
             )
             trend.write_text(json.dumps({"status": "PASS", "trend": {"alerts": []}}), encoding="utf-8")
@@ -88,6 +88,7 @@ class PolicyAutotuneGovernanceDashboardTests(unittest.TestCase):
             self.assertEqual(payload.get("tuned_leader_pairwise_loss_count"), 0)
             self.assertEqual(payload.get("tuned_leader_total_score"), 7)
             self.assertEqual(payload.get("tuned_runner_up_score_gap_to_best"), 4)
+            self.assertEqual(payload.get("quality_regressed_rate"), 0.2)
 
 
 if __name__ == "__main__":
