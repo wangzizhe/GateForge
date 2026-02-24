@@ -46,6 +46,12 @@ def _status_from_signals(signals: dict) -> str:
         return "NEEDS_REVIEW"
     if signals.get("runtime_ledger_needs_review_rate_high"):
         return "NEEDS_REVIEW"
+    if signals.get("runtime_ledger_history_latest_fail_rate_high"):
+        return "NEEDS_REVIEW"
+    if signals.get("runtime_ledger_history_latest_needs_review_rate_high"):
+        return "NEEDS_REVIEW"
+    if signals.get("runtime_ledger_history_trend_needs_review"):
+        return "NEEDS_REVIEW"
     if signals.get("mutation_trend_needs_review"):
         return "NEEDS_REVIEW"
     if signals.get("invariant_repair_compare_status") == "FAIL":
@@ -214,6 +220,32 @@ def _extract_runtime_ledger(payload: dict) -> dict:
     }
 
 
+def _extract_runtime_ledger_history(payload: dict) -> dict:
+    if not isinstance(payload, dict):
+        return {}
+    return {
+        "total_records": int(payload.get("total_records", 0) or 0),
+        "latest_fail_rate": _to_float(payload.get("latest_fail_rate"), 0.0),
+        "latest_needs_review_rate": _to_float(payload.get("latest_needs_review_rate"), 0.0),
+        "avg_fail_rate": _to_float(payload.get("avg_fail_rate"), 0.0),
+        "avg_needs_review_rate": _to_float(payload.get("avg_needs_review_rate"), 0.0),
+        "alerts": payload.get("alerts") if isinstance(payload.get("alerts"), list) else [],
+    }
+
+
+def _extract_runtime_ledger_history_trend(payload: dict) -> dict:
+    if not isinstance(payload, dict):
+        return {}
+    trend = payload.get("trend", {}) if isinstance(payload.get("trend"), dict) else {}
+    return {
+        "status": str(payload.get("status") or "UNKNOWN"),
+        "delta_avg_pass_rate": _to_float(trend.get("delta_avg_pass_rate"), 0.0),
+        "delta_avg_fail_rate": _to_float(trend.get("delta_avg_fail_rate"), 0.0),
+        "delta_avg_needs_review_rate": _to_float(trend.get("delta_avg_needs_review_rate"), 0.0),
+        "alerts": trend.get("alerts") if isinstance(trend.get("alerts"), list) else [],
+    }
+
+
 def _compute_summary(
     repair: dict,
     review: dict,
@@ -222,12 +254,16 @@ def _compute_summary(
     mutation_dashboard: dict,
     policy_autotune_advisor_history: dict,
     runtime_ledger_summary: dict,
+    runtime_ledger_history_summary: dict,
+    runtime_ledger_history_trend: dict,
 ) -> dict:
     repair_compare = _extract_repair_compare(repair)
     invariant = _extract_invariant_compare(invariant_compare)
     mutation = _extract_mutation(mutation_dashboard)
     advisor_history = _extract_policy_autotune_advisor_history(policy_autotune_advisor_history)
     runtime_ledger = _extract_runtime_ledger(runtime_ledger_summary)
+    runtime_ledger_history = _extract_runtime_ledger_history(runtime_ledger_history_summary)
+    runtime_ledger_trend = _extract_runtime_ledger_history_trend(runtime_ledger_history_trend)
     kpis = review.get("kpis", {}) if isinstance(review, dict) else {}
 
     strict_non_pass_rate = float(kpis.get("strict_non_pass_rate", 0.0) or 0.0)
@@ -290,6 +326,11 @@ def _compute_summary(
         ),
         "runtime_ledger_fail_rate_high": runtime_ledger.get("fail_rate", 0.0) >= 0.3,
         "runtime_ledger_needs_review_rate_high": runtime_ledger.get("needs_review_rate", 0.0) >= 0.4,
+        "runtime_ledger_history_latest_fail_rate_high": runtime_ledger_history.get("latest_fail_rate", 0.0) >= 0.3,
+        "runtime_ledger_history_latest_needs_review_rate_high": (
+            runtime_ledger_history.get("latest_needs_review_rate", 0.0) >= 0.4
+        ),
+        "runtime_ledger_history_trend_needs_review": runtime_ledger_trend.get("status") == "NEEDS_REVIEW",
     }
 
     status = _status_from_signals(signals)
@@ -331,6 +372,12 @@ def _compute_summary(
         risks.append("runtime_ledger_fail_rate_high")
     if signals["runtime_ledger_needs_review_rate_high"]:
         risks.append("runtime_ledger_needs_review_rate_high")
+    if signals["runtime_ledger_history_latest_fail_rate_high"]:
+        risks.append("runtime_ledger_history_latest_fail_rate_high")
+    if signals["runtime_ledger_history_latest_needs_review_rate_high"]:
+        risks.append("runtime_ledger_history_latest_needs_review_rate_high")
+    if signals["runtime_ledger_history_trend_needs_review"]:
+        risks.append("runtime_ledger_history_trend_needs_review")
 
     return {
         "status": status,
@@ -364,6 +411,16 @@ def _compute_summary(
             "runtime_ledger_pass_rate": runtime_ledger.get("pass_rate"),
             "runtime_ledger_fail_rate": runtime_ledger.get("fail_rate"),
             "runtime_ledger_needs_review_rate": runtime_ledger.get("needs_review_rate"),
+            "runtime_ledger_history_total_records": runtime_ledger_history.get("total_records"),
+            "runtime_ledger_history_latest_fail_rate": runtime_ledger_history.get("latest_fail_rate"),
+            "runtime_ledger_history_latest_needs_review_rate": runtime_ledger_history.get("latest_needs_review_rate"),
+            "runtime_ledger_history_avg_fail_rate": runtime_ledger_history.get("avg_fail_rate"),
+            "runtime_ledger_history_avg_needs_review_rate": runtime_ledger_history.get("avg_needs_review_rate"),
+            "runtime_ledger_history_trend_status": runtime_ledger_trend.get("status"),
+            "runtime_ledger_history_trend_delta_avg_fail_rate": runtime_ledger_trend.get("delta_avg_fail_rate"),
+            "runtime_ledger_history_trend_delta_avg_needs_review_rate": runtime_ledger_trend.get(
+                "delta_avg_needs_review_rate"
+            ),
         },
         "policy_profiles": {
             "compare_from": compare_from,
@@ -381,6 +438,8 @@ def _compute_summary(
             "mutation_dashboard_summary_path": mutation_dashboard.get("_source_path"),
             "policy_autotune_advisor_history_summary_path": policy_autotune_advisor_history.get("_source_path"),
             "runtime_ledger_summary_path": runtime_ledger_summary.get("_source_path"),
+            "runtime_ledger_history_summary_path": runtime_ledger_history_summary.get("_source_path"),
+            "runtime_ledger_history_trend_path": runtime_ledger_history_trend.get("_source_path"),
         },
         "risks": risks,
     }
@@ -413,6 +472,14 @@ def _write_markdown(path: str, summary: dict) -> None:
         f"- runtime_ledger_pass_rate: `{kpis.get('runtime_ledger_pass_rate')}`",
         f"- runtime_ledger_fail_rate: `{kpis.get('runtime_ledger_fail_rate')}`",
         f"- runtime_ledger_needs_review_rate: `{kpis.get('runtime_ledger_needs_review_rate')}`",
+        f"- runtime_ledger_history_total_records: `{kpis.get('runtime_ledger_history_total_records')}`",
+        f"- runtime_ledger_history_latest_fail_rate: `{kpis.get('runtime_ledger_history_latest_fail_rate')}`",
+        f"- runtime_ledger_history_latest_needs_review_rate: `{kpis.get('runtime_ledger_history_latest_needs_review_rate')}`",
+        f"- runtime_ledger_history_avg_fail_rate: `{kpis.get('runtime_ledger_history_avg_fail_rate')}`",
+        f"- runtime_ledger_history_avg_needs_review_rate: `{kpis.get('runtime_ledger_history_avg_needs_review_rate')}`",
+        f"- runtime_ledger_history_trend_status: `{kpis.get('runtime_ledger_history_trend_status')}`",
+        f"- runtime_ledger_history_trend_delta_avg_fail_rate: `{kpis.get('runtime_ledger_history_trend_delta_avg_fail_rate')}`",
+        f"- runtime_ledger_history_trend_delta_avg_needs_review_rate: `{kpis.get('runtime_ledger_history_trend_delta_avg_needs_review_rate')}`",
         "",
         "## Risks",
         "",
@@ -488,6 +555,16 @@ def main() -> None:
         default=None,
         help="Path to runtime decision ledger summary JSON",
     )
+    parser.add_argument(
+        "--runtime-ledger-history-summary",
+        default=None,
+        help="Path to runtime decision ledger history summary JSON",
+    )
+    parser.add_argument(
+        "--runtime-ledger-history-trend",
+        default=None,
+        help="Path to runtime decision ledger history trend JSON",
+    )
     parser.add_argument("--previous-summary", default=None, help="Optional previous governance snapshot JSON")
     parser.add_argument("--out", default="artifacts/governance_snapshot/summary.json", help="Output JSON path")
     parser.add_argument("--report", default=None, help="Output markdown path")
@@ -500,6 +577,8 @@ def main() -> None:
     mutation_dashboard = _load_json(args.mutation_dashboard_summary)
     policy_autotune_advisor_history = _load_json(args.policy_autotune_advisor_history_summary)
     runtime_ledger_summary = _load_json(args.runtime_ledger_summary)
+    runtime_ledger_history_summary = _load_json(args.runtime_ledger_history_summary)
+    runtime_ledger_history_trend = _load_json(args.runtime_ledger_history_trend)
     if args.repair_batch_summary:
         repair["_source_path"] = args.repair_batch_summary
     if args.review_ledger_summary:
@@ -514,6 +593,10 @@ def main() -> None:
         policy_autotune_advisor_history["_source_path"] = args.policy_autotune_advisor_history_summary
     if args.runtime_ledger_summary:
         runtime_ledger_summary["_source_path"] = args.runtime_ledger_summary
+    if args.runtime_ledger_history_summary:
+        runtime_ledger_history_summary["_source_path"] = args.runtime_ledger_history_summary
+    if args.runtime_ledger_history_trend:
+        runtime_ledger_history_trend["_source_path"] = args.runtime_ledger_history_trend
 
     summary = _compute_summary(
         repair,
@@ -523,6 +606,8 @@ def main() -> None:
         mutation_dashboard,
         policy_autotune_advisor_history,
         runtime_ledger_summary,
+        runtime_ledger_history_summary,
+        runtime_ledger_history_trend,
     )
     if args.previous_summary:
         previous = _load_json(args.previous_summary)

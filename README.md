@@ -101,6 +101,12 @@ Runtime ledger history + history trend demo:
 bash scripts/demo_runtime_decision_ledger_history.sh
 ```
 
+Runtime history signal into governance snapshot:
+
+```bash
+bash scripts/demo_governance_runtime_history.sh
+```
+
 ### Promote-Compare Output Validate
 
 ```bash

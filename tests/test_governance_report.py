@@ -7,6 +7,90 @@ from pathlib import Path
 
 
 class GovernanceReportTests(unittest.TestCase):
+    def test_governance_report_flags_runtime_ledger_history_risks(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            repair = {"profile_compare": {"downgrade_count": 0, "strict_downgrade_rate": 0.0}}
+            review = {
+                "kpis": {
+                    "review_recovery_rate": 0.9,
+                    "strict_non_pass_rate": 0.1,
+                    "approval_rate": 0.8,
+                    "fail_rate": 0.1,
+                }
+            }
+            matrix = {"matrix_status": "PASS"}
+            runtime = {
+                "total_records": 30,
+                "kpis": {
+                    "pass_rate": 0.45,
+                    "fail_rate": 0.2,
+                    "needs_review_rate": 0.35,
+                },
+            }
+            runtime_history = {
+                "total_records": 5,
+                "latest_fail_rate": 0.35,
+                "latest_needs_review_rate": 0.45,
+                "avg_fail_rate": 0.28,
+                "avg_needs_review_rate": 0.3,
+                "alerts": ["latest_fail_rate_high"],
+            }
+            runtime_history_trend = {
+                "status": "NEEDS_REVIEW",
+                "trend": {
+                    "delta_avg_fail_rate": 0.11,
+                    "delta_avg_needs_review_rate": 0.09,
+                    "alerts": ["avg_fail_rate_increasing"],
+                },
+            }
+
+            rp = root / "repair.json"
+            lp = root / "ledger.json"
+            mp = root / "matrix.json"
+            rt = root / "runtime_ledger.json"
+            rh = root / "runtime_history.json"
+            rht = root / "runtime_history_trend.json"
+            out = root / "summary.json"
+            rp.write_text(json.dumps(repair), encoding="utf-8")
+            lp.write_text(json.dumps(review), encoding="utf-8")
+            mp.write_text(json.dumps(matrix), encoding="utf-8")
+            rt.write_text(json.dumps(runtime), encoding="utf-8")
+            rh.write_text(json.dumps(runtime_history), encoding="utf-8")
+            rht.write_text(json.dumps(runtime_history_trend), encoding="utf-8")
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.governance_report",
+                    "--repair-batch-summary",
+                    str(rp),
+                    "--review-ledger-summary",
+                    str(lp),
+                    "--ci-matrix-summary",
+                    str(mp),
+                    "--runtime-ledger-summary",
+                    str(rt),
+                    "--runtime-ledger-history-summary",
+                    str(rh),
+                    "--runtime-ledger-history-trend",
+                    str(rht),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            payload = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(payload.get("status"), "NEEDS_REVIEW")
+            self.assertIn("runtime_ledger_history_latest_fail_rate_high", payload.get("risks", []))
+            self.assertIn("runtime_ledger_history_latest_needs_review_rate_high", payload.get("risks", []))
+            self.assertIn("runtime_ledger_history_trend_needs_review", payload.get("risks", []))
+            self.assertEqual(payload.get("kpis", {}).get("runtime_ledger_history_trend_status"), "NEEDS_REVIEW")
+
     def test_governance_report_flags_runtime_ledger_risks(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
