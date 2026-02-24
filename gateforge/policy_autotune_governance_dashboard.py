@@ -41,6 +41,11 @@ def _write_markdown(path: str, payload: dict) -> None:
         f"- tuned_top_score_margin: `{payload.get('tuned_top_score_margin')}`",
         f"- tuned_explanation_completeness: `{payload.get('tuned_explanation_completeness')}`",
         f"- tuned_pairwise_net_margin: `{payload.get('tuned_pairwise_net_margin')}`",
+        f"- tuned_leader_profile: `{payload.get('tuned_leader_profile')}`",
+        f"- tuned_leader_pairwise_win_count: `{payload.get('tuned_leader_pairwise_win_count')}`",
+        f"- tuned_leader_pairwise_loss_count: `{payload.get('tuned_leader_pairwise_loss_count')}`",
+        f"- tuned_leader_total_score: `{payload.get('tuned_leader_total_score')}`",
+        f"- tuned_runner_up_score_gap_to_best: `{payload.get('tuned_runner_up_score_gap_to_best')}`",
         "",
         "## Result Flags",
         "",
@@ -73,8 +78,20 @@ def main() -> None:
     tuned_compare = _load_json(str((flow.get("tuned") or {}).get("compare_path") or ""))
     tuned_leaderboard = tuned_compare.get("decision_explanation_leaderboard")
     tuned_pairwise_net_margin = None
+    tuned_leader_profile = None
+    tuned_leader_pairwise_win_count = None
+    tuned_leader_pairwise_loss_count = None
+    tuned_leader_total_score = None
+    tuned_runner_up_score_gap_to_best = None
     if isinstance(tuned_leaderboard, list) and tuned_leaderboard and isinstance(tuned_leaderboard[0], dict):
-        tuned_pairwise_net_margin = tuned_leaderboard[0].get("pairwise_net_margin")
+        leader = tuned_leaderboard[0]
+        tuned_pairwise_net_margin = leader.get("pairwise_net_margin")
+        tuned_leader_profile = leader.get("profile")
+        tuned_leader_pairwise_win_count = leader.get("pairwise_win_count")
+        tuned_leader_pairwise_loss_count = leader.get("pairwise_loss_count")
+        tuned_leader_total_score = leader.get("total_score")
+    if isinstance(tuned_leaderboard, list) and len(tuned_leaderboard) >= 2 and isinstance(tuned_leaderboard[1], dict):
+        tuned_runner_up_score_gap_to_best = tuned_leaderboard[1].get("score_gap_to_best")
 
     trend_payload = trend.get("trend") if isinstance(trend.get("trend"), dict) else {}
 
@@ -104,6 +121,11 @@ def main() -> None:
         "tuned_top_score_margin": tuned_compare.get("top_score_margin"),
         "tuned_explanation_completeness": tuned_compare.get("explanation_completeness"),
         "tuned_pairwise_net_margin": tuned_pairwise_net_margin,
+        "tuned_leader_profile": tuned_leader_profile,
+        "tuned_leader_pairwise_win_count": tuned_leader_pairwise_win_count,
+        "tuned_leader_pairwise_loss_count": tuned_leader_pairwise_loss_count,
+        "tuned_leader_total_score": tuned_leader_total_score,
+        "tuned_runner_up_score_gap_to_best": tuned_runner_up_score_gap_to_best,
         "paths": {
             "flow_summary": args.flow_summary,
             "effectiveness": args.effectiveness,
@@ -121,11 +143,18 @@ def main() -> None:
     payload["result_flags"]["tuned_pairwise_signal_present"] = (
         "PASS" if isinstance(payload.get("tuned_pairwise_net_margin"), int) else "FAIL"
     )
-    payload["bundle_status"] = "PASS" if all(v == "PASS" for v in payload["result_flags"].values()) else "FAIL"
+    payload["result_flags"]["tuned_leaderboard_present"] = (
+        "PASS"
+        if isinstance(payload.get("tuned_leader_profile"), str)
+        and isinstance(payload.get("tuned_runner_up_score_gap_to_best"), int)
+        else "FAIL"
+    )
+    final_bundle_status = "PASS" if all(v == "PASS" for v in payload["result_flags"].values()) else "FAIL"
+    payload["bundle_status"] = final_bundle_status
     _write_json(args.out, payload)
     _write_markdown(args.report_out or _default_md_path(args.out), payload)
-    print(json.dumps({"bundle_status": bundle_status, "latest_effectiveness_decision": eff.get("decision")}))
-    if bundle_status != "PASS":
+    print(json.dumps({"bundle_status": final_bundle_status, "latest_effectiveness_decision": eff.get("decision")}))
+    if final_bundle_status != "PASS":
         raise SystemExit(1)
 
 

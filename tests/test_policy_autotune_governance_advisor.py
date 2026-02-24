@@ -167,6 +167,53 @@ class PolicyAutotuneGovernanceAdvisorTests(unittest.TestCase):
             patch = advice.get("threshold_patch", {})
             self.assertEqual(patch.get("require_min_pairwise_net_margin"), 2)
 
+    def test_advisor_tightens_on_leaderboard_instability(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            dashboard = root / "dashboard.json"
+            out = root / "advisor.json"
+            dashboard.write_text(
+                json.dumps(
+                    {
+                        "latest_effectiveness_decision": "UNCHANGED",
+                        "trend_status": "PASS",
+                        "improvement_rate": 0.3,
+                        "regression_rate": 0.2,
+                        "trend_alerts_count": 0,
+                        "tuned_top_score_margin": 2,
+                        "tuned_explanation_completeness": 90,
+                        "tuned_pairwise_net_margin": 2,
+                        "tuned_leader_pairwise_loss_count": 1,
+                        "tuned_runner_up_score_gap_to_best": 0,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.policy_autotune_governance_advisor",
+                    "--dashboard",
+                    str(dashboard),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            payload = json.loads(out.read_text(encoding="utf-8"))
+            advice = payload.get("advice", {})
+            self.assertEqual(advice.get("action"), "TIGHTEN")
+            reasons = advice.get("reasons", [])
+            self.assertIn("compare_leader_pairwise_loss_detected", reasons)
+            self.assertIn("compare_runner_up_gap_non_positive", reasons)
+            patch = advice.get("threshold_patch", {})
+            self.assertEqual(patch.get("require_min_pairwise_net_margin"), 2)
+            self.assertEqual(patch.get("require_min_top_score_margin"), 2)
+
 
 if __name__ == "__main__":
     unittest.main()

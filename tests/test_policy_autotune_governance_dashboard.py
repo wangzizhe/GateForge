@@ -23,7 +23,19 @@ class PolicyAutotuneGovernanceDashboardTests(unittest.TestCase):
                     {
                         "top_score_margin": 3,
                         "explanation_completeness": 95,
-                        "decision_explanation_leaderboard": [{"pairwise_net_margin": 4}],
+                        "decision_explanation_leaderboard": [
+                            {
+                                "profile": "default",
+                                "pairwise_net_margin": 4,
+                                "pairwise_win_count": 1,
+                                "pairwise_loss_count": 0,
+                                "total_score": 7,
+                            },
+                            {
+                                "profile": "industrial_strict",
+                                "score_gap_to_best": 4,
+                            },
+                        ],
                     }
                 ),
                 encoding="utf-8",
@@ -71,6 +83,11 @@ class PolicyAutotuneGovernanceDashboardTests(unittest.TestCase):
             self.assertEqual(payload.get("tuned_top_score_margin"), 3)
             self.assertEqual(payload.get("tuned_explanation_completeness"), 95)
             self.assertEqual(payload.get("tuned_pairwise_net_margin"), 4)
+            self.assertEqual(payload.get("tuned_leader_profile"), "default")
+            self.assertEqual(payload.get("tuned_leader_pairwise_win_count"), 1)
+            self.assertEqual(payload.get("tuned_leader_pairwise_loss_count"), 0)
+            self.assertEqual(payload.get("tuned_leader_total_score"), 7)
+            self.assertEqual(payload.get("tuned_runner_up_score_gap_to_best"), 4)
 
 
 if __name__ == "__main__":
