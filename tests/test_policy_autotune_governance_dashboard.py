@@ -14,6 +14,8 @@ class PolicyAutotuneGovernanceDashboardTests(unittest.TestCase):
             eff = root / "eff.json"
             history = root / "history.json"
             trend = root / "trend.json"
+            advisor_history = root / "advisor_history.json"
+            advisor_history_trend = root / "advisor_history_trend.json"
             baseline_compare = root / "baseline_compare.json"
             tuned_compare = root / "tuned_compare.json"
             out = root / "dashboard.json"
@@ -56,6 +58,33 @@ class PolicyAutotuneGovernanceDashboardTests(unittest.TestCase):
                 encoding="utf-8",
             )
             trend.write_text(json.dumps({"status": "PASS", "trend": {"alerts": []}}), encoding="utf-8")
+            advisor_history.write_text(
+                json.dumps(
+                    {
+                        "total_records": 3,
+                        "latest_action": "TIGHTEN",
+                        "latest_top_driver": "component_delta:recommended_component",
+                        "top_driver_non_null_rate": 1.0,
+                        "top_driver_distribution": {
+                            "component_delta:recommended_component": 2,
+                            "top_score_margin": 1,
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            advisor_history_trend.write_text(
+                json.dumps(
+                    {
+                        "status": "NEEDS_REVIEW",
+                        "trend": {
+                            "alerts": ["dominant_top_driver_changed"],
+                            "dominant_top_driver_current": "component_delta:recommended_component",
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
             proc = subprocess.run(
                 [
                     sys.executable,
@@ -69,6 +98,10 @@ class PolicyAutotuneGovernanceDashboardTests(unittest.TestCase):
                     str(history),
                     "--trend",
                     str(trend),
+                    "--advisor-history-summary",
+                    str(advisor_history),
+                    "--advisor-history-trend",
+                    str(advisor_history_trend),
                     "--out",
                     str(out),
                 ],
@@ -89,6 +122,9 @@ class PolicyAutotuneGovernanceDashboardTests(unittest.TestCase):
             self.assertEqual(payload.get("tuned_leader_total_score"), 7)
             self.assertEqual(payload.get("tuned_runner_up_score_gap_to_best"), 4)
             self.assertEqual(payload.get("quality_regressed_rate"), 0.2)
+            self.assertEqual(payload.get("advisor_history_latest_action"), "TIGHTEN")
+            self.assertEqual(payload.get("advisor_history_trend_status"), "NEEDS_REVIEW")
+            self.assertIsInstance(payload.get("advisor_history_top_driver_distribution"), dict)
 
 
 if __name__ == "__main__":

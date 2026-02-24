@@ -35,10 +35,81 @@ compare_summary = {
                 "challenger_total_score": 199,
                 "score_margin": 4,
                 "tie_on_total_score": False,
-                "winner_advantages": ["recommended_component"],
+                "winner_advantages": ["recommended_component", "decision_component"],
+                "score_breakdown_delta": {
+                    "decision_component": 100,
+                    "exit_component": 0,
+                    "reasons_component": 0,
+                    "recommended_component": 3,
+                    "total_score": 103
+                },
+                "ranked_advantages": [
+                    {"component": "decision_component", "delta": 100},
+                    {"component": "recommended_component", "delta": 3}
+                ]
             }
         ],
     },
+    "decision_explanation_leaderboard": [
+        {
+            "profile": "default",
+            "leaderboard_rank": 1,
+            "pairwise_net_margin": 4,
+            "pairwise_win_count": 1,
+            "pairwise_loss_count": 0
+        }
+    ],
+    "decision_explanation_ranked": [
+        {
+            "reason": "top_score_margin",
+            "value": 4,
+            "weight": 100,
+            "note": "Best profile leads second-best by score margin."
+        },
+        {
+            "reason": "component_delta:decision_component",
+            "value": 100,
+            "weight": 90,
+            "note": "Decision component drives most of the margin."
+        },
+        {
+            "reason": "best_reason",
+            "value": "highest_total_score",
+            "weight": 40,
+            "note": "Primary selection rule."
+        }
+    ],
+    "decision_explanation_ranking_details": {
+        "top_driver": "component_delta:decision_component",
+        "numeric_reason_count": 2,
+        "drivers": [
+            {
+                "rank": 1,
+                "reason": "component_delta:decision_component",
+                "weight": 90,
+                "value": 100,
+                "impact_score": 9000,
+                "impact_share_pct": 95.64
+            },
+            {
+                "rank": 2,
+                "reason": "top_score_margin",
+                "weight": 100,
+                "value": 4,
+                "impact_score": 400,
+                "impact_share_pct": 4.25
+            },
+            {
+                "rank": 3,
+                "reason": "best_reason",
+                "weight": 40,
+                "value": "highest_total_score",
+                "impact_score": 40,
+                "impact_share_pct": 0.11
+            }
+        ]
+    },
+    "explanation_completeness": 100,
     "explanation_quality": {
         "score": 100,
         "checks": {

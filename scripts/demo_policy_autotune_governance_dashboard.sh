@@ -10,6 +10,29 @@ rm -f "$OUT_DIR"/*.json "$OUT_DIR"/*.md "$OUT_DIR"/*.jsonl
 
 bash scripts/demo_policy_autotune_governance.sh >/dev/null
 
+cat > "$OUT_DIR/advisor_history_summary.json" <<'JSON'
+{
+  "total_records": 4,
+  "latest_action": "TIGHTEN",
+  "latest_top_driver": "component_delta:recommended_component",
+  "top_driver_non_null_rate": 1.0,
+  "top_driver_distribution": {
+    "component_delta:recommended_component": 3,
+    "top_score_margin": 1
+  }
+}
+JSON
+
+cat > "$OUT_DIR/advisor_history_trend.json" <<'JSON'
+{
+  "status": "NEEDS_REVIEW",
+  "trend": {
+    "alerts": ["dominant_top_driver_changed"],
+    "dominant_top_driver_current": "component_delta:recommended_component"
+  }
+}
+JSON
+
 cat > "$OUT_DIR/summary_previous.json" <<'JSON'
 {
   "improvement_rate": 0.5,
@@ -35,6 +58,8 @@ python3 -m gateforge.policy_autotune_governance_dashboard \
   --effectiveness artifacts/policy_autotune_governance_demo/effectiveness.json \
   --history "$OUT_DIR/summary.json" \
   --trend "$OUT_DIR/trend.json" \
+  --advisor-history-summary "$OUT_DIR/advisor_history_summary.json" \
+  --advisor-history-trend "$OUT_DIR/advisor_history_trend.json" \
   --out "$OUT_DIR/dashboard.json" \
   --report-out "$OUT_DIR/dashboard.md"
 
@@ -76,6 +101,12 @@ result = {
     "tuned_leader_pairwise_loss_count": dashboard.get("tuned_leader_pairwise_loss_count"),
     "tuned_leader_total_score": dashboard.get("tuned_leader_total_score"),
     "tuned_runner_up_score_gap_to_best": dashboard.get("tuned_runner_up_score_gap_to_best"),
+    "advisor_history_latest_action": dashboard.get("advisor_history_latest_action"),
+    "advisor_history_latest_top_driver": dashboard.get("advisor_history_latest_top_driver"),
+    "advisor_history_top_driver_non_null_rate": dashboard.get("advisor_history_top_driver_non_null_rate"),
+    "advisor_history_trend_status": dashboard.get("advisor_history_trend_status"),
+    "advisor_history_trend_alerts_count": dashboard.get("advisor_history_trend_alerts_count"),
+    "advisor_history_dominant_top_driver_current": dashboard.get("advisor_history_dominant_top_driver_current"),
     "bundle_status": bundle_status,
     "result_flags": flags,
 }
@@ -98,6 +129,12 @@ result = {
             f"- tuned_leader_pairwise_loss_count: `{result['tuned_leader_pairwise_loss_count']}`",
             f"- tuned_leader_total_score: `{result['tuned_leader_total_score']}`",
             f"- tuned_runner_up_score_gap_to_best: `{result['tuned_runner_up_score_gap_to_best']}`",
+            f"- advisor_history_latest_action: `{result['advisor_history_latest_action']}`",
+            f"- advisor_history_latest_top_driver: `{result['advisor_history_latest_top_driver']}`",
+            f"- advisor_history_top_driver_non_null_rate: `{result['advisor_history_top_driver_non_null_rate']}`",
+            f"- advisor_history_trend_status: `{result['advisor_history_trend_status']}`",
+            f"- advisor_history_trend_alerts_count: `{result['advisor_history_trend_alerts_count']}`",
+            f"- advisor_history_dominant_top_driver_current: `{result['advisor_history_dominant_top_driver_current']}`",
             f"- bundle_status: `{result['bundle_status']}`",
             "",
             "## Result Flags",
