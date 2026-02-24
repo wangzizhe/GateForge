@@ -28,7 +28,13 @@ def _to_float(value: object) -> float:
     return 0.0
 
 
-def _advise(snapshot: dict, trend: dict, compare_summary: dict | None = None, apply_summary: dict | None = None) -> dict:
+def _advise(
+    snapshot: dict,
+    trend: dict,
+    compare_summary: dict | None = None,
+    apply_summary: dict | None = None,
+    mutation_summary: dict | None = None,
+) -> dict:
     kpis = snapshot.get("kpis", {}) if isinstance(snapshot.get("kpis"), dict) else {}
     trend_kpi = trend.get("trend", {}).get("kpi_delta", {}) if isinstance(trend.get("trend"), dict) else {}
     risks = set(r for r in (snapshot.get("risks") or []) if isinstance(r, str))
@@ -90,6 +96,36 @@ def _advise(snapshot: dict, trend: dict, compare_summary: dict | None = None, ap
             confidence = max(confidence, 0.78)
             evidence_sources.append({"source": "apply.final_status", "value": apply_status})
 
+    if isinstance(mutation_summary, dict) and mutation_summary:
+        mutation_trend = str(mutation_summary.get("trend_status") or "")
+        mutation_compare = str(mutation_summary.get("compare_decision") or "")
+        mutation_match_rate = _to_float(mutation_summary.get("latest_match_rate"))
+        mutation_gate_pass_rate = _to_float(mutation_summary.get("latest_gate_pass_rate"))
+        if mutation_trend == "NEEDS_REVIEW":
+            reasons.append("mutation_trend_needs_review")
+            suggested_profile = "industrial_strict"
+            confidence = max(confidence, 0.76)
+            evidence_sources.append({"source": "mutation.trend_status", "value": mutation_trend})
+        if mutation_compare == "FAIL":
+            reasons.append("mutation_compare_regressed")
+            suggested_profile = "industrial_strict"
+            confidence = max(confidence, 0.8)
+            evidence_sources.append({"source": "mutation.compare_decision", "value": mutation_compare})
+        if 0.0 < mutation_match_rate < 0.98:
+            reasons.append("mutation_match_rate_below_target")
+            threshold_patch["require_min_top_score_margin"] = max(
+                int(threshold_patch["require_min_top_score_margin"] or 0),
+                2,
+            )
+            evidence_sources.append({"source": "mutation.latest_match_rate", "value": mutation_match_rate})
+        if 0.0 < mutation_gate_pass_rate < 0.98:
+            reasons.append("mutation_gate_pass_rate_below_target")
+            threshold_patch["require_min_explanation_quality"] = max(
+                int(threshold_patch["require_min_explanation_quality"] or 0),
+                85,
+            )
+            evidence_sources.append({"source": "mutation.latest_gate_pass_rate", "value": mutation_gate_pass_rate})
+
     if not reasons:
         reasons.append("stable_replay_signals")
         confidence = 0.6
@@ -148,6 +184,7 @@ def main() -> None:
     parser.add_argument("--trend", required=True, help="Replay governance trend JSON")
     parser.add_argument("--compare-summary", default=None, help="Optional governance promote-compare summary JSON")
     parser.add_argument("--apply-summary", default=None, help="Optional governance promote-apply summary JSON")
+    parser.add_argument("--mutation-summary", default=None, help="Optional mutation dashboard summary JSON")
     parser.add_argument("--out", default="artifacts/governance_policy_advisor/summary.json", help="Output JSON path")
     parser.add_argument("--report", default=None, help="Output markdown path")
     args = parser.parse_args()
@@ -156,12 +193,20 @@ def main() -> None:
     trend = _load_json(args.trend)
     compare_summary = _load_json(args.compare_summary) if args.compare_summary else None
     apply_summary = _load_json(args.apply_summary) if args.apply_summary else None
-    advice = _advise(snapshot, trend, compare_summary=compare_summary, apply_summary=apply_summary)
+    mutation_summary = _load_json(args.mutation_summary) if args.mutation_summary else None
+    advice = _advise(
+        snapshot,
+        trend,
+        compare_summary=compare_summary,
+        apply_summary=apply_summary,
+        mutation_summary=mutation_summary,
+    )
     summary = {
         "snapshot_path": args.snapshot,
         "trend_path": args.trend,
         "compare_summary_path": args.compare_summary,
         "apply_summary_path": args.apply_summary,
+        "mutation_summary_path": args.mutation_summary,
         "advice": advice,
     }
     _write_json(args.out, summary)
