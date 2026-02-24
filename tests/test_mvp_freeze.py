@@ -6,25 +6,29 @@ from pathlib import Path
 
 
 class MVPFreezeTests(unittest.TestCase):
-    def _write_artifacts(self, root: Path, matrix_status: str = "PASS") -> tuple[Path, Path, Path, Path, Path, Path]:
+    def _write_artifacts(
+        self, root: Path, matrix_status: str = "PASS"
+    ) -> tuple[Path, Path, Path, Path, Path, Path, Path]:
         medium = root / "medium.json"
         mutation = root / "mutation.json"
         autotune = root / "policy_autotune.json"
         autotune_gov = root / "policy_autotune_governance.json"
+        autotune_gov_advisor_history = root / "policy_autotune_governance_advisor_history.json"
         policy = root / "policy.json"
         matrix = root / "matrix.json"
         medium.write_text(json.dumps({"bundle_status": "PASS"}), encoding="utf-8")
         mutation.write_text(json.dumps({"bundle_status": "PASS"}), encoding="utf-8")
         autotune.write_text(json.dumps({"bundle_status": "PASS"}), encoding="utf-8")
         autotune_gov.write_text(json.dumps({"bundle_status": "PASS"}), encoding="utf-8")
+        autotune_gov_advisor_history.write_text(json.dumps({"bundle_status": "PASS"}), encoding="utf-8")
         policy.write_text(json.dumps({"bundle_status": "PASS"}), encoding="utf-8")
         matrix.write_text(json.dumps({"matrix_status": matrix_status}), encoding="utf-8")
-        return medium, mutation, autotune, autotune_gov, policy, matrix
+        return medium, mutation, autotune, autotune_gov, autotune_gov_advisor_history, policy, matrix
 
     def test_mvp_freeze_pass(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
-            medium, mutation, autotune, autotune_gov, policy, matrix = self._write_artifacts(root)
+            medium, mutation, autotune, autotune_gov, autotune_gov_advisor_history, policy, matrix = self._write_artifacts(root)
             out = root / "summary.json"
             proc = subprocess.run(
                 [
@@ -41,6 +45,8 @@ class MVPFreezeTests(unittest.TestCase):
                     "0",
                     "--policy-autotune-governance-rc",
                     "0",
+                    "--policy-autotune-governance-advisor-history-rc",
+                    "0",
                     "--policy-dashboard-rc",
                     "0",
                     "--ci-matrix-rc",
@@ -53,6 +59,8 @@ class MVPFreezeTests(unittest.TestCase):
                     str(autotune),
                     "--policy-autotune-governance-json",
                     str(autotune_gov),
+                    "--policy-autotune-governance-advisor-history-json",
+                    str(autotune_gov_advisor_history),
                     "--policy-dashboard-json",
                     str(policy),
                     "--ci-matrix-json",
@@ -72,7 +80,9 @@ class MVPFreezeTests(unittest.TestCase):
     def test_mvp_freeze_fail(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
-            medium, mutation, autotune, autotune_gov, policy, matrix = self._write_artifacts(root, matrix_status="FAIL")
+            medium, mutation, autotune, autotune_gov, autotune_gov_advisor_history, policy, matrix = self._write_artifacts(
+                root, matrix_status="FAIL"
+            )
             out = root / "summary.json"
             proc = subprocess.run(
                 [
@@ -89,6 +99,8 @@ class MVPFreezeTests(unittest.TestCase):
                     "0",
                     "--policy-autotune-governance-rc",
                     "0",
+                    "--policy-autotune-governance-advisor-history-rc",
+                    "0",
                     "--policy-dashboard-rc",
                     "0",
                     "--ci-matrix-rc",
@@ -101,6 +113,8 @@ class MVPFreezeTests(unittest.TestCase):
                     str(autotune),
                     "--policy-autotune-governance-json",
                     str(autotune_gov),
+                    "--policy-autotune-governance-advisor-history-json",
+                    str(autotune_gov_advisor_history),
                     "--policy-dashboard-json",
                     str(policy),
                     "--ci-matrix-json",

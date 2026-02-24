@@ -251,6 +251,18 @@ Output:
 - `artifacts/policy_autotune_governance_advisor_demo/apply.json`
 - `artifacts/policy_autotune_governance_advisor_demo/summary.json`
 
+Policy auto-tuning governance advisor history (advisor records -> history -> trend):
+
+```bash
+bash scripts/demo_policy_autotune_governance_advisor_history.sh
+```
+
+Output:
+- `artifacts/policy_autotune_governance_advisor_history_demo/history.jsonl`
+- `artifacts/policy_autotune_governance_advisor_history_demo/summary.json`
+- `artifacts/policy_autotune_governance_advisor_history_demo/trend.json`
+- `artifacts/policy_autotune_governance_advisor_history_demo/demo_summary.json`
+
 ## MVP Freeze (Release Readiness)
 
 ```bash
@@ -267,6 +279,7 @@ Current freeze inputs:
 - mutation governance dashboard chain
 - policy autotune history chain
 - policy autotune governance dashboard chain
+- policy autotune governance advisor history chain
 - policy patch dashboard chain
 - targeted local CI matrix
 
@@ -290,6 +303,7 @@ Artifacts include:
 - `policy-autotune-governance-v1`
 - `policy-autotune-governance-history-v1`
 - `policy-autotune-governance-advisor-v1`
+- `policy-autotune-governance-advisor-history-v1`
 - `mvp-freeze-v1`
 - `mutation-pack-v0`
 - `mutation-policy-patch-v1`
