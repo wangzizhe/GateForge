@@ -60,6 +60,36 @@ complete = {
         },
     ],
     "explanation_completeness": 100,
+    "decision_explanation_ranking_details": {
+        "top_driver": "component_delta:decision_component",
+        "numeric_reason_count": 2,
+        "drivers": [
+            {
+                "rank": 1,
+                "reason": "component_delta:decision_component",
+                "weight": 90,
+                "value": 100,
+                "impact_score": 9000,
+                "impact_share_pct": 95.64,
+            },
+            {
+                "rank": 2,
+                "reason": "top_score_margin",
+                "weight": 100,
+                "value": 4,
+                "impact_score": 400,
+                "impact_share_pct": 4.25,
+            },
+            {
+                "rank": 3,
+                "reason": "best_reason",
+                "weight": 40,
+                "value": "highest_total_score",
+                "impact_score": 40,
+                "impact_share_pct": 0.11,
+            },
+        ],
+    },
     "decision_explanations": {
         **base["decision_explanations"],
         "best_vs_others": [
