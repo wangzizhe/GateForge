@@ -6,7 +6,7 @@ cd "$ROOT_DIR"
 
 OUT_DIR="artifacts/mvp_freeze"
 mkdir -p "$OUT_DIR"
-rm -f "$OUT_DIR"/summary.json "$OUT_DIR"/summary.md "$OUT_DIR"/tests.log "$OUT_DIR"/medium_dashboard.log "$OUT_DIR"/mutation_dashboard.log "$OUT_DIR"/policy_autotune.log "$OUT_DIR"/policy_dashboard.log "$OUT_DIR"/ci_matrix.log
+rm -f "$OUT_DIR"/summary.json "$OUT_DIR"/summary.md "$OUT_DIR"/tests.log "$OUT_DIR"/medium_dashboard.log "$OUT_DIR"/mutation_dashboard.log "$OUT_DIR"/policy_autotune.log "$OUT_DIR"/policy_autotune_governance.log "$OUT_DIR"/policy_dashboard.log "$OUT_DIR"/ci_matrix.log
 
 set +e
 python3 -m unittest discover -s tests -v >"$OUT_DIR/tests.log" 2>&1
@@ -21,6 +21,9 @@ MUTATION_RC=$?
 bash scripts/demo_policy_autotune_history.sh >"$OUT_DIR/policy_autotune.log" 2>&1
 POLICY_AUTOTUNE_RC=$?
 
+bash scripts/demo_policy_autotune_governance_dashboard.sh >"$OUT_DIR/policy_autotune_governance.log" 2>&1
+POLICY_AUTOTUNE_GOVERNANCE_RC=$?
+
 bash scripts/demo_governance_policy_patch_dashboard.sh >"$OUT_DIR/policy_dashboard.log" 2>&1
 POLICY_RC=$?
 
@@ -33,11 +36,13 @@ python3 -m gateforge.mvp_freeze \
   --medium-dashboard-rc "$MEDIUM_RC" \
   --mutation-dashboard-rc "$MUTATION_RC" \
   --policy-autotune-rc "$POLICY_AUTOTUNE_RC" \
+  --policy-autotune-governance-rc "$POLICY_AUTOTUNE_GOVERNANCE_RC" \
   --policy-dashboard-rc "$POLICY_RC" \
   --ci-matrix-rc "$MATRIX_RC" \
   --medium-dashboard-json artifacts/benchmark_medium_v1/dashboard.json \
   --mutation-dashboard-json artifacts/mutation_dashboard_demo/summary.json \
   --policy-autotune-json artifacts/policy_autotune_history_demo/demo_summary.json \
+  --policy-autotune-governance-json artifacts/policy_autotune_governance_history_demo/demo_summary.json \
   --policy-dashboard-json artifacts/governance_policy_patch_dashboard_demo/demo_summary.json \
   --ci-matrix-json artifacts/ci_matrix_summary.json \
   --out "$OUT_DIR/summary.json" \
