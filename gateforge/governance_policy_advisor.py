@@ -28,6 +28,61 @@ def _to_float(value: object) -> float:
     return 0.0
 
 
+def _build_why_now(reasons: list[str], evidence_sources: list[dict]) -> dict:
+    top_signals = []
+    for row in evidence_sources[:5]:
+        if isinstance(row, dict):
+            top_signals.append({"source": row.get("source"), "value": row.get("value")})
+    if not reasons:
+        summary = "No active governance pressure signals."
+        urgency = "low"
+    elif any(r.startswith("apply_status_fail") or r.startswith("high_replay_risk_score") for r in reasons):
+        summary = "High-risk governance signals detected; policy tightening is time-sensitive."
+        urgency = "high"
+    elif any("regressed" in r or "low" in r for r in reasons):
+        summary = "Quality and comparability signals are weakening; tighten policy before drift accumulates."
+        urgency = "medium"
+    else:
+        summary = "Early warning signals detected; policy adjustment is recommended."
+        urgency = "medium"
+    return {
+        "summary": summary,
+        "urgency": urgency,
+        "reason_codes": reasons,
+        "top_signals": top_signals,
+    }
+
+
+def _build_scorecard(
+    reasons: list[str],
+    threshold_patch: dict,
+    confidence: float,
+    suggested_profile: str,
+) -> dict:
+    patch_count = sum(1 for _, v in threshold_patch.items() if isinstance(v, int))
+    impact = "low"
+    if suggested_profile == "industrial_strict" or patch_count >= 2:
+        impact = "high"
+    elif patch_count == 1:
+        impact = "medium"
+    execution_risk = "low"
+    if patch_count >= 2:
+        execution_risk = "medium"
+    if any(r.startswith("apply_status_fail") for r in reasons):
+        execution_risk = "high"
+    priority = "normal"
+    if impact == "high" and confidence >= 0.8:
+        priority = "urgent"
+    elif impact in {"medium", "high"}:
+        priority = "high"
+    return {
+        "impact": impact,
+        "execution_risk": execution_risk,
+        "confidence": round(confidence, 2),
+        "priority": priority,
+    }
+
+
 def _advise(
     snapshot: dict,
     trend: dict,
@@ -149,12 +204,16 @@ def _advise(
     ):
         confidence = max(confidence, 0.66)
 
+    why_now = _build_why_now(reasons, evidence_sources)
+    scorecard = _build_scorecard(reasons, threshold_patch, confidence, suggested_profile)
     return {
         "suggested_policy_profile": suggested_profile,
         "confidence": round(confidence, 2),
         "reasons": reasons,
         "threshold_patch": threshold_patch,
         "evidence_sources": evidence_sources,
+        "why_now": why_now,
+        "recommendation_scorecard": scorecard,
         "dry_run": True,
     }
 
@@ -191,6 +250,16 @@ def _write_markdown(path: str, summary: dict) -> None:
                 lines.append(f"- `{row.get('source')}` = `{row.get('value')}`")
     else:
         lines.append("- `none`")
+    lines.extend(["", "## Why Now", ""])
+    why_now = advice.get("why_now", {})
+    lines.append(f"- urgency: `{why_now.get('urgency')}`")
+    lines.append(f"- summary: `{why_now.get('summary')}`")
+    lines.extend(["", "## Recommendation Scorecard", ""])
+    scorecard = advice.get("recommendation_scorecard", {})
+    lines.append(f"- impact: `{scorecard.get('impact')}`")
+    lines.append(f"- execution_risk: `{scorecard.get('execution_risk')}`")
+    lines.append(f"- confidence: `{scorecard.get('confidence')}`")
+    lines.append(f"- priority: `{scorecard.get('priority')}`")
     lines.append("")
     p.write_text("\n".join(lines), encoding="utf-8")
 
