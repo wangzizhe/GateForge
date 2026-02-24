@@ -42,6 +42,10 @@ def _status_from_signals(signals: dict) -> str:
         return "NEEDS_REVIEW"
     if signals.get("advisor_history_dominant_top_driver_changed"):
         return "NEEDS_REVIEW"
+    if signals.get("runtime_ledger_fail_rate_high"):
+        return "NEEDS_REVIEW"
+    if signals.get("runtime_ledger_needs_review_rate_high"):
+        return "NEEDS_REVIEW"
     if signals.get("mutation_trend_needs_review"):
         return "NEEDS_REVIEW"
     if signals.get("invariant_repair_compare_status") == "FAIL":
@@ -198,6 +202,18 @@ def _extract_policy_autotune_advisor_history(payload: dict) -> dict:
     }
 
 
+def _extract_runtime_ledger(payload: dict) -> dict:
+    if not isinstance(payload, dict):
+        return {}
+    kpis = payload.get("kpis", {}) if isinstance(payload.get("kpis"), dict) else {}
+    return {
+        "total_records": int(payload.get("total_records", 0) or 0),
+        "pass_rate": _to_float(kpis.get("pass_rate"), 0.0),
+        "fail_rate": _to_float(kpis.get("fail_rate"), 0.0),
+        "needs_review_rate": _to_float(kpis.get("needs_review_rate"), 0.0),
+    }
+
+
 def _compute_summary(
     repair: dict,
     review: dict,
@@ -205,11 +221,13 @@ def _compute_summary(
     invariant_compare: dict,
     mutation_dashboard: dict,
     policy_autotune_advisor_history: dict,
+    runtime_ledger_summary: dict,
 ) -> dict:
     repair_compare = _extract_repair_compare(repair)
     invariant = _extract_invariant_compare(invariant_compare)
     mutation = _extract_mutation(mutation_dashboard)
     advisor_history = _extract_policy_autotune_advisor_history(policy_autotune_advisor_history)
+    runtime_ledger = _extract_runtime_ledger(runtime_ledger_summary)
     kpis = review.get("kpis", {}) if isinstance(review, dict) else {}
 
     strict_non_pass_rate = float(kpis.get("strict_non_pass_rate", 0.0) or 0.0)
@@ -270,6 +288,8 @@ def _compute_summary(
         "advisor_history_dominant_top_driver_changed": (
             any(str(a) == "dominant_top_driver_changed" for a in advisor_history_trend_alerts)
         ),
+        "runtime_ledger_fail_rate_high": runtime_ledger.get("fail_rate", 0.0) >= 0.3,
+        "runtime_ledger_needs_review_rate_high": runtime_ledger.get("needs_review_rate", 0.0) >= 0.4,
     }
 
     status = _status_from_signals(signals)
@@ -307,6 +327,10 @@ def _compute_summary(
         risks.append("policy_autotune_advisor_top_driver_recommended_component_dominant")
     if signals["advisor_history_dominant_top_driver_changed"]:
         risks.append("policy_autotune_advisor_dominant_top_driver_changed")
+    if signals["runtime_ledger_fail_rate_high"]:
+        risks.append("runtime_ledger_fail_rate_high")
+    if signals["runtime_ledger_needs_review_rate_high"]:
+        risks.append("runtime_ledger_needs_review_rate_high")
 
     return {
         "status": status,
@@ -336,6 +360,10 @@ def _compute_summary(
             "policy_autotune_advisor_trend_status": advisor_history_trend_status,
             "policy_autotune_advisor_latest_top_driver": advisor_history_latest_top_driver,
             "policy_autotune_advisor_top_driver_non_null_rate": advisor_history_top_driver_non_null_rate,
+            "runtime_ledger_total_records": runtime_ledger.get("total_records"),
+            "runtime_ledger_pass_rate": runtime_ledger.get("pass_rate"),
+            "runtime_ledger_fail_rate": runtime_ledger.get("fail_rate"),
+            "runtime_ledger_needs_review_rate": runtime_ledger.get("needs_review_rate"),
         },
         "policy_profiles": {
             "compare_from": compare_from,
@@ -352,6 +380,7 @@ def _compute_summary(
             "invariant_repair_compare_summary_path": invariant_compare.get("_source_path"),
             "mutation_dashboard_summary_path": mutation_dashboard.get("_source_path"),
             "policy_autotune_advisor_history_summary_path": policy_autotune_advisor_history.get("_source_path"),
+            "runtime_ledger_summary_path": runtime_ledger_summary.get("_source_path"),
         },
         "risks": risks,
     }
@@ -380,6 +409,10 @@ def _write_markdown(path: str, summary: dict) -> None:
         f"- policy_autotune_advisor_trend_status: `{kpis.get('policy_autotune_advisor_trend_status')}`",
         f"- policy_autotune_advisor_latest_top_driver: `{kpis.get('policy_autotune_advisor_latest_top_driver')}`",
         f"- policy_autotune_advisor_top_driver_non_null_rate: `{kpis.get('policy_autotune_advisor_top_driver_non_null_rate')}`",
+        f"- runtime_ledger_total_records: `{kpis.get('runtime_ledger_total_records')}`",
+        f"- runtime_ledger_pass_rate: `{kpis.get('runtime_ledger_pass_rate')}`",
+        f"- runtime_ledger_fail_rate: `{kpis.get('runtime_ledger_fail_rate')}`",
+        f"- runtime_ledger_needs_review_rate: `{kpis.get('runtime_ledger_needs_review_rate')}`",
         "",
         "## Risks",
         "",
@@ -450,6 +483,11 @@ def main() -> None:
         default=None,
         help="Path to policy autotune advisor history demo summary JSON",
     )
+    parser.add_argument(
+        "--runtime-ledger-summary",
+        default=None,
+        help="Path to runtime decision ledger summary JSON",
+    )
     parser.add_argument("--previous-summary", default=None, help="Optional previous governance snapshot JSON")
     parser.add_argument("--out", default="artifacts/governance_snapshot/summary.json", help="Output JSON path")
     parser.add_argument("--report", default=None, help="Output markdown path")
@@ -461,6 +499,7 @@ def main() -> None:
     invariant_compare = _load_json(args.invariant_repair_compare_summary)
     mutation_dashboard = _load_json(args.mutation_dashboard_summary)
     policy_autotune_advisor_history = _load_json(args.policy_autotune_advisor_history_summary)
+    runtime_ledger_summary = _load_json(args.runtime_ledger_summary)
     if args.repair_batch_summary:
         repair["_source_path"] = args.repair_batch_summary
     if args.review_ledger_summary:
@@ -473,6 +512,8 @@ def main() -> None:
         mutation_dashboard["_source_path"] = args.mutation_dashboard_summary
     if args.policy_autotune_advisor_history_summary:
         policy_autotune_advisor_history["_source_path"] = args.policy_autotune_advisor_history_summary
+    if args.runtime_ledger_summary:
+        runtime_ledger_summary["_source_path"] = args.runtime_ledger_summary
 
     summary = _compute_summary(
         repair,
@@ -481,6 +522,7 @@ def main() -> None:
         invariant_compare,
         mutation_dashboard,
         policy_autotune_advisor_history,
+        runtime_ledger_summary,
     )
     if args.previous_summary:
         previous = _load_json(args.previous_summary)
