@@ -60,6 +60,7 @@ def main() -> None:
     parser.add_argument("--policy-autotune-rc", type=int, required=True)
     parser.add_argument("--policy-autotune-governance-rc", type=int, required=True)
     parser.add_argument("--policy-autotune-governance-advisor-history-rc", type=int, required=True)
+    parser.add_argument("--governance-snapshot-advisor-history-rc", type=int, required=True)
     parser.add_argument("--policy-dashboard-rc", type=int, required=True)
     parser.add_argument("--ci-matrix-rc", type=int, required=True)
     parser.add_argument(
@@ -88,6 +89,11 @@ def main() -> None:
         help="Policy autotune governance advisor history summary path",
     )
     parser.add_argument(
+        "--governance-snapshot-advisor-history-json",
+        default="artifacts/governance_snapshot_advisor_history_demo/demo_summary.json",
+        help="Governance snapshot with advisor history summary path",
+    )
+    parser.add_argument(
         "--policy-dashboard-json",
         default="artifacts/governance_policy_patch_dashboard_demo/demo_summary.json",
         help="Policy dashboard artifact path",
@@ -110,6 +116,7 @@ def main() -> None:
     policy_autotune = _load_json(args.policy_autotune_json)
     policy_autotune_governance = _load_json(args.policy_autotune_governance_json)
     policy_autotune_governance_advisor_history = _load_json(args.policy_autotune_governance_advisor_history_json)
+    governance_snapshot_advisor_history = _load_json(args.governance_snapshot_advisor_history_json)
     policy = _load_json(args.policy_dashboard_json)
     matrix = _load_json(args.ci_matrix_json)
 
@@ -165,6 +172,15 @@ def main() -> None:
             ),
         },
         {
+            "name": "governance_snapshot_advisor_history",
+            "exit_code": int(args.governance_snapshot_advisor_history_rc),
+            "status": _step_status(
+                int(args.governance_snapshot_advisor_history_rc),
+                Path(args.governance_snapshot_advisor_history_json).exists()
+                and str(governance_snapshot_advisor_history.get("bundle_status")) == "PASS",
+            ),
+        },
+        {
             "name": "policy_dashboard",
             "exit_code": int(args.policy_dashboard_rc),
             "status": _step_status(
@@ -197,6 +213,7 @@ def main() -> None:
             "policy_autotune_json": args.policy_autotune_json,
             "policy_autotune_governance_json": args.policy_autotune_governance_json,
             "policy_autotune_governance_advisor_history_json": args.policy_autotune_governance_advisor_history_json,
+            "governance_snapshot_advisor_history_json": args.governance_snapshot_advisor_history_json,
             "policy_dashboard_json": args.policy_dashboard_json,
             "ci_matrix_json": args.ci_matrix_json,
         },

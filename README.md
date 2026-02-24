@@ -290,6 +290,7 @@ Current freeze inputs:
 - policy autotune history chain
 - policy autotune governance dashboard chain
 - policy autotune governance advisor history chain
+- governance snapshot with advisor history chain
 - policy patch dashboard chain
 - targeted local CI matrix
 

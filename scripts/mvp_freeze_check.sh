@@ -27,6 +27,9 @@ POLICY_AUTOTUNE_GOVERNANCE_RC=$?
 bash scripts/demo_policy_autotune_governance_advisor_history.sh >"$OUT_DIR/policy_autotune_governance_advisor_history.log" 2>&1
 POLICY_AUTOTUNE_GOVERNANCE_ADVISOR_HISTORY_RC=$?
 
+bash scripts/demo_governance_snapshot_with_advisor_history.sh >"$OUT_DIR/governance_snapshot_advisor_history.log" 2>&1
+GOVERNANCE_SNAPSHOT_ADVISOR_HISTORY_RC=$?
+
 bash scripts/demo_governance_policy_patch_dashboard.sh >"$OUT_DIR/policy_dashboard.log" 2>&1
 POLICY_RC=$?
 
@@ -41,6 +44,7 @@ python3 -m gateforge.mvp_freeze \
   --policy-autotune-rc "$POLICY_AUTOTUNE_RC" \
   --policy-autotune-governance-rc "$POLICY_AUTOTUNE_GOVERNANCE_RC" \
   --policy-autotune-governance-advisor-history-rc "$POLICY_AUTOTUNE_GOVERNANCE_ADVISOR_HISTORY_RC" \
+  --governance-snapshot-advisor-history-rc "$GOVERNANCE_SNAPSHOT_ADVISOR_HISTORY_RC" \
   --policy-dashboard-rc "$POLICY_RC" \
   --ci-matrix-rc "$MATRIX_RC" \
   --medium-dashboard-json artifacts/benchmark_medium_v1/dashboard.json \
@@ -48,6 +52,7 @@ python3 -m gateforge.mvp_freeze \
   --policy-autotune-json artifacts/policy_autotune_history_demo/demo_summary.json \
   --policy-autotune-governance-json artifacts/policy_autotune_governance_history_demo/demo_summary.json \
   --policy-autotune-governance-advisor-history-json artifacts/policy_autotune_governance_advisor_history_demo/demo_summary.json \
+  --governance-snapshot-advisor-history-json artifacts/governance_snapshot_advisor_history_demo/demo_summary.json \
   --policy-dashboard-json artifacts/governance_policy_patch_dashboard_demo/demo_summary.json \
   --ci-matrix-json artifacts/ci_matrix_summary.json \
   --out "$OUT_DIR/summary.json" \
