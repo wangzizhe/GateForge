@@ -167,6 +167,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertIn("governance_policy_patch_apply_demo", payload.get("selected", {}))
         self.assertIn("governance_policy_patch_history_demo", payload.get("selected", {}))
         self.assertIn("governance_policy_patch_dashboard_demo", payload.get("selected", {}))
+        self.assertIn("governance_policy_patch_explainable_demo", payload.get("selected", {}))
         self.assertIn("policy_autotune_governance_advisor_history_demo", payload.get("selected", {}))
         self.assertIn("agent_invariant_guard_demo", payload.get("selected", {}))
         self.assertIn("invariant_repair_loop_demo", payload.get("selected", {}))
@@ -265,6 +266,23 @@ class DemoScriptTests(unittest.TestCase):
         payload = json.loads(Path("artifacts/ci_matrix_summary.json").read_text(encoding="utf-8"))
         self.assertTrue(payload.get("selected", {}).get("governance_promote_apply_strict_guard_demo"))
         self.assertEqual(payload.get("job_exit_codes", {}).get("governance_promote_apply_strict_guard_demo"), 0)
+
+    def test_demo_ci_matrix_accepts_governance_policy_patch_explainable_demo_flag(self) -> None:
+        proc = subprocess.run(
+            [
+                "bash",
+                "scripts/demo_ci_matrix.sh",
+                "--none",
+                "--governance-policy-patch-explainable-demo",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+        payload = json.loads(Path("artifacts/ci_matrix_summary.json").read_text(encoding="utf-8"))
+        self.assertTrue(payload.get("selected", {}).get("governance_policy_patch_explainable_demo"))
+        self.assertEqual(payload.get("job_exit_codes", {}).get("governance_policy_patch_explainable_demo"), 0)
 
     def test_demo_ci_matrix_accepts_policy_autotune_governance_advisor_history_demo_flag(self) -> None:
         proc = subprocess.run(
