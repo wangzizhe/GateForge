@@ -76,6 +76,45 @@ class MutateTests(unittest.TestCase):
                 self.assertEqual(expected.get("gate"), "PASS")
                 self.assertEqual(expected.get("failure_type"), "none")
 
+    def test_mutate_v1_sets_pack_version_and_distribution(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.mutate",
+                    "--out-dir",
+                    str(root / "mutants"),
+                    "--manifest-out",
+                    str(root / "manifest.json"),
+                    "--pack-out",
+                    str(root / "pack.json"),
+                    "--pack-id",
+                    "mutation_pack_v1",
+                    "--pack-version",
+                    "v1",
+                    "--backend",
+                    "mock",
+                    "--count",
+                    "24",
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual(manifest.get("pack_version"), "v1")
+            counts: dict[str, int] = {}
+            for row in manifest.get("cases", []):
+                k = str((row or {}).get("mutation_type"))
+                counts[k] = counts.get(k, 0) + 1
+            self.assertEqual(counts.get("script_parse_error"), 6)
+            self.assertEqual(counts.get("model_check_error"), 6)
+            self.assertEqual(counts.get("simulate_error"), 6)
+            self.assertEqual(counts.get("semantic_regression"), 6)
+
 
 if __name__ == "__main__":
     unittest.main()
