@@ -1031,6 +1031,9 @@ class DemoScriptTests(unittest.TestCase):
         self.assertEqual(payload.get("bundle_status"), "PASS")
         self.assertIn(payload.get("effectiveness_decision"), {"IMPROVED", "UNCHANGED", "REGRESSED"})
         self.assertIn(payload.get("tuned_apply_status"), {"PASS", "NEEDS_REVIEW", "FAIL"})
+        self.assertIsInstance(payload.get("delta_top_score_margin"), int)
+        self.assertIsInstance(payload.get("delta_explanation_completeness"), int)
+        self.assertIsInstance(payload.get("delta_pairwise_net_margin"), int)
 
     def test_demo_policy_autotune_governance_dashboard_script(self) -> None:
         proc = subprocess.run(

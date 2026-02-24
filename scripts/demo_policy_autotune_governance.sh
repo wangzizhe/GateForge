@@ -35,6 +35,11 @@ flags = {
     "baseline_apply_status_present": "PASS" if flow.get("baseline", {}).get("apply_status") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "tuned_apply_status_present": "PASS" if flow.get("tuned", {}).get("apply_status") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "effectiveness_decision_present": "PASS" if eff.get("decision") in {"IMPROVED", "UNCHANGED", "REGRESSED"} else "FAIL",
+    "quality_delta_present": "PASS"
+    if isinstance(eff.get("delta_top_score_margin"), int)
+    and isinstance(eff.get("delta_explanation_completeness"), int)
+    and isinstance(eff.get("delta_pairwise_net_margin"), int)
+    else "FAIL",
 }
 bundle_status = "PASS" if all(v == "PASS" for v in flags.values()) else "FAIL"
 
@@ -47,6 +52,9 @@ summary = {
     "effectiveness_decision": eff.get("decision"),
     "delta_apply_score": eff.get("delta_apply_score"),
     "delta_compare_score": eff.get("delta_compare_score"),
+    "delta_top_score_margin": eff.get("delta_top_score_margin"),
+    "delta_explanation_completeness": eff.get("delta_explanation_completeness"),
+    "delta_pairwise_net_margin": eff.get("delta_pairwise_net_margin"),
     "bundle_status": bundle_status,
     "result_flags": flags,
 }
@@ -64,6 +72,9 @@ summary = {
             f"- effectiveness_decision: `{summary['effectiveness_decision']}`",
             f"- delta_apply_score: `{summary['delta_apply_score']}`",
             f"- delta_compare_score: `{summary['delta_compare_score']}`",
+            f"- delta_top_score_margin: `{summary['delta_top_score_margin']}`",
+            f"- delta_explanation_completeness: `{summary['delta_explanation_completeness']}`",
+            f"- delta_pairwise_net_margin: `{summary['delta_pairwise_net_margin']}`",
             f"- bundle_status: `{summary['bundle_status']}`",
             "",
             "## Result Flags",
