@@ -54,6 +54,9 @@ def _write_markdown(path: str, payload: dict) -> None:
         f"- current_apply_rate: `{trend.get('current_apply_rate')}`",
         f"- previous_apply_rate: `{trend.get('previous_apply_rate')}`",
         f"- delta_apply_rate: `{trend.get('delta_apply_rate')}`",
+        f"- current_pairwise_threshold_enable_rate: `{trend.get('current_pairwise_threshold_enable_rate')}`",
+        f"- previous_pairwise_threshold_enable_rate: `{trend.get('previous_pairwise_threshold_enable_rate')}`",
+        f"- delta_pairwise_threshold_enable_rate: `{trend.get('delta_pairwise_threshold_enable_rate')}`",
         "",
     ]
     p.write_text("\n".join(lines), encoding="utf-8")
@@ -79,12 +82,16 @@ def main() -> None:
     previous_reject = int(previous.get("reject_count", 0))
     current_apply = int(current.get("applied_count", 0))
     previous_apply = int(previous.get("applied_count", 0))
+    current_pairwise_enabled = int(current.get("pairwise_threshold_enabled_count", 0))
+    previous_pairwise_enabled = int(previous.get("pairwise_threshold_enabled_count", 0))
     current_fail_rate = _rate(current_fail, current_total)
     previous_fail_rate = _rate(previous_fail, previous_total)
     current_reject_rate = _rate(current_reject, current_total)
     previous_reject_rate = _rate(previous_reject, previous_total)
     current_apply_rate = _rate(current_apply, current_total)
     previous_apply_rate = _rate(previous_apply, previous_total)
+    current_pairwise_rate = _rate(current_pairwise_enabled, current_total)
+    previous_pairwise_rate = _rate(previous_pairwise_enabled, previous_total)
 
     trend = {
         "delta_total_records": current_total - previous_total,
@@ -97,6 +104,9 @@ def main() -> None:
         "current_apply_rate": current_apply_rate,
         "previous_apply_rate": previous_apply_rate,
         "delta_apply_rate": round(current_apply_rate - previous_apply_rate, 4),
+        "current_pairwise_threshold_enable_rate": current_pairwise_rate,
+        "previous_pairwise_threshold_enable_rate": previous_pairwise_rate,
+        "delta_pairwise_threshold_enable_rate": round(current_pairwise_rate - previous_pairwise_rate, 4),
     }
 
     payload = {

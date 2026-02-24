@@ -15,8 +15,30 @@ class GovernancePolicyPatchDashboardTests(unittest.TestCase):
         rollback = root / "rollback.json"
         proposal.write_text(json.dumps({"proposal_id": "p-001"}), encoding="utf-8")
         apply.write_text(json.dumps({"final_status": "PASS"}), encoding="utf-8")
-        history.write_text(json.dumps({"total_records": 3, "latest_status": "PASS"}), encoding="utf-8")
-        trend.write_text(json.dumps({"trend": {"delta_total_records": 1, "delta_fail_rate": -0.2, "delta_reject_rate": -0.1}}), encoding="utf-8")
+        history.write_text(
+            json.dumps(
+                {
+                    "total_records": 3,
+                    "latest_status": "PASS",
+                    "pairwise_threshold_enabled_count": 2,
+                    "latest_pairwise_threshold": 3,
+                }
+            ),
+            encoding="utf-8",
+        )
+        trend.write_text(
+            json.dumps(
+                {
+                    "trend": {
+                        "delta_total_records": 1,
+                        "delta_fail_rate": -0.2,
+                        "delta_reject_rate": -0.1,
+                        "delta_pairwise_threshold_enable_rate": 0.2,
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
         rollback.write_text(
             json.dumps({"advice": {"decision": "KEEP", "rollback_recommended": False, "reasons": []}}), encoding="utf-8"
         )
@@ -55,6 +77,10 @@ class GovernancePolicyPatchDashboardTests(unittest.TestCase):
             self.assertEqual(payload.get("proposal_id"), "p-001")
             self.assertEqual(payload.get("rollback_decision"), "KEEP")
             self.assertEqual(payload.get("total_records"), 3)
+            self.assertEqual(payload.get("pairwise_threshold_enabled_count"), 2)
+            self.assertEqual(payload.get("latest_pairwise_threshold"), 3)
+            flags = payload.get("result_flags", {})
+            self.assertEqual(flags.get("pairwise_threshold_signal_present"), "PASS")
 
     def test_dashboard_summary_fail_when_missing_proposal_id(self) -> None:
         with tempfile.TemporaryDirectory() as d:

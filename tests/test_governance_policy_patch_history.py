@@ -27,6 +27,17 @@ class GovernancePolicyPatchHistoryTests(unittest.TestCase):
                     "applied": applied,
                     "reasons": [] if final_status == "PASS" else ["x"],
                     "target_policy_path": "tmp/policy.json",
+                    "proposal_path": str(path.with_name(f"{proposal_id}.proposal.json")),
+                }
+            ),
+            encoding="utf-8",
+        )
+        Path(path.with_name(f"{proposal_id}.proposal.json")).write_text(
+            json.dumps(
+                {
+                    "policy_after": {
+                        "require_min_pairwise_net_margin": 3 if final_status == "PASS" else None,
+                    }
                 }
             ),
             encoding="utf-8",
@@ -75,6 +86,8 @@ class GovernancePolicyPatchHistoryTests(unittest.TestCase):
             self.assertEqual((payload.get("status_counts") or {}).get("FAIL"), 1)
             self.assertEqual(payload.get("applied_count"), 1)
             self.assertEqual(payload.get("reject_count"), 1)
+            self.assertEqual(payload.get("pairwise_threshold_enabled_count"), 1)
+            self.assertEqual(payload.get("latest_pairwise_threshold"), 3)
             self.assertTrue(ledger.exists())
             self.assertEqual(len(ledger.read_text(encoding="utf-8").strip().splitlines()), 3)
 
@@ -87,7 +100,14 @@ class GovernancePolicyPatchHistoryTests(unittest.TestCase):
                 "\n".join(
                     [
                         json.dumps({"final_status": "FAIL", "applied": False, "approval_decision": "reject"}),
-                        json.dumps({"final_status": "PASS", "applied": True, "approval_decision": "approve"}),
+                        json.dumps(
+                            {
+                                "final_status": "PASS",
+                                "applied": True,
+                                "approval_decision": "approve",
+                                "pairwise_threshold": 2,
+                            }
+                        ),
                     ]
                 )
                 + "\n",
@@ -112,6 +132,8 @@ class GovernancePolicyPatchHistoryTests(unittest.TestCase):
             self.assertEqual(payload.get("ingested_count"), 0)
             self.assertEqual(payload.get("total_records"), 2)
             self.assertEqual(payload.get("latest_status"), "PASS")
+            self.assertEqual(payload.get("pairwise_threshold_enabled_count"), 1)
+            self.assertEqual(payload.get("latest_pairwise_threshold"), 2)
 
 
 if __name__ == "__main__":
