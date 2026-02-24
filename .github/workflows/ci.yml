@@ -282,7 +282,9 @@ jobs:
           pip install -e .
 
       - name: Run policy autotune governance chain
-        run: bash scripts/demo_policy_autotune_governance.sh
+        run: |
+          bash scripts/demo_policy_autotune_governance.sh
+          bash scripts/demo_policy_autotune_governance_dashboard.sh
 
       - name: Upload policy autotune governance artifact
         if: always()
@@ -291,6 +293,14 @@ jobs:
           name: policy-autotune-governance-v1
           path: |
             artifacts/policy_autotune_governance_demo
+
+      - name: Upload policy autotune governance history artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: policy-autotune-governance-history-v1
+          path: |
+            artifacts/policy_autotune_governance_history_demo
 
   mutation-pack-optional:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_benchmark }}
