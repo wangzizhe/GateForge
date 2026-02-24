@@ -253,6 +253,19 @@ Output:
 - `artifacts/policy_autotune_governance_advisor_demo/apply.json`
 - `artifacts/policy_autotune_governance_advisor_demo/summary.json`
 
+Explainable policy patch flow (advisor why-now + scorecard + preview + apply):
+
+```bash
+bash scripts/demo_governance_policy_patch_explainable_flow.sh
+```
+
+Output:
+- `artifacts/governance_policy_patch_explainable_demo/advisor.json`
+- `artifacts/governance_policy_patch_explainable_demo/proposal.json`
+- `artifacts/governance_policy_patch_explainable_demo/preview.json`
+- `artifacts/governance_policy_patch_explainable_demo/apply.json`
+- `artifacts/governance_policy_patch_explainable_demo/summary.json`
+
 Policy auto-tuning governance advisor history (advisor records -> history -> trend):
 
 ```bash
