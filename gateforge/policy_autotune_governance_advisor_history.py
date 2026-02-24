@@ -54,6 +54,7 @@ def _write_markdown(path: str, payload: dict) -> None:
         f"- tighten_rate: `{payload.get('tighten_rate')}`",
         f"- rollback_review_rate: `{payload.get('rollback_review_rate')}`",
         f"- pairwise_patch_rate: `{payload.get('pairwise_patch_rate')}`",
+        f"- leaderboard_instability_rate: `{payload.get('leaderboard_instability_rate')}`",
         "",
         "## Alerts",
         "",
@@ -105,6 +106,10 @@ def main() -> None:
                 "is_rollback_review": action == "ROLLBACK_REVIEW",
                 "pairwise_patch": pairwise_patch,
                 "is_pairwise_patch_enabled": isinstance(pairwise_patch, int) and pairwise_patch > 0,
+                "has_leaderboard_instability_reason": any(
+                    str(r) in {"compare_leader_pairwise_loss_detected", "compare_runner_up_gap_non_positive"}
+                    for r in (advice.get("reasons") or [])
+                ),
             }
         )
     if append_rows:
@@ -117,11 +122,13 @@ def main() -> None:
     tighten_count = sum(1 for r in rows if bool(r.get("is_tighten")))
     rollback_count = sum(1 for r in rows if bool(r.get("is_rollback_review")))
     pairwise_patch_count = sum(1 for r in rows if bool(r.get("is_pairwise_patch_enabled")))
+    leaderboard_instability_count = sum(1 for r in rows if bool(r.get("has_leaderboard_instability_reason")))
     keep_count = sum(1 for r in rows if str(r.get("action")) == "KEEP")
 
     tighten_rate = round(tighten_count / max(1, total), 4)
     rollback_rate = round(rollback_count / max(1, total), 4)
     pairwise_patch_rate = round(pairwise_patch_count / max(1, total), 4)
+    leaderboard_instability_rate = round(leaderboard_instability_count / max(1, total), 4)
 
     alerts: list[str] = []
     if str(latest.get("action")) == "ROLLBACK_REVIEW":
@@ -132,6 +139,8 @@ def main() -> None:
         alerts.append("tighten_rate_high")
     if pairwise_patch_rate >= 0.5 and total >= 3:
         alerts.append("pairwise_patch_rate_high")
+    if leaderboard_instability_rate >= 0.4 and total >= 3:
+        alerts.append("leaderboard_instability_rate_high")
 
     summary = {
         "generated_at_utc": now,
@@ -148,6 +157,8 @@ def main() -> None:
         "tighten_rate": tighten_rate,
         "rollback_review_rate": rollback_rate,
         "pairwise_patch_rate": pairwise_patch_rate,
+        "leaderboard_instability_count": leaderboard_instability_count,
+        "leaderboard_instability_rate": leaderboard_instability_rate,
         "alerts": alerts,
     }
     _write_json(args.out, summary)
