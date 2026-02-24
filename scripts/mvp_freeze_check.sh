@@ -8,8 +8,25 @@ OUT_DIR="artifacts/mvp_freeze"
 mkdir -p "$OUT_DIR"
 rm -f "$OUT_DIR"/summary.json "$OUT_DIR"/summary.md "$OUT_DIR"/tests.log "$OUT_DIR"/medium_dashboard.log "$OUT_DIR"/mutation_dashboard.log "$OUT_DIR"/policy_autotune.log "$OUT_DIR"/policy_autotune_governance.log "$OUT_DIR"/policy_dashboard.log "$OUT_DIR"/ci_matrix.log
 
+TEST_MODE="${MVP_FREEZE_TEST_MODE:-full}"
+TEST_CMD=()
+if [[ "$TEST_MODE" == "targeted" ]]; then
+  TEST_CMD=(
+    python3 -m unittest -v
+    tests/test_mvp_freeze.py
+    tests/test_governance_report.py
+    tests/test_policy_autotune_governance_advisor_history.py
+    tests/test_policy_autotune_governance_advisor_history_trend.py
+    tests/test_policy_autotune_governance_advisor_history_demo.py
+    tests.test_demo_scripts.DemoScriptTests.test_demo_policy_autotune_full_chain_script
+    tests.test_demo_scripts.DemoScriptTests.test_demo_governance_snapshot_with_advisor_history_script
+  )
+else
+  TEST_CMD=(python3 -m unittest discover -s tests -v)
+fi
+
 set +e
-python3 -m unittest discover -s tests -v >"$OUT_DIR/tests.log" 2>&1
+"${TEST_CMD[@]}" >"$OUT_DIR/tests.log" 2>&1
 TESTS_RC=$?
 
 bash scripts/demo_medium_pack_v1_dashboard.sh >"$OUT_DIR/medium_dashboard.log" 2>&1
