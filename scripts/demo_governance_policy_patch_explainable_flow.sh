@@ -33,6 +33,20 @@ cat > "$OUT_DIR/compare.json" <<'JSON'
 {
   "top_score_margin": 1,
   "explanation_completeness": 82,
+  "decision_explanation_ranking_details": {
+    "top_driver": "component_delta:recommended_component",
+    "numeric_reason_count": 1,
+    "drivers": [
+      {
+        "rank": 1,
+        "reason": "component_delta:recommended_component",
+        "weight": 90,
+        "value": 3,
+        "impact_score": 270,
+        "impact_share_pct": 72.2
+      }
+    ]
+  },
   "decision_explanation_leaderboard": [
     {
       "profile": "default",
@@ -94,7 +108,13 @@ scorecard = advice.get("recommendation_scorecard", {})
 flags = {
     "advisor_why_now_present": "PASS" if isinstance(why_now.get("summary"), str) and isinstance(why_now.get("urgency"), str) else "FAIL",
     "advisor_scorecard_present": "PASS" if isinstance(scorecard.get("impact"), str) and isinstance(scorecard.get("priority"), str) else "FAIL",
+    "advisor_driver_signal_present": "PASS"
+    if isinstance((advice.get("ranking_driver_signal") or {}).get("top_driver"), str)
+    else "FAIL",
     "proposal_has_advisor_context": "PASS" if isinstance(proposal.get("advisor_why_now"), dict) and isinstance(proposal.get("advisor_recommendation_scorecard"), dict) else "FAIL",
+    "proposal_has_driver_signal": "PASS"
+    if isinstance((proposal.get("advisor_ranking_driver_signal") or {}).get("top_driver"), str)
+    else "FAIL",
     "preview_status_is_preview": "PASS" if preview.get("final_status") == "PREVIEW" else "FAIL",
     "preview_has_impacts": "PASS" if isinstance(preview.get("impact_preview"), list) and len(preview.get("impact_preview")) >= 1 else "FAIL",
     "apply_passed": "PASS" if apply_summary.get("final_status") == "PASS" else "FAIL",
@@ -103,6 +123,7 @@ bundle_status = "PASS" if all(v == "PASS" for v in flags.values()) else "FAIL"
 summary = {
     "proposal_id": proposal.get("proposal_id"),
     "why_now_urgency": why_now.get("urgency"),
+    "advisor_top_driver": (advice.get("ranking_driver_signal") or {}).get("top_driver"),
     "scorecard_priority": scorecard.get("priority"),
     "proposal_change_count": proposal.get("change_count"),
     "preview_status": preview.get("final_status"),

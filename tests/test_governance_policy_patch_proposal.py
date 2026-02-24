@@ -22,6 +22,11 @@ class GovernancePolicyPatchProposalTests(unittest.TestCase):
                             "reasons": ["mismatch_volume_increasing"],
                             "why_now": {"summary": "signals", "urgency": "high"},
                             "recommendation_scorecard": {"impact": "high", "priority": "urgent"},
+                            "ranking_driver_signal": {
+                                "top_driver": "component_delta:recommended_component",
+                                "top_driver_impact_share_pct": 72.2,
+                                "top_driver_value": 3,
+                            },
                             "threshold_patch": {
                                 "require_min_top_score_margin": 2,
                                 "require_min_pairwise_net_margin": 3,
@@ -70,6 +75,10 @@ class GovernancePolicyPatchProposalTests(unittest.TestCase):
             self.assertEqual(payload.get("approval_status"), "PENDING")
             self.assertEqual((payload.get("advisor_why_now") or {}).get("urgency"), "high")
             self.assertEqual((payload.get("advisor_recommendation_scorecard") or {}).get("priority"), "urgent")
+            self.assertEqual(
+                (payload.get("advisor_ranking_driver_signal") or {}).get("top_driver"),
+                "component_delta:recommended_component",
+            )
             recommendation = payload.get("approval_recommendation") or {}
             self.assertEqual(recommendation.get("approval_profile"), "dual_reviewer")
             self.assertEqual(recommendation.get("required_approvals"), 2)
