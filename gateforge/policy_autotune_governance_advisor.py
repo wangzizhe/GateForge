@@ -37,6 +37,8 @@ def _advise(dashboard: dict) -> dict:
     tuned_top_score_margin = dashboard.get("tuned_top_score_margin")
     tuned_explanation_completeness = dashboard.get("tuned_explanation_completeness")
     tuned_pairwise_net_margin = dashboard.get("tuned_pairwise_net_margin")
+    tuned_leader_pairwise_loss_count = dashboard.get("tuned_leader_pairwise_loss_count")
+    tuned_runner_up_score_gap_to_best = dashboard.get("tuned_runner_up_score_gap_to_best")
 
     reasons: list[str] = []
     threshold_patch = {
@@ -122,6 +124,26 @@ def _advise(dashboard: dict) -> dict:
         confidence = max(confidence, 0.8)
         if threshold_patch["require_min_pairwise_net_margin"] is None:
             threshold_patch["require_min_pairwise_net_margin"] = 2
+
+    if isinstance(tuned_leader_pairwise_loss_count, int) and tuned_leader_pairwise_loss_count > 0:
+        reasons.append("compare_leader_pairwise_loss_detected")
+        action = "TIGHTEN"
+        suggested_profile = "industrial_strict"
+        confidence = max(confidence, 0.82)
+        threshold_patch["require_min_pairwise_net_margin"] = max(
+            int(threshold_patch["require_min_pairwise_net_margin"] or 0),
+            2,
+        )
+
+    if isinstance(tuned_runner_up_score_gap_to_best, int) and tuned_runner_up_score_gap_to_best <= 0:
+        reasons.append("compare_runner_up_gap_non_positive")
+        action = "TIGHTEN"
+        suggested_profile = "industrial_strict"
+        confidence = max(confidence, 0.82)
+        threshold_patch["require_min_top_score_margin"] = max(
+            int(threshold_patch["require_min_top_score_margin"] or 0),
+            2,
+        )
 
     return {
         "action": action,
