@@ -191,6 +191,13 @@ Outputs:
 - `artifacts/mvp_freeze/summary.json`
 - `artifacts/mvp_freeze/summary.md`
 
+Current freeze inputs:
+- full unit test suite
+- medium governance dashboard chain
+- mutation governance dashboard chain
+- policy patch dashboard chain
+- targeted local CI matrix
+
 Verdict values:
 - `MVP_FREEZE_PASS`
 - `MVP_FREEZE_FAIL` (with `blocking_step`)
