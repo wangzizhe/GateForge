@@ -40,6 +40,9 @@ def _write_markdown(path: str, payload: dict) -> None:
         f"- delta_rollback_review_rate: `{trend.get('delta_rollback_review_rate')}`",
         f"- delta_pairwise_patch_rate: `{trend.get('delta_pairwise_patch_rate')}`",
         f"- delta_leaderboard_instability_rate: `{trend.get('delta_leaderboard_instability_rate')}`",
+        f"- delta_top_driver_non_null_rate: `{trend.get('delta_top_driver_non_null_rate')}`",
+        f"- dominant_top_driver_previous: `{trend.get('dominant_top_driver_previous')}`",
+        f"- dominant_top_driver_current: `{trend.get('dominant_top_driver_current')}`",
         "",
         "## Alerts",
         "",
@@ -77,6 +80,24 @@ def main() -> None:
         - _to_float(previous.get("leaderboard_instability_rate")),
         4,
     )
+    d_top_driver_non_null = round(
+        _to_float(current.get("top_driver_non_null_rate")) - _to_float(previous.get("top_driver_non_null_rate")),
+        4,
+    )
+
+    current_distribution = current.get("top_driver_distribution") if isinstance(current.get("top_driver_distribution"), dict) else {}
+    previous_distribution = (
+        previous.get("top_driver_distribution") if isinstance(previous.get("top_driver_distribution"), dict) else {}
+    )
+
+    def _dominant(distribution: dict) -> str | None:
+        if not distribution:
+            return None
+        items = sorted(distribution.items(), key=lambda kv: int(kv[1]), reverse=True)
+        return str(items[0][0]) if items else None
+
+    dominant_current = _dominant(current_distribution)
+    dominant_previous = _dominant(previous_distribution)
 
     alerts: list[str] = []
     if d_tighten > 0:
@@ -87,6 +108,10 @@ def main() -> None:
         alerts.append("pairwise_patch_rate_increasing")
     if d_leaderboard_instability > 0:
         alerts.append("leaderboard_instability_rate_increasing")
+    if d_top_driver_non_null > 0:
+        alerts.append("top_driver_signal_coverage_increasing")
+    if dominant_current and dominant_previous and dominant_current != dominant_previous:
+        alerts.append("dominant_top_driver_changed")
 
     status = "PASS" if not alerts else "NEEDS_REVIEW"
     payload = {
@@ -96,6 +121,9 @@ def main() -> None:
             "delta_rollback_review_rate": d_rollback,
             "delta_pairwise_patch_rate": d_pairwise_patch,
             "delta_leaderboard_instability_rate": d_leaderboard_instability,
+            "delta_top_driver_non_null_rate": d_top_driver_non_null,
+            "dominant_top_driver_previous": dominant_previous,
+            "dominant_top_driver_current": dominant_current,
             "alerts": alerts,
         },
     }
