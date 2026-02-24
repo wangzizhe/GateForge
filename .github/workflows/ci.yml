@@ -230,7 +230,7 @@ jobs:
             artifacts/benchmark_medium_v1
 
   medium-governance-optional:
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_benchmark }}
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_governance_snapshot_demo }}
     continue-on-error: true
     runs-on: ubuntu-latest
     steps:
@@ -266,7 +266,7 @@ jobs:
             artifacts/governance_snapshot_advisor_history_demo
 
   policy-autotune-optional:
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_benchmark }}
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_governance_history_demo }}
     continue-on-error: true
     runs-on: ubuntu-latest
     steps:
@@ -2287,7 +2287,7 @@ jobs:
             artifacts/governance_promote_compare_validate_demo/summary.md
 
   governance-policy-patch-explainable-optional:
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_governance_promote_apply_demo }}
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_governance_promote_compare_demo }}
     continue-on-error: true
     runs-on: ubuntu-latest
     steps:
