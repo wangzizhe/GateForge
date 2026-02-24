@@ -55,10 +55,25 @@ def _write_markdown(path: str, payload: dict) -> None:
         f"- rollback_review_rate: `{payload.get('rollback_review_rate')}`",
         f"- pairwise_patch_rate: `{payload.get('pairwise_patch_rate')}`",
         f"- leaderboard_instability_rate: `{payload.get('leaderboard_instability_rate')}`",
+        f"- latest_top_driver: `{payload.get('latest_top_driver')}`",
+        f"- top_driver_non_null_rate: `{payload.get('top_driver_non_null_rate')}`",
         "",
-        "## Alerts",
+        "## Top Driver Distribution",
         "",
     ]
+    distribution = payload.get("top_driver_distribution", {})
+    if isinstance(distribution, dict) and distribution:
+        for key in sorted(distribution.keys()):
+            lines.append(f"- `{key}`: `{distribution.get(key)}`")
+    else:
+        lines.append("- `none`")
+    lines.extend(
+        [
+            "",
+        "## Alerts",
+        "",
+        ]
+    )
     alerts = payload.get("alerts", [])
     if isinstance(alerts, list) and alerts:
         for a in alerts:
@@ -110,6 +125,11 @@ def main() -> None:
                     str(r) in {"compare_leader_pairwise_loss_detected", "compare_runner_up_gap_non_positive"}
                     for r in (advice.get("reasons") or [])
                 ),
+                "top_driver": (
+                    advice.get("ranking_driver_signal", {}).get("top_driver")
+                    if isinstance(advice.get("ranking_driver_signal"), dict)
+                    else None
+                ),
             }
         )
     if append_rows:
@@ -123,12 +143,19 @@ def main() -> None:
     rollback_count = sum(1 for r in rows if bool(r.get("is_rollback_review")))
     pairwise_patch_count = sum(1 for r in rows if bool(r.get("is_pairwise_patch_enabled")))
     leaderboard_instability_count = sum(1 for r in rows if bool(r.get("has_leaderboard_instability_reason")))
+    top_driver_non_null_count = sum(1 for r in rows if isinstance(r.get("top_driver"), str) and str(r.get("top_driver")))
+    top_driver_distribution: dict[str, int] = {}
+    for row in rows:
+        top_driver = row.get("top_driver")
+        if isinstance(top_driver, str) and top_driver:
+            top_driver_distribution[top_driver] = int(top_driver_distribution.get(top_driver, 0)) + 1
     keep_count = sum(1 for r in rows if str(r.get("action")) == "KEEP")
 
     tighten_rate = round(tighten_count / max(1, total), 4)
     rollback_rate = round(rollback_count / max(1, total), 4)
     pairwise_patch_rate = round(pairwise_patch_count / max(1, total), 4)
     leaderboard_instability_rate = round(leaderboard_instability_count / max(1, total), 4)
+    top_driver_non_null_rate = round(top_driver_non_null_count / max(1, total), 4)
 
     alerts: list[str] = []
     if str(latest.get("action")) == "ROLLBACK_REVIEW":
@@ -141,6 +168,11 @@ def main() -> None:
         alerts.append("pairwise_patch_rate_high")
     if leaderboard_instability_rate >= 0.4 and total >= 3:
         alerts.append("leaderboard_instability_rate_high")
+    if (
+        top_driver_distribution.get("component_delta:recommended_component", 0) / max(1, total) >= 0.4
+        and total >= 3
+    ):
+        alerts.append("recommended_component_driver_ratio_high")
 
     summary = {
         "generated_at_utc": now,
@@ -159,6 +191,10 @@ def main() -> None:
         "pairwise_patch_rate": pairwise_patch_rate,
         "leaderboard_instability_count": leaderboard_instability_count,
         "leaderboard_instability_rate": leaderboard_instability_rate,
+        "latest_top_driver": latest.get("top_driver"),
+        "top_driver_distribution": top_driver_distribution,
+        "top_driver_non_null_count": top_driver_non_null_count,
+        "top_driver_non_null_rate": top_driver_non_null_rate,
         "alerts": alerts,
     }
     _write_json(args.out, summary)

@@ -20,6 +20,11 @@ class PolicyAutotuneGovernanceAdvisorHistoryTrendTests(unittest.TestCase):
                         "rollback_review_rate": 0.2,
                         "pairwise_patch_rate": 0.5,
                         "leaderboard_instability_rate": 0.6,
+                        "top_driver_non_null_rate": 1.0,
+                        "top_driver_distribution": {
+                            "component_delta:recommended_component": 3,
+                            "top_score_margin": 1,
+                        },
                     }
                 ),
                 encoding="utf-8",
@@ -31,6 +36,8 @@ class PolicyAutotuneGovernanceAdvisorHistoryTrendTests(unittest.TestCase):
                         "rollback_review_rate": 0.0,
                         "pairwise_patch_rate": 0.0,
                         "leaderboard_instability_rate": 0.1,
+                        "top_driver_non_null_rate": 0.5,
+                        "top_driver_distribution": {"top_score_margin": 2},
                     }
                 ),
                 encoding="utf-8",
@@ -58,6 +65,8 @@ class PolicyAutotuneGovernanceAdvisorHistoryTrendTests(unittest.TestCase):
             self.assertIn("tighten_rate_increasing", alerts)
             self.assertIn("pairwise_patch_rate_increasing", alerts)
             self.assertIn("leaderboard_instability_rate_increasing", alerts)
+            self.assertIn("top_driver_signal_coverage_increasing", alerts)
+            self.assertIn("dominant_top_driver_changed", alerts)
 
 
 if __name__ == "__main__":
