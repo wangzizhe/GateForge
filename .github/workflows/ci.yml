@@ -252,6 +252,7 @@ jobs:
           bash scripts/demo_medium_pack_v1_dashboard.sh
           bash scripts/demo_policy_autotune.sh
           bash scripts/demo_policy_autotune_history.sh
+          bash scripts/demo_policy_autotune_governance.sh
 
       - name: Upload medium governance artifact
         if: always()
@@ -262,6 +263,7 @@ jobs:
             artifacts/benchmark_medium_v1
             artifacts/policy_autotune_demo
             artifacts/policy_autotune_history_demo
+            artifacts/policy_autotune_governance_demo
 
   mutation-pack-optional:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_benchmark }}
