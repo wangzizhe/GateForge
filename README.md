@@ -159,6 +159,16 @@ Output:
 - `artifacts/mutation_pack_compare_demo/summary.json`
 - `artifacts/mutation_pack_compare_demo/summary.md`
 
+Mutation governance dashboard (metrics + history + trend + compare):
+
+```bash
+bash scripts/demo_mutation_dashboard.sh
+```
+
+Output:
+- `artifacts/mutation_dashboard_demo/summary.json`
+- `artifacts/mutation_dashboard_demo/summary.md`
+
 ## MVP Freeze (Release Readiness)
 
 ```bash
