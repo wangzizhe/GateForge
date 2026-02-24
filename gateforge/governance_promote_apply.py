@@ -7,6 +7,8 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+from .governance_promote_compare_validate import validate_compare_summary
+
 PROMOTE_APPLY_POLICY_DIR = Path("policies/promote_apply")
 
 
@@ -581,6 +583,18 @@ def main() -> None:
         help="When enabled with --require-ranking-explanation-structure, invalid structure becomes FAIL (default is NEEDS_REVIEW)",
     )
     parser.add_argument(
+        "--validate-compare-summary",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Validate compare summary structure before apply decision",
+    )
+    parser.add_argument(
+        "--validate-compare-apply-ready",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="When validating compare summary, enforce full apply-ready structure checks",
+    )
+    parser.add_argument(
         "--baseline-apply-summary",
         default=None,
         help="Optional previous promote-apply summary JSON used to detect guardrail drift",
@@ -601,6 +615,52 @@ def main() -> None:
     args = parser.parse_args()
 
     compare_payload = _load_json(args.compare_summary)
+    if bool(args.validate_compare_summary):
+        validation_errors = validate_compare_summary(
+            compare_payload,
+            require_apply_ready=bool(args.validate_compare_apply_ready),
+        )
+        if validation_errors:
+            hint = "Fix compare summary fields before governance_promote_apply."
+            payload = {
+                "final_status": "FAIL",
+                "apply_action": "block",
+                "reasons": ["compare_summary_invalid_structure"],
+                "compare_summary_validation_errors": validation_errors,
+                "human_hints": [hint],
+                "compare_summary_path": args.compare_summary,
+                "actor": args.actor,
+                "review_ticket_id": args.review_ticket_id,
+                "policy_profile": args.policy_profile,
+                "recorded_at_utc": datetime.now(timezone.utc).isoformat(),
+                "audit_path": args.audit,
+            }
+            _write_json(args.out, payload)
+            _write_markdown(args.report or _default_md_path(args.out), payload)
+            _append_jsonl(
+                args.audit,
+                {
+                    "recorded_at_utc": payload["recorded_at_utc"],
+                    "actor": args.actor,
+                    "final_status": payload["final_status"],
+                    "apply_action": payload["apply_action"],
+                    "reasons": payload["reasons"],
+                    "human_hints": payload["human_hints"],
+                    "compare_summary_path": args.compare_summary,
+                    "compare_summary_validation_errors": validation_errors,
+                    "policy_profile": args.policy_profile,
+                },
+            )
+            print(
+                json.dumps(
+                    {
+                        "final_status": payload["final_status"],
+                        "apply_action": payload["apply_action"],
+                        "best_profile": None,
+                    }
+                )
+            )
+            sys.exit(1)
     policy_path = _resolve_promote_apply_policy_path(args.policy_path, args.policy_profile)
     policy_payload = _load_json(policy_path)
     effective = _resolve_effective_guardrails(args, policy_payload)

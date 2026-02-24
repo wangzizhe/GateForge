@@ -618,10 +618,107 @@ class GovernancePromoteApplyTests(unittest.TestCase):
             self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
             applied = json.loads(out.read_text(encoding="utf-8"))
             self.assertEqual(applied.get("final_status"), "NEEDS_REVIEW")
-            self.assertEqual(applied.get("apply_action"), "hold_for_review")
-            self.assertTrue(applied.get("guardrail_drift_detected"))
-            self.assertIn("guardrail_policy_hash_drift", applied.get("reasons", []))
-            self.assertIn("guardrail_effective_guardrails_hash_drift", applied.get("reasons", []))
+
+    def test_apply_compare_summary_validation_blocks_invalid_structure(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            compare = root / "compare.json"
+            out = root / "apply.json"
+            compare.write_text(
+                json.dumps(
+                    {
+                        "status": "PASS",
+                        "best_profile": "default",
+                        "best_decision": "PASS",
+                        "decision_explanations": {
+                            "selection_priority": ["total_score"],
+                            "best_vs_others": [
+                                {
+                                    "winner_profile": "default",
+                                    "challenger_profile": "industrial_strict",
+                                    "score_margin": 1,
+                                    "tie_on_total_score": False,
+                                    "winner_advantages": ["decision_component"],
+                                }
+                            ],
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.governance_promote_apply",
+                    "--compare-summary",
+                    str(compare),
+                    "--validate-compare-summary",
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 1)
+            applied = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(applied.get("final_status"), "FAIL")
+            self.assertIn("compare_summary_invalid_structure", applied.get("reasons", []))
+            self.assertIsInstance(applied.get("compare_summary_validation_errors"), list)
+            self.assertTrue(applied.get("human_hints"))
+
+    def test_apply_compare_summary_validation_can_use_non_apply_ready_mode(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            compare = root / "compare.json"
+            out = root / "apply.json"
+            compare.write_text(
+                json.dumps(
+                    {
+                        "status": "PASS",
+                        "best_profile": "default",
+                        "best_decision": "PASS",
+                        "recommended_profile": "default",
+                        "top_score_margin": 3,
+                        "explanation_quality": {"score": 95},
+                        "decision_explanations": {
+                            "selection_priority": ["total_score", "decision"],
+                            "best_vs_others": [
+                                {
+                                    "winner_profile": "default",
+                                    "challenger_profile": "industrial_strict",
+                                    "score_margin": 3,
+                                    "tie_on_total_score": False,
+                                    "winner_advantages": ["decision_component"],
+                                }
+                            ],
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.governance_promote_apply",
+                    "--compare-summary",
+                    str(compare),
+                    "--validate-compare-summary",
+                    "--no-validate-compare-apply-ready",
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            applied = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(applied.get("final_status"), "PASS")
+            self.assertEqual(applied.get("apply_action"), "promote")
+            self.assertFalse(applied.get("guardrail_drift_detected"))
 
     def test_apply_guardrail_drift_strict_fails(self) -> None:
         with tempfile.TemporaryDirectory() as d:

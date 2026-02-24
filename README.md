@@ -91,6 +91,21 @@ python -m gateforge.governance_promote_compare_validate \
   --require-apply-ready
 ```
 
+Validation demo bundle:
+
+```bash
+bash scripts/demo_governance_promote_compare_validate.sh
+```
+
+Enable the same check inline during apply:
+
+```bash
+python -m gateforge.governance_promote_apply \
+  --compare-summary artifacts/governance_promote_apply_demo/synthetic_pass_compare.json \
+  --validate-compare-summary \
+  --out artifacts/governance_promote_apply_demo/pass_apply.json
+```
+
 ## Medium Governance Chain (Current Mainline)
 
 ### 1) Medium benchmark truth set
