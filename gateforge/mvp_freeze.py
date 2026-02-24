@@ -56,12 +56,18 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Summarize MVP freeze run results into one verdict")
     parser.add_argument("--tests-rc", type=int, required=True)
     parser.add_argument("--medium-dashboard-rc", type=int, required=True)
+    parser.add_argument("--mutation-dashboard-rc", type=int, required=True)
     parser.add_argument("--policy-dashboard-rc", type=int, required=True)
     parser.add_argument("--ci-matrix-rc", type=int, required=True)
     parser.add_argument(
         "--medium-dashboard-json",
         default="artifacts/benchmark_medium_v1/dashboard.json",
         help="Medium dashboard artifact path",
+    )
+    parser.add_argument(
+        "--mutation-dashboard-json",
+        default="artifacts/mutation_dashboard_demo/summary.json",
+        help="Mutation dashboard artifact path",
     )
     parser.add_argument(
         "--policy-dashboard-json",
@@ -82,6 +88,7 @@ def main() -> None:
     args = parser.parse_args()
 
     medium = _load_json(args.medium_dashboard_json)
+    mutation = _load_json(args.mutation_dashboard_json)
     policy = _load_json(args.policy_dashboard_json)
     matrix = _load_json(args.ci_matrix_json)
 
@@ -98,6 +105,15 @@ def main() -> None:
                 int(args.medium_dashboard_rc),
                 Path(args.medium_dashboard_json).exists()
                 and str(medium.get("bundle_status")) == "PASS",
+            ),
+        },
+        {
+            "name": "mutation_dashboard",
+            "exit_code": int(args.mutation_dashboard_rc),
+            "status": _step_status(
+                int(args.mutation_dashboard_rc),
+                Path(args.mutation_dashboard_json).exists()
+                and str(mutation.get("bundle_status")) == "PASS",
             ),
         },
         {
@@ -129,6 +145,7 @@ def main() -> None:
         "steps": steps,
         "artifact_paths": {
             "medium_dashboard_json": args.medium_dashboard_json,
+            "mutation_dashboard_json": args.mutation_dashboard_json,
             "policy_dashboard_json": args.policy_dashboard_json,
             "ci_matrix_json": args.ci_matrix_json,
         },
