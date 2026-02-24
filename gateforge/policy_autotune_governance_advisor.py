@@ -36,10 +36,12 @@ def _advise(dashboard: dict) -> dict:
     trend_alerts_count = int(dashboard.get("trend_alerts_count", 0) or 0)
     tuned_top_score_margin = dashboard.get("tuned_top_score_margin")
     tuned_explanation_completeness = dashboard.get("tuned_explanation_completeness")
+    tuned_pairwise_net_margin = dashboard.get("tuned_pairwise_net_margin")
 
     reasons: list[str] = []
     threshold_patch = {
         "require_min_top_score_margin": None,
+        "require_min_pairwise_net_margin": None,
         "require_min_explanation_quality": None,
     }
 
@@ -113,6 +115,14 @@ def _advise(dashboard: dict) -> dict:
         if threshold_patch["require_min_explanation_quality"] is None:
             threshold_patch["require_min_explanation_quality"] = 85
 
+    if isinstance(tuned_pairwise_net_margin, int) and tuned_pairwise_net_margin < 2:
+        reasons.append("compare_pairwise_net_margin_low")
+        action = "TIGHTEN"
+        suggested_profile = "industrial_strict"
+        confidence = max(confidence, 0.8)
+        if threshold_patch["require_min_pairwise_net_margin"] is None:
+            threshold_patch["require_min_pairwise_net_margin"] = 2
+
     return {
         "action": action,
         "suggested_policy_profile": suggested_profile,
@@ -135,6 +145,7 @@ def _write_markdown(path: str, payload: dict) -> None:
         f"- suggested_policy_profile: `{advice.get('suggested_policy_profile')}`",
         f"- confidence: `{advice.get('confidence')}`",
         f"- require_min_top_score_margin_patch: `{patch.get('require_min_top_score_margin')}`",
+        f"- require_min_pairwise_net_margin_patch: `{patch.get('require_min_pairwise_net_margin')}`",
         f"- require_min_explanation_quality_patch: `{patch.get('require_min_explanation_quality')}`",
         "",
         "## Reasons",
