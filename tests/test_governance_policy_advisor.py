@@ -168,6 +168,7 @@ class GovernancePolicyAdvisorTests(unittest.TestCase):
             self.assertIn("apply_status_needs_review", advice.get("reasons", []))
             self.assertIsInstance(advice.get("evidence_sources"), list)
             self.assertGreaterEqual(len(advice.get("evidence_sources") or []), 2)
+            self.assertIn(type(advice.get("ranking_driver_signal")), {dict, type(None)})
 
     def test_advisor_uses_compare_pairwise_net_margin(self) -> None:
         with tempfile.TemporaryDirectory() as d:
@@ -271,6 +272,71 @@ class GovernancePolicyAdvisorTests(unittest.TestCase):
             self.assertIn("mutation_compare_regressed", advice.get("reasons", []))
             self.assertIn("mutation_match_rate_below_target", advice.get("reasons", []))
             self.assertIn("mutation_gate_pass_rate_below_target", advice.get("reasons", []))
+
+    def test_advisor_uses_ranking_driver_signal_from_compare(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            snapshot = root / "snapshot.json"
+            trend = root / "trend.json"
+            compare = root / "compare.json"
+            out = root / "advisor.json"
+            snapshot.write_text(
+                json.dumps({"kpis": {"risk_score": 15, "latest_mismatch_count": 0}, "risks": []}),
+                encoding="utf-8",
+            )
+            trend.write_text(
+                json.dumps({"trend": {"kpi_delta": {"history_mismatch_total_delta": 0, "risk_score_delta": 0}}}),
+                encoding="utf-8",
+            )
+            compare.write_text(
+                json.dumps(
+                    {
+                        "top_score_margin": 1,
+                        "decision_explanation_ranking_details": {
+                            "top_driver": "component_delta:recommended_component",
+                            "numeric_reason_count": 1,
+                            "drivers": [
+                                {
+                                    "rank": 1,
+                                    "reason": "component_delta:recommended_component",
+                                    "weight": 90,
+                                    "value": 3,
+                                    "impact_score": 270,
+                                    "impact_share_pct": 72.2,
+                                }
+                            ],
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.governance_policy_advisor",
+                    "--snapshot",
+                    str(snapshot),
+                    "--trend",
+                    str(trend),
+                    "--compare-summary",
+                    str(compare),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            payload = json.loads(out.read_text(encoding="utf-8"))
+            advice = payload.get("advice", {})
+            self.assertIn("compare_recommended_component_dominant", advice.get("reasons", []))
+            self.assertEqual(advice.get("suggested_policy_profile"), "industrial_strict")
+            self.assertEqual(advice.get("threshold_patch", {}).get("require_min_top_score_margin"), 2)
+            self.assertEqual(advice.get("threshold_patch", {}).get("require_min_pairwise_net_margin"), 2)
+            signal = advice.get("ranking_driver_signal", {})
+            self.assertEqual(signal.get("top_driver"), "component_delta:recommended_component")
 
 
 if __name__ == "__main__":
