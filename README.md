@@ -83,6 +83,18 @@ python -m gateforge.regress \
 python -m gateforge.proposal_validate --in examples/proposals/proposal_v0.json
 ```
 
+### Runtime Decision Ledger
+
+```bash
+bash scripts/demo_runtime_decision_ledger.sh
+```
+
+Runtime ledger trend demo:
+
+```bash
+bash scripts/demo_runtime_decision_ledger_trend.sh
+```
+
 ### Promote-Compare Output Validate
 
 ```bash
