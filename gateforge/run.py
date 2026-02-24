@@ -22,6 +22,14 @@ from .policy import (
 from .preflight import preflight_change_set
 from .proposal import EXECUTION_ACTIONS, load_proposal, validate_proposal
 from .regression import compare_evidence, load_json, write_json, write_markdown
+from .runtime_ledger import (
+    append_runtime_ledger,
+    build_runtime_record,
+    load_runtime_ledger,
+    summarize_runtime_ledger,
+    write_json as write_runtime_json,
+    write_markdown as write_runtime_markdown,
+)
 
 DEFAULT_BASELINE_INDEX = "baselines/index.json"
 
@@ -53,6 +61,9 @@ def _write_run_markdown(path: str, summary: dict) -> None:
         f"- change_plan_confidence_min: `{summary.get('change_plan_confidence_min')}`",
         f"- change_plan_confidence_avg: `{summary.get('change_plan_confidence_avg')}`",
         f"- change_plan_confidence_max: `{summary.get('change_plan_confidence_max')}`",
+        f"- decision_ledger_path: `{summary.get('decision_ledger_path')}`",
+        f"- decision_ledger_append_status: `{summary.get('decision_ledger_append_status')}`",
+        f"- decision_ledger_summary_path: `{summary.get('decision_ledger_summary_path')}`",
         "",
     ]
     if summary.get("candidate_path"):
@@ -244,6 +255,16 @@ def main() -> None:
         default=None,
         help="Policy profile name under policies/profiles (e.g. industrial_strict_v0)",
     )
+    parser.add_argument(
+        "--decision-ledger",
+        default=None,
+        help="Optional runtime ledger JSONL path; append this run summary after execution",
+    )
+    parser.add_argument(
+        "--decision-ledger-summary-out",
+        default=None,
+        help="Optional runtime ledger summary JSON output path",
+    )
     args = parser.parse_args()
 
     proposal = load_proposal(args.proposal)
@@ -296,6 +317,9 @@ def main() -> None:
         "change_plan_confidence_max": None,
         "applied_changes": [],
         "review_resolution_policy": {},
+        "decision_ledger_path": args.decision_ledger,
+        "decision_ledger_append_status": "not_requested",
+        "decision_ledger_summary_path": args.decision_ledger_summary_out,
     }
 
     candidate = None
@@ -490,6 +514,22 @@ def main() -> None:
 
     write_json(args.out, summary)
     _write_run_markdown(args.report or _default_md_path(args.out), summary)
+
+    if args.decision_ledger:
+        try:
+            append_runtime_ledger(args.decision_ledger, build_runtime_record(summary, source="run"))
+            summary["decision_ledger_append_status"] = "appended"
+            if args.decision_ledger_summary_out:
+                ledger_rows = load_runtime_ledger(args.decision_ledger)
+                ledger_summary = summarize_runtime_ledger(ledger_rows)
+                write_runtime_json(args.decision_ledger_summary_out, ledger_summary)
+                write_runtime_markdown(_default_md_path(args.decision_ledger_summary_out), ledger_summary)
+        except Exception as exc:  # pragma: no cover
+            summary["decision_ledger_append_status"] = "failed"
+            summary["human_hints"].append(f"Decision ledger append failed: {exc}")
+        write_json(args.out, summary)
+        _write_run_markdown(args.report or _default_md_path(args.out), summary)
+
     print(json.dumps({"proposal_id": summary["proposal_id"], "status": summary["status"]}))
 
     if summary["status"] == "FAIL":

@@ -111,6 +111,49 @@ class AutopilotTests(unittest.TestCase):
             self.assertIn("# GateForge Autopilot Summary", report_text)
             self.assertIn("## Required Human Checks", report_text)
 
+    def test_autopilot_appends_decision_ledger(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            baseline = root / "baseline.json"
+            out = root / "summary.json"
+            ledger = root / "decision_ledger.jsonl"
+            ledger_summary = root / "decision_ledger_summary.json"
+            self._write_baseline(baseline)
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.autopilot",
+                    "--goal",
+                    "run demo mock pass",
+                    "--proposal-id",
+                    "autopilot-ledger-1",
+                    "--baseline",
+                    str(baseline),
+                    "--decision-ledger",
+                    str(ledger),
+                    "--decision-ledger-summary-out",
+                    str(ledger_summary),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            payload = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(payload.get("decision_ledger_append_status"), "appended")
+            self.assertEqual(payload.get("decision_ledger_path"), str(ledger))
+            self.assertTrue(ledger.exists())
+            self.assertTrue(ledger_summary.exists())
+            rows = [x for x in ledger.read_text(encoding="utf-8").splitlines() if x.strip()]
+            self.assertEqual(len(rows), 1)
+            record = json.loads(rows[0])
+            self.assertEqual(record.get("source"), "autopilot")
+            self.assertEqual(record.get("proposal_id"), "autopilot-ledger-1")
+
     def test_autopilot_context_json_propagates_to_intent(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
