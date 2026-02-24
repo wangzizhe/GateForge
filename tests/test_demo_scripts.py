@@ -527,6 +527,21 @@ class DemoScriptTests(unittest.TestCase):
         self.assertIn(payload.get("status"), {"PASS", "NEEDS_REVIEW", "FAIL"})
         self.assertIn("kpis", payload)
 
+    def test_demo_governance_snapshot_with_advisor_history_script(self) -> None:
+        proc = subprocess.run(
+            ["bash", "scripts/demo_governance_snapshot_with_advisor_history.sh"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+        payload = json.loads(
+            Path("artifacts/governance_snapshot_advisor_history_demo/demo_summary.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(payload.get("bundle_status"), "PASS")
+        self.assertIn(payload.get("status"), {"PASS", "NEEDS_REVIEW", "FAIL"})
+        self.assertIn(payload.get("advisor_trend_status"), {"PASS", "NEEDS_REVIEW", "UNKNOWN"})
+
     def test_demo_governance_snapshot_from_orchestrate_compare_script(self) -> None:
         proc = subprocess.run(
             ["bash", "scripts/demo_governance_snapshot_from_orchestrate_compare.sh"],
