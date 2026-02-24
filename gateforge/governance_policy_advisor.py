@@ -142,7 +142,11 @@ def _advise(
         reasons.append("stable_replay_signals")
         confidence = 0.6
 
-    if suggested_profile == "default" and (threshold_patch["require_min_top_score_margin"] or threshold_patch["require_min_explanation_quality"]):
+    if suggested_profile == "default" and (
+        threshold_patch["require_min_top_score_margin"]
+        or threshold_patch["require_min_pairwise_net_margin"]
+        or threshold_patch["require_min_explanation_quality"]
+    ):
         confidence = max(confidence, 0.66)
 
     return {
