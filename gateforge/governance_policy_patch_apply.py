@@ -81,8 +81,45 @@ def _write_markdown(path: str, summary: dict) -> None:
             lines.append(f"- `{reason}`")
     else:
         lines.append("- `none`")
+    lines.extend(["", "## Impact Preview", ""])
+    preview = summary.get("impact_preview", [])
+    if isinstance(preview, list) and preview:
+        for row in preview:
+            if isinstance(row, dict):
+                lines.append(
+                    f"- `{row.get('key')}`: `{row.get('old')}` -> `{row.get('new')}` "
+                    f"(scope=`{row.get('scope')}`, expected_effect=`{row.get('expected_effect')}`)"
+                )
+    else:
+        lines.append("- `none`")
     lines.append("")
     p.write_text("\n".join(lines), encoding="utf-8")
+
+
+def _build_impact_preview(changes: list[dict]) -> list[dict]:
+    rows: list[dict] = []
+    for row in changes:
+        if not isinstance(row, dict):
+            continue
+        key = str(row.get("key") or "")
+        scope = "governance"
+        expected_effect = "policy_behavior_change"
+        if key == "require_min_top_score_margin":
+            expected_effect = "stricter_compare_margin_gate"
+        elif key == "require_min_pairwise_net_margin":
+            expected_effect = "stricter_pairwise_stability_gate"
+        elif key == "require_min_explanation_quality":
+            expected_effect = "stricter_explanation_quality_gate"
+        rows.append(
+            {
+                "key": key,
+                "old": row.get("old"),
+                "new": row.get("new"),
+                "scope": scope,
+                "expected_effect": expected_effect,
+            }
+        )
+    return rows
 
 
 def main() -> None:
@@ -101,11 +138,18 @@ def main() -> None:
         default=False,
         help="When enabled and approval is approve, write policy_after to target policy path",
     )
+    parser.add_argument(
+        "--preview-only",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Generate impact preview only; do not evaluate approvals or write policy",
+    )
     parser.add_argument("--out", default="artifacts/governance_policy_patch/apply.json", help="Apply summary JSON path")
     parser.add_argument("--report", default=None, help="Apply summary markdown path")
     args = parser.parse_args()
 
     proposal = _load_json(args.proposal)
+    impact_preview = _build_impact_preview(proposal.get("changes") if isinstance(proposal.get("changes"), list) else [])
     approval_policy_path = _resolve_approval_policy_path(args.approval_profile, args.approval_policy_path)
     approval_policy = _load_json(approval_policy_path)
     required_approvals = int(approval_policy.get("required_approvals", 1))
@@ -129,7 +173,11 @@ def main() -> None:
     decisions = [str(x.get("decision") or "").lower() for x in normalized_approvals]
 
     target_policy_path = str(proposal.get("target_policy_path") or "")
-    if not target_policy_path:
+    if args.preview_only:
+        final_status = "PREVIEW"
+        apply_action = "preview_only"
+        reasons.append("preview_only_no_apply")
+    elif not target_policy_path:
         final_status = "FAIL"
         apply_action = "block"
         reasons.append("target_policy_path_missing")
@@ -177,6 +225,7 @@ def main() -> None:
         "apply_action": apply_action,
         "applied": applied,
         "reasons": reasons,
+        "impact_preview": impact_preview,
     }
     _write_json(args.out, summary)
     _write_markdown(args.report or _default_md_path(args.out), summary)
