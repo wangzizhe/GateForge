@@ -181,6 +181,18 @@ Output:
 - `artifacts/mutation_policy_patch_demo/apply.json`
 - `artifacts/mutation_policy_patch_demo/summary.json`
 
+Cross-layer policy auto-tuning (governance + mutation + medium benchmark):
+
+```bash
+bash scripts/demo_policy_autotune.sh
+```
+
+Output:
+- `artifacts/policy_autotune_demo/advisor.json`
+- `artifacts/policy_autotune_demo/proposal.json`
+- `artifacts/policy_autotune_demo/apply.json`
+- `artifacts/policy_autotune_demo/summary.json`
+
 ## MVP Freeze (Release Readiness)
 
 ```bash

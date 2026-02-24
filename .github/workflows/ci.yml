@@ -248,7 +248,9 @@ jobs:
           pip install -e .
 
       - name: Run medium governance dashboard chain
-        run: bash scripts/demo_medium_pack_v1_dashboard.sh
+        run: |
+          bash scripts/demo_medium_pack_v1_dashboard.sh
+          bash scripts/demo_policy_autotune.sh
 
       - name: Upload medium governance artifact
         if: always()
@@ -257,6 +259,7 @@ jobs:
           name: medium-governance-v1
           path: |
             artifacts/benchmark_medium_v1
+            artifacts/policy_autotune_demo
 
   mutation-pack-optional:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_benchmark }}
