@@ -39,6 +39,15 @@ base = {
 }
 complete = {
     **base,
+    "decision_explanation_leaderboard": [
+        {
+            "profile": "default",
+            "leaderboard_rank": 1,
+            "pairwise_net_margin": 4,
+            "pairwise_win_count": 1,
+            "pairwise_loss_count": 0,
+        }
+    ],
     "decision_explanation_ranked": [
         {
             "reason": "top_score_margin",
@@ -118,6 +127,14 @@ complete = {
 (root / "compare_incomplete.json").write_text(json.dumps(base, indent=2), encoding="utf-8")
 (root / "compare_complete.json").write_text(json.dumps(complete, indent=2), encoding="utf-8")
 PY
+
+python3 -m gateforge.governance_promote_compare_validate \
+  --in artifacts/governance_promote_apply_explanation_structure_demo/compare_incomplete.json \
+  --no-require-apply-ready
+
+python3 -m gateforge.governance_promote_compare_validate \
+  --in artifacts/governance_promote_apply_explanation_structure_demo/compare_complete.json \
+  --require-apply-ready
 
 python3 -m gateforge.governance_promote_apply \
   --compare-summary artifacts/governance_promote_apply_explanation_structure_demo/compare_incomplete.json \

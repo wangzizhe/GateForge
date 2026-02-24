@@ -83,6 +83,14 @@ python -m gateforge.regress \
 python -m gateforge.proposal_validate --in examples/proposals/proposal_v0.json
 ```
 
+### Promote-Compare Output Validate
+
+```bash
+python -m gateforge.governance_promote_compare_validate \
+  --in artifacts/governance_promote_apply_demo/synthetic_pass_compare.json \
+  --require-apply-ready
+```
+
 ## Medium Governance Chain (Current Mainline)
 
 ### 1) Medium benchmark truth set
