@@ -273,6 +273,15 @@ Output:
 - `artifacts/governance_snapshot_advisor_history_demo/summary.json`
 - `artifacts/governance_snapshot_advisor_history_demo/demo_summary.json`
 
+Policy auto-tuning full chain (autotune -> governance -> advisor -> snapshot):
+
+```bash
+bash scripts/demo_policy_autotune_full_chain.sh
+```
+
+Output:
+- `artifacts/policy_autotune_full_chain_demo/summary.json`
+
 ## MVP Freeze (Release Readiness)
 
 ```bash
@@ -315,6 +324,7 @@ Artifacts include:
 - `policy-autotune-governance-history-v1`
 - `policy-autotune-governance-advisor-v1`
 - `policy-autotune-governance-advisor-history-v1`
+- `policy-autotune-full-chain-v1`
 - `mvp-freeze-v1`
 - `mutation-pack-v0`
 - `mutation-policy-patch-v1`
