@@ -57,6 +57,7 @@ def main() -> None:
     parser.add_argument("--tests-rc", type=int, required=True)
     parser.add_argument("--medium-dashboard-rc", type=int, required=True)
     parser.add_argument("--mutation-dashboard-rc", type=int, required=True)
+    parser.add_argument("--policy-autotune-rc", type=int, required=True)
     parser.add_argument("--policy-dashboard-rc", type=int, required=True)
     parser.add_argument("--ci-matrix-rc", type=int, required=True)
     parser.add_argument(
@@ -68,6 +69,11 @@ def main() -> None:
         "--mutation-dashboard-json",
         default="artifacts/mutation_dashboard_demo/summary.json",
         help="Mutation dashboard artifact path",
+    )
+    parser.add_argument(
+        "--policy-autotune-json",
+        default="artifacts/policy_autotune_history_demo/demo_summary.json",
+        help="Policy autotune demo summary path",
     )
     parser.add_argument(
         "--policy-dashboard-json",
@@ -89,6 +95,7 @@ def main() -> None:
 
     medium = _load_json(args.medium_dashboard_json)
     mutation = _load_json(args.mutation_dashboard_json)
+    policy_autotune = _load_json(args.policy_autotune_json)
     policy = _load_json(args.policy_dashboard_json)
     matrix = _load_json(args.ci_matrix_json)
 
@@ -114,6 +121,15 @@ def main() -> None:
                 int(args.mutation_dashboard_rc),
                 Path(args.mutation_dashboard_json).exists()
                 and str(mutation.get("bundle_status")) == "PASS",
+            ),
+        },
+        {
+            "name": "policy_autotune_history",
+            "exit_code": int(args.policy_autotune_rc),
+            "status": _step_status(
+                int(args.policy_autotune_rc),
+                Path(args.policy_autotune_json).exists()
+                and str(policy_autotune.get("bundle_status")) == "PASS",
             ),
         },
         {
@@ -146,6 +162,7 @@ def main() -> None:
         "artifact_paths": {
             "medium_dashboard_json": args.medium_dashboard_json,
             "mutation_dashboard_json": args.mutation_dashboard_json,
+            "policy_autotune_json": args.policy_autotune_json,
             "policy_dashboard_json": args.policy_dashboard_json,
             "ci_matrix_json": args.ci_matrix_json,
         },

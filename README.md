@@ -218,6 +218,7 @@ Current freeze inputs:
 - full unit test suite
 - medium governance dashboard chain
 - mutation governance dashboard chain
+- policy autotune history chain
 - policy patch dashboard chain
 - targeted local CI matrix
 
