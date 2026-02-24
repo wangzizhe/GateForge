@@ -110,6 +110,26 @@ Main artifacts are under:
 - `artifacts/governance_policy_patch_history_demo/`
 - `artifacts/governance_policy_patch_dashboard_demo/`
 
+## Mutation Data Flywheel (v0)
+
+Generate synthetic mutation cases, compile a benchmark pack, and run it end-to-end:
+
+```bash
+bash scripts/demo_mutation_pack_v0.sh
+```
+
+Use a fast local mode (for tests/dev loop):
+
+```bash
+MUTATION_BACKEND=mock MUTATION_COUNT=8 bash scripts/demo_mutation_pack_v0.sh
+```
+
+Main artifacts are under:
+- `artifacts/mutation_pack_v0/manifest.json`
+- `artifacts/mutation_pack_v0/pack.json`
+- `artifacts/mutation_pack_v0/summary.json`
+- `artifacts/mutation_pack_v0/demo_summary.json`
+
 ## MVP Freeze (Release Readiness)
 
 ```bash
@@ -137,6 +157,7 @@ Artifacts include:
 - `benchmark-v0`
 - `medium-governance-v1`
 - `mvp-freeze-v1`
+- `mutation-pack-v0`
 
 ## Repository Map
 
