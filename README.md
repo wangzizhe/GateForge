@@ -207,6 +207,17 @@ Output:
 - `artifacts/policy_autotune_history_demo/trend.json`
 - `artifacts/policy_autotune_history_demo/demo_summary.json`
 
+Policy auto-tuning governance flow (advisor-driven promote compare/apply + effectiveness):
+
+```bash
+bash scripts/demo_policy_autotune_governance.sh
+```
+
+Output:
+- `artifacts/policy_autotune_governance_demo/flow_summary.json`
+- `artifacts/policy_autotune_governance_demo/effectiveness.json`
+- `artifacts/policy_autotune_governance_demo/summary.json`
+
 ## MVP Freeze (Release Readiness)
 
 ```bash
