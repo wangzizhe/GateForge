@@ -38,6 +38,8 @@ def _write_markdown(path: str, payload: dict) -> None:
         f"- regression_rate: `{payload.get('regression_rate')}`",
         f"- trend_status: `{payload.get('trend_status')}`",
         f"- trend_alerts_count: `{payload.get('trend_alerts_count')}`",
+        f"- tuned_top_score_margin: `{payload.get('tuned_top_score_margin')}`",
+        f"- tuned_explanation_completeness: `{payload.get('tuned_explanation_completeness')}`",
         "",
         "## Result Flags",
         "",
@@ -66,6 +68,8 @@ def main() -> None:
     eff = _load_json(args.effectiveness)
     history = _load_json(args.history)
     trend = _load_json(args.trend)
+    baseline_compare = _load_json(str((flow.get("baseline") or {}).get("compare_path") or ""))
+    tuned_compare = _load_json(str((flow.get("tuned") or {}).get("compare_path") or ""))
 
     trend_payload = trend.get("trend") if isinstance(trend.get("trend"), dict) else {}
 
@@ -90,6 +94,10 @@ def main() -> None:
         "trend_status": trend.get("status"),
         "trend_alerts": trend_payload.get("alerts", []),
         "trend_alerts_count": len(trend_payload.get("alerts", []) or []),
+        "baseline_top_score_margin": baseline_compare.get("top_score_margin"),
+        "baseline_explanation_completeness": baseline_compare.get("explanation_completeness"),
+        "tuned_top_score_margin": tuned_compare.get("top_score_margin"),
+        "tuned_explanation_completeness": tuned_compare.get("explanation_completeness"),
         "paths": {
             "flow_summary": args.flow_summary,
             "effectiveness": args.effectiveness,
@@ -98,6 +106,13 @@ def main() -> None:
         },
         "result_flags": flags,
     }
+    payload["result_flags"]["tuned_compare_explanation_present"] = (
+        "PASS"
+        if isinstance(payload.get("tuned_top_score_margin"), int)
+        and isinstance(payload.get("tuned_explanation_completeness"), int)
+        else "FAIL"
+    )
+    payload["bundle_status"] = "PASS" if all(v == "PASS" for v in payload["result_flags"].values()) else "FAIL"
     _write_json(args.out, payload)
     _write_markdown(args.report_out or _default_md_path(args.out), payload)
     print(json.dumps({"bundle_status": bundle_status, "latest_effectiveness_decision": eff.get("decision")}))

@@ -49,6 +49,10 @@ flags = {
     "dashboard_bundle_pass": "PASS" if dashboard.get("bundle_status") == "PASS" else "FAIL",
     "effectiveness_decision_present": "PASS" if dashboard.get("latest_effectiveness_decision") in {"IMPROVED", "UNCHANGED", "REGRESSED"} else "FAIL",
     "trend_status_present": "PASS" if dashboard.get("trend_status") in {"PASS", "NEEDS_REVIEW"} else "FAIL",
+    "tuned_compare_explanation_present": "PASS"
+    if isinstance(dashboard.get("tuned_top_score_margin"), int)
+    and isinstance(dashboard.get("tuned_explanation_completeness"), int)
+    else "FAIL",
 }
 bundle_status = "PASS" if all(v == "PASS" for v in flags.values()) else "FAIL"
 result = {
@@ -56,6 +60,8 @@ result = {
     "improvement_rate": dashboard.get("improvement_rate"),
     "regression_rate": dashboard.get("regression_rate"),
     "trend_status": dashboard.get("trend_status"),
+    "tuned_top_score_margin": dashboard.get("tuned_top_score_margin"),
+    "tuned_explanation_completeness": dashboard.get("tuned_explanation_completeness"),
     "bundle_status": bundle_status,
     "result_flags": flags,
 }
@@ -69,6 +75,8 @@ result = {
             f"- improvement_rate: `{result['improvement_rate']}`",
             f"- regression_rate: `{result['regression_rate']}`",
             f"- trend_status: `{result['trend_status']}`",
+            f"- tuned_top_score_margin: `{result['tuned_top_score_margin']}`",
+            f"- tuned_explanation_completeness: `{result['tuned_explanation_completeness']}`",
             f"- bundle_status: `{result['bundle_status']}`",
             "",
             "## Result Flags",

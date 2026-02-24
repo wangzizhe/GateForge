@@ -34,6 +34,8 @@ def _advise(dashboard: dict) -> dict:
     improvement_rate = _to_float(dashboard.get("improvement_rate"))
     regression_rate = _to_float(dashboard.get("regression_rate"))
     trend_alerts_count = int(dashboard.get("trend_alerts_count", 0) or 0)
+    tuned_top_score_margin = dashboard.get("tuned_top_score_margin")
+    tuned_explanation_completeness = dashboard.get("tuned_explanation_completeness")
 
     reasons: list[str] = []
     threshold_patch = {
@@ -94,6 +96,22 @@ def _advise(dashboard: dict) -> dict:
         confidence = max(confidence, 0.8)
         threshold_patch["require_min_top_score_margin"] = None
         threshold_patch["require_min_explanation_quality"] = None
+
+    if isinstance(tuned_top_score_margin, int) and tuned_top_score_margin < 2:
+        reasons.append("compare_top_score_margin_low")
+        action = "TIGHTEN"
+        suggested_profile = "industrial_strict"
+        confidence = max(confidence, 0.8)
+        if threshold_patch["require_min_top_score_margin"] is None:
+            threshold_patch["require_min_top_score_margin"] = 2
+
+    if isinstance(tuned_explanation_completeness, int) and tuned_explanation_completeness < 85:
+        reasons.append("compare_explanation_completeness_low")
+        action = "TIGHTEN"
+        suggested_profile = "industrial_strict"
+        confidence = max(confidence, 0.8)
+        if threshold_patch["require_min_explanation_quality"] is None:
+            threshold_patch["require_min_explanation_quality"] = 85
 
     return {
         "action": action,
