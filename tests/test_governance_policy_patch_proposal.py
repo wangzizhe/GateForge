@@ -20,6 +20,8 @@ class GovernancePolicyPatchProposalTests(unittest.TestCase):
                             "suggested_policy_profile": "industrial_strict",
                             "confidence": 0.81,
                             "reasons": ["mismatch_volume_increasing"],
+                            "why_now": {"summary": "signals", "urgency": "high"},
+                            "recommendation_scorecard": {"impact": "high", "priority": "urgent"},
                             "threshold_patch": {
                                 "require_min_top_score_margin": 2,
                                 "require_min_pairwise_net_margin": 3,
@@ -66,6 +68,8 @@ class GovernancePolicyPatchProposalTests(unittest.TestCase):
             self.assertEqual(after.get("require_min_pairwise_net_margin"), 3)
             self.assertEqual(after.get("require_min_explanation_quality"), 85)
             self.assertEqual(payload.get("approval_status"), "PENDING")
+            self.assertEqual((payload.get("advisor_why_now") or {}).get("urgency"), "high")
+            self.assertEqual((payload.get("advisor_recommendation_scorecard") or {}).get("priority"), "urgent")
 
     def test_no_change_when_threshold_patch_empty(self) -> None:
         with tempfile.TemporaryDirectory() as d:

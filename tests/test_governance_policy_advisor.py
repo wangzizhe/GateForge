@@ -60,6 +60,9 @@ class GovernancePolicyAdvisorTests(unittest.TestCase):
             self.assertEqual(advice.get("suggested_policy_profile"), "industrial_strict")
             self.assertGreaterEqual(float(advice.get("confidence", 0.0)), 0.8)
             self.assertIn("high_replay_risk_score", advice.get("reasons", []))
+            self.assertIsInstance(advice.get("why_now"), dict)
+            self.assertIsInstance(advice.get("recommendation_scorecard"), dict)
+            self.assertIn(advice.get("recommendation_scorecard", {}).get("priority"), {"normal", "high", "urgent"})
 
     def test_advisor_suggests_default_for_stable(self) -> None:
         with tempfile.TemporaryDirectory() as d:

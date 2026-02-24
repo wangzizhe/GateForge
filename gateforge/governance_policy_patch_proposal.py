@@ -121,6 +121,8 @@ def main() -> None:
         "advisor_suggested_policy_profile": advice.get("suggested_policy_profile"),
         "advisor_confidence": advice.get("confidence"),
         "advisor_reasons": advice.get("reasons", []),
+        "advisor_why_now": advice.get("why_now", {}),
+        "advisor_recommendation_scorecard": advice.get("recommendation_scorecard", {}),
         "before_hash": _stable_hash(before_policy),
         "after_hash": _stable_hash(after_policy),
         "change_count": len(changes),
