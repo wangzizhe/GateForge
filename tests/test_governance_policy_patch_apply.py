@@ -138,6 +138,10 @@ class GovernancePolicyPatchApplyTests(unittest.TestCase):
             self.assertEqual(updated.get("require_min_top_score_margin"), 2)
             self.assertEqual(updated.get("require_min_explanation_quality"), 85)
             self.assertEqual((payload.get("impact_preview") or [])[0].get("expected_effect"), "stricter_compare_margin_gate")
+            self.assertIn(
+                "governance_promote_compare.top_score_margin",
+                (payload.get("impact_preview") or [])[0].get("affected_checks", []),
+            )
 
     def test_dual_reviewer_profile_requires_two_approvals(self) -> None:
         with tempfile.TemporaryDirectory() as d:

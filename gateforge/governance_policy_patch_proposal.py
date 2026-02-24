@@ -56,6 +56,33 @@ def _build_changes(before: dict, after: dict) -> list[dict]:
     return changes
 
 
+def _build_approval_recommendation(advice: dict, changes: list[dict]) -> dict:
+    scorecard = advice.get("recommendation_scorecard") if isinstance(advice.get("recommendation_scorecard"), dict) else {}
+    priority = str(scorecard.get("priority") or "normal")
+    execution_risk = str(scorecard.get("execution_risk") or "low")
+    impact = str(scorecard.get("impact") or "low")
+    patch_keys = [str(row.get("key") or "") for row in changes if isinstance(row, dict)]
+    needs_dual = (
+        priority == "urgent"
+        or execution_risk == "high"
+        or impact == "high"
+        or len(patch_keys) >= 2
+        or "require_min_pairwise_net_margin" in patch_keys
+    )
+    profile = "dual_reviewer" if needs_dual else "default"
+    rationale = (
+        "High-impact or high-risk policy change; require dual reviewer approval."
+        if needs_dual
+        else "Low-risk policy change; default single-reviewer approval is acceptable."
+    )
+    return {
+        "approval_profile": profile,
+        "required_approvals": 2 if needs_dual else 1,
+        "require_unique_reviewers": bool(needs_dual),
+        "rationale": rationale,
+    }
+
+
 def _write_markdown(path: str, proposal: dict) -> None:
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
@@ -70,6 +97,7 @@ def _write_markdown(path: str, proposal: dict) -> None:
         f"- after_hash: `{proposal.get('after_hash')}`",
         f"- change_count: `{proposal.get('change_count')}`",
         f"- requires_human_approval: `{proposal.get('requires_human_approval')}`",
+        f"- recommended_approval_profile: `{(proposal.get('approval_recommendation') or {}).get('approval_profile')}`",
         "",
         "## Changes",
         "",
@@ -131,6 +159,7 @@ def main() -> None:
         "policy_after": after_policy,
         "requires_human_approval": True,
         "approval_status": "PENDING",
+        "approval_recommendation": _build_approval_recommendation(advice, changes),
     }
     _write_json(args.out, proposal)
     _write_markdown(args.report or _default_md_path(args.out), proposal)

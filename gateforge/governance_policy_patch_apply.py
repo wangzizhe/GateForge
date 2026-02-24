@@ -88,7 +88,8 @@ def _write_markdown(path: str, summary: dict) -> None:
             if isinstance(row, dict):
                 lines.append(
                     f"- `{row.get('key')}`: `{row.get('old')}` -> `{row.get('new')}` "
-                    f"(scope=`{row.get('scope')}`, expected_effect=`{row.get('expected_effect')}`)"
+                    f"(scope=`{row.get('scope')}`, expected_effect=`{row.get('expected_effect')}`, "
+                    f"affected_checks=`{','.join(row.get('affected_checks') or [])}`)"
                 )
     else:
         lines.append("- `none`")
@@ -106,10 +107,15 @@ def _build_impact_preview(changes: list[dict]) -> list[dict]:
         expected_effect = "policy_behavior_change"
         if key == "require_min_top_score_margin":
             expected_effect = "stricter_compare_margin_gate"
+            affected_checks = ["governance_promote_compare.top_score_margin"]
         elif key == "require_min_pairwise_net_margin":
             expected_effect = "stricter_pairwise_stability_gate"
+            affected_checks = ["governance_promote_apply.pairwise_net_margin"]
         elif key == "require_min_explanation_quality":
             expected_effect = "stricter_explanation_quality_gate"
+            affected_checks = ["governance_promote_compare.explanation_completeness"]
+        else:
+            affected_checks = ["policy_generic"]
         rows.append(
             {
                 "key": key,
@@ -117,6 +123,7 @@ def _build_impact_preview(changes: list[dict]) -> list[dict]:
                 "new": row.get("new"),
                 "scope": scope,
                 "expected_effect": expected_effect,
+                "affected_checks": affected_checks,
             }
         )
     return rows

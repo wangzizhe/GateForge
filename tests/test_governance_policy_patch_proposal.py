@@ -70,6 +70,9 @@ class GovernancePolicyPatchProposalTests(unittest.TestCase):
             self.assertEqual(payload.get("approval_status"), "PENDING")
             self.assertEqual((payload.get("advisor_why_now") or {}).get("urgency"), "high")
             self.assertEqual((payload.get("advisor_recommendation_scorecard") or {}).get("priority"), "urgent")
+            recommendation = payload.get("approval_recommendation") or {}
+            self.assertEqual(recommendation.get("approval_profile"), "dual_reviewer")
+            self.assertEqual(recommendation.get("required_approvals"), 2)
 
     def test_no_change_when_threshold_patch_empty(self) -> None:
         with tempfile.TemporaryDirectory() as d:
