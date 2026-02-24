@@ -2143,6 +2143,9 @@ jobs:
       - name: Run governance promote apply explanation structure demo
         run: bash scripts/demo_governance_promote_apply_explanation_structure.sh
 
+      - name: Run governance promote compare validate demo
+        run: bash scripts/demo_governance_promote_compare_validate.sh
+
       - name: Publish governance promote apply summary to job page
         if: always()
         run: |
@@ -2276,6 +2279,12 @@ jobs:
             artifacts/governance_promote_apply_explanation_structure_demo/decision_audit.jsonl
             artifacts/governance_promote_apply_explanation_structure_demo/summary.json
             artifacts/governance_promote_apply_explanation_structure_demo/summary.md
+            artifacts/governance_promote_compare_validate_demo/good.json
+            artifacts/governance_promote_compare_validate_demo/good.validate.json
+            artifacts/governance_promote_compare_validate_demo/bad.json
+            artifacts/governance_promote_compare_validate_demo/bad.validate.json
+            artifacts/governance_promote_compare_validate_demo/summary.json
+            artifacts/governance_promote_compare_validate_demo/summary.md
 
   governance-policy-patch-explainable-optional:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_governance_promote_apply_demo }}
