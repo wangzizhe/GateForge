@@ -193,6 +193,17 @@ Output:
 - `artifacts/policy_autotune_demo/apply.json`
 - `artifacts/policy_autotune_demo/summary.json`
 
+Policy auto-tuning history/trend:
+
+```bash
+bash scripts/demo_policy_autotune_history.sh
+```
+
+Output:
+- `artifacts/policy_autotune_history_demo/summary.json`
+- `artifacts/policy_autotune_history_demo/trend.json`
+- `artifacts/policy_autotune_history_demo/demo_summary.json`
+
 ## MVP Freeze (Release Readiness)
 
 ```bash
