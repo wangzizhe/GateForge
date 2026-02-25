@@ -27,6 +27,7 @@ class DatasetGovernanceSnapshotTrendDemoTests(unittest.TestCase):
             )
             self.assertEqual(payload.get("bundle_status"), "PASS")
             self.assertIn("->", str(payload.get("status_transition")))
+            self.assertIn("->", str(payload.get("promotion_effectiveness_history_trend_transition")))
 
 
 if __name__ == "__main__":

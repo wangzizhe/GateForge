@@ -23,6 +23,8 @@ class DatasetGovernanceSnapshotTrendTests(unittest.TestCase):
                             "dataset_pipeline_failure_case_rate": 0.2,
                             "dataset_governance_total_records": 5,
                             "dataset_governance_trend_alert_count": 0,
+                            "dataset_promotion_effectiveness_history_trend_status": "PASS",
+                            "dataset_promotion_effectiveness_history_latest_decision": "KEEP",
                         },
                     }
                 ),
@@ -38,6 +40,8 @@ class DatasetGovernanceSnapshotTrendTests(unittest.TestCase):
                             "dataset_pipeline_failure_case_rate": 0.3,
                             "dataset_governance_total_records": 7,
                             "dataset_governance_trend_alert_count": 1,
+                            "dataset_promotion_effectiveness_history_trend_status": "NEEDS_REVIEW",
+                            "dataset_promotion_effectiveness_history_latest_decision": "ROLLBACK_REVIEW",
                         },
                     }
                 ),
@@ -66,6 +70,12 @@ class DatasetGovernanceSnapshotTrendTests(unittest.TestCase):
             self.assertIn("dataset_governance_trend_needs_review", trend.get("new_risks", []))
             self.assertIn("dataset_history_trend_needs_review", trend.get("resolved_risks", []))
             self.assertIn("dataset_pipeline_failure_case_rate_delta", trend.get("kpi_delta", {}))
+            self.assertEqual(
+                (trend.get("status_delta") or {}).get(
+                    "dataset_promotion_effectiveness_history_trend_status_transition"
+                ),
+                "PASS->NEEDS_REVIEW",
+            )
 
     def test_trend_marks_pass_when_kpis_stable(self) -> None:
         with tempfile.TemporaryDirectory() as d:
@@ -83,6 +93,8 @@ class DatasetGovernanceSnapshotTrendTests(unittest.TestCase):
                             "dataset_pipeline_failure_case_rate": 0.2,
                             "dataset_governance_total_records": 5,
                             "dataset_governance_trend_alert_count": 0,
+                            "dataset_promotion_effectiveness_history_trend_status": "PASS",
+                            "dataset_promotion_effectiveness_history_latest_decision": "KEEP",
                         },
                     }
                 ),
@@ -98,6 +110,8 @@ class DatasetGovernanceSnapshotTrendTests(unittest.TestCase):
                             "dataset_pipeline_failure_case_rate": 0.2,
                             "dataset_governance_total_records": 5,
                             "dataset_governance_trend_alert_count": 0,
+                            "dataset_promotion_effectiveness_history_trend_status": "PASS",
+                            "dataset_promotion_effectiveness_history_latest_decision": "KEEP",
                         },
                     }
                 ),
@@ -125,6 +139,12 @@ class DatasetGovernanceSnapshotTrendTests(unittest.TestCase):
             self.assertEqual(trend.get("status_transition"), "PASS->PASS")
             self.assertEqual(trend.get("new_risks", []), [])
             self.assertEqual(trend.get("resolved_risks", []), [])
+            self.assertEqual(
+                (trend.get("status_delta") or {}).get(
+                    "dataset_promotion_effectiveness_history_latest_decision_transition"
+                ),
+                "KEEP->KEEP",
+            )
 
 
 if __name__ == "__main__":
