@@ -204,3 +204,10 @@ This demo now includes:
 - dataset build
 - dataset quality gate
 - dataset freeze
+
+Artifacts-driven mode (collect from existing `artifacts/` first):
+
+```bash
+bash scripts/demo_dataset_artifacts_pipeline.sh
+cat artifacts/dataset_artifacts_pipeline_demo/summary.json
+```
