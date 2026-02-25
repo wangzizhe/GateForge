@@ -246,3 +246,10 @@ cat artifacts/dataset_governance_history_demo/summary.json
 bash scripts/demo_dataset_strategy_autotune.sh
 cat artifacts/dataset_strategy_autotune_demo/summary.json
 ```
+
+## 17. Dataset Governance Snapshot
+
+```bash
+bash scripts/demo_dataset_governance_snapshot.sh
+cat artifacts/dataset_governance_snapshot_demo/demo_summary.json
+```
