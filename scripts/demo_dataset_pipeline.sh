@@ -80,10 +80,23 @@ python3 -m gateforge.dataset_build \
   --autopilot-summary "$IN_DIR/autopilot_summary.json" \
   --out-dir "$OUT_DIR/build"
 
+python3 -m gateforge.dataset_quality_gate \
+  --build-summary "$OUT_DIR/build/summary.json" \
+  --quality "$OUT_DIR/build/quality_report.json" \
+  --distribution "$OUT_DIR/build/distribution.json" \
+  --out "$OUT_DIR/build/quality_gate.json" \
+  --report-out "$OUT_DIR/build/quality_gate.md" \
+  --min-total-cases 4 \
+  --min-failure-type-coverage 1 \
+  --min-oracle-match-rate 0.0 \
+  --min-replay-stable-rate 0.0 \
+  --max-duplicate-rate 0.5
+
 python3 -m gateforge.dataset_freeze \
   --dataset-jsonl "$OUT_DIR/build/dataset_cases.jsonl" \
   --distribution-json "$OUT_DIR/build/distribution.json" \
   --quality-json "$OUT_DIR/build/quality_report.json" \
+  --quality-gate "$OUT_DIR/build/quality_gate.json" \
   --freeze-id "freeze_v1_demo" \
   --out-dir "$OUT_DIR/freeze" \
   --min-cases 4 \
@@ -96,17 +109,20 @@ from pathlib import Path
 out = Path("artifacts/dataset_pipeline_demo")
 build = json.loads((out / "build" / "summary.json").read_text(encoding="utf-8"))
 quality = json.loads((out / "build" / "quality_report.json").read_text(encoding="utf-8"))
+quality_gate = json.loads((out / "build" / "quality_gate.json").read_text(encoding="utf-8"))
 freeze = json.loads((out / "freeze" / "summary.json").read_text(encoding="utf-8"))
 
 flags = {
     "build_case_count_ok": "PASS" if int(build.get("deduplicated_cases", 0)) >= 4 else "FAIL",
     "quality_failure_rate_ok": "PASS" if float(quality.get("failure_case_rate", 0.0)) >= 0.2 else "FAIL",
+    "quality_gate_status_pass": "PASS" if quality_gate.get("status") == "PASS" else "FAIL",
     "freeze_status_pass": "PASS" if freeze.get("status") == "PASS" else "FAIL",
 }
 bundle_status = "PASS" if all(v == "PASS" for v in flags.values()) else "FAIL"
 summary = {
     "build_deduplicated_cases": build.get("deduplicated_cases"),
     "quality_failure_case_rate": quality.get("failure_case_rate"),
+    "quality_gate_status": quality_gate.get("status"),
     "freeze_status": freeze.get("status"),
     "result_flags": flags,
     "bundle_status": bundle_status,
@@ -119,6 +135,7 @@ summary = {
             "",
             f"- build_deduplicated_cases: `{summary['build_deduplicated_cases']}`",
             f"- quality_failure_case_rate: `{summary['quality_failure_case_rate']}`",
+            f"- quality_gate_status: `{summary['quality_gate_status']}`",
             f"- freeze_status: `{summary['freeze_status']}`",
             f"- bundle_status: `{summary['bundle_status']}`",
             "",

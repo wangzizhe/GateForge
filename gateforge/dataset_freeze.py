@@ -80,6 +80,11 @@ def main() -> None:
     parser.add_argument("--quality-json", required=True, help="quality_report.json path")
     parser.add_argument("--freeze-id", default="freeze_v1", help="Freeze identifier")
     parser.add_argument("--out-dir", default="artifacts/dataset_freeze/freeze_v1", help="Freeze output directory")
+    parser.add_argument(
+        "--quality-gate",
+        default=None,
+        help="Optional dataset quality gate JSON path; freeze fails unless status=PASS",
+    )
     parser.add_argument("--min-cases", type=int, default=100, help="Minimum required case count")
     parser.add_argument("--min-failure-case-rate", type=float, default=0.2, help="Minimum failure_case_rate")
     args = parser.parse_args()
@@ -87,10 +92,14 @@ def main() -> None:
     quality = _load_json(args.quality_json)
     total_cases = _count_jsonl_rows(args.dataset_jsonl)
     failure_case_rate = float(quality.get("failure_case_rate", 0.0) or 0.0)
+    quality_gate = _load_json(args.quality_gate) if args.quality_gate else {}
 
     min_cases_ok = total_cases >= int(args.min_cases)
     min_failure_rate_ok = failure_case_rate >= float(args.min_failure_case_rate)
-    status = "PASS" if min_cases_ok and min_failure_rate_ok else "FAIL"
+    quality_gate_ok = True
+    if args.quality_gate:
+        quality_gate_ok = str(quality_gate.get("status") or "FAIL") == "PASS"
+    status = "PASS" if min_cases_ok and min_failure_rate_ok and quality_gate_ok else "FAIL"
 
     payload = {
         "freeze_id": args.freeze_id,
@@ -101,11 +110,13 @@ def main() -> None:
         "gate_checks": {
             "min_cases_check": "PASS" if min_cases_ok else "FAIL",
             "min_failure_case_rate_check": "PASS" if min_failure_rate_ok else "FAIL",
+            "quality_gate_check": "PASS" if quality_gate_ok else "FAIL",
         },
         "inputs": {
             "dataset_jsonl": args.dataset_jsonl,
             "distribution_json": args.distribution_json,
             "quality_json": args.quality_json,
+            "quality_gate_json": args.quality_gate,
         },
         "checksums": {
             "dataset_jsonl_sha256": _sha256(args.dataset_jsonl),
