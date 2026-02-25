@@ -42,6 +42,12 @@ def _status_from_signals(signals: dict) -> str:
         return "NEEDS_REVIEW"
     if signals.get("dataset_history_trend_needs_review"):
         return "NEEDS_REVIEW"
+    if signals.get("dataset_governance_fail_rate_high"):
+        return "NEEDS_REVIEW"
+    if signals.get("dataset_governance_reject_rate_high"):
+        return "NEEDS_REVIEW"
+    if signals.get("dataset_governance_trend_needs_review"):
+        return "NEEDS_REVIEW"
     if signals.get("mutation_compare_failed"):
         return "NEEDS_REVIEW"
     if signals.get("advisor_history_trend_needs_review"):
@@ -310,6 +316,34 @@ def _extract_dataset_history_trend(payload: dict) -> dict:
     }
 
 
+def _extract_dataset_governance(payload: dict) -> dict:
+    if not isinstance(payload, dict):
+        return {}
+    status_counts = payload.get("status_counts") if isinstance(payload.get("status_counts"), dict) else {}
+    total_records = _to_int(payload.get("total_records", 0))
+    fail_count = _to_int(status_counts.get("FAIL", 0))
+    reject_count = _to_int(payload.get("reject_count", 0))
+    applied_count = _to_int(payload.get("applied_count", 0))
+    return {
+        "latest_status": str(payload.get("latest_status") or "UNKNOWN"),
+        "total_records": total_records,
+        "fail_rate": round(float(fail_count) / float(total_records), 4) if total_records > 0 else 0.0,
+        "reject_rate": round(float(reject_count) / float(total_records), 4) if total_records > 0 else 0.0,
+        "apply_rate": round(float(applied_count) / float(total_records), 4) if total_records > 0 else 0.0,
+    }
+
+
+def _extract_dataset_governance_trend(payload: dict) -> dict:
+    if not isinstance(payload, dict):
+        return {}
+    trend = payload.get("trend") if isinstance(payload.get("trend"), dict) else {}
+    alerts = trend.get("alerts") if isinstance(trend.get("alerts"), list) else []
+    return {
+        "status": str(payload.get("status") or "UNKNOWN"),
+        "alerts": alerts,
+    }
+
+
 def _compute_summary(
     repair: dict,
     review: dict,
@@ -323,6 +357,8 @@ def _compute_summary(
     dataset_pipeline_summary: dict,
     dataset_history_summary: dict,
     dataset_history_trend: dict,
+    dataset_governance_summary: dict,
+    dataset_governance_trend: dict,
 ) -> dict:
     repair_compare = _extract_repair_compare(repair)
     invariant = _extract_invariant_compare(invariant_compare)
@@ -334,6 +370,8 @@ def _compute_summary(
     dataset_pipeline = _extract_dataset_pipeline(dataset_pipeline_summary)
     dataset_history = _extract_dataset_history(dataset_history_summary)
     dataset_history_trend_obj = _extract_dataset_history_trend(dataset_history_trend)
+    dataset_governance = _extract_dataset_governance(dataset_governance_summary)
+    dataset_governance_trend_obj = _extract_dataset_governance_trend(dataset_governance_trend)
     kpis = review.get("kpis", {}) if isinstance(review, dict) else {}
 
     strict_non_pass_rate = float(kpis.get("strict_non_pass_rate", 0.0) or 0.0)
@@ -383,6 +421,11 @@ def _compute_summary(
         if isinstance(dataset_history_trend_obj.get("alerts"), list)
         else []
     )
+    dataset_governance_trend_alerts = (
+        dataset_governance_trend_obj.get("alerts")
+        if isinstance(dataset_governance_trend_obj.get("alerts"), list)
+        else []
+    )
 
     signals = {
         "matrix_status": matrix.get("matrix_status", "UNKNOWN"),
@@ -417,6 +460,9 @@ def _compute_summary(
         "dataset_failure_coverage_low": 0.0 < dataset_failure_case_rate < 0.2,
         "dataset_history_alerts_present": len(dataset_history_alerts) > 0,
         "dataset_history_trend_needs_review": dataset_history_trend_obj.get("status") == "NEEDS_REVIEW",
+        "dataset_governance_fail_rate_high": dataset_governance.get("fail_rate", 0.0) >= 0.3,
+        "dataset_governance_reject_rate_high": dataset_governance.get("reject_rate", 0.0) >= 0.3,
+        "dataset_governance_trend_needs_review": dataset_governance_trend_obj.get("status") == "NEEDS_REVIEW",
     }
 
     status = _status_from_signals(signals)
@@ -476,6 +522,12 @@ def _compute_summary(
         risks.append("dataset_history_alerts_present")
     if signals["dataset_history_trend_needs_review"]:
         risks.append("dataset_history_trend_needs_review")
+    if signals["dataset_governance_fail_rate_high"]:
+        risks.append("dataset_governance_fail_rate_high")
+    if signals["dataset_governance_reject_rate_high"]:
+        risks.append("dataset_governance_reject_rate_high")
+    if signals["dataset_governance_trend_needs_review"]:
+        risks.append("dataset_governance_trend_needs_review")
 
     return {
         "status": status,
@@ -530,6 +582,13 @@ def _compute_summary(
             "dataset_history_alert_count": len(dataset_history_alerts),
             "dataset_history_trend_status": dataset_history_trend_obj.get("status"),
             "dataset_history_trend_alert_count": len(dataset_history_trend_alerts),
+            "dataset_governance_latest_status": dataset_governance.get("latest_status"),
+            "dataset_governance_total_records": dataset_governance.get("total_records"),
+            "dataset_governance_fail_rate": dataset_governance.get("fail_rate"),
+            "dataset_governance_reject_rate": dataset_governance.get("reject_rate"),
+            "dataset_governance_apply_rate": dataset_governance.get("apply_rate"),
+            "dataset_governance_trend_status": dataset_governance_trend_obj.get("status"),
+            "dataset_governance_trend_alert_count": len(dataset_governance_trend_alerts),
         },
         "policy_profiles": {
             "compare_from": compare_from,
@@ -552,6 +611,8 @@ def _compute_summary(
             "dataset_pipeline_summary_path": dataset_pipeline_summary.get("_source_path"),
             "dataset_history_summary_path": dataset_history_summary.get("_source_path"),
             "dataset_history_trend_path": dataset_history_trend.get("_source_path"),
+            "dataset_governance_summary_path": dataset_governance_summary.get("_source_path"),
+            "dataset_governance_trend_path": dataset_governance_trend.get("_source_path"),
         },
         "risks": risks,
     }
@@ -603,6 +664,13 @@ def _write_markdown(path: str, summary: dict) -> None:
         f"- dataset_history_alert_count: `{kpis.get('dataset_history_alert_count')}`",
         f"- dataset_history_trend_status: `{kpis.get('dataset_history_trend_status')}`",
         f"- dataset_history_trend_alert_count: `{kpis.get('dataset_history_trend_alert_count')}`",
+        f"- dataset_governance_latest_status: `{kpis.get('dataset_governance_latest_status')}`",
+        f"- dataset_governance_total_records: `{kpis.get('dataset_governance_total_records')}`",
+        f"- dataset_governance_fail_rate: `{kpis.get('dataset_governance_fail_rate')}`",
+        f"- dataset_governance_reject_rate: `{kpis.get('dataset_governance_reject_rate')}`",
+        f"- dataset_governance_apply_rate: `{kpis.get('dataset_governance_apply_rate')}`",
+        f"- dataset_governance_trend_status: `{kpis.get('dataset_governance_trend_status')}`",
+        f"- dataset_governance_trend_alert_count: `{kpis.get('dataset_governance_trend_alert_count')}`",
         "",
         "## Risks",
         "",
@@ -703,6 +771,16 @@ def main() -> None:
         default=None,
         help="Path to dataset history trend JSON",
     )
+    parser.add_argument(
+        "--dataset-governance-summary",
+        default=None,
+        help="Path to dataset governance summary JSON",
+    )
+    parser.add_argument(
+        "--dataset-governance-trend",
+        default=None,
+        help="Path to dataset governance trend JSON",
+    )
     parser.add_argument("--previous-summary", default=None, help="Optional previous governance snapshot JSON")
     parser.add_argument("--out", default="artifacts/governance_snapshot/summary.json", help="Output JSON path")
     parser.add_argument("--report", default=None, help="Output markdown path")
@@ -720,6 +798,8 @@ def main() -> None:
     dataset_pipeline_summary = _load_json(args.dataset_pipeline_summary)
     dataset_history_summary = _load_json(args.dataset_history_summary)
     dataset_history_trend = _load_json(args.dataset_history_trend)
+    dataset_governance_summary = _load_json(args.dataset_governance_summary)
+    dataset_governance_trend = _load_json(args.dataset_governance_trend)
     if args.repair_batch_summary:
         repair["_source_path"] = args.repair_batch_summary
     if args.review_ledger_summary:
@@ -744,6 +824,10 @@ def main() -> None:
         dataset_history_summary["_source_path"] = args.dataset_history_summary
     if args.dataset_history_trend:
         dataset_history_trend["_source_path"] = args.dataset_history_trend
+    if args.dataset_governance_summary:
+        dataset_governance_summary["_source_path"] = args.dataset_governance_summary
+    if args.dataset_governance_trend:
+        dataset_governance_trend["_source_path"] = args.dataset_governance_trend
 
     summary = _compute_summary(
         repair,
@@ -758,6 +842,8 @@ def main() -> None:
         dataset_pipeline_summary,
         dataset_history_summary,
         dataset_history_trend,
+        dataset_governance_summary,
+        dataset_governance_trend,
     )
     if args.previous_summary:
         previous = _load_json(args.previous_summary)

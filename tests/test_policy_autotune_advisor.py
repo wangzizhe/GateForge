@@ -16,6 +16,8 @@ class PolicyAutotuneAdvisorTests(unittest.TestCase):
             dataset = root / "dataset.json"
             dataset_history = root / "dataset_history.json"
             dataset_history_trend = root / "dataset_history_trend.json"
+            dataset_governance = root / "dataset_governance.json"
+            dataset_governance_trend = root / "dataset_governance_trend.json"
             out = root / "advisor.json"
             governance.write_text(
                 json.dumps({"status": "PASS", "kpis": {"strict_non_pass_rate": 0.1}, "risks": []}),
@@ -72,6 +74,21 @@ class PolicyAutotuneAdvisorTests(unittest.TestCase):
                 json.dumps({"status": "NEEDS_REVIEW", "trend": {"alerts": ["failure_case_rate_drop_detected"]}}),
                 encoding="utf-8",
             )
+            dataset_governance.write_text(
+                json.dumps(
+                    {
+                        "latest_status": "FAIL",
+                        "total_records": 10,
+                        "status_counts": {"PASS": 4, "NEEDS_REVIEW": 1, "FAIL": 5},
+                        "reject_count": 4,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            dataset_governance_trend.write_text(
+                json.dumps({"status": "NEEDS_REVIEW", "trend": {"alerts": ["dataset_governance_fail_rate_increasing"]}}),
+                encoding="utf-8",
+            )
             proc = subprocess.run(
                 [
                     sys.executable,
@@ -89,6 +106,10 @@ class PolicyAutotuneAdvisorTests(unittest.TestCase):
                     str(dataset_history),
                     "--dataset-history-trend",
                     str(dataset_history_trend),
+                    "--dataset-governance-summary",
+                    str(dataset_governance),
+                    "--dataset-governance-trend",
+                    str(dataset_governance_trend),
                     "--out",
                     str(out),
                 ],
@@ -105,6 +126,8 @@ class PolicyAutotuneAdvisorTests(unittest.TestCase):
             self.assertIn("dataset_failure_coverage_low", reasons)
             self.assertIn("dataset_history_alerts_present", reasons)
             self.assertIn("dataset_history_trend_needs_review", reasons)
+            self.assertIn("dataset_governance_fail_rate_high", reasons)
+            self.assertIn("dataset_governance_trend_needs_review", reasons)
 
     def test_advisor_stable_signals_default(self) -> None:
         with tempfile.TemporaryDirectory() as d:

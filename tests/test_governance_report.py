@@ -134,6 +134,72 @@ class GovernanceReportTests(unittest.TestCase):
             self.assertIn("dataset_history_trend_needs_review", payload.get("risks", []))
             self.assertEqual(payload.get("kpis", {}).get("dataset_history_trend_status"), "NEEDS_REVIEW")
 
+    def test_governance_report_flags_dataset_governance_risks(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            repair = {"profile_compare": {"downgrade_count": 0, "strict_downgrade_rate": 0.0}}
+            review = {
+                "kpis": {
+                    "review_recovery_rate": 0.9,
+                    "strict_non_pass_rate": 0.1,
+                    "approval_rate": 0.8,
+                    "fail_rate": 0.1,
+                }
+            }
+            matrix = {"matrix_status": "PASS"}
+            dataset_governance = {
+                "latest_status": "FAIL",
+                "total_records": 10,
+                "status_counts": {"PASS": 4, "NEEDS_REVIEW": 1, "FAIL": 5},
+                "applied_count": 4,
+                "reject_count": 4,
+            }
+            dataset_governance_trend = {
+                "status": "NEEDS_REVIEW",
+                "trend": {"alerts": ["dataset_governance_fail_rate_increasing"]},
+            }
+
+            rp = root / "repair.json"
+            lp = root / "ledger.json"
+            mp = root / "matrix.json"
+            dgs = root / "dataset_governance.json"
+            dgt = root / "dataset_governance_trend.json"
+            out = root / "summary.json"
+            rp.write_text(json.dumps(repair), encoding="utf-8")
+            lp.write_text(json.dumps(review), encoding="utf-8")
+            mp.write_text(json.dumps(matrix), encoding="utf-8")
+            dgs.write_text(json.dumps(dataset_governance), encoding="utf-8")
+            dgt.write_text(json.dumps(dataset_governance_trend), encoding="utf-8")
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.governance_report",
+                    "--repair-batch-summary",
+                    str(rp),
+                    "--review-ledger-summary",
+                    str(lp),
+                    "--ci-matrix-summary",
+                    str(mp),
+                    "--dataset-governance-summary",
+                    str(dgs),
+                    "--dataset-governance-trend",
+                    str(dgt),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            payload = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(payload.get("status"), "NEEDS_REVIEW")
+            self.assertIn("dataset_governance_fail_rate_high", payload.get("risks", []))
+            self.assertIn("dataset_governance_reject_rate_high", payload.get("risks", []))
+            self.assertIn("dataset_governance_trend_needs_review", payload.get("risks", []))
+
     def test_governance_report_flags_runtime_ledger_history_risks(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)

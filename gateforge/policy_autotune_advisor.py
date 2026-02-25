@@ -49,6 +49,8 @@ def _build_advice(
     dataset_pipeline_summary: dict,
     dataset_history_summary: dict,
     dataset_history_trend_summary: dict,
+    dataset_governance_summary: dict,
+    dataset_governance_trend_summary: dict,
 ) -> tuple[dict, dict]:
     reasons: list[str] = []
     threshold_patch = {
@@ -93,7 +95,30 @@ def _build_advice(
             )
         ),
         "dataset_history_trend_status": str(dataset_history_trend_summary.get("status") or "UNKNOWN"),
+        "dataset_governance_latest_status": str(dataset_governance_summary.get("latest_status") or "UNKNOWN"),
+        "dataset_governance_total_records": _to_int(dataset_governance_summary.get("total_records", 0)),
+        "dataset_governance_fail_rate": _to_float(
+            (dataset_governance_summary.get("status_counts") or {}).get("FAIL")
+        ),
+        "dataset_governance_reject_count": _to_int(dataset_governance_summary.get("reject_count", 0)),
+        "dataset_governance_trend_status": str(dataset_governance_trend_summary.get("status") or "UNKNOWN"),
+        "dataset_governance_trend_alert_count": _to_int(
+            len((dataset_governance_trend_summary.get("trend") or {}).get("alerts") or [])
+        ),
     }
+    if signals["dataset_governance_total_records"] > 0:
+        signals["dataset_governance_fail_rate"] = round(
+            _to_float((dataset_governance_summary.get("status_counts") or {}).get("FAIL"))
+            / float(signals["dataset_governance_total_records"]),
+            4,
+        )
+        signals["dataset_governance_reject_rate"] = round(
+            _to_float(signals["dataset_governance_reject_count"]) / float(signals["dataset_governance_total_records"]),
+            4,
+        )
+    else:
+        signals["dataset_governance_fail_rate"] = 0.0
+        signals["dataset_governance_reject_rate"] = 0.0
 
     score = 0
 
@@ -154,6 +179,21 @@ def _build_advice(
     if signals["dataset_history_trend_status"] == "NEEDS_REVIEW":
         reasons.append("dataset_history_trend_needs_review")
         score += 2
+    if signals["dataset_governance_latest_status"] == "FAIL":
+        reasons.append("dataset_governance_latest_fail")
+        score += 2
+    if signals["dataset_governance_fail_rate"] >= 0.3:
+        reasons.append("dataset_governance_fail_rate_high")
+        score += 1
+    if signals["dataset_governance_reject_rate"] >= 0.3:
+        reasons.append("dataset_governance_reject_rate_high")
+        score += 1
+    if signals["dataset_governance_trend_status"] == "NEEDS_REVIEW":
+        reasons.append("dataset_governance_trend_needs_review")
+        score += 2
+    if signals["dataset_governance_trend_alert_count"] > 0:
+        reasons.append("dataset_governance_trend_alerts_present")
+        score += 1
 
     if score >= 5:
         suggested_profile = "industrial_strict"
@@ -251,6 +291,16 @@ def main() -> None:
         default=None,
         help="dataset history trend json",
     )
+    parser.add_argument(
+        "--dataset-governance-summary",
+        default=None,
+        help="dataset governance summary json",
+    )
+    parser.add_argument(
+        "--dataset-governance-trend",
+        default=None,
+        help="dataset governance trend json",
+    )
     parser.add_argument("--report-out", default=None, help="advisor output markdown")
     args = parser.parse_args()
 
@@ -260,6 +310,8 @@ def main() -> None:
     dataset = _load_json(args.dataset_pipeline_summary)
     dataset_history = _load_json(args.dataset_history_summary)
     dataset_history_trend = _load_json(args.dataset_history_trend)
+    dataset_governance = _load_json(args.dataset_governance_summary)
+    dataset_governance_trend = _load_json(args.dataset_governance_trend)
 
     advice, signals = _build_advice(
         governance,
@@ -268,6 +320,8 @@ def main() -> None:
         dataset,
         dataset_history,
         dataset_history_trend,
+        dataset_governance,
+        dataset_governance_trend,
     )
     payload = {
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
@@ -278,6 +332,8 @@ def main() -> None:
             "dataset_pipeline_summary": args.dataset_pipeline_summary,
             "dataset_history_summary": args.dataset_history_summary,
             "dataset_history_trend": args.dataset_history_trend,
+            "dataset_governance_summary": args.dataset_governance_summary,
+            "dataset_governance_trend": args.dataset_governance_trend,
         },
         "advice": advice,
         "signals": signals,
