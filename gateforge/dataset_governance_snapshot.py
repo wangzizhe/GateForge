@@ -55,6 +55,10 @@ def _status_from_signals(signals: dict) -> str:
         return "NEEDS_REVIEW"
     if signals.get("dataset_strategy_suggests_tighten"):
         return "NEEDS_REVIEW"
+    if signals.get("dataset_strategy_apply_latest_needs_review"):
+        return "NEEDS_REVIEW"
+    if signals.get("dataset_strategy_apply_trend_needs_review"):
+        return "NEEDS_REVIEW"
     return "PASS"
 
 
@@ -66,6 +70,8 @@ def _compute_summary(
     dataset_governance_trend: dict,
     effectiveness: dict,
     strategy_advisor: dict,
+    strategy_apply_history: dict,
+    strategy_apply_history_trend: dict,
 ) -> dict:
     strategy_advice = (
         strategy_advisor.get("advice")
@@ -87,6 +93,9 @@ def _compute_summary(
         "dataset_history_trend_needs_review": str(dataset_history_trend.get("status") or "") == "NEEDS_REVIEW",
         "dataset_policy_effectiveness_rollback_review": str(effectiveness.get("decision") or "") == "ROLLBACK_REVIEW",
         "dataset_strategy_suggests_tighten": str(strategy_advice.get("suggested_policy_profile") or "") == "dataset_strict",
+        "dataset_strategy_apply_latest_needs_review": str(strategy_apply_history.get("latest_final_status") or "") == "NEEDS_REVIEW",
+        "dataset_strategy_apply_latest_fail": str(strategy_apply_history.get("latest_final_status") or "") == "FAIL",
+        "dataset_strategy_apply_trend_needs_review": str(strategy_apply_history_trend.get("status") or "") == "NEEDS_REVIEW",
     }
     status = _status_from_signals(signals)
 
@@ -103,6 +112,12 @@ def _compute_summary(
         risks.append("dataset_policy_effectiveness_rollback_review")
     if signals["dataset_strategy_suggests_tighten"]:
         risks.append("dataset_strategy_suggests_tighten")
+    if signals["dataset_strategy_apply_latest_needs_review"]:
+        risks.append("dataset_strategy_apply_latest_needs_review")
+    if signals["dataset_strategy_apply_latest_fail"]:
+        risks.append("dataset_strategy_apply_latest_fail")
+    if signals["dataset_strategy_apply_trend_needs_review"]:
+        risks.append("dataset_strategy_apply_trend_needs_review")
 
     kpis = {
         "dataset_pipeline_deduplicated_cases": _to_int(
@@ -122,6 +137,10 @@ def _compute_summary(
         "dataset_policy_effectiveness_decision": effectiveness.get("decision"),
         "dataset_strategy_profile": strategy_advice.get("suggested_policy_profile"),
         "dataset_strategy_action": strategy_advice.get("suggested_action"),
+        "dataset_strategy_apply_latest_final_status": strategy_apply_history.get("latest_final_status"),
+        "dataset_strategy_apply_fail_rate": _to_float(strategy_apply_history.get("fail_rate", 0.0)),
+        "dataset_strategy_apply_needs_review_rate": _to_float(strategy_apply_history.get("needs_review_rate", 0.0)),
+        "dataset_strategy_apply_trend_status": strategy_apply_history_trend.get("status"),
     }
     return {
         "status": status,
@@ -146,6 +165,10 @@ def _write_markdown(path: str, summary: dict) -> None:
         f"- dataset_policy_effectiveness_decision: `{kpis.get('dataset_policy_effectiveness_decision')}`",
         f"- dataset_strategy_profile: `{kpis.get('dataset_strategy_profile')}`",
         f"- dataset_strategy_action: `{kpis.get('dataset_strategy_action')}`",
+        f"- dataset_strategy_apply_latest_final_status: `{kpis.get('dataset_strategy_apply_latest_final_status')}`",
+        f"- dataset_strategy_apply_fail_rate: `{kpis.get('dataset_strategy_apply_fail_rate')}`",
+        f"- dataset_strategy_apply_needs_review_rate: `{kpis.get('dataset_strategy_apply_needs_review_rate')}`",
+        f"- dataset_strategy_apply_trend_status: `{kpis.get('dataset_strategy_apply_trend_status')}`",
         "",
         "## Risks",
         "",
@@ -173,6 +196,16 @@ def main() -> None:
     parser.add_argument("--dataset-governance-trend", default=None, help="Path to dataset governance trend JSON")
     parser.add_argument("--dataset-policy-effectiveness", default=None, help="Path to dataset policy effectiveness JSON")
     parser.add_argument("--dataset-strategy-advisor", default=None, help="Path to dataset strategy advisor JSON")
+    parser.add_argument(
+        "--dataset-strategy-apply-history",
+        default=None,
+        help="Path to dataset strategy apply history summary JSON",
+    )
+    parser.add_argument(
+        "--dataset-strategy-apply-history-trend",
+        default=None,
+        help="Path to dataset strategy apply history trend JSON",
+    )
     parser.add_argument("--out", default="artifacts/dataset_governance_snapshot/summary.json", help="Output JSON path")
     parser.add_argument("--report", default=None, help="Output markdown path")
     args = parser.parse_args()
@@ -184,6 +217,8 @@ def main() -> None:
     dataset_governance_trend = _load_json(args.dataset_governance_trend)
     effectiveness = _load_json(args.dataset_policy_effectiveness)
     strategy_advisor = _load_json(args.dataset_strategy_advisor)
+    strategy_apply_history = _load_json(args.dataset_strategy_apply_history)
+    strategy_apply_history_trend = _load_json(args.dataset_strategy_apply_history_trend)
 
     summary = _compute_summary(
         dataset_pipeline,
@@ -193,6 +228,8 @@ def main() -> None:
         dataset_governance_trend,
         effectiveness,
         strategy_advisor,
+        strategy_apply_history,
+        strategy_apply_history_trend,
     )
     summary["generated_at_utc"] = datetime.now(timezone.utc).isoformat()
     summary["sources"] = {
@@ -203,6 +240,8 @@ def main() -> None:
         "dataset_governance_trend_path": args.dataset_governance_trend,
         "dataset_policy_effectiveness_path": args.dataset_policy_effectiveness,
         "dataset_strategy_advisor_path": args.dataset_strategy_advisor,
+        "dataset_strategy_apply_history_path": args.dataset_strategy_apply_history,
+        "dataset_strategy_apply_history_trend_path": args.dataset_strategy_apply_history_trend,
     }
 
     _write_json(args.out, summary)
@@ -215,4 +254,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

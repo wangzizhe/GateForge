@@ -275,7 +275,14 @@ bash scripts/demo_dataset_strategy_autotune_apply.sh
 cat artifacts/dataset_strategy_autotune_apply_demo/summary.json
 ```
 
-## 21. Dataset Optional CI Contract Check
+## 21. Dataset Strategy Auto-Tune Apply History
+
+```bash
+bash scripts/demo_dataset_strategy_autotune_apply_history.sh
+cat artifacts/dataset_strategy_autotune_apply_history_demo/summary.json
+```
+
+## 22. Dataset Optional CI Contract Check
 
 ```bash
 python3 -m gateforge.dataset_optional_ci_contract \
