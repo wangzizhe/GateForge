@@ -79,6 +79,24 @@ class DatasetAdaptersTests(unittest.TestCase):
         self.assertEqual(case["actual_decision"], "NEEDS_REVIEW")
         self.assertEqual(case["actual_failure_type"], "runtime_regression")
         self.assertEqual(case["factors"]["trigger"], "llm_plan")
+        self.assertEqual(case["factors"]["root_cause"], "performance")
+        self.assertEqual(case["factors"]["severity"], "medium")
+        validate_cases([case])
+
+    def test_adapt_run_summary_governance_reason_mapping(self) -> None:
+        summary = {
+            "proposal_id": "run-guard-1",
+            "backend": "mock",
+            "model_script": "examples/openmodelica/minimal_probe.mos",
+            "status": "FAIL",
+            "policy_decision": "FAIL",
+            "fail_reasons": ["change_apply_failed"],
+            "risk_level": "high",
+        }
+        case = adapt_run_summary(summary, source="run")
+        self.assertEqual(case["actual_failure_type"], "change_apply_failed")
+        self.assertEqual(case["factors"]["root_cause"], "governance")
+        self.assertEqual(case["factors"]["severity"], "high")
         validate_cases([case])
 
     def test_cli_benchmark_adapter(self) -> None:
