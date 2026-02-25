@@ -333,3 +333,10 @@ cat artifacts/dataset_promotion_candidate_apply_history_demo/summary.json
 bash scripts/demo_dataset_promotion_effectiveness.sh
 cat artifacts/dataset_promotion_effectiveness_demo/summary.json
 ```
+
+## 28. Dataset Promotion Effectiveness History + Trend
+
+```bash
+bash scripts/demo_dataset_promotion_effectiveness_history.sh
+cat artifacts/dataset_promotion_effectiveness_history_demo/summary.json
+```
