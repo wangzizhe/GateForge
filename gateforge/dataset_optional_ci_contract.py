@@ -103,6 +103,11 @@ def main() -> None:
             ["bundle_status", "decision"],
         ),
         (
+            "dataset_promotion_candidate_history_demo",
+            "dataset_promotion_candidate_history_demo/summary.json",
+            ["bundle_status"],
+        ),
+        (
             "dataset_policy_autotune_history_demo",
             "dataset_policy_autotune_history_demo/summary.json",
             ["bundle_status"],
