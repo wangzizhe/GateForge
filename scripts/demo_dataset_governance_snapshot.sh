@@ -10,10 +10,21 @@ rm -f "$OUT_DIR"/*.json "$OUT_DIR"/*.md
 
 bash scripts/demo_dataset_pipeline.sh >/dev/null
 bash scripts/demo_dataset_history.sh >/dev/null
+if [ ! -f artifacts/dataset_history_demo/history_summary.json ]; then
+  bash scripts/demo_dataset_history.sh >/dev/null
+fi
+if [ ! -f artifacts/dataset_history_demo/history_summary.json ]; then
+  echo "missing artifacts/dataset_history_demo/history_summary.json" >&2
+  exit 1
+fi
 bash scripts/demo_dataset_policy_lifecycle.sh >/dev/null
 bash scripts/demo_dataset_governance_history.sh >/dev/null
 bash scripts/demo_dataset_strategy_autotune.sh >/dev/null
 bash scripts/demo_dataset_strategy_autotune_apply_history.sh >/dev/null
+bash scripts/demo_dataset_promotion_candidate_history.sh >/dev/null
+bash scripts/demo_dataset_promotion_candidate_apply_history.sh >/dev/null
+bash scripts/demo_dataset_promotion_effectiveness.sh >/dev/null
+bash scripts/demo_dataset_promotion_effectiveness_history.sh >/dev/null
 
 ARGS=(
   --dataset-pipeline-summary artifacts/dataset_pipeline_demo/summary.json
@@ -37,6 +48,12 @@ if [ -f artifacts/dataset_promotion_candidate_apply_history_demo/history_summary
 fi
 if [ -f artifacts/dataset_promotion_effectiveness_demo/effectiveness.json ]; then
   ARGS+=(--dataset-promotion-effectiveness artifacts/dataset_promotion_effectiveness_demo/effectiveness.json)
+fi
+if [ -f artifacts/dataset_promotion_effectiveness_history_demo/history_summary.json ]; then
+  ARGS+=(--dataset-promotion-effectiveness-history artifacts/dataset_promotion_effectiveness_history_demo/history_summary.json)
+fi
+if [ -f artifacts/dataset_promotion_effectiveness_history_demo/history_trend.json ]; then
+  ARGS+=(--dataset-promotion-effectiveness-history-trend artifacts/dataset_promotion_effectiveness_history_demo/history_trend.json)
 fi
 
 python3 -m gateforge.dataset_governance_snapshot \

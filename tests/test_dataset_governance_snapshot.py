@@ -190,6 +190,41 @@ class DatasetGovernanceSnapshotTests(unittest.TestCase):
             self.assertEqual(payload.get("status"), "NEEDS_REVIEW")
             self.assertIn("dataset_promotion_effectiveness_needs_review", payload.get("risks", []))
 
+    def test_snapshot_needs_review_on_promotion_effectiveness_history_trend(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            history = root / "promotion_effectiveness_history.json"
+            trend = root / "promotion_effectiveness_history_trend.json"
+            out = root / "snapshot.json"
+            history.write_text(
+                json.dumps({"latest_decision": "KEEP", "rollback_review_rate": 0.0}),
+                encoding="utf-8",
+            )
+            trend.write_text(
+                json.dumps({"status": "NEEDS_REVIEW", "trend": {"alerts": ["keep_rate_decreasing"]}}),
+                encoding="utf-8",
+            )
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.dataset_governance_snapshot",
+                    "--dataset-promotion-effectiveness-history",
+                    str(history),
+                    "--dataset-promotion-effectiveness-history-trend",
+                    str(trend),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            payload = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(payload.get("status"), "NEEDS_REVIEW")
+            self.assertIn("dataset_promotion_effectiveness_history_trend_needs_review", payload.get("risks", []))
+
     def test_snapshot_fail_on_pipeline_or_effectiveness_fail(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
