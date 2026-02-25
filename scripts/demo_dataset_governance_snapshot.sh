@@ -15,16 +15,25 @@ bash scripts/demo_dataset_governance_history.sh >/dev/null
 bash scripts/demo_dataset_strategy_autotune.sh >/dev/null
 bash scripts/demo_dataset_strategy_autotune_apply_history.sh >/dev/null
 
+ARGS=(
+  --dataset-pipeline-summary artifacts/dataset_pipeline_demo/summary.json
+  --dataset-history-summary artifacts/dataset_history_demo/history_summary.json
+  --dataset-history-trend artifacts/dataset_history_demo/history_trend.json
+  --dataset-governance-summary artifacts/dataset_policy_lifecycle_demo/ledger_summary.json
+  --dataset-governance-trend artifacts/dataset_governance_history_demo/trend.json
+  --dataset-policy-effectiveness artifacts/dataset_policy_lifecycle_demo/effectiveness.json
+  --dataset-strategy-advisor artifacts/dataset_strategy_autotune_demo/advisor.json
+  --dataset-strategy-apply-history artifacts/dataset_strategy_autotune_apply_history_demo/history_summary.json
+  --dataset-strategy-apply-history-trend artifacts/dataset_strategy_autotune_apply_history_demo/history_trend.json
+)
+
+if [ -f artifacts/dataset_promotion_candidate_history_demo/history_summary.json ] && [ -f artifacts/dataset_promotion_candidate_history_demo/history_trend.json ]; then
+  ARGS+=(--dataset-promotion-history artifacts/dataset_promotion_candidate_history_demo/history_summary.json)
+  ARGS+=(--dataset-promotion-history-trend artifacts/dataset_promotion_candidate_history_demo/history_trend.json)
+fi
+
 python3 -m gateforge.dataset_governance_snapshot \
-  --dataset-pipeline-summary artifacts/dataset_pipeline_demo/summary.json \
-  --dataset-history-summary artifacts/dataset_history_demo/history_summary.json \
-  --dataset-history-trend artifacts/dataset_history_demo/history_trend.json \
-  --dataset-governance-summary artifacts/dataset_policy_lifecycle_demo/ledger_summary.json \
-  --dataset-governance-trend artifacts/dataset_governance_history_demo/trend.json \
-  --dataset-policy-effectiveness artifacts/dataset_policy_lifecycle_demo/effectiveness.json \
-  --dataset-strategy-advisor artifacts/dataset_strategy_autotune_demo/advisor.json \
-  --dataset-strategy-apply-history artifacts/dataset_strategy_autotune_apply_history_demo/history_summary.json \
-  --dataset-strategy-apply-history-trend artifacts/dataset_strategy_autotune_apply_history_demo/history_trend.json \
+  "${ARGS[@]}" \
   --out "$OUT_DIR/summary.json" \
   --report "$OUT_DIR/summary.md"
 
