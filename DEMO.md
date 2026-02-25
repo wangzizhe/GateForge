@@ -192,3 +192,10 @@ Common toggles:
 - `run_benchmark=true` -> `benchmark-optional`, `mvp-freeze-optional`
 - `run_governance_snapshot_demo=true` -> `medium-governance-optional`
 - `run_governance_history_demo=true` -> `policy-autotune-optional`, `runtime-governance-history-optional`
+
+## 11. Dataset Pipeline (Build + Freeze)
+
+```bash
+bash scripts/demo_dataset_pipeline.sh
+cat artifacts/dataset_pipeline_demo/summary.json
+```
