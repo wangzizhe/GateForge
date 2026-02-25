@@ -232,3 +232,10 @@ cat artifacts/dataset_governance_demo/summary.json
 bash scripts/demo_dataset_policy_lifecycle.sh
 cat artifacts/dataset_policy_lifecycle_demo/summary.json
 ```
+
+## 15. Dataset Governance History Trend
+
+```bash
+bash scripts/demo_dataset_governance_history.sh
+cat artifacts/dataset_governance_history_demo/summary.json
+```
