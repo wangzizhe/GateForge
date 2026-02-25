@@ -27,8 +27,11 @@ class DatasetGovernanceSnapshotDemoTests(unittest.TestCase):
             )
             self.assertEqual(payload.get("bundle_status"), "PASS")
             self.assertIn(payload.get("status"), {"PASS", "NEEDS_REVIEW", "FAIL"})
+            self.assertIn(
+                payload.get("promotion_effectiveness_history_trend_status"),
+                {"PASS", "NEEDS_REVIEW", "FAIL", None},
+            )
 
 
 if __name__ == "__main__":
     unittest.main()
-

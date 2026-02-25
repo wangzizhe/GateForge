@@ -76,6 +76,12 @@ bundle_status = "PASS" if all(v == "PASS" for v in flags.values()) else "FAIL"
 summary = {
     "status": payload.get("status"),
     "risks_count": len(payload.get("risks") or []),
+    "promotion_effectiveness_history_trend_status": (payload.get("kpis") or {}).get(
+        "dataset_promotion_effectiveness_history_trend_status"
+    ),
+    "promotion_effectiveness_history_latest_decision": (payload.get("kpis") or {}).get(
+        "dataset_promotion_effectiveness_history_latest_decision"
+    ),
     "result_flags": flags,
     "bundle_status": bundle_status,
 }
@@ -87,6 +93,8 @@ summary = {
             "",
             f"- status: `{summary['status']}`",
             f"- risks_count: `{summary['risks_count']}`",
+            f"- promotion_effectiveness_history_trend_status: `{summary['promotion_effectiveness_history_trend_status']}`",
+            f"- promotion_effectiveness_history_latest_decision: `{summary['promotion_effectiveness_history_latest_decision']}`",
             f"- bundle_status: `{summary['bundle_status']}`",
             "",
             "## Result Flags",

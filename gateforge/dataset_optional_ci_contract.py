@@ -91,7 +91,11 @@ def main() -> None:
             "dataset_strategy_autotune_apply_history_demo/summary.json",
             ["bundle_status"],
         ),
-        ("dataset_governance_snapshot_demo", "dataset_governance_snapshot_demo/demo_summary.json", ["bundle_status"]),
+        (
+            "dataset_governance_snapshot_demo",
+            "dataset_governance_snapshot_demo/demo_summary.json",
+            ["bundle_status", "promotion_effectiveness_history_trend_status"],
+        ),
         (
             "dataset_governance_snapshot_trend_demo",
             "dataset_governance_snapshot_trend_demo/demo_summary.json",
