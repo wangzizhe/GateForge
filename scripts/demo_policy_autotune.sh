@@ -20,6 +20,8 @@ python3 -m gateforge.policy_autotune_advisor \
   --dataset-pipeline-summary artifacts/dataset_pipeline_demo/summary.json \
   --dataset-history-summary artifacts/dataset_history_demo/history_summary.json \
   --dataset-history-trend artifacts/dataset_history_demo/history_trend.json \
+  --dataset-governance-summary artifacts/dataset_policy_lifecycle_demo/ledger_summary.json \
+  --dataset-governance-trend artifacts/dataset_governance_history_demo/trend.json \
   --out "$OUT_DIR/advisor.json" \
   --report-out "$OUT_DIR/advisor.md"
 
