@@ -7,6 +7,81 @@ from pathlib import Path
 
 
 class PolicyAutotuneAdvisorTests(unittest.TestCase):
+    def test_advisor_dataset_signals_increase_strictness(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            governance = root / "governance.json"
+            mutation = root / "mutation.json"
+            medium = root / "medium.json"
+            dataset = root / "dataset.json"
+            out = root / "advisor.json"
+            governance.write_text(
+                json.dumps({"status": "PASS", "kpis": {"strict_non_pass_rate": 0.1}, "risks": []}),
+                encoding="utf-8",
+            )
+            mutation.write_text(
+                json.dumps(
+                    {
+                        "bundle_status": "PASS",
+                        "latest_match_rate": 1.0,
+                        "latest_gate_pass_rate": 1.0,
+                        "compare_decision": "PASS",
+                        "trend_status": "PASS",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            medium.write_text(
+                json.dumps(
+                    {
+                        "bundle_status": "PASS",
+                        "pass_rate": 1.0,
+                        "mismatch_case_count": 0,
+                        "trend_delta_pass_rate": 0.0,
+                        "advisor_decision": "KEEP",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            dataset.write_text(
+                json.dumps(
+                    {
+                        "bundle_status": "PASS",
+                        "freeze_status": "PASS",
+                        "build_deduplicated_cases": 4,
+                        "quality_failure_case_rate": 0.1,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.policy_autotune_advisor",
+                    "--governance-snapshot",
+                    str(governance),
+                    "--mutation-dashboard",
+                    str(mutation),
+                    "--medium-dashboard",
+                    str(medium),
+                    "--dataset-pipeline-summary",
+                    str(dataset),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            payload = json.loads(out.read_text(encoding="utf-8"))
+            advice = payload.get("advice", {})
+            self.assertEqual(advice.get("suggested_policy_profile"), "default")
+            reasons = advice.get("reasons", [])
+            self.assertIn("dataset_case_count_low", reasons)
+            self.assertIn("dataset_failure_coverage_low", reasons)
+
     def test_advisor_stable_signals_default(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)

@@ -7,6 +7,68 @@ from pathlib import Path
 
 
 class GovernanceReportTests(unittest.TestCase):
+    def test_governance_report_flags_dataset_pipeline_risks(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            repair = {"profile_compare": {"downgrade_count": 0, "strict_downgrade_rate": 0.0}}
+            review = {
+                "kpis": {
+                    "review_recovery_rate": 0.9,
+                    "strict_non_pass_rate": 0.1,
+                    "approval_rate": 0.8,
+                    "fail_rate": 0.1,
+                }
+            }
+            matrix = {"matrix_status": "PASS"}
+            dataset = {
+                "bundle_status": "PASS",
+                "freeze_status": "PASS",
+                "build_deduplicated_cases": 4,
+                "quality_failure_case_rate": 0.1,
+            }
+
+            rp = root / "repair.json"
+            lp = root / "ledger.json"
+            mp = root / "matrix.json"
+            dp = root / "dataset.json"
+            out = root / "summary.json"
+            rp.write_text(json.dumps(repair), encoding="utf-8")
+            lp.write_text(json.dumps(review), encoding="utf-8")
+            mp.write_text(json.dumps(matrix), encoding="utf-8")
+            dp.write_text(json.dumps(dataset), encoding="utf-8")
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.governance_report",
+                    "--repair-batch-summary",
+                    str(rp),
+                    "--review-ledger-summary",
+                    str(lp),
+                    "--ci-matrix-summary",
+                    str(mp),
+                    "--dataset-pipeline-summary",
+                    str(dp),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            payload = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(payload.get("status"), "NEEDS_REVIEW")
+            self.assertIn("dataset_case_count_low", payload.get("risks", []))
+            self.assertIn("dataset_failure_coverage_low", payload.get("risks", []))
+            self.assertEqual(payload.get("kpis", {}).get("dataset_deduplicated_cases"), 4)
+            self.assertEqual(payload.get("kpis", {}).get("dataset_failure_case_rate"), 0.1)
+            self.assertEqual(
+                payload.get("sources", {}).get("dataset_pipeline_summary_path"),
+                str(dp),
+            )
+
     def test_governance_report_flags_runtime_ledger_history_risks(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)

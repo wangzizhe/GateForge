@@ -11,6 +11,7 @@ bash scripts/demo_repair_batch_compare.sh
 bash scripts/demo_invariant_repair_profile_compare.sh
 bash scripts/demo_mutation_dashboard.sh
 bash scripts/demo_ci_matrix.sh --none --checker-demo
+bash scripts/demo_dataset_pipeline.sh >/dev/null
 
 python3 -m gateforge.governance_report \
   --repair-batch-summary artifacts/repair_batch_compare_demo/summary.json \
@@ -18,6 +19,7 @@ python3 -m gateforge.governance_report \
   --ci-matrix-summary artifacts/ci_matrix_summary.json \
   --invariant-repair-compare-summary artifacts/invariant_repair_profile_compare_demo/compare.json \
   --mutation-dashboard-summary artifacts/mutation_dashboard_demo/summary.json \
+  --dataset-pipeline-summary artifacts/dataset_pipeline_demo/summary.json \
   --out artifacts/governance_snapshot_demo/summary.json \
   --report artifacts/governance_snapshot_demo/summary.md
 
