@@ -1,0 +1,7 @@
+{
+  "profile": "default",
+  "required_approvals": 1,
+  "require_unique_reviewers": false,
+  "allow_reject_short_circuit": true
+}
+

@@ -1,0 +1,7 @@
+{
+  "profile": "dual_reviewer",
+  "required_approvals": 2,
+  "require_unique_reviewers": true,
+  "allow_reject_short_circuit": true
+}
+
