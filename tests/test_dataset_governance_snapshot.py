@@ -165,6 +165,31 @@ class DatasetGovernanceSnapshotTests(unittest.TestCase):
             self.assertEqual(payload.get("status"), "NEEDS_REVIEW")
             self.assertIn("dataset_promotion_apply_trend_needs_review", payload.get("risks", []))
 
+    def test_snapshot_needs_review_on_promotion_effectiveness(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            promotion_effectiveness = root / "promotion_effectiveness.json"
+            out = root / "snapshot.json"
+            promotion_effectiveness.write_text(json.dumps({"decision": "NEEDS_REVIEW"}), encoding="utf-8")
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.dataset_governance_snapshot",
+                    "--dataset-promotion-effectiveness",
+                    str(promotion_effectiveness),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            payload = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(payload.get("status"), "NEEDS_REVIEW")
+            self.assertIn("dataset_promotion_effectiveness_needs_review", payload.get("risks", []))
+
     def test_snapshot_fail_on_pipeline_or_effectiveness_fail(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)

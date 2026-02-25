@@ -35,6 +35,9 @@ if [ -f artifacts/dataset_promotion_candidate_apply_history_demo/history_summary
   ARGS+=(--dataset-promotion-apply-history artifacts/dataset_promotion_candidate_apply_history_demo/history_summary.json)
   ARGS+=(--dataset-promotion-apply-history-trend artifacts/dataset_promotion_candidate_apply_history_demo/history_trend.json)
 fi
+if [ -f artifacts/dataset_promotion_effectiveness_demo/effectiveness.json ]; then
+  ARGS+=(--dataset-promotion-effectiveness artifacts/dataset_promotion_effectiveness_demo/effectiveness.json)
+fi
 
 python3 -m gateforge.dataset_governance_snapshot \
   "${ARGS[@]}" \

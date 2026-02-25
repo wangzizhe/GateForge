@@ -326,3 +326,10 @@ cat artifacts/dataset_promotion_candidate_apply_demo/summary.json
 bash scripts/demo_dataset_promotion_candidate_apply_history.sh
 cat artifacts/dataset_promotion_candidate_apply_history_demo/summary.json
 ```
+
+## 27. Dataset Promotion Effectiveness
+
+```bash
+bash scripts/demo_dataset_promotion_effectiveness.sh
+cat artifacts/dataset_promotion_effectiveness_demo/summary.json
+```

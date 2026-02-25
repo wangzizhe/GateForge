@@ -118,6 +118,11 @@ def main() -> None:
             ["bundle_status"],
         ),
         (
+            "dataset_promotion_effectiveness_demo",
+            "dataset_promotion_effectiveness_demo/summary.json",
+            ["bundle_status", "effectiveness_decision"],
+        ),
+        (
             "dataset_policy_autotune_history_demo",
             "dataset_policy_autotune_history_demo/summary.json",
             ["bundle_status"],
