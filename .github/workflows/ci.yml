@@ -425,6 +425,11 @@ jobs:
           bash scripts/demo_dataset_artifacts_pipeline.sh
           bash scripts/demo_dataset_history.sh
           bash scripts/demo_dataset_governance.sh
+          bash scripts/demo_dataset_policy_lifecycle.sh
+          bash scripts/demo_dataset_governance_history.sh
+          bash scripts/demo_dataset_strategy_autotune.sh
+          bash scripts/demo_dataset_governance_snapshot.sh
+          bash scripts/demo_dataset_policy_autotune_history.sh
 
       - name: Upload dataset pipeline artifacts
         if: always()
@@ -437,6 +442,11 @@ jobs:
             artifacts/dataset_artifacts_pipeline_demo
             artifacts/dataset_history_demo
             artifacts/dataset_governance_demo
+            artifacts/dataset_policy_lifecycle_demo
+            artifacts/dataset_governance_history_demo
+            artifacts/dataset_strategy_autotune_demo
+            artifacts/dataset_governance_snapshot_demo
+            artifacts/dataset_policy_autotune_history_demo
             artifacts/dataset
 
   mvp-freeze-optional:
