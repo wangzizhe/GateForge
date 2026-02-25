@@ -239,3 +239,10 @@ cat artifacts/dataset_policy_lifecycle_demo/summary.json
 bash scripts/demo_dataset_governance_history.sh
 cat artifacts/dataset_governance_history_demo/summary.json
 ```
+
+## 16. Dataset Strategy Auto-Tune Advisor
+
+```bash
+bash scripts/demo_dataset_strategy_autotune.sh
+cat artifacts/dataset_strategy_autotune_demo/summary.json
+```
