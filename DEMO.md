@@ -319,3 +319,10 @@ cat artifacts/dataset_promotion_candidate_history_demo/summary.json
 bash scripts/demo_dataset_promotion_candidate_apply.sh
 cat artifacts/dataset_promotion_candidate_apply_demo/summary.json
 ```
+
+## 26. Dataset Promotion Candidate Apply History
+
+```bash
+bash scripts/demo_dataset_promotion_candidate_apply_history.sh
+cat artifacts/dataset_promotion_candidate_apply_history_demo/summary.json
+```
