@@ -1,0 +1,32 @@
+{
+  "schema_version": "0.1.0",
+  "case_id": "case-mutation-medium-0001",
+  "timestamp_utc": "2026-02-25T00:00:00Z",
+  "source": "mutation",
+  "backend": "openmodelica_docker",
+  "seed_model": "examples/openmodelica/MediumOscillator.mo",
+  "model_script": "examples/openmodelica/medium_failures/medium_simulate_error.mos",
+  "operator": "mutation_rule:simulate_singularity",
+  "intended_stage": "simulate",
+  "intended_failure_type": "simulate_error",
+  "expected_decision": "FAIL",
+  "actual_stage": "simulate",
+  "actual_failure_type": "simulate_error",
+  "actual_decision": "FAIL",
+  "oracle_match": true,
+  "replay_stable": true,
+  "risk_level": "medium",
+  "factors": {
+    "phase": "simulate",
+    "root_cause": "solver",
+    "trigger": "mutation_rule",
+    "severity": "high",
+    "determinism": "stable"
+  },
+  "artifacts": {
+    "evidence_json_path": "artifacts/benchmark_medium_v1/medium_fail_simulate_1.json"
+  },
+  "metadata": {
+    "notes": "Synthetic example for dataset_case schema v1"
+  }
+}
