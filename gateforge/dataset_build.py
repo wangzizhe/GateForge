@@ -1,0 +1,190 @@
+from __future__ import annotations
+
+import argparse
+import json
+from collections import Counter
+from pathlib import Path
+
+from .dataset_adapters import (
+    adapt_benchmark_summary,
+    adapt_mutation_benchmark_summary,
+    adapt_run_summary,
+    validate_cases,
+)
+
+
+def _load_json(path: str) -> dict:
+    return json.loads(Path(path).read_text(encoding="utf-8"))
+
+
+def _write_json(path: str, payload: dict) -> None:
+    p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+
+def _write_jsonl(path: str, rows: list[dict]) -> None:
+    p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    with p.open("w", encoding="utf-8") as f:
+        for row in rows:
+            f.write(json.dumps(row, separators=(",", ":")) + "\n")
+
+
+def _write_markdown(path: str, summary: dict, distribution: dict, quality: dict) -> None:
+    p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    lines = [
+        "# GateForge Dataset Build Summary",
+        "",
+        f"- total_cases: `{summary.get('total_cases')}`",
+        f"- deduplicated_cases: `{summary.get('deduplicated_cases')}`",
+        f"- dropped_duplicate_cases: `{summary.get('dropped_duplicate_cases')}`",
+        f"- oracle_match_rate: `{quality.get('oracle_match_rate')}`",
+        f"- replay_stable_rate: `{quality.get('replay_stable_rate')}`",
+        "",
+        "## Source Distribution",
+        "",
+    ]
+    src = distribution.get("source", {})
+    if src:
+        for k in sorted(src.keys()):
+            lines.append(f"- {k}: `{src[k]}`")
+    else:
+        lines.append("- `none`")
+    lines.extend(["", "## Decision Distribution", ""])
+    dec = distribution.get("actual_decision", {})
+    if dec:
+        for k in sorted(dec.keys()):
+            lines.append(f"- {k}: `{dec[k]}`")
+    else:
+        lines.append("- `none`")
+    lines.extend(["", "## Failure Type Distribution", ""])
+    ft = distribution.get("actual_failure_type", {})
+    if ft:
+        for k in sorted(ft.keys()):
+            lines.append(f"- {k}: `{ft[k]}`")
+    else:
+        lines.append("- `none`")
+    lines.append("")
+    p.write_text("\n".join(lines), encoding="utf-8")
+
+
+def _distribution(cases: list[dict]) -> dict:
+    source = Counter()
+    decision = Counter()
+    failure_type = Counter()
+    stage = Counter()
+    root_cause = Counter()
+    trigger = Counter()
+    severity = Counter()
+    determinism = Counter()
+    for row in cases:
+        source[str(row.get("source") or "unknown")] += 1
+        decision[str(row.get("actual_decision") or "unknown")] += 1
+        failure_type[str(row.get("actual_failure_type") or "unknown")] += 1
+        stage[str(row.get("actual_stage") or "unknown")] += 1
+        factors = row.get("factors", {}) if isinstance(row.get("factors"), dict) else {}
+        root_cause[str(factors.get("root_cause") or "unknown")] += 1
+        trigger[str(factors.get("trigger") or "unknown")] += 1
+        severity[str(factors.get("severity") or "unknown")] += 1
+        determinism[str(factors.get("determinism") or "unknown")] += 1
+    return {
+        "source": dict(source),
+        "actual_decision": dict(decision),
+        "actual_failure_type": dict(failure_type),
+        "actual_stage": dict(stage),
+        "factors.root_cause": dict(root_cause),
+        "factors.trigger": dict(trigger),
+        "factors.severity": dict(severity),
+        "factors.determinism": dict(determinism),
+    }
+
+
+def _quality_report(cases: list[dict]) -> dict:
+    total = len(cases)
+    if total == 0:
+        return {
+            "total_cases": 0,
+            "oracle_match_rate": 0.0,
+            "replay_stable_rate": 0.0,
+            "decision_non_pass_rate": 0.0,
+            "failure_case_rate": 0.0,
+        }
+    oracle_match = sum(1 for c in cases if bool(c.get("oracle_match")))
+    replay_stable = sum(1 for c in cases if bool(c.get("replay_stable")))
+    non_pass = sum(1 for c in cases if c.get("actual_decision") in {"FAIL", "NEEDS_REVIEW"})
+    failure_cases = sum(1 for c in cases if c.get("actual_failure_type") != "none")
+    return {
+        "total_cases": total,
+        "oracle_match_rate": round(oracle_match / total, 4),
+        "replay_stable_rate": round(replay_stable / total, 4),
+        "decision_non_pass_rate": round(non_pass / total, 4),
+        "failure_case_rate": round(failure_cases / total, 4),
+    }
+
+
+def _deduplicate(cases: list[dict]) -> tuple[list[dict], int]:
+    kept: list[dict] = []
+    seen: set[str] = set()
+    dropped = 0
+    for case in cases:
+        cid = str(case.get("case_id") or "")
+        if cid in seen:
+            dropped += 1
+            continue
+        seen.add(cid)
+        kept.append(case)
+    return kept, dropped
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Build unified dataset_case assets from GateForge summaries")
+    parser.add_argument("--benchmark-summary", action="append", default=[], help="benchmark summary JSON (repeatable)")
+    parser.add_argument("--mutation-summary", action="append", default=[], help="mutation benchmark summary JSON (repeatable)")
+    parser.add_argument("--run-summary", action="append", default=[], help="run summary JSON (repeatable)")
+    parser.add_argument("--autopilot-summary", action="append", default=[], help="autopilot summary JSON (repeatable)")
+    parser.add_argument("--out-dir", default="artifacts/dataset_build", help="Output directory")
+    args = parser.parse_args()
+
+    cases: list[dict] = []
+    for path in args.benchmark_summary:
+        cases.extend(adapt_benchmark_summary(_load_json(path)))
+    for path in args.mutation_summary:
+        cases.extend(adapt_mutation_benchmark_summary(_load_json(path)))
+    for path in args.run_summary:
+        cases.append(adapt_run_summary(_load_json(path), source="run"))
+    for path in args.autopilot_summary:
+        cases.append(adapt_run_summary(_load_json(path), source="autopilot"))
+
+    validate_cases(cases)
+    deduped, dropped = _deduplicate(cases)
+    distribution = _distribution(deduped)
+    quality = _quality_report(deduped)
+    summary = {
+        "total_cases": len(cases),
+        "deduplicated_cases": len(deduped),
+        "dropped_duplicate_cases": dropped,
+        "inputs": {
+            "benchmark_summary_count": len(args.benchmark_summary),
+            "mutation_summary_count": len(args.mutation_summary),
+            "run_summary_count": len(args.run_summary),
+            "autopilot_summary_count": len(args.autopilot_summary),
+        },
+        "outputs": {
+            "dataset_jsonl": str(Path(args.out_dir) / "dataset_cases.jsonl"),
+            "distribution_json": str(Path(args.out_dir) / "distribution.json"),
+            "quality_json": str(Path(args.out_dir) / "quality_report.json"),
+        },
+    }
+
+    _write_jsonl(str(Path(args.out_dir) / "dataset_cases.jsonl"), deduped)
+    _write_json(str(Path(args.out_dir) / "distribution.json"), distribution)
+    _write_json(str(Path(args.out_dir) / "quality_report.json"), quality)
+    _write_json(str(Path(args.out_dir) / "summary.json"), summary)
+    _write_markdown(str(Path(args.out_dir) / "summary.md"), summary, distribution, quality)
+    print(json.dumps({"total_cases": summary["total_cases"], "deduplicated_cases": summary["deduplicated_cases"]}))
+
+
+if __name__ == "__main__":
+    main()
