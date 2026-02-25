@@ -305,3 +305,10 @@ cat artifacts/dataset_optional_ci_contract_demo/demo_summary.json
 bash scripts/demo_dataset_promotion_candidate.sh
 cat artifacts/dataset_promotion_candidate_demo/summary.json
 ```
+
+## 24. Dataset Promotion Candidate History
+
+```bash
+bash scripts/demo_dataset_promotion_candidate_history.sh
+cat artifacts/dataset_promotion_candidate_history_demo/summary.json
+```
