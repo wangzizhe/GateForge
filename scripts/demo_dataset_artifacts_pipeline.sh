@@ -5,13 +5,47 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
 OUT_DIR="artifacts/dataset_artifacts_pipeline_demo"
+IN_DIR="$OUT_DIR/inputs"
 mkdir -p "$OUT_DIR"
-rm -f "$OUT_DIR"/*.json "$OUT_DIR"/*.md "$OUT_DIR"/*.jsonl
+mkdir -p "$IN_DIR"
+rm -f "$OUT_DIR"/*.json "$OUT_DIR"/*.md "$OUT_DIR"/*.jsonl "$IN_DIR"/*.json
 
-# Ensure at least minimal artifacts exist so the pipeline is always runnable.
-if [[ ! -f "artifacts/benchmark_v0/summary.json" ]]; then
-  bash scripts/demo_dataset_pipeline.sh >/dev/null
-fi
+# Seed one benchmark + one mutation summary so failure coverage is stable even in clean CI.
+cat > "$IN_DIR/benchmark_summary.seed.json" <<'JSON'
+{
+  "pack_id": "pack_seed",
+  "proposal_id": null,
+  "cases": [
+    {
+      "name": "seed-pass",
+      "backend": "mock",
+      "script": "examples/openmodelica/minimal_probe.mos",
+      "result": "PASS",
+      "failure_type": "none",
+      "mismatches": [],
+      "json_path": "artifacts/benchmark_seed/seed-pass.json"
+    }
+  ]
+}
+JSON
+
+cat > "$IN_DIR/mutation_summary.seed.json" <<'JSON'
+{
+  "pack_id": "mutation_pack_seed",
+  "proposal_id": null,
+  "cases": [
+    {
+      "name": "seed-fail",
+      "backend": "mock",
+      "script": "examples/mutants/seed/seed-fail.mos",
+      "result": "PASS",
+      "failure_type": "script_parse_error",
+      "mismatches": [],
+      "json_path": "artifacts/mutation_seed/seed-fail.json"
+    }
+  ]
+}
+JSON
 
 python3 -m gateforge.dataset_collect \
   --root artifacts \
@@ -19,6 +53,8 @@ python3 -m gateforge.dataset_collect \
   --report-out "$OUT_DIR/collect_summary.md"
 
 python3 -m gateforge.dataset_build \
+  --benchmark-summary "$IN_DIR/benchmark_summary.seed.json" \
+  --mutation-summary "$IN_DIR/mutation_summary.seed.json" \
   --collect-summary "$OUT_DIR/collect_summary.json" \
   --out-dir "$OUT_DIR/build"
 
