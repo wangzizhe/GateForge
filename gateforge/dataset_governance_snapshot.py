@@ -59,6 +59,10 @@ def _status_from_signals(signals: dict) -> str:
         return "NEEDS_REVIEW"
     if signals.get("dataset_strategy_apply_trend_needs_review"):
         return "NEEDS_REVIEW"
+    if signals.get("dataset_promotion_trend_needs_review"):
+        return "NEEDS_REVIEW"
+    if signals.get("dataset_promotion_latest_block"):
+        return "NEEDS_REVIEW"
     return "PASS"
 
 
@@ -72,6 +76,8 @@ def _compute_summary(
     strategy_advisor: dict,
     strategy_apply_history: dict,
     strategy_apply_history_trend: dict,
+    promotion_history: dict,
+    promotion_history_trend: dict,
 ) -> dict:
     strategy_advice = (
         strategy_advisor.get("advice")
@@ -96,6 +102,8 @@ def _compute_summary(
         "dataset_strategy_apply_latest_needs_review": str(strategy_apply_history.get("latest_final_status") or "") == "NEEDS_REVIEW",
         "dataset_strategy_apply_latest_fail": str(strategy_apply_history.get("latest_final_status") or "") == "FAIL",
         "dataset_strategy_apply_trend_needs_review": str(strategy_apply_history_trend.get("status") or "") == "NEEDS_REVIEW",
+        "dataset_promotion_latest_block": str(promotion_history.get("latest_decision") or "") == "BLOCK",
+        "dataset_promotion_trend_needs_review": str(promotion_history_trend.get("status") or "") == "NEEDS_REVIEW",
     }
     status = _status_from_signals(signals)
 
@@ -118,6 +126,10 @@ def _compute_summary(
         risks.append("dataset_strategy_apply_latest_fail")
     if signals["dataset_strategy_apply_trend_needs_review"]:
         risks.append("dataset_strategy_apply_trend_needs_review")
+    if signals["dataset_promotion_latest_block"]:
+        risks.append("dataset_promotion_latest_block")
+    if signals["dataset_promotion_trend_needs_review"]:
+        risks.append("dataset_promotion_trend_needs_review")
 
     kpis = {
         "dataset_pipeline_deduplicated_cases": _to_int(
@@ -141,6 +153,10 @@ def _compute_summary(
         "dataset_strategy_apply_fail_rate": _to_float(strategy_apply_history.get("fail_rate", 0.0)),
         "dataset_strategy_apply_needs_review_rate": _to_float(strategy_apply_history.get("needs_review_rate", 0.0)),
         "dataset_strategy_apply_trend_status": strategy_apply_history_trend.get("status"),
+        "dataset_promotion_latest_decision": promotion_history.get("latest_decision"),
+        "dataset_promotion_hold_rate": _to_float(promotion_history.get("hold_rate", 0.0)),
+        "dataset_promotion_block_rate": _to_float(promotion_history.get("block_rate", 0.0)),
+        "dataset_promotion_trend_status": promotion_history_trend.get("status"),
     }
     return {
         "status": status,
@@ -169,6 +185,10 @@ def _write_markdown(path: str, summary: dict) -> None:
         f"- dataset_strategy_apply_fail_rate: `{kpis.get('dataset_strategy_apply_fail_rate')}`",
         f"- dataset_strategy_apply_needs_review_rate: `{kpis.get('dataset_strategy_apply_needs_review_rate')}`",
         f"- dataset_strategy_apply_trend_status: `{kpis.get('dataset_strategy_apply_trend_status')}`",
+        f"- dataset_promotion_latest_decision: `{kpis.get('dataset_promotion_latest_decision')}`",
+        f"- dataset_promotion_hold_rate: `{kpis.get('dataset_promotion_hold_rate')}`",
+        f"- dataset_promotion_block_rate: `{kpis.get('dataset_promotion_block_rate')}`",
+        f"- dataset_promotion_trend_status: `{kpis.get('dataset_promotion_trend_status')}`",
         "",
         "## Risks",
         "",
@@ -206,6 +226,16 @@ def main() -> None:
         default=None,
         help="Path to dataset strategy apply history trend JSON",
     )
+    parser.add_argument(
+        "--dataset-promotion-history",
+        default=None,
+        help="Path to dataset promotion candidate history summary JSON",
+    )
+    parser.add_argument(
+        "--dataset-promotion-history-trend",
+        default=None,
+        help="Path to dataset promotion candidate history trend JSON",
+    )
     parser.add_argument("--out", default="artifacts/dataset_governance_snapshot/summary.json", help="Output JSON path")
     parser.add_argument("--report", default=None, help="Output markdown path")
     args = parser.parse_args()
@@ -219,6 +249,8 @@ def main() -> None:
     strategy_advisor = _load_json(args.dataset_strategy_advisor)
     strategy_apply_history = _load_json(args.dataset_strategy_apply_history)
     strategy_apply_history_trend = _load_json(args.dataset_strategy_apply_history_trend)
+    promotion_history = _load_json(args.dataset_promotion_history)
+    promotion_history_trend = _load_json(args.dataset_promotion_history_trend)
 
     summary = _compute_summary(
         dataset_pipeline,
@@ -230,6 +262,8 @@ def main() -> None:
         strategy_advisor,
         strategy_apply_history,
         strategy_apply_history_trend,
+        promotion_history,
+        promotion_history_trend,
     )
     summary["generated_at_utc"] = datetime.now(timezone.utc).isoformat()
     summary["sources"] = {
@@ -242,6 +276,8 @@ def main() -> None:
         "dataset_strategy_advisor_path": args.dataset_strategy_advisor,
         "dataset_strategy_apply_history_path": args.dataset_strategy_apply_history,
         "dataset_strategy_apply_history_trend_path": args.dataset_strategy_apply_history_trend,
+        "dataset_promotion_history_path": args.dataset_promotion_history,
+        "dataset_promotion_history_trend_path": args.dataset_promotion_history_trend,
     }
 
     _write_json(args.out, summary)
