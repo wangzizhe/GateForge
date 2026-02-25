@@ -16,7 +16,9 @@ cat > "$OUT_DIR/previous_summary.json" <<'JSON'
     "dataset_pipeline_deduplicated_cases": 8,
     "dataset_pipeline_failure_case_rate": 0.2,
     "dataset_governance_total_records": 4,
-    "dataset_governance_trend_alert_count": 0
+    "dataset_governance_trend_alert_count": 0,
+    "dataset_promotion_effectiveness_history_trend_status": "PASS",
+    "dataset_promotion_effectiveness_history_latest_decision": "KEEP"
   }
 }
 JSON
@@ -39,6 +41,7 @@ trend = payload.get("trend", {})
 flags = {
     "has_status_transition": "PASS" if isinstance(trend.get("status_transition"), str) and "->" in trend.get("status_transition", "") else "FAIL",
     "has_kpi_delta": "PASS" if isinstance(trend.get("kpi_delta"), dict) else "FAIL",
+    "has_status_delta": "PASS" if isinstance(trend.get("status_delta"), dict) else "FAIL",
     "has_new_risks_list": "PASS" if isinstance(trend.get("new_risks"), list) else "FAIL",
     "has_resolved_risks_list": "PASS" if isinstance(trend.get("resolved_risks"), list) else "FAIL",
 }
@@ -48,6 +51,9 @@ demo = {
     "status_transition": trend.get("status_transition"),
     "new_risks_count": len(trend.get("new_risks", [])) if isinstance(trend.get("new_risks"), list) else 0,
     "resolved_risks_count": len(trend.get("resolved_risks", [])) if isinstance(trend.get("resolved_risks"), list) else 0,
+    "promotion_effectiveness_history_trend_transition": (trend.get("status_delta") or {}).get(
+        "dataset_promotion_effectiveness_history_trend_status_transition"
+    ),
     "result_flags": flags,
     "bundle_status": bundle_status,
 }
@@ -61,6 +67,7 @@ demo = {
             f"- status_transition: `{demo['status_transition']}`",
             f"- new_risks_count: `{demo['new_risks_count']}`",
             f"- resolved_risks_count: `{demo['resolved_risks_count']}`",
+            f"- promotion_effectiveness_history_trend_transition: `{demo['promotion_effectiveness_history_trend_transition']}`",
             f"- bundle_status: `{demo['bundle_status']}`",
             "",
             "## Result Flags",

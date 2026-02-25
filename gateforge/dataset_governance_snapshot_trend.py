@@ -39,6 +39,16 @@ def _compute_trend(current: dict, previous: dict) -> dict:
         "status_transition": f"{previous_status}->{current_status}",
         "new_risks": sorted(current_risks - previous_risks),
         "resolved_risks": sorted(previous_risks - current_risks),
+        "status_delta": {
+            "dataset_promotion_effectiveness_history_trend_status_transition": (
+                f"{previous_kpis.get('dataset_promotion_effectiveness_history_trend_status')}->"
+                f"{current_kpis.get('dataset_promotion_effectiveness_history_trend_status')}"
+            ),
+            "dataset_promotion_effectiveness_history_latest_decision_transition": (
+                f"{previous_kpis.get('dataset_promotion_effectiveness_history_latest_decision')}->"
+                f"{current_kpis.get('dataset_promotion_effectiveness_history_latest_decision')}"
+            ),
+        },
         "kpi_delta": {
             "dataset_pipeline_deduplicated_cases_delta": round(
                 _to_float(current_kpis.get("dataset_pipeline_deduplicated_cases"))
@@ -93,6 +103,9 @@ def _write_markdown(path: str, summary: dict) -> None:
     lines.extend(["", "## KPI Delta", ""])
     for k, v in (trend.get("kpi_delta") or {}).items():
         lines.append(f"- {k}: `{v}`")
+    lines.extend(["", "## Status Delta", ""])
+    for k, v in (trend.get("status_delta") or {}).items():
+        lines.append(f"- {k}: `{v}`")
     lines.append("")
     p.write_text("\n".join(lines), encoding="utf-8")
 
@@ -129,4 +142,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
