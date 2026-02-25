@@ -99,7 +99,12 @@ def main() -> None:
         (
             "dataset_governance_snapshot_trend_demo",
             "dataset_governance_snapshot_trend_demo/demo_summary.json",
-            ["bundle_status", "status_transition", "promotion_effectiveness_history_trend_transition"],
+            [
+                "bundle_status",
+                "status_transition",
+                "promotion_effectiveness_history_trend_transition",
+                "status_delta_alert_count",
+            ],
         ),
         (
             "dataset_promotion_candidate_demo",
