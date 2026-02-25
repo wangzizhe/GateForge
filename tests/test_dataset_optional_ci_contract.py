@@ -81,6 +81,7 @@ class DatasetOptionalCIContractTests(unittest.TestCase):
                 "bundle_status": "PASS",
                 "status_transition": "PASS->PASS",
                 "promotion_effectiveness_history_trend_transition": "PASS->NEEDS_REVIEW",
+                "status_delta_alert_count": 1,
             },
             "dataset_promotion_candidate_demo/summary.json": {
                 "bundle_status": "PASS",
