@@ -11,12 +11,15 @@ rm -f "$OUT_DIR"/*.json "$OUT_DIR"/*.md
 bash scripts/demo_governance_snapshot.sh >/dev/null
 bash scripts/demo_mutation_dashboard.sh >/dev/null
 bash scripts/demo_medium_pack_v1_dashboard.sh >/dev/null
+bash scripts/demo_dataset_history.sh >/dev/null
 
 python3 -m gateforge.policy_autotune_advisor \
   --governance-snapshot artifacts/governance_snapshot_demo/summary.json \
   --mutation-dashboard artifacts/mutation_dashboard_demo/summary.json \
   --medium-dashboard artifacts/benchmark_medium_v1/dashboard.json \
   --dataset-pipeline-summary artifacts/dataset_pipeline_demo/summary.json \
+  --dataset-history-summary artifacts/dataset_history_demo/history_summary.json \
+  --dataset-history-trend artifacts/dataset_history_demo/history_trend.json \
   --out "$OUT_DIR/advisor.json" \
   --report-out "$OUT_DIR/advisor.md"
 
