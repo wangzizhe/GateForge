@@ -1,0 +1,212 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gateforge.dev/schemas/dataset_case.schema.json",
+  "title": "GateForge Dataset Case v1",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "case_id",
+    "timestamp_utc",
+    "source",
+    "backend",
+    "actual_stage",
+    "actual_failure_type",
+    "actual_decision",
+    "oracle_match",
+    "replay_stable",
+    "factors"
+  ],
+  "additionalProperties": true,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "0.1.0"
+    },
+    "case_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "timestamp_utc": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source": {
+      "type": "string",
+      "enum": [
+        "benchmark",
+        "mutation",
+        "run",
+        "autopilot",
+        "manual"
+      ]
+    },
+    "backend": {
+      "type": "string",
+      "enum": [
+        "mock",
+        "openmodelica",
+        "openmodelica_docker",
+        "fmu_runner"
+      ]
+    },
+    "seed_model": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "model_script": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "operator": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "intended_stage": {
+      "type": "string",
+      "enum": [
+        "none",
+        "check",
+        "simulate",
+        "regress",
+        "policy",
+        "review"
+      ]
+    },
+    "intended_failure_type": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "expected_decision": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "PASS",
+        "FAIL",
+        "NEEDS_REVIEW",
+        null
+      ]
+    },
+    "actual_stage": {
+      "type": "string",
+      "enum": [
+        "none",
+        "check",
+        "simulate",
+        "regress",
+        "policy",
+        "review"
+      ]
+    },
+    "actual_failure_type": {
+      "type": "string",
+      "minLength": 1
+    },
+    "actual_decision": {
+      "type": "string",
+      "enum": [
+        "PASS",
+        "FAIL",
+        "NEEDS_REVIEW"
+      ]
+    },
+    "oracle_match": {
+      "type": "boolean"
+    },
+    "replay_stable": {
+      "type": "boolean"
+    },
+    "risk_level": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        null
+      ]
+    },
+    "factors": {
+      "type": "object",
+      "required": [
+        "phase",
+        "root_cause",
+        "trigger",
+        "severity",
+        "determinism"
+      ],
+      "properties": {
+        "phase": {
+          "type": "string",
+          "enum": [
+            "check",
+            "simulate",
+            "regress",
+            "policy",
+            "review",
+            "none"
+          ]
+        },
+        "root_cause": {
+          "type": "string",
+          "enum": [
+            "none",
+            "parse",
+            "model_check",
+            "solver",
+            "numeric",
+            "invariant",
+            "performance",
+            "drift",
+            "governance",
+            "unknown"
+          ]
+        },
+        "trigger": {
+          "type": "string",
+          "enum": [
+            "mutation_rule",
+            "llm_plan",
+            "human_patch",
+            "env_change",
+            "baseline",
+            "unknown"
+          ]
+        },
+        "severity": {
+          "type": "string",
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ]
+        },
+        "determinism": {
+          "type": "string",
+          "enum": [
+            "stable",
+            "flaky",
+            "unknown"
+          ]
+        }
+      }
+    },
+    "artifacts": {
+      "type": "object"
+    },
+    "metadata": {
+      "type": "object"
+    }
+  }
+}
