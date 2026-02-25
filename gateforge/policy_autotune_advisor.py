@@ -42,7 +42,12 @@ def _to_int(v: object) -> int:
     return 0
 
 
-def _build_advice(governance_snapshot: dict, mutation_dashboard: dict, medium_dashboard: dict) -> tuple[dict, dict]:
+def _build_advice(
+    governance_snapshot: dict,
+    mutation_dashboard: dict,
+    medium_dashboard: dict,
+    dataset_pipeline_summary: dict,
+) -> tuple[dict, dict]:
     reasons: list[str] = []
     threshold_patch = {
         "require_min_top_score_margin": None,
@@ -65,6 +70,20 @@ def _build_advice(governance_snapshot: dict, mutation_dashboard: dict, medium_da
         "medium_mismatch_case_count": _to_int(medium_dashboard.get("mismatch_case_count")),
         "medium_trend_delta_pass_rate": _to_float(medium_dashboard.get("trend_delta_pass_rate")),
         "medium_advisor_decision": str(medium_dashboard.get("advisor_decision") or "UNKNOWN"),
+        "dataset_bundle_status": str(dataset_pipeline_summary.get("bundle_status") or dataset_pipeline_summary.get("status") or "UNKNOWN"),
+        "dataset_freeze_status": str(dataset_pipeline_summary.get("freeze_status") or "UNKNOWN"),
+        "dataset_deduplicated_cases": _to_int(
+            dataset_pipeline_summary.get(
+                "build_deduplicated_cases",
+                dataset_pipeline_summary.get("deduplicated_cases", dataset_pipeline_summary.get("total_cases")),
+            )
+        ),
+        "dataset_failure_case_rate": _to_float(
+            dataset_pipeline_summary.get(
+                "quality_failure_case_rate",
+                dataset_pipeline_summary.get("failure_case_rate"),
+            )
+        ),
     }
 
     score = 0
@@ -106,6 +125,19 @@ def _build_advice(governance_snapshot: dict, mutation_dashboard: dict, medium_da
         score += 1
     if signals["medium_trend_delta_pass_rate"] <= -0.05:
         reasons.append("medium_pass_rate_regression")
+        score += 1
+
+    if signals["dataset_bundle_status"] == "FAIL":
+        reasons.append("dataset_pipeline_bundle_fail")
+        score += 2
+    if signals["dataset_freeze_status"] not in {"PASS", "UNKNOWN"}:
+        reasons.append("dataset_freeze_not_pass")
+        score += 2
+    if 0 < signals["dataset_deduplicated_cases"] < 10:
+        reasons.append("dataset_case_count_low")
+        score += 1
+    if 0.0 < signals["dataset_failure_case_rate"] < 0.2:
+        reasons.append("dataset_failure_coverage_low")
         score += 1
 
     if score >= 5:
@@ -189,20 +221,27 @@ def main() -> None:
         default="artifacts/policy_autotune_demo/advisor.json",
         help="advisor output json",
     )
+    parser.add_argument(
+        "--dataset-pipeline-summary",
+        default=None,
+        help="dataset pipeline summary json",
+    )
     parser.add_argument("--report-out", default=None, help="advisor output markdown")
     args = parser.parse_args()
 
     governance = _load_json(args.governance_snapshot)
     mutation = _load_json(args.mutation_dashboard)
     medium = _load_json(args.medium_dashboard)
+    dataset = _load_json(args.dataset_pipeline_summary)
 
-    advice, signals = _build_advice(governance, mutation, medium)
+    advice, signals = _build_advice(governance, mutation, medium, dataset)
     payload = {
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
         "sources": {
             "governance_snapshot": args.governance_snapshot,
             "mutation_dashboard": args.mutation_dashboard,
             "medium_dashboard": args.medium_dashboard,
+            "dataset_pipeline_summary": args.dataset_pipeline_summary,
         },
         "advice": advice,
         "signals": signals,

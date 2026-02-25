@@ -16,6 +16,7 @@ python3 -m gateforge.policy_autotune_advisor \
   --governance-snapshot artifacts/governance_snapshot_demo/summary.json \
   --mutation-dashboard artifacts/mutation_dashboard_demo/summary.json \
   --medium-dashboard artifacts/benchmark_medium_v1/dashboard.json \
+  --dataset-pipeline-summary artifacts/dataset_pipeline_demo/summary.json \
   --out "$OUT_DIR/advisor.json" \
   --report-out "$OUT_DIR/advisor.md"
 
