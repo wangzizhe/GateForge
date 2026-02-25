@@ -291,3 +291,10 @@ python3 -m gateforge.dataset_optional_ci_contract \
   --report-out artifacts/dataset_optional_ci_contract/summary.md
 cat artifacts/dataset_optional_ci_contract/summary.json
 ```
+
+One-shot full contract demo:
+
+```bash
+bash scripts/demo_dataset_optional_ci_contract.sh
+cat artifacts/dataset_optional_ci_contract_demo/demo_summary.json
+```
