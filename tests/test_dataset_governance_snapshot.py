@@ -130,6 +130,41 @@ class DatasetGovernanceSnapshotTests(unittest.TestCase):
             self.assertEqual(payload.get("status"), "NEEDS_REVIEW")
             self.assertIn("dataset_promotion_trend_needs_review", payload.get("risks", []))
 
+    def test_snapshot_needs_review_on_promotion_apply_trend(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            promotion_apply_history = root / "promotion_apply_history.json"
+            promotion_apply_trend = root / "promotion_apply_trend.json"
+            out = root / "snapshot.json"
+            promotion_apply_history.write_text(
+                json.dumps({"latest_final_status": "PASS", "fail_rate": 0.0, "needs_review_rate": 0.3}),
+                encoding="utf-8",
+            )
+            promotion_apply_trend.write_text(
+                json.dumps({"status": "NEEDS_REVIEW", "trend": {"alerts": ["apply_fail_rate_increasing"]}}),
+                encoding="utf-8",
+            )
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.dataset_governance_snapshot",
+                    "--dataset-promotion-apply-history",
+                    str(promotion_apply_history),
+                    "--dataset-promotion-apply-history-trend",
+                    str(promotion_apply_trend),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            payload = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(payload.get("status"), "NEEDS_REVIEW")
+            self.assertIn("dataset_promotion_apply_trend_needs_review", payload.get("risks", []))
+
     def test_snapshot_fail_on_pipeline_or_effectiveness_fail(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
