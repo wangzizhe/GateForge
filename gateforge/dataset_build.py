@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import glob
 import json
 from collections import Counter
 from pathlib import Path
@@ -15,6 +16,27 @@ from .dataset_adapters import (
 
 def _load_json(path: str) -> dict:
     return json.loads(Path(path).read_text(encoding="utf-8"))
+
+
+def _expand_paths(explicit: list[str], patterns: list[str]) -> list[str]:
+    resolved: list[str] = []
+    seen: set[str] = set()
+    for p in explicit:
+        path = str(Path(p))
+        if path not in seen:
+            resolved.append(path)
+            seen.add(path)
+    for pattern in patterns:
+        for path_txt in sorted(glob.glob(pattern)):
+            path = Path(path_txt)
+            if not path.exists() or not path.is_file():
+                continue
+            p = str(path)
+            if p in seen:
+                continue
+            resolved.append(p)
+            seen.add(p)
+    return resolved
 
 
 def _write_json(path: str, payload: dict) -> None:
@@ -141,20 +163,49 @@ def _deduplicate(cases: list[dict]) -> tuple[list[dict], int]:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Build unified dataset_case assets from GateForge summaries")
     parser.add_argument("--benchmark-summary", action="append", default=[], help="benchmark summary JSON (repeatable)")
+    parser.add_argument(
+        "--benchmark-summary-glob",
+        action="append",
+        default=[],
+        help="Glob pattern for benchmark summary JSON (repeatable, e.g. 'artifacts/benchmark*/summary.json')",
+    )
     parser.add_argument("--mutation-summary", action="append", default=[], help="mutation benchmark summary JSON (repeatable)")
+    parser.add_argument(
+        "--mutation-summary-glob",
+        action="append",
+        default=[],
+        help="Glob pattern for mutation summary JSON (repeatable)",
+    )
     parser.add_argument("--run-summary", action="append", default=[], help="run summary JSON (repeatable)")
+    parser.add_argument(
+        "--run-summary-glob",
+        action="append",
+        default=[],
+        help="Glob pattern for run summary JSON (repeatable)",
+    )
     parser.add_argument("--autopilot-summary", action="append", default=[], help="autopilot summary JSON (repeatable)")
+    parser.add_argument(
+        "--autopilot-summary-glob",
+        action="append",
+        default=[],
+        help="Glob pattern for autopilot summary JSON (repeatable)",
+    )
     parser.add_argument("--out-dir", default="artifacts/dataset_build", help="Output directory")
     args = parser.parse_args()
 
+    benchmark_inputs = _expand_paths(args.benchmark_summary, args.benchmark_summary_glob)
+    mutation_inputs = _expand_paths(args.mutation_summary, args.mutation_summary_glob)
+    run_inputs = _expand_paths(args.run_summary, args.run_summary_glob)
+    autopilot_inputs = _expand_paths(args.autopilot_summary, args.autopilot_summary_glob)
+
     cases: list[dict] = []
-    for path in args.benchmark_summary:
+    for path in benchmark_inputs:
         cases.extend(adapt_benchmark_summary(_load_json(path)))
-    for path in args.mutation_summary:
+    for path in mutation_inputs:
         cases.extend(adapt_mutation_benchmark_summary(_load_json(path)))
-    for path in args.run_summary:
+    for path in run_inputs:
         cases.append(adapt_run_summary(_load_json(path), source="run"))
-    for path in args.autopilot_summary:
+    for path in autopilot_inputs:
         cases.append(adapt_run_summary(_load_json(path), source="autopilot"))
 
     validate_cases(cases)
@@ -166,10 +217,14 @@ def main() -> None:
         "deduplicated_cases": len(deduped),
         "dropped_duplicate_cases": dropped,
         "inputs": {
-            "benchmark_summary_count": len(args.benchmark_summary),
-            "mutation_summary_count": len(args.mutation_summary),
-            "run_summary_count": len(args.run_summary),
-            "autopilot_summary_count": len(args.autopilot_summary),
+            "benchmark_summary_count": len(benchmark_inputs),
+            "mutation_summary_count": len(mutation_inputs),
+            "run_summary_count": len(run_inputs),
+            "autopilot_summary_count": len(autopilot_inputs),
+            "benchmark_summary_paths": benchmark_inputs,
+            "mutation_summary_paths": mutation_inputs,
+            "run_summary_paths": run_inputs,
+            "autopilot_summary_paths": autopilot_inputs,
         },
         "outputs": {
             "dataset_jsonl": str(Path(args.out_dir) / "dataset_cases.jsonl"),

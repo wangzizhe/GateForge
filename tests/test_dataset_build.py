@@ -168,6 +168,69 @@ class DatasetBuildTests(unittest.TestCase):
             self.assertEqual(summary.get("deduplicated_cases"), 1)
             self.assertEqual(summary.get("dropped_duplicate_cases"), 1)
 
+    def test_dataset_build_accepts_glob_inputs(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            out_dir = root / "out"
+            inputs = root / "inputs"
+            inputs.mkdir(parents=True, exist_ok=True)
+
+            (inputs / "bench_a.json").write_text(
+                json.dumps(
+                    {
+                        "pack_id": "pack_v0",
+                        "cases": [
+                            {
+                                "name": "bench-a",
+                                "backend": "mock",
+                                "script": "examples/openmodelica/minimal_probe.mos",
+                                "result": "PASS",
+                                "failure_type": "none",
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (inputs / "run_a.json").write_text(
+                json.dumps(
+                    {
+                        "proposal_id": "run-glob-1",
+                        "backend": "mock",
+                        "model_script": "examples/openmodelica/minimal_probe.mos",
+                        "status": "PASS",
+                        "policy_decision": "PASS",
+                        "fail_reasons": [],
+                        "risk_level": "low",
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.dataset_build",
+                    "--benchmark-summary-glob",
+                    str(inputs / "bench_*.json"),
+                    "--run-summary-glob",
+                    str(inputs / "run_*.json"),
+                    "--out-dir",
+                    str(out_dir),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            summary = json.loads((out_dir / "summary.json").read_text(encoding="utf-8"))
+            self.assertEqual(summary.get("total_cases"), 2)
+            self.assertEqual(summary.get("inputs", {}).get("benchmark_summary_count"), 1)
+            self.assertEqual(summary.get("inputs", {}).get("run_summary_count"), 1)
+            self.assertEqual(len(summary.get("inputs", {}).get("benchmark_summary_paths", [])), 1)
+            self.assertEqual(len(summary.get("inputs", {}).get("run_summary_paths", [])), 1)
+
 
 if __name__ == "__main__":
     unittest.main()
