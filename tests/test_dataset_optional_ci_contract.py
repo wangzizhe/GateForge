@@ -82,6 +82,9 @@ class DatasetOptionalCIContractTests(unittest.TestCase):
                 "bundle_status": "PASS",
                 "decision": "HOLD",
             },
+            "dataset_promotion_candidate_apply_demo/summary.json": {
+                "bundle_status": "PASS",
+            },
             "dataset_promotion_candidate_history_demo/summary.json": {
                 "bundle_status": "PASS",
             },
