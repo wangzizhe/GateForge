@@ -71,6 +71,10 @@ def _status_from_signals(signals: dict) -> str:
         return "NEEDS_REVIEW"
     if signals.get("dataset_promotion_effectiveness_needs_review"):
         return "NEEDS_REVIEW"
+    if signals.get("dataset_promotion_effectiveness_history_trend_needs_review"):
+        return "NEEDS_REVIEW"
+    if signals.get("dataset_promotion_effectiveness_history_latest_rollback_review"):
+        return "NEEDS_REVIEW"
     return "PASS"
 
 
@@ -89,6 +93,8 @@ def _compute_summary(
     promotion_apply_history: dict,
     promotion_apply_history_trend: dict,
     promotion_effectiveness: dict,
+    promotion_effectiveness_history: dict,
+    promotion_effectiveness_history_trend: dict,
 ) -> dict:
     strategy_advice = (
         strategy_advisor.get("advice")
@@ -119,6 +125,14 @@ def _compute_summary(
         "dataset_promotion_apply_trend_needs_review": str(promotion_apply_history_trend.get("status") or "") == "NEEDS_REVIEW",
         "dataset_promotion_effectiveness_rollback_review": str(promotion_effectiveness.get("decision") or "") == "ROLLBACK_REVIEW",
         "dataset_promotion_effectiveness_needs_review": str(promotion_effectiveness.get("decision") or "") == "NEEDS_REVIEW",
+        "dataset_promotion_effectiveness_history_trend_needs_review": str(
+            promotion_effectiveness_history_trend.get("status") or ""
+        )
+        == "NEEDS_REVIEW",
+        "dataset_promotion_effectiveness_history_latest_rollback_review": str(
+            promotion_effectiveness_history.get("latest_decision") or ""
+        )
+        == "ROLLBACK_REVIEW",
     }
     status = _status_from_signals(signals)
 
@@ -153,6 +167,10 @@ def _compute_summary(
         risks.append("dataset_promotion_effectiveness_rollback_review")
     if signals["dataset_promotion_effectiveness_needs_review"]:
         risks.append("dataset_promotion_effectiveness_needs_review")
+    if signals["dataset_promotion_effectiveness_history_trend_needs_review"]:
+        risks.append("dataset_promotion_effectiveness_history_trend_needs_review")
+    if signals["dataset_promotion_effectiveness_history_latest_rollback_review"]:
+        risks.append("dataset_promotion_effectiveness_history_latest_rollback_review")
 
     kpis = {
         "dataset_pipeline_deduplicated_cases": _to_int(
@@ -185,6 +203,8 @@ def _compute_summary(
         "dataset_promotion_apply_needs_review_rate": _to_float(promotion_apply_history.get("needs_review_rate", 0.0)),
         "dataset_promotion_apply_trend_status": promotion_apply_history_trend.get("status"),
         "dataset_promotion_effectiveness_decision": promotion_effectiveness.get("decision"),
+        "dataset_promotion_effectiveness_history_latest_decision": promotion_effectiveness_history.get("latest_decision"),
+        "dataset_promotion_effectiveness_history_trend_status": promotion_effectiveness_history_trend.get("status"),
     }
     return {
         "status": status,
@@ -222,6 +242,8 @@ def _write_markdown(path: str, summary: dict) -> None:
         f"- dataset_promotion_apply_needs_review_rate: `{kpis.get('dataset_promotion_apply_needs_review_rate')}`",
         f"- dataset_promotion_apply_trend_status: `{kpis.get('dataset_promotion_apply_trend_status')}`",
         f"- dataset_promotion_effectiveness_decision: `{kpis.get('dataset_promotion_effectiveness_decision')}`",
+        f"- dataset_promotion_effectiveness_history_latest_decision: `{kpis.get('dataset_promotion_effectiveness_history_latest_decision')}`",
+        f"- dataset_promotion_effectiveness_history_trend_status: `{kpis.get('dataset_promotion_effectiveness_history_trend_status')}`",
         "",
         "## Risks",
         "",
@@ -284,6 +306,16 @@ def main() -> None:
         default=None,
         help="Path to dataset promotion effectiveness summary JSON",
     )
+    parser.add_argument(
+        "--dataset-promotion-effectiveness-history",
+        default=None,
+        help="Path to dataset promotion effectiveness history summary JSON",
+    )
+    parser.add_argument(
+        "--dataset-promotion-effectiveness-history-trend",
+        default=None,
+        help="Path to dataset promotion effectiveness history trend JSON",
+    )
     parser.add_argument("--out", default="artifacts/dataset_governance_snapshot/summary.json", help="Output JSON path")
     parser.add_argument("--report", default=None, help="Output markdown path")
     args = parser.parse_args()
@@ -302,6 +334,8 @@ def main() -> None:
     promotion_apply_history = _load_json(args.dataset_promotion_apply_history)
     promotion_apply_history_trend = _load_json(args.dataset_promotion_apply_history_trend)
     promotion_effectiveness = _load_json(args.dataset_promotion_effectiveness)
+    promotion_effectiveness_history = _load_json(args.dataset_promotion_effectiveness_history)
+    promotion_effectiveness_history_trend = _load_json(args.dataset_promotion_effectiveness_history_trend)
 
     summary = _compute_summary(
         dataset_pipeline,
@@ -318,6 +352,8 @@ def main() -> None:
         promotion_apply_history,
         promotion_apply_history_trend,
         promotion_effectiveness,
+        promotion_effectiveness_history,
+        promotion_effectiveness_history_trend,
     )
     summary["generated_at_utc"] = datetime.now(timezone.utc).isoformat()
     summary["sources"] = {
@@ -335,6 +371,8 @@ def main() -> None:
         "dataset_promotion_apply_history_path": args.dataset_promotion_apply_history,
         "dataset_promotion_apply_history_trend_path": args.dataset_promotion_apply_history_trend,
         "dataset_promotion_effectiveness_path": args.dataset_promotion_effectiveness,
+        "dataset_promotion_effectiveness_history_path": args.dataset_promotion_effectiveness_history,
+        "dataset_promotion_effectiveness_history_trend_path": args.dataset_promotion_effectiveness_history_trend,
     }
 
     _write_json(args.out, summary)
