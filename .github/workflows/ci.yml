@@ -428,8 +428,14 @@ jobs:
           bash scripts/demo_dataset_policy_lifecycle.sh
           bash scripts/demo_dataset_governance_history.sh
           bash scripts/demo_dataset_strategy_autotune.sh
+          bash scripts/demo_dataset_strategy_autotune_apply.sh
           bash scripts/demo_dataset_governance_snapshot.sh
+          bash scripts/demo_dataset_governance_snapshot_trend.sh
           bash scripts/demo_dataset_policy_autotune_history.sh
+          python -m gateforge.dataset_optional_ci_contract \
+            --artifacts-root artifacts \
+            --out artifacts/dataset_optional_ci_contract/summary.json \
+            --report-out artifacts/dataset_optional_ci_contract/summary.md
 
       - name: Upload dataset pipeline artifacts
         if: always()
@@ -445,8 +451,11 @@ jobs:
             artifacts/dataset_policy_lifecycle_demo
             artifacts/dataset_governance_history_demo
             artifacts/dataset_strategy_autotune_demo
+            artifacts/dataset_strategy_autotune_apply_demo
             artifacts/dataset_governance_snapshot_demo
+            artifacts/dataset_governance_snapshot_trend_demo
             artifacts/dataset_policy_autotune_history_demo
+            artifacts/dataset_optional_ci_contract
             artifacts/dataset
 
   mvp-freeze-optional:

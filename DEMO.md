@@ -260,3 +260,27 @@ cat artifacts/dataset_governance_snapshot_demo/demo_summary.json
 bash scripts/demo_dataset_policy_autotune_history.sh
 cat artifacts/dataset_policy_autotune_history_demo/summary.json
 ```
+
+## 19. Dataset Governance Snapshot Trend
+
+```bash
+bash scripts/demo_dataset_governance_snapshot_trend.sh
+cat artifacts/dataset_governance_snapshot_trend_demo/demo_summary.json
+```
+
+## 20. Dataset Strategy Auto-Tune Apply
+
+```bash
+bash scripts/demo_dataset_strategy_autotune_apply.sh
+cat artifacts/dataset_strategy_autotune_apply_demo/summary.json
+```
+
+## 21. Dataset Optional CI Contract Check
+
+```bash
+python3 -m gateforge.dataset_optional_ci_contract \
+  --artifacts-root artifacts \
+  --out artifacts/dataset_optional_ci_contract/summary.json \
+  --report-out artifacts/dataset_optional_ci_contract/summary.md
+cat artifacts/dataset_optional_ci_contract/summary.json
+```
