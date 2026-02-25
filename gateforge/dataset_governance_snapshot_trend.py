@@ -49,10 +49,27 @@ def _compute_trend(current: dict, previous: dict) -> dict:
     if decision_transition in {"KEEP->NEEDS_REVIEW", "KEEP->ROLLBACK_REVIEW", "NEEDS_REVIEW->ROLLBACK_REVIEW"}:
         status_delta_alerts.append("promotion_effectiveness_history_decision_worsened")
 
+    status_transition = f"{previous_status}->{current_status}"
+    new_risks = sorted(current_risks - previous_risks)
+    resolved_risks = sorted(previous_risks - current_risks)
+    severity_score = (
+        len(new_risks) * 2
+        + len(status_delta_alerts) * 2
+        + (1 if status_transition in {"PASS->NEEDS_REVIEW", "NEEDS_REVIEW->FAIL", "PASS->FAIL"} else 0)
+    )
+    if severity_score >= 6:
+        severity_level = "high"
+    elif severity_score >= 3:
+        severity_level = "medium"
+    else:
+        severity_level = "low"
+
     return {
         "status_transition": f"{previous_status}->{current_status}",
-        "new_risks": sorted(current_risks - previous_risks),
-        "resolved_risks": sorted(previous_risks - current_risks),
+        "new_risks": new_risks,
+        "resolved_risks": resolved_risks,
+        "severity_score": severity_score,
+        "severity_level": severity_level,
         "status_delta": {
             "dataset_promotion_effectiveness_history_trend_status_transition": trend_status_transition,
             "dataset_promotion_effectiveness_history_latest_decision_transition": decision_transition,
@@ -92,6 +109,8 @@ def _write_markdown(path: str, summary: dict) -> None:
         "",
         f"- status: `{summary.get('status')}`",
         f"- status_transition: `{trend.get('status_transition')}`",
+        f"- severity_score: `{trend.get('severity_score')}`",
+        f"- severity_level: `{trend.get('severity_level')}`",
         "",
         "## New Risks",
         "",
