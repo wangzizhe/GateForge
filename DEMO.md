@@ -298,3 +298,10 @@ One-shot full contract demo:
 bash scripts/demo_dataset_optional_ci_contract.sh
 cat artifacts/dataset_optional_ci_contract_demo/demo_summary.json
 ```
+
+## 23. Dataset Promotion Candidate Advisor
+
+```bash
+bash scripts/demo_dataset_promotion_candidate.sh
+cat artifacts/dataset_promotion_candidate_demo/summary.json
+```

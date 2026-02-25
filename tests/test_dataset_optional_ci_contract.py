@@ -78,6 +78,10 @@ class DatasetOptionalCIContractTests(unittest.TestCase):
                 "bundle_status": "PASS",
                 "status_transition": "PASS->PASS",
             },
+            "dataset_promotion_candidate_demo/summary.json": {
+                "bundle_status": "PASS",
+                "decision": "HOLD",
+            },
             "dataset_policy_autotune_history_demo/summary.json": {"bundle_status": "PASS"},
         }
         for rel, payload in mapping.items():

@@ -98,6 +98,11 @@ def main() -> None:
             ["bundle_status", "status_transition"],
         ),
         (
+            "dataset_promotion_candidate_demo",
+            "dataset_promotion_candidate_demo/summary.json",
+            ["bundle_status", "decision"],
+        ),
+        (
             "dataset_policy_autotune_history_demo",
             "dataset_policy_autotune_history_demo/summary.json",
             ["bundle_status"],
