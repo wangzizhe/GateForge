@@ -225,3 +225,10 @@ cat artifacts/dataset_history_demo/summary.json
 bash scripts/demo_dataset_governance.sh
 cat artifacts/dataset_governance_demo/summary.json
 ```
+
+## 14. Dataset Policy Lifecycle (Apply + Ledger + Effectiveness)
+
+```bash
+bash scripts/demo_dataset_policy_lifecycle.sh
+cat artifacts/dataset_policy_lifecycle_demo/summary.json
+```
