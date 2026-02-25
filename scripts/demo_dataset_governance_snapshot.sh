@@ -71,6 +71,9 @@ flags = {
     "status_present": "PASS" if payload.get("status") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "kpis_present": "PASS" if isinstance(payload.get("kpis"), dict) else "FAIL",
     "risks_present": "PASS" if isinstance(payload.get("risks"), list) else "FAIL",
+    "promotion_effectiveness_history_kpi_present": "PASS"
+    if isinstance((payload.get("kpis") or {}).get("dataset_promotion_effectiveness_history_trend_status"), (str, type(None)))
+    else "FAIL",
 }
 bundle_status = "PASS" if all(v == "PASS" for v in flags.values()) else "FAIL"
 summary = {
