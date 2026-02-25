@@ -423,6 +423,7 @@ jobs:
         run: |
           bash scripts/demo_dataset_pipeline.sh
           bash scripts/demo_dataset_artifacts_pipeline.sh
+          bash scripts/demo_dataset_history.sh
 
       - name: Upload dataset pipeline artifacts
         if: always()
@@ -433,6 +434,7 @@ jobs:
             artifacts/dataset_pipeline_demo
             artifacts/dataset_collect
             artifacts/dataset_artifacts_pipeline_demo
+            artifacts/dataset_history_demo
             artifacts/dataset
 
   mvp-freeze-optional:
