@@ -190,6 +190,12 @@ def main() -> None:
         default=[],
         help="Glob pattern for autopilot summary JSON (repeatable)",
     )
+    parser.add_argument(
+        "--collect-summary",
+        action="append",
+        default=[],
+        help="dataset_collect summary JSON path; discovered inputs are merged (repeatable)",
+    )
     parser.add_argument("--out-dir", default="artifacts/dataset_build", help="Output directory")
     args = parser.parse_args()
 
@@ -197,6 +203,25 @@ def main() -> None:
     mutation_inputs = _expand_paths(args.mutation_summary, args.mutation_summary_glob)
     run_inputs = _expand_paths(args.run_summary, args.run_summary_glob)
     autopilot_inputs = _expand_paths(args.autopilot_summary, args.autopilot_summary_glob)
+
+    for collect_path in args.collect_summary:
+        collect_payload = _load_json(collect_path)
+        benchmark_inputs = _expand_paths(
+            benchmark_inputs + (collect_payload.get("benchmark_summary_paths") or []),
+            [],
+        )
+        mutation_inputs = _expand_paths(
+            mutation_inputs + (collect_payload.get("mutation_summary_paths") or []),
+            [],
+        )
+        run_inputs = _expand_paths(
+            run_inputs + (collect_payload.get("run_summary_paths") or []),
+            [],
+        )
+        autopilot_inputs = _expand_paths(
+            autopilot_inputs + (collect_payload.get("autopilot_summary_paths") or []),
+            [],
+        )
 
     cases: list[dict] = []
     for path in benchmark_inputs:
@@ -225,6 +250,7 @@ def main() -> None:
             "mutation_summary_paths": mutation_inputs,
             "run_summary_paths": run_inputs,
             "autopilot_summary_paths": autopilot_inputs,
+            "collect_summary_paths": args.collect_summary,
         },
         "outputs": {
             "dataset_jsonl": str(Path(args.out_dir) / "dataset_cases.jsonl"),
