@@ -199,3 +199,8 @@ Common toggles:
 bash scripts/demo_dataset_pipeline.sh
 cat artifacts/dataset_pipeline_demo/summary.json
 ```
+
+This demo now includes:
+- dataset build
+- dataset quality gate
+- dataset freeze

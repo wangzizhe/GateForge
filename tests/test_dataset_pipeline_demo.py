@@ -24,6 +24,7 @@ class DatasetPipelineDemoTests(unittest.TestCase):
                 (repo_root / "artifacts" / "dataset_pipeline_demo" / "summary.json").read_text(encoding="utf-8")
             )
             self.assertEqual(payload.get("bundle_status"), "PASS")
+            self.assertEqual(payload.get("quality_gate_status"), "PASS")
 
 
 if __name__ == "__main__":

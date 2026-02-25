@@ -19,10 +19,12 @@ class DatasetFreezeTests(unittest.TestCase):
             dataset = root / "dataset_cases.jsonl"
             distribution = root / "distribution.json"
             quality = root / "quality_report.json"
+            gate = root / "quality_gate.json"
             out_dir = root / "freeze"
             self._write_dataset_jsonl(dataset, 20)
             distribution.write_text(json.dumps({"actual_failure_type": {"none": 10, "simulate_error": 10}}), encoding="utf-8")
             quality.write_text(json.dumps({"failure_case_rate": 0.5}), encoding="utf-8")
+            gate.write_text(json.dumps({"status": "PASS"}), encoding="utf-8")
 
             proc = subprocess.run(
                 [
@@ -35,6 +37,8 @@ class DatasetFreezeTests(unittest.TestCase):
                     str(distribution),
                     "--quality-json",
                     str(quality),
+                    "--quality-gate",
+                    str(gate),
                     "--freeze-id",
                     "freeze_v1_test",
                     "--out-dir",
@@ -53,6 +57,7 @@ class DatasetFreezeTests(unittest.TestCase):
             self.assertEqual(manifest.get("status"), "PASS")
             self.assertEqual(manifest.get("freeze_id"), "freeze_v1_test")
             self.assertIn("dataset_jsonl_sha256", manifest.get("checksums", {}))
+            self.assertEqual(manifest.get("gate_checks", {}).get("quality_gate_check"), "PASS")
 
     def test_dataset_freeze_fail_on_thresholds(self) -> None:
         with tempfile.TemporaryDirectory() as d:
@@ -91,6 +96,48 @@ class DatasetFreezeTests(unittest.TestCase):
             summary = json.loads((out_dir / "summary.json").read_text(encoding="utf-8"))
             self.assertEqual(summary.get("status"), "FAIL")
             self.assertEqual(summary.get("gate_checks", {}).get("min_cases_check"), "FAIL")
+
+    def test_dataset_freeze_fail_on_quality_gate(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            dataset = root / "dataset_cases.jsonl"
+            distribution = root / "distribution.json"
+            quality = root / "quality_report.json"
+            gate = root / "quality_gate.json"
+            out_dir = root / "freeze"
+            self._write_dataset_jsonl(dataset, 20)
+            distribution.write_text(json.dumps({"actual_failure_type": {"none": 10, "simulate_error": 10}}), encoding="utf-8")
+            quality.write_text(json.dumps({"failure_case_rate": 0.5}), encoding="utf-8")
+            gate.write_text(json.dumps({"status": "FAIL"}), encoding="utf-8")
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.dataset_freeze",
+                    "--dataset-jsonl",
+                    str(dataset),
+                    "--distribution-json",
+                    str(distribution),
+                    "--quality-json",
+                    str(quality),
+                    "--quality-gate",
+                    str(gate),
+                    "--out-dir",
+                    str(out_dir),
+                    "--min-cases",
+                    "10",
+                    "--min-failure-case-rate",
+                    "0.2",
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertNotEqual(proc.returncode, 0)
+            summary = json.loads((out_dir / "summary.json").read_text(encoding="utf-8"))
+            self.assertEqual(summary.get("status"), "FAIL")
+            self.assertEqual(summary.get("gate_checks", {}).get("quality_gate_check"), "FAIL")
 
 
 if __name__ == "__main__":
