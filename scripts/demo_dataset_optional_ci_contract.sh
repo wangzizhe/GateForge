@@ -19,6 +19,10 @@ bash scripts/demo_dataset_strategy_autotune_apply.sh >/dev/null
 bash scripts/demo_dataset_strategy_autotune_apply_history.sh >/dev/null
 bash scripts/demo_dataset_governance_snapshot.sh >/dev/null
 bash scripts/demo_dataset_governance_snapshot_trend.sh >/dev/null
+bash scripts/demo_dataset_promotion_candidate.sh >/dev/null
+bash scripts/demo_dataset_promotion_candidate_apply.sh >/dev/null
+bash scripts/demo_dataset_promotion_candidate_history.sh >/dev/null
+bash scripts/demo_dataset_promotion_candidate_apply_history.sh >/dev/null
 bash scripts/demo_dataset_policy_autotune_history.sh >/dev/null
 
 python3 -m gateforge.dataset_optional_ci_contract \
