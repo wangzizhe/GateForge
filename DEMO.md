@@ -218,3 +218,10 @@ cat artifacts/dataset_artifacts_pipeline_demo/summary.json
 bash scripts/demo_dataset_history.sh
 cat artifacts/dataset_history_demo/summary.json
 ```
+
+## 13. Dataset Governance (Advisor + Patch Proposal)
+
+```bash
+bash scripts/demo_dataset_governance.sh
+cat artifacts/dataset_governance_demo/summary.json
+```
