@@ -13,6 +13,7 @@ bash scripts/demo_dataset_history.sh >/dev/null
 bash scripts/demo_dataset_policy_lifecycle.sh >/dev/null
 bash scripts/demo_dataset_governance_history.sh >/dev/null
 bash scripts/demo_dataset_strategy_autotune.sh >/dev/null
+bash scripts/demo_dataset_strategy_autotune_apply_history.sh >/dev/null
 
 python3 -m gateforge.dataset_governance_snapshot \
   --dataset-pipeline-summary artifacts/dataset_pipeline_demo/summary.json \
@@ -22,6 +23,8 @@ python3 -m gateforge.dataset_governance_snapshot \
   --dataset-governance-trend artifacts/dataset_governance_history_demo/trend.json \
   --dataset-policy-effectiveness artifacts/dataset_policy_lifecycle_demo/effectiveness.json \
   --dataset-strategy-advisor artifacts/dataset_strategy_autotune_demo/advisor.json \
+  --dataset-strategy-apply-history artifacts/dataset_strategy_autotune_apply_history_demo/history_summary.json \
+  --dataset-strategy-apply-history-trend artifacts/dataset_strategy_autotune_apply_history_demo/history_trend.json \
   --out "$OUT_DIR/summary.json" \
   --report "$OUT_DIR/summary.md"
 
@@ -68,4 +71,3 @@ PY
 
 cat "$OUT_DIR/demo_summary.json"
 cat "$OUT_DIR/demo_summary.md"
-

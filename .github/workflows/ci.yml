@@ -429,6 +429,7 @@ jobs:
           bash scripts/demo_dataset_governance_history.sh
           bash scripts/demo_dataset_strategy_autotune.sh
           bash scripts/demo_dataset_strategy_autotune_apply.sh
+          bash scripts/demo_dataset_strategy_autotune_apply_history.sh
           bash scripts/demo_dataset_governance_snapshot.sh
           bash scripts/demo_dataset_governance_snapshot_trend.sh
           bash scripts/demo_dataset_policy_autotune_history.sh
@@ -452,6 +453,7 @@ jobs:
             artifacts/dataset_governance_history_demo
             artifacts/dataset_strategy_autotune_demo
             artifacts/dataset_strategy_autotune_apply_demo
+            artifacts/dataset_strategy_autotune_apply_history_demo
             artifacts/dataset_governance_snapshot_demo
             artifacts/dataset_governance_snapshot_trend_demo
             artifacts/dataset_policy_autotune_history_demo
