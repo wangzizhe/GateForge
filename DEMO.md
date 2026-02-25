@@ -268,6 +268,11 @@ bash scripts/demo_dataset_governance_snapshot_trend.sh
 cat artifacts/dataset_governance_snapshot_trend_demo/demo_summary.json
 ```
 
+The demo summary now includes severity fields:
+- `severity_score`
+- `severity_level`
+- `promotion_effectiveness_history_trend_transition`
+
 ## 20. Dataset Strategy Auto-Tune Apply
 
 ```bash
