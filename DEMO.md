@@ -189,7 +189,7 @@ cat artifacts/policy_autotune_full_chain_demo/summary.json
 Workflow: `ci` (`workflow_dispatch`)
 
 Common toggles:
-- `run_benchmark=true` -> `benchmark-optional`, `mvp-freeze-optional`
+- `run_benchmark=true` -> `benchmark-optional`, `dataset-pipeline-optional`, `mvp-freeze-optional`
 - `run_governance_snapshot_demo=true` -> `medium-governance-optional`
 - `run_governance_history_demo=true` -> `policy-autotune-optional`, `runtime-governance-history-optional`
 
@@ -210,4 +210,11 @@ Artifacts-driven mode (collect from existing `artifacts/` first):
 ```bash
 bash scripts/demo_dataset_artifacts_pipeline.sh
 cat artifacts/dataset_artifacts_pipeline_demo/summary.json
+```
+
+## 12. Dataset History + Trend
+
+```bash
+bash scripts/demo_dataset_history.sh
+cat artifacts/dataset_history_demo/summary.json
 ```
