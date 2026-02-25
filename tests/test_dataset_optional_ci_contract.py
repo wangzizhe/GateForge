@@ -73,7 +73,10 @@ class DatasetOptionalCIContractTests(unittest.TestCase):
             "dataset_strategy_autotune_demo/summary.json": {"bundle_status": "PASS"},
             "dataset_strategy_autotune_apply_demo/summary.json": {"bundle_status": "PASS"},
             "dataset_strategy_autotune_apply_history_demo/summary.json": {"bundle_status": "PASS"},
-            "dataset_governance_snapshot_demo/demo_summary.json": {"bundle_status": "PASS"},
+            "dataset_governance_snapshot_demo/demo_summary.json": {
+                "bundle_status": "PASS",
+                "promotion_effectiveness_history_trend_status": "NEEDS_REVIEW",
+            },
             "dataset_governance_snapshot_trend_demo/demo_summary.json": {
                 "bundle_status": "PASS",
                 "status_transition": "PASS->PASS",
