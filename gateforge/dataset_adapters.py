@@ -64,6 +64,29 @@ def _root_cause_from_failure_type(failure_type: str) -> str:
     return "unknown"
 
 
+def _root_cause_from_reason(reason: str) -> str:
+    txt = str(reason or "").lower()
+    if not txt:
+        return "unknown"
+    if "parse" in txt:
+        return "parse"
+    if "model_check" in txt or "compile" in txt:
+        return "model_check"
+    if "simulate" in txt or "solver" in txt:
+        return "solver"
+    if "nan" in txt or "inf" in txt or "numeric" in txt:
+        return "numeric"
+    if "invariant" in txt:
+        return "invariant"
+    if "performance" in txt or "event" in txt or "runtime_regression" in txt:
+        return "performance"
+    if "drift" in txt:
+        return "drift"
+    if "policy" in txt or "review" in txt or "change_apply_failed" in txt:
+        return "governance"
+    return "unknown"
+
+
 def _severity_from_decision(decision: str) -> str:
     if decision == "FAIL":
         return "high"
@@ -123,6 +146,9 @@ def adapt_benchmark_summary(summary: dict) -> list[dict]:
         )
         case["oracle_match"] = str(row.get("result") or "FAIL") == "PASS"
         case["factors"]["trigger"] = "baseline"
+        if row.get("mismatches"):
+            case["factors"]["determinism"] = "stable"
+            case["factors"]["severity"] = "medium" if decision == "PASS" else "high"
         case["metadata"] = {
             "pack_id": summary.get("pack_id"),
             "proposal_id": summary.get("proposal_id"),
@@ -170,9 +196,15 @@ def adapt_run_summary(summary: dict, *, source: str = "run") -> dict:
     case["risk_level"] = summary.get("risk_level")
     case["factors"]["trigger"] = "llm_plan" if source == "autopilot" else "human_patch"
     case["factors"]["determinism"] = "stable"
+    parsed_root = _root_cause_from_reason(primary_reason)
+    if parsed_root != "unknown":
+        case["factors"]["root_cause"] = parsed_root
+    if decision == "NEEDS_REVIEW" and case["factors"]["severity"] == "high":
+        case["factors"]["severity"] = "medium"
     case["metadata"] = {
         "proposal_id": summary.get("proposal_id"),
         "policy_reasons": summary.get("policy_reasons", []),
+        "fail_reasons": fail_reasons,
         "required_human_checks_count": len(summary.get("required_human_checks", []) or []),
         "candidate_path": summary.get("candidate_path"),
         "regression_path": summary.get("regression_path"),
