@@ -54,6 +54,7 @@ demo = {
     "promotion_effectiveness_history_trend_transition": (trend.get("status_delta") or {}).get(
         "dataset_promotion_effectiveness_history_trend_status_transition"
     ),
+    "status_delta_alert_count": len((trend.get("status_delta") or {}).get("alerts") or []),
     "result_flags": flags,
     "bundle_status": bundle_status,
 }
@@ -68,6 +69,7 @@ demo = {
             f"- new_risks_count: `{demo['new_risks_count']}`",
             f"- resolved_risks_count: `{demo['resolved_risks_count']}`",
             f"- promotion_effectiveness_history_trend_transition: `{demo['promotion_effectiveness_history_trend_transition']}`",
+            f"- status_delta_alert_count: `{demo['status_delta_alert_count']}`",
             f"- bundle_status: `{demo['bundle_status']}`",
             "",
             "## Result Flags",

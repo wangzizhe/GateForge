@@ -76,6 +76,10 @@ class DatasetGovernanceSnapshotTrendTests(unittest.TestCase):
                 ),
                 "PASS->NEEDS_REVIEW",
             )
+            self.assertIn(
+                "promotion_effectiveness_history_trend_worsened",
+                (trend.get("status_delta") or {}).get("alerts", []),
+            )
 
     def test_trend_marks_pass_when_kpis_stable(self) -> None:
         with tempfile.TemporaryDirectory() as d:
@@ -145,6 +149,7 @@ class DatasetGovernanceSnapshotTrendTests(unittest.TestCase):
                 ),
                 "KEEP->KEEP",
             )
+            self.assertEqual((trend.get("status_delta") or {}).get("alerts", []), [])
 
 
 if __name__ == "__main__":

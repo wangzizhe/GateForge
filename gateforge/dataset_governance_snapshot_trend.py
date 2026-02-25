@@ -35,19 +35,28 @@ def _compute_trend(current: dict, previous: dict) -> dict:
     previous_risks = set(r for r in (previous.get("risks") or []) if isinstance(r, str))
     current_kpis = current.get("kpis", {}) if isinstance(current.get("kpis"), dict) else {}
     previous_kpis = previous.get("kpis", {}) if isinstance(previous.get("kpis"), dict) else {}
+    trend_status_transition = (
+        f"{previous_kpis.get('dataset_promotion_effectiveness_history_trend_status')}->"
+        f"{current_kpis.get('dataset_promotion_effectiveness_history_trend_status')}"
+    )
+    decision_transition = (
+        f"{previous_kpis.get('dataset_promotion_effectiveness_history_latest_decision')}->"
+        f"{current_kpis.get('dataset_promotion_effectiveness_history_latest_decision')}"
+    )
+    status_delta_alerts: list[str] = []
+    if trend_status_transition in {"PASS->NEEDS_REVIEW", "PASS->FAIL", "NEEDS_REVIEW->FAIL"}:
+        status_delta_alerts.append("promotion_effectiveness_history_trend_worsened")
+    if decision_transition in {"KEEP->NEEDS_REVIEW", "KEEP->ROLLBACK_REVIEW", "NEEDS_REVIEW->ROLLBACK_REVIEW"}:
+        status_delta_alerts.append("promotion_effectiveness_history_decision_worsened")
+
     return {
         "status_transition": f"{previous_status}->{current_status}",
         "new_risks": sorted(current_risks - previous_risks),
         "resolved_risks": sorted(previous_risks - current_risks),
         "status_delta": {
-            "dataset_promotion_effectiveness_history_trend_status_transition": (
-                f"{previous_kpis.get('dataset_promotion_effectiveness_history_trend_status')}->"
-                f"{current_kpis.get('dataset_promotion_effectiveness_history_trend_status')}"
-            ),
-            "dataset_promotion_effectiveness_history_latest_decision_transition": (
-                f"{previous_kpis.get('dataset_promotion_effectiveness_history_latest_decision')}->"
-                f"{current_kpis.get('dataset_promotion_effectiveness_history_latest_decision')}"
-            ),
+            "dataset_promotion_effectiveness_history_trend_status_transition": trend_status_transition,
+            "dataset_promotion_effectiveness_history_latest_decision_transition": decision_transition,
+            "alerts": status_delta_alerts,
         },
         "kpi_delta": {
             "dataset_pipeline_deduplicated_cases_delta": round(
@@ -105,7 +114,16 @@ def _write_markdown(path: str, summary: dict) -> None:
         lines.append(f"- {k}: `{v}`")
     lines.extend(["", "## Status Delta", ""])
     for k, v in (trend.get("status_delta") or {}).items():
+        if k == "alerts":
+            continue
         lines.append(f"- {k}: `{v}`")
+    lines.extend(["", "## Status Delta Alerts", ""])
+    alerts = (trend.get("status_delta") or {}).get("alerts") or []
+    if isinstance(alerts, list) and alerts:
+        for alert in alerts:
+            lines.append(f"- `{alert}`")
+    else:
+        lines.append("- `none`")
     lines.append("")
     p.write_text("\n".join(lines), encoding="utf-8")
 
