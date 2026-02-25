@@ -1,0 +1,9 @@
+{
+  "min_deduplicated_cases": 10,
+  "min_failure_case_rate": 0.2,
+  "min_freeze_pass_rate": 1.0,
+  "max_trend_alerts": 0,
+  "action_on_low_case_count": "expand_mutation",
+  "action_on_low_failure_coverage": "inject_failure_variants",
+  "action_on_trend_regression": "hold_release"
+}
