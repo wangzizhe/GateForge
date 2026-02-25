@@ -38,6 +38,10 @@ def _status_from_signals(signals: dict) -> str:
         return "NEEDS_REVIEW"
     if signals.get("dataset_failure_coverage_low"):
         return "NEEDS_REVIEW"
+    if signals.get("dataset_history_alerts_present"):
+        return "NEEDS_REVIEW"
+    if signals.get("dataset_history_trend_needs_review"):
+        return "NEEDS_REVIEW"
     if signals.get("mutation_compare_failed"):
         return "NEEDS_REVIEW"
     if signals.get("advisor_history_trend_needs_review"):
@@ -281,6 +285,31 @@ def _extract_dataset_pipeline(payload: dict) -> dict:
     }
 
 
+def _extract_dataset_history(payload: dict) -> dict:
+    if not isinstance(payload, dict):
+        return {}
+    alerts = payload.get("alerts")
+    return {
+        "total_records": _to_int(payload.get("total_records", 0)),
+        "latest_deduplicated_cases": _to_int(payload.get("latest_deduplicated_cases", 0)),
+        "latest_failure_case_rate": _to_float(payload.get("latest_failure_case_rate", 0.0), 0.0),
+        "freeze_pass_rate": _to_float(payload.get("freeze_pass_rate", 0.0), 0.0),
+        "alerts": alerts if isinstance(alerts, list) else [],
+    }
+
+
+def _extract_dataset_history_trend(payload: dict) -> dict:
+    if not isinstance(payload, dict):
+        return {}
+    trend = payload.get("trend")
+    trend_obj = trend if isinstance(trend, dict) else {}
+    alerts = trend_obj.get("alerts")
+    return {
+        "status": str(payload.get("status") or "UNKNOWN"),
+        "alerts": alerts if isinstance(alerts, list) else [],
+    }
+
+
 def _compute_summary(
     repair: dict,
     review: dict,
@@ -292,6 +321,8 @@ def _compute_summary(
     runtime_ledger_history_summary: dict,
     runtime_ledger_history_trend: dict,
     dataset_pipeline_summary: dict,
+    dataset_history_summary: dict,
+    dataset_history_trend: dict,
 ) -> dict:
     repair_compare = _extract_repair_compare(repair)
     invariant = _extract_invariant_compare(invariant_compare)
@@ -301,6 +332,8 @@ def _compute_summary(
     runtime_ledger_history = _extract_runtime_ledger_history(runtime_ledger_history_summary)
     runtime_ledger_trend = _extract_runtime_ledger_history_trend(runtime_ledger_history_trend)
     dataset_pipeline = _extract_dataset_pipeline(dataset_pipeline_summary)
+    dataset_history = _extract_dataset_history(dataset_history_summary)
+    dataset_history_trend_obj = _extract_dataset_history_trend(dataset_history_trend)
     kpis = review.get("kpis", {}) if isinstance(review, dict) else {}
 
     strict_non_pass_rate = float(kpis.get("strict_non_pass_rate", 0.0) or 0.0)
@@ -344,6 +377,12 @@ def _compute_summary(
     dataset_failure_case_rate = float(dataset_pipeline.get("failure_case_rate", 0.0) or 0.0)
     dataset_bundle_status = str(dataset_pipeline.get("bundle_status") or "UNKNOWN")
     dataset_freeze_status = str(dataset_pipeline.get("freeze_status") or "UNKNOWN")
+    dataset_history_alerts = dataset_history.get("alerts") if isinstance(dataset_history.get("alerts"), list) else []
+    dataset_history_trend_alerts = (
+        dataset_history_trend_obj.get("alerts")
+        if isinstance(dataset_history_trend_obj.get("alerts"), list)
+        else []
+    )
 
     signals = {
         "matrix_status": matrix.get("matrix_status", "UNKNOWN"),
@@ -376,6 +415,8 @@ def _compute_summary(
         "dataset_freeze_not_pass": bool(dataset_freeze_status not in {"PASS", "UNKNOWN"}),
         "dataset_case_count_low": 0 < dataset_deduplicated_cases < 10,
         "dataset_failure_coverage_low": 0.0 < dataset_failure_case_rate < 0.2,
+        "dataset_history_alerts_present": len(dataset_history_alerts) > 0,
+        "dataset_history_trend_needs_review": dataset_history_trend_obj.get("status") == "NEEDS_REVIEW",
     }
 
     status = _status_from_signals(signals)
@@ -431,6 +472,10 @@ def _compute_summary(
         risks.append("dataset_case_count_low")
     if signals["dataset_failure_coverage_low"]:
         risks.append("dataset_failure_coverage_low")
+    if signals["dataset_history_alerts_present"]:
+        risks.append("dataset_history_alerts_present")
+    if signals["dataset_history_trend_needs_review"]:
+        risks.append("dataset_history_trend_needs_review")
 
     return {
         "status": status,
@@ -478,6 +523,13 @@ def _compute_summary(
             "dataset_freeze_status": dataset_freeze_status,
             "dataset_deduplicated_cases": dataset_deduplicated_cases,
             "dataset_failure_case_rate": dataset_failure_case_rate,
+            "dataset_history_total_records": dataset_history.get("total_records"),
+            "dataset_history_latest_deduplicated_cases": dataset_history.get("latest_deduplicated_cases"),
+            "dataset_history_latest_failure_case_rate": dataset_history.get("latest_failure_case_rate"),
+            "dataset_history_freeze_pass_rate": dataset_history.get("freeze_pass_rate"),
+            "dataset_history_alert_count": len(dataset_history_alerts),
+            "dataset_history_trend_status": dataset_history_trend_obj.get("status"),
+            "dataset_history_trend_alert_count": len(dataset_history_trend_alerts),
         },
         "policy_profiles": {
             "compare_from": compare_from,
@@ -498,6 +550,8 @@ def _compute_summary(
             "runtime_ledger_history_summary_path": runtime_ledger_history_summary.get("_source_path"),
             "runtime_ledger_history_trend_path": runtime_ledger_history_trend.get("_source_path"),
             "dataset_pipeline_summary_path": dataset_pipeline_summary.get("_source_path"),
+            "dataset_history_summary_path": dataset_history_summary.get("_source_path"),
+            "dataset_history_trend_path": dataset_history_trend.get("_source_path"),
         },
         "risks": risks,
     }
@@ -542,6 +596,13 @@ def _write_markdown(path: str, summary: dict) -> None:
         f"- dataset_freeze_status: `{kpis.get('dataset_freeze_status')}`",
         f"- dataset_deduplicated_cases: `{kpis.get('dataset_deduplicated_cases')}`",
         f"- dataset_failure_case_rate: `{kpis.get('dataset_failure_case_rate')}`",
+        f"- dataset_history_total_records: `{kpis.get('dataset_history_total_records')}`",
+        f"- dataset_history_latest_deduplicated_cases: `{kpis.get('dataset_history_latest_deduplicated_cases')}`",
+        f"- dataset_history_latest_failure_case_rate: `{kpis.get('dataset_history_latest_failure_case_rate')}`",
+        f"- dataset_history_freeze_pass_rate: `{kpis.get('dataset_history_freeze_pass_rate')}`",
+        f"- dataset_history_alert_count: `{kpis.get('dataset_history_alert_count')}`",
+        f"- dataset_history_trend_status: `{kpis.get('dataset_history_trend_status')}`",
+        f"- dataset_history_trend_alert_count: `{kpis.get('dataset_history_trend_alert_count')}`",
         "",
         "## Risks",
         "",
@@ -632,6 +693,16 @@ def main() -> None:
         default=None,
         help="Path to dataset pipeline summary JSON",
     )
+    parser.add_argument(
+        "--dataset-history-summary",
+        default=None,
+        help="Path to dataset history summary JSON",
+    )
+    parser.add_argument(
+        "--dataset-history-trend",
+        default=None,
+        help="Path to dataset history trend JSON",
+    )
     parser.add_argument("--previous-summary", default=None, help="Optional previous governance snapshot JSON")
     parser.add_argument("--out", default="artifacts/governance_snapshot/summary.json", help="Output JSON path")
     parser.add_argument("--report", default=None, help="Output markdown path")
@@ -647,6 +718,8 @@ def main() -> None:
     runtime_ledger_history_summary = _load_json(args.runtime_ledger_history_summary)
     runtime_ledger_history_trend = _load_json(args.runtime_ledger_history_trend)
     dataset_pipeline_summary = _load_json(args.dataset_pipeline_summary)
+    dataset_history_summary = _load_json(args.dataset_history_summary)
+    dataset_history_trend = _load_json(args.dataset_history_trend)
     if args.repair_batch_summary:
         repair["_source_path"] = args.repair_batch_summary
     if args.review_ledger_summary:
@@ -667,6 +740,10 @@ def main() -> None:
         runtime_ledger_history_trend["_source_path"] = args.runtime_ledger_history_trend
     if args.dataset_pipeline_summary:
         dataset_pipeline_summary["_source_path"] = args.dataset_pipeline_summary
+    if args.dataset_history_summary:
+        dataset_history_summary["_source_path"] = args.dataset_history_summary
+    if args.dataset_history_trend:
+        dataset_history_trend["_source_path"] = args.dataset_history_trend
 
     summary = _compute_summary(
         repair,
@@ -679,6 +756,8 @@ def main() -> None:
         runtime_ledger_history_summary,
         runtime_ledger_history_trend,
         dataset_pipeline_summary,
+        dataset_history_summary,
+        dataset_history_trend,
     )
     if args.previous_summary:
         previous = _load_json(args.previous_summary)

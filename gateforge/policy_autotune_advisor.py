@@ -47,6 +47,8 @@ def _build_advice(
     mutation_dashboard: dict,
     medium_dashboard: dict,
     dataset_pipeline_summary: dict,
+    dataset_history_summary: dict,
+    dataset_history_trend_summary: dict,
 ) -> tuple[dict, dict]:
     reasons: list[str] = []
     threshold_patch = {
@@ -84,6 +86,13 @@ def _build_advice(
                 dataset_pipeline_summary.get("failure_case_rate"),
             )
         ),
+        "dataset_history_alert_count": _to_int(
+            dataset_history_summary.get(
+                "alert_count",
+                len(dataset_history_summary.get("alerts") or []),
+            )
+        ),
+        "dataset_history_trend_status": str(dataset_history_trend_summary.get("status") or "UNKNOWN"),
     }
 
     score = 0
@@ -139,6 +148,12 @@ def _build_advice(
     if 0.0 < signals["dataset_failure_case_rate"] < 0.2:
         reasons.append("dataset_failure_coverage_low")
         score += 1
+    if signals["dataset_history_alert_count"] > 0:
+        reasons.append("dataset_history_alerts_present")
+        score += 1
+    if signals["dataset_history_trend_status"] == "NEEDS_REVIEW":
+        reasons.append("dataset_history_trend_needs_review")
+        score += 2
 
     if score >= 5:
         suggested_profile = "industrial_strict"
@@ -226,6 +241,16 @@ def main() -> None:
         default=None,
         help="dataset pipeline summary json",
     )
+    parser.add_argument(
+        "--dataset-history-summary",
+        default=None,
+        help="dataset history summary json",
+    )
+    parser.add_argument(
+        "--dataset-history-trend",
+        default=None,
+        help="dataset history trend json",
+    )
     parser.add_argument("--report-out", default=None, help="advisor output markdown")
     args = parser.parse_args()
 
@@ -233,8 +258,17 @@ def main() -> None:
     mutation = _load_json(args.mutation_dashboard)
     medium = _load_json(args.medium_dashboard)
     dataset = _load_json(args.dataset_pipeline_summary)
+    dataset_history = _load_json(args.dataset_history_summary)
+    dataset_history_trend = _load_json(args.dataset_history_trend)
 
-    advice, signals = _build_advice(governance, mutation, medium, dataset)
+    advice, signals = _build_advice(
+        governance,
+        mutation,
+        medium,
+        dataset,
+        dataset_history,
+        dataset_history_trend,
+    )
     payload = {
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
         "sources": {
@@ -242,6 +276,8 @@ def main() -> None:
             "mutation_dashboard": args.mutation_dashboard,
             "medium_dashboard": args.medium_dashboard,
             "dataset_pipeline_summary": args.dataset_pipeline_summary,
+            "dataset_history_summary": args.dataset_history_summary,
+            "dataset_history_trend": args.dataset_history_trend,
         },
         "advice": advice,
         "signals": signals,

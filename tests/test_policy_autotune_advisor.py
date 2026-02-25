@@ -14,6 +14,8 @@ class PolicyAutotuneAdvisorTests(unittest.TestCase):
             mutation = root / "mutation.json"
             medium = root / "medium.json"
             dataset = root / "dataset.json"
+            dataset_history = root / "dataset_history.json"
+            dataset_history_trend = root / "dataset_history_trend.json"
             out = root / "advisor.json"
             governance.write_text(
                 json.dumps({"status": "PASS", "kpis": {"strict_non_pass_rate": 0.1}, "risks": []}),
@@ -54,6 +56,22 @@ class PolicyAutotuneAdvisorTests(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
+            dataset_history.write_text(
+                json.dumps(
+                    {
+                        "total_records": 2,
+                        "latest_deduplicated_cases": 4,
+                        "latest_failure_case_rate": 0.1,
+                        "freeze_pass_rate": 1.0,
+                        "alerts": ["latest_deduplicated_case_count_low"],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            dataset_history_trend.write_text(
+                json.dumps({"status": "NEEDS_REVIEW", "trend": {"alerts": ["failure_case_rate_drop_detected"]}}),
+                encoding="utf-8",
+            )
             proc = subprocess.run(
                 [
                     sys.executable,
@@ -67,6 +85,10 @@ class PolicyAutotuneAdvisorTests(unittest.TestCase):
                     str(medium),
                     "--dataset-pipeline-summary",
                     str(dataset),
+                    "--dataset-history-summary",
+                    str(dataset_history),
+                    "--dataset-history-trend",
+                    str(dataset_history_trend),
                     "--out",
                     str(out),
                 ],
@@ -77,10 +99,12 @@ class PolicyAutotuneAdvisorTests(unittest.TestCase):
             self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
             payload = json.loads(out.read_text(encoding="utf-8"))
             advice = payload.get("advice", {})
-            self.assertEqual(advice.get("suggested_policy_profile"), "default")
+            self.assertEqual(advice.get("suggested_policy_profile"), "industrial_strict")
             reasons = advice.get("reasons", [])
             self.assertIn("dataset_case_count_low", reasons)
             self.assertIn("dataset_failure_coverage_low", reasons)
+            self.assertIn("dataset_history_alerts_present", reasons)
+            self.assertIn("dataset_history_trend_needs_review", reasons)
 
     def test_advisor_stable_signals_default(self) -> None:
         with tempfile.TemporaryDirectory() as d:
