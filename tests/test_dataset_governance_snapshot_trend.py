@@ -70,6 +70,8 @@ class DatasetGovernanceSnapshotTrendTests(unittest.TestCase):
             self.assertIn("dataset_governance_trend_needs_review", trend.get("new_risks", []))
             self.assertIn("dataset_history_trend_needs_review", trend.get("resolved_risks", []))
             self.assertIn("dataset_pipeline_failure_case_rate_delta", trend.get("kpi_delta", {}))
+            self.assertGreaterEqual(int(trend.get("severity_score", 0) or 0), 1)
+            self.assertIn(trend.get("severity_level"), {"medium", "high"})
             self.assertEqual(
                 (trend.get("status_delta") or {}).get(
                     "dataset_promotion_effectiveness_history_trend_status_transition"
@@ -143,6 +145,8 @@ class DatasetGovernanceSnapshotTrendTests(unittest.TestCase):
             self.assertEqual(trend.get("status_transition"), "PASS->PASS")
             self.assertEqual(trend.get("new_risks", []), [])
             self.assertEqual(trend.get("resolved_risks", []), [])
+            self.assertEqual(int(trend.get("severity_score", 0) or 0), 0)
+            self.assertEqual(trend.get("severity_level"), "low")
             self.assertEqual(
                 (trend.get("status_delta") or {}).get(
                     "dataset_promotion_effectiveness_history_latest_decision_transition"

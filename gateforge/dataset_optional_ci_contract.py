@@ -104,6 +104,7 @@ def main() -> None:
                 "status_transition",
                 "promotion_effectiveness_history_trend_transition",
                 "status_delta_alert_count",
+                "severity_level",
             ],
         ),
         (

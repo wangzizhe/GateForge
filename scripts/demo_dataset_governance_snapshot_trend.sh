@@ -42,6 +42,7 @@ flags = {
     "has_status_transition": "PASS" if isinstance(trend.get("status_transition"), str) and "->" in trend.get("status_transition", "") else "FAIL",
     "has_kpi_delta": "PASS" if isinstance(trend.get("kpi_delta"), dict) else "FAIL",
     "has_status_delta": "PASS" if isinstance(trend.get("status_delta"), dict) else "FAIL",
+    "has_severity_fields": "PASS" if isinstance(trend.get("severity_score"), int) and trend.get("severity_level") in {"low", "medium", "high"} else "FAIL",
     "has_new_risks_list": "PASS" if isinstance(trend.get("new_risks"), list) else "FAIL",
     "has_resolved_risks_list": "PASS" if isinstance(trend.get("resolved_risks"), list) else "FAIL",
 }
@@ -49,6 +50,8 @@ bundle_status = "PASS" if all(v == "PASS" for v in flags.values()) else "FAIL"
 demo = {
     "status": payload.get("status"),
     "status_transition": trend.get("status_transition"),
+    "severity_score": trend.get("severity_score"),
+    "severity_level": trend.get("severity_level"),
     "new_risks_count": len(trend.get("new_risks", [])) if isinstance(trend.get("new_risks"), list) else 0,
     "resolved_risks_count": len(trend.get("resolved_risks", [])) if isinstance(trend.get("resolved_risks"), list) else 0,
     "promotion_effectiveness_history_trend_transition": (trend.get("status_delta") or {}).get(
@@ -66,6 +69,8 @@ demo = {
             "",
             f"- status: `{demo['status']}`",
             f"- status_transition: `{demo['status_transition']}`",
+            f"- severity_score: `{demo['severity_score']}`",
+            f"- severity_level: `{demo['severity_level']}`",
             f"- new_risks_count: `{demo['new_risks_count']}`",
             f"- resolved_risks_count: `{demo['resolved_risks_count']}`",
             f"- promotion_effectiveness_history_trend_transition: `{demo['promotion_effectiveness_history_trend_transition']}`",
