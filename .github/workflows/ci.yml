@@ -436,6 +436,7 @@ jobs:
           bash scripts/demo_dataset_promotion_candidate_apply.sh
           bash scripts/demo_dataset_promotion_candidate_history.sh
           bash scripts/demo_dataset_promotion_candidate_apply_history.sh
+          bash scripts/demo_dataset_promotion_effectiveness.sh
           bash scripts/demo_dataset_policy_autotune_history.sh
           python -m gateforge.dataset_optional_ci_contract \
             --artifacts-root artifacts \
@@ -464,6 +465,7 @@ jobs:
             artifacts/dataset_promotion_candidate_apply_demo
             artifacts/dataset_promotion_candidate_history_demo
             artifacts/dataset_promotion_candidate_apply_history_demo
+            artifacts/dataset_promotion_effectiveness_demo
             artifacts/dataset_policy_autotune_history_demo
             artifacts/dataset_optional_ci_contract
             artifacts/dataset
