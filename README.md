@@ -87,6 +87,7 @@ cat artifacts/proposal_run.json
 - Mutation factory v1 (deterministic mutation manifest with multi-failure-type operators)
 - Repro stability gate v1 (repeat-run consistency gate for mutation reproducibility)
 - Failure corpus ingest bridge v1 (ingest stable mutation evidence into failure corpus DB v1)
+- Anchor benchmark pack v2 (end-to-end reproducible anchor pack from baseline+mutation+stability)
 
 ## Most Used Commands
 
