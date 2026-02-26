@@ -478,6 +478,13 @@ bash scripts/demo_dataset_repro_stability_gate_v1.sh
 cat artifacts/dataset_repro_stability_gate_v1_demo/demo_summary.json
 ```
 
+## 17.33 Dataset Failure Corpus Ingest Bridge v1
+
+```bash
+bash scripts/demo_dataset_failure_corpus_ingest_bridge_v1.sh
+cat artifacts/dataset_failure_corpus_ingest_bridge_v1_demo/demo_summary.json
+```
+
 ## 18. Dataset Policy Auto-Tune History
 
 ```bash

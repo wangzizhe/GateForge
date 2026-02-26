@@ -86,6 +86,7 @@ cat artifacts/proposal_run.json
 - Model family generator v1 (derive small/medium/large family manifests from registry assets)
 - Mutation factory v1 (deterministic mutation manifest with multi-failure-type operators)
 - Repro stability gate v1 (repeat-run consistency gate for mutation reproducibility)
+- Failure corpus ingest bridge v1 (ingest stable mutation evidence into failure corpus DB v1)
 
 ## Most Used Commands
 
