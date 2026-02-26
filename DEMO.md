@@ -485,6 +485,13 @@ bash scripts/demo_dataset_failure_corpus_ingest_bridge_v1.sh
 cat artifacts/dataset_failure_corpus_ingest_bridge_v1_demo/demo_summary.json
 ```
 
+## 17.34 Dataset Anchor Benchmark Pack v2
+
+```bash
+bash scripts/demo_dataset_anchor_benchmark_pack_v2.sh
+cat artifacts/dataset_anchor_benchmark_pack_v2_demo/demo_summary.json
+```
+
 ## 18. Dataset Policy Auto-Tune History
 
 ```bash
