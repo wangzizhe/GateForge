@@ -67,6 +67,7 @@ cat artifacts/proposal_run.json
 - Replay quality guard (sample-size and stability checks for replay conclusions)
 - Failure coverage planner (prioritized coverage plan with expected moat deltas)
 - Policy experiment runner (ranked conservative/balanced/aggressive policy experiments)
+- Modelica failure pack planner (scale-aware case targets for small/medium/large packs)
 
 ## Most Used Commands
 

@@ -345,6 +345,13 @@ bash scripts/demo_dataset_policy_experiment_runner.sh
 cat artifacts/dataset_policy_experiment_runner_demo/demo_summary.json
 ```
 
+## 17.14 Dataset Modelica Failure Pack Planner
+
+```bash
+bash scripts/demo_dataset_modelica_failure_pack_planner.sh
+cat artifacts/dataset_modelica_failure_pack_planner_demo/demo_summary.json
+```
+
 ## 18. Dataset Policy Auto-Tune History
 
 ```bash
