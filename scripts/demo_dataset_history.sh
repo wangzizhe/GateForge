@@ -8,7 +8,16 @@ OUT_DIR="artifacts/dataset_history_demo"
 mkdir -p "$OUT_DIR"
 rm -f "$OUT_DIR"/*.json "$OUT_DIR"/*.md
 
-bash scripts/demo_dataset_pipeline.sh >/dev/null
+run_dep_script() {
+  local script_path="$1"
+  local sentinel="$2"
+  if [ "${GATEFORGE_DEMO_FAST:-0}" = "1" ] && [ -f "$sentinel" ]; then
+    return 0
+  fi
+  bash "$script_path" >/dev/null
+}
+
+run_dep_script "scripts/demo_dataset_pipeline.sh" "artifacts/dataset_pipeline_demo/summary.json"
 
 python3 -m gateforge.dataset_history \
   --record artifacts/dataset_pipeline_demo/summary.json \

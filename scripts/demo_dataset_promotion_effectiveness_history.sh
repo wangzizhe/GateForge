@@ -8,7 +8,16 @@ OUT_DIR="artifacts/dataset_promotion_effectiveness_history_demo"
 mkdir -p "$OUT_DIR"
 rm -f "$OUT_DIR"/*.json "$OUT_DIR"/*.md "$OUT_DIR"/*.jsonl
 
-bash scripts/demo_dataset_promotion_effectiveness.sh >/dev/null
+run_dep_script() {
+  local script_path="$1"
+  local sentinel="$2"
+  if [ "${GATEFORGE_DEMO_FAST:-0}" = "1" ] && [ -f "$sentinel" ]; then
+    return 0
+  fi
+  bash "$script_path" >/dev/null
+}
+
+run_dep_script "scripts/demo_dataset_promotion_effectiveness.sh" "artifacts/dataset_promotion_effectiveness_demo/effectiveness.json"
 
 python3 -m gateforge.dataset_promotion_effectiveness_history \
   --record artifacts/dataset_promotion_effectiveness_demo/effectiveness.json \

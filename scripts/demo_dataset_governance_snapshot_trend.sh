@@ -8,6 +8,15 @@ OUT_DIR="artifacts/dataset_governance_snapshot_trend_demo"
 mkdir -p "$OUT_DIR"
 rm -f "$OUT_DIR"/*.json "$OUT_DIR"/*.md
 
+run_dep_script() {
+  local script_path="$1"
+  local sentinel="$2"
+  if [ "${GATEFORGE_DEMO_FAST:-0}" = "1" ] && [ -f "$sentinel" ]; then
+    return 0
+  fi
+  bash "$script_path" >/dev/null
+}
+
 cat > "$OUT_DIR/previous_summary.json" <<'JSON'
 {
   "status": "PASS",
@@ -40,7 +49,7 @@ cat > "$OUT_DIR/previous_summary.json" <<'JSON'
 }
 JSON
 
-bash scripts/demo_dataset_governance_snapshot.sh
+run_dep_script "scripts/demo_dataset_governance_snapshot.sh" "artifacts/dataset_governance_snapshot_demo/summary.json"
 
 python3 -m gateforge.dataset_governance_snapshot_trend \
   --summary artifacts/dataset_governance_snapshot_demo/summary.json \

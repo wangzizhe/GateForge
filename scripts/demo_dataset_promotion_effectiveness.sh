@@ -8,7 +8,16 @@ OUT_DIR="artifacts/dataset_promotion_effectiveness_demo"
 mkdir -p "$OUT_DIR"
 rm -f "$OUT_DIR"/*.json "$OUT_DIR"/*.md
 
-bash scripts/demo_dataset_promotion_candidate_apply_history.sh >/dev/null
+run_dep_script() {
+  local script_path="$1"
+  local sentinel="$2"
+  if [ "${GATEFORGE_DEMO_FAST:-0}" = "1" ] && [ -f "$sentinel" ]; then
+    return 0
+  fi
+  bash "$script_path" >/dev/null
+}
+
+run_dep_script "scripts/demo_dataset_promotion_candidate_apply_history.sh" "artifacts/dataset_promotion_candidate_apply_history_demo/history_summary.json"
 
 cat > "$OUT_DIR/before.json" <<'JSON'
 {
