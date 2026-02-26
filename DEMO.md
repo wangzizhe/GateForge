@@ -366,6 +366,13 @@ bash scripts/demo_dataset_pack_execution_tracker.sh
 cat artifacts/dataset_pack_execution_tracker_demo/demo_summary.json
 ```
 
+## 17.17 Dataset Large Model Failure Queue
+
+```bash
+bash scripts/demo_dataset_large_model_failure_queue.sh
+cat artifacts/dataset_large_model_failure_queue_demo/demo_summary.json
+```
+
 ## 18. Dataset Policy Auto-Tune History
 
 ```bash
