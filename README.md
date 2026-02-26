@@ -72,6 +72,7 @@ cat artifacts/proposal_run.json
 - Pack execution tracker (execution progress and large-scale completion visibility)
 - Large model failure queue (priority queue for large-scale failure gap closure)
 - Failure signal calibrator (adaptive weighting for detection/fp/regression/drift signals)
+- Governance decision proofbook (compact decision-ready evidence cards)
 
 ## Most Used Commands
 
