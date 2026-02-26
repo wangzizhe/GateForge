@@ -85,6 +85,7 @@ cat artifacts/proposal_run.json
 - Modelica library registry v1 (checksummed model inventory with complexity metadata)
 - Model family generator v1 (derive small/medium/large family manifests from registry assets)
 - Mutation factory v1 (deterministic mutation manifest with multi-failure-type operators)
+- Repro stability gate v1 (repeat-run consistency gate for mutation reproducibility)
 
 ## Most Used Commands
 

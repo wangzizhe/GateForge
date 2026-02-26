@@ -471,6 +471,13 @@ bash scripts/demo_dataset_mutation_factory_v1.sh
 cat artifacts/dataset_mutation_factory_v1_demo/demo_summary.json
 ```
 
+## 17.32 Dataset Repro Stability Gate v1
+
+```bash
+bash scripts/demo_dataset_repro_stability_gate_v1.sh
+cat artifacts/dataset_repro_stability_gate_v1_demo/demo_summary.json
+```
+
 ## 18. Dataset Policy Auto-Tune History
 
 ```bash
