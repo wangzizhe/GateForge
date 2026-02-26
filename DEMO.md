@@ -457,6 +457,13 @@ bash scripts/demo_dataset_modelica_library_registry_v1.sh
 cat artifacts/dataset_modelica_library_registry_v1_demo/demo_summary.json
 ```
 
+## 17.30 Dataset Model Family Generator v1
+
+```bash
+bash scripts/demo_dataset_model_family_generator_v1.sh
+cat artifacts/dataset_model_family_generator_v1_demo/demo_summary.json
+```
+
 ## 18. Dataset Policy Auto-Tune History
 
 ```bash
