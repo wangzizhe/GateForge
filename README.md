@@ -94,6 +94,7 @@ cat artifacts/proposal_run.json
 - GateForge vs plain CI benchmark v1 (head-to-head critical block/escape/fp comparison)
 - Anchor release bundle v3 (external release bundle scoring and reproducible playbook packaging)
 - Large model synthesizer v1 (programmatic medium/small to large model variant generation)
+- Mutation real runner v1 (real command execution and raw observation capture for validated mutations)
 
 ## Most Used Commands
 
