@@ -171,6 +171,7 @@ jobs:
         with:
           name: unittest-shard-logs-${{ matrix.shard }}
           path: artifacts/ci_logs
+          if-no-files-found: ignore
 
   smoke-gate:
     needs: test-sharded
