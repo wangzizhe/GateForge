@@ -296,6 +296,13 @@ bash scripts/demo_dataset_failure_corpus_registry.sh
 cat artifacts/dataset_failure_corpus_registry_demo/demo_summary.json
 ```
 
+## 17.7 Dataset Blind Spot Backlog
+
+```bash
+bash scripts/demo_dataset_blind_spot_backlog.sh
+cat artifacts/dataset_blind_spot_backlog_demo/demo_summary.json
+```
+
 ## 18. Dataset Policy Auto-Tune History
 
 ```bash

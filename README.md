@@ -59,6 +59,7 @@ cat artifacts/proposal_run.json
 - Failure policy patch advisor (evidence-driven policy tightening suggestions)
 - Governance evidence pack (externally shareable proof artifact)
 - Failure corpus registry (stable IDs, fingerprints, corpus versioning)
+- Blind-spot backlog generator (prioritized coverage gap tasks)
 
 ## Most Used Commands
 
