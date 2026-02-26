@@ -429,6 +429,13 @@ bash scripts/demo_dataset_failure_corpus_db_v1.sh
 cat artifacts/dataset_failure_corpus_db_v1_demo/demo_summary.json
 ```
 
+## 17.26 Dataset Failure Baseline Pack v1
+
+```bash
+bash scripts/demo_dataset_failure_baseline_pack_v1.sh
+cat artifacts/dataset_failure_baseline_pack_v1_demo/demo_summary.json
+```
+
 ## 18. Dataset Policy Auto-Tune History
 
 ```bash
