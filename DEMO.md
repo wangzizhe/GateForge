@@ -527,6 +527,13 @@ bash scripts/demo_dataset_anchor_release_bundle_v3.sh
 cat artifacts/dataset_anchor_release_bundle_v3_demo/demo_summary.json
 ```
 
+## 17.40 Dataset Large Model Synthesizer v1
+
+```bash
+bash scripts/demo_dataset_large_model_synthesizer_v1.sh
+cat artifacts/dataset_large_model_synthesizer_v1_demo/demo_summary.json
+```
+
 ## 18. Dataset Policy Auto-Tune History
 
 ```bash
