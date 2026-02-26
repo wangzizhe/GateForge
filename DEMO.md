@@ -373,6 +373,13 @@ bash scripts/demo_dataset_large_model_failure_queue.sh
 cat artifacts/dataset_large_model_failure_queue_demo/demo_summary.json
 ```
 
+## 17.18 Dataset Failure Signal Calibrator
+
+```bash
+bash scripts/demo_dataset_failure_signal_calibrator.sh
+cat artifacts/dataset_failure_signal_calibrator_demo/demo_summary.json
+```
+
 ## 18. Dataset Policy Auto-Tune History
 
 ```bash
