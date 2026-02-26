@@ -132,11 +132,16 @@ on:
         type: string
 
 jobs:
-  test-and-smoke:
+  test-sharded:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        pattern:
+          - "test_[a-h]*.py"
+          - "test_[i-p]*.py"
+          - "test_[q-z]*.py"
     env:
-      GATEFORGE_RUNTIME_THRESHOLD: "0.20"
-      GATEFORGE_STRICT_MODEL_SCRIPT: "false"
       GATEFORGE_DEMO_FAST: "1"
     steps:
       - name: Checkout
@@ -146,17 +151,36 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+          cache: pip
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -e .
 
-      - name: Run tests (sharded)
+      - name: Run unit tests shard
+        run: timeout 25m python -X faulthandler -m unittest discover -s tests -p "${{ matrix.pattern }}" -v
+
+  smoke-gate:
+    needs: test-sharded
+    runs-on: ubuntu-latest
+    env:
+      GATEFORGE_RUNTIME_THRESHOLD: "0.20"
+      GATEFORGE_STRICT_MODEL_SCRIPT: "false"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
         run: |
-          timeout 25m python -X faulthandler -m unittest discover -s tests -p "test_[a-h]*.py" -v
-          timeout 25m python -X faulthandler -m unittest discover -s tests -p "test_[i-p]*.py" -v
-          timeout 25m python -X faulthandler -m unittest discover -s tests -p "test_[q-z]*.py" -v
+          python -m pip install --upgrade pip
+          pip install -e .
 
       - name: Generate candidate evidence
         run: python -m gateforge.smoke --backend mock --out artifacts/candidate.json
