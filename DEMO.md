@@ -443,6 +443,13 @@ bash scripts/demo_dataset_failure_distribution_quality_gate_v1.sh
 cat artifacts/dataset_failure_distribution_quality_gate_v1_demo/demo_summary.json
 ```
 
+## 17.28 Dataset Anchor Benchmark Artifact v1
+
+```bash
+bash scripts/demo_dataset_anchor_benchmark_artifact_v1.sh
+cat artifacts/dataset_anchor_benchmark_artifact_v1_demo/demo_summary.json
+```
+
 ## 18. Dataset Policy Auto-Tune History
 
 ```bash
