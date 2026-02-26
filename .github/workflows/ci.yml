@@ -37,11 +37,6 @@ on:
         required: false
         default: false
         type: boolean
-      run_demo_full:
-        description: "Run full demo scripts test job"
-        required: false
-        default: false
-        type: boolean
       run_autopilot_dry_run:
         description: "Run optional autopilot dry-run demo job"
         required: false
@@ -325,7 +320,7 @@ jobs:
 
   demo-full:
     name: "Demo Full"
-    if: ${{ (github.event_name == 'workflow_dispatch' && inputs.run_demo_full) || github.event_name == 'schedule' }}
+    if: ${{ (github.event_name == 'workflow_dispatch' && inputs.run_demo_bundle) || github.event_name == 'schedule' }}
     runs-on: ubuntu-latest
     env:
       GATEFORGE_DEMO_FAST: "1"
