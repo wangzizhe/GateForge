@@ -331,6 +331,13 @@ bash scripts/demo_dataset_replay_quality_guard.sh
 cat artifacts/dataset_replay_quality_guard_demo/demo_summary.json
 ```
 
+## 17.12 Dataset Failure Coverage Planner
+
+```bash
+bash scripts/demo_dataset_failure_coverage_planner.sh
+cat artifacts/dataset_failure_coverage_planner_demo/demo_summary.json
+```
+
 ## 18. Dataset Policy Auto-Tune History
 
 ```bash
