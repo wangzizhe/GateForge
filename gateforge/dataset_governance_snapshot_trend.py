@@ -51,6 +51,10 @@ def _compute_trend(current: dict, previous: dict) -> dict:
         f"{previous_kpis.get('dataset_failure_distribution_benchmark_status')}->"
         f"{current_kpis.get('dataset_failure_distribution_benchmark_status')}"
     )
+    model_scale_ladder_transition = (
+        f"{previous_kpis.get('dataset_model_scale_ladder_status')}->"
+        f"{current_kpis.get('dataset_model_scale_ladder_status')}"
+    )
     status_delta_alerts: list[str] = []
     if trend_status_transition in {"PASS->NEEDS_REVIEW", "PASS->FAIL", "NEEDS_REVIEW->FAIL"}:
         status_delta_alerts.append("promotion_effectiveness_history_trend_worsened")
@@ -60,6 +64,8 @@ def _compute_trend(current: dict, previous: dict) -> dict:
         status_delta_alerts.append("failure_taxonomy_coverage_worsened")
     if failure_distribution_benchmark_transition in {"PASS->NEEDS_REVIEW", "PASS->FAIL", "NEEDS_REVIEW->FAIL"}:
         status_delta_alerts.append("failure_distribution_benchmark_worsened")
+    if model_scale_ladder_transition in {"PASS->NEEDS_REVIEW", "PASS->FAIL", "NEEDS_REVIEW->FAIL"}:
+        status_delta_alerts.append("model_scale_ladder_worsened")
 
     status_transition = f"{previous_status}->{current_status}"
     new_risks = sorted(current_risks - previous_risks)
@@ -87,6 +93,7 @@ def _compute_trend(current: dict, previous: dict) -> dict:
             "dataset_promotion_effectiveness_history_latest_decision_transition": decision_transition,
             "dataset_failure_taxonomy_coverage_status_transition": failure_taxonomy_coverage_transition,
             "dataset_failure_distribution_benchmark_status_transition": failure_distribution_benchmark_transition,
+            "dataset_model_scale_ladder_status_transition": model_scale_ladder_transition,
             "alerts": status_delta_alerts,
         },
         "kpi_delta": {
@@ -148,6 +155,21 @@ def _compute_trend(current: dict, previous: dict) -> dict:
             "dataset_failure_distribution_drift_score_delta": round(
                 _to_float(current_kpis.get("dataset_failure_distribution_drift_score"))
                 - _to_float(previous_kpis.get("dataset_failure_distribution_drift_score")),
+                4,
+            ),
+            "dataset_model_scale_medium_cases_delta": round(
+                _to_float(current_kpis.get("dataset_model_scale_medium_cases"))
+                - _to_float(previous_kpis.get("dataset_model_scale_medium_cases")),
+                4,
+            ),
+            "dataset_model_scale_large_cases_delta": round(
+                _to_float(current_kpis.get("dataset_model_scale_large_cases"))
+                - _to_float(previous_kpis.get("dataset_model_scale_large_cases")),
+                4,
+            ),
+            "dataset_model_scale_main_ci_lane_count_delta": round(
+                _to_float(current_kpis.get("dataset_model_scale_main_ci_lane_count"))
+                - _to_float(previous_kpis.get("dataset_model_scale_main_ci_lane_count")),
                 4,
             ),
         },

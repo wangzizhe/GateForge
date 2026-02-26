@@ -329,6 +329,43 @@ class DatasetGovernanceSnapshotTests(unittest.TestCase):
             self.assertIn("dataset_failure_distribution_benchmark_needs_review", payload.get("risks", []))
             self.assertEqual((payload.get("kpis") or {}).get("dataset_failure_distribution_drift_score"), 0.41)
 
+    def test_snapshot_needs_review_on_model_scale_ladder(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            ladder = root / "model_scale_ladder.json"
+            out = root / "snapshot.json"
+            ladder.write_text(
+                json.dumps(
+                    {
+                        "status": "NEEDS_REVIEW",
+                        "medium_ready": True,
+                        "large_ready": False,
+                        "scale_counts": {"small": 5, "medium": 2, "large": 0},
+                        "ci_recommendation": {"main": ["small_smoke", "medium_smoke"], "optional": ["medium_full"]},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.dataset_governance_snapshot",
+                    "--dataset-model-scale-ladder",
+                    str(ladder),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            payload = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(payload.get("status"), "NEEDS_REVIEW")
+            self.assertIn("dataset_model_scale_ladder_needs_review", payload.get("risks", []))
+            self.assertEqual((payload.get("kpis") or {}).get("dataset_model_scale_large_cases"), 0)
+
 
 if __name__ == "__main__":
     unittest.main()

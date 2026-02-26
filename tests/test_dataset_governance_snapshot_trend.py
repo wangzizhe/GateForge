@@ -33,6 +33,10 @@ class DatasetGovernanceSnapshotTrendTests(unittest.TestCase):
                             "dataset_failure_distribution_false_positive_rate_after": 0.04,
                             "dataset_failure_distribution_regression_rate_after": 0.09,
                             "dataset_failure_distribution_drift_score": 0.2,
+                            "dataset_model_scale_ladder_status": "PASS",
+                            "dataset_model_scale_medium_cases": 2,
+                            "dataset_model_scale_large_cases": 1,
+                            "dataset_model_scale_main_ci_lane_count": 2,
                             "dataset_promotion_effectiveness_history_trend_status": "PASS",
                             "dataset_promotion_effectiveness_history_latest_decision": "KEEP",
                         },
@@ -60,6 +64,10 @@ class DatasetGovernanceSnapshotTrendTests(unittest.TestCase):
                             "dataset_failure_distribution_false_positive_rate_after": 0.11,
                             "dataset_failure_distribution_regression_rate_after": 0.22,
                             "dataset_failure_distribution_drift_score": 0.38,
+                            "dataset_model_scale_ladder_status": "NEEDS_REVIEW",
+                            "dataset_model_scale_medium_cases": 3,
+                            "dataset_model_scale_large_cases": 0,
+                            "dataset_model_scale_main_ci_lane_count": 1,
                             "dataset_promotion_effectiveness_history_trend_status": "NEEDS_REVIEW",
                             "dataset_promotion_effectiveness_history_latest_decision": "ROLLBACK_REVIEW",
                         },
@@ -120,6 +128,11 @@ class DatasetGovernanceSnapshotTrendTests(unittest.TestCase):
                 (trend.get("kpi_delta") or {}).get("dataset_failure_distribution_detection_rate_after_delta"),
                 -0.09,
             )
+            self.assertIn("model_scale_ladder_worsened", (trend.get("status_delta") or {}).get("alerts", []))
+            self.assertEqual(
+                (trend.get("status_delta") or {}).get("dataset_model_scale_ladder_status_transition"),
+                "PASS->NEEDS_REVIEW",
+            )
 
     def test_trend_marks_pass_when_kpis_stable(self) -> None:
         with tempfile.TemporaryDirectory() as d:
@@ -147,6 +160,10 @@ class DatasetGovernanceSnapshotTrendTests(unittest.TestCase):
                             "dataset_failure_distribution_false_positive_rate_after": 0.03,
                             "dataset_failure_distribution_regression_rate_after": 0.08,
                             "dataset_failure_distribution_drift_score": 0.1,
+                            "dataset_model_scale_ladder_status": "PASS",
+                            "dataset_model_scale_medium_cases": 3,
+                            "dataset_model_scale_large_cases": 2,
+                            "dataset_model_scale_main_ci_lane_count": 2,
                             "dataset_promotion_effectiveness_history_trend_status": "PASS",
                             "dataset_promotion_effectiveness_history_latest_decision": "KEEP",
                         },
@@ -174,6 +191,10 @@ class DatasetGovernanceSnapshotTrendTests(unittest.TestCase):
                             "dataset_failure_distribution_false_positive_rate_after": 0.03,
                             "dataset_failure_distribution_regression_rate_after": 0.08,
                             "dataset_failure_distribution_drift_score": 0.1,
+                            "dataset_model_scale_ladder_status": "PASS",
+                            "dataset_model_scale_medium_cases": 3,
+                            "dataset_model_scale_large_cases": 2,
+                            "dataset_model_scale_main_ci_lane_count": 2,
                             "dataset_promotion_effectiveness_history_trend_status": "PASS",
                             "dataset_promotion_effectiveness_history_latest_decision": "KEEP",
                         },
@@ -218,6 +239,10 @@ class DatasetGovernanceSnapshotTrendTests(unittest.TestCase):
             )
             self.assertEqual(
                 (trend.get("status_delta") or {}).get("dataset_failure_distribution_benchmark_status_transition"),
+                "PASS->PASS",
+            )
+            self.assertEqual(
+                (trend.get("status_delta") or {}).get("dataset_model_scale_ladder_status_transition"),
                 "PASS->PASS",
             )
 
