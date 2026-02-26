@@ -31,7 +31,7 @@ class CIShardConfigContractTests(unittest.TestCase):
         self.assertIn("needs:\n      - test-core-a\n      - test-core-b\n      - test-dataset", workflow)
         self.assertIn("needs:\n      - test-core-a\n      - test-core-b\n      - test-dataset\n      - smoke-gate", workflow)
         self.assertIn(
-            "if: ${{ (github.event_name == 'workflow_dispatch' && inputs.run_demo_full) || github.event_name == 'schedule' }}",
+            "if: ${{ (github.event_name == 'workflow_dispatch' && inputs.run_demo_bundle) || github.event_name == 'schedule' }}",
             workflow,
         )
         self.assertIn("id: demo_full_tests", workflow)
