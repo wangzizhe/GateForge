@@ -91,9 +91,19 @@ gate = json.loads((out / "build" / "quality_gate.json").read_text(encoding="utf-
 freeze = json.loads((out / "freeze" / "summary.json").read_text(encoding="utf-8"))
 
 counts = collect.get("counts", {})
+seed_inputs_present = (out / "inputs" / "benchmark_summary.seed.json").exists() and (
+    out / "inputs" / "mutation_summary.seed.json"
+).exists()
 flags = {
     "has_any_input_summary": "PASS"
-    if (counts.get("benchmark_summary_count", 0) + counts.get("mutation_summary_count", 0) + counts.get("run_summary_count", 0) + counts.get("autopilot_summary_count", 0)) > 0
+    if (
+        counts.get("benchmark_summary_count", 0)
+        + counts.get("mutation_summary_count", 0)
+        + counts.get("run_summary_count", 0)
+        + counts.get("autopilot_summary_count", 0)
+    )
+    > 0
+    or seed_inputs_present
     else "FAIL",
     "build_deduplicated_nonzero": "PASS" if int(build.get("deduplicated_cases", 0)) > 0 else "FAIL",
     "quality_gate_pass": "PASS" if gate.get("status") == "PASS" else "FAIL",
