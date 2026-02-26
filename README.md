@@ -75,6 +75,7 @@ cat artifacts/proposal_run.json
 - Governance decision proofbook (compact decision-ready evidence cards)
 - Large model campaign board (weekly execution board for large-scale closure)
 - Failure supply plan (weekly failure-case supply targets and channels)
+- Model scale mix guard (ratio guardrail for medium/large dataset share)
 
 ## Most Used Commands
 
