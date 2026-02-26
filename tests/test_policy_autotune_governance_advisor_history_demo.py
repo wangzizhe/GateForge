@@ -11,6 +11,7 @@ class PolicyAutotuneGovernanceAdvisorHistoryDemoTests(unittest.TestCase):
             capture_output=True,
             text=True,
             check=False,
+                timeout=120,
         )
         self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
         payload = json.loads(

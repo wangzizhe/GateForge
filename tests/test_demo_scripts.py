@@ -6,8 +6,13 @@ from pathlib import Path
 
 
 class DemoScriptTests(unittest.TestCase):
+    def _run(self, *args, **kwargs):
+        if "timeout" not in kwargs:
+            kwargs["timeout"] = 120
+        return subprocess.run(*args, **kwargs)
+
     def test_demo_all_script_writes_bundle_summary(self) -> None:
-        proc = subprocess.run(
+        proc = self._run(
             ["bash", "scripts/demo_all.sh"],
             capture_output=True,
             text=True,
@@ -43,7 +48,7 @@ class DemoScriptTests(unittest.TestCase):
             self.assertEqual(len(checksums[artifact]), 64)
 
     def test_demo_autopilot_dry_run_script_writes_review_template(self) -> None:
-        proc = subprocess.run(
+        proc = self._run(
             ["bash", "scripts/demo_autopilot_dry_run.sh"],
             capture_output=True,
             text=True,
@@ -66,7 +71,7 @@ class DemoScriptTests(unittest.TestCase):
     def test_demo_autopilot_dry_run_script_accepts_policy_profile(self) -> None:
         env = dict(os.environ)
         env["POLICY_PROFILE"] = "industrial_strict_v0"
-        proc = subprocess.run(
+        proc = self._run(
             ["bash", "scripts/demo_autopilot_dry_run.sh"],
             capture_output=True,
             text=True,
@@ -80,7 +85,7 @@ class DemoScriptTests(unittest.TestCase):
     def test_demo_all_script_accepts_policy_profile(self) -> None:
         env = dict(os.environ)
         env["POLICY_PROFILE"] = "industrial_strict_v0"
-        proc = subprocess.run(
+        proc = self._run(
             ["bash", "scripts/demo_all.sh"],
             capture_output=True,
             text=True,
@@ -92,7 +97,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertEqual(payload.get("policy_profile"), "industrial_strict_v0")
 
     def test_demo_steady_state_checker_script_expected_fail(self) -> None:
-        proc = subprocess.run(
+        proc = self._run(
             ["bash", "scripts/demo_steady_state_checker.sh"],
             capture_output=True,
             text=True,
@@ -108,7 +113,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertTrue(summary_path.exists())
 
     def test_demo_behavior_metrics_checker_script_expected_nonpass(self) -> None:
-        proc = subprocess.run(
+        proc = self._run(
             ["bash", "scripts/demo_behavior_metrics_checker.sh"],
             capture_output=True,
             text=True,
@@ -124,7 +129,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertEqual(summary_payload.get("bundle_status"), "PASS")
 
     def test_demo_ci_matrix_script_writes_summary(self) -> None:
-        proc = subprocess.run(
+        proc = self._run(
             ["bash", "scripts/demo_ci_matrix.sh"],
             capture_output=True,
             text=True,
@@ -178,7 +183,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertIn("change_plan_confidence_min_below_threshold", payload.get("planner_guardrail_rule_ids", []))
 
     def test_demo_ci_matrix_accepts_promote_apply_strict_ranking_flag(self) -> None:
-        proc = subprocess.run(
+        proc = self._run(
             [
                 "bash",
                 "scripts/demo_ci_matrix.sh",
@@ -196,7 +201,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertEqual(payload.get("matrix_status"), "PASS")
 
     def test_demo_ci_matrix_accepts_promote_apply_min_margin_flag(self) -> None:
-        proc = subprocess.run(
+        proc = self._run(
             [
                 "bash",
                 "scripts/demo_ci_matrix.sh",
@@ -215,7 +220,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertEqual(payload.get("matrix_status"), "PASS")
 
     def test_demo_ci_matrix_accepts_promote_apply_min_explanation_quality_flag(self) -> None:
-        proc = subprocess.run(
+        proc = self._run(
             [
                 "bash",
                 "scripts/demo_ci_matrix.sh",
@@ -234,7 +239,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertEqual(payload.get("matrix_status"), "PASS")
 
     def test_demo_ci_matrix_accepts_promote_apply_policy_profile_flag(self) -> None:
-        proc = subprocess.run(
+        proc = self._run(
             [
                 "bash",
                 "scripts/demo_ci_matrix.sh",
@@ -253,7 +258,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertEqual(payload.get("matrix_status"), "PASS")
 
     def test_demo_ci_matrix_accepts_governance_promote_apply_strict_guard_demo_flag(self) -> None:
-        proc = subprocess.run(
+        proc = self._run(
             [
                 "bash",
                 "scripts/demo_ci_matrix.sh",
@@ -270,7 +275,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertEqual(payload.get("job_exit_codes", {}).get("governance_promote_apply_strict_guard_demo"), 0)
 
     def test_demo_ci_matrix_accepts_governance_policy_patch_explainable_demo_flag(self) -> None:
-        proc = subprocess.run(
+        proc = self._run(
             [
                 "bash",
                 "scripts/demo_ci_matrix.sh",
@@ -287,7 +292,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertEqual(payload.get("job_exit_codes", {}).get("governance_policy_patch_explainable_demo"), 0)
 
     def test_demo_ci_matrix_accepts_governance_compare_to_patch_chain_demo_flag(self) -> None:
-        proc = subprocess.run(
+        proc = self._run(
             [
                 "bash",
                 "scripts/demo_ci_matrix.sh",
@@ -304,7 +309,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertEqual(payload.get("job_exit_codes", {}).get("governance_compare_to_patch_chain_demo"), 0)
 
     def test_demo_ci_matrix_accepts_policy_autotune_governance_advisor_history_demo_flag(self) -> None:
-        proc = subprocess.run(
+        proc = self._run(
             [
                 "bash",
                 "scripts/demo_ci_matrix.sh",
@@ -321,7 +326,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertEqual(payload.get("job_exit_codes", {}).get("policy_autotune_governance_advisor_history_demo"), 0)
 
     def test_demo_ci_matrix_accepts_policy_autotune_governance_dashboard_demo_flag(self) -> None:
-        proc = subprocess.run(
+        proc = self._run(
             [
                 "bash",
                 "scripts/demo_ci_matrix.sh",
@@ -338,7 +343,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertEqual(payload.get("job_exit_codes", {}).get("policy_autotune_governance_dashboard_demo"), 0)
 
     def test_demo_ci_matrix_accepts_policy_autotune_full_chain_demo_flag(self) -> None:
-        proc = subprocess.run(
+        proc = self._run(
             [
                 "bash",
                 "scripts/demo_ci_matrix.sh",
@@ -355,7 +360,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertEqual(payload.get("job_exit_codes", {}).get("policy_autotune_full_chain_demo"), 0)
 
     def test_demo_agent_change_loop_script(self) -> None:
-        proc = subprocess.run(
+        proc = self._run(
             ["bash", "scripts/demo_agent_change_loop.sh"],
             capture_output=True,
             text=True,
@@ -368,7 +373,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertEqual(payload.get("high_risk_status"), "NEEDS_REVIEW")
 
     def test_demo_invariant_repair_loop_script(self) -> None:
-        proc = subprocess.run(
+        proc = self._run(
             ["bash", "scripts/demo_invariant_repair_loop.sh"],
             capture_output=True,
             text=True,
@@ -382,7 +387,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertIn(payload.get("after_status"), {"PASS", "NEEDS_REVIEW"})
 
     def test_demo_invariant_repair_profile_compare_script(self) -> None:
-        proc = subprocess.run(
+        proc = self._run(
             ["bash", "scripts/demo_invariant_repair_profile_compare.sh"],
             capture_output=True,
             text=True,
@@ -399,7 +404,7 @@ class DemoScriptTests(unittest.TestCase):
         )
 
     def test_demo_planner_confidence_gates_script(self) -> None:
-        proc = subprocess.run(
+        proc = self._run(
             ["bash", "scripts/demo_planner_confidence_gates.sh"],
             capture_output=True,
             text=True,
@@ -413,7 +418,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertIn(payload.get("low_confidence", {}).get("status"), {"FAIL", "UNKNOWN"})
 
     def test_demo_planner_guardrails_script(self) -> None:
-        proc = subprocess.run(
+        proc = self._run(
             ["bash", "scripts/demo_planner_guardrails.sh"],
             capture_output=True,
             text=True,
@@ -429,7 +434,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertIn("change_plan_file_not_whitelisted", payload.get("rule_ids", {}).get("all", []))
 
     def test_demo_planner_output_validate_script(self) -> None:
-        proc = subprocess.run(
+        proc = self._run(
             ["bash", "scripts/demo_planner_output_validate.sh"],
             capture_output=True,
             text=True,
@@ -442,7 +447,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertEqual(payload.get("fail_case_status"), "FAIL")
 
     def test_demo_review_resolution_script(self) -> None:
-        proc = subprocess.run(
+        proc = self._run(
             ["bash", "scripts/demo_review_resolution.sh"],
             capture_output=True,
             text=True,
@@ -456,7 +461,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertEqual(payload.get("reject_final_status"), "FAIL")
 
     def test_demo_review_ledger_script(self) -> None:
-        proc = subprocess.run(
+        proc = self._run(
             ["bash", "scripts/demo_review_ledger.sh"],
             capture_output=True,
             text=True,
@@ -470,7 +475,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertGreaterEqual(status.get("FAIL", 0), 1)
 
     def test_demo_review_ledger_export_script(self) -> None:
-        proc = subprocess.run(
+        proc = self._run(
             ["bash", "scripts/demo_review_ledger_export.sh"],
             capture_output=True,
             text=True,
@@ -485,7 +490,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertGreaterEqual(proposal_payload.get("total_records", 0), 1)
 
     def test_demo_runtime_decision_ledger_script(self) -> None:
-        proc = subprocess.run(
+        proc = self._run(
             ["bash", "scripts/demo_runtime_decision_ledger.sh"],
             capture_output=True,
             text=True,
@@ -499,7 +504,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertGreaterEqual(int(payload.get("total_records", 0)), 2)
 
     def test_demo_runtime_decision_ledger_trend_script(self) -> None:
-        proc = subprocess.run(
+        proc = self._run(
             ["bash", "scripts/demo_runtime_decision_ledger_trend.sh"],
             capture_output=True,
             text=True,
@@ -513,7 +518,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertEqual(payload.get("trend_status"), "NEEDS_REVIEW")
 
     def test_demo_review_kpis_script(self) -> None:
-        proc = subprocess.run(
+        proc = self._run(
             ["bash", "scripts/demo_review_kpis.sh"],
             capture_output=True,
             text=True,
@@ -526,7 +531,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertIn("sla_breach_rate", payload["kpis"])
 
     def test_demo_repair_loop_script(self) -> None:
-        proc = subprocess.run(
+        proc = self._run(
             ["bash", "scripts/demo_repair_loop.sh"],
             capture_output=True,
             text=True,
@@ -540,7 +545,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertFalse(payload.get("safety_guard_triggered"))
 
     def test_demo_repair_loop_safety_guard_script(self) -> None:
-        proc = subprocess.run(
+        proc = self._run(
             ["bash", "scripts/demo_repair_loop_safety_guard.sh"],
             capture_output=True,
             text=True,
@@ -553,7 +558,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertTrue(payload.get("safety_guard_triggered"))
 
     def test_demo_repair_batch_script(self) -> None:
-        proc = subprocess.run(
+        proc = self._run(
             ["bash", "scripts/demo_repair_batch.sh"],
             capture_output=True,
             text=True,
@@ -567,7 +572,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertGreaterEqual(payload.get("fail_count", 0), 1)
 
     def test_demo_repair_batch_compare_script(self) -> None:
-        proc = subprocess.run(
+        proc = self._run(
             ["bash", "scripts/demo_repair_batch_compare.sh"],
             capture_output=True,
             text=True,
@@ -582,7 +587,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertEqual(compare.get("total_compared_cases"), 2)
 
     def test_demo_repair_tasks_script(self) -> None:
-        proc = subprocess.run(
+        proc = self._run(
             ["bash", "scripts/demo_repair_tasks.sh"],
             capture_output=True,
             text=True,
@@ -596,7 +601,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertGreater(payload.get("p0_count", 0), 0)
 
     def test_demo_repair_pack_from_tasks_script(self) -> None:
-        proc = subprocess.run(
+        proc = self._run(
             ["bash", "scripts/demo_repair_pack_from_tasks.sh"],
             capture_output=True,
             text=True,
@@ -608,7 +613,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertGreater(payload.get("case_count", 0), 0)
 
     def test_demo_repair_orchestrate_script(self) -> None:
-        proc = subprocess.run(
+        proc = self._run(
             ["bash", "scripts/demo_repair_orchestrate.sh"],
             capture_output=True,
             text=True,
@@ -619,7 +624,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertEqual(payload.get("bundle_status"), "PASS")
 
     def test_demo_repair_orchestrate_compare_script(self) -> None:
-        proc = subprocess.run(
+        proc = self._run(
             ["bash", "scripts/demo_repair_orchestrate_compare.sh"],
             capture_output=True,
             text=True,
@@ -632,7 +637,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertIn(payload.get("recommended_profile"), {"default", "industrial_strict"})
 
     def test_demo_governance_snapshot_script(self) -> None:
-        proc = subprocess.run(
+        proc = self._run(
             ["bash", "scripts/demo_governance_snapshot.sh"],
             capture_output=True,
             text=True,
@@ -644,7 +649,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertIn("kpis", payload)
 
     def test_demo_governance_snapshot_with_advisor_history_script(self) -> None:
-        proc = subprocess.run(
+        proc = self._run(
             ["bash", "scripts/demo_governance_snapshot_with_advisor_history.sh"],
             capture_output=True,
             text=True,
@@ -659,7 +664,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertIn(payload.get("advisor_trend_status"), {"PASS", "NEEDS_REVIEW", "UNKNOWN"})
 
     def test_demo_governance_snapshot_from_orchestrate_compare_script(self) -> None:
-        proc = subprocess.run(
+        proc = self._run(
             ["bash", "scripts/demo_governance_snapshot_from_orchestrate_compare.sh"],
             capture_output=True,
             text=True,
@@ -674,7 +679,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertIn(payload.get("recommended_profile"), {"default", "industrial_strict"})
 
     def test_demo_governance_snapshot_trend_script(self) -> None:
-        proc = subprocess.run(
+        proc = self._run(
             ["bash", "scripts/demo_governance_snapshot_trend.sh"],
             capture_output=True,
             text=True,
@@ -688,7 +693,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertIn("kpi_delta", trend)
 
     def test_demo_governance_promote_script(self) -> None:
-        proc = subprocess.run(
+        proc = self._run(
             ["bash", "scripts/demo_governance_promote.sh"],
             capture_output=True,
             text=True,
@@ -705,7 +710,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertTrue(payload.get("override_applied"))
 
     def test_demo_governance_promote_compare_script(self) -> None:
-        proc = subprocess.run(
+        proc = self._run(
             ["bash", "scripts/demo_governance_promote_compare.sh"],
             capture_output=True,
             text=True,
@@ -736,7 +741,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertIn(payload.get("override_best_decision"), {"PASS", "NEEDS_REVIEW", "FAIL"})
 
     def test_demo_governance_promote_apply_script(self) -> None:
-        proc = subprocess.run(
+        proc = self._run(
             ["bash", "scripts/demo_governance_promote_apply.sh"],
             capture_output=True,
             text=True,
@@ -765,7 +770,7 @@ class DemoScriptTests(unittest.TestCase):
     def test_demo_governance_promote_apply_script_accepts_strict_ranking_flag(self) -> None:
         env = dict(os.environ)
         env["PROMOTE_APPLY_REQUIRE_RANKING_EXPLANATION"] = "1"
-        proc = subprocess.run(
+        proc = self._run(
             ["bash", "scripts/demo_governance_promote_apply.sh"],
             capture_output=True,
             text=True,
@@ -779,7 +784,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertEqual(payload.get("source_require_ranking_explanation"), "cli")
 
     def test_demo_governance_promote_apply_strict_guard_script(self) -> None:
-        proc = subprocess.run(
+        proc = self._run(
             ["bash", "scripts/demo_governance_promote_apply_strict_guard.sh"],
             capture_output=True,
             text=True,
@@ -796,7 +801,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertEqual(payload.get("with_explanation_apply_action"), "promote")
 
     def test_demo_governance_promote_apply_drift_script(self) -> None:
-        proc = subprocess.run(
+        proc = self._run(
             ["bash", "scripts/demo_governance_promote_apply_drift.sh"],
             capture_output=True,
             text=True,
@@ -812,7 +817,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertEqual(payload.get("drift_detected"), True)
 
     def test_demo_governance_promote_apply_explanation_structure_script(self) -> None:
-        proc = subprocess.run(
+        proc = self._run(
             ["bash", "scripts/demo_governance_promote_apply_explanation_structure.sh"],
             capture_output=True,
             text=True,
@@ -827,7 +832,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertEqual(payload.get("bundle_status"), "PASS")
 
     def test_demo_governance_promote_compare_validate_script(self) -> None:
-        proc = subprocess.run(
+        proc = self._run(
             ["bash", "scripts/demo_governance_promote_compare_validate.sh"],
             capture_output=True,
             text=True,
@@ -842,7 +847,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertEqual(payload.get("bad_status"), "FAIL")
 
     def test_demo_governance_policy_patch_apply_script(self) -> None:
-        proc = subprocess.run(
+        proc = self._run(
             ["bash", "scripts/demo_governance_policy_patch_apply.sh"],
             capture_output=True,
             text=True,
@@ -860,7 +865,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertEqual(statuses.get("approve_apply"), "PASS")
 
     def test_demo_governance_policy_patch_history_script(self) -> None:
-        proc = subprocess.run(
+        proc = self._run(
             ["bash", "scripts/demo_governance_policy_patch_history.sh"],
             capture_output=True,
             text=True,
@@ -879,7 +884,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertIn("latest_pairwise_threshold", payload)
 
     def test_demo_governance_policy_patch_dashboard_script(self) -> None:
-        proc = subprocess.run(
+        proc = self._run(
             ["bash", "scripts/demo_governance_policy_patch_dashboard.sh"],
             capture_output=True,
             text=True,
@@ -895,7 +900,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertIsInstance(payload.get("pairwise_threshold_enabled_count"), int)
 
     def test_demo_governance_compare_to_patch_chain_script(self) -> None:
-        proc = subprocess.run(
+        proc = self._run(
             ["bash", "scripts/demo_governance_compare_to_patch_chain.sh"],
             capture_output=True,
             text=True,
@@ -912,7 +917,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertIsInstance(payload.get("proposal_change_count"), int)
 
     def test_demo_agent_invariant_guard_script(self) -> None:
-        proc = subprocess.run(
+        proc = self._run(
             ["bash", "scripts/demo_agent_invariant_guard.sh"],
             capture_output=True,
             text=True,
@@ -926,7 +931,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertEqual(payload.get("high_decision"), "FAIL")
 
     def test_demo_policy_autotune_full_chain_script(self) -> None:
-        proc = subprocess.run(
+        proc = self._run(
             ["bash", "scripts/demo_policy_autotune_full_chain.sh"],
             capture_output=True,
             text=True,
@@ -939,7 +944,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertIn(payload.get("snapshot_status"), {"PASS", "NEEDS_REVIEW", "FAIL"})
 
     def test_demo_governance_history_script(self) -> None:
-        proc = subprocess.run(
+        proc = self._run(
             ["bash", "scripts/demo_governance_history.sh"],
             capture_output=True,
             text=True,
@@ -953,7 +958,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertIn("consecutive_worsening_detected", payload.get("alerts", []))
 
     def test_demo_governance_replay_script(self) -> None:
-        proc = subprocess.run(
+        proc = self._run(
             ["bash", "scripts/demo_governance_replay.sh"],
             capture_output=True,
             text=True,
@@ -967,7 +972,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertEqual(payload.get("strict_fail_decision"), "FAIL")
 
     def test_demo_governance_replay_history_script(self) -> None:
-        proc = subprocess.run(
+        proc = self._run(
             ["bash", "scripts/demo_governance_replay_history.sh"],
             capture_output=True,
             text=True,
@@ -982,7 +987,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertIn("mismatch_volume_high", payload.get("alerts", []))
 
     def test_demo_governance_replay_bundle_script(self) -> None:
-        proc = subprocess.run(
+        proc = self._run(
             ["bash", "scripts/demo_governance_replay_bundle.sh"],
             capture_output=True,
             text=True,
@@ -997,7 +1002,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertIn(payload.get("risk_level"), {"low", "medium", "high"})
 
     def test_demo_governance_policy_advisor_bundle_script(self) -> None:
-        proc = subprocess.run(
+        proc = self._run(
             ["bash", "scripts/demo_governance_policy_advisor_bundle.sh"],
             capture_output=True,
             text=True,
@@ -1012,7 +1017,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertIsInstance(payload.get("advice_evidence_count"), int)
 
     def test_demo_governance_decision_bundle_script(self) -> None:
-        proc = subprocess.run(
+        proc = self._run(
             ["bash", "scripts/demo_governance_decision_bundle.sh"],
             capture_output=True,
             text=True,
@@ -1032,7 +1037,7 @@ class DemoScriptTests(unittest.TestCase):
         env = dict(os.environ)
         env["MUTATION_BACKEND"] = "mock"
         env["MUTATION_COUNT"] = "8"
-        proc = subprocess.run(
+        proc = self._run(
             ["bash", "scripts/demo_mutation_pack_v0.sh"],
             capture_output=True,
             text=True,
@@ -1053,7 +1058,7 @@ class DemoScriptTests(unittest.TestCase):
         env = dict(os.environ)
         env["MUTATION_BACKEND"] = "mock"
         env["MUTATION_COUNT"] = "24"
-        proc = subprocess.run(
+        proc = self._run(
             ["bash", "scripts/demo_mutation_pack_v1.sh"],
             capture_output=True,
             text=True,
@@ -1072,7 +1077,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertIsInstance(metrics.get("failure_type_distribution"), dict)
 
     def test_demo_mutation_pack_compare_script(self) -> None:
-        proc = subprocess.run(
+        proc = self._run(
             ["bash", "scripts/demo_mutation_pack_compare.sh"],
             capture_output=True,
             text=True,
@@ -1084,7 +1089,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertIsInstance(payload.get("delta_match_rate"), float)
 
     def test_demo_mutation_dashboard_script(self) -> None:
-        proc = subprocess.run(
+        proc = self._run(
             ["bash", "scripts/demo_mutation_dashboard.sh"],
             capture_output=True,
             text=True,
@@ -1097,7 +1102,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertIsInstance(payload.get("latest_match_rate"), float)
 
     def test_demo_mutation_policy_patch_script(self) -> None:
-        proc = subprocess.run(
+        proc = self._run(
             ["bash", "scripts/demo_mutation_policy_patch.sh"],
             capture_output=True,
             text=True,
@@ -1110,7 +1115,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertIn(payload.get("apply_final_status"), {"PASS", "NEEDS_REVIEW"})
 
     def test_demo_policy_autotune_script(self) -> None:
-        proc = subprocess.run(
+        proc = self._run(
             ["bash", "scripts/demo_policy_autotune.sh"],
             capture_output=True,
             text=True,
@@ -1123,7 +1128,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertIn(payload.get("apply_final_status"), {"PASS", "NEEDS_REVIEW"})
 
     def test_demo_policy_autotune_history_script(self) -> None:
-        proc = subprocess.run(
+        proc = self._run(
             ["bash", "scripts/demo_policy_autotune_history.sh"],
             capture_output=True,
             text=True,
@@ -1136,7 +1141,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertIsInstance(payload.get("strict_suggestion_rate"), float)
 
     def test_demo_policy_autotune_governance_script(self) -> None:
-        proc = subprocess.run(
+        proc = self._run(
             ["bash", "scripts/demo_policy_autotune_governance.sh"],
             capture_output=True,
             text=True,
@@ -1152,7 +1157,7 @@ class DemoScriptTests(unittest.TestCase):
         self.assertIsInstance(payload.get("delta_pairwise_net_margin"), int)
 
     def test_demo_policy_autotune_governance_dashboard_script(self) -> None:
-        proc = subprocess.run(
+        proc = self._run(
             ["bash", "scripts/demo_policy_autotune_governance_dashboard.sh"],
             capture_output=True,
             text=True,
