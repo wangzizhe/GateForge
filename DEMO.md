@@ -282,6 +282,13 @@ bash scripts/demo_dataset_failure_policy_patch_advisor.sh
 cat artifacts/dataset_failure_policy_patch_advisor_demo/demo_summary.json
 ```
 
+## 17.5 Dataset Governance Evidence Pack
+
+```bash
+bash scripts/demo_dataset_governance_evidence_pack.sh
+cat artifacts/dataset_governance_evidence_pack_demo/demo_summary.json
+```
+
 ## 18. Dataset Policy Auto-Tune History
 
 ```bash

@@ -57,6 +57,7 @@ cat artifacts/proposal_run.json
 - Failure distribution benchmark (detection/false-positive/regression/drift)
 - Model scale ladder (small/medium/large readiness + CI lane recommendation)
 - Failure policy patch advisor (evidence-driven policy tightening suggestions)
+- Governance evidence pack (externally shareable proof artifact)
 
 ## Most Used Commands
 
