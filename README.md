@@ -58,6 +58,7 @@ cat artifacts/proposal_run.json
 - Model scale ladder (small/medium/large readiness + CI lane recommendation)
 - Failure policy patch advisor (evidence-driven policy tightening suggestions)
 - Governance evidence pack (externally shareable proof artifact)
+- Failure corpus registry (stable IDs, fingerprints, corpus versioning)
 
 ## Most Used Commands
 
