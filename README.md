@@ -91,6 +91,7 @@ cat artifacts/proposal_run.json
 - Open-source model intake v1 (license/reproducibility gate for external Modelica candidate import)
 - Mutation execution validator v1 (validate expected failure labels against repeated execution observations)
 - Failure distribution benchmark v2 (baseline + validated mutation outcome distribution benchmarking)
+- GateForge vs plain CI benchmark v1 (head-to-head critical block/escape/fp comparison)
 
 ## Most Used Commands
 
