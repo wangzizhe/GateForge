@@ -401,6 +401,13 @@ bash scripts/demo_dataset_failure_supply_plan.sh
 cat artifacts/dataset_failure_supply_plan_demo/demo_summary.json
 ```
 
+## 17.22 Dataset Model Scale Mix Guard
+
+```bash
+bash scripts/demo_dataset_model_scale_mix_guard.sh
+cat artifacts/dataset_model_scale_mix_guard_demo/demo_summary.json
+```
+
 ## 18. Dataset Policy Auto-Tune History
 
 ```bash
