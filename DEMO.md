@@ -415,6 +415,13 @@ bash scripts/demo_dataset_governance_evidence_release_manifest.sh
 cat artifacts/dataset_governance_evidence_release_manifest_demo/demo_summary.json
 ```
 
+## 17.24 Dataset External Proof Score
+
+```bash
+bash scripts/demo_dataset_external_proof_score.sh
+cat artifacts/dataset_external_proof_score_demo/demo_summary.json
+```
+
 ## 18. Dataset Policy Auto-Tune History
 
 ```bash

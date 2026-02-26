@@ -77,6 +77,7 @@ cat artifacts/proposal_run.json
 - Failure supply plan (weekly failure-case supply targets and channels)
 - Model scale mix guard (ratio guardrail for medium/large dataset share)
 - Governance evidence release manifest (externally shareable proof artifact manifest)
+- External proof score (single score for external evidence strength communication)
 
 ## Most Used Commands
 
