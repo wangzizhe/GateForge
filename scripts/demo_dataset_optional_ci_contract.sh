@@ -67,6 +67,23 @@ mapping = {
         "advisor_status": "PASS",
         "suggested_action": "keep",
     },
+    "dataset_blind_spot_backlog_demo/demo_summary.json": {
+        "bundle_status": "PASS",
+        "backlog_status": "NEEDS_REVIEW",
+        "total_open_tasks": 3,
+    },
+    "dataset_policy_patch_replay_evaluator_demo/demo_summary.json": {
+        "bundle_status": "PASS",
+        "evaluator_status": "PASS",
+        "recommendation": "ADOPT_PATCH",
+    },
+    "dataset_governance_evidence_pack_demo/demo_summary.json": {
+        "bundle_status": "PASS",
+        "evidence_pack_status": "PASS",
+        "evidence_strength_score": 78,
+        "backlog_open_tasks": 3,
+        "policy_patch_roi_score": 67,
+    },
     "dataset_promotion_candidate_demo/summary.json": {"bundle_status": "PASS", "decision": "HOLD"},
     "dataset_promotion_candidate_apply_demo/summary.json": {"bundle_status": "PASS"},
     "dataset_promotion_candidate_history_demo/summary.json": {"bundle_status": "PASS"},
@@ -96,6 +113,9 @@ else
   bash scripts/demo_dataset_failure_distribution_benchmark.sh >/dev/null
   bash scripts/demo_dataset_model_scale_ladder.sh >/dev/null
   bash scripts/demo_dataset_failure_policy_patch_advisor.sh >/dev/null
+  bash scripts/demo_dataset_blind_spot_backlog.sh >/dev/null
+  bash scripts/demo_dataset_policy_patch_replay_evaluator.sh >/dev/null
+  bash scripts/demo_dataset_governance_evidence_pack.sh >/dev/null
   bash scripts/demo_dataset_promotion_candidate.sh >/dev/null
   bash scripts/demo_dataset_promotion_candidate_apply.sh >/dev/null
   bash scripts/demo_dataset_promotion_candidate_history.sh >/dev/null

@@ -46,6 +46,12 @@ JSON
 cat > "$OUT_DIR/failure_policy_patch_advisor.json" <<'JSON'
 {"status":"PASS","advice":{"suggested_action":"keep"}}
 JSON
+cat > "$OUT_DIR/blind_spot_backlog_summary.json" <<'JSON'
+{"status":"NEEDS_REVIEW","total_open_tasks":3,"priority_counts":{"P0":1,"P1":1,"P2":1,"P3":0}}
+JSON
+cat > "$OUT_DIR/policy_patch_replay_evaluator_summary.json" <<'JSON'
+{"status":"PASS","recommendation":"ADOPT_PATCH","evaluation_score":4,"delta":{"detection_rate":0.05,"false_positive_rate":-0.02,"regression_rate":-0.04}}
+JSON
 
 python3 -m gateforge.dataset_governance_evidence_pack \
   --snapshot-summary "$OUT_DIR/snapshot_summary.json" \
@@ -54,6 +60,8 @@ python3 -m gateforge.dataset_governance_evidence_pack \
   --failure-distribution-benchmark "$OUT_DIR/failure_distribution_benchmark_summary.json" \
   --model-scale-ladder "$OUT_DIR/model_scale_ladder_summary.json" \
   --failure-policy-patch-advisor "$OUT_DIR/failure_policy_patch_advisor.json" \
+  --blind-spot-backlog "$OUT_DIR/blind_spot_backlog_summary.json" \
+  --policy-patch-replay-evaluator "$OUT_DIR/policy_patch_replay_evaluator_summary.json" \
   --out "$OUT_DIR/summary.json" \
   --report-out "$OUT_DIR/summary.md"
 
@@ -75,6 +83,8 @@ summary = {
     "evidence_strength_score": payload.get("evidence_strength_score"),
     "residual_risk_count": payload.get("residual_risk_count"),
     "proof_point_count": len(payload.get("proof_points") or []),
+    "backlog_open_tasks": (payload.get("action_outcome") or {}).get("backlog_open_tasks"),
+    "policy_patch_roi_score": (payload.get("action_outcome") or {}).get("policy_patch_roi_score"),
     "result_flags": flags,
     "bundle_status": bundle_status,
 }
@@ -88,6 +98,8 @@ summary = {
             f"- evidence_strength_score: `{summary['evidence_strength_score']}`",
             f"- residual_risk_count: `{summary['residual_risk_count']}`",
             f"- proof_point_count: `{summary['proof_point_count']}`",
+            f"- backlog_open_tasks: `{summary['backlog_open_tasks']}`",
+            f"- policy_patch_roi_score: `{summary['policy_patch_roi_score']}`",
             f"- bundle_status: `{summary['bundle_status']}`",
             "",
             "## Result Flags",

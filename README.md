@@ -61,6 +61,7 @@ cat artifacts/proposal_run.json
 - Failure corpus registry (stable IDs, fingerprints, corpus versioning)
 - Blind-spot backlog generator (prioritized coverage gap tasks)
 - Policy patch replay evaluator (before/after patch impact scoring)
+- Governance evidence pack v2 (action-outcome + policy ROI context)
 
 ## Most Used Commands
 
