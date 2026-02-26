@@ -65,6 +65,7 @@ cat artifacts/proposal_run.json
 - Moat trend snapshot (time-series moat metrics and deltas)
 - Backlog execution bridge (convert blind spots to ready execution tasks)
 - Replay quality guard (sample-size and stability checks for replay conclusions)
+- Failure coverage planner (prioritized coverage plan with expected moat deltas)
 
 ## Most Used Commands
 
