@@ -133,6 +133,7 @@ on:
 
 jobs:
   test-sharded:
+    name: "CI / Test (Sharded)"
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -178,6 +179,7 @@ jobs:
           if-no-files-found: ignore
 
   smoke-gate:
+    name: "CI / Smoke Gate"
     needs: test-sharded
     runs-on: ubuntu-latest
     env:
@@ -228,6 +230,7 @@ jobs:
             artifacts/regression.md
 
   test-and-smoke:
+    name: "CI / Test and Smoke"
     needs:
       - test-sharded
       - smoke-gate
@@ -246,6 +249,7 @@ jobs:
           echo "test-and-smoke gate passed"
 
   benchmark-optional:
+    name: "Optional / Benchmark"
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_benchmark }}
     continue-on-error: true
     runs-on: ubuntu-latest
@@ -292,6 +296,7 @@ jobs:
             artifacts/benchmark_medium_v1
 
   medium-governance-optional:
+    name: "Optional / Governance Snapshot Medium"
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_governance_snapshot_demo }}
     continue-on-error: true
     runs-on: ubuntu-latest
@@ -328,6 +333,7 @@ jobs:
             artifacts/governance_snapshot_advisor_history_demo
 
   policy-autotune-optional:
+    name: "Optional / Policy Autotune"
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_governance_history_demo }}
     continue-on-error: true
     runs-on: ubuntu-latest
@@ -382,6 +388,7 @@ jobs:
             artifacts/policy_autotune_governance_advisor_history_demo
 
   runtime-governance-history-optional:
+    name: "Optional / Runtime Governance History"
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_governance_history_demo }}
     continue-on-error: true
     runs-on: ubuntu-latest
@@ -422,6 +429,7 @@ jobs:
             artifacts/policy_autotune_full_chain_demo
 
   mutation-pack-optional:
+    name: "Optional / Mutation Pack"
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_benchmark }}
     continue-on-error: true
     runs-on: ubuntu-latest
@@ -464,6 +472,7 @@ jobs:
             examples/mutants/v1
 
   dataset-pipeline-optional:
+    name: "Optional / Dataset Pipeline"
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_benchmark }}
     continue-on-error: true
     runs-on: ubuntu-latest
@@ -535,6 +544,7 @@ jobs:
             artifacts/dataset
 
   mvp-freeze-optional:
+    name: "Optional / MVP Freeze"
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_benchmark }}
     continue-on-error: true
     runs-on: ubuntu-latest
@@ -564,6 +574,7 @@ jobs:
             artifacts/mvp_freeze
 
   checker-demo-optional:
+    name: "Optional / Checker Demo"
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_checker_demo }}
     continue-on-error: true
     runs-on: ubuntu-latest
@@ -638,6 +649,7 @@ jobs:
             artifacts/checker_demo_summary.md
 
   steady-state-demo-optional:
+    name: "Optional / Steady State Demo"
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_steady_state_demo }}
     continue-on-error: true
     runs-on: ubuntu-latest
@@ -707,6 +719,7 @@ jobs:
             artifacts/steady_state_demo_summary.md
 
   behavior-metrics-demo-optional:
+    name: "Optional / Behavior Metrics Demo"
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_behavior_metrics_demo }}
     continue-on-error: true
     runs-on: ubuntu-latest
@@ -777,6 +790,7 @@ jobs:
             artifacts/behavior_metrics_demo/summary.md
 
   demo-bundle-optional:
+    name: "Optional / Demo Bundle"
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_demo_bundle }}
     runs-on: ubuntu-latest
     env:
@@ -872,6 +886,7 @@ jobs:
             artifacts/demo_all_summary.json
 
   autopilot-dry-run-optional:
+    name: "Optional / Autopilot Dry Run"
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_autopilot_dry_run }}
     continue-on-error: true
     runs-on: ubuntu-latest
@@ -938,6 +953,7 @@ jobs:
             artifacts/autopilot/autopilot_dry_run_demo.md
 
   agent-change-loop-optional:
+    name: "Optional / Agent Change Loop"
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_agent_change_loop }}
     continue-on-error: true
     runs-on: ubuntu-latest
@@ -1010,6 +1026,7 @@ jobs:
             artifacts/agent_change_loop/summary.md
 
   repair-loop-optional:
+    name: "Optional / Repair Loop"
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_repair_loop }}
     continue-on-error: true
     runs-on: ubuntu-latest
@@ -1075,6 +1092,7 @@ jobs:
             artifacts/repair_loop/demo_summary.md
 
   repair-loop-safety-guard-optional:
+    name: "Optional / Repair Loop Safety Guard"
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_repair_loop_safety_guard }}
     continue-on-error: true
     runs-on: ubuntu-latest
@@ -1140,6 +1158,7 @@ jobs:
             artifacts/repair_loop_safety_demo/demo_summary.md
 
   planner-guardrails-optional:
+    name: "Optional / Planner Guardrails"
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_planner_guardrails }}
     continue-on-error: true
     runs-on: ubuntu-latest
@@ -1207,6 +1226,7 @@ jobs:
             artifacts/planner_guardrails_demo/summary.md
 
   planner-output-validate-demo-optional:
+    name: "Optional / Planner Output Validate"
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_planner_output_validate_demo }}
     continue-on-error: true
     runs-on: ubuntu-latest
@@ -1270,6 +1290,7 @@ jobs:
             artifacts/planner_output_validate_demo/summary.md
 
   repair-batch-demo-optional:
+    name: "Optional / Repair Batch Demo"
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_repair_batch_demo }}
     continue-on-error: true
     runs-on: ubuntu-latest
@@ -1335,6 +1356,7 @@ jobs:
             artifacts/repair_batch_demo/demo_summary.md
 
   repair-batch-compare-demo-optional:
+    name: "Optional / Repair Batch Compare"
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_repair_batch_compare_demo }}
     continue-on-error: true
     runs-on: ubuntu-latest
@@ -1402,6 +1424,7 @@ jobs:
             artifacts/repair_batch_compare_demo/demo_summary.md
 
   repair-tasks-demo-optional:
+    name: "Optional / Repair Tasks Demo"
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_repair_tasks_demo }}
     continue-on-error: true
     runs-on: ubuntu-latest
@@ -1467,6 +1490,7 @@ jobs:
             artifacts/repair_tasks_demo/demo_summary.md
 
   repair-pack-from-tasks-demo-optional:
+    name: "Optional / Repair Pack from Tasks"
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_repair_pack_from_tasks_demo }}
     continue-on-error: true
     runs-on: ubuntu-latest
@@ -1535,6 +1559,7 @@ jobs:
             artifacts/repair_pack_demo/demo_summary.md
 
   repair-orchestrate-demo-optional:
+    name: "Optional / Repair Orchestrate"
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_repair_orchestrate_demo }}
     continue-on-error: true
     runs-on: ubuntu-latest
@@ -1604,6 +1629,7 @@ jobs:
             artifacts/repair_orchestrate_demo/demo_summary.md
 
   repair-orchestrate-compare-demo-optional:
+    name: "Optional / Repair Orchestrate Compare"
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_repair_orchestrate_compare_demo }}
     continue-on-error: true
     runs-on: ubuntu-latest
@@ -1681,6 +1707,7 @@ jobs:
             artifacts/repair_orchestrate_compare_demo/demo_summary.md
 
   governance-snapshot-demo-optional:
+    name: "Optional / Governance Snapshot"
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_governance_snapshot_demo }}
     continue-on-error: true
     runs-on: ubuntu-latest
@@ -1746,6 +1773,7 @@ jobs:
             artifacts/governance_snapshot_demo/summary.md
 
   governance-snapshot-orchestrate-demo-optional:
+    name: "Optional / Governance Snapshot Orchestrate"
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_governance_snapshot_demo }}
     continue-on-error: true
     runs-on: ubuntu-latest
@@ -1813,6 +1841,7 @@ jobs:
             artifacts/repair_orchestrate_compare_demo/demo_summary.json
 
   governance-snapshot-trend-demo-optional:
+    name: "Optional / Governance Snapshot Trend"
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_governance_snapshot_demo }}
     continue-on-error: true
     runs-on: ubuntu-latest
@@ -1877,6 +1906,7 @@ jobs:
             artifacts/governance_snapshot_trend_demo/summary.md
 
   governance-history-demo-optional:
+    name: "Optional / Governance History"
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_governance_history_demo }}
     continue-on-error: true
     runs-on: ubuntu-latest
@@ -2048,6 +2078,7 @@ jobs:
             artifacts/governance_policy_advisor_bundle_demo/summary.md
 
   governance-promote-demo-optional:
+    name: "Optional / Governance Promote"
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_governance_promote_demo }}
     continue-on-error: true
     runs-on: ubuntu-latest
@@ -2120,6 +2151,7 @@ jobs:
             artifacts/governance_promote_demo/summary.md
 
   governance-promote-compare-demo-optional:
+    name: "Optional / Governance Promote Compare"
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_governance_promote_compare_demo }}
     continue-on-error: true
     runs-on: ubuntu-latest
@@ -2198,6 +2230,7 @@ jobs:
             artifacts/governance_promote_compare_demo/demo_summary.md
 
   governance-compare-to-patch-chain-optional:
+    name: "Optional / Governance Compare to Patch Chain"
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_governance_promote_compare_demo }}
     continue-on-error: true
     runs-on: ubuntu-latest
@@ -2273,6 +2306,7 @@ jobs:
             artifacts/governance_compare_to_patch_chain_demo/summary.md
 
   governance-promote-apply-demo-optional:
+    name: "Optional / Governance Promote Apply"
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_governance_promote_apply_demo }}
     continue-on-error: true
     runs-on: ubuntu-latest
@@ -2452,6 +2486,7 @@ jobs:
             artifacts/governance_promote_compare_validate_demo/summary.md
 
   governance-policy-patch-explainable-optional:
+    name: "Optional / Governance Policy Patch Explainable"
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_governance_promote_compare_demo }}
     continue-on-error: true
     runs-on: ubuntu-latest
@@ -2524,6 +2559,7 @@ jobs:
             artifacts/governance_policy_patch_explainable_demo/summary.md
 
   agent-invariant-guard-demo-optional:
+    name: "Optional / Agent Invariant Guard"
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_agent_invariant_guard_demo }}
     continue-on-error: true
     runs-on: ubuntu-latest
@@ -2593,6 +2629,7 @@ jobs:
             artifacts/agent_invariant_guard_demo/summary.md
 
   invariant-repair-loop-demo-optional:
+    name: "Optional / Invariant Repair Loop"
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_invariant_repair_loop_demo }}
     continue-on-error: true
     runs-on: ubuntu-latest
@@ -2660,6 +2697,7 @@ jobs:
             artifacts/invariant_repair_loop_demo/demo_summary.md
 
   invariant-repair-profile-compare-demo-optional:
+    name: "Optional / Invariant Repair Profile Compare"
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_invariant_repair_loop_demo }}
     continue-on-error: true
     runs-on: ubuntu-latest
