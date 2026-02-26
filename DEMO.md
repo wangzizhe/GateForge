@@ -289,6 +289,13 @@ bash scripts/demo_dataset_governance_evidence_pack.sh
 cat artifacts/dataset_governance_evidence_pack_demo/demo_summary.json
 ```
 
+## 17.6 Dataset Failure Corpus Registry
+
+```bash
+bash scripts/demo_dataset_failure_corpus_registry.sh
+cat artifacts/dataset_failure_corpus_registry_demo/demo_summary.json
+```
+
 ## 18. Dataset Policy Auto-Tune History
 
 ```bash
