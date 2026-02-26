@@ -83,6 +83,14 @@ def _status_from_signals(signals: dict) -> str:
         return "NEEDS_REVIEW"
     if signals.get("dataset_failure_policy_patch_advisor_needs_review"):
         return "NEEDS_REVIEW"
+    if signals.get("dataset_modelica_library_provenance_guard_needs_review"):
+        return "NEEDS_REVIEW"
+    if signals.get("dataset_large_model_benchmark_pack_needs_review"):
+        return "NEEDS_REVIEW"
+    if signals.get("dataset_mutation_campaign_tracker_needs_review"):
+        return "NEEDS_REVIEW"
+    if signals.get("dataset_moat_public_scoreboard_needs_review"):
+        return "NEEDS_REVIEW"
     return "PASS"
 
 
@@ -107,6 +115,10 @@ def _compute_summary(
     failure_distribution_benchmark: dict,
     model_scale_ladder: dict,
     failure_policy_patch_advisor: dict,
+    modelica_library_provenance_guard: dict,
+    large_model_benchmark_pack: dict,
+    mutation_campaign_tracker: dict,
+    moat_public_scoreboard: dict,
 ) -> dict:
     strategy_advice = (
         strategy_advisor.get("advice")
@@ -151,6 +163,16 @@ def _compute_summary(
         in {"NEEDS_REVIEW", "FAIL"},
         "dataset_model_scale_ladder_needs_review": str(model_scale_ladder.get("status") or "") in {"NEEDS_REVIEW", "FAIL"},
         "dataset_failure_policy_patch_advisor_needs_review": str(failure_policy_patch_advisor.get("status") or "")
+        in {"NEEDS_REVIEW", "FAIL"},
+        "dataset_modelica_library_provenance_guard_needs_review": str(
+            modelica_library_provenance_guard.get("status") or ""
+        )
+        in {"NEEDS_REVIEW", "FAIL"},
+        "dataset_large_model_benchmark_pack_needs_review": str(large_model_benchmark_pack.get("status") or "")
+        in {"NEEDS_REVIEW", "FAIL"},
+        "dataset_mutation_campaign_tracker_needs_review": str(mutation_campaign_tracker.get("status") or "")
+        in {"NEEDS_REVIEW", "FAIL"},
+        "dataset_moat_public_scoreboard_needs_review": str(moat_public_scoreboard.get("status") or "")
         in {"NEEDS_REVIEW", "FAIL"},
     }
     status = _status_from_signals(signals)
@@ -198,6 +220,14 @@ def _compute_summary(
         risks.append("dataset_model_scale_ladder_needs_review")
     if signals["dataset_failure_policy_patch_advisor_needs_review"]:
         risks.append("dataset_failure_policy_patch_advisor_needs_review")
+    if signals["dataset_modelica_library_provenance_guard_needs_review"]:
+        risks.append("dataset_modelica_library_provenance_guard_needs_review")
+    if signals["dataset_large_model_benchmark_pack_needs_review"]:
+        risks.append("dataset_large_model_benchmark_pack_needs_review")
+    if signals["dataset_mutation_campaign_tracker_needs_review"]:
+        risks.append("dataset_mutation_campaign_tracker_needs_review")
+    if signals["dataset_moat_public_scoreboard_needs_review"]:
+        risks.append("dataset_moat_public_scoreboard_needs_review")
 
     policy_patch_advice = (
         failure_policy_patch_advisor.get("advice")
@@ -283,6 +313,31 @@ def _compute_summary(
         "dataset_failure_policy_patch_suggested_action": policy_patch_advice.get("suggested_action"),
         "dataset_failure_policy_patch_confidence": _to_float(policy_patch_advice.get("confidence", 0.0)),
         "dataset_failure_policy_patch_reason_count": len(policy_patch_reasons),
+        "dataset_modelica_library_provenance_guard_status": modelica_library_provenance_guard.get("status"),
+        "dataset_modelica_library_provenance_completeness_pct": _to_float(
+            modelica_library_provenance_guard.get("provenance_completeness_pct", 0.0)
+        ),
+        "dataset_modelica_library_unknown_license_ratio_pct": _to_float(
+            modelica_library_provenance_guard.get("unknown_license_ratio_pct", 0.0)
+        ),
+        "dataset_large_model_benchmark_pack_status": large_model_benchmark_pack.get("status"),
+        "dataset_large_model_benchmark_pack_readiness_score": _to_float(
+            large_model_benchmark_pack.get("pack_readiness_score", 0.0)
+        ),
+        "dataset_large_model_benchmark_selected_models": _to_int(
+            large_model_benchmark_pack.get("selected_large_models", 0)
+        ),
+        "dataset_large_model_benchmark_selected_mutations": _to_int(
+            large_model_benchmark_pack.get("selected_large_mutations", 0)
+        ),
+        "dataset_mutation_campaign_tracker_status": mutation_campaign_tracker.get("status"),
+        "dataset_mutation_campaign_completion_ratio_pct": _to_float(
+            mutation_campaign_tracker.get("completion_ratio_pct", 0.0)
+        ),
+        "dataset_mutation_campaign_phase": mutation_campaign_tracker.get("campaign_phase"),
+        "dataset_moat_public_scoreboard_status": moat_public_scoreboard.get("status"),
+        "dataset_moat_public_score": _to_float(moat_public_scoreboard.get("moat_public_score", 0.0)),
+        "dataset_moat_public_verdict": moat_public_scoreboard.get("verdict"),
     }
     return {
         "status": status,
@@ -344,6 +399,19 @@ def _write_markdown(path: str, summary: dict) -> None:
         f"- dataset_failure_policy_patch_suggested_action: `{kpis.get('dataset_failure_policy_patch_suggested_action')}`",
         f"- dataset_failure_policy_patch_confidence: `{kpis.get('dataset_failure_policy_patch_confidence')}`",
         f"- dataset_failure_policy_patch_reason_count: `{kpis.get('dataset_failure_policy_patch_reason_count')}`",
+        f"- dataset_modelica_library_provenance_guard_status: `{kpis.get('dataset_modelica_library_provenance_guard_status')}`",
+        f"- dataset_modelica_library_provenance_completeness_pct: `{kpis.get('dataset_modelica_library_provenance_completeness_pct')}`",
+        f"- dataset_modelica_library_unknown_license_ratio_pct: `{kpis.get('dataset_modelica_library_unknown_license_ratio_pct')}`",
+        f"- dataset_large_model_benchmark_pack_status: `{kpis.get('dataset_large_model_benchmark_pack_status')}`",
+        f"- dataset_large_model_benchmark_pack_readiness_score: `{kpis.get('dataset_large_model_benchmark_pack_readiness_score')}`",
+        f"- dataset_large_model_benchmark_selected_models: `{kpis.get('dataset_large_model_benchmark_selected_models')}`",
+        f"- dataset_large_model_benchmark_selected_mutations: `{kpis.get('dataset_large_model_benchmark_selected_mutations')}`",
+        f"- dataset_mutation_campaign_tracker_status: `{kpis.get('dataset_mutation_campaign_tracker_status')}`",
+        f"- dataset_mutation_campaign_completion_ratio_pct: `{kpis.get('dataset_mutation_campaign_completion_ratio_pct')}`",
+        f"- dataset_mutation_campaign_phase: `{kpis.get('dataset_mutation_campaign_phase')}`",
+        f"- dataset_moat_public_scoreboard_status: `{kpis.get('dataset_moat_public_scoreboard_status')}`",
+        f"- dataset_moat_public_score: `{kpis.get('dataset_moat_public_score')}`",
+        f"- dataset_moat_public_verdict: `{kpis.get('dataset_moat_public_verdict')}`",
         "",
         "## Risks",
         "",
@@ -436,6 +504,26 @@ def main() -> None:
         default=None,
         help="Path to dataset failure policy patch advisor JSON",
     )
+    parser.add_argument(
+        "--dataset-modelica-library-provenance-guard",
+        default=None,
+        help="Path to dataset modelica library provenance guard summary JSON",
+    )
+    parser.add_argument(
+        "--dataset-large-model-benchmark-pack",
+        default=None,
+        help="Path to dataset large model benchmark pack summary JSON",
+    )
+    parser.add_argument(
+        "--dataset-mutation-campaign-tracker",
+        default=None,
+        help="Path to dataset mutation campaign tracker summary JSON",
+    )
+    parser.add_argument(
+        "--dataset-moat-public-scoreboard",
+        default=None,
+        help="Path to dataset moat public scoreboard summary JSON",
+    )
     parser.add_argument("--out", default="artifacts/dataset_governance_snapshot/summary.json", help="Output JSON path")
     parser.add_argument("--report", default=None, help="Output markdown path")
     args = parser.parse_args()
@@ -460,6 +548,10 @@ def main() -> None:
     failure_distribution_benchmark = _load_json(args.dataset_failure_distribution_benchmark)
     model_scale_ladder = _load_json(args.dataset_model_scale_ladder)
     failure_policy_patch_advisor = _load_json(args.dataset_failure_policy_patch_advisor)
+    modelica_library_provenance_guard = _load_json(args.dataset_modelica_library_provenance_guard)
+    large_model_benchmark_pack = _load_json(args.dataset_large_model_benchmark_pack)
+    mutation_campaign_tracker = _load_json(args.dataset_mutation_campaign_tracker)
+    moat_public_scoreboard = _load_json(args.dataset_moat_public_scoreboard)
 
     summary = _compute_summary(
         dataset_pipeline,
@@ -482,6 +574,10 @@ def main() -> None:
         failure_distribution_benchmark,
         model_scale_ladder,
         failure_policy_patch_advisor,
+        modelica_library_provenance_guard,
+        large_model_benchmark_pack,
+        mutation_campaign_tracker,
+        moat_public_scoreboard,
     )
     summary["generated_at_utc"] = datetime.now(timezone.utc).isoformat()
     summary["sources"] = {
@@ -505,6 +601,10 @@ def main() -> None:
         "dataset_failure_distribution_benchmark_path": args.dataset_failure_distribution_benchmark,
         "dataset_model_scale_ladder_path": args.dataset_model_scale_ladder,
         "dataset_failure_policy_patch_advisor_path": args.dataset_failure_policy_patch_advisor,
+        "dataset_modelica_library_provenance_guard_path": args.dataset_modelica_library_provenance_guard,
+        "dataset_large_model_benchmark_pack_path": args.dataset_large_model_benchmark_pack,
+        "dataset_mutation_campaign_tracker_path": args.dataset_mutation_campaign_tracker,
+        "dataset_moat_public_scoreboard_path": args.dataset_moat_public_scoreboard,
     }
 
     _write_json(args.out, summary)

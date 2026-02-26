@@ -105,6 +105,14 @@ def main() -> None:
                 "model_scale_large_ready",
                 "failure_policy_patch_advisor_status",
                 "failure_policy_patch_suggested_action",
+                "modelica_library_provenance_guard_status",
+                "modelica_library_provenance_completeness_pct",
+                "large_model_benchmark_pack_status",
+                "large_model_benchmark_pack_readiness_score",
+                "mutation_campaign_tracker_status",
+                "mutation_campaign_completion_ratio_pct",
+                "moat_public_scoreboard_status",
+                "moat_public_score",
             ],
         ),
         (
@@ -118,6 +126,10 @@ def main() -> None:
                 "failure_distribution_benchmark_status_transition",
                 "model_scale_ladder_status_transition",
                 "failure_policy_patch_advisor_status_transition",
+                "modelica_library_provenance_guard_status_transition",
+                "large_model_benchmark_pack_status_transition",
+                "mutation_campaign_tracker_status_transition",
+                "moat_public_scoreboard_status_transition",
                 "status_delta_alert_count",
                 "severity_level",
             ],
@@ -212,6 +224,32 @@ def main() -> None:
             "dataset_policy_autotune_history_demo",
             "dataset_policy_autotune_history_demo/summary.json",
             ["bundle_status"],
+        ),
+        (
+            "dataset_modelica_library_provenance_guard_v1_demo",
+            "dataset_modelica_library_provenance_guard_v1_demo/demo_summary.json",
+            ["bundle_status", "guard_status", "provenance_completeness_pct", "unknown_license_ratio_pct"],
+        ),
+        (
+            "dataset_large_model_benchmark_pack_v1_demo",
+            "dataset_large_model_benchmark_pack_v1_demo/demo_summary.json",
+            [
+                "bundle_status",
+                "pack_status",
+                "pack_readiness_score",
+                "selected_large_models",
+                "selected_large_mutations",
+            ],
+        ),
+        (
+            "dataset_mutation_campaign_tracker_v1_demo",
+            "dataset_mutation_campaign_tracker_v1_demo/demo_summary.json",
+            ["bundle_status", "tracker_status", "campaign_phase", "completion_ratio_pct"],
+        ),
+        (
+            "dataset_moat_public_scoreboard_v1_demo",
+            "dataset_moat_public_scoreboard_v1_demo/demo_summary.json",
+            ["bundle_status", "scoreboard_status", "moat_public_score", "verdict"],
         ),
     ]
     checks = [_validate_required_summary(root, name, rel_path, keys) for name, rel_path, keys in required]

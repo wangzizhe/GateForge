@@ -43,6 +43,17 @@ cat > "$OUT_DIR/previous_summary.json" <<'JSON'
     "dataset_failure_policy_patch_advisor_status": "PASS",
     "dataset_failure_policy_patch_confidence": 0.64,
     "dataset_failure_policy_patch_reason_count": 1,
+    "dataset_modelica_library_provenance_guard_status": "PASS",
+    "dataset_modelica_library_provenance_completeness_pct": 98.0,
+    "dataset_modelica_library_unknown_license_ratio_pct": 0.0,
+    "dataset_large_model_benchmark_pack_status": "PASS",
+    "dataset_large_model_benchmark_pack_readiness_score": 80.0,
+    "dataset_large_model_benchmark_selected_models": 2,
+    "dataset_large_model_benchmark_selected_mutations": 6,
+    "dataset_mutation_campaign_tracker_status": "PASS",
+    "dataset_mutation_campaign_completion_ratio_pct": 82.0,
+    "dataset_moat_public_scoreboard_status": "PASS",
+    "dataset_moat_public_score": 78.0,
     "dataset_promotion_effectiveness_history_trend_status": "PASS",
     "dataset_promotion_effectiveness_history_latest_decision": "KEEP"
   }
@@ -95,6 +106,18 @@ demo = {
     "failure_policy_patch_advisor_status_transition": (trend.get("status_delta") or {}).get(
         "dataset_failure_policy_patch_advisor_status_transition"
     ),
+    "modelica_library_provenance_guard_status_transition": (trend.get("status_delta") or {}).get(
+        "dataset_modelica_library_provenance_guard_status_transition"
+    ),
+    "large_model_benchmark_pack_status_transition": (trend.get("status_delta") or {}).get(
+        "dataset_large_model_benchmark_pack_status_transition"
+    ),
+    "mutation_campaign_tracker_status_transition": (trend.get("status_delta") or {}).get(
+        "dataset_mutation_campaign_tracker_status_transition"
+    ),
+    "moat_public_scoreboard_status_transition": (trend.get("status_delta") or {}).get(
+        "dataset_moat_public_scoreboard_status_transition"
+    ),
     "status_delta_alert_count": len((trend.get("status_delta") or {}).get("alerts") or []),
     "result_flags": flags,
     "bundle_status": bundle_status,
@@ -116,6 +139,10 @@ demo = {
             f"- failure_distribution_benchmark_status_transition: `{demo['failure_distribution_benchmark_status_transition']}`",
             f"- model_scale_ladder_status_transition: `{demo['model_scale_ladder_status_transition']}`",
             f"- failure_policy_patch_advisor_status_transition: `{demo['failure_policy_patch_advisor_status_transition']}`",
+            f"- modelica_library_provenance_guard_status_transition: `{demo['modelica_library_provenance_guard_status_transition']}`",
+            f"- large_model_benchmark_pack_status_transition: `{demo['large_model_benchmark_pack_status_transition']}`",
+            f"- mutation_campaign_tracker_status_transition: `{demo['mutation_campaign_tracker_status_transition']}`",
+            f"- moat_public_scoreboard_status_transition: `{demo['moat_public_scoreboard_status_transition']}`",
             f"- status_delta_alert_count: `{demo['status_delta_alert_count']}`",
             f"- bundle_status: `{demo['bundle_status']}`",
             "",

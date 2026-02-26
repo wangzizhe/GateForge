@@ -15,7 +15,9 @@ if [ "${GATEFORGE_DEMO_FAST:-0}" = "1" ]; then
     artifacts/dataset_promotion_candidate_apply_history_demo artifacts/dataset_promotion_effectiveness_demo \
     artifacts/dataset_promotion_effectiveness_history_demo artifacts/dataset_failure_taxonomy_coverage_demo \
     artifacts/dataset_failure_distribution_benchmark_demo artifacts/dataset_model_scale_ladder_demo \
-    artifacts/dataset_failure_policy_patch_advisor_demo
+    artifacts/dataset_failure_policy_patch_advisor_demo artifacts/dataset_modelica_library_provenance_guard_v1_demo \
+    artifacts/dataset_large_model_benchmark_pack_v1_demo artifacts/dataset_mutation_campaign_tracker_v1_demo \
+    artifacts/dataset_moat_public_scoreboard_v1_demo
   cat > artifacts/dataset_pipeline_demo/summary.json <<'JSON'
 {"bundle_status":"PASS","build_deduplicated_cases":12,"quality_failure_case_rate":0.3}
 JSON
@@ -76,6 +78,18 @@ JSON
   cat > artifacts/dataset_failure_policy_patch_advisor_demo/advisor.json <<'JSON'
 {"status":"PASS","advice":{"suggested_action":"keep","suggested_policy_profile":"dataset_default","confidence":0.64,"reasons":["signals_stable"]}}
 JSON
+  cat > artifacts/dataset_modelica_library_provenance_guard_v1_demo/summary.json <<'JSON'
+{"status":"PASS","provenance_completeness_pct":99.0,"unknown_license_ratio_pct":0.0}
+JSON
+  cat > artifacts/dataset_large_model_benchmark_pack_v1_demo/summary.json <<'JSON'
+{"status":"PASS","pack_readiness_score":86.0,"selected_large_models":3,"selected_large_mutations":8}
+JSON
+  cat > artifacts/dataset_mutation_campaign_tracker_v1_demo/summary.json <<'JSON'
+{"status":"PASS","completion_ratio_pct":88.0,"campaign_phase":"scale_out"}
+JSON
+  cat > artifacts/dataset_moat_public_scoreboard_v1_demo/summary.json <<'JSON'
+{"status":"PASS","moat_public_score":84.0,"verdict":"STRONG_MOAT_SIGNAL"}
+JSON
 else
   bash scripts/demo_dataset_pipeline.sh >/dev/null
   bash scripts/demo_dataset_history.sh >/dev/null
@@ -98,6 +112,10 @@ else
   bash scripts/demo_dataset_failure_distribution_benchmark.sh >/dev/null
   bash scripts/demo_dataset_model_scale_ladder.sh >/dev/null
   bash scripts/demo_dataset_failure_policy_patch_advisor.sh >/dev/null
+  bash scripts/demo_dataset_modelica_library_provenance_guard_v1.sh >/dev/null
+  bash scripts/demo_dataset_large_model_benchmark_pack_v1.sh >/dev/null
+  bash scripts/demo_dataset_mutation_campaign_tracker_v1.sh >/dev/null
+  bash scripts/demo_dataset_moat_public_scoreboard_v1.sh >/dev/null
 fi
 
 ARGS=(
@@ -141,6 +159,18 @@ fi
 if [ -f artifacts/dataset_failure_policy_patch_advisor_demo/advisor.json ]; then
   ARGS+=(--dataset-failure-policy-patch-advisor artifacts/dataset_failure_policy_patch_advisor_demo/advisor.json)
 fi
+if [ -f artifacts/dataset_modelica_library_provenance_guard_v1_demo/summary.json ]; then
+  ARGS+=(--dataset-modelica-library-provenance-guard artifacts/dataset_modelica_library_provenance_guard_v1_demo/summary.json)
+fi
+if [ -f artifacts/dataset_large_model_benchmark_pack_v1_demo/summary.json ]; then
+  ARGS+=(--dataset-large-model-benchmark-pack artifacts/dataset_large_model_benchmark_pack_v1_demo/summary.json)
+fi
+if [ -f artifacts/dataset_mutation_campaign_tracker_v1_demo/summary.json ]; then
+  ARGS+=(--dataset-mutation-campaign-tracker artifacts/dataset_mutation_campaign_tracker_v1_demo/summary.json)
+fi
+if [ -f artifacts/dataset_moat_public_scoreboard_v1_demo/summary.json ]; then
+  ARGS+=(--dataset-moat-public-scoreboard artifacts/dataset_moat_public_scoreboard_v1_demo/summary.json)
+fi
 
 python3 -m gateforge.dataset_governance_snapshot \
   "${ARGS[@]}" \
@@ -172,6 +202,18 @@ flags = {
     "failure_policy_patch_kpi_present": "PASS"
     if isinstance((payload.get("kpis") or {}).get("dataset_failure_policy_patch_advisor_status"), (str, type(None)))
     else "FAIL",
+    "modelica_library_provenance_kpi_present": "PASS"
+    if isinstance((payload.get("kpis") or {}).get("dataset_modelica_library_provenance_guard_status"), (str, type(None)))
+    else "FAIL",
+    "large_model_benchmark_pack_kpi_present": "PASS"
+    if isinstance((payload.get("kpis") or {}).get("dataset_large_model_benchmark_pack_status"), (str, type(None)))
+    else "FAIL",
+    "mutation_campaign_tracker_kpi_present": "PASS"
+    if isinstance((payload.get("kpis") or {}).get("dataset_mutation_campaign_tracker_status"), (str, type(None)))
+    else "FAIL",
+    "moat_public_scoreboard_kpi_present": "PASS"
+    if isinstance((payload.get("kpis") or {}).get("dataset_moat_public_scoreboard_status"), (str, type(None)))
+    else "FAIL",
 }
 bundle_status = "PASS" if all(v == "PASS" for v in flags.values()) else "FAIL"
 summary = {
@@ -197,6 +239,14 @@ summary = {
     "model_scale_large_ready": (payload.get("kpis") or {}).get("dataset_model_scale_large_ready"),
     "failure_policy_patch_advisor_status": (payload.get("kpis") or {}).get("dataset_failure_policy_patch_advisor_status"),
     "failure_policy_patch_suggested_action": (payload.get("kpis") or {}).get("dataset_failure_policy_patch_suggested_action"),
+    "modelica_library_provenance_guard_status": (payload.get("kpis") or {}).get("dataset_modelica_library_provenance_guard_status"),
+    "modelica_library_provenance_completeness_pct": (payload.get("kpis") or {}).get("dataset_modelica_library_provenance_completeness_pct"),
+    "large_model_benchmark_pack_status": (payload.get("kpis") or {}).get("dataset_large_model_benchmark_pack_status"),
+    "large_model_benchmark_pack_readiness_score": (payload.get("kpis") or {}).get("dataset_large_model_benchmark_pack_readiness_score"),
+    "mutation_campaign_tracker_status": (payload.get("kpis") or {}).get("dataset_mutation_campaign_tracker_status"),
+    "mutation_campaign_completion_ratio_pct": (payload.get("kpis") or {}).get("dataset_mutation_campaign_completion_ratio_pct"),
+    "moat_public_scoreboard_status": (payload.get("kpis") or {}).get("dataset_moat_public_scoreboard_status"),
+    "moat_public_score": (payload.get("kpis") or {}).get("dataset_moat_public_score"),
     "result_flags": flags,
     "bundle_status": bundle_status,
 }
@@ -218,6 +268,14 @@ summary = {
             f"- model_scale_large_ready: `{summary['model_scale_large_ready']}`",
             f"- failure_policy_patch_advisor_status: `{summary['failure_policy_patch_advisor_status']}`",
             f"- failure_policy_patch_suggested_action: `{summary['failure_policy_patch_suggested_action']}`",
+            f"- modelica_library_provenance_guard_status: `{summary['modelica_library_provenance_guard_status']}`",
+            f"- modelica_library_provenance_completeness_pct: `{summary['modelica_library_provenance_completeness_pct']}`",
+            f"- large_model_benchmark_pack_status: `{summary['large_model_benchmark_pack_status']}`",
+            f"- large_model_benchmark_pack_readiness_score: `{summary['large_model_benchmark_pack_readiness_score']}`",
+            f"- mutation_campaign_tracker_status: `{summary['mutation_campaign_tracker_status']}`",
+            f"- mutation_campaign_completion_ratio_pct: `{summary['mutation_campaign_completion_ratio_pct']}`",
+            f"- moat_public_scoreboard_status: `{summary['moat_public_scoreboard_status']}`",
+            f"- moat_public_score: `{summary['moat_public_score']}`",
             f"- bundle_status: `{summary['bundle_status']}`",
             "",
             "## Result Flags",

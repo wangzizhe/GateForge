@@ -407,6 +407,41 @@ class DatasetGovernanceSnapshotTests(unittest.TestCase):
                 "tighten_thresholds_and_require_large_review",
             )
 
+    def test_snapshot_needs_review_on_moat_public_scoreboard(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            scoreboard = root / "moat_public_scoreboard.json"
+            out = root / "snapshot.json"
+            scoreboard.write_text(
+                json.dumps(
+                    {
+                        "status": "NEEDS_REVIEW",
+                        "moat_public_score": 66.0,
+                        "verdict": "INSUFFICIENT_EVIDENCE",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.dataset_governance_snapshot",
+                    "--dataset-moat-public-scoreboard",
+                    str(scoreboard),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            payload = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(payload.get("status"), "NEEDS_REVIEW")
+            self.assertIn("dataset_moat_public_scoreboard_needs_review", payload.get("risks", []))
+            self.assertEqual((payload.get("kpis") or {}).get("dataset_moat_public_verdict"), "INSUFFICIENT_EVIDENCE")
+
 
 if __name__ == "__main__":
     unittest.main()
