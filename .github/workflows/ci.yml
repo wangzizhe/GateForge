@@ -1,5 +1,10 @@
 name: ci
 
+env:
+  CI_TIMEOUT_CORE: "20m"
+  CI_TIMEOUT_DATASET: "25m"
+  CI_TIMEOUT_DEMO_FULL: "45m"
+
 on:
   push:
   pull_request:
@@ -139,8 +144,8 @@ on:
         type: string
 
 jobs:
-  test-core:
-    name: "Test Core"
+  test-core-a:
+    name: "Test Core A"
     runs-on: ubuntu-latest
     env:
       GATEFORGE_DEMO_FAST: "1"
@@ -159,15 +164,47 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e .
 
-      - name: Run core tests
+      - name: Run core tests A
         run: |
-          SHARD_TIMEOUT=25m scripts/ci_run_unittest_shard.sh "test_[a-c]*.py,test_d[!ae]*.py,test_demo_bundle.py,test_demo_runtime_contract.py,test_[e-z]*.py"
+          SHARD_TIMEOUT=${{ env.CI_TIMEOUT_CORE }} scripts/ci_run_unittest_shard.sh "test_[a-c]*.py,test_[e-i]*.py"
 
-      - name: Upload core test logs
+      - name: Upload core A test logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: unittest-core-logs
+          name: unittest-core-a-logs
+          path: artifacts/ci_logs
+          if-no-files-found: ignore
+
+  test-core-b:
+    name: "Test Core B"
+    runs-on: ubuntu-latest
+    env:
+      GATEFORGE_DEMO_FAST: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Run core tests B
+        run: |
+          SHARD_TIMEOUT=${{ env.CI_TIMEOUT_CORE }} scripts/ci_run_unittest_shard.sh "test_d[!ae]*.py,test_demo_bundle.py,test_demo_runtime_contract.py,test_[j-z]*.py"
+
+      - name: Upload core B test logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unittest-core-b-logs
           path: artifacts/ci_logs
           if-no-files-found: ignore
 
@@ -193,7 +230,7 @@ jobs:
 
       - name: Run dataset tests
         run: |
-          SHARD_TIMEOUT=25m scripts/ci_run_unittest_shard.sh "test_dataset_[a-m]*.py,test_dataset_[n-z]*.py"
+          SHARD_TIMEOUT=${{ env.CI_TIMEOUT_DATASET }} scripts/ci_run_unittest_shard.sh "test_dataset_[a-m]*.py,test_dataset_[n-z]*.py"
 
       - name: Upload dataset test logs
         if: always()
@@ -206,7 +243,8 @@ jobs:
   smoke-gate:
     name: "Smoke"
     needs:
-      - test-core
+      - test-core-a
+      - test-core-b
       - test-dataset
     runs-on: ubuntu-latest
     env:
@@ -259,15 +297,20 @@ jobs:
   test-and-smoke:
     name: "Test and Smoke"
     needs:
-      - test-core
+      - test-core-a
+      - test-core-b
       - test-dataset
       - smoke-gate
     runs-on: ubuntu-latest
     steps:
       - name: Enforce upstream success
         run: |
-          if [ "${{ needs.test-core.result }}" != "success" ]; then
-            echo "test-core result: ${{ needs.test-core.result }}"
+          if [ "${{ needs.test-core-a.result }}" != "success" ]; then
+            echo "test-core-a result: ${{ needs.test-core-a.result }}"
+            exit 1
+          fi
+          if [ "${{ needs.test-core-b.result }}" != "success" ]; then
+            echo "test-core-b result: ${{ needs.test-core-b.result }}"
             exit 1
           fi
           if [ "${{ needs.test-dataset.result }}" != "success" ]; then
@@ -302,8 +345,19 @@ jobs:
           pip install -e .
 
       - name: Run demo scripts tests
+        id: demo_full_tests
         run: |
-          SHARD_TIMEOUT=45m scripts/ci_run_unittest_shard.sh "test_demo_scripts.py"
+          SHARD_TIMEOUT=${{ env.CI_TIMEOUT_DEMO_FULL }} scripts/ci_run_unittest_shard.sh "test_demo_scripts.py"
+
+      - name: Publish demo full status
+        if: always()
+        run: |
+          echo "## Demo Full Status" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- outcome: \`${{ steps.demo_full_tests.outcome }}\`" >> "$GITHUB_STEP_SUMMARY"
+          if [ "${{ steps.demo_full_tests.outcome }}" != "success" ]; then
+            echo "::error::Demo Full failed. See unittest-demo-full-logs artifact."
+          fi
 
       - name: Upload demo full logs
         if: always()
