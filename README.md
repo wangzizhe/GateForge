@@ -69,6 +69,7 @@ cat artifacts/proposal_run.json
 - Policy experiment runner (ranked conservative/balanced/aggressive policy experiments)
 - Modelica failure pack planner (scale-aware case targets for small/medium/large packs)
 - Moat execution forecast (30-day moat projection from pack + experiment execution plans)
+- Pack execution tracker (execution progress and large-scale completion visibility)
 
 ## Most Used Commands
 
