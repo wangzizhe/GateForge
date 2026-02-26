@@ -408,6 +408,13 @@ bash scripts/demo_dataset_model_scale_mix_guard.sh
 cat artifacts/dataset_model_scale_mix_guard_demo/demo_summary.json
 ```
 
+## 17.23 Dataset Governance Evidence Release Manifest
+
+```bash
+bash scripts/demo_dataset_governance_evidence_release_manifest.sh
+cat artifacts/dataset_governance_evidence_release_manifest_demo/demo_summary.json
+```
+
 ## 18. Dataset Policy Auto-Tune History
 
 ```bash
