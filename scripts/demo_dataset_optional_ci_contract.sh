@@ -84,6 +84,22 @@ mapping = {
         "backlog_open_tasks": 3,
         "policy_patch_roi_score": 67,
     },
+    "dataset_moat_trend_snapshot_demo/demo_summary.json": {
+        "bundle_status": "PASS",
+        "moat_status": "PASS",
+        "moat_score": 74.2,
+        "moat_score_delta": 6.5,
+    },
+    "dataset_backlog_execution_bridge_demo/demo_summary.json": {
+        "bundle_status": "PASS",
+        "bridge_status": "NEEDS_REVIEW",
+        "total_execution_tasks": 3,
+    },
+    "dataset_replay_quality_guard_demo/demo_summary.json": {
+        "bundle_status": "PASS",
+        "guard_status": "PASS",
+        "confidence_level": "high",
+    },
     "dataset_promotion_candidate_demo/summary.json": {"bundle_status": "PASS", "decision": "HOLD"},
     "dataset_promotion_candidate_apply_demo/summary.json": {"bundle_status": "PASS"},
     "dataset_promotion_candidate_history_demo/summary.json": {"bundle_status": "PASS"},
@@ -116,6 +132,9 @@ else
   bash scripts/demo_dataset_blind_spot_backlog.sh >/dev/null
   bash scripts/demo_dataset_policy_patch_replay_evaluator.sh >/dev/null
   bash scripts/demo_dataset_governance_evidence_pack.sh >/dev/null
+  bash scripts/demo_dataset_moat_trend_snapshot.sh >/dev/null
+  bash scripts/demo_dataset_backlog_execution_bridge.sh >/dev/null
+  bash scripts/demo_dataset_replay_quality_guard.sh >/dev/null
   bash scripts/demo_dataset_promotion_candidate.sh >/dev/null
   bash scripts/demo_dataset_promotion_candidate_apply.sh >/dev/null
   bash scripts/demo_dataset_promotion_candidate_history.sh >/dev/null

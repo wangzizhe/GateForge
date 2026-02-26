@@ -164,6 +164,21 @@ def main() -> None:
             ],
         ),
         (
+            "dataset_moat_trend_snapshot_demo",
+            "dataset_moat_trend_snapshot_demo/demo_summary.json",
+            ["bundle_status", "moat_status", "moat_score", "moat_score_delta"],
+        ),
+        (
+            "dataset_backlog_execution_bridge_demo",
+            "dataset_backlog_execution_bridge_demo/demo_summary.json",
+            ["bundle_status", "bridge_status", "total_execution_tasks"],
+        ),
+        (
+            "dataset_replay_quality_guard_demo",
+            "dataset_replay_quality_guard_demo/demo_summary.json",
+            ["bundle_status", "guard_status", "confidence_level"],
+        ),
+        (
             "dataset_promotion_candidate_demo",
             "dataset_promotion_candidate_demo/summary.json",
             ["bundle_status", "decision"],

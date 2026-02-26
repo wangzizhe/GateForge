@@ -133,6 +133,22 @@ class DatasetOptionalCIContractTests(unittest.TestCase):
                 "backlog_open_tasks": 3,
                 "policy_patch_roi_score": 67,
             },
+            "dataset_moat_trend_snapshot_demo/demo_summary.json": {
+                "bundle_status": "PASS",
+                "moat_status": "PASS",
+                "moat_score": 74.2,
+                "moat_score_delta": 6.5,
+            },
+            "dataset_backlog_execution_bridge_demo/demo_summary.json": {
+                "bundle_status": "PASS",
+                "bridge_status": "NEEDS_REVIEW",
+                "total_execution_tasks": 3,
+            },
+            "dataset_replay_quality_guard_demo/demo_summary.json": {
+                "bundle_status": "PASS",
+                "guard_status": "PASS",
+                "confidence_level": "high",
+            },
             "dataset_promotion_candidate_demo/summary.json": {
                 "bundle_status": "PASS",
                 "decision": "HOLD",

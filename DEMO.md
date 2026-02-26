@@ -310,6 +310,27 @@ bash scripts/demo_dataset_policy_patch_replay_evaluator.sh
 cat artifacts/dataset_policy_patch_replay_evaluator_demo/demo_summary.json
 ```
 
+## 17.9 Dataset Moat Trend Snapshot
+
+```bash
+bash scripts/demo_dataset_moat_trend_snapshot.sh
+cat artifacts/dataset_moat_trend_snapshot_demo/demo_summary.json
+```
+
+## 17.10 Dataset Backlog Execution Bridge
+
+```bash
+bash scripts/demo_dataset_backlog_execution_bridge.sh
+cat artifacts/dataset_backlog_execution_bridge_demo/demo_summary.json
+```
+
+## 17.11 Dataset Replay Quality Guard
+
+```bash
+bash scripts/demo_dataset_replay_quality_guard.sh
+cat artifacts/dataset_replay_quality_guard_demo/demo_summary.json
+```
+
 ## 18. Dataset Policy Auto-Tune History
 
 ```bash
