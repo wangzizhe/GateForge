@@ -62,6 +62,9 @@ cat artifacts/proposal_run.json
 - Blind-spot backlog generator (prioritized coverage gap tasks)
 - Policy patch replay evaluator (before/after patch impact scoring)
 - Governance evidence pack v2 (action-outcome + policy ROI context)
+- Moat trend snapshot (time-series moat metrics and deltas)
+- Backlog execution bridge (convert blind spots to ready execution tasks)
+- Replay quality guard (sample-size and stability checks for replay conclusions)
 
 ## Most Used Commands
 
