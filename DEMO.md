@@ -303,6 +303,13 @@ bash scripts/demo_dataset_blind_spot_backlog.sh
 cat artifacts/dataset_blind_spot_backlog_demo/demo_summary.json
 ```
 
+## 17.8 Dataset Policy Patch Replay Evaluator
+
+```bash
+bash scripts/demo_dataset_policy_patch_replay_evaluator.sh
+cat artifacts/dataset_policy_patch_replay_evaluator_demo/demo_summary.json
+```
+
 ## 18. Dataset Policy Auto-Tune History
 
 ```bash
