@@ -76,6 +76,7 @@ cat artifacts/proposal_run.json
 - Large model campaign board (weekly execution board for large-scale closure)
 - Failure supply plan (weekly failure-case supply targets and channels)
 - Model scale mix guard (ratio guardrail for medium/large dataset share)
+- Governance evidence release manifest (externally shareable proof artifact manifest)
 
 ## Most Used Commands
 
