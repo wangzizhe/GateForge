@@ -103,6 +103,8 @@ def main() -> None:
                 "failure_distribution_drift_score",
                 "model_scale_ladder_status",
                 "model_scale_large_ready",
+                "failure_policy_patch_advisor_status",
+                "failure_policy_patch_suggested_action",
             ],
         ),
         (
@@ -115,6 +117,7 @@ def main() -> None:
                 "failure_taxonomy_coverage_status_transition",
                 "failure_distribution_benchmark_status_transition",
                 "model_scale_ladder_status_transition",
+                "failure_policy_patch_advisor_status_transition",
                 "status_delta_alert_count",
                 "severity_level",
             ],
@@ -133,6 +136,11 @@ def main() -> None:
             "dataset_model_scale_ladder_demo",
             "dataset_model_scale_ladder_demo/demo_summary.json",
             ["bundle_status", "ladder_status", "large_ready"],
+        ),
+        (
+            "dataset_failure_policy_patch_advisor_demo",
+            "dataset_failure_policy_patch_advisor_demo/demo_summary.json",
+            ["bundle_status", "advisor_status", "suggested_action"],
         ),
         (
             "dataset_promotion_candidate_demo",

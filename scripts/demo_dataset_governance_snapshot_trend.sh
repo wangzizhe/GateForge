@@ -31,6 +31,9 @@ cat > "$OUT_DIR/previous_summary.json" <<'JSON'
     "dataset_model_scale_medium_cases": 2,
     "dataset_model_scale_large_cases": 1,
     "dataset_model_scale_main_ci_lane_count": 2,
+    "dataset_failure_policy_patch_advisor_status": "PASS",
+    "dataset_failure_policy_patch_confidence": 0.64,
+    "dataset_failure_policy_patch_reason_count": 1,
     "dataset_promotion_effectiveness_history_trend_status": "PASS",
     "dataset_promotion_effectiveness_history_latest_decision": "KEEP"
   }
@@ -80,6 +83,9 @@ demo = {
     "model_scale_ladder_status_transition": (trend.get("status_delta") or {}).get(
         "dataset_model_scale_ladder_status_transition"
     ),
+    "failure_policy_patch_advisor_status_transition": (trend.get("status_delta") or {}).get(
+        "dataset_failure_policy_patch_advisor_status_transition"
+    ),
     "status_delta_alert_count": len((trend.get("status_delta") or {}).get("alerts") or []),
     "result_flags": flags,
     "bundle_status": bundle_status,
@@ -100,6 +106,7 @@ demo = {
             f"- failure_taxonomy_coverage_status_transition: `{demo['failure_taxonomy_coverage_status_transition']}`",
             f"- failure_distribution_benchmark_status_transition: `{demo['failure_distribution_benchmark_status_transition']}`",
             f"- model_scale_ladder_status_transition: `{demo['model_scale_ladder_status_transition']}`",
+            f"- failure_policy_patch_advisor_status_transition: `{demo['failure_policy_patch_advisor_status_transition']}`",
             f"- status_delta_alert_count: `{demo['status_delta_alert_count']}`",
             f"- bundle_status: `{demo['bundle_status']}`",
             "",

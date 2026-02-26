@@ -366,6 +366,47 @@ class DatasetGovernanceSnapshotTests(unittest.TestCase):
             self.assertIn("dataset_model_scale_ladder_needs_review", payload.get("risks", []))
             self.assertEqual((payload.get("kpis") or {}).get("dataset_model_scale_large_cases"), 0)
 
+    def test_snapshot_needs_review_on_failure_policy_patch_advisor(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            advisor = root / "failure_policy_patch_advisor.json"
+            out = root / "snapshot.json"
+            advisor.write_text(
+                json.dumps(
+                    {
+                        "status": "NEEDS_REVIEW",
+                        "advice": {
+                            "suggested_action": "tighten_thresholds_and_require_large_review",
+                            "confidence": 0.87,
+                            "reasons": ["regression_rate_high", "large_scale_not_ready"],
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.dataset_governance_snapshot",
+                    "--dataset-failure-policy-patch-advisor",
+                    str(advisor),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            payload = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(payload.get("status"), "NEEDS_REVIEW")
+            self.assertIn("dataset_failure_policy_patch_advisor_needs_review", payload.get("risks", []))
+            self.assertEqual(
+                (payload.get("kpis") or {}).get("dataset_failure_policy_patch_suggested_action"),
+                "tighten_thresholds_and_require_large_review",
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

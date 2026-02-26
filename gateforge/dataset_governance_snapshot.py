@@ -81,6 +81,8 @@ def _status_from_signals(signals: dict) -> str:
         return "NEEDS_REVIEW"
     if signals.get("dataset_model_scale_ladder_needs_review"):
         return "NEEDS_REVIEW"
+    if signals.get("dataset_failure_policy_patch_advisor_needs_review"):
+        return "NEEDS_REVIEW"
     return "PASS"
 
 
@@ -104,6 +106,7 @@ def _compute_summary(
     failure_taxonomy_coverage: dict,
     failure_distribution_benchmark: dict,
     model_scale_ladder: dict,
+    failure_policy_patch_advisor: dict,
 ) -> dict:
     strategy_advice = (
         strategy_advisor.get("advice")
@@ -147,6 +150,8 @@ def _compute_summary(
         "dataset_failure_distribution_benchmark_needs_review": str(failure_distribution_benchmark.get("status") or "")
         in {"NEEDS_REVIEW", "FAIL"},
         "dataset_model_scale_ladder_needs_review": str(model_scale_ladder.get("status") or "") in {"NEEDS_REVIEW", "FAIL"},
+        "dataset_failure_policy_patch_advisor_needs_review": str(failure_policy_patch_advisor.get("status") or "")
+        in {"NEEDS_REVIEW", "FAIL"},
     }
     status = _status_from_signals(signals)
 
@@ -191,6 +196,15 @@ def _compute_summary(
         risks.append("dataset_failure_distribution_benchmark_needs_review")
     if signals["dataset_model_scale_ladder_needs_review"]:
         risks.append("dataset_model_scale_ladder_needs_review")
+    if signals["dataset_failure_policy_patch_advisor_needs_review"]:
+        risks.append("dataset_failure_policy_patch_advisor_needs_review")
+
+    policy_patch_advice = (
+        failure_policy_patch_advisor.get("advice")
+        if isinstance(failure_policy_patch_advisor.get("advice"), dict)
+        else {}
+    )
+    policy_patch_reasons = policy_patch_advice.get("reasons") if isinstance(policy_patch_advice.get("reasons"), list) else []
 
     missing_failure_types = failure_taxonomy_coverage.get("missing_failure_types", [])
     if not isinstance(missing_failure_types, list):
@@ -265,6 +279,10 @@ def _compute_summary(
         "dataset_model_scale_optional_ci_lane_count": len(
             ((model_scale_ladder.get("ci_recommendation") or {}).get("optional") or [])
         ),
+        "dataset_failure_policy_patch_advisor_status": failure_policy_patch_advisor.get("status"),
+        "dataset_failure_policy_patch_suggested_action": policy_patch_advice.get("suggested_action"),
+        "dataset_failure_policy_patch_confidence": _to_float(policy_patch_advice.get("confidence", 0.0)),
+        "dataset_failure_policy_patch_reason_count": len(policy_patch_reasons),
     }
     return {
         "status": status,
@@ -322,6 +340,10 @@ def _write_markdown(path: str, summary: dict) -> None:
         f"- dataset_model_scale_large_ready: `{kpis.get('dataset_model_scale_large_ready')}`",
         f"- dataset_model_scale_main_ci_lane_count: `{kpis.get('dataset_model_scale_main_ci_lane_count')}`",
         f"- dataset_model_scale_optional_ci_lane_count: `{kpis.get('dataset_model_scale_optional_ci_lane_count')}`",
+        f"- dataset_failure_policy_patch_advisor_status: `{kpis.get('dataset_failure_policy_patch_advisor_status')}`",
+        f"- dataset_failure_policy_patch_suggested_action: `{kpis.get('dataset_failure_policy_patch_suggested_action')}`",
+        f"- dataset_failure_policy_patch_confidence: `{kpis.get('dataset_failure_policy_patch_confidence')}`",
+        f"- dataset_failure_policy_patch_reason_count: `{kpis.get('dataset_failure_policy_patch_reason_count')}`",
         "",
         "## Risks",
         "",
@@ -409,6 +431,11 @@ def main() -> None:
         default=None,
         help="Path to dataset model scale ladder summary JSON",
     )
+    parser.add_argument(
+        "--dataset-failure-policy-patch-advisor",
+        default=None,
+        help="Path to dataset failure policy patch advisor JSON",
+    )
     parser.add_argument("--out", default="artifacts/dataset_governance_snapshot/summary.json", help="Output JSON path")
     parser.add_argument("--report", default=None, help="Output markdown path")
     args = parser.parse_args()
@@ -432,6 +459,7 @@ def main() -> None:
     failure_taxonomy_coverage = _load_json(args.dataset_failure_taxonomy_coverage)
     failure_distribution_benchmark = _load_json(args.dataset_failure_distribution_benchmark)
     model_scale_ladder = _load_json(args.dataset_model_scale_ladder)
+    failure_policy_patch_advisor = _load_json(args.dataset_failure_policy_patch_advisor)
 
     summary = _compute_summary(
         dataset_pipeline,
@@ -453,6 +481,7 @@ def main() -> None:
         failure_taxonomy_coverage,
         failure_distribution_benchmark,
         model_scale_ladder,
+        failure_policy_patch_advisor,
     )
     summary["generated_at_utc"] = datetime.now(timezone.utc).isoformat()
     summary["sources"] = {
@@ -475,6 +504,7 @@ def main() -> None:
         "dataset_failure_taxonomy_coverage_path": args.dataset_failure_taxonomy_coverage,
         "dataset_failure_distribution_benchmark_path": args.dataset_failure_distribution_benchmark,
         "dataset_model_scale_ladder_path": args.dataset_model_scale_ladder,
+        "dataset_failure_policy_patch_advisor_path": args.dataset_failure_policy_patch_advisor,
     }
 
     _write_json(args.out, summary)

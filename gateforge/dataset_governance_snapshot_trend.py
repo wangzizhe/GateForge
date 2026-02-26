@@ -55,6 +55,10 @@ def _compute_trend(current: dict, previous: dict) -> dict:
         f"{previous_kpis.get('dataset_model_scale_ladder_status')}->"
         f"{current_kpis.get('dataset_model_scale_ladder_status')}"
     )
+    failure_policy_patch_advisor_transition = (
+        f"{previous_kpis.get('dataset_failure_policy_patch_advisor_status')}->"
+        f"{current_kpis.get('dataset_failure_policy_patch_advisor_status')}"
+    )
     status_delta_alerts: list[str] = []
     if trend_status_transition in {"PASS->NEEDS_REVIEW", "PASS->FAIL", "NEEDS_REVIEW->FAIL"}:
         status_delta_alerts.append("promotion_effectiveness_history_trend_worsened")
@@ -66,6 +70,8 @@ def _compute_trend(current: dict, previous: dict) -> dict:
         status_delta_alerts.append("failure_distribution_benchmark_worsened")
     if model_scale_ladder_transition in {"PASS->NEEDS_REVIEW", "PASS->FAIL", "NEEDS_REVIEW->FAIL"}:
         status_delta_alerts.append("model_scale_ladder_worsened")
+    if failure_policy_patch_advisor_transition in {"PASS->NEEDS_REVIEW", "PASS->FAIL", "NEEDS_REVIEW->FAIL"}:
+        status_delta_alerts.append("failure_policy_patch_advisor_worsened")
 
     status_transition = f"{previous_status}->{current_status}"
     new_risks = sorted(current_risks - previous_risks)
@@ -94,6 +100,7 @@ def _compute_trend(current: dict, previous: dict) -> dict:
             "dataset_failure_taxonomy_coverage_status_transition": failure_taxonomy_coverage_transition,
             "dataset_failure_distribution_benchmark_status_transition": failure_distribution_benchmark_transition,
             "dataset_model_scale_ladder_status_transition": model_scale_ladder_transition,
+            "dataset_failure_policy_patch_advisor_status_transition": failure_policy_patch_advisor_transition,
             "alerts": status_delta_alerts,
         },
         "kpi_delta": {
@@ -170,6 +177,16 @@ def _compute_trend(current: dict, previous: dict) -> dict:
             "dataset_model_scale_main_ci_lane_count_delta": round(
                 _to_float(current_kpis.get("dataset_model_scale_main_ci_lane_count"))
                 - _to_float(previous_kpis.get("dataset_model_scale_main_ci_lane_count")),
+                4,
+            ),
+            "dataset_failure_policy_patch_confidence_delta": round(
+                _to_float(current_kpis.get("dataset_failure_policy_patch_confidence"))
+                - _to_float(previous_kpis.get("dataset_failure_policy_patch_confidence")),
+                4,
+            ),
+            "dataset_failure_policy_patch_reason_count_delta": round(
+                _to_float(current_kpis.get("dataset_failure_policy_patch_reason_count"))
+                - _to_float(previous_kpis.get("dataset_failure_policy_patch_reason_count")),
                 4,
             ),
         },

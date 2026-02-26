@@ -56,6 +56,7 @@ cat artifacts/proposal_run.json
 - Failure taxonomy coverage ledger (failure type / model scale / stage)
 - Failure distribution benchmark (detection/false-positive/regression/drift)
 - Model scale ladder (small/medium/large readiness + CI lane recommendation)
+- Failure policy patch advisor (evidence-driven policy tightening suggestions)
 
 ## Most Used Commands
 
