@@ -352,6 +352,13 @@ bash scripts/demo_dataset_modelica_failure_pack_planner.sh
 cat artifacts/dataset_modelica_failure_pack_planner_demo/demo_summary.json
 ```
 
+## 17.15 Dataset Moat Execution Forecast
+
+```bash
+bash scripts/demo_dataset_moat_execution_forecast.sh
+cat artifacts/dataset_moat_execution_forecast_demo/demo_summary.json
+```
+
 ## 18. Dataset Policy Auto-Tune History
 
 ```bash
