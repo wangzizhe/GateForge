@@ -138,8 +138,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - patterns: "test_[a-c]*.py,test_d[!a]*.py,test_[e-i]*.py"
+          - patterns: "test_[a-c]*.py,test_d[!ae]*.py,test_demo_bundle.py,test_demo_runtime_contract.py,test_[e-i]*.py"
             shard: "core-a-i"
+          - patterns: "test_demo_scripts.py"
+            shard: "demo-scripts"
           - patterns: "test_[j-z]*.py"
             shard: "core-j-z"
           - patterns: "test_dataset_[a-m]*.py"

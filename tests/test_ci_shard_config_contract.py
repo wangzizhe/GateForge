@@ -12,7 +12,8 @@ class CIShardConfigContractTests(unittest.TestCase):
         self.assertEqual(
             pairs,
             [
-                ("test_[a-c]*.py,test_d[!a]*.py,test_[e-i]*.py", "core-a-i"),
+                ("test_[a-c]*.py,test_d[!ae]*.py,test_demo_bundle.py,test_demo_runtime_contract.py,test_[e-i]*.py", "core-a-i"),
+                ("test_demo_scripts.py", "demo-scripts"),
                 ("test_[j-z]*.py", "core-j-z"),
                 ("test_dataset_[a-m]*.py", "dataset-a-m"),
                 ("test_dataset_[n-z]*.py", "dataset-n-z"),
