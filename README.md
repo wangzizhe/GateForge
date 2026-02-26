@@ -81,6 +81,7 @@ cat artifacts/proposal_run.json
 - Failure corpus DB v1 (normalized failure-case database with reproducibility metadata)
 - Failure baseline pack v1 (fixed reproducible small/medium/large baseline slice)
 - Failure distribution quality gate v1 (baseline distribution and diversity quality guard)
+- Anchor benchmark artifact v1 (externally shareable reproducible benchmark anchor)
 
 ## Most Used Commands
 
