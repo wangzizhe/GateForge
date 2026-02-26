@@ -71,6 +71,7 @@ cat artifacts/proposal_run.json
 - Moat execution forecast (30-day moat projection from pack + experiment execution plans)
 - Pack execution tracker (execution progress and large-scale completion visibility)
 - Large model failure queue (priority queue for large-scale failure gap closure)
+- Failure signal calibrator (adaptive weighting for detection/fp/regression/drift signals)
 
 ## Most Used Commands
 
