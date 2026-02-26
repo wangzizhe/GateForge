@@ -74,6 +74,7 @@ cat artifacts/proposal_run.json
 - Failure signal calibrator (adaptive weighting for detection/fp/regression/drift signals)
 - Governance decision proofbook (compact decision-ready evidence cards)
 - Large model campaign board (weekly execution board for large-scale closure)
+- Failure supply plan (weekly failure-case supply targets and channels)
 
 ## Most Used Commands
 
