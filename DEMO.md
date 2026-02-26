@@ -422,6 +422,13 @@ bash scripts/demo_dataset_external_proof_score.sh
 cat artifacts/dataset_external_proof_score_demo/demo_summary.json
 ```
 
+## 17.25 Dataset Failure Corpus DB v1
+
+```bash
+bash scripts/demo_dataset_failure_corpus_db_v1.sh
+cat artifacts/dataset_failure_corpus_db_v1_demo/demo_summary.json
+```
+
 ## 18. Dataset Policy Auto-Tune History
 
 ```bash
