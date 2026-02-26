@@ -513,6 +513,13 @@ bash scripts/demo_dataset_failure_distribution_benchmark_v2.sh
 cat artifacts/dataset_failure_distribution_benchmark_v2_demo/demo_summary.json
 ```
 
+## 17.38 Dataset GateForge vs Plain CI Benchmark v1
+
+```bash
+bash scripts/demo_dataset_gateforge_vs_plain_ci_benchmark_v1.sh
+cat artifacts/dataset_gateforge_vs_plain_ci_benchmark_v1_demo/demo_summary.json
+```
+
 ## 18. Dataset Policy Auto-Tune History
 
 ```bash
