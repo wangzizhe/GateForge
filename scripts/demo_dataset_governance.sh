@@ -8,7 +8,16 @@ OUT_DIR="artifacts/dataset_governance_demo"
 mkdir -p "$OUT_DIR"
 rm -f "$OUT_DIR"/*.json "$OUT_DIR"/*.md
 
-bash scripts/demo_dataset_history.sh >/dev/null
+run_dep_script() {
+  local script_path="$1"
+  local sentinel="$2"
+  if [ "${GATEFORGE_DEMO_FAST:-0}" = "1" ] && [ -f "$sentinel" ]; then
+    return 0
+  fi
+  bash "$script_path" >/dev/null
+}
+
+run_dep_script "scripts/demo_dataset_history.sh" "artifacts/dataset_history_demo/history_trend.json"
 
 python3 -m gateforge.dataset_policy_advisor \
   --dataset-history-summary artifacts/dataset_history_demo/history_summary.json \

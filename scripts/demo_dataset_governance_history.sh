@@ -8,7 +8,16 @@ OUT_DIR="artifacts/dataset_governance_history_demo"
 mkdir -p "$OUT_DIR"
 rm -f "$OUT_DIR"/*.json "$OUT_DIR"/*.md
 
-bash scripts/demo_dataset_policy_lifecycle.sh >/dev/null
+run_dep_script() {
+  local script_path="$1"
+  local sentinel="$2"
+  if [ "${GATEFORGE_DEMO_FAST:-0}" = "1" ] && [ -f "$sentinel" ]; then
+    return 0
+  fi
+  bash "$script_path" >/dev/null
+}
+
+run_dep_script "scripts/demo_dataset_policy_lifecycle.sh" "artifacts/dataset_policy_lifecycle_demo/ledger_summary.json"
 
 cat > "$OUT_DIR/previous_summary.json" <<'JSON'
 {
@@ -67,4 +76,3 @@ PY
 
 cat "$OUT_DIR/summary.json"
 cat "$OUT_DIR/summary.md"
-

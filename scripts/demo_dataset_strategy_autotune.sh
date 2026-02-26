@@ -8,8 +8,17 @@ OUT_DIR="artifacts/dataset_strategy_autotune_demo"
 mkdir -p "$OUT_DIR"
 rm -f "$OUT_DIR"/*.json "$OUT_DIR"/*.md
 
-bash scripts/demo_dataset_governance_history.sh >/dev/null
-bash scripts/demo_dataset_policy_lifecycle.sh >/dev/null
+run_dep_script() {
+  local script_path="$1"
+  local sentinel="$2"
+  if [ "${GATEFORGE_DEMO_FAST:-0}" = "1" ] && [ -f "$sentinel" ]; then
+    return 0
+  fi
+  bash "$script_path" >/dev/null
+}
+
+run_dep_script "scripts/demo_dataset_governance_history.sh" "artifacts/dataset_governance_history_demo/trend.json"
+run_dep_script "scripts/demo_dataset_policy_lifecycle.sh" "artifacts/dataset_policy_lifecycle_demo/effectiveness.json"
 
 python3 -m gateforge.dataset_strategy_autotune_advisor \
   --dataset-governance-summary artifacts/dataset_policy_lifecycle_demo/ledger_summary.json \
@@ -66,4 +75,3 @@ PY
 
 cat "$OUT_DIR/summary.json"
 cat "$OUT_DIR/summary.md"
-
