@@ -353,6 +353,7 @@ class DemoScriptTests(unittest.TestCase):
             capture_output=True,
             text=True,
             check=False,
+            timeout=600,
         )
         self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
         payload = json.loads(Path("artifacts/ci_matrix_summary.json").read_text(encoding="utf-8"))
@@ -936,6 +937,7 @@ class DemoScriptTests(unittest.TestCase):
             capture_output=True,
             text=True,
             check=False,
+            timeout=600,
         )
         self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
         payload = json.loads(Path("artifacts/policy_autotune_full_chain_demo/summary.json").read_text(encoding="utf-8"))
