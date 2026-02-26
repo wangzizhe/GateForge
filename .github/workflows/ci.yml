@@ -137,10 +137,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        pattern:
-          - "test_[a-h]*.py"
-          - "test_[i-p]*.py"
-          - "test_[q-z]*.py"
+        include:
+          - pattern: "test_[a-h]*.py"
+            shard: "a-h"
+          - pattern: "test_[i-p]*.py"
+            shard: "i-p"
+          - pattern: "test_[q-z]*.py"
+            shard: "q-z"
     env:
       GATEFORGE_DEMO_FAST: "1"
     steps:
@@ -166,7 +169,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: unittest-shard-logs-${{ matrix.pattern }}
+          name: unittest-shard-logs-${{ matrix.shard }}
           path: artifacts/ci_logs
 
   smoke-gate:

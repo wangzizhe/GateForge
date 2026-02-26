@@ -23,9 +23,14 @@ cat > "$OUT_DIR/approval_approve.json" <<'JSON'
 {"decision":"approve","reviewer":"human.reviewer"}
 JSON
 
+cat > "$OUT_DIR/approval_policy_demo.json" <<'JSON'
+{"profile":"demo","required_approvals":1,"require_unique_reviewers":true,"min_confidence_to_apply":0.0}
+JSON
+
 python3 -m gateforge.dataset_strategy_autotune_apply \
   --advisor-summary artifacts/dataset_strategy_autotune_demo/advisor.json \
   --approval "$OUT_DIR/approval_approve.json" \
+  --approval-policy-path "$OUT_DIR/approval_policy_demo.json" \
   --target-state "$OUT_DIR/active_strategy.json" \
   --out "$OUT_DIR/apply_needs_review.json" \
   --report "$OUT_DIR/apply_needs_review.md"
@@ -33,6 +38,7 @@ python3 -m gateforge.dataset_strategy_autotune_apply \
 python3 -m gateforge.dataset_strategy_autotune_apply \
   --advisor-summary artifacts/dataset_strategy_autotune_demo/advisor.json \
   --approval "$OUT_DIR/approval_approve.json" \
+  --approval-policy-path "$OUT_DIR/approval_policy_demo.json" \
   --apply \
   --target-state "$OUT_DIR/active_strategy.json" \
   --out "$OUT_DIR/apply_pass.json" \
