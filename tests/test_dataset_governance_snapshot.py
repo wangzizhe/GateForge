@@ -254,6 +254,44 @@ class DatasetGovernanceSnapshotTests(unittest.TestCase):
             self.assertEqual(payload.get("status"), "FAIL")
             self.assertIn("dataset_pipeline_bundle_fail", payload.get("risks", []))
 
+    def test_snapshot_needs_review_on_failure_taxonomy_coverage(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            coverage = root / "failure_taxonomy_coverage.json"
+            out = root / "snapshot.json"
+            coverage.write_text(
+                json.dumps(
+                    {
+                        "status": "NEEDS_REVIEW",
+                        "total_cases": 3,
+                        "unique_failure_type_count": 2,
+                        "missing_failure_types": ["solver_non_convergence"],
+                        "missing_model_scales": ["large"],
+                        "missing_stages": ["compile"],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.dataset_governance_snapshot",
+                    "--dataset-failure-taxonomy-coverage",
+                    str(coverage),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            payload = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(payload.get("status"), "NEEDS_REVIEW")
+            self.assertIn("dataset_failure_taxonomy_coverage_needs_review", payload.get("risks", []))
+            self.assertEqual((payload.get("kpis") or {}).get("dataset_failure_taxonomy_missing_model_scales_count"), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

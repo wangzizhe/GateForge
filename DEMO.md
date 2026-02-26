@@ -254,6 +254,13 @@ bash scripts/demo_dataset_governance_snapshot.sh
 cat artifacts/dataset_governance_snapshot_demo/demo_summary.json
 ```
 
+## 17.1 Dataset Failure Taxonomy Coverage
+
+```bash
+bash scripts/demo_dataset_failure_taxonomy_coverage.sh
+cat artifacts/dataset_failure_taxonomy_coverage_demo/demo_summary.json
+```
+
 ## 18. Dataset Policy Auto-Tune History
 
 ```bash

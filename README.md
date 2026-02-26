@@ -53,6 +53,7 @@ cat artifacts/proposal_run.json
 - Agent/autopilot entrypoints with guarded execution
 - Runtime decision ledger + history + trend
 - Governance snapshot/report from multi-source signals
+- Failure taxonomy coverage ledger (failure type / model scale / stage)
 
 ## Most Used Commands
 

@@ -94,7 +94,12 @@ def main() -> None:
         (
             "dataset_governance_snapshot_demo",
             "dataset_governance_snapshot_demo/demo_summary.json",
-            ["bundle_status", "promotion_effectiveness_history_trend_status"],
+            [
+                "bundle_status",
+                "promotion_effectiveness_history_trend_status",
+                "failure_taxonomy_coverage_status",
+                "failure_taxonomy_missing_model_scales_count",
+            ],
         ),
         (
             "dataset_governance_snapshot_trend_demo",
@@ -103,9 +108,15 @@ def main() -> None:
                 "bundle_status",
                 "status_transition",
                 "promotion_effectiveness_history_trend_transition",
+                "failure_taxonomy_coverage_status_transition",
                 "status_delta_alert_count",
                 "severity_level",
             ],
+        ),
+        (
+            "dataset_failure_taxonomy_coverage_demo",
+            "dataset_failure_taxonomy_coverage_demo/demo_summary.json",
+            ["bundle_status", "coverage_status", "missing_model_scales_count"],
         ),
         (
             "dataset_promotion_candidate_demo",
