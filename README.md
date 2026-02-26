@@ -89,6 +89,7 @@ cat artifacts/proposal_run.json
 - Failure corpus ingest bridge v1 (ingest stable mutation evidence into failure corpus DB v1)
 - Anchor benchmark pack v2 (end-to-end reproducible anchor pack from baseline+mutation+stability)
 - Open-source model intake v1 (license/reproducibility gate for external Modelica candidate import)
+- Mutation execution validator v1 (validate expected failure labels against repeated execution observations)
 
 ## Most Used Commands
 
