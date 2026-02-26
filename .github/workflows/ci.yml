@@ -159,7 +159,15 @@ jobs:
           pip install -e .
 
       - name: Run unit tests shard
-        run: timeout 25m python -X faulthandler -m unittest discover -s tests -p "${{ matrix.pattern }}" -v
+        run: |
+          SHARD_TIMEOUT=25m scripts/ci_run_unittest_shard.sh "${{ matrix.pattern }}"
+
+      - name: Upload shard test logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unittest-shard-logs-${{ matrix.pattern }}
+          path: artifacts/ci_logs
 
   smoke-gate:
     needs: test-sharded
