@@ -35,6 +35,7 @@ class DatasetGovernanceSnapshotTrendDemoTests(unittest.TestCase):
             self.assertIn("->", str(payload.get("failure_taxonomy_coverage_status_transition")))
             self.assertIn("->", str(payload.get("failure_distribution_benchmark_status_transition")))
             self.assertIn("->", str(payload.get("model_scale_ladder_status_transition")))
+            self.assertIn("->", str(payload.get("failure_policy_patch_advisor_status_transition")))
             self.assertIsInstance(payload.get("status_delta_alert_count"), int)
             self.assertIsInstance(payload.get("severity_score"), int)
             self.assertIn(payload.get("severity_level"), {"low", "medium", "high"})

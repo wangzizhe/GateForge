@@ -37,6 +37,9 @@ class DatasetGovernanceSnapshotTrendTests(unittest.TestCase):
                             "dataset_model_scale_medium_cases": 2,
                             "dataset_model_scale_large_cases": 1,
                             "dataset_model_scale_main_ci_lane_count": 2,
+                            "dataset_failure_policy_patch_advisor_status": "PASS",
+                            "dataset_failure_policy_patch_confidence": 0.64,
+                            "dataset_failure_policy_patch_reason_count": 1,
                             "dataset_promotion_effectiveness_history_trend_status": "PASS",
                             "dataset_promotion_effectiveness_history_latest_decision": "KEEP",
                         },
@@ -68,6 +71,9 @@ class DatasetGovernanceSnapshotTrendTests(unittest.TestCase):
                             "dataset_model_scale_medium_cases": 3,
                             "dataset_model_scale_large_cases": 0,
                             "dataset_model_scale_main_ci_lane_count": 1,
+                            "dataset_failure_policy_patch_advisor_status": "NEEDS_REVIEW",
+                            "dataset_failure_policy_patch_confidence": 0.87,
+                            "dataset_failure_policy_patch_reason_count": 4,
                             "dataset_promotion_effectiveness_history_trend_status": "NEEDS_REVIEW",
                             "dataset_promotion_effectiveness_history_latest_decision": "ROLLBACK_REVIEW",
                         },
@@ -133,6 +139,11 @@ class DatasetGovernanceSnapshotTrendTests(unittest.TestCase):
                 (trend.get("status_delta") or {}).get("dataset_model_scale_ladder_status_transition"),
                 "PASS->NEEDS_REVIEW",
             )
+            self.assertIn("failure_policy_patch_advisor_worsened", (trend.get("status_delta") or {}).get("alerts", []))
+            self.assertEqual(
+                (trend.get("status_delta") or {}).get("dataset_failure_policy_patch_advisor_status_transition"),
+                "PASS->NEEDS_REVIEW",
+            )
 
     def test_trend_marks_pass_when_kpis_stable(self) -> None:
         with tempfile.TemporaryDirectory() as d:
@@ -164,6 +175,9 @@ class DatasetGovernanceSnapshotTrendTests(unittest.TestCase):
                             "dataset_model_scale_medium_cases": 3,
                             "dataset_model_scale_large_cases": 2,
                             "dataset_model_scale_main_ci_lane_count": 2,
+                            "dataset_failure_policy_patch_advisor_status": "PASS",
+                            "dataset_failure_policy_patch_confidence": 0.64,
+                            "dataset_failure_policy_patch_reason_count": 1,
                             "dataset_promotion_effectiveness_history_trend_status": "PASS",
                             "dataset_promotion_effectiveness_history_latest_decision": "KEEP",
                         },
@@ -195,6 +209,9 @@ class DatasetGovernanceSnapshotTrendTests(unittest.TestCase):
                             "dataset_model_scale_medium_cases": 3,
                             "dataset_model_scale_large_cases": 2,
                             "dataset_model_scale_main_ci_lane_count": 2,
+                            "dataset_failure_policy_patch_advisor_status": "PASS",
+                            "dataset_failure_policy_patch_confidence": 0.64,
+                            "dataset_failure_policy_patch_reason_count": 1,
                             "dataset_promotion_effectiveness_history_trend_status": "PASS",
                             "dataset_promotion_effectiveness_history_latest_decision": "KEEP",
                         },
@@ -243,6 +260,10 @@ class DatasetGovernanceSnapshotTrendTests(unittest.TestCase):
             )
             self.assertEqual(
                 (trend.get("status_delta") or {}).get("dataset_model_scale_ladder_status_transition"),
+                "PASS->PASS",
+            )
+            self.assertEqual(
+                (trend.get("status_delta") or {}).get("dataset_failure_policy_patch_advisor_status_transition"),
                 "PASS->PASS",
             )
 

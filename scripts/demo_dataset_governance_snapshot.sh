@@ -14,7 +14,8 @@ if [ "${GATEFORGE_DEMO_FAST:-0}" = "1" ]; then
     artifacts/dataset_strategy_autotune_apply_history_demo artifacts/dataset_promotion_candidate_history_demo \
     artifacts/dataset_promotion_candidate_apply_history_demo artifacts/dataset_promotion_effectiveness_demo \
     artifacts/dataset_promotion_effectiveness_history_demo artifacts/dataset_failure_taxonomy_coverage_demo \
-    artifacts/dataset_failure_distribution_benchmark_demo artifacts/dataset_model_scale_ladder_demo
+    artifacts/dataset_failure_distribution_benchmark_demo artifacts/dataset_model_scale_ladder_demo \
+    artifacts/dataset_failure_policy_patch_advisor_demo
   cat > artifacts/dataset_pipeline_demo/summary.json <<'JSON'
 {"bundle_status":"PASS","build_deduplicated_cases":12,"quality_failure_case_rate":0.3}
 JSON
@@ -72,6 +73,9 @@ JSON
   cat > artifacts/dataset_model_scale_ladder_demo/summary.json <<'JSON'
 {"status":"PASS","medium_ready":true,"large_ready":true,"scale_counts":{"small":5,"medium":3,"large":2},"ci_recommendation":{"main":["small_smoke","medium_smoke"],"optional":["medium_full","large_subset"]}}
 JSON
+  cat > artifacts/dataset_failure_policy_patch_advisor_demo/advisor.json <<'JSON'
+{"status":"PASS","advice":{"suggested_action":"keep","suggested_policy_profile":"dataset_default","confidence":0.64,"reasons":["signals_stable"]}}
+JSON
 else
   bash scripts/demo_dataset_pipeline.sh >/dev/null
   bash scripts/demo_dataset_history.sh >/dev/null
@@ -93,6 +97,7 @@ else
   bash scripts/demo_dataset_failure_taxonomy_coverage.sh >/dev/null
   bash scripts/demo_dataset_failure_distribution_benchmark.sh >/dev/null
   bash scripts/demo_dataset_model_scale_ladder.sh >/dev/null
+  bash scripts/demo_dataset_failure_policy_patch_advisor.sh >/dev/null
 fi
 
 ARGS=(
@@ -133,6 +138,9 @@ fi
 if [ -f artifacts/dataset_model_scale_ladder_demo/summary.json ]; then
   ARGS+=(--dataset-model-scale-ladder artifacts/dataset_model_scale_ladder_demo/summary.json)
 fi
+if [ -f artifacts/dataset_failure_policy_patch_advisor_demo/advisor.json ]; then
+  ARGS+=(--dataset-failure-policy-patch-advisor artifacts/dataset_failure_policy_patch_advisor_demo/advisor.json)
+fi
 
 python3 -m gateforge.dataset_governance_snapshot \
   "${ARGS[@]}" \
@@ -161,6 +169,9 @@ flags = {
     "model_scale_ladder_kpi_present": "PASS"
     if isinstance((payload.get("kpis") or {}).get("dataset_model_scale_ladder_status"), (str, type(None)))
     else "FAIL",
+    "failure_policy_patch_kpi_present": "PASS"
+    if isinstance((payload.get("kpis") or {}).get("dataset_failure_policy_patch_advisor_status"), (str, type(None)))
+    else "FAIL",
 }
 bundle_status = "PASS" if all(v == "PASS" for v in flags.values()) else "FAIL"
 summary = {
@@ -184,6 +195,8 @@ summary = {
     ),
     "model_scale_ladder_status": (payload.get("kpis") or {}).get("dataset_model_scale_ladder_status"),
     "model_scale_large_ready": (payload.get("kpis") or {}).get("dataset_model_scale_large_ready"),
+    "failure_policy_patch_advisor_status": (payload.get("kpis") or {}).get("dataset_failure_policy_patch_advisor_status"),
+    "failure_policy_patch_suggested_action": (payload.get("kpis") or {}).get("dataset_failure_policy_patch_suggested_action"),
     "result_flags": flags,
     "bundle_status": bundle_status,
 }
@@ -203,6 +216,8 @@ summary = {
             f"- failure_distribution_drift_score: `{summary['failure_distribution_drift_score']}`",
             f"- model_scale_ladder_status: `{summary['model_scale_ladder_status']}`",
             f"- model_scale_large_ready: `{summary['model_scale_large_ready']}`",
+            f"- failure_policy_patch_advisor_status: `{summary['failure_policy_patch_advisor_status']}`",
+            f"- failure_policy_patch_suggested_action: `{summary['failure_policy_patch_suggested_action']}`",
             f"- bundle_status: `{summary['bundle_status']}`",
             "",
             "## Result Flags",

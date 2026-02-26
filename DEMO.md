@@ -275,6 +275,13 @@ bash scripts/demo_dataset_model_scale_ladder.sh
 cat artifacts/dataset_model_scale_ladder_demo/demo_summary.json
 ```
 
+## 17.4 Dataset Failure Policy Patch Advisor
+
+```bash
+bash scripts/demo_dataset_failure_policy_patch_advisor.sh
+cat artifacts/dataset_failure_policy_patch_advisor_demo/demo_summary.json
+```
+
 ## 18. Dataset Policy Auto-Tune History
 
 ```bash
