@@ -292,6 +292,43 @@ class DatasetGovernanceSnapshotTests(unittest.TestCase):
             self.assertIn("dataset_failure_taxonomy_coverage_needs_review", payload.get("risks", []))
             self.assertEqual((payload.get("kpis") or {}).get("dataset_failure_taxonomy_missing_model_scales_count"), 1)
 
+    def test_snapshot_needs_review_on_failure_distribution_benchmark(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            benchmark = root / "failure_distribution_benchmark.json"
+            out = root / "snapshot.json"
+            benchmark.write_text(
+                json.dumps(
+                    {
+                        "status": "NEEDS_REVIEW",
+                        "detection_rate_after": 0.68,
+                        "false_positive_rate_after": 0.17,
+                        "regression_rate_after": 0.24,
+                        "distribution_drift_score": 0.41,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.dataset_governance_snapshot",
+                    "--dataset-failure-distribution-benchmark",
+                    str(benchmark),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            payload = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(payload.get("status"), "NEEDS_REVIEW")
+            self.assertIn("dataset_failure_distribution_benchmark_needs_review", payload.get("risks", []))
+            self.assertEqual((payload.get("kpis") or {}).get("dataset_failure_distribution_drift_score"), 0.41)
+
 
 if __name__ == "__main__":
     unittest.main()

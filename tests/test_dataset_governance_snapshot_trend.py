@@ -28,6 +28,11 @@ class DatasetGovernanceSnapshotTrendTests(unittest.TestCase):
                             "dataset_failure_taxonomy_unique_failure_types": 3,
                             "dataset_failure_taxonomy_missing_failure_types_count": 2,
                             "dataset_failure_taxonomy_missing_model_scales_count": 1,
+                            "dataset_failure_distribution_benchmark_status": "PASS",
+                            "dataset_failure_distribution_detection_rate_after": 0.82,
+                            "dataset_failure_distribution_false_positive_rate_after": 0.04,
+                            "dataset_failure_distribution_regression_rate_after": 0.09,
+                            "dataset_failure_distribution_drift_score": 0.2,
                             "dataset_promotion_effectiveness_history_trend_status": "PASS",
                             "dataset_promotion_effectiveness_history_latest_decision": "KEEP",
                         },
@@ -50,6 +55,11 @@ class DatasetGovernanceSnapshotTrendTests(unittest.TestCase):
                             "dataset_failure_taxonomy_unique_failure_types": 4,
                             "dataset_failure_taxonomy_missing_failure_types_count": 1,
                             "dataset_failure_taxonomy_missing_model_scales_count": 0,
+                            "dataset_failure_distribution_benchmark_status": "NEEDS_REVIEW",
+                            "dataset_failure_distribution_detection_rate_after": 0.73,
+                            "dataset_failure_distribution_false_positive_rate_after": 0.11,
+                            "dataset_failure_distribution_regression_rate_after": 0.22,
+                            "dataset_failure_distribution_drift_score": 0.38,
                             "dataset_promotion_effectiveness_history_trend_status": "NEEDS_REVIEW",
                             "dataset_promotion_effectiveness_history_latest_decision": "ROLLBACK_REVIEW",
                         },
@@ -98,6 +108,18 @@ class DatasetGovernanceSnapshotTrendTests(unittest.TestCase):
                 "PASS->NEEDS_REVIEW",
             )
             self.assertEqual((trend.get("kpi_delta") or {}).get("dataset_failure_taxonomy_total_cases_delta"), 3.0)
+            self.assertIn(
+                "failure_distribution_benchmark_worsened",
+                (trend.get("status_delta") or {}).get("alerts", []),
+            )
+            self.assertEqual(
+                (trend.get("status_delta") or {}).get("dataset_failure_distribution_benchmark_status_transition"),
+                "PASS->NEEDS_REVIEW",
+            )
+            self.assertEqual(
+                (trend.get("kpi_delta") or {}).get("dataset_failure_distribution_detection_rate_after_delta"),
+                -0.09,
+            )
 
     def test_trend_marks_pass_when_kpis_stable(self) -> None:
         with tempfile.TemporaryDirectory() as d:
@@ -120,6 +142,11 @@ class DatasetGovernanceSnapshotTrendTests(unittest.TestCase):
                             "dataset_failure_taxonomy_unique_failure_types": 5,
                             "dataset_failure_taxonomy_missing_failure_types_count": 0,
                             "dataset_failure_taxonomy_missing_model_scales_count": 0,
+                            "dataset_failure_distribution_benchmark_status": "PASS",
+                            "dataset_failure_distribution_detection_rate_after": 0.9,
+                            "dataset_failure_distribution_false_positive_rate_after": 0.03,
+                            "dataset_failure_distribution_regression_rate_after": 0.08,
+                            "dataset_failure_distribution_drift_score": 0.1,
                             "dataset_promotion_effectiveness_history_trend_status": "PASS",
                             "dataset_promotion_effectiveness_history_latest_decision": "KEEP",
                         },
@@ -142,6 +169,11 @@ class DatasetGovernanceSnapshotTrendTests(unittest.TestCase):
                             "dataset_failure_taxonomy_unique_failure_types": 5,
                             "dataset_failure_taxonomy_missing_failure_types_count": 0,
                             "dataset_failure_taxonomy_missing_model_scales_count": 0,
+                            "dataset_failure_distribution_benchmark_status": "PASS",
+                            "dataset_failure_distribution_detection_rate_after": 0.9,
+                            "dataset_failure_distribution_false_positive_rate_after": 0.03,
+                            "dataset_failure_distribution_regression_rate_after": 0.08,
+                            "dataset_failure_distribution_drift_score": 0.1,
                             "dataset_promotion_effectiveness_history_trend_status": "PASS",
                             "dataset_promotion_effectiveness_history_latest_decision": "KEEP",
                         },
@@ -182,6 +214,10 @@ class DatasetGovernanceSnapshotTrendTests(unittest.TestCase):
             self.assertEqual((trend.get("status_delta") or {}).get("alerts", []), [])
             self.assertEqual(
                 (trend.get("status_delta") or {}).get("dataset_failure_taxonomy_coverage_status_transition"),
+                "PASS->PASS",
+            )
+            self.assertEqual(
+                (trend.get("status_delta") or {}).get("dataset_failure_distribution_benchmark_status_transition"),
                 "PASS->PASS",
             )
 

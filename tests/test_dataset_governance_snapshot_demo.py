@@ -36,6 +36,10 @@ class DatasetGovernanceSnapshotDemoTests(unittest.TestCase):
                 {"PASS", "NEEDS_REVIEW", "FAIL", None},
             )
             self.assertIn(payload.get("failure_taxonomy_coverage_status"), {"PASS", "NEEDS_REVIEW", "FAIL", None})
+            self.assertIn(
+                payload.get("failure_distribution_benchmark_status"),
+                {"PASS", "NEEDS_REVIEW", "FAIL", None},
+            )
 
 
 if __name__ == "__main__":

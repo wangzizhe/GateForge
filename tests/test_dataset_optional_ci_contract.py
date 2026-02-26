@@ -78,12 +78,15 @@ class DatasetOptionalCIContractTests(unittest.TestCase):
                 "promotion_effectiveness_history_trend_status": "NEEDS_REVIEW",
                 "failure_taxonomy_coverage_status": "PASS",
                 "failure_taxonomy_missing_model_scales_count": 0,
+                "failure_distribution_benchmark_status": "PASS",
+                "failure_distribution_drift_score": 0.12,
             },
             "dataset_governance_snapshot_trend_demo/demo_summary.json": {
                 "bundle_status": "PASS",
                 "status_transition": "PASS->PASS",
                 "promotion_effectiveness_history_trend_transition": "PASS->NEEDS_REVIEW",
                 "failure_taxonomy_coverage_status_transition": "PASS->PASS",
+                "failure_distribution_benchmark_status_transition": "PASS->PASS",
                 "status_delta_alert_count": 1,
                 "severity_level": "medium",
             },
@@ -91,6 +94,11 @@ class DatasetOptionalCIContractTests(unittest.TestCase):
                 "bundle_status": "PASS",
                 "coverage_status": "PASS",
                 "missing_model_scales_count": 0,
+            },
+            "dataset_failure_distribution_benchmark_demo/demo_summary.json": {
+                "bundle_status": "PASS",
+                "benchmark_status": "PASS",
+                "distribution_drift_score": 0.1,
             },
             "dataset_promotion_candidate_demo/summary.json": {
                 "bundle_status": "PASS",

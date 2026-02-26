@@ -77,6 +77,8 @@ def _status_from_signals(signals: dict) -> str:
         return "NEEDS_REVIEW"
     if signals.get("dataset_failure_taxonomy_coverage_needs_review"):
         return "NEEDS_REVIEW"
+    if signals.get("dataset_failure_distribution_benchmark_needs_review"):
+        return "NEEDS_REVIEW"
     return "PASS"
 
 
@@ -98,6 +100,7 @@ def _compute_summary(
     promotion_effectiveness_history: dict,
     promotion_effectiveness_history_trend: dict,
     failure_taxonomy_coverage: dict,
+    failure_distribution_benchmark: dict,
 ) -> dict:
     strategy_advice = (
         strategy_advisor.get("advice")
@@ -137,6 +140,8 @@ def _compute_summary(
         )
         == "ROLLBACK_REVIEW",
         "dataset_failure_taxonomy_coverage_needs_review": str(failure_taxonomy_coverage.get("status") or "")
+        in {"NEEDS_REVIEW", "FAIL"},
+        "dataset_failure_distribution_benchmark_needs_review": str(failure_distribution_benchmark.get("status") or "")
         in {"NEEDS_REVIEW", "FAIL"},
     }
     status = _status_from_signals(signals)
@@ -178,6 +183,8 @@ def _compute_summary(
         risks.append("dataset_promotion_effectiveness_history_latest_rollback_review")
     if signals["dataset_failure_taxonomy_coverage_needs_review"]:
         risks.append("dataset_failure_taxonomy_coverage_needs_review")
+    if signals["dataset_failure_distribution_benchmark_needs_review"]:
+        risks.append("dataset_failure_distribution_benchmark_needs_review")
 
     missing_failure_types = failure_taxonomy_coverage.get("missing_failure_types", [])
     if not isinstance(missing_failure_types, list):
@@ -230,6 +237,19 @@ def _compute_summary(
         "dataset_failure_taxonomy_missing_failure_types_count": len(missing_failure_types),
         "dataset_failure_taxonomy_missing_model_scales_count": len(missing_model_scales),
         "dataset_failure_taxonomy_missing_stages_count": len(missing_stages),
+        "dataset_failure_distribution_benchmark_status": failure_distribution_benchmark.get("status"),
+        "dataset_failure_distribution_detection_rate_after": _to_float(
+            failure_distribution_benchmark.get("detection_rate_after", 0.0)
+        ),
+        "dataset_failure_distribution_false_positive_rate_after": _to_float(
+            failure_distribution_benchmark.get("false_positive_rate_after", 0.0)
+        ),
+        "dataset_failure_distribution_regression_rate_after": _to_float(
+            failure_distribution_benchmark.get("regression_rate_after", 0.0)
+        ),
+        "dataset_failure_distribution_drift_score": _to_float(
+            failure_distribution_benchmark.get("distribution_drift_score", 0.0)
+        ),
     }
     return {
         "status": status,
@@ -275,6 +295,11 @@ def _write_markdown(path: str, summary: dict) -> None:
         f"- dataset_failure_taxonomy_missing_failure_types_count: `{kpis.get('dataset_failure_taxonomy_missing_failure_types_count')}`",
         f"- dataset_failure_taxonomy_missing_model_scales_count: `{kpis.get('dataset_failure_taxonomy_missing_model_scales_count')}`",
         f"- dataset_failure_taxonomy_missing_stages_count: `{kpis.get('dataset_failure_taxonomy_missing_stages_count')}`",
+        f"- dataset_failure_distribution_benchmark_status: `{kpis.get('dataset_failure_distribution_benchmark_status')}`",
+        f"- dataset_failure_distribution_detection_rate_after: `{kpis.get('dataset_failure_distribution_detection_rate_after')}`",
+        f"- dataset_failure_distribution_false_positive_rate_after: `{kpis.get('dataset_failure_distribution_false_positive_rate_after')}`",
+        f"- dataset_failure_distribution_regression_rate_after: `{kpis.get('dataset_failure_distribution_regression_rate_after')}`",
+        f"- dataset_failure_distribution_drift_score: `{kpis.get('dataset_failure_distribution_drift_score')}`",
         "",
         "## Risks",
         "",
@@ -352,6 +377,11 @@ def main() -> None:
         default=None,
         help="Path to dataset failure taxonomy coverage summary JSON",
     )
+    parser.add_argument(
+        "--dataset-failure-distribution-benchmark",
+        default=None,
+        help="Path to dataset failure distribution benchmark summary JSON",
+    )
     parser.add_argument("--out", default="artifacts/dataset_governance_snapshot/summary.json", help="Output JSON path")
     parser.add_argument("--report", default=None, help="Output markdown path")
     args = parser.parse_args()
@@ -373,6 +403,7 @@ def main() -> None:
     promotion_effectiveness_history = _load_json(args.dataset_promotion_effectiveness_history)
     promotion_effectiveness_history_trend = _load_json(args.dataset_promotion_effectiveness_history_trend)
     failure_taxonomy_coverage = _load_json(args.dataset_failure_taxonomy_coverage)
+    failure_distribution_benchmark = _load_json(args.dataset_failure_distribution_benchmark)
 
     summary = _compute_summary(
         dataset_pipeline,
@@ -392,6 +423,7 @@ def main() -> None:
         promotion_effectiveness_history,
         promotion_effectiveness_history_trend,
         failure_taxonomy_coverage,
+        failure_distribution_benchmark,
     )
     summary["generated_at_utc"] = datetime.now(timezone.utc).isoformat()
     summary["sources"] = {
@@ -412,6 +444,7 @@ def main() -> None:
         "dataset_promotion_effectiveness_history_path": args.dataset_promotion_effectiveness_history,
         "dataset_promotion_effectiveness_history_trend_path": args.dataset_promotion_effectiveness_history_trend,
         "dataset_failure_taxonomy_coverage_path": args.dataset_failure_taxonomy_coverage,
+        "dataset_failure_distribution_benchmark_path": args.dataset_failure_distribution_benchmark,
     }
 
     _write_json(args.out, summary)
