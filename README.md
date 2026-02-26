@@ -88,6 +88,7 @@ cat artifacts/proposal_run.json
 - Repro stability gate v1 (repeat-run consistency gate for mutation reproducibility)
 - Failure corpus ingest bridge v1 (ingest stable mutation evidence into failure corpus DB v1)
 - Anchor benchmark pack v2 (end-to-end reproducible anchor pack from baseline+mutation+stability)
+- Open-source model intake v1 (license/reproducibility gate for external Modelica candidate import)
 
 ## Most Used Commands
 
