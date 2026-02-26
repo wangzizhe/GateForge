@@ -450,6 +450,13 @@ bash scripts/demo_dataset_anchor_benchmark_artifact_v1.sh
 cat artifacts/dataset_anchor_benchmark_artifact_v1_demo/demo_summary.json
 ```
 
+## 17.29 Dataset Modelica Library Registry v1
+
+```bash
+bash scripts/demo_dataset_modelica_library_registry_v1.sh
+cat artifacts/dataset_modelica_library_registry_v1_demo/demo_summary.json
+```
+
 ## 18. Dataset Policy Auto-Tune History
 
 ```bash

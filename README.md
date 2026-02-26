@@ -82,6 +82,7 @@ cat artifacts/proposal_run.json
 - Failure baseline pack v1 (fixed reproducible small/medium/large baseline slice)
 - Failure distribution quality gate v1 (baseline distribution and diversity quality guard)
 - Anchor benchmark artifact v1 (externally shareable reproducible benchmark anchor)
+- Modelica library registry v1 (checksummed model inventory with complexity metadata)
 
 ## Most Used Commands
 
