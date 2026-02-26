@@ -54,6 +54,7 @@ cat artifacts/proposal_run.json
 - Runtime decision ledger + history + trend
 - Governance snapshot/report from multi-source signals
 - Failure taxonomy coverage ledger (failure type / model scale / stage)
+- Failure distribution benchmark (detection/false-positive/regression/drift)
 
 ## Most Used Commands
 

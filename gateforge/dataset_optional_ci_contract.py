@@ -99,6 +99,8 @@ def main() -> None:
                 "promotion_effectiveness_history_trend_status",
                 "failure_taxonomy_coverage_status",
                 "failure_taxonomy_missing_model_scales_count",
+                "failure_distribution_benchmark_status",
+                "failure_distribution_drift_score",
             ],
         ),
         (
@@ -109,6 +111,7 @@ def main() -> None:
                 "status_transition",
                 "promotion_effectiveness_history_trend_transition",
                 "failure_taxonomy_coverage_status_transition",
+                "failure_distribution_benchmark_status_transition",
                 "status_delta_alert_count",
                 "severity_level",
             ],
@@ -117,6 +120,11 @@ def main() -> None:
             "dataset_failure_taxonomy_coverage_demo",
             "dataset_failure_taxonomy_coverage_demo/demo_summary.json",
             ["bundle_status", "coverage_status", "missing_model_scales_count"],
+        ),
+        (
+            "dataset_failure_distribution_benchmark_demo",
+            "dataset_failure_distribution_benchmark_demo/demo_summary.json",
+            ["bundle_status", "benchmark_status", "distribution_drift_score"],
         ),
         (
             "dataset_promotion_candidate_demo",

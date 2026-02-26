@@ -261,6 +261,13 @@ bash scripts/demo_dataset_failure_taxonomy_coverage.sh
 cat artifacts/dataset_failure_taxonomy_coverage_demo/demo_summary.json
 ```
 
+## 17.2 Dataset Failure Distribution Benchmark
+
+```bash
+bash scripts/demo_dataset_failure_distribution_benchmark.sh
+cat artifacts/dataset_failure_distribution_benchmark_demo/demo_summary.json
+```
+
 ## 18. Dataset Policy Auto-Tune History
 
 ```bash

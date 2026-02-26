@@ -22,6 +22,11 @@ cat > "$OUT_DIR/previous_summary.json" <<'JSON'
     "dataset_failure_taxonomy_unique_failure_types": 2,
     "dataset_failure_taxonomy_missing_failure_types_count": 3,
     "dataset_failure_taxonomy_missing_model_scales_count": 1,
+    "dataset_failure_distribution_benchmark_status": "PASS",
+    "dataset_failure_distribution_detection_rate_after": 0.8,
+    "dataset_failure_distribution_false_positive_rate_after": 0.03,
+    "dataset_failure_distribution_regression_rate_after": 0.1,
+    "dataset_failure_distribution_drift_score": 0.2,
     "dataset_promotion_effectiveness_history_trend_status": "PASS",
     "dataset_promotion_effectiveness_history_latest_decision": "KEEP"
   }
@@ -65,6 +70,9 @@ demo = {
     "failure_taxonomy_coverage_status_transition": (trend.get("status_delta") or {}).get(
         "dataset_failure_taxonomy_coverage_status_transition"
     ),
+    "failure_distribution_benchmark_status_transition": (trend.get("status_delta") or {}).get(
+        "dataset_failure_distribution_benchmark_status_transition"
+    ),
     "status_delta_alert_count": len((trend.get("status_delta") or {}).get("alerts") or []),
     "result_flags": flags,
     "bundle_status": bundle_status,
@@ -83,6 +91,7 @@ demo = {
             f"- resolved_risks_count: `{demo['resolved_risks_count']}`",
             f"- promotion_effectiveness_history_trend_transition: `{demo['promotion_effectiveness_history_trend_transition']}`",
             f"- failure_taxonomy_coverage_status_transition: `{demo['failure_taxonomy_coverage_status_transition']}`",
+            f"- failure_distribution_benchmark_status_transition: `{demo['failure_distribution_benchmark_status_transition']}`",
             f"- status_delta_alert_count: `{demo['status_delta_alert_count']}`",
             f"- bundle_status: `{demo['bundle_status']}`",
             "",

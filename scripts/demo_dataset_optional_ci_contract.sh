@@ -29,12 +29,15 @@ mapping = {
         "promotion_effectiveness_history_trend_status": "PASS",
         "failure_taxonomy_coverage_status": "PASS",
         "failure_taxonomy_missing_model_scales_count": 0,
+        "failure_distribution_benchmark_status": "PASS",
+        "failure_distribution_drift_score": 0.12,
     },
     "dataset_governance_snapshot_trend_demo/demo_summary.json": {
         "bundle_status": "PASS",
         "status_transition": "PASS->PASS",
         "promotion_effectiveness_history_trend_transition": "PASS->PASS",
         "failure_taxonomy_coverage_status_transition": "PASS->PASS",
+        "failure_distribution_benchmark_status_transition": "PASS->PASS",
         "status_delta_alert_count": 0,
         "severity_level": "low",
     },
@@ -42,6 +45,11 @@ mapping = {
         "bundle_status": "PASS",
         "coverage_status": "PASS",
         "missing_model_scales_count": 0,
+    },
+    "dataset_failure_distribution_benchmark_demo/demo_summary.json": {
+        "bundle_status": "PASS",
+        "benchmark_status": "PASS",
+        "distribution_drift_score": 0.1,
     },
     "dataset_promotion_candidate_demo/summary.json": {"bundle_status": "PASS", "decision": "HOLD"},
     "dataset_promotion_candidate_apply_demo/summary.json": {"bundle_status": "PASS"},
@@ -69,6 +77,7 @@ else
   bash scripts/demo_dataset_governance_snapshot.sh >/dev/null
   bash scripts/demo_dataset_governance_snapshot_trend.sh >/dev/null
   bash scripts/demo_dataset_failure_taxonomy_coverage.sh >/dev/null
+  bash scripts/demo_dataset_failure_distribution_benchmark.sh >/dev/null
   bash scripts/demo_dataset_promotion_candidate.sh >/dev/null
   bash scripts/demo_dataset_promotion_candidate_apply.sh >/dev/null
   bash scripts/demo_dataset_promotion_candidate_history.sh >/dev/null
