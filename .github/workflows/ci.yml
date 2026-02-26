@@ -138,12 +138,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - pattern: "test_[a-h]*.py"
-            shard: "a-h"
-          - pattern: "test_[i-p]*.py"
-            shard: "i-p"
-          - pattern: "test_[q-z]*.py"
-            shard: "q-z"
+          - patterns: "test_[a-c]*.py,test_d[!a]*.py,test_[e-z]*.py"
+            shard: "core"
+          - patterns: "test_dataset_[a-m]*.py"
+            shard: "dataset-a-m"
+          - patterns: "test_dataset_[n-z]*.py"
+            shard: "dataset-n-z"
     env:
       GATEFORGE_DEMO_FAST: "1"
     steps:
@@ -163,7 +163,7 @@ jobs:
 
       - name: Run unit tests shard
         run: |
-          SHARD_TIMEOUT=25m scripts/ci_run_unittest_shard.sh "${{ matrix.pattern }}"
+          SHARD_TIMEOUT=25m scripts/ci_run_unittest_shard.sh "${{ matrix.patterns }}"
 
       - name: Upload shard test logs
         if: always()

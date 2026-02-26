@@ -8,13 +8,16 @@ class CIShardRunnerContractTests(unittest.TestCase):
         script = (repo_root / "scripts" / "ci_run_unittest_shard.sh").read_text(encoding="utf-8")
 
         required_fragments = [
+            'PATTERNS_CSV="${1:-test_*.py}"',
+            'IFS=\',\' read -r -a PATTERNS <<< "$PATTERNS_CSV"',
             'command -v timeout',
             'command -v gtimeout',
             'PYTHON_BIN="python"',
             'PYTHON_BIN="python3"',
             'warning: timeout command not found; running shard without enforced timeout',
             '-X faulthandler -m unittest discover -s tests -p "$PATTERN" -v',
-            'echo "[ci] shard failed: pattern=$PATTERN exit_code=$rc"',
+            '[ci] shard summary patterns=$PATTERNS_CSV',
+            'echo "[ci] shard failed: pattern=$failed_pattern exit_code=$rc"',
             'last running test before failure',
             'echo "[ci] shard timed out after $SHARD_TIMEOUT"',
             'tail -n 80 "$LOG_FILE"',
