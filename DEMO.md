@@ -520,6 +520,13 @@ bash scripts/demo_dataset_gateforge_vs_plain_ci_benchmark_v1.sh
 cat artifacts/dataset_gateforge_vs_plain_ci_benchmark_v1_demo/demo_summary.json
 ```
 
+## 17.39 Dataset Anchor Release Bundle v3
+
+```bash
+bash scripts/demo_dataset_anchor_release_bundle_v3.sh
+cat artifacts/dataset_anchor_release_bundle_v3_demo/demo_summary.json
+```
+
 ## 18. Dataset Policy Auto-Tune History
 
 ```bash

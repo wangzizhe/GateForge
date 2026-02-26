@@ -92,6 +92,7 @@ cat artifacts/proposal_run.json
 - Mutation execution validator v1 (validate expected failure labels against repeated execution observations)
 - Failure distribution benchmark v2 (baseline + validated mutation outcome distribution benchmarking)
 - GateForge vs plain CI benchmark v1 (head-to-head critical block/escape/fp comparison)
+- Anchor release bundle v3 (external release bundle scoring and reproducible playbook packaging)
 
 ## Most Used Commands
 
