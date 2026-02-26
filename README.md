@@ -80,6 +80,7 @@ cat artifacts/proposal_run.json
 - External proof score (single score for external evidence strength communication)
 - Failure corpus DB v1 (normalized failure-case database with reproducibility metadata)
 - Failure baseline pack v1 (fixed reproducible small/medium/large baseline slice)
+- Failure distribution quality gate v1 (baseline distribution and diversity quality guard)
 
 ## Most Used Commands
 
