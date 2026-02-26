@@ -380,6 +380,13 @@ bash scripts/demo_dataset_failure_signal_calibrator.sh
 cat artifacts/dataset_failure_signal_calibrator_demo/demo_summary.json
 ```
 
+## 17.19 Dataset Governance Decision Proofbook
+
+```bash
+bash scripts/demo_dataset_governance_decision_proofbook.sh
+cat artifacts/dataset_governance_decision_proofbook_demo/demo_summary.json
+```
+
 ## 18. Dataset Policy Auto-Tune History
 
 ```bash
