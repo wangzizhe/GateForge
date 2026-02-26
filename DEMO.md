@@ -436,6 +436,13 @@ bash scripts/demo_dataset_failure_baseline_pack_v1.sh
 cat artifacts/dataset_failure_baseline_pack_v1_demo/demo_summary.json
 ```
 
+## 17.27 Dataset Failure Distribution Quality Gate v1
+
+```bash
+bash scripts/demo_dataset_failure_distribution_quality_gate_v1.sh
+cat artifacts/dataset_failure_distribution_quality_gate_v1_demo/demo_summary.json
+```
+
 ## 18. Dataset Policy Auto-Tune History
 
 ```bash
