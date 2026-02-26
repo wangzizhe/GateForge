@@ -143,6 +143,27 @@ def main() -> None:
             ["bundle_status", "advisor_status", "suggested_action"],
         ),
         (
+            "dataset_blind_spot_backlog_demo",
+            "dataset_blind_spot_backlog_demo/demo_summary.json",
+            ["bundle_status", "backlog_status", "total_open_tasks"],
+        ),
+        (
+            "dataset_policy_patch_replay_evaluator_demo",
+            "dataset_policy_patch_replay_evaluator_demo/demo_summary.json",
+            ["bundle_status", "evaluator_status", "recommendation"],
+        ),
+        (
+            "dataset_governance_evidence_pack_demo",
+            "dataset_governance_evidence_pack_demo/demo_summary.json",
+            [
+                "bundle_status",
+                "evidence_pack_status",
+                "evidence_strength_score",
+                "backlog_open_tasks",
+                "policy_patch_roi_score",
+            ],
+        ),
+        (
             "dataset_promotion_candidate_demo",
             "dataset_promotion_candidate_demo/summary.json",
             ["bundle_status", "decision"],

@@ -65,6 +65,15 @@ def _write_markdown(path: str, payload: dict) -> None:
     else:
         lines.append("- `none`")
 
+    action_outcome = payload.get("action_outcome") if isinstance(payload.get("action_outcome"), dict) else {}
+    lines.extend(["", "## Action Outcome", ""])
+    lines.append(f"- backlog_open_tasks: `{action_outcome.get('backlog_open_tasks')}`")
+    lines.append(f"- backlog_p0_count: `{action_outcome.get('backlog_p0_count')}`")
+    lines.append(f"- replay_recommendation: `{action_outcome.get('replay_recommendation')}`")
+    lines.append(f"- replay_status: `{action_outcome.get('replay_status')}`")
+    lines.append(f"- replay_evaluation_score: `{action_outcome.get('replay_evaluation_score')}`")
+    lines.append(f"- policy_patch_roi_score: `{action_outcome.get('policy_patch_roi_score')}`")
+
     lines.extend(["", "## Integrity Checks", ""])
     checks = integrity.get("checks") if isinstance(integrity.get("checks"), dict) else {}
     for key in sorted(checks.keys()):
@@ -105,6 +114,8 @@ def main() -> None:
     parser.add_argument("--failure-distribution-benchmark", default=None)
     parser.add_argument("--model-scale-ladder", default=None)
     parser.add_argument("--failure-policy-patch-advisor", default=None)
+    parser.add_argument("--blind-spot-backlog", default=None)
+    parser.add_argument("--policy-patch-replay-evaluator", default=None)
     parser.add_argument("--out", default="artifacts/dataset_governance_evidence_pack/summary.json")
     parser.add_argument("--report-out", default=None)
     args = parser.parse_args()
@@ -115,6 +126,8 @@ def main() -> None:
     distribution = _load_json(args.failure_distribution_benchmark)
     ladder = _load_json(args.model_scale_ladder)
     advisor = _load_json(args.failure_policy_patch_advisor)
+    backlog = _load_json(args.blind_spot_backlog)
+    replay_eval = _load_json(args.policy_patch_replay_evaluator)
 
     integrity = _integrity_checks(snapshot, trend)
 
@@ -125,6 +138,8 @@ def main() -> None:
         "failure_distribution_benchmark": distribution,
         "model_scale_ladder": ladder,
         "failure_policy_patch_advisor": advisor,
+        "blind_spot_backlog": backlog,
+        "policy_patch_replay_evaluator": replay_eval,
     }
     evidence_sections_present = len([k for k, v in evidence_sources.items() if _source_present(v)])
 
@@ -141,13 +156,35 @@ def main() -> None:
         proof_points.append(f"model_scale_status:{ladder.get('status')}")
     if isinstance((advisor.get("advice") or {}).get("suggested_action"), str):
         proof_points.append(f"policy_patch_action:{(advisor.get('advice') or {}).get('suggested_action')}")
+    if isinstance(backlog.get("status"), str):
+        proof_points.append(f"backlog_status:{backlog.get('status')}")
+    if isinstance(replay_eval.get("recommendation"), str):
+        proof_points.append(f"replay_recommendation:{replay_eval.get('recommendation')}")
 
     residual_risks = _to_list_of_str(snapshot.get("risks"))
     residual_risks.extend(_to_list_of_str((trend.get("trend") or {}).get("new_risks")))
     residual_risks.extend(_to_list_of_str((taxonomy.get("alerts"))))
     residual_risks.extend(_to_list_of_str((distribution.get("alerts"))))
     residual_risks.extend(_to_list_of_str((ladder.get("alerts"))))
+    residual_risks.extend(_to_list_of_str((replay_eval.get("reasons"))))
     residual_risks = sorted(set(residual_risks))
+
+    replay_delta = replay_eval.get("delta") if isinstance(replay_eval.get("delta"), dict) else {}
+    replay_score = int(replay_eval.get("evaluation_score", 0) or 0)
+    policy_patch_roi_score = 50 + replay_score * 8
+    policy_patch_roi_score += int(round(float(replay_delta.get("detection_rate", 0.0) or 0.0) * 100))
+    policy_patch_roi_score -= int(round(float(replay_delta.get("false_positive_rate", 0.0) or 0.0) * 100))
+    policy_patch_roi_score -= int(round(float(replay_delta.get("regression_rate", 0.0) or 0.0) * 100))
+    policy_patch_roi_score = max(0, min(100, policy_patch_roi_score))
+
+    action_outcome = {
+        "backlog_open_tasks": int(backlog.get("total_open_tasks", 0) or 0),
+        "backlog_p0_count": int(((backlog.get("priority_counts") or {}).get("P0", 0) or 0)),
+        "replay_recommendation": replay_eval.get("recommendation"),
+        "replay_status": replay_eval.get("status"),
+        "replay_evaluation_score": replay_score,
+        "policy_patch_roi_score": policy_patch_roi_score,
+    }
 
     evidence_strength_score = 30
     evidence_strength_score += min(40, evidence_sections_present * 8)
@@ -157,6 +194,11 @@ def main() -> None:
         evidence_strength_score += 10
     if str((trend.get("trend") or {}).get("severity_level") or "") in {"low", "medium", "high"}:
         evidence_strength_score += 5
+    if str(replay_eval.get("status") or "") == "PASS":
+        evidence_strength_score += 8
+    if str(backlog.get("status") or "") == "NEEDS_REVIEW" and int(backlog.get("total_open_tasks", 0) or 0) > 0:
+        evidence_strength_score -= 4
+    evidence_strength_score += int((policy_patch_roi_score - 50) / 10)
     evidence_strength_score -= min(20, len(residual_risks) * 2)
     evidence_strength_score = max(0, min(100, evidence_strength_score))
 
@@ -175,6 +217,7 @@ def main() -> None:
         "residual_risk_count": len(residual_risks),
         "residual_risks": residual_risks,
         "proof_points": proof_points,
+        "action_outcome": action_outcome,
         "integrity": integrity,
         "sources": {
             "snapshot_summary": args.snapshot_summary,
@@ -183,6 +226,8 @@ def main() -> None:
             "failure_distribution_benchmark": args.failure_distribution_benchmark,
             "model_scale_ladder": args.model_scale_ladder,
             "failure_policy_patch_advisor": args.failure_policy_patch_advisor,
+            "blind_spot_backlog": args.blind_spot_backlog,
+            "policy_patch_replay_evaluator": args.policy_patch_replay_evaluator,
         },
     }
     _write_json(args.out, payload)

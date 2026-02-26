@@ -116,6 +116,23 @@ class DatasetOptionalCIContractTests(unittest.TestCase):
                 "advisor_status": "PASS",
                 "suggested_action": "keep",
             },
+            "dataset_blind_spot_backlog_demo/demo_summary.json": {
+                "bundle_status": "PASS",
+                "backlog_status": "NEEDS_REVIEW",
+                "total_open_tasks": 3,
+            },
+            "dataset_policy_patch_replay_evaluator_demo/demo_summary.json": {
+                "bundle_status": "PASS",
+                "evaluator_status": "PASS",
+                "recommendation": "ADOPT_PATCH",
+            },
+            "dataset_governance_evidence_pack_demo/demo_summary.json": {
+                "bundle_status": "PASS",
+                "evidence_pack_status": "PASS",
+                "evidence_strength_score": 78,
+                "backlog_open_tasks": 3,
+                "policy_patch_roi_score": 67,
+            },
             "dataset_promotion_candidate_demo/summary.json": {
                 "bundle_status": "PASS",
                 "decision": "HOLD",
