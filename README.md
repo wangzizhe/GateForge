@@ -68,6 +68,7 @@ cat artifacts/proposal_run.json
 - Failure coverage planner (prioritized coverage plan with expected moat deltas)
 - Policy experiment runner (ranked conservative/balanced/aggressive policy experiments)
 - Modelica failure pack planner (scale-aware case targets for small/medium/large packs)
+- Moat execution forecast (30-day moat projection from pack + experiment execution plans)
 
 ## Most Used Commands
 
