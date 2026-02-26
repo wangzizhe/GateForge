@@ -18,7 +18,7 @@ class DatasetModelScaleLadderDemoTests(unittest.TestCase):
                 text=True,
                 check=False,
                 timeout=120,
-                env={**os.environ, "TMPDIR": d},
+                env={**os.environ, "TMPDIR": d, "GATEFORGE_DEMO_FAST": "1"},
             )
             self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
             payload = json.loads(

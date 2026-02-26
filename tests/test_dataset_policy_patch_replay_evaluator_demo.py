@@ -17,7 +17,7 @@ class DatasetPolicyPatchReplayEvaluatorDemoTests(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 check=False,
-                env={**os.environ, "TMPDIR": d},
+                env={**os.environ, "TMPDIR": d, "GATEFORGE_DEMO_FAST": "1"},
                 timeout=120,
             )
             self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
