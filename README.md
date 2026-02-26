@@ -83,6 +83,7 @@ cat artifacts/proposal_run.json
 - Failure distribution quality gate v1 (baseline distribution and diversity quality guard)
 - Anchor benchmark artifact v1 (externally shareable reproducible benchmark anchor)
 - Modelica library registry v1 (checksummed model inventory with complexity metadata)
+- Model family generator v1 (derive small/medium/large family manifests from registry assets)
 
 ## Most Used Commands
 
