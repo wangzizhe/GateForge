@@ -11,14 +11,18 @@ class DatasetGovernanceSnapshotTrendDemoTests(unittest.TestCase):
         repo_root = Path(__file__).resolve().parents[1]
         script = repo_root / "scripts" / "demo_dataset_governance_snapshot_trend.sh"
         with tempfile.TemporaryDirectory() as d:
-            proc = subprocess.run(
-                ["bash", str(script)],
-                cwd=str(repo_root),
-                capture_output=True,
-                text=True,
-                check=False,
-                env={**os.environ, "TMPDIR": d},
-            )
+            try:
+                proc = subprocess.run(
+                    ["bash", str(script)],
+                    cwd=str(repo_root),
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    env={**os.environ, "TMPDIR": d, "GATEFORGE_DEMO_FAST": "1"},
+                    timeout=120,
+                )
+            except subprocess.TimeoutExpired as exc:
+                self.fail(f"demo timed out after {exc.timeout}s")
             self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
             payload = json.loads(
                 (repo_root / "artifacts" / "dataset_governance_snapshot_trend_demo" / "demo_summary.json").read_text(
@@ -28,6 +32,7 @@ class DatasetGovernanceSnapshotTrendDemoTests(unittest.TestCase):
             self.assertEqual(payload.get("bundle_status"), "PASS")
             self.assertIn("->", str(payload.get("status_transition")))
             self.assertIn("->", str(payload.get("promotion_effectiveness_history_trend_transition")))
+            self.assertIn("->", str(payload.get("failure_taxonomy_coverage_status_transition")))
             self.assertIsInstance(payload.get("status_delta_alert_count"), int)
             self.assertIsInstance(payload.get("severity_score"), int)
             self.assertIn(payload.get("severity_level"), {"low", "medium", "high"})

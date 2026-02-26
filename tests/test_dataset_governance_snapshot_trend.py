@@ -23,6 +23,11 @@ class DatasetGovernanceSnapshotTrendTests(unittest.TestCase):
                             "dataset_pipeline_failure_case_rate": 0.2,
                             "dataset_governance_total_records": 5,
                             "dataset_governance_trend_alert_count": 0,
+                            "dataset_failure_taxonomy_coverage_status": "PASS",
+                            "dataset_failure_taxonomy_total_cases": 5,
+                            "dataset_failure_taxonomy_unique_failure_types": 3,
+                            "dataset_failure_taxonomy_missing_failure_types_count": 2,
+                            "dataset_failure_taxonomy_missing_model_scales_count": 1,
                             "dataset_promotion_effectiveness_history_trend_status": "PASS",
                             "dataset_promotion_effectiveness_history_latest_decision": "KEEP",
                         },
@@ -40,6 +45,11 @@ class DatasetGovernanceSnapshotTrendTests(unittest.TestCase):
                             "dataset_pipeline_failure_case_rate": 0.3,
                             "dataset_governance_total_records": 7,
                             "dataset_governance_trend_alert_count": 1,
+                            "dataset_failure_taxonomy_coverage_status": "NEEDS_REVIEW",
+                            "dataset_failure_taxonomy_total_cases": 8,
+                            "dataset_failure_taxonomy_unique_failure_types": 4,
+                            "dataset_failure_taxonomy_missing_failure_types_count": 1,
+                            "dataset_failure_taxonomy_missing_model_scales_count": 0,
                             "dataset_promotion_effectiveness_history_trend_status": "NEEDS_REVIEW",
                             "dataset_promotion_effectiveness_history_latest_decision": "ROLLBACK_REVIEW",
                         },
@@ -82,6 +92,12 @@ class DatasetGovernanceSnapshotTrendTests(unittest.TestCase):
                 "promotion_effectiveness_history_trend_worsened",
                 (trend.get("status_delta") or {}).get("alerts", []),
             )
+            self.assertIn("failure_taxonomy_coverage_worsened", (trend.get("status_delta") or {}).get("alerts", []))
+            self.assertEqual(
+                (trend.get("status_delta") or {}).get("dataset_failure_taxonomy_coverage_status_transition"),
+                "PASS->NEEDS_REVIEW",
+            )
+            self.assertEqual((trend.get("kpi_delta") or {}).get("dataset_failure_taxonomy_total_cases_delta"), 3.0)
 
     def test_trend_marks_pass_when_kpis_stable(self) -> None:
         with tempfile.TemporaryDirectory() as d:
@@ -99,6 +115,11 @@ class DatasetGovernanceSnapshotTrendTests(unittest.TestCase):
                             "dataset_pipeline_failure_case_rate": 0.2,
                             "dataset_governance_total_records": 5,
                             "dataset_governance_trend_alert_count": 0,
+                            "dataset_failure_taxonomy_coverage_status": "PASS",
+                            "dataset_failure_taxonomy_total_cases": 10,
+                            "dataset_failure_taxonomy_unique_failure_types": 5,
+                            "dataset_failure_taxonomy_missing_failure_types_count": 0,
+                            "dataset_failure_taxonomy_missing_model_scales_count": 0,
                             "dataset_promotion_effectiveness_history_trend_status": "PASS",
                             "dataset_promotion_effectiveness_history_latest_decision": "KEEP",
                         },
@@ -116,6 +137,11 @@ class DatasetGovernanceSnapshotTrendTests(unittest.TestCase):
                             "dataset_pipeline_failure_case_rate": 0.2,
                             "dataset_governance_total_records": 5,
                             "dataset_governance_trend_alert_count": 0,
+                            "dataset_failure_taxonomy_coverage_status": "PASS",
+                            "dataset_failure_taxonomy_total_cases": 10,
+                            "dataset_failure_taxonomy_unique_failure_types": 5,
+                            "dataset_failure_taxonomy_missing_failure_types_count": 0,
+                            "dataset_failure_taxonomy_missing_model_scales_count": 0,
                             "dataset_promotion_effectiveness_history_trend_status": "PASS",
                             "dataset_promotion_effectiveness_history_latest_decision": "KEEP",
                         },
@@ -154,6 +180,10 @@ class DatasetGovernanceSnapshotTrendTests(unittest.TestCase):
                 "KEEP->KEEP",
             )
             self.assertEqual((trend.get("status_delta") or {}).get("alerts", []), [])
+            self.assertEqual(
+                (trend.get("status_delta") or {}).get("dataset_failure_taxonomy_coverage_status_transition"),
+                "PASS->PASS",
+            )
 
 
 if __name__ == "__main__":

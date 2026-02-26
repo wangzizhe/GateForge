@@ -13,7 +13,7 @@ if [ "${GATEFORGE_DEMO_FAST:-0}" = "1" ]; then
     artifacts/dataset_governance_history_demo artifacts/dataset_strategy_autotune_demo \
     artifacts/dataset_strategy_autotune_apply_history_demo artifacts/dataset_promotion_candidate_history_demo \
     artifacts/dataset_promotion_candidate_apply_history_demo artifacts/dataset_promotion_effectiveness_demo \
-    artifacts/dataset_promotion_effectiveness_history_demo
+    artifacts/dataset_promotion_effectiveness_history_demo artifacts/dataset_failure_taxonomy_coverage_demo
   cat > artifacts/dataset_pipeline_demo/summary.json <<'JSON'
 {"bundle_status":"PASS","build_deduplicated_cases":12,"quality_failure_case_rate":0.3}
 JSON
@@ -62,6 +62,9 @@ JSON
   cat > artifacts/dataset_promotion_effectiveness_history_demo/history_trend.json <<'JSON'
 {"status":"PASS","trend":{"alerts":[]}}
 JSON
+  cat > artifacts/dataset_failure_taxonomy_coverage_demo/summary.json <<'JSON'
+{"status":"PASS","total_cases":12,"unique_failure_type_count":5,"missing_failure_types":[],"missing_model_scales":[],"missing_stages":[]}
+JSON
 else
   bash scripts/demo_dataset_pipeline.sh >/dev/null
   bash scripts/demo_dataset_history.sh >/dev/null
@@ -80,6 +83,7 @@ else
   bash scripts/demo_dataset_promotion_candidate_apply_history.sh >/dev/null
   bash scripts/demo_dataset_promotion_effectiveness.sh >/dev/null
   bash scripts/demo_dataset_promotion_effectiveness_history.sh >/dev/null
+  bash scripts/demo_dataset_failure_taxonomy_coverage.sh >/dev/null
 fi
 
 ARGS=(
@@ -111,6 +115,9 @@ fi
 if [ -f artifacts/dataset_promotion_effectiveness_history_demo/history_trend.json ]; then
   ARGS+=(--dataset-promotion-effectiveness-history-trend artifacts/dataset_promotion_effectiveness_history_demo/history_trend.json)
 fi
+if [ -f artifacts/dataset_failure_taxonomy_coverage_demo/summary.json ]; then
+  ARGS+=(--dataset-failure-taxonomy-coverage artifacts/dataset_failure_taxonomy_coverage_demo/summary.json)
+fi
 
 python3 -m gateforge.dataset_governance_snapshot \
   "${ARGS[@]}" \
@@ -130,6 +137,9 @@ flags = {
     "promotion_effectiveness_history_kpi_present": "PASS"
     if isinstance((payload.get("kpis") or {}).get("dataset_promotion_effectiveness_history_trend_status"), (str, type(None)))
     else "FAIL",
+    "failure_taxonomy_coverage_kpi_present": "PASS"
+    if isinstance((payload.get("kpis") or {}).get("dataset_failure_taxonomy_coverage_status"), (str, type(None)))
+    else "FAIL",
 }
 bundle_status = "PASS" if all(v == "PASS" for v in flags.values()) else "FAIL"
 summary = {
@@ -140,6 +150,10 @@ summary = {
     ),
     "promotion_effectiveness_history_latest_decision": (payload.get("kpis") or {}).get(
         "dataset_promotion_effectiveness_history_latest_decision"
+    ),
+    "failure_taxonomy_coverage_status": (payload.get("kpis") or {}).get("dataset_failure_taxonomy_coverage_status"),
+    "failure_taxonomy_missing_model_scales_count": (payload.get("kpis") or {}).get(
+        "dataset_failure_taxonomy_missing_model_scales_count"
     ),
     "result_flags": flags,
     "bundle_status": bundle_status,
@@ -154,6 +168,8 @@ summary = {
             f"- risks_count: `{summary['risks_count']}`",
             f"- promotion_effectiveness_history_trend_status: `{summary['promotion_effectiveness_history_trend_status']}`",
             f"- promotion_effectiveness_history_latest_decision: `{summary['promotion_effectiveness_history_latest_decision']}`",
+            f"- failure_taxonomy_coverage_status: `{summary['failure_taxonomy_coverage_status']}`",
+            f"- failure_taxonomy_missing_model_scales_count: `{summary['failure_taxonomy_missing_model_scales_count']}`",
             f"- bundle_status: `{summary['bundle_status']}`",
             "",
             "## Result Flags",

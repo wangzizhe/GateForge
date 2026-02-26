@@ -43,11 +43,17 @@ def _compute_trend(current: dict, previous: dict) -> dict:
         f"{previous_kpis.get('dataset_promotion_effectiveness_history_latest_decision')}->"
         f"{current_kpis.get('dataset_promotion_effectiveness_history_latest_decision')}"
     )
+    failure_taxonomy_coverage_transition = (
+        f"{previous_kpis.get('dataset_failure_taxonomy_coverage_status')}->"
+        f"{current_kpis.get('dataset_failure_taxonomy_coverage_status')}"
+    )
     status_delta_alerts: list[str] = []
     if trend_status_transition in {"PASS->NEEDS_REVIEW", "PASS->FAIL", "NEEDS_REVIEW->FAIL"}:
         status_delta_alerts.append("promotion_effectiveness_history_trend_worsened")
     if decision_transition in {"KEEP->NEEDS_REVIEW", "KEEP->ROLLBACK_REVIEW", "NEEDS_REVIEW->ROLLBACK_REVIEW"}:
         status_delta_alerts.append("promotion_effectiveness_history_decision_worsened")
+    if failure_taxonomy_coverage_transition in {"PASS->NEEDS_REVIEW", "PASS->FAIL", "NEEDS_REVIEW->FAIL"}:
+        status_delta_alerts.append("failure_taxonomy_coverage_worsened")
 
     status_transition = f"{previous_status}->{current_status}"
     new_risks = sorted(current_risks - previous_risks)
@@ -73,6 +79,7 @@ def _compute_trend(current: dict, previous: dict) -> dict:
         "status_delta": {
             "dataset_promotion_effectiveness_history_trend_status_transition": trend_status_transition,
             "dataset_promotion_effectiveness_history_latest_decision_transition": decision_transition,
+            "dataset_failure_taxonomy_coverage_status_transition": failure_taxonomy_coverage_transition,
             "alerts": status_delta_alerts,
         },
         "kpi_delta": {
@@ -94,6 +101,26 @@ def _compute_trend(current: dict, previous: dict) -> dict:
             "dataset_governance_trend_alert_count_delta": round(
                 _to_float(current_kpis.get("dataset_governance_trend_alert_count"))
                 - _to_float(previous_kpis.get("dataset_governance_trend_alert_count")),
+                4,
+            ),
+            "dataset_failure_taxonomy_total_cases_delta": round(
+                _to_float(current_kpis.get("dataset_failure_taxonomy_total_cases"))
+                - _to_float(previous_kpis.get("dataset_failure_taxonomy_total_cases")),
+                4,
+            ),
+            "dataset_failure_taxonomy_unique_failure_types_delta": round(
+                _to_float(current_kpis.get("dataset_failure_taxonomy_unique_failure_types"))
+                - _to_float(previous_kpis.get("dataset_failure_taxonomy_unique_failure_types")),
+                4,
+            ),
+            "dataset_failure_taxonomy_missing_failure_types_count_delta": round(
+                _to_float(current_kpis.get("dataset_failure_taxonomy_missing_failure_types_count"))
+                - _to_float(previous_kpis.get("dataset_failure_taxonomy_missing_failure_types_count")),
+                4,
+            ),
+            "dataset_failure_taxonomy_missing_model_scales_count_delta": round(
+                _to_float(current_kpis.get("dataset_failure_taxonomy_missing_model_scales_count"))
+                - _to_float(previous_kpis.get("dataset_failure_taxonomy_missing_model_scales_count")),
                 4,
             ),
         },
