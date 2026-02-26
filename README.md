@@ -70,6 +70,7 @@ cat artifacts/proposal_run.json
 - Modelica failure pack planner (scale-aware case targets for small/medium/large packs)
 - Moat execution forecast (30-day moat projection from pack + experiment execution plans)
 - Pack execution tracker (execution progress and large-scale completion visibility)
+- Large model failure queue (priority queue for large-scale failure gap closure)
 
 ## Most Used Commands
 
