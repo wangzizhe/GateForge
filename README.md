@@ -90,6 +90,7 @@ cat artifacts/proposal_run.json
 - Anchor benchmark pack v2 (end-to-end reproducible anchor pack from baseline+mutation+stability)
 - Open-source model intake v1 (license/reproducibility gate for external Modelica candidate import)
 - Mutation execution validator v1 (validate expected failure labels against repeated execution observations)
+- Failure distribution benchmark v2 (baseline + validated mutation outcome distribution benchmarking)
 
 ## Most Used Commands
 

@@ -506,6 +506,13 @@ bash scripts/demo_dataset_mutation_execution_validator_v1.sh
 cat artifacts/dataset_mutation_execution_validator_v1_demo/demo_summary.json
 ```
 
+## 17.37 Dataset Failure Distribution Benchmark v2
+
+```bash
+bash scripts/demo_dataset_failure_distribution_benchmark_v2.sh
+cat artifacts/dataset_failure_distribution_benchmark_v2_demo/demo_summary.json
+```
+
 ## 18. Dataset Policy Auto-Tune History
 
 ```bash
