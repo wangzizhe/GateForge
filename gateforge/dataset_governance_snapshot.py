@@ -79,6 +79,8 @@ def _status_from_signals(signals: dict) -> str:
         return "NEEDS_REVIEW"
     if signals.get("dataset_failure_distribution_benchmark_needs_review"):
         return "NEEDS_REVIEW"
+    if signals.get("dataset_model_scale_ladder_needs_review"):
+        return "NEEDS_REVIEW"
     return "PASS"
 
 
@@ -101,6 +103,7 @@ def _compute_summary(
     promotion_effectiveness_history_trend: dict,
     failure_taxonomy_coverage: dict,
     failure_distribution_benchmark: dict,
+    model_scale_ladder: dict,
 ) -> dict:
     strategy_advice = (
         strategy_advisor.get("advice")
@@ -143,6 +146,7 @@ def _compute_summary(
         in {"NEEDS_REVIEW", "FAIL"},
         "dataset_failure_distribution_benchmark_needs_review": str(failure_distribution_benchmark.get("status") or "")
         in {"NEEDS_REVIEW", "FAIL"},
+        "dataset_model_scale_ladder_needs_review": str(model_scale_ladder.get("status") or "") in {"NEEDS_REVIEW", "FAIL"},
     }
     status = _status_from_signals(signals)
 
@@ -185,6 +189,8 @@ def _compute_summary(
         risks.append("dataset_failure_taxonomy_coverage_needs_review")
     if signals["dataset_failure_distribution_benchmark_needs_review"]:
         risks.append("dataset_failure_distribution_benchmark_needs_review")
+    if signals["dataset_model_scale_ladder_needs_review"]:
+        risks.append("dataset_model_scale_ladder_needs_review")
 
     missing_failure_types = failure_taxonomy_coverage.get("missing_failure_types", [])
     if not isinstance(missing_failure_types, list):
@@ -250,6 +256,15 @@ def _compute_summary(
         "dataset_failure_distribution_drift_score": _to_float(
             failure_distribution_benchmark.get("distribution_drift_score", 0.0)
         ),
+        "dataset_model_scale_ladder_status": model_scale_ladder.get("status"),
+        "dataset_model_scale_medium_cases": _to_int(((model_scale_ladder.get("scale_counts") or {}).get("medium"))),
+        "dataset_model_scale_large_cases": _to_int(((model_scale_ladder.get("scale_counts") or {}).get("large"))),
+        "dataset_model_scale_medium_ready": bool(model_scale_ladder.get("medium_ready")),
+        "dataset_model_scale_large_ready": bool(model_scale_ladder.get("large_ready")),
+        "dataset_model_scale_main_ci_lane_count": len(((model_scale_ladder.get("ci_recommendation") or {}).get("main") or [])),
+        "dataset_model_scale_optional_ci_lane_count": len(
+            ((model_scale_ladder.get("ci_recommendation") or {}).get("optional") or [])
+        ),
     }
     return {
         "status": status,
@@ -300,6 +315,13 @@ def _write_markdown(path: str, summary: dict) -> None:
         f"- dataset_failure_distribution_false_positive_rate_after: `{kpis.get('dataset_failure_distribution_false_positive_rate_after')}`",
         f"- dataset_failure_distribution_regression_rate_after: `{kpis.get('dataset_failure_distribution_regression_rate_after')}`",
         f"- dataset_failure_distribution_drift_score: `{kpis.get('dataset_failure_distribution_drift_score')}`",
+        f"- dataset_model_scale_ladder_status: `{kpis.get('dataset_model_scale_ladder_status')}`",
+        f"- dataset_model_scale_medium_cases: `{kpis.get('dataset_model_scale_medium_cases')}`",
+        f"- dataset_model_scale_large_cases: `{kpis.get('dataset_model_scale_large_cases')}`",
+        f"- dataset_model_scale_medium_ready: `{kpis.get('dataset_model_scale_medium_ready')}`",
+        f"- dataset_model_scale_large_ready: `{kpis.get('dataset_model_scale_large_ready')}`",
+        f"- dataset_model_scale_main_ci_lane_count: `{kpis.get('dataset_model_scale_main_ci_lane_count')}`",
+        f"- dataset_model_scale_optional_ci_lane_count: `{kpis.get('dataset_model_scale_optional_ci_lane_count')}`",
         "",
         "## Risks",
         "",
@@ -382,6 +404,11 @@ def main() -> None:
         default=None,
         help="Path to dataset failure distribution benchmark summary JSON",
     )
+    parser.add_argument(
+        "--dataset-model-scale-ladder",
+        default=None,
+        help="Path to dataset model scale ladder summary JSON",
+    )
     parser.add_argument("--out", default="artifacts/dataset_governance_snapshot/summary.json", help="Output JSON path")
     parser.add_argument("--report", default=None, help="Output markdown path")
     args = parser.parse_args()
@@ -404,6 +431,7 @@ def main() -> None:
     promotion_effectiveness_history_trend = _load_json(args.dataset_promotion_effectiveness_history_trend)
     failure_taxonomy_coverage = _load_json(args.dataset_failure_taxonomy_coverage)
     failure_distribution_benchmark = _load_json(args.dataset_failure_distribution_benchmark)
+    model_scale_ladder = _load_json(args.dataset_model_scale_ladder)
 
     summary = _compute_summary(
         dataset_pipeline,
@@ -424,6 +452,7 @@ def main() -> None:
         promotion_effectiveness_history_trend,
         failure_taxonomy_coverage,
         failure_distribution_benchmark,
+        model_scale_ladder,
     )
     summary["generated_at_utc"] = datetime.now(timezone.utc).isoformat()
     summary["sources"] = {
@@ -445,6 +474,7 @@ def main() -> None:
         "dataset_promotion_effectiveness_history_trend_path": args.dataset_promotion_effectiveness_history_trend,
         "dataset_failure_taxonomy_coverage_path": args.dataset_failure_taxonomy_coverage,
         "dataset_failure_distribution_benchmark_path": args.dataset_failure_distribution_benchmark,
+        "dataset_model_scale_ladder_path": args.dataset_model_scale_ladder,
     }
 
     _write_json(args.out, summary)

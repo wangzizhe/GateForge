@@ -268,6 +268,13 @@ bash scripts/demo_dataset_failure_distribution_benchmark.sh
 cat artifacts/dataset_failure_distribution_benchmark_demo/demo_summary.json
 ```
 
+## 17.3 Dataset Model Scale Ladder
+
+```bash
+bash scripts/demo_dataset_model_scale_ladder.sh
+cat artifacts/dataset_model_scale_ladder_demo/demo_summary.json
+```
+
 ## 18. Dataset Policy Auto-Tune History
 
 ```bash

@@ -14,7 +14,7 @@ if [ "${GATEFORGE_DEMO_FAST:-0}" = "1" ]; then
     artifacts/dataset_strategy_autotune_apply_history_demo artifacts/dataset_promotion_candidate_history_demo \
     artifacts/dataset_promotion_candidate_apply_history_demo artifacts/dataset_promotion_effectiveness_demo \
     artifacts/dataset_promotion_effectiveness_history_demo artifacts/dataset_failure_taxonomy_coverage_demo \
-    artifacts/dataset_failure_distribution_benchmark_demo
+    artifacts/dataset_failure_distribution_benchmark_demo artifacts/dataset_model_scale_ladder_demo
   cat > artifacts/dataset_pipeline_demo/summary.json <<'JSON'
 {"bundle_status":"PASS","build_deduplicated_cases":12,"quality_failure_case_rate":0.3}
 JSON
@@ -69,6 +69,9 @@ JSON
   cat > artifacts/dataset_failure_distribution_benchmark_demo/summary.json <<'JSON'
 {"status":"PASS","detection_rate_after":0.92,"false_positive_rate_after":0.03,"regression_rate_after":0.08,"distribution_drift_score":0.18}
 JSON
+  cat > artifacts/dataset_model_scale_ladder_demo/summary.json <<'JSON'
+{"status":"PASS","medium_ready":true,"large_ready":true,"scale_counts":{"small":5,"medium":3,"large":2},"ci_recommendation":{"main":["small_smoke","medium_smoke"],"optional":["medium_full","large_subset"]}}
+JSON
 else
   bash scripts/demo_dataset_pipeline.sh >/dev/null
   bash scripts/demo_dataset_history.sh >/dev/null
@@ -89,6 +92,7 @@ else
   bash scripts/demo_dataset_promotion_effectiveness_history.sh >/dev/null
   bash scripts/demo_dataset_failure_taxonomy_coverage.sh >/dev/null
   bash scripts/demo_dataset_failure_distribution_benchmark.sh >/dev/null
+  bash scripts/demo_dataset_model_scale_ladder.sh >/dev/null
 fi
 
 ARGS=(
@@ -126,6 +130,9 @@ fi
 if [ -f artifacts/dataset_failure_distribution_benchmark_demo/summary.json ]; then
   ARGS+=(--dataset-failure-distribution-benchmark artifacts/dataset_failure_distribution_benchmark_demo/summary.json)
 fi
+if [ -f artifacts/dataset_model_scale_ladder_demo/summary.json ]; then
+  ARGS+=(--dataset-model-scale-ladder artifacts/dataset_model_scale_ladder_demo/summary.json)
+fi
 
 python3 -m gateforge.dataset_governance_snapshot \
   "${ARGS[@]}" \
@@ -151,6 +158,9 @@ flags = {
     "failure_distribution_benchmark_kpi_present": "PASS"
     if isinstance((payload.get("kpis") or {}).get("dataset_failure_distribution_benchmark_status"), (str, type(None)))
     else "FAIL",
+    "model_scale_ladder_kpi_present": "PASS"
+    if isinstance((payload.get("kpis") or {}).get("dataset_model_scale_ladder_status"), (str, type(None)))
+    else "FAIL",
 }
 bundle_status = "PASS" if all(v == "PASS" for v in flags.values()) else "FAIL"
 summary = {
@@ -172,6 +182,8 @@ summary = {
     "failure_distribution_drift_score": (payload.get("kpis") or {}).get(
         "dataset_failure_distribution_drift_score"
     ),
+    "model_scale_ladder_status": (payload.get("kpis") or {}).get("dataset_model_scale_ladder_status"),
+    "model_scale_large_ready": (payload.get("kpis") or {}).get("dataset_model_scale_large_ready"),
     "result_flags": flags,
     "bundle_status": bundle_status,
 }
@@ -189,6 +201,8 @@ summary = {
             f"- failure_taxonomy_missing_model_scales_count: `{summary['failure_taxonomy_missing_model_scales_count']}`",
             f"- failure_distribution_benchmark_status: `{summary['failure_distribution_benchmark_status']}`",
             f"- failure_distribution_drift_score: `{summary['failure_distribution_drift_score']}`",
+            f"- model_scale_ladder_status: `{summary['model_scale_ladder_status']}`",
+            f"- model_scale_large_ready: `{summary['model_scale_large_ready']}`",
             f"- bundle_status: `{summary['bundle_status']}`",
             "",
             "## Result Flags",
