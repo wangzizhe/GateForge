@@ -59,6 +59,22 @@ def _compute_trend(current: dict, previous: dict) -> dict:
         f"{previous_kpis.get('dataset_failure_policy_patch_advisor_status')}->"
         f"{current_kpis.get('dataset_failure_policy_patch_advisor_status')}"
     )
+    modelica_library_provenance_guard_transition = (
+        f"{previous_kpis.get('dataset_modelica_library_provenance_guard_status')}->"
+        f"{current_kpis.get('dataset_modelica_library_provenance_guard_status')}"
+    )
+    large_model_benchmark_pack_transition = (
+        f"{previous_kpis.get('dataset_large_model_benchmark_pack_status')}->"
+        f"{current_kpis.get('dataset_large_model_benchmark_pack_status')}"
+    )
+    mutation_campaign_tracker_transition = (
+        f"{previous_kpis.get('dataset_mutation_campaign_tracker_status')}->"
+        f"{current_kpis.get('dataset_mutation_campaign_tracker_status')}"
+    )
+    moat_public_scoreboard_transition = (
+        f"{previous_kpis.get('dataset_moat_public_scoreboard_status')}->"
+        f"{current_kpis.get('dataset_moat_public_scoreboard_status')}"
+    )
     status_delta_alerts: list[str] = []
     if trend_status_transition in {"PASS->NEEDS_REVIEW", "PASS->FAIL", "NEEDS_REVIEW->FAIL"}:
         status_delta_alerts.append("promotion_effectiveness_history_trend_worsened")
@@ -72,6 +88,14 @@ def _compute_trend(current: dict, previous: dict) -> dict:
         status_delta_alerts.append("model_scale_ladder_worsened")
     if failure_policy_patch_advisor_transition in {"PASS->NEEDS_REVIEW", "PASS->FAIL", "NEEDS_REVIEW->FAIL"}:
         status_delta_alerts.append("failure_policy_patch_advisor_worsened")
+    if modelica_library_provenance_guard_transition in {"PASS->NEEDS_REVIEW", "PASS->FAIL", "NEEDS_REVIEW->FAIL"}:
+        status_delta_alerts.append("modelica_library_provenance_guard_worsened")
+    if large_model_benchmark_pack_transition in {"PASS->NEEDS_REVIEW", "PASS->FAIL", "NEEDS_REVIEW->FAIL"}:
+        status_delta_alerts.append("large_model_benchmark_pack_worsened")
+    if mutation_campaign_tracker_transition in {"PASS->NEEDS_REVIEW", "PASS->FAIL", "NEEDS_REVIEW->FAIL"}:
+        status_delta_alerts.append("mutation_campaign_tracker_worsened")
+    if moat_public_scoreboard_transition in {"PASS->NEEDS_REVIEW", "PASS->FAIL", "NEEDS_REVIEW->FAIL"}:
+        status_delta_alerts.append("moat_public_scoreboard_worsened")
 
     status_transition = f"{previous_status}->{current_status}"
     new_risks = sorted(current_risks - previous_risks)
@@ -101,6 +125,10 @@ def _compute_trend(current: dict, previous: dict) -> dict:
             "dataset_failure_distribution_benchmark_status_transition": failure_distribution_benchmark_transition,
             "dataset_model_scale_ladder_status_transition": model_scale_ladder_transition,
             "dataset_failure_policy_patch_advisor_status_transition": failure_policy_patch_advisor_transition,
+            "dataset_modelica_library_provenance_guard_status_transition": modelica_library_provenance_guard_transition,
+            "dataset_large_model_benchmark_pack_status_transition": large_model_benchmark_pack_transition,
+            "dataset_mutation_campaign_tracker_status_transition": mutation_campaign_tracker_transition,
+            "dataset_moat_public_scoreboard_status_transition": moat_public_scoreboard_transition,
             "alerts": status_delta_alerts,
         },
         "kpi_delta": {
@@ -187,6 +215,41 @@ def _compute_trend(current: dict, previous: dict) -> dict:
             "dataset_failure_policy_patch_reason_count_delta": round(
                 _to_float(current_kpis.get("dataset_failure_policy_patch_reason_count"))
                 - _to_float(previous_kpis.get("dataset_failure_policy_patch_reason_count")),
+                4,
+            ),
+            "dataset_modelica_library_provenance_completeness_pct_delta": round(
+                _to_float(current_kpis.get("dataset_modelica_library_provenance_completeness_pct"))
+                - _to_float(previous_kpis.get("dataset_modelica_library_provenance_completeness_pct")),
+                4,
+            ),
+            "dataset_modelica_library_unknown_license_ratio_pct_delta": round(
+                _to_float(current_kpis.get("dataset_modelica_library_unknown_license_ratio_pct"))
+                - _to_float(previous_kpis.get("dataset_modelica_library_unknown_license_ratio_pct")),
+                4,
+            ),
+            "dataset_large_model_benchmark_pack_readiness_score_delta": round(
+                _to_float(current_kpis.get("dataset_large_model_benchmark_pack_readiness_score"))
+                - _to_float(previous_kpis.get("dataset_large_model_benchmark_pack_readiness_score")),
+                4,
+            ),
+            "dataset_large_model_benchmark_selected_models_delta": round(
+                _to_float(current_kpis.get("dataset_large_model_benchmark_selected_models"))
+                - _to_float(previous_kpis.get("dataset_large_model_benchmark_selected_models")),
+                4,
+            ),
+            "dataset_large_model_benchmark_selected_mutations_delta": round(
+                _to_float(current_kpis.get("dataset_large_model_benchmark_selected_mutations"))
+                - _to_float(previous_kpis.get("dataset_large_model_benchmark_selected_mutations")),
+                4,
+            ),
+            "dataset_mutation_campaign_completion_ratio_pct_delta": round(
+                _to_float(current_kpis.get("dataset_mutation_campaign_completion_ratio_pct"))
+                - _to_float(previous_kpis.get("dataset_mutation_campaign_completion_ratio_pct")),
+                4,
+            ),
+            "dataset_moat_public_score_delta": round(
+                _to_float(current_kpis.get("dataset_moat_public_score"))
+                - _to_float(previous_kpis.get("dataset_moat_public_score")),
                 4,
             ),
         },

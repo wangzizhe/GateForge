@@ -35,6 +35,14 @@ mapping = {
         "model_scale_large_ready": True,
         "failure_policy_patch_advisor_status": "PASS",
         "failure_policy_patch_suggested_action": "keep",
+        "modelica_library_provenance_guard_status": "PASS",
+        "modelica_library_provenance_completeness_pct": 99.0,
+        "large_model_benchmark_pack_status": "PASS",
+        "large_model_benchmark_pack_readiness_score": 86.0,
+        "mutation_campaign_tracker_status": "PASS",
+        "mutation_campaign_completion_ratio_pct": 90.0,
+        "moat_public_scoreboard_status": "PASS",
+        "moat_public_score": 85.0,
     },
     "dataset_governance_snapshot_trend_demo/demo_summary.json": {
         "bundle_status": "PASS",
@@ -44,6 +52,10 @@ mapping = {
         "failure_distribution_benchmark_status_transition": "PASS->PASS",
         "model_scale_ladder_status_transition": "PASS->PASS",
         "failure_policy_patch_advisor_status_transition": "PASS->PASS",
+        "modelica_library_provenance_guard_status_transition": "PASS->PASS",
+        "large_model_benchmark_pack_status_transition": "PASS->PASS",
+        "mutation_campaign_tracker_status_transition": "PASS->PASS",
+        "moat_public_scoreboard_status_transition": "PASS->PASS",
         "status_delta_alert_count": 0,
         "severity_level": "low",
     },
@@ -107,6 +119,31 @@ mapping = {
     "dataset_promotion_effectiveness_demo/summary.json": {"bundle_status": "PASS", "effectiveness_decision": "KEEP"},
     "dataset_promotion_effectiveness_history_demo/summary.json": {"bundle_status": "PASS", "trend_status": "PASS"},
     "dataset_policy_autotune_history_demo/summary.json": {"bundle_status": "PASS"},
+    "dataset_modelica_library_provenance_guard_v1_demo/demo_summary.json": {
+        "bundle_status": "PASS",
+        "guard_status": "PASS",
+        "provenance_completeness_pct": 99.0,
+        "unknown_license_ratio_pct": 0.0,
+    },
+    "dataset_large_model_benchmark_pack_v1_demo/demo_summary.json": {
+        "bundle_status": "PASS",
+        "pack_status": "PASS",
+        "pack_readiness_score": 85.0,
+        "selected_large_models": 3,
+        "selected_large_mutations": 8,
+    },
+    "dataset_mutation_campaign_tracker_v1_demo/demo_summary.json": {
+        "bundle_status": "PASS",
+        "tracker_status": "PASS",
+        "campaign_phase": "scale_out",
+        "completion_ratio_pct": 90.0,
+    },
+    "dataset_moat_public_scoreboard_v1_demo/demo_summary.json": {
+        "bundle_status": "PASS",
+        "scoreboard_status": "PASS",
+        "moat_public_score": 86.0,
+        "verdict": "STRONG_MOAT_SIGNAL",
+    },
 }
 for rel, payload in mapping.items():
     p = root / rel
@@ -142,6 +179,10 @@ else
   bash scripts/demo_dataset_promotion_effectiveness.sh >/dev/null
   bash scripts/demo_dataset_promotion_effectiveness_history.sh >/dev/null
   bash scripts/demo_dataset_policy_autotune_history.sh >/dev/null
+  bash scripts/demo_dataset_modelica_library_provenance_guard_v1.sh >/dev/null
+  bash scripts/demo_dataset_large_model_benchmark_pack_v1.sh >/dev/null
+  bash scripts/demo_dataset_mutation_campaign_tracker_v1.sh >/dev/null
+  bash scripts/demo_dataset_moat_public_scoreboard_v1.sh >/dev/null
 fi
 
 python3 -m gateforge.dataset_optional_ci_contract \
