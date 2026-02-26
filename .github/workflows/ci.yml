@@ -137,6 +137,7 @@ jobs:
     env:
       GATEFORGE_RUNTIME_THRESHOLD: "0.20"
       GATEFORGE_STRICT_MODEL_SCRIPT: "false"
+      GATEFORGE_DEMO_FAST: "1"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -151,8 +152,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e .
 
-      - name: Run tests
-        run: timeout 45m python -X faulthandler -m unittest discover -s tests -v
+      - name: Run tests (sharded)
+        run: |
+          timeout 25m python -X faulthandler -m unittest discover -s tests -p "test_[a-h]*.py" -v
+          timeout 25m python -X faulthandler -m unittest discover -s tests -p "test_[i-p]*.py" -v
+          timeout 25m python -X faulthandler -m unittest discover -s tests -p "test_[q-z]*.py" -v
 
       - name: Generate candidate evidence
         run: python -m gateforge.smoke --backend mock --out artifacts/candidate.json
