@@ -78,6 +78,7 @@ cat artifacts/proposal_run.json
 - Model scale mix guard (ratio guardrail for medium/large dataset share)
 - Governance evidence release manifest (externally shareable proof artifact manifest)
 - External proof score (single score for external evidence strength communication)
+- Failure corpus DB v1 (normalized failure-case database with reproducibility metadata)
 
 ## Most Used Commands
 
