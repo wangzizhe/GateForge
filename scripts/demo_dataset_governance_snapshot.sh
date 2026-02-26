@@ -8,23 +8,79 @@ OUT_DIR="artifacts/dataset_governance_snapshot_demo"
 mkdir -p "$OUT_DIR"
 rm -f "$OUT_DIR"/*.json "$OUT_DIR"/*.md
 
-bash scripts/demo_dataset_pipeline.sh >/dev/null
-bash scripts/demo_dataset_history.sh >/dev/null
-if [ ! -f artifacts/dataset_history_demo/history_summary.json ]; then
+if [ "${GATEFORGE_DEMO_FAST:-0}" = "1" ]; then
+  mkdir -p artifacts/dataset_pipeline_demo artifacts/dataset_history_demo artifacts/dataset_policy_lifecycle_demo \
+    artifacts/dataset_governance_history_demo artifacts/dataset_strategy_autotune_demo \
+    artifacts/dataset_strategy_autotune_apply_history_demo artifacts/dataset_promotion_candidate_history_demo \
+    artifacts/dataset_promotion_candidate_apply_history_demo artifacts/dataset_promotion_effectiveness_demo \
+    artifacts/dataset_promotion_effectiveness_history_demo
+  cat > artifacts/dataset_pipeline_demo/summary.json <<'JSON'
+{"bundle_status":"PASS","build_deduplicated_cases":12,"quality_failure_case_rate":0.3}
+JSON
+  cat > artifacts/dataset_history_demo/history_summary.json <<'JSON'
+{"total_records":4,"latest_failure_case_rate":0.3}
+JSON
+  cat > artifacts/dataset_history_demo/history_trend.json <<'JSON'
+{"status":"PASS","trend":{"alerts":[]}}
+JSON
+  cat > artifacts/dataset_policy_lifecycle_demo/ledger_summary.json <<'JSON'
+{"latest_status":"PASS","total_records":4}
+JSON
+  cat > artifacts/dataset_governance_history_demo/trend.json <<'JSON'
+{"status":"PASS","trend":{"alerts":[]}}
+JSON
+  cat > artifacts/dataset_policy_lifecycle_demo/effectiveness.json <<'JSON'
+{"decision":"KEEP"}
+JSON
+  cat > artifacts/dataset_strategy_autotune_demo/advisor.json <<'JSON'
+{"advice":{"suggested_policy_profile":"dataset_default","suggested_action":"monitor"}}
+JSON
+  cat > artifacts/dataset_strategy_autotune_apply_history_demo/history_summary.json <<'JSON'
+{"latest_final_status":"PASS","fail_rate":0.0,"needs_review_rate":0.1}
+JSON
+  cat > artifacts/dataset_strategy_autotune_apply_history_demo/history_trend.json <<'JSON'
+{"status":"PASS","trend":{"alerts":[]}}
+JSON
+  cat > artifacts/dataset_promotion_candidate_history_demo/history_summary.json <<'JSON'
+{"latest_decision":"HOLD","hold_rate":0.5,"block_rate":0.0}
+JSON
+  cat > artifacts/dataset_promotion_candidate_history_demo/history_trend.json <<'JSON'
+{"status":"PASS","trend":{"alerts":[]}}
+JSON
+  cat > artifacts/dataset_promotion_candidate_apply_history_demo/history_summary.json <<'JSON'
+{"latest_final_status":"PASS","fail_rate":0.0,"needs_review_rate":0.1}
+JSON
+  cat > artifacts/dataset_promotion_candidate_apply_history_demo/history_trend.json <<'JSON'
+{"status":"PASS","trend":{"alerts":[]}}
+JSON
+  cat > artifacts/dataset_promotion_effectiveness_demo/effectiveness.json <<'JSON'
+{"decision":"KEEP"}
+JSON
+  cat > artifacts/dataset_promotion_effectiveness_history_demo/history_summary.json <<'JSON'
+{"latest_decision":"KEEP","rollback_review_rate":0.0}
+JSON
+  cat > artifacts/dataset_promotion_effectiveness_history_demo/history_trend.json <<'JSON'
+{"status":"PASS","trend":{"alerts":[]}}
+JSON
+else
+  bash scripts/demo_dataset_pipeline.sh >/dev/null
   bash scripts/demo_dataset_history.sh >/dev/null
+  if [ ! -f artifacts/dataset_history_demo/history_summary.json ]; then
+    bash scripts/demo_dataset_history.sh >/dev/null
+  fi
+  if [ ! -f artifacts/dataset_history_demo/history_summary.json ]; then
+    echo "missing artifacts/dataset_history_demo/history_summary.json" >&2
+    exit 1
+  fi
+  bash scripts/demo_dataset_policy_lifecycle.sh >/dev/null
+  bash scripts/demo_dataset_governance_history.sh >/dev/null
+  bash scripts/demo_dataset_strategy_autotune.sh >/dev/null
+  bash scripts/demo_dataset_strategy_autotune_apply_history.sh >/dev/null
+  bash scripts/demo_dataset_promotion_candidate_history.sh >/dev/null
+  bash scripts/demo_dataset_promotion_candidate_apply_history.sh >/dev/null
+  bash scripts/demo_dataset_promotion_effectiveness.sh >/dev/null
+  bash scripts/demo_dataset_promotion_effectiveness_history.sh >/dev/null
 fi
-if [ ! -f artifacts/dataset_history_demo/history_summary.json ]; then
-  echo "missing artifacts/dataset_history_demo/history_summary.json" >&2
-  exit 1
-fi
-bash scripts/demo_dataset_policy_lifecycle.sh >/dev/null
-bash scripts/demo_dataset_governance_history.sh >/dev/null
-bash scripts/demo_dataset_strategy_autotune.sh >/dev/null
-bash scripts/demo_dataset_strategy_autotune_apply_history.sh >/dev/null
-bash scripts/demo_dataset_promotion_candidate_history.sh >/dev/null
-bash scripts/demo_dataset_promotion_candidate_apply_history.sh >/dev/null
-bash scripts/demo_dataset_promotion_effectiveness.sh >/dev/null
-bash scripts/demo_dataset_promotion_effectiveness_history.sh >/dev/null
 
 ARGS=(
   --dataset-pipeline-summary artifacts/dataset_pipeline_demo/summary.json

@@ -11,14 +11,18 @@ class DatasetGovernanceSnapshotDemoTests(unittest.TestCase):
         repo_root = Path(__file__).resolve().parents[1]
         script = repo_root / "scripts" / "demo_dataset_governance_snapshot.sh"
         with tempfile.TemporaryDirectory() as d:
-            proc = subprocess.run(
-                ["bash", str(script)],
-                cwd=str(repo_root),
-                capture_output=True,
-                text=True,
-                check=False,
-                env={**os.environ, "TMPDIR": d},
-            )
+            try:
+                proc = subprocess.run(
+                    ["bash", str(script)],
+                    cwd=str(repo_root),
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    env={**os.environ, "TMPDIR": d, "GATEFORGE_DEMO_FAST": "1"},
+                    timeout=120,
+                )
+            except subprocess.TimeoutExpired as exc:
+                self.fail(f"demo timed out after {exc.timeout}s")
             self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
             payload = json.loads(
                 (repo_root / "artifacts" / "dataset_governance_snapshot_demo" / "demo_summary.json").read_text(

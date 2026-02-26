@@ -8,24 +8,66 @@ OUT_DIR="artifacts/dataset_optional_ci_contract_demo"
 mkdir -p "$OUT_DIR"
 rm -f "$OUT_DIR"/*.json "$OUT_DIR"/*.md
 
-bash scripts/demo_dataset_pipeline.sh >/dev/null
-bash scripts/demo_dataset_artifacts_pipeline.sh >/dev/null
-bash scripts/demo_dataset_history.sh >/dev/null
-bash scripts/demo_dataset_governance.sh >/dev/null
-bash scripts/demo_dataset_policy_lifecycle.sh >/dev/null
-bash scripts/demo_dataset_governance_history.sh >/dev/null
-bash scripts/demo_dataset_strategy_autotune.sh >/dev/null
-bash scripts/demo_dataset_strategy_autotune_apply.sh >/dev/null
-bash scripts/demo_dataset_strategy_autotune_apply_history.sh >/dev/null
-bash scripts/demo_dataset_governance_snapshot.sh >/dev/null
-bash scripts/demo_dataset_governance_snapshot_trend.sh >/dev/null
-bash scripts/demo_dataset_promotion_candidate.sh >/dev/null
-bash scripts/demo_dataset_promotion_candidate_apply.sh >/dev/null
-bash scripts/demo_dataset_promotion_candidate_history.sh >/dev/null
-bash scripts/demo_dataset_promotion_candidate_apply_history.sh >/dev/null
-bash scripts/demo_dataset_promotion_effectiveness.sh >/dev/null
-bash scripts/demo_dataset_promotion_effectiveness_history.sh >/dev/null
-bash scripts/demo_dataset_policy_autotune_history.sh >/dev/null
+if [ "${GATEFORGE_DEMO_FAST:-0}" = "1" ]; then
+  python3 - <<'PY'
+import json
+from pathlib import Path
+
+root = Path("artifacts")
+mapping = {
+    "dataset_pipeline_demo/summary.json": {"bundle_status": "PASS", "result_flags": {}},
+    "dataset_artifacts_pipeline_demo/summary.json": {"bundle_status": "PASS", "quality_gate_status": "PASS"},
+    "dataset_history_demo/summary.json": {"bundle_status": "PASS"},
+    "dataset_governance_demo/summary.json": {"bundle_status": "PASS"},
+    "dataset_policy_lifecycle_demo/summary.json": {"bundle_status": "PASS"},
+    "dataset_governance_history_demo/summary.json": {"bundle_status": "PASS"},
+    "dataset_strategy_autotune_demo/summary.json": {"bundle_status": "PASS"},
+    "dataset_strategy_autotune_apply_demo/summary.json": {"bundle_status": "PASS"},
+    "dataset_strategy_autotune_apply_history_demo/summary.json": {"bundle_status": "PASS"},
+    "dataset_governance_snapshot_demo/demo_summary.json": {
+        "bundle_status": "PASS",
+        "promotion_effectiveness_history_trend_status": "PASS",
+    },
+    "dataset_governance_snapshot_trend_demo/demo_summary.json": {
+        "bundle_status": "PASS",
+        "status_transition": "PASS->PASS",
+        "promotion_effectiveness_history_trend_transition": "PASS->PASS",
+        "status_delta_alert_count": 0,
+        "severity_level": "low",
+    },
+    "dataset_promotion_candidate_demo/summary.json": {"bundle_status": "PASS", "decision": "HOLD"},
+    "dataset_promotion_candidate_apply_demo/summary.json": {"bundle_status": "PASS"},
+    "dataset_promotion_candidate_history_demo/summary.json": {"bundle_status": "PASS"},
+    "dataset_promotion_candidate_apply_history_demo/summary.json": {"bundle_status": "PASS"},
+    "dataset_promotion_effectiveness_demo/summary.json": {"bundle_status": "PASS", "effectiveness_decision": "KEEP"},
+    "dataset_promotion_effectiveness_history_demo/summary.json": {"bundle_status": "PASS", "trend_status": "PASS"},
+    "dataset_policy_autotune_history_demo/summary.json": {"bundle_status": "PASS"},
+}
+for rel, payload in mapping.items():
+    p = root / rel
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(json.dumps(payload), encoding="utf-8")
+PY
+else
+  bash scripts/demo_dataset_pipeline.sh >/dev/null
+  bash scripts/demo_dataset_artifacts_pipeline.sh >/dev/null
+  bash scripts/demo_dataset_history.sh >/dev/null
+  bash scripts/demo_dataset_governance.sh >/dev/null
+  bash scripts/demo_dataset_policy_lifecycle.sh >/dev/null
+  bash scripts/demo_dataset_governance_history.sh >/dev/null
+  bash scripts/demo_dataset_strategy_autotune.sh >/dev/null
+  bash scripts/demo_dataset_strategy_autotune_apply.sh >/dev/null
+  bash scripts/demo_dataset_strategy_autotune_apply_history.sh >/dev/null
+  bash scripts/demo_dataset_governance_snapshot.sh >/dev/null
+  bash scripts/demo_dataset_governance_snapshot_trend.sh >/dev/null
+  bash scripts/demo_dataset_promotion_candidate.sh >/dev/null
+  bash scripts/demo_dataset_promotion_candidate_apply.sh >/dev/null
+  bash scripts/demo_dataset_promotion_candidate_history.sh >/dev/null
+  bash scripts/demo_dataset_promotion_candidate_apply_history.sh >/dev/null
+  bash scripts/demo_dataset_promotion_effectiveness.sh >/dev/null
+  bash scripts/demo_dataset_promotion_effectiveness_history.sh >/dev/null
+  bash scripts/demo_dataset_policy_autotune_history.sh >/dev/null
+fi
 
 python3 -m gateforge.dataset_optional_ci_contract \
   --artifacts-root artifacts \
