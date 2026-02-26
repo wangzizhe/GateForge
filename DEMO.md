@@ -359,6 +359,13 @@ bash scripts/demo_dataset_moat_execution_forecast.sh
 cat artifacts/dataset_moat_execution_forecast_demo/demo_summary.json
 ```
 
+## 17.16 Dataset Pack Execution Tracker
+
+```bash
+bash scripts/demo_dataset_pack_execution_tracker.sh
+cat artifacts/dataset_pack_execution_tracker_demo/demo_summary.json
+```
+
 ## 18. Dataset Policy Auto-Tune History
 
 ```bash
