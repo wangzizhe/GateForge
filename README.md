@@ -66,6 +66,7 @@ cat artifacts/proposal_run.json
 - Backlog execution bridge (convert blind spots to ready execution tasks)
 - Replay quality guard (sample-size and stability checks for replay conclusions)
 - Failure coverage planner (prioritized coverage plan with expected moat deltas)
+- Policy experiment runner (ranked conservative/balanced/aggressive policy experiments)
 
 ## Most Used Commands
 
