@@ -387,6 +387,13 @@ bash scripts/demo_dataset_governance_decision_proofbook.sh
 cat artifacts/dataset_governance_decision_proofbook_demo/demo_summary.json
 ```
 
+## 17.20 Dataset Large Model Campaign Board
+
+```bash
+bash scripts/demo_dataset_large_model_campaign_board.sh
+cat artifacts/dataset_large_model_campaign_board_demo/demo_summary.json
+```
+
 ## 18. Dataset Policy Auto-Tune History
 
 ```bash

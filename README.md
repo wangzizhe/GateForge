@@ -73,6 +73,7 @@ cat artifacts/proposal_run.json
 - Large model failure queue (priority queue for large-scale failure gap closure)
 - Failure signal calibrator (adaptive weighting for detection/fp/regression/drift signals)
 - Governance decision proofbook (compact decision-ready evidence cards)
+- Large model campaign board (weekly execution board for large-scale closure)
 
 ## Most Used Commands
 
