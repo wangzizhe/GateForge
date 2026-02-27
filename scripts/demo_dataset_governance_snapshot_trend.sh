@@ -164,6 +164,15 @@ demo = {
     "modelica_release_candidate_gate_status_transition": (trend.get("status_delta") or {}).get(
         "dataset_modelica_release_candidate_gate_status_transition"
     ),
+    "intake_growth_advisor_status_transition": (trend.get("status_delta") or {}).get(
+        "dataset_intake_growth_advisor_status_transition"
+    ),
+    "intake_growth_advisor_history_status_transition": (trend.get("status_delta") or {}).get(
+        "dataset_intake_growth_advisor_history_status_transition"
+    ),
+    "intake_growth_advisor_history_trend_status_transition": (trend.get("status_delta") or {}).get(
+        "dataset_intake_growth_advisor_history_trend_status_transition"
+    ),
     "status_delta_alert_count": len((trend.get("status_delta") or {}).get("alerts") or []),
     "result_flags": flags,
     "bundle_status": bundle_status,
@@ -197,6 +206,9 @@ demo = {
             f"- real_model_supply_health_status_transition: `{demo['real_model_supply_health_status_transition']}`",
             f"- mutation_recipe_execution_audit_status_transition: `{demo['mutation_recipe_execution_audit_status_transition']}`",
             f"- modelica_release_candidate_gate_status_transition: `{demo['modelica_release_candidate_gate_status_transition']}`",
+            f"- intake_growth_advisor_status_transition: `{demo['intake_growth_advisor_status_transition']}`",
+            f"- intake_growth_advisor_history_status_transition: `{demo['intake_growth_advisor_history_status_transition']}`",
+            f"- intake_growth_advisor_history_trend_status_transition: `{demo['intake_growth_advisor_history_trend_status_transition']}`",
             f"- status_delta_alert_count: `{demo['status_delta_alert_count']}`",
             f"- bundle_status: `{demo['bundle_status']}`",
             "",

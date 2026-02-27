@@ -564,6 +564,53 @@ class DatasetGovernanceSnapshotTests(unittest.TestCase):
                 "execute_growth_recovery_plan",
             )
 
+    def test_snapshot_needs_review_on_intake_growth_advisor_history_trend(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            history = root / "history.json"
+            trend = root / "trend.json"
+            out = root / "snapshot.json"
+            history.write_text(
+                json.dumps(
+                    {
+                        "status": "NEEDS_REVIEW",
+                        "latest_suggested_action": "execute_targeted_growth_patch",
+                        "recovery_plan_rate": 0.2,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            trend.write_text(
+                json.dumps(
+                    {
+                        "status": "NEEDS_REVIEW",
+                        "trend": {"alerts": ["recovery_plan_rate_increasing"]},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.dataset_governance_snapshot",
+                    "--dataset-intake-growth-advisor-history",
+                    str(history),
+                    "--dataset-intake-growth-advisor-history-trend",
+                    str(trend),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            payload = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(payload.get("status"), "NEEDS_REVIEW")
+            self.assertIn("dataset_intake_growth_advisor_history_needs_review", payload.get("risks", []))
+            self.assertIn("dataset_intake_growth_advisor_history_trend_needs_review", payload.get("risks", []))
+
 
 if __name__ == "__main__":
     unittest.main()

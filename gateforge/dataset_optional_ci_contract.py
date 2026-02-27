@@ -134,6 +134,8 @@ def main() -> None:
                 "milestone_public_brief_status",
                 "intake_growth_advisor_status",
                 "intake_growth_suggested_action",
+                "intake_growth_advisor_history_status",
+                "intake_growth_advisor_history_trend_status",
             ],
         ),
         (
@@ -162,6 +164,9 @@ def main() -> None:
                 "milestone_checkpoint_status_transition",
                 "milestone_checkpoint_trend_status_transition",
                 "milestone_public_brief_status_transition",
+                "intake_growth_advisor_status_transition",
+                "intake_growth_advisor_history_status_transition",
+                "intake_growth_advisor_history_trend_status_transition",
                 "status_delta_alert_count",
                 "severity_level",
             ],
@@ -327,6 +332,16 @@ def main() -> None:
             "dataset_intake_growth_advisor_v1_demo",
             "dataset_intake_growth_advisor_v1_demo/demo_summary.json",
             ["bundle_status", "advisor_status", "suggested_action"],
+        ),
+        (
+            "dataset_intake_growth_advisor_history_v1_demo",
+            "dataset_intake_growth_advisor_history_v1_demo/demo_summary.json",
+            ["bundle_status", "history_status", "latest_suggested_action"],
+        ),
+        (
+            "dataset_intake_growth_advisor_history_trend_v1_demo",
+            "dataset_intake_growth_advisor_history_trend_v1_demo/demo_summary.json",
+            ["bundle_status", "trend_status", "status_transition"],
         ),
         (
             "dataset_milestone_checkpoint_v1_demo",

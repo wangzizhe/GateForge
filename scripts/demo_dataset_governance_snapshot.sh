@@ -21,7 +21,8 @@ if [ "${GATEFORGE_DEMO_FAST:-0}" = "1" ]; then
     artifacts/dataset_modelica_mutation_recipe_library_v1_demo artifacts/dataset_real_model_failure_yield_tracker_v1_demo \
     artifacts/dataset_real_model_intake_backlog_prioritizer_v1_demo artifacts/dataset_modelica_moat_readiness_gate_v1_demo \
     artifacts/dataset_real_model_supply_health_v1_demo artifacts/dataset_mutation_recipe_execution_audit_v1_demo \
-    artifacts/dataset_modelica_release_candidate_gate_v1_demo artifacts/dataset_intake_growth_advisor_v1_demo
+    artifacts/dataset_modelica_release_candidate_gate_v1_demo artifacts/dataset_intake_growth_advisor_v1_demo \
+    artifacts/dataset_intake_growth_advisor_history_v1_demo artifacts/dataset_intake_growth_advisor_history_trend_v1_demo
   cat > artifacts/dataset_pipeline_demo/summary.json <<'JSON'
 {"bundle_status":"PASS","build_deduplicated_cases":12,"quality_failure_case_rate":0.3}
 JSON
@@ -121,6 +122,12 @@ JSON
   cat > artifacts/dataset_intake_growth_advisor_v1_demo/summary.json <<'JSON'
 {"status":"PASS","advice":{"suggested_action":"keep","backlog_actions":[]}}
 JSON
+  cat > artifacts/dataset_intake_growth_advisor_history_v1_demo/summary.json <<'JSON'
+{"status":"PASS","latest_suggested_action":"keep","recovery_plan_rate":0.0}
+JSON
+  cat > artifacts/dataset_intake_growth_advisor_history_trend_v1_demo/summary.json <<'JSON'
+{"status":"PASS","trend":{"alerts":[]}}
+JSON
 else
   bash scripts/demo_dataset_pipeline.sh >/dev/null
   bash scripts/demo_dataset_history.sh >/dev/null
@@ -156,6 +163,8 @@ else
   bash scripts/demo_dataset_mutation_recipe_execution_audit_v1.sh >/dev/null
   bash scripts/demo_dataset_modelica_release_candidate_gate_v1.sh >/dev/null
   bash scripts/demo_dataset_intake_growth_advisor_v1.sh >/dev/null
+  bash scripts/demo_dataset_intake_growth_advisor_history_v1.sh >/dev/null
+  bash scripts/demo_dataset_intake_growth_advisor_history_trend_v1.sh >/dev/null
 fi
 
 ARGS=(
@@ -238,6 +247,12 @@ fi
 if [ -f artifacts/dataset_intake_growth_advisor_v1_demo/summary.json ]; then
   ARGS+=(--dataset-intake-growth-advisor artifacts/dataset_intake_growth_advisor_v1_demo/summary.json)
 fi
+if [ -f artifacts/dataset_intake_growth_advisor_history_v1_demo/summary.json ]; then
+  ARGS+=(--dataset-intake-growth-advisor-history artifacts/dataset_intake_growth_advisor_history_v1_demo/summary.json)
+fi
+if [ -f artifacts/dataset_intake_growth_advisor_history_trend_v1_demo/summary.json ]; then
+  ARGS+=(--dataset-intake-growth-advisor-history-trend artifacts/dataset_intake_growth_advisor_history_trend_v1_demo/summary.json)
+fi
 
 python3 -m gateforge.dataset_governance_snapshot \
   "${ARGS[@]}" \
@@ -308,6 +323,12 @@ flags = {
     "intake_growth_advisor_kpi_present": "PASS"
     if isinstance((payload.get("kpis") or {}).get("dataset_intake_growth_advisor_status"), (str, type(None)))
     else "FAIL",
+    "intake_growth_advisor_history_kpi_present": "PASS"
+    if isinstance((payload.get("kpis") or {}).get("dataset_intake_growth_advisor_history_status"), (str, type(None)))
+    else "FAIL",
+    "intake_growth_advisor_history_trend_kpi_present": "PASS"
+    if isinstance((payload.get("kpis") or {}).get("dataset_intake_growth_advisor_history_trend_status"), (str, type(None)))
+    else "FAIL",
 }
 bundle_status = "PASS" if all(v == "PASS" for v in flags.values()) else "FAIL"
 summary = {
@@ -370,6 +391,8 @@ summary = {
     "intake_growth_advisor_status": (payload.get("kpis") or {}).get("dataset_intake_growth_advisor_status"),
     "intake_growth_suggested_action": (payload.get("kpis") or {}).get("dataset_intake_growth_suggested_action"),
     "intake_growth_backlog_action_count": (payload.get("kpis") or {}).get("dataset_intake_growth_backlog_action_count"),
+    "intake_growth_advisor_history_status": (payload.get("kpis") or {}).get("dataset_intake_growth_advisor_history_status"),
+    "intake_growth_advisor_history_trend_status": (payload.get("kpis") or {}).get("dataset_intake_growth_advisor_history_trend_status"),
     "result_flags": flags,
     "bundle_status": bundle_status,
 }
@@ -418,6 +441,8 @@ summary = {
             f"- intake_growth_advisor_status: `{summary['intake_growth_advisor_status']}`",
             f"- intake_growth_suggested_action: `{summary['intake_growth_suggested_action']}`",
             f"- intake_growth_backlog_action_count: `{summary['intake_growth_backlog_action_count']}`",
+            f"- intake_growth_advisor_history_status: `{summary['intake_growth_advisor_history_status']}`",
+            f"- intake_growth_advisor_history_trend_status: `{summary['intake_growth_advisor_history_trend_status']}`",
             f"- bundle_status: `{summary['bundle_status']}`",
             "",
             "## Result Flags",
