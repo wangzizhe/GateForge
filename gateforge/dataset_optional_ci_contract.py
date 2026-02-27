@@ -132,6 +132,8 @@ def main() -> None:
                 "milestone_checkpoint_status",
                 "milestone_checkpoint_score",
                 "milestone_public_brief_status",
+                "intake_growth_advisor_status",
+                "intake_growth_suggested_action",
             ],
         ),
         (
@@ -320,6 +322,11 @@ def main() -> None:
             "dataset_modelica_release_candidate_gate_v1_demo",
             "dataset_modelica_release_candidate_gate_v1_demo/demo_summary.json",
             ["bundle_status", "release_candidate_status", "candidate_decision"],
+        ),
+        (
+            "dataset_intake_growth_advisor_v1_demo",
+            "dataset_intake_growth_advisor_v1_demo/demo_summary.json",
+            ["bundle_status", "advisor_status", "suggested_action"],
         ),
         (
             "dataset_milestone_checkpoint_v1_demo",

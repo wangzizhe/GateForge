@@ -111,6 +111,8 @@ class DatasetOptionalCIContractTests(unittest.TestCase):
                 "milestone_checkpoint_status": "PASS",
                 "milestone_checkpoint_score": 84.0,
                 "milestone_public_brief_status": "PASS",
+                "intake_growth_advisor_status": "PASS",
+                "intake_growth_suggested_action": "keep",
             },
             "dataset_governance_snapshot_trend_demo/demo_summary.json": {
                 "bundle_status": "PASS",
@@ -272,6 +274,11 @@ class DatasetOptionalCIContractTests(unittest.TestCase):
                 "bundle_status": "PASS",
                 "release_candidate_status": "PASS",
                 "candidate_decision": "GO",
+            },
+            "dataset_intake_growth_advisor_v1_demo/demo_summary.json": {
+                "bundle_status": "PASS",
+                "advisor_status": "PASS",
+                "suggested_action": "keep",
             },
             "dataset_milestone_checkpoint_v1_demo/demo_summary.json": {
                 "bundle_status": "PASS",
