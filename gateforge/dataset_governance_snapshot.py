@@ -119,6 +119,12 @@ def _status_from_signals(signals: dict) -> str:
         return "NEEDS_REVIEW"
     if signals.get("dataset_intake_growth_advisor_history_trend_needs_review"):
         return "NEEDS_REVIEW"
+    if signals.get("dataset_intake_growth_execution_board_needs_review"):
+        return "NEEDS_REVIEW"
+    if signals.get("dataset_intake_growth_execution_board_history_needs_review"):
+        return "NEEDS_REVIEW"
+    if signals.get("dataset_intake_growth_execution_board_history_trend_needs_review"):
+        return "NEEDS_REVIEW"
     return "PASS"
 
 
@@ -161,6 +167,9 @@ def _compute_summary(
     intake_growth_advisor: dict,
     intake_growth_advisor_history: dict,
     intake_growth_advisor_history_trend: dict,
+    intake_growth_execution_board: dict,
+    intake_growth_execution_board_history: dict,
+    intake_growth_execution_board_history_trend: dict,
 ) -> dict:
     strategy_advice = (
         strategy_advisor.get("advice")
@@ -248,6 +257,18 @@ def _compute_summary(
             intake_growth_advisor_history_trend.get("status") or ""
         )
         in {"NEEDS_REVIEW", "FAIL"},
+        "dataset_intake_growth_execution_board_needs_review": str(
+            intake_growth_execution_board.get("status") or ""
+        )
+        in {"NEEDS_REVIEW", "FAIL"},
+        "dataset_intake_growth_execution_board_history_needs_review": str(
+            intake_growth_execution_board_history.get("status") or ""
+        )
+        in {"NEEDS_REVIEW", "FAIL"},
+        "dataset_intake_growth_execution_board_history_trend_needs_review": str(
+            intake_growth_execution_board_history_trend.get("status") or ""
+        )
+        in {"NEEDS_REVIEW", "FAIL"},
     }
     status = _status_from_signals(signals)
 
@@ -330,6 +351,12 @@ def _compute_summary(
         risks.append("dataset_intake_growth_advisor_history_needs_review")
     if signals["dataset_intake_growth_advisor_history_trend_needs_review"]:
         risks.append("dataset_intake_growth_advisor_history_trend_needs_review")
+    if signals["dataset_intake_growth_execution_board_needs_review"]:
+        risks.append("dataset_intake_growth_execution_board_needs_review")
+    if signals["dataset_intake_growth_execution_board_history_needs_review"]:
+        risks.append("dataset_intake_growth_execution_board_history_needs_review")
+    if signals["dataset_intake_growth_execution_board_history_trend_needs_review"]:
+        risks.append("dataset_intake_growth_execution_board_history_trend_needs_review")
 
     policy_patch_advice = (
         failure_policy_patch_advisor.get("advice")
@@ -521,6 +548,31 @@ def _compute_summary(
             if isinstance(intake_growth_advisor_history_trend.get("trend"), dict)
             else []
         ),
+        "dataset_intake_growth_execution_board_status": intake_growth_execution_board.get("status"),
+        "dataset_intake_growth_execution_board_execution_score": _to_float(
+            intake_growth_execution_board.get("execution_score", 0.0)
+        ),
+        "dataset_intake_growth_execution_board_critical_open_tasks": _to_int(
+            intake_growth_execution_board.get("critical_open_tasks", 0)
+        ),
+        "dataset_intake_growth_execution_board_projected_weeks_to_target": _to_int(
+            intake_growth_execution_board.get("projected_weeks_to_target", 0)
+        ),
+        "dataset_intake_growth_execution_board_history_status": intake_growth_execution_board_history.get("status"),
+        "dataset_intake_growth_execution_board_history_avg_execution_score": _to_float(
+            intake_growth_execution_board_history.get("avg_execution_score", 0.0)
+        ),
+        "dataset_intake_growth_execution_board_history_critical_open_tasks_rate": _to_float(
+            intake_growth_execution_board_history.get("critical_open_tasks_rate", 0.0)
+        ),
+        "dataset_intake_growth_execution_board_history_trend_status": intake_growth_execution_board_history_trend.get(
+            "status"
+        ),
+        "dataset_intake_growth_execution_board_history_trend_alert_count": len(
+            ((intake_growth_execution_board_history_trend.get("trend") or {}).get("alerts") or [])
+            if isinstance(intake_growth_execution_board_history_trend.get("trend"), dict)
+            else []
+        ),
     }
     return {
         "status": status,
@@ -640,6 +692,15 @@ def _write_markdown(path: str, summary: dict) -> None:
         f"- dataset_intake_growth_advisor_history_recovery_plan_rate: `{kpis.get('dataset_intake_growth_advisor_history_recovery_plan_rate')}`",
         f"- dataset_intake_growth_advisor_history_trend_status: `{kpis.get('dataset_intake_growth_advisor_history_trend_status')}`",
         f"- dataset_intake_growth_advisor_history_trend_alert_count: `{kpis.get('dataset_intake_growth_advisor_history_trend_alert_count')}`",
+        f"- dataset_intake_growth_execution_board_status: `{kpis.get('dataset_intake_growth_execution_board_status')}`",
+        f"- dataset_intake_growth_execution_board_execution_score: `{kpis.get('dataset_intake_growth_execution_board_execution_score')}`",
+        f"- dataset_intake_growth_execution_board_critical_open_tasks: `{kpis.get('dataset_intake_growth_execution_board_critical_open_tasks')}`",
+        f"- dataset_intake_growth_execution_board_projected_weeks_to_target: `{kpis.get('dataset_intake_growth_execution_board_projected_weeks_to_target')}`",
+        f"- dataset_intake_growth_execution_board_history_status: `{kpis.get('dataset_intake_growth_execution_board_history_status')}`",
+        f"- dataset_intake_growth_execution_board_history_avg_execution_score: `{kpis.get('dataset_intake_growth_execution_board_history_avg_execution_score')}`",
+        f"- dataset_intake_growth_execution_board_history_critical_open_tasks_rate: `{kpis.get('dataset_intake_growth_execution_board_history_critical_open_tasks_rate')}`",
+        f"- dataset_intake_growth_execution_board_history_trend_status: `{kpis.get('dataset_intake_growth_execution_board_history_trend_status')}`",
+        f"- dataset_intake_growth_execution_board_history_trend_alert_count: `{kpis.get('dataset_intake_growth_execution_board_history_trend_alert_count')}`",
         "",
         "## Risks",
         "",
@@ -822,6 +883,21 @@ def main() -> None:
         default=None,
         help="Path to dataset intake growth advisor history trend summary JSON",
     )
+    parser.add_argument(
+        "--dataset-intake-growth-execution-board",
+        default=None,
+        help="Path to dataset intake growth execution board summary JSON",
+    )
+    parser.add_argument(
+        "--dataset-intake-growth-execution-board-history",
+        default=None,
+        help="Path to dataset intake growth execution board history summary JSON",
+    )
+    parser.add_argument(
+        "--dataset-intake-growth-execution-board-history-trend",
+        default=None,
+        help="Path to dataset intake growth execution board history trend summary JSON",
+    )
     parser.add_argument("--out", default="artifacts/dataset_governance_snapshot/summary.json", help="Output JSON path")
     parser.add_argument("--report", default=None, help="Output markdown path")
     args = parser.parse_args()
@@ -864,6 +940,9 @@ def main() -> None:
     intake_growth_advisor = _load_json(args.dataset_intake_growth_advisor)
     intake_growth_advisor_history = _load_json(args.dataset_intake_growth_advisor_history)
     intake_growth_advisor_history_trend = _load_json(args.dataset_intake_growth_advisor_history_trend)
+    intake_growth_execution_board = _load_json(args.dataset_intake_growth_execution_board)
+    intake_growth_execution_board_history = _load_json(args.dataset_intake_growth_execution_board_history)
+    intake_growth_execution_board_history_trend = _load_json(args.dataset_intake_growth_execution_board_history_trend)
 
     summary = _compute_summary(
         dataset_pipeline,
@@ -904,6 +983,9 @@ def main() -> None:
         intake_growth_advisor,
         intake_growth_advisor_history,
         intake_growth_advisor_history_trend,
+        intake_growth_execution_board,
+        intake_growth_execution_board_history,
+        intake_growth_execution_board_history_trend,
     )
     summary["generated_at_utc"] = datetime.now(timezone.utc).isoformat()
     summary["sources"] = {
@@ -945,6 +1027,9 @@ def main() -> None:
         "dataset_intake_growth_advisor_path": args.dataset_intake_growth_advisor,
         "dataset_intake_growth_advisor_history_path": args.dataset_intake_growth_advisor_history,
         "dataset_intake_growth_advisor_history_trend_path": args.dataset_intake_growth_advisor_history_trend,
+        "dataset_intake_growth_execution_board_path": args.dataset_intake_growth_execution_board,
+        "dataset_intake_growth_execution_board_history_path": args.dataset_intake_growth_execution_board_history,
+        "dataset_intake_growth_execution_board_history_trend_path": args.dataset_intake_growth_execution_board_history_trend,
     }
 
     _write_json(args.out, summary)

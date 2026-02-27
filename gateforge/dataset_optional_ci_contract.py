@@ -136,6 +136,10 @@ def main() -> None:
                 "intake_growth_suggested_action",
                 "intake_growth_advisor_history_status",
                 "intake_growth_advisor_history_trend_status",
+                "intake_growth_execution_board_status",
+                "intake_growth_execution_board_execution_score",
+                "intake_growth_execution_board_history_status",
+                "intake_growth_execution_board_history_trend_status",
             ],
         ),
         (
@@ -167,6 +171,9 @@ def main() -> None:
                 "intake_growth_advisor_status_transition",
                 "intake_growth_advisor_history_status_transition",
                 "intake_growth_advisor_history_trend_status_transition",
+                "intake_growth_execution_board_status_transition",
+                "intake_growth_execution_board_history_status_transition",
+                "intake_growth_execution_board_history_trend_status_transition",
                 "status_delta_alert_count",
                 "severity_level",
             ],
@@ -341,6 +348,21 @@ def main() -> None:
         (
             "dataset_intake_growth_advisor_history_trend_v1_demo",
             "dataset_intake_growth_advisor_history_trend_v1_demo/demo_summary.json",
+            ["bundle_status", "trend_status", "status_transition"],
+        ),
+        (
+            "dataset_intake_growth_execution_board_v1_demo",
+            "dataset_intake_growth_execution_board_v1_demo/demo_summary.json",
+            ["bundle_status", "board_status", "execution_score"],
+        ),
+        (
+            "dataset_intake_growth_execution_board_history_v1_demo",
+            "dataset_intake_growth_execution_board_history_v1_demo/demo_summary.json",
+            ["bundle_status", "history_status", "avg_execution_score"],
+        ),
+        (
+            "dataset_intake_growth_execution_board_history_trend_v1_demo",
+            "dataset_intake_growth_execution_board_history_trend_v1_demo/demo_summary.json",
             ["bundle_status", "trend_status", "status_transition"],
         ),
         (

@@ -188,6 +188,18 @@ class DatasetGovernanceSnapshotTrendTests(unittest.TestCase):
                 "dataset_intake_growth_advisor_history_trend_status_transition",
                 trend.get("status_delta") or {},
             )
+            self.assertIn(
+                "dataset_intake_growth_execution_board_status_transition",
+                trend.get("status_delta") or {},
+            )
+            self.assertIn(
+                "dataset_intake_growth_execution_board_history_status_transition",
+                trend.get("status_delta") or {},
+            )
+            self.assertIn(
+                "dataset_intake_growth_execution_board_history_trend_status_transition",
+                trend.get("status_delta") or {},
+            )
 
     def test_trend_marks_pass_when_kpis_stable(self) -> None:
         with tempfile.TemporaryDirectory() as d:
