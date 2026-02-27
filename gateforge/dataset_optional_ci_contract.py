@@ -222,7 +222,7 @@ def main() -> None:
         (
             "dataset_moat_trend_snapshot_demo",
             "dataset_moat_trend_snapshot_demo/demo_summary.json",
-            ["bundle_status", "moat_status", "moat_score", "moat_score_delta"],
+            ["bundle_status", "moat_status", "moat_score", "execution_readiness_index", "moat_score_delta"],
         ),
         (
             "dataset_backlog_execution_bridge_demo",

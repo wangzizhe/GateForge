@@ -32,6 +32,7 @@ class DatasetMoatTrendSnapshotDemoTests(unittest.TestCase):
             self.assertEqual(payload.get("bundle_status"), "PASS")
             self.assertIn(payload.get("moat_status"), {"PASS", "NEEDS_REVIEW", "FAIL"})
             self.assertIsInstance(payload.get("milestone_readiness_index"), (int, float))
+            self.assertIsInstance(payload.get("execution_readiness_index"), (int, float))
             self.assertIsInstance(payload.get("accepted_count_delta"), int)
             self.assertIsInstance(payload.get("accepted_large_delta"), int)
 

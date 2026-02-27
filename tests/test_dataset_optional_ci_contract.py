@@ -193,6 +193,7 @@ class DatasetOptionalCIContractTests(unittest.TestCase):
                 "bundle_status": "PASS",
                 "moat_status": "PASS",
                 "moat_score": 74.2,
+                "execution_readiness_index": 82.0,
                 "moat_score_delta": 6.5,
             },
             "dataset_backlog_execution_bridge_demo/demo_summary.json": {
