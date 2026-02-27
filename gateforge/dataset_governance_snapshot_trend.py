@@ -95,6 +95,18 @@ def _compute_trend(current: dict, previous: dict) -> dict:
         f"{previous_kpis.get('dataset_modelica_moat_readiness_gate_status')}->"
         f"{current_kpis.get('dataset_modelica_moat_readiness_gate_status')}"
     )
+    real_model_supply_health_transition = (
+        f"{previous_kpis.get('dataset_real_model_supply_health_status')}->"
+        f"{current_kpis.get('dataset_real_model_supply_health_status')}"
+    )
+    mutation_recipe_execution_audit_transition = (
+        f"{previous_kpis.get('dataset_mutation_recipe_execution_audit_status')}->"
+        f"{current_kpis.get('dataset_mutation_recipe_execution_audit_status')}"
+    )
+    modelica_release_candidate_gate_transition = (
+        f"{previous_kpis.get('dataset_modelica_release_candidate_gate_status')}->"
+        f"{current_kpis.get('dataset_modelica_release_candidate_gate_status')}"
+    )
     status_delta_alerts: list[str] = []
     if trend_status_transition in {"PASS->NEEDS_REVIEW", "PASS->FAIL", "NEEDS_REVIEW->FAIL"}:
         status_delta_alerts.append("promotion_effectiveness_history_trend_worsened")
@@ -126,6 +138,12 @@ def _compute_trend(current: dict, previous: dict) -> dict:
         status_delta_alerts.append("real_model_intake_backlog_worsened")
     if modelica_moat_readiness_gate_transition in {"PASS->NEEDS_REVIEW", "PASS->FAIL", "NEEDS_REVIEW->FAIL"}:
         status_delta_alerts.append("modelica_moat_readiness_gate_worsened")
+    if real_model_supply_health_transition in {"PASS->NEEDS_REVIEW", "PASS->FAIL", "NEEDS_REVIEW->FAIL"}:
+        status_delta_alerts.append("real_model_supply_health_worsened")
+    if mutation_recipe_execution_audit_transition in {"PASS->NEEDS_REVIEW", "PASS->FAIL", "NEEDS_REVIEW->FAIL"}:
+        status_delta_alerts.append("mutation_recipe_execution_audit_worsened")
+    if modelica_release_candidate_gate_transition in {"PASS->NEEDS_REVIEW", "PASS->FAIL", "NEEDS_REVIEW->FAIL"}:
+        status_delta_alerts.append("modelica_release_candidate_gate_worsened")
 
     status_transition = f"{previous_status}->{current_status}"
     new_risks = sorted(current_risks - previous_risks)
@@ -164,6 +182,9 @@ def _compute_trend(current: dict, previous: dict) -> dict:
             "dataset_real_model_failure_yield_status_transition": real_model_failure_yield_transition,
             "dataset_real_model_intake_backlog_status_transition": real_model_intake_backlog_transition,
             "dataset_modelica_moat_readiness_gate_status_transition": modelica_moat_readiness_gate_transition,
+            "dataset_real_model_supply_health_status_transition": real_model_supply_health_transition,
+            "dataset_mutation_recipe_execution_audit_status_transition": mutation_recipe_execution_audit_transition,
+            "dataset_modelica_release_candidate_gate_status_transition": modelica_release_candidate_gate_transition,
             "alerts": status_delta_alerts,
         },
         "kpi_delta": {
@@ -350,6 +371,31 @@ def _compute_trend(current: dict, previous: dict) -> dict:
             "dataset_real_model_license_risk_score_delta": round(
                 _to_float(current_kpis.get("dataset_real_model_license_risk_score"))
                 - _to_float(previous_kpis.get("dataset_real_model_license_risk_score")),
+                4,
+            ),
+            "dataset_real_model_supply_health_score_delta": round(
+                _to_float(current_kpis.get("dataset_real_model_supply_health_score"))
+                - _to_float(previous_kpis.get("dataset_real_model_supply_health_score")),
+                4,
+            ),
+            "dataset_real_model_supply_gap_count_delta": round(
+                _to_float(current_kpis.get("dataset_real_model_supply_gap_count"))
+                - _to_float(previous_kpis.get("dataset_real_model_supply_gap_count")),
+                4,
+            ),
+            "dataset_mutation_recipe_execution_coverage_pct_delta": round(
+                _to_float(current_kpis.get("dataset_mutation_recipe_execution_coverage_pct"))
+                - _to_float(previous_kpis.get("dataset_mutation_recipe_execution_coverage_pct")),
+                4,
+            ),
+            "dataset_mutation_recipe_missing_count_delta": round(
+                _to_float(current_kpis.get("dataset_mutation_recipe_missing_count"))
+                - _to_float(previous_kpis.get("dataset_mutation_recipe_missing_count")),
+                4,
+            ),
+            "dataset_modelica_release_candidate_score_delta": round(
+                _to_float(current_kpis.get("dataset_modelica_release_candidate_score"))
+                - _to_float(previous_kpis.get("dataset_modelica_release_candidate_score")),
                 4,
             ),
         },

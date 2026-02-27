@@ -164,6 +164,18 @@ class DatasetGovernanceSnapshotTrendTests(unittest.TestCase):
                 "dataset_modelica_moat_readiness_gate_status_transition",
                 trend.get("status_delta") or {},
             )
+            self.assertIn(
+                "dataset_real_model_supply_health_status_transition",
+                trend.get("status_delta") or {},
+            )
+            self.assertIn(
+                "dataset_mutation_recipe_execution_audit_status_transition",
+                trend.get("status_delta") or {},
+            )
+            self.assertIn(
+                "dataset_modelica_release_candidate_gate_status_transition",
+                trend.get("status_delta") or {},
+            )
 
     def test_trend_marks_pass_when_kpis_stable(self) -> None:
         with tempfile.TemporaryDirectory() as d:
@@ -304,6 +316,18 @@ class DatasetGovernanceSnapshotTrendTests(unittest.TestCase):
             )
             self.assertIn(
                 "dataset_modelica_moat_readiness_gate_status_transition",
+                trend.get("status_delta") or {},
+            )
+            self.assertIn(
+                "dataset_real_model_supply_health_status_transition",
+                trend.get("status_delta") or {},
+            )
+            self.assertIn(
+                "dataset_mutation_recipe_execution_audit_status_transition",
+                trend.get("status_delta") or {},
+            )
+            self.assertIn(
+                "dataset_modelica_release_candidate_gate_status_transition",
                 trend.get("status_delta") or {},
             )
 

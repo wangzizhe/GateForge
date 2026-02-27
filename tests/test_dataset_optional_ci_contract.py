@@ -102,6 +102,12 @@ class DatasetOptionalCIContractTests(unittest.TestCase):
                 "real_model_intake_backlog_p0_count": 0,
                 "modelica_moat_readiness_gate_status": "PASS",
                 "modelica_moat_readiness_score": 83.0,
+                "real_model_supply_health_status": "PASS",
+                "real_model_supply_health_score": 84.0,
+                "mutation_recipe_execution_audit_status": "PASS",
+                "mutation_recipe_execution_coverage_pct": 81.0,
+                "modelica_release_candidate_gate_status": "PASS",
+                "modelica_release_candidate_score": 84.0,
             },
             "dataset_governance_snapshot_trend_demo/demo_summary.json": {
                 "bundle_status": "PASS",
@@ -120,6 +126,9 @@ class DatasetOptionalCIContractTests(unittest.TestCase):
                 "real_model_failure_yield_status_transition": "PASS->PASS",
                 "real_model_intake_backlog_status_transition": "PASS->PASS",
                 "modelica_moat_readiness_gate_status_transition": "PASS->PASS",
+                "real_model_supply_health_status_transition": "PASS->PASS",
+                "mutation_recipe_execution_audit_status_transition": "PASS->PASS",
+                "modelica_release_candidate_gate_status_transition": "PASS->PASS",
                 "status_delta_alert_count": 1,
                 "severity_level": "medium",
             },
@@ -242,6 +251,21 @@ class DatasetOptionalCIContractTests(unittest.TestCase):
             "dataset_modelica_moat_readiness_gate_v1_demo/demo_summary.json": {
                 "bundle_status": "PASS",
                 "moat_gate_status": "PASS",
+            },
+            "dataset_real_model_supply_health_v1_demo/demo_summary.json": {
+                "bundle_status": "PASS",
+                "supply_health_status": "PASS",
+                "supply_health_score": 84.0,
+            },
+            "dataset_mutation_recipe_execution_audit_v1_demo/demo_summary.json": {
+                "bundle_status": "PASS",
+                "audit_status": "PASS",
+                "execution_coverage_pct": 81.0,
+            },
+            "dataset_modelica_release_candidate_gate_v1_demo/demo_summary.json": {
+                "bundle_status": "PASS",
+                "release_candidate_status": "PASS",
+                "candidate_decision": "GO",
             },
         }
         for rel, payload in mapping.items():

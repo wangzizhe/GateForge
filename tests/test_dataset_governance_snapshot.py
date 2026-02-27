@@ -450,6 +450,9 @@ class DatasetGovernanceSnapshotTests(unittest.TestCase):
             yield_summary = root / "yield.json"
             backlog_summary = root / "backlog.json"
             moat_gate_summary = root / "moat_gate.json"
+            supply_health_summary = root / "supply_health.json"
+            recipe_audit_summary = root / "recipe_audit.json"
+            release_candidate_summary = root / "release_candidate.json"
             out = root / "snapshot.json"
             license_summary.write_text(
                 json.dumps({"status": "PASS", "unknown_license_ratio_pct": 0.0, "disallowed_license_count": 0}),
@@ -471,6 +474,18 @@ class DatasetGovernanceSnapshotTests(unittest.TestCase):
                 json.dumps({"status": "NEEDS_REVIEW", "moat_readiness_score": 74.0, "release_recommendation": "HOLD"}),
                 encoding="utf-8",
             )
+            supply_health_summary.write_text(
+                json.dumps({"status": "PASS", "supply_health_score": 79.0, "supply_gap_count": 1}),
+                encoding="utf-8",
+            )
+            recipe_audit_summary.write_text(
+                json.dumps({"status": "NEEDS_REVIEW", "execution_coverage_pct": 62.0, "missing_recipe_count": 4}),
+                encoding="utf-8",
+            )
+            release_candidate_summary.write_text(
+                json.dumps({"status": "NEEDS_REVIEW", "release_candidate_score": 73.0, "candidate_decision": "HOLD"}),
+                encoding="utf-8",
+            )
             proc = subprocess.run(
                 [
                     sys.executable,
@@ -486,6 +501,12 @@ class DatasetGovernanceSnapshotTests(unittest.TestCase):
                     str(backlog_summary),
                     "--dataset-modelica-moat-readiness-gate",
                     str(moat_gate_summary),
+                    "--dataset-real-model-supply-health",
+                    str(supply_health_summary),
+                    "--dataset-mutation-recipe-execution-audit",
+                    str(recipe_audit_summary),
+                    "--dataset-modelica-release-candidate-gate",
+                    str(release_candidate_summary),
                     "--out",
                     str(out),
                 ],
@@ -498,6 +519,8 @@ class DatasetGovernanceSnapshotTests(unittest.TestCase):
             self.assertEqual(payload.get("status"), "NEEDS_REVIEW")
             self.assertIn("dataset_real_model_intake_backlog_needs_review", payload.get("risks", []))
             self.assertIn("dataset_modelica_moat_readiness_gate_needs_review", payload.get("risks", []))
+            self.assertIn("dataset_mutation_recipe_execution_audit_needs_review", payload.get("risks", []))
+            self.assertIn("dataset_modelica_release_candidate_gate_needs_review", payload.get("risks", []))
             self.assertEqual((payload.get("kpis") or {}).get("dataset_modelica_mutation_recipe_total"), 8)
             self.assertEqual((payload.get("kpis") or {}).get("dataset_real_model_failure_yield_per_accepted_model"), 1.9)
 
