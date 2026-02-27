@@ -61,7 +61,18 @@ flags = {
     "schema_present": "PASS" if backlog.get("schema_version") == "real_model_intake_backlog_v1" else "FAIL",
 }
 bundle_status = "PASS" if all(v == "PASS" for v in flags.values()) else "FAIL"
-(out / "demo_summary.json").write_text(json.dumps({"backlog_prioritizer_status": summary.get("status"), "bundle_status": bundle_status, "result_flags": flags}, indent=2), encoding="utf-8")
+owner_lane_coverage = 0
+items = backlog.get("items") if isinstance(backlog.get("items"), list) else []
+if items:
+    owner_lane_coverage = len([x for x in items if isinstance(x, dict) and x.get("owner_lane")]) / len(items)
+payload = {
+    "backlog_prioritizer_status": summary.get("status"),
+    "p0_count": summary.get("p0_count"),
+    "owner_lane_coverage_ratio": round(owner_lane_coverage, 2),
+    "bundle_status": bundle_status,
+    "result_flags": flags,
+}
+(out / "demo_summary.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
 print(json.dumps({"bundle_status": bundle_status, "backlog_prioritizer_status": summary.get("status")}))
 if bundle_status != "PASS":
     raise SystemExit(1)

@@ -42,6 +42,8 @@ class DatasetModelicaMoatReadinessGateV1Tests(unittest.TestCase):
             self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
             summary = json.loads(out.read_text(encoding="utf-8"))
             self.assertIn(summary.get("release_recommendation"), {"GO", "LIMITED_GO", "HOLD"})
+            self.assertIn(summary.get("confidence_level"), {"low", "medium", "high"})
+            self.assertIn("critical_blockers", summary)
 
     def test_moat_gate_fail_when_required_inputs_missing(self) -> None:
         with tempfile.TemporaryDirectory() as d:

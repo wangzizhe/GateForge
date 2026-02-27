@@ -92,6 +92,8 @@ def main() -> None:
                     "model_id": model_id,
                     "reason": reason,
                     "priority": priority,
+                    "owner_lane": "license" if "license" in reason else "intake",
+                    "suggested_sla_days": 2 if priority == "P0" else 5,
                 }
             )
 
@@ -105,6 +107,8 @@ def main() -> None:
                 "failure_type": str(row.get("failure_type") or "unknown"),
                 "missing_mutations": int(row.get("missing_mutations", 0) or 0),
                 "priority": "P0" if str(row.get("model_scale") or "") == "large" else "P1",
+                "owner_lane": "mutation_ops",
+                "suggested_sla_days": 2 if str(row.get("model_scale") or "") == "large" else 4,
             }
         )
 
@@ -115,6 +119,8 @@ def main() -> None:
                 "item_type": "license_policy_remediation",
                 "priority": "P0",
                 "reason": "disallowed_license_detected",
+                "owner_lane": "license",
+                "suggested_sla_days": 2,
             }
         )
 
@@ -125,6 +131,8 @@ def main() -> None:
                 "item_type": "yield_boost_campaign",
                 "priority": "P0",
                 "reason": "yield_per_accepted_model_below_threshold",
+                "owner_lane": "runtime_validation",
+                "suggested_sla_days": 3,
             }
         )
 

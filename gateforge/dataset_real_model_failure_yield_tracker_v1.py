@@ -59,6 +59,8 @@ def _write_markdown(path: str, payload: dict) -> None:
         f"- executed_mutations: `{payload.get('executed_mutations')}`",
         f"- yield_per_accepted_model: `{payload.get('yield_per_accepted_model')}`",
         f"- execution_ratio_pct: `{payload.get('matrix_execution_ratio_pct')}`",
+        f"- effective_yield_score: `{payload.get('effective_yield_score')}`",
+        f"- yield_band: `{payload.get('yield_band')}`",
         "",
     ]
     p.write_text("\n".join(lines), encoding="utf-8")
@@ -94,6 +96,12 @@ def main() -> None:
 
     yield_per_accepted = round(executed_mutations / accepted_count, 2) if accepted_count > 0 else 0.0
     replay_to_execution_ratio = _ratio(replay_records, executed_mutations) if executed_mutations > 0 else 0.0
+    effective_yield_score = round(min(100.0, (yield_per_accepted * 35.0) + (matrix_ratio * 0.55)), 2)
+    yield_band = "low"
+    if effective_yield_score >= 80.0:
+        yield_band = "high"
+    elif effective_yield_score >= 60.0:
+        yield_band = "medium"
 
     alerts: list[str] = []
     if accepted_count == 0:
@@ -104,6 +112,8 @@ def main() -> None:
         alerts.append("matrix_execution_ratio_below_threshold")
     if replay_records > 0 and replay_to_execution_ratio < 50.0:
         alerts.append("replay_record_density_low")
+    if effective_yield_score < 55.0:
+        alerts.append("effective_yield_score_low")
 
     status = "PASS"
     if reasons:
@@ -120,6 +130,8 @@ def main() -> None:
         "total_mutations": total_mutations,
         "yield_per_accepted_model": yield_per_accepted,
         "matrix_execution_ratio_pct": matrix_ratio,
+        "effective_yield_score": effective_yield_score,
+        "yield_band": yield_band,
         "replay_record_count": replay_records,
         "replay_to_execution_ratio_pct": replay_to_execution_ratio,
         "alerts": alerts,

@@ -46,7 +46,14 @@ flags = {
     "model_count_present": "PASS" if int(summary.get("total_models", 0) or 0) >= 1 else "FAIL",
 }
 bundle_status = "PASS" if all(v == "PASS" for v in flags.values()) else "FAIL"
-(out / "demo_summary.json").write_text(json.dumps({"license_gate_status": summary.get("status"), "bundle_status": bundle_status, "result_flags": flags}, indent=2), encoding="utf-8")
+payload = {
+    "license_gate_status": summary.get("status"),
+    "license_risk_score": summary.get("license_risk_score"),
+    "source_diversity_count": summary.get("source_diversity_count"),
+    "bundle_status": bundle_status,
+    "result_flags": flags,
+}
+(out / "demo_summary.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
 print(json.dumps({"bundle_status": bundle_status, "license_gate_status": summary.get("status")}))
 if bundle_status != "PASS":
     raise SystemExit(1)

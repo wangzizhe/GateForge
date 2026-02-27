@@ -43,7 +43,14 @@ flags = {
     "yield_present": "PASS" if float(summary.get("yield_per_accepted_model", 0) or 0) >= 0 else "FAIL",
 }
 bundle_status = "PASS" if all(v == "PASS" for v in flags.values()) else "FAIL"
-(out / "demo_summary.json").write_text(json.dumps({"yield_tracker_status": summary.get("status"), "bundle_status": bundle_status, "result_flags": flags}, indent=2), encoding="utf-8")
+payload = {
+    "yield_tracker_status": summary.get("status"),
+    "effective_yield_score": summary.get("effective_yield_score"),
+    "yield_band": summary.get("yield_band"),
+    "bundle_status": bundle_status,
+    "result_flags": flags,
+}
+(out / "demo_summary.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
 print(json.dumps({"bundle_status": bundle_status, "yield_tracker_status": summary.get("status")}))
 if bundle_status != "PASS":
     raise SystemExit(1)

@@ -48,6 +48,7 @@ def _write_markdown(path: str, payload: dict) -> None:
         f"- moat_readiness_score: `{payload.get('moat_readiness_score')}`",
         f"- release_recommendation: `{payload.get('release_recommendation')}`",
         f"- blocking_signal_count: `{payload.get('blocking_signal_count')}`",
+        f"- confidence_level: `{payload.get('confidence_level')}`",
         "",
     ]
     p.write_text("\n".join(lines), encoding="utf-8")
@@ -108,18 +109,28 @@ def main() -> None:
         blocking_signals.append("p0_backlog_too_high")
     if moat_score < float(args.min_moat_readiness_score):
         blocking_signals.append("moat_readiness_score_below_threshold")
+    if float(license_summary.get("license_risk_score", 0.0) or 0.0) >= 30.0:
+        blocking_signals.append("license_risk_score_high")
 
     alerts: list[str] = []
     if p0_count > 0:
         alerts.append("p0_backlog_present")
     if str(recipe_summary.get("status") or "") != "PASS":
         alerts.append("recipe_library_not_pass")
+    if float(yield_summary.get("effective_yield_score", 0.0) or 0.0) < 55.0:
+        alerts.append("effective_yield_score_low")
 
     release_recommendation = "HOLD"
     if not blocking_signals and str(yield_summary.get("status") or "") == "PASS":
         release_recommendation = "GO"
     elif moat_score >= float(args.min_moat_readiness_score):
         release_recommendation = "LIMITED_GO"
+    confidence_level = "low"
+    if moat_score >= 85.0 and len(blocking_signals) == 0:
+        confidence_level = "high"
+    elif moat_score >= 70.0:
+        confidence_level = "medium"
+    critical_blockers = [x for x in blocking_signals if x in {"license_compliance_fail", "failure_yield_fail", "license_risk_score_high"}]
 
     status = "PASS"
     if reasons:
@@ -134,6 +145,8 @@ def main() -> None:
         "release_recommendation": release_recommendation,
         "blocking_signal_count": len(blocking_signals),
         "blocking_signals": blocking_signals,
+        "critical_blockers": critical_blockers,
+        "confidence_level": confidence_level,
         "alerts": alerts,
         "reasons": sorted(set(reasons)),
         "component_scores": {

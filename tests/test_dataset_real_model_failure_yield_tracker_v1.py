@@ -34,6 +34,8 @@ class DatasetRealModelFailureYieldTrackerV1Tests(unittest.TestCase):
             self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
             summary = json.loads(out.read_text(encoding="utf-8"))
             self.assertEqual(summary.get("status"), "PASS")
+            self.assertIn("effective_yield_score", summary)
+            self.assertIn(summary.get("yield_band"), {"low", "medium", "high"})
 
     def test_yield_tracker_fail_when_inputs_missing(self) -> None:
         with tempfile.TemporaryDirectory() as d:

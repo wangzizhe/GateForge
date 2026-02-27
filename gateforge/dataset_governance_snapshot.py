@@ -387,6 +387,9 @@ def _compute_summary(
         "dataset_modelica_mutation_recipe_high_priority": _to_int(
             modelica_mutation_recipe_library.get("high_priority_recipes", 0)
         ),
+        "dataset_modelica_mutation_recipe_coverage_score": _to_float(
+            modelica_mutation_recipe_library.get("recipe_coverage_score", 0.0)
+        ),
         "dataset_real_model_failure_yield_status": real_model_failure_yield.get("status"),
         "dataset_real_model_failure_yield_per_accepted_model": _to_float(
             real_model_failure_yield.get("yield_per_accepted_model", 0.0)
@@ -394,12 +397,19 @@ def _compute_summary(
         "dataset_real_model_failure_yield_execution_ratio_pct": _to_float(
             real_model_failure_yield.get("matrix_execution_ratio_pct", 0.0)
         ),
+        "dataset_real_model_failure_effective_yield_score": _to_float(
+            real_model_failure_yield.get("effective_yield_score", 0.0)
+        ),
+        "dataset_real_model_failure_yield_band": real_model_failure_yield.get("yield_band"),
         "dataset_real_model_intake_backlog_status": real_model_intake_backlog.get("status"),
         "dataset_real_model_intake_backlog_item_count": _to_int(real_model_intake_backlog.get("backlog_item_count", 0)),
         "dataset_real_model_intake_backlog_p0_count": _to_int(real_model_intake_backlog.get("p0_count", 0)),
         "dataset_modelica_moat_readiness_gate_status": modelica_moat_readiness_gate.get("status"),
         "dataset_modelica_moat_readiness_score": _to_float(modelica_moat_readiness_gate.get("moat_readiness_score", 0.0)),
         "dataset_modelica_moat_release_recommendation": modelica_moat_readiness_gate.get("release_recommendation"),
+        "dataset_modelica_moat_confidence_level": modelica_moat_readiness_gate.get("confidence_level"),
+        "dataset_modelica_moat_critical_blocker_count": len(modelica_moat_readiness_gate.get("critical_blockers") or []),
+        "dataset_real_model_license_risk_score": _to_float(real_model_license_compliance.get("license_risk_score", 0.0)),
     }
     return {
         "status": status,
@@ -480,15 +490,21 @@ def _write_markdown(path: str, summary: dict) -> None:
         f"- dataset_modelica_mutation_recipe_library_status: `{kpis.get('dataset_modelica_mutation_recipe_library_status')}`",
         f"- dataset_modelica_mutation_recipe_total: `{kpis.get('dataset_modelica_mutation_recipe_total')}`",
         f"- dataset_modelica_mutation_recipe_high_priority: `{kpis.get('dataset_modelica_mutation_recipe_high_priority')}`",
+        f"- dataset_modelica_mutation_recipe_coverage_score: `{kpis.get('dataset_modelica_mutation_recipe_coverage_score')}`",
         f"- dataset_real_model_failure_yield_status: `{kpis.get('dataset_real_model_failure_yield_status')}`",
         f"- dataset_real_model_failure_yield_per_accepted_model: `{kpis.get('dataset_real_model_failure_yield_per_accepted_model')}`",
         f"- dataset_real_model_failure_yield_execution_ratio_pct: `{kpis.get('dataset_real_model_failure_yield_execution_ratio_pct')}`",
+        f"- dataset_real_model_failure_effective_yield_score: `{kpis.get('dataset_real_model_failure_effective_yield_score')}`",
+        f"- dataset_real_model_failure_yield_band: `{kpis.get('dataset_real_model_failure_yield_band')}`",
         f"- dataset_real_model_intake_backlog_status: `{kpis.get('dataset_real_model_intake_backlog_status')}`",
         f"- dataset_real_model_intake_backlog_item_count: `{kpis.get('dataset_real_model_intake_backlog_item_count')}`",
         f"- dataset_real_model_intake_backlog_p0_count: `{kpis.get('dataset_real_model_intake_backlog_p0_count')}`",
         f"- dataset_modelica_moat_readiness_gate_status: `{kpis.get('dataset_modelica_moat_readiness_gate_status')}`",
         f"- dataset_modelica_moat_readiness_score: `{kpis.get('dataset_modelica_moat_readiness_score')}`",
         f"- dataset_modelica_moat_release_recommendation: `{kpis.get('dataset_modelica_moat_release_recommendation')}`",
+        f"- dataset_modelica_moat_confidence_level: `{kpis.get('dataset_modelica_moat_confidence_level')}`",
+        f"- dataset_modelica_moat_critical_blocker_count: `{kpis.get('dataset_modelica_moat_critical_blocker_count')}`",
+        f"- dataset_real_model_license_risk_score: `{kpis.get('dataset_real_model_license_risk_score')}`",
         "",
         "## Risks",
         "",

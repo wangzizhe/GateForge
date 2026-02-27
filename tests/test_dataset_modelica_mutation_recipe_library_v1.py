@@ -33,6 +33,8 @@ class DatasetModelicaMutationRecipeLibraryV1Tests(unittest.TestCase):
             self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
             summary = json.loads(out.read_text(encoding="utf-8"))
             self.assertGreaterEqual(int(summary.get("total_recipes", 0)), 1)
+            self.assertIn("recipe_coverage_score", summary)
+            self.assertIn("lane_allocation", summary)
 
     def test_recipe_library_fail_when_saturation_missing(self) -> None:
         with tempfile.TemporaryDirectory() as d:
