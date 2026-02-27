@@ -15,7 +15,18 @@ class DatasetRealModelSupplyHealthV1Tests(unittest.TestCase):
             back = root / "back.json"
             yld = root / "yield.json"
             out = root / "summary.json"
-            intake.write_text(json.dumps({"status": "PASS", "accepted_count": 4}), encoding="utf-8")
+            intake.write_text(
+                json.dumps(
+                    {
+                        "status": "PASS",
+                        "accepted_count": 4,
+                        "accepted_large_count": 1,
+                        "reject_rate_pct": 20.0,
+                        "weekly_target_status": "PASS",
+                    }
+                ),
+                encoding="utf-8",
+            )
             lic.write_text(json.dumps({"status": "PASS", "license_risk_score": 8.0}), encoding="utf-8")
             back.write_text(json.dumps({"status": "PASS", "p0_count": 0}), encoding="utf-8")
             yld.write_text(json.dumps({"status": "PASS", "effective_yield_score": 82.0}), encoding="utf-8")
@@ -43,6 +54,7 @@ class DatasetRealModelSupplyHealthV1Tests(unittest.TestCase):
             summary = json.loads(out.read_text(encoding="utf-8"))
             self.assertIn(summary.get("status"), {"PASS", "NEEDS_REVIEW", "FAIL"})
             self.assertIn("supply_health_score", summary)
+            self.assertIn("accepted_large_models", summary)
 
     def test_supply_health_fail_when_missing_inputs(self) -> None:
         with tempfile.TemporaryDirectory() as d:

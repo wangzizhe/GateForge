@@ -60,6 +60,7 @@ def main() -> None:
     parser.add_argument("--modelica-mutation-recipe-library-summary", required=True)
     parser.add_argument("--real-model-failure-yield-summary", required=True)
     parser.add_argument("--real-model-intake-backlog-summary", required=True)
+    parser.add_argument("--real-model-intake-summary", default=None)
     parser.add_argument("--external-proof-score-summary", default=None)
     parser.add_argument("--min-moat-readiness-score", type=float, default=78.0)
     parser.add_argument("--out", default="artifacts/dataset_modelica_moat_readiness_gate_v1/summary.json")
@@ -70,6 +71,7 @@ def main() -> None:
     recipe_summary = _load_json(args.modelica_mutation_recipe_library_summary)
     yield_summary = _load_json(args.real_model_failure_yield_summary)
     backlog_summary = _load_json(args.real_model_intake_backlog_summary)
+    intake_summary = _load_json(args.real_model_intake_summary)
     external_proof = _load_json(args.external_proof_score_summary)
 
     reasons: list[str] = []
@@ -90,13 +92,34 @@ def main() -> None:
     backlog_score = max(0.0, 100.0 - min(80.0, p0_count * 15.0))
 
     external_score = float(external_proof.get("external_proof_score", 70.0) or 70.0)
+    intake_status = str(intake_summary.get("status") or "")
+    intake_weekly_target_status = str(intake_summary.get("weekly_target_status") or "")
+    intake_accepted_large = int(
+        intake_summary.get(
+            "accepted_large_count",
+            ((intake_summary.get("accepted_scale_counts") or {}).get("large", 0))
+            if isinstance(intake_summary.get("accepted_scale_counts"), dict)
+            else 0,
+        )
+        or 0
+    )
+    intake_reject_rate_pct = float(intake_summary.get("reject_rate_pct", 0.0) or 0.0)
+    intake_base = _score_status(intake_status) if intake_summary else 70.0
+    intake_growth_score = max(
+        0.0,
+        min(
+            100.0,
+            intake_base + (intake_accepted_large * 8.0) - max(0.0, (intake_reject_rate_pct - 30.0) * 0.8),
+        ),
+    )
 
     moat_score = round(
-        (license_score * 0.25)
-        + (recipe_score * 0.2)
-        + (yield_score * 0.3)
-        + (backlog_score * 0.15)
-        + (external_score * 0.1),
+        (license_score * 0.22)
+        + (recipe_score * 0.18)
+        + (yield_score * 0.27)
+        + (backlog_score * 0.13)
+        + (external_score * 0.1)
+        + (intake_growth_score * 0.1),
         2,
     )
 
@@ -111,6 +134,8 @@ def main() -> None:
         blocking_signals.append("moat_readiness_score_below_threshold")
     if float(license_summary.get("license_risk_score", 0.0) or 0.0) >= 30.0:
         blocking_signals.append("license_risk_score_high")
+    if intake_weekly_target_status == "FAIL":
+        blocking_signals.append("intake_weekly_target_fail")
 
     alerts: list[str] = []
     if p0_count > 0:
@@ -119,6 +144,10 @@ def main() -> None:
         alerts.append("recipe_library_not_pass")
     if float(yield_summary.get("effective_yield_score", 0.0) or 0.0) < 55.0:
         alerts.append("effective_yield_score_low")
+    if intake_weekly_target_status in {"NEEDS_REVIEW", "FAIL"}:
+        alerts.append("intake_weekly_target_not_pass")
+    if intake_summary and intake_reject_rate_pct > 50.0:
+        alerts.append("intake_reject_rate_high")
 
     release_recommendation = "HOLD"
     if not blocking_signals and str(yield_summary.get("status") or "") == "PASS":
@@ -155,12 +184,14 @@ def main() -> None:
             "yield_score": yield_score,
             "backlog_score": backlog_score,
             "external_proof_score": external_score,
+            "intake_growth_score": intake_growth_score,
         },
         "sources": {
             "real_model_license_compliance_summary": args.real_model_license_compliance_summary,
             "modelica_mutation_recipe_library_summary": args.modelica_mutation_recipe_library_summary,
             "real_model_failure_yield_summary": args.real_model_failure_yield_summary,
             "real_model_intake_backlog_summary": args.real_model_intake_backlog_summary,
+            "real_model_intake_summary": args.real_model_intake_summary,
             "external_proof_score_summary": args.external_proof_score_summary,
         },
     }

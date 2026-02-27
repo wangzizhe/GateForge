@@ -36,6 +36,28 @@ cat > "$OUT_DIR/milestone_public_brief_summary.json" <<'JSON'
 {"milestone_status":"PASS","milestone_decision":"GO"}
 JSON
 
+cat > "$OUT_DIR/intake_summary.json" <<'JSON'
+{
+  "status":"PASS",
+  "accepted_count":4,
+  "accepted_large_count":1,
+  "accepted_scale_counts":{"small":1,"medium":2,"large":1},
+  "reject_rate_pct":22.5,
+  "weekly_target_status":"PASS"
+}
+JSON
+
+cat > "$OUT_DIR/previous_intake_summary.json" <<'JSON'
+{
+  "status":"PASS",
+  "accepted_count":3,
+  "accepted_large_count":0,
+  "accepted_scale_counts":{"small":1,"medium":2,"large":0},
+  "reject_rate_pct":30.0,
+  "weekly_target_status":"NEEDS_REVIEW"
+}
+JSON
+
 cat > "$OUT_DIR/previous_summary.json" <<'JSON'
 {
   "status": "NEEDS_REVIEW",
@@ -57,6 +79,8 @@ python3 -m gateforge.dataset_moat_trend_snapshot \
   --milestone-checkpoint-summary "$OUT_DIR/milestone_checkpoint_summary.json" \
   --milestone-checkpoint-trend-summary "$OUT_DIR/milestone_checkpoint_trend_summary.json" \
   --milestone-public-brief-summary "$OUT_DIR/milestone_public_brief_summary.json" \
+  --real-model-intake-summary "$OUT_DIR/intake_summary.json" \
+  --previous-real-model-intake-summary "$OUT_DIR/previous_intake_summary.json" \
   --previous-snapshot "$OUT_DIR/previous_summary.json" \
   --out "$OUT_DIR/summary.json" \
   --report-out "$OUT_DIR/summary.md"
@@ -73,6 +97,7 @@ flags = {
     "metrics_present": "PASS" if isinstance(metrics, dict) else "FAIL",
     "moat_score_present": "PASS" if isinstance(metrics.get("moat_score"), (int, float)) else "FAIL",
     "milestone_readiness_present": "PASS" if isinstance(metrics.get("milestone_readiness_index"), (int, float)) else "FAIL",
+    "intake_growth_present": "PASS" if isinstance(metrics.get("intake_growth_score"), (int, float)) else "FAIL",
     "trend_present": "PASS" if isinstance(payload.get("trend"), dict) else "FAIL",
 }
 bundle_status = "PASS" if all(v == "PASS" for v in flags.values()) else "FAIL"
@@ -80,6 +105,10 @@ summary = {
     "moat_status": payload.get("status"),
     "moat_score": metrics.get("moat_score"),
     "milestone_readiness_index": metrics.get("milestone_readiness_index"),
+    "intake_growth_score": metrics.get("intake_growth_score"),
+    "accepted_count_delta": ((payload.get("intake_growth") or {}).get("accepted_count_delta")),
+    "accepted_large_delta": ((payload.get("intake_growth") or {}).get("accepted_large_delta")),
+    "reject_rate_pct": ((payload.get("intake_growth") or {}).get("reject_rate_pct")),
     "moat_score_delta": ((payload.get("trend") or {}).get("delta") or {}).get("moat_score"),
     "status_transition": (payload.get("trend") or {}).get("status_transition"),
     "result_flags": flags,
@@ -94,6 +123,10 @@ summary = {
             f"- moat_status: `{summary['moat_status']}`",
             f"- moat_score: `{summary['moat_score']}`",
             f"- milestone_readiness_index: `{summary['milestone_readiness_index']}`",
+            f"- intake_growth_score: `{summary['intake_growth_score']}`",
+            f"- accepted_count_delta: `{summary['accepted_count_delta']}`",
+            f"- accepted_large_delta: `{summary['accepted_large_delta']}`",
+            f"- reject_rate_pct: `{summary['reject_rate_pct']}`",
             f"- moat_score_delta: `{summary['moat_score_delta']}`",
             f"- status_transition: `{summary['status_transition']}`",
             f"- bundle_status: `{summary['bundle_status']}`",

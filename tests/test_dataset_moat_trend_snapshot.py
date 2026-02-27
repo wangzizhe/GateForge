@@ -17,6 +17,8 @@ class DatasetMoatTrendSnapshotTests(unittest.TestCase):
             checkpoint = root / "checkpoint.json"
             checkpoint_trend = root / "checkpoint_trend.json"
             brief = root / "brief.json"
+            intake = root / "intake.json"
+            previous_intake = root / "previous_intake.json"
             previous = root / "previous.json"
             out = root / "summary.json"
 
@@ -27,6 +29,30 @@ class DatasetMoatTrendSnapshotTests(unittest.TestCase):
             checkpoint.write_text(json.dumps({"status": "PASS", "checkpoint_score": 84.0, "milestone_decision": "GO"}), encoding="utf-8")
             checkpoint_trend.write_text(json.dumps({"status": "PASS", "trend": {"status_transition": "PASS->PASS"}}), encoding="utf-8")
             brief.write_text(json.dumps({"milestone_status": "PASS", "milestone_decision": "GO"}), encoding="utf-8")
+            intake.write_text(
+                json.dumps(
+                    {
+                        "status": "PASS",
+                        "accepted_count": 4,
+                        "accepted_large_count": 1,
+                        "reject_rate_pct": 22.5,
+                        "weekly_target_status": "PASS",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            previous_intake.write_text(
+                json.dumps(
+                    {
+                        "status": "PASS",
+                        "accepted_count": 3,
+                        "accepted_large_count": 0,
+                        "reject_rate_pct": 30.0,
+                        "weekly_target_status": "NEEDS_REVIEW",
+                    }
+                ),
+                encoding="utf-8",
+            )
             previous.write_text(
                 json.dumps(
                     {
@@ -59,6 +85,10 @@ class DatasetMoatTrendSnapshotTests(unittest.TestCase):
                     str(checkpoint_trend),
                     "--milestone-public-brief-summary",
                     str(brief),
+                    "--real-model-intake-summary",
+                    str(intake),
+                    "--previous-real-model-intake-summary",
+                    str(previous_intake),
                     "--previous-snapshot",
                     str(previous),
                     "--out",
@@ -73,6 +103,9 @@ class DatasetMoatTrendSnapshotTests(unittest.TestCase):
             self.assertEqual(payload.get("status"), "PASS")
             self.assertGreaterEqual(float((payload.get("metrics") or {}).get("moat_score", 0.0)), 70.0)
             self.assertGreaterEqual(float((payload.get("metrics") or {}).get("milestone_readiness_index", 0.0)), 75.0)
+            self.assertIn("intake_growth_score", payload.get("metrics", {}))
+            self.assertEqual(int((payload.get("intake_growth") or {}).get("accepted_count_delta", 0)), 1)
+            self.assertEqual(int((payload.get("intake_growth") or {}).get("accepted_large_delta", 0)), 1)
 
     def test_snapshot_fail_when_evidence_fail(self) -> None:
         with tempfile.TemporaryDirectory() as d:

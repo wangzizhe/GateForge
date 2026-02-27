@@ -58,6 +58,8 @@ def _compute_metrics(
     milestone_checkpoint: dict,
     milestone_checkpoint_trend: dict,
     milestone_public_brief: dict,
+    intake_summary: dict,
+    previous_intake_summary: dict,
 ) -> dict:
     evidence_strength = _to_float(evidence_pack.get("evidence_strength_score", 0.0))
     sections_present = _to_int(evidence_pack.get("evidence_sections_present", 0))
@@ -117,11 +119,36 @@ def _compute_metrics(
         (checkpoint_score * 0.7) + 20.0 + decision_bonus + trend_bonus + brief_bonus + transition_penalty
     )
 
+    current_accepted = _to_int(intake_summary.get("accepted_count", 0))
+    previous_accepted = _to_int(previous_intake_summary.get("accepted_count", current_accepted))
+    accepted_delta = current_accepted - previous_accepted
+    current_large = _to_int(
+        intake_summary.get(
+            "accepted_large_count",
+            ((intake_summary.get("accepted_scale_counts") or {}).get("large", 0))
+            if isinstance(intake_summary.get("accepted_scale_counts"), dict)
+            else 0,
+        )
+    )
+    previous_large = _to_int(
+        previous_intake_summary.get(
+            "accepted_large_count",
+            ((previous_intake_summary.get("accepted_scale_counts") or {}).get("large", current_large))
+            if isinstance(previous_intake_summary.get("accepted_scale_counts"), dict)
+            else current_large,
+        )
+    )
+    large_delta = current_large - previous_large
+    reject_rate_pct = _to_float(intake_summary.get("reject_rate_pct", 0.0))
+
+    intake_growth_score = _clamp(60.0 + (accepted_delta * 6.0) + (large_delta * 10.0) - max(0.0, reject_rate_pct - 30.0) * 0.8)
+
     moat_score = _clamp(
-        (coverage_depth_index * 0.35)
-        + (governance_effectiveness_index * 0.35)
+        (coverage_depth_index * 0.33)
+        + (governance_effectiveness_index * 0.32)
         + (policy_learning_velocity * 0.15)
-        + (milestone_readiness_index * 0.15)
+        + (milestone_readiness_index * 0.12)
+        + (intake_growth_score * 0.08)
     )
 
     return {
@@ -129,6 +156,8 @@ def _compute_metrics(
         "governance_effectiveness_index": _round(governance_effectiveness_index),
         "policy_learning_velocity": _round(policy_learning_velocity),
         "milestone_readiness_index": _round(milestone_readiness_index),
+        "intake_growth_score": _round(intake_growth_score),
+        "intake_reject_rate_pct": _round(reject_rate_pct),
         "moat_score": _round(moat_score),
     }
 
@@ -183,6 +212,8 @@ def _write_markdown(path: str, payload: dict) -> None:
         f"- governance_effectiveness_index: `{metrics.get('governance_effectiveness_index')}`",
         f"- policy_learning_velocity: `{metrics.get('policy_learning_velocity')}`",
         f"- milestone_readiness_index: `{metrics.get('milestone_readiness_index')}`",
+        f"- intake_growth_score: `{metrics.get('intake_growth_score')}`",
+        f"- intake_reject_rate_pct: `{metrics.get('intake_reject_rate_pct')}`",
         f"- status_transition: `{trend.get('status_transition')}`",
         f"- moat_score_delta: `{(trend.get('delta') or {}).get('moat_score')}`",
         "",
@@ -208,6 +239,8 @@ def main() -> None:
     parser.add_argument("--milestone-checkpoint-summary", default=None)
     parser.add_argument("--milestone-checkpoint-trend-summary", default=None)
     parser.add_argument("--milestone-public-brief-summary", default=None)
+    parser.add_argument("--real-model-intake-summary", default=None)
+    parser.add_argument("--previous-real-model-intake-summary", default=None)
     parser.add_argument("--previous-snapshot", default=None)
     parser.add_argument("--out", default="artifacts/dataset_moat_trend_snapshot/summary.json")
     parser.add_argument("--report-out", default=None)
@@ -220,6 +253,8 @@ def main() -> None:
     milestone_checkpoint = _load_json(args.milestone_checkpoint_summary)
     milestone_checkpoint_trend = _load_json(args.milestone_checkpoint_trend_summary)
     milestone_public_brief = _load_json(args.milestone_public_brief_summary)
+    intake_summary = _load_json(args.real_model_intake_summary)
+    previous_intake_summary = _load_json(args.previous_real_model_intake_summary)
     previous = _load_json(args.previous_snapshot)
 
     metrics = _compute_metrics(
@@ -230,18 +265,49 @@ def main() -> None:
         milestone_checkpoint,
         milestone_checkpoint_trend,
         milestone_public_brief,
+        intake_summary,
+        previous_intake_summary,
     )
     status = _compute_status(_to_float(metrics.get("moat_score", 0.0)), str(evidence_pack.get("status") or ""))
+
+    current_accepted = _to_int(intake_summary.get("accepted_count", 0))
+    previous_accepted = _to_int(previous_intake_summary.get("accepted_count", current_accepted))
+    current_large = _to_int(
+        intake_summary.get(
+            "accepted_large_count",
+            ((intake_summary.get("accepted_scale_counts") or {}).get("large", 0))
+            if isinstance(intake_summary.get("accepted_scale_counts"), dict)
+            else 0,
+        )
+    )
+    previous_large = _to_int(
+        previous_intake_summary.get(
+            "accepted_large_count",
+            ((previous_intake_summary.get("accepted_scale_counts") or {}).get("large", current_large))
+            if isinstance(previous_intake_summary.get("accepted_scale_counts"), dict)
+            else current_large,
+        )
+    )
+    intake_growth = {
+        "accepted_count": current_accepted,
+        "accepted_large_count": current_large,
+        "reject_rate_pct": _round(_to_float(intake_summary.get("reject_rate_pct", 0.0))),
+        "accepted_count_delta": current_accepted - previous_accepted,
+        "accepted_large_delta": current_large - previous_large,
+    }
 
     summary = {
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
         "status": status,
         "metrics": metrics,
+        "intake_growth": intake_growth,
         "sources": {
             "evidence_pack": args.evidence_pack,
             "failure_corpus_registry_summary": args.failure_corpus_registry_summary,
             "blind_spot_backlog": args.blind_spot_backlog,
             "policy_patch_replay_evaluator": args.policy_patch_replay_evaluator,
+            "real_model_intake_summary": args.real_model_intake_summary,
+            "previous_real_model_intake_summary": args.previous_real_model_intake_summary,
             "milestone_checkpoint_summary": args.milestone_checkpoint_summary,
             "milestone_checkpoint_trend_summary": args.milestone_checkpoint_trend_summary,
             "milestone_public_brief_summary": args.milestone_public_brief_summary,
