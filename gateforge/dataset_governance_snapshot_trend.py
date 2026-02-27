@@ -75,6 +75,26 @@ def _compute_trend(current: dict, previous: dict) -> dict:
         f"{previous_kpis.get('dataset_moat_public_scoreboard_status')}->"
         f"{current_kpis.get('dataset_moat_public_scoreboard_status')}"
     )
+    real_model_license_compliance_transition = (
+        f"{previous_kpis.get('dataset_real_model_license_compliance_status')}->"
+        f"{current_kpis.get('dataset_real_model_license_compliance_status')}"
+    )
+    modelica_mutation_recipe_library_transition = (
+        f"{previous_kpis.get('dataset_modelica_mutation_recipe_library_status')}->"
+        f"{current_kpis.get('dataset_modelica_mutation_recipe_library_status')}"
+    )
+    real_model_failure_yield_transition = (
+        f"{previous_kpis.get('dataset_real_model_failure_yield_status')}->"
+        f"{current_kpis.get('dataset_real_model_failure_yield_status')}"
+    )
+    real_model_intake_backlog_transition = (
+        f"{previous_kpis.get('dataset_real_model_intake_backlog_status')}->"
+        f"{current_kpis.get('dataset_real_model_intake_backlog_status')}"
+    )
+    modelica_moat_readiness_gate_transition = (
+        f"{previous_kpis.get('dataset_modelica_moat_readiness_gate_status')}->"
+        f"{current_kpis.get('dataset_modelica_moat_readiness_gate_status')}"
+    )
     status_delta_alerts: list[str] = []
     if trend_status_transition in {"PASS->NEEDS_REVIEW", "PASS->FAIL", "NEEDS_REVIEW->FAIL"}:
         status_delta_alerts.append("promotion_effectiveness_history_trend_worsened")
@@ -96,6 +116,16 @@ def _compute_trend(current: dict, previous: dict) -> dict:
         status_delta_alerts.append("mutation_campaign_tracker_worsened")
     if moat_public_scoreboard_transition in {"PASS->NEEDS_REVIEW", "PASS->FAIL", "NEEDS_REVIEW->FAIL"}:
         status_delta_alerts.append("moat_public_scoreboard_worsened")
+    if real_model_license_compliance_transition in {"PASS->NEEDS_REVIEW", "PASS->FAIL", "NEEDS_REVIEW->FAIL"}:
+        status_delta_alerts.append("real_model_license_compliance_worsened")
+    if modelica_mutation_recipe_library_transition in {"PASS->NEEDS_REVIEW", "PASS->FAIL", "NEEDS_REVIEW->FAIL"}:
+        status_delta_alerts.append("modelica_mutation_recipe_library_worsened")
+    if real_model_failure_yield_transition in {"PASS->NEEDS_REVIEW", "PASS->FAIL", "NEEDS_REVIEW->FAIL"}:
+        status_delta_alerts.append("real_model_failure_yield_worsened")
+    if real_model_intake_backlog_transition in {"PASS->NEEDS_REVIEW", "PASS->FAIL", "NEEDS_REVIEW->FAIL"}:
+        status_delta_alerts.append("real_model_intake_backlog_worsened")
+    if modelica_moat_readiness_gate_transition in {"PASS->NEEDS_REVIEW", "PASS->FAIL", "NEEDS_REVIEW->FAIL"}:
+        status_delta_alerts.append("modelica_moat_readiness_gate_worsened")
 
     status_transition = f"{previous_status}->{current_status}"
     new_risks = sorted(current_risks - previous_risks)
@@ -129,6 +159,11 @@ def _compute_trend(current: dict, previous: dict) -> dict:
             "dataset_large_model_benchmark_pack_status_transition": large_model_benchmark_pack_transition,
             "dataset_mutation_campaign_tracker_status_transition": mutation_campaign_tracker_transition,
             "dataset_moat_public_scoreboard_status_transition": moat_public_scoreboard_transition,
+            "dataset_real_model_license_compliance_status_transition": real_model_license_compliance_transition,
+            "dataset_modelica_mutation_recipe_library_status_transition": modelica_mutation_recipe_library_transition,
+            "dataset_real_model_failure_yield_status_transition": real_model_failure_yield_transition,
+            "dataset_real_model_intake_backlog_status_transition": real_model_intake_backlog_transition,
+            "dataset_modelica_moat_readiness_gate_status_transition": modelica_moat_readiness_gate_transition,
             "alerts": status_delta_alerts,
         },
         "kpi_delta": {
@@ -250,6 +285,51 @@ def _compute_trend(current: dict, previous: dict) -> dict:
             "dataset_moat_public_score_delta": round(
                 _to_float(current_kpis.get("dataset_moat_public_score"))
                 - _to_float(previous_kpis.get("dataset_moat_public_score")),
+                4,
+            ),
+            "dataset_real_model_license_compliance_unknown_license_ratio_pct_delta": round(
+                _to_float(current_kpis.get("dataset_real_model_license_compliance_unknown_license_ratio_pct"))
+                - _to_float(previous_kpis.get("dataset_real_model_license_compliance_unknown_license_ratio_pct")),
+                4,
+            ),
+            "dataset_real_model_license_compliance_disallowed_license_count_delta": round(
+                _to_float(current_kpis.get("dataset_real_model_license_compliance_disallowed_license_count"))
+                - _to_float(previous_kpis.get("dataset_real_model_license_compliance_disallowed_license_count")),
+                4,
+            ),
+            "dataset_modelica_mutation_recipe_total_delta": round(
+                _to_float(current_kpis.get("dataset_modelica_mutation_recipe_total"))
+                - _to_float(previous_kpis.get("dataset_modelica_mutation_recipe_total")),
+                4,
+            ),
+            "dataset_modelica_mutation_recipe_high_priority_delta": round(
+                _to_float(current_kpis.get("dataset_modelica_mutation_recipe_high_priority"))
+                - _to_float(previous_kpis.get("dataset_modelica_mutation_recipe_high_priority")),
+                4,
+            ),
+            "dataset_real_model_failure_yield_per_accepted_model_delta": round(
+                _to_float(current_kpis.get("dataset_real_model_failure_yield_per_accepted_model"))
+                - _to_float(previous_kpis.get("dataset_real_model_failure_yield_per_accepted_model")),
+                4,
+            ),
+            "dataset_real_model_failure_yield_execution_ratio_pct_delta": round(
+                _to_float(current_kpis.get("dataset_real_model_failure_yield_execution_ratio_pct"))
+                - _to_float(previous_kpis.get("dataset_real_model_failure_yield_execution_ratio_pct")),
+                4,
+            ),
+            "dataset_real_model_intake_backlog_item_count_delta": round(
+                _to_float(current_kpis.get("dataset_real_model_intake_backlog_item_count"))
+                - _to_float(previous_kpis.get("dataset_real_model_intake_backlog_item_count")),
+                4,
+            ),
+            "dataset_real_model_intake_backlog_p0_count_delta": round(
+                _to_float(current_kpis.get("dataset_real_model_intake_backlog_p0_count"))
+                - _to_float(previous_kpis.get("dataset_real_model_intake_backlog_p0_count")),
+                4,
+            ),
+            "dataset_modelica_moat_readiness_score_delta": round(
+                _to_float(current_kpis.get("dataset_modelica_moat_readiness_score"))
+                - _to_float(previous_kpis.get("dataset_modelica_moat_readiness_score")),
                 4,
             ),
         },

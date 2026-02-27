@@ -61,6 +61,26 @@ class DatasetGovernanceSnapshotDemoTests(unittest.TestCase):
                 payload.get("moat_public_scoreboard_status"),
                 {"PASS", "NEEDS_REVIEW", "FAIL", None},
             )
+            self.assertIn(
+                payload.get("real_model_license_compliance_status"),
+                {"PASS", "NEEDS_REVIEW", "FAIL", None},
+            )
+            self.assertIn(
+                payload.get("modelica_mutation_recipe_library_status"),
+                {"PASS", "NEEDS_REVIEW", "FAIL", None},
+            )
+            self.assertIn(
+                payload.get("real_model_failure_yield_status"),
+                {"PASS", "NEEDS_REVIEW", "FAIL", None},
+            )
+            self.assertIn(
+                payload.get("real_model_intake_backlog_status"),
+                {"PASS", "NEEDS_REVIEW", "FAIL", None},
+            )
+            self.assertIn(
+                payload.get("modelica_moat_readiness_gate_status"),
+                {"PASS", "NEEDS_REVIEW", "FAIL", None},
+            )
 
 
 if __name__ == "__main__":

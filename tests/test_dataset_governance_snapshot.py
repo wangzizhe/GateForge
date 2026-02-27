@@ -442,6 +442,65 @@ class DatasetGovernanceSnapshotTests(unittest.TestCase):
             self.assertIn("dataset_moat_public_scoreboard_needs_review", payload.get("risks", []))
             self.assertEqual((payload.get("kpis") or {}).get("dataset_moat_public_verdict"), "INSUFFICIENT_EVIDENCE")
 
+    def test_snapshot_needs_review_on_real_model_chain(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            license_summary = root / "license.json"
+            recipe_summary = root / "recipe.json"
+            yield_summary = root / "yield.json"
+            backlog_summary = root / "backlog.json"
+            moat_gate_summary = root / "moat_gate.json"
+            out = root / "snapshot.json"
+            license_summary.write_text(
+                json.dumps({"status": "PASS", "unknown_license_ratio_pct": 0.0, "disallowed_license_count": 0}),
+                encoding="utf-8",
+            )
+            recipe_summary.write_text(
+                json.dumps({"status": "PASS", "total_recipes": 8, "high_priority_recipes": 1}),
+                encoding="utf-8",
+            )
+            yield_summary.write_text(
+                json.dumps({"status": "PASS", "yield_per_accepted_model": 1.9, "matrix_execution_ratio_pct": 86.0}),
+                encoding="utf-8",
+            )
+            backlog_summary.write_text(
+                json.dumps({"status": "NEEDS_REVIEW", "backlog_item_count": 4, "p0_count": 1}),
+                encoding="utf-8",
+            )
+            moat_gate_summary.write_text(
+                json.dumps({"status": "NEEDS_REVIEW", "moat_readiness_score": 74.0, "release_recommendation": "HOLD"}),
+                encoding="utf-8",
+            )
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.dataset_governance_snapshot",
+                    "--dataset-real-model-license-compliance",
+                    str(license_summary),
+                    "--dataset-modelica-mutation-recipe-library",
+                    str(recipe_summary),
+                    "--dataset-real-model-failure-yield",
+                    str(yield_summary),
+                    "--dataset-real-model-intake-backlog",
+                    str(backlog_summary),
+                    "--dataset-modelica-moat-readiness-gate",
+                    str(moat_gate_summary),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            payload = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(payload.get("status"), "NEEDS_REVIEW")
+            self.assertIn("dataset_real_model_intake_backlog_needs_review", payload.get("risks", []))
+            self.assertIn("dataset_modelica_moat_readiness_gate_needs_review", payload.get("risks", []))
+            self.assertEqual((payload.get("kpis") or {}).get("dataset_modelica_mutation_recipe_total"), 8)
+            self.assertEqual((payload.get("kpis") or {}).get("dataset_real_model_failure_yield_per_accepted_model"), 1.9)
+
 
 if __name__ == "__main__":
     unittest.main()

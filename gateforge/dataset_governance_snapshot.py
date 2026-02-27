@@ -91,6 +91,16 @@ def _status_from_signals(signals: dict) -> str:
         return "NEEDS_REVIEW"
     if signals.get("dataset_moat_public_scoreboard_needs_review"):
         return "NEEDS_REVIEW"
+    if signals.get("dataset_real_model_license_compliance_needs_review"):
+        return "NEEDS_REVIEW"
+    if signals.get("dataset_modelica_mutation_recipe_library_needs_review"):
+        return "NEEDS_REVIEW"
+    if signals.get("dataset_real_model_failure_yield_needs_review"):
+        return "NEEDS_REVIEW"
+    if signals.get("dataset_real_model_intake_backlog_needs_review"):
+        return "NEEDS_REVIEW"
+    if signals.get("dataset_modelica_moat_readiness_gate_needs_review"):
+        return "NEEDS_REVIEW"
     return "PASS"
 
 
@@ -119,6 +129,11 @@ def _compute_summary(
     large_model_benchmark_pack: dict,
     mutation_campaign_tracker: dict,
     moat_public_scoreboard: dict,
+    real_model_license_compliance: dict,
+    modelica_mutation_recipe_library: dict,
+    real_model_failure_yield: dict,
+    real_model_intake_backlog: dict,
+    modelica_moat_readiness_gate: dict,
 ) -> dict:
     strategy_advice = (
         strategy_advisor.get("advice")
@@ -174,6 +189,18 @@ def _compute_summary(
         in {"NEEDS_REVIEW", "FAIL"},
         "dataset_moat_public_scoreboard_needs_review": str(moat_public_scoreboard.get("status") or "")
         in {"NEEDS_REVIEW", "FAIL"},
+        "dataset_real_model_license_compliance_needs_review": str(real_model_license_compliance.get("status") or "")
+        in {"NEEDS_REVIEW", "FAIL"},
+        "dataset_modelica_mutation_recipe_library_needs_review": str(
+            modelica_mutation_recipe_library.get("status") or ""
+        )
+        in {"NEEDS_REVIEW", "FAIL"},
+        "dataset_real_model_failure_yield_needs_review": str(real_model_failure_yield.get("status") or "")
+        in {"NEEDS_REVIEW", "FAIL"},
+        "dataset_real_model_intake_backlog_needs_review": str(real_model_intake_backlog.get("status") or "")
+        in {"NEEDS_REVIEW", "FAIL"},
+        "dataset_modelica_moat_readiness_gate_needs_review": str(modelica_moat_readiness_gate.get("status") or "")
+        in {"NEEDS_REVIEW", "FAIL"},
     }
     status = _status_from_signals(signals)
 
@@ -228,6 +255,16 @@ def _compute_summary(
         risks.append("dataset_mutation_campaign_tracker_needs_review")
     if signals["dataset_moat_public_scoreboard_needs_review"]:
         risks.append("dataset_moat_public_scoreboard_needs_review")
+    if signals["dataset_real_model_license_compliance_needs_review"]:
+        risks.append("dataset_real_model_license_compliance_needs_review")
+    if signals["dataset_modelica_mutation_recipe_library_needs_review"]:
+        risks.append("dataset_modelica_mutation_recipe_library_needs_review")
+    if signals["dataset_real_model_failure_yield_needs_review"]:
+        risks.append("dataset_real_model_failure_yield_needs_review")
+    if signals["dataset_real_model_intake_backlog_needs_review"]:
+        risks.append("dataset_real_model_intake_backlog_needs_review")
+    if signals["dataset_modelica_moat_readiness_gate_needs_review"]:
+        risks.append("dataset_modelica_moat_readiness_gate_needs_review")
 
     policy_patch_advice = (
         failure_policy_patch_advisor.get("advice")
@@ -338,6 +375,31 @@ def _compute_summary(
         "dataset_moat_public_scoreboard_status": moat_public_scoreboard.get("status"),
         "dataset_moat_public_score": _to_float(moat_public_scoreboard.get("moat_public_score", 0.0)),
         "dataset_moat_public_verdict": moat_public_scoreboard.get("verdict"),
+        "dataset_real_model_license_compliance_status": real_model_license_compliance.get("status"),
+        "dataset_real_model_license_compliance_unknown_license_ratio_pct": _to_float(
+            real_model_license_compliance.get("unknown_license_ratio_pct", 0.0)
+        ),
+        "dataset_real_model_license_compliance_disallowed_license_count": _to_int(
+            real_model_license_compliance.get("disallowed_license_count", 0)
+        ),
+        "dataset_modelica_mutation_recipe_library_status": modelica_mutation_recipe_library.get("status"),
+        "dataset_modelica_mutation_recipe_total": _to_int(modelica_mutation_recipe_library.get("total_recipes", 0)),
+        "dataset_modelica_mutation_recipe_high_priority": _to_int(
+            modelica_mutation_recipe_library.get("high_priority_recipes", 0)
+        ),
+        "dataset_real_model_failure_yield_status": real_model_failure_yield.get("status"),
+        "dataset_real_model_failure_yield_per_accepted_model": _to_float(
+            real_model_failure_yield.get("yield_per_accepted_model", 0.0)
+        ),
+        "dataset_real_model_failure_yield_execution_ratio_pct": _to_float(
+            real_model_failure_yield.get("matrix_execution_ratio_pct", 0.0)
+        ),
+        "dataset_real_model_intake_backlog_status": real_model_intake_backlog.get("status"),
+        "dataset_real_model_intake_backlog_item_count": _to_int(real_model_intake_backlog.get("backlog_item_count", 0)),
+        "dataset_real_model_intake_backlog_p0_count": _to_int(real_model_intake_backlog.get("p0_count", 0)),
+        "dataset_modelica_moat_readiness_gate_status": modelica_moat_readiness_gate.get("status"),
+        "dataset_modelica_moat_readiness_score": _to_float(modelica_moat_readiness_gate.get("moat_readiness_score", 0.0)),
+        "dataset_modelica_moat_release_recommendation": modelica_moat_readiness_gate.get("release_recommendation"),
     }
     return {
         "status": status,
@@ -412,6 +474,21 @@ def _write_markdown(path: str, summary: dict) -> None:
         f"- dataset_moat_public_scoreboard_status: `{kpis.get('dataset_moat_public_scoreboard_status')}`",
         f"- dataset_moat_public_score: `{kpis.get('dataset_moat_public_score')}`",
         f"- dataset_moat_public_verdict: `{kpis.get('dataset_moat_public_verdict')}`",
+        f"- dataset_real_model_license_compliance_status: `{kpis.get('dataset_real_model_license_compliance_status')}`",
+        f"- dataset_real_model_license_compliance_unknown_license_ratio_pct: `{kpis.get('dataset_real_model_license_compliance_unknown_license_ratio_pct')}`",
+        f"- dataset_real_model_license_compliance_disallowed_license_count: `{kpis.get('dataset_real_model_license_compliance_disallowed_license_count')}`",
+        f"- dataset_modelica_mutation_recipe_library_status: `{kpis.get('dataset_modelica_mutation_recipe_library_status')}`",
+        f"- dataset_modelica_mutation_recipe_total: `{kpis.get('dataset_modelica_mutation_recipe_total')}`",
+        f"- dataset_modelica_mutation_recipe_high_priority: `{kpis.get('dataset_modelica_mutation_recipe_high_priority')}`",
+        f"- dataset_real_model_failure_yield_status: `{kpis.get('dataset_real_model_failure_yield_status')}`",
+        f"- dataset_real_model_failure_yield_per_accepted_model: `{kpis.get('dataset_real_model_failure_yield_per_accepted_model')}`",
+        f"- dataset_real_model_failure_yield_execution_ratio_pct: `{kpis.get('dataset_real_model_failure_yield_execution_ratio_pct')}`",
+        f"- dataset_real_model_intake_backlog_status: `{kpis.get('dataset_real_model_intake_backlog_status')}`",
+        f"- dataset_real_model_intake_backlog_item_count: `{kpis.get('dataset_real_model_intake_backlog_item_count')}`",
+        f"- dataset_real_model_intake_backlog_p0_count: `{kpis.get('dataset_real_model_intake_backlog_p0_count')}`",
+        f"- dataset_modelica_moat_readiness_gate_status: `{kpis.get('dataset_modelica_moat_readiness_gate_status')}`",
+        f"- dataset_modelica_moat_readiness_score: `{kpis.get('dataset_modelica_moat_readiness_score')}`",
+        f"- dataset_modelica_moat_release_recommendation: `{kpis.get('dataset_modelica_moat_release_recommendation')}`",
         "",
         "## Risks",
         "",
@@ -524,6 +601,31 @@ def main() -> None:
         default=None,
         help="Path to dataset moat public scoreboard summary JSON",
     )
+    parser.add_argument(
+        "--dataset-real-model-license-compliance",
+        default=None,
+        help="Path to dataset real model license compliance summary JSON",
+    )
+    parser.add_argument(
+        "--dataset-modelica-mutation-recipe-library",
+        default=None,
+        help="Path to dataset modelica mutation recipe library summary JSON",
+    )
+    parser.add_argument(
+        "--dataset-real-model-failure-yield",
+        default=None,
+        help="Path to dataset real model failure yield summary JSON",
+    )
+    parser.add_argument(
+        "--dataset-real-model-intake-backlog",
+        default=None,
+        help="Path to dataset real model intake backlog summary JSON",
+    )
+    parser.add_argument(
+        "--dataset-modelica-moat-readiness-gate",
+        default=None,
+        help="Path to dataset modelica moat readiness gate summary JSON",
+    )
     parser.add_argument("--out", default="artifacts/dataset_governance_snapshot/summary.json", help="Output JSON path")
     parser.add_argument("--report", default=None, help="Output markdown path")
     args = parser.parse_args()
@@ -552,6 +654,11 @@ def main() -> None:
     large_model_benchmark_pack = _load_json(args.dataset_large_model_benchmark_pack)
     mutation_campaign_tracker = _load_json(args.dataset_mutation_campaign_tracker)
     moat_public_scoreboard = _load_json(args.dataset_moat_public_scoreboard)
+    real_model_license_compliance = _load_json(args.dataset_real_model_license_compliance)
+    modelica_mutation_recipe_library = _load_json(args.dataset_modelica_mutation_recipe_library)
+    real_model_failure_yield = _load_json(args.dataset_real_model_failure_yield)
+    real_model_intake_backlog = _load_json(args.dataset_real_model_intake_backlog)
+    modelica_moat_readiness_gate = _load_json(args.dataset_modelica_moat_readiness_gate)
 
     summary = _compute_summary(
         dataset_pipeline,
@@ -578,6 +685,11 @@ def main() -> None:
         large_model_benchmark_pack,
         mutation_campaign_tracker,
         moat_public_scoreboard,
+        real_model_license_compliance,
+        modelica_mutation_recipe_library,
+        real_model_failure_yield,
+        real_model_intake_backlog,
+        modelica_moat_readiness_gate,
     )
     summary["generated_at_utc"] = datetime.now(timezone.utc).isoformat()
     summary["sources"] = {
@@ -605,6 +717,11 @@ def main() -> None:
         "dataset_large_model_benchmark_pack_path": args.dataset_large_model_benchmark_pack,
         "dataset_mutation_campaign_tracker_path": args.dataset_mutation_campaign_tracker,
         "dataset_moat_public_scoreboard_path": args.dataset_moat_public_scoreboard,
+        "dataset_real_model_license_compliance_path": args.dataset_real_model_license_compliance,
+        "dataset_modelica_mutation_recipe_library_path": args.dataset_modelica_mutation_recipe_library,
+        "dataset_real_model_failure_yield_path": args.dataset_real_model_failure_yield,
+        "dataset_real_model_intake_backlog_path": args.dataset_real_model_intake_backlog,
+        "dataset_modelica_moat_readiness_gate_path": args.dataset_modelica_moat_readiness_gate,
     }
 
     _write_json(args.out, summary)

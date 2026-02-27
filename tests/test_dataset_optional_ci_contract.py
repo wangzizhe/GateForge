@@ -92,6 +92,16 @@ class DatasetOptionalCIContractTests(unittest.TestCase):
                 "mutation_campaign_completion_ratio_pct": 91.0,
                 "moat_public_scoreboard_status": "PASS",
                 "moat_public_score": 84.0,
+                "real_model_license_compliance_status": "PASS",
+                "real_model_license_compliance_unknown_license_ratio_pct": 0.0,
+                "modelica_mutation_recipe_library_status": "PASS",
+                "modelica_mutation_recipe_total": 10,
+                "real_model_failure_yield_status": "PASS",
+                "real_model_failure_yield_per_accepted_model": 1.7,
+                "real_model_intake_backlog_status": "PASS",
+                "real_model_intake_backlog_p0_count": 0,
+                "modelica_moat_readiness_gate_status": "PASS",
+                "modelica_moat_readiness_score": 83.0,
             },
             "dataset_governance_snapshot_trend_demo/demo_summary.json": {
                 "bundle_status": "PASS",
@@ -105,6 +115,11 @@ class DatasetOptionalCIContractTests(unittest.TestCase):
                 "large_model_benchmark_pack_status_transition": "PASS->PASS",
                 "mutation_campaign_tracker_status_transition": "PASS->PASS",
                 "moat_public_scoreboard_status_transition": "PASS->PASS",
+                "real_model_license_compliance_status_transition": "PASS->PASS",
+                "modelica_mutation_recipe_library_status_transition": "PASS->PASS",
+                "real_model_failure_yield_status_transition": "PASS->PASS",
+                "real_model_intake_backlog_status_transition": "PASS->PASS",
+                "modelica_moat_readiness_gate_status_transition": "PASS->PASS",
                 "status_delta_alert_count": 1,
                 "severity_level": "medium",
             },
@@ -207,6 +222,26 @@ class DatasetOptionalCIContractTests(unittest.TestCase):
                 "scoreboard_status": "PASS",
                 "moat_public_score": 84.0,
                 "verdict": "EMERGING_MOAT",
+            },
+            "dataset_real_model_license_compliance_gate_v1_demo/demo_summary.json": {
+                "bundle_status": "PASS",
+                "license_gate_status": "PASS",
+            },
+            "dataset_modelica_mutation_recipe_library_v1_demo/demo_summary.json": {
+                "bundle_status": "PASS",
+                "recipe_library_status": "PASS",
+            },
+            "dataset_real_model_failure_yield_tracker_v1_demo/demo_summary.json": {
+                "bundle_status": "PASS",
+                "yield_tracker_status": "PASS",
+            },
+            "dataset_real_model_intake_backlog_prioritizer_v1_demo/demo_summary.json": {
+                "bundle_status": "PASS",
+                "backlog_prioritizer_status": "NEEDS_REVIEW",
+            },
+            "dataset_modelica_moat_readiness_gate_v1_demo/demo_summary.json": {
+                "bundle_status": "PASS",
+                "moat_gate_status": "PASS",
             },
         }
         for rel, payload in mapping.items():

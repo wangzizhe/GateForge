@@ -54,6 +54,20 @@ cat > "$OUT_DIR/previous_summary.json" <<'JSON'
     "dataset_mutation_campaign_completion_ratio_pct": 82.0,
     "dataset_moat_public_scoreboard_status": "PASS",
     "dataset_moat_public_score": 78.0,
+    "dataset_real_model_license_compliance_status": "PASS",
+    "dataset_real_model_license_compliance_unknown_license_ratio_pct": 0.0,
+    "dataset_real_model_license_compliance_disallowed_license_count": 0,
+    "dataset_modelica_mutation_recipe_library_status": "PASS",
+    "dataset_modelica_mutation_recipe_total": 8,
+    "dataset_modelica_mutation_recipe_high_priority": 2,
+    "dataset_real_model_failure_yield_status": "PASS",
+    "dataset_real_model_failure_yield_per_accepted_model": 1.5,
+    "dataset_real_model_failure_yield_execution_ratio_pct": 85.0,
+    "dataset_real_model_intake_backlog_status": "PASS",
+    "dataset_real_model_intake_backlog_item_count": 2,
+    "dataset_real_model_intake_backlog_p0_count": 0,
+    "dataset_modelica_moat_readiness_gate_status": "PASS",
+    "dataset_modelica_moat_readiness_score": 79.0,
     "dataset_promotion_effectiveness_history_trend_status": "PASS",
     "dataset_promotion_effectiveness_history_latest_decision": "KEEP"
   }
@@ -118,6 +132,21 @@ demo = {
     "moat_public_scoreboard_status_transition": (trend.get("status_delta") or {}).get(
         "dataset_moat_public_scoreboard_status_transition"
     ),
+    "real_model_license_compliance_status_transition": (trend.get("status_delta") or {}).get(
+        "dataset_real_model_license_compliance_status_transition"
+    ),
+    "modelica_mutation_recipe_library_status_transition": (trend.get("status_delta") or {}).get(
+        "dataset_modelica_mutation_recipe_library_status_transition"
+    ),
+    "real_model_failure_yield_status_transition": (trend.get("status_delta") or {}).get(
+        "dataset_real_model_failure_yield_status_transition"
+    ),
+    "real_model_intake_backlog_status_transition": (trend.get("status_delta") or {}).get(
+        "dataset_real_model_intake_backlog_status_transition"
+    ),
+    "modelica_moat_readiness_gate_status_transition": (trend.get("status_delta") or {}).get(
+        "dataset_modelica_moat_readiness_gate_status_transition"
+    ),
     "status_delta_alert_count": len((trend.get("status_delta") or {}).get("alerts") or []),
     "result_flags": flags,
     "bundle_status": bundle_status,
@@ -143,6 +172,11 @@ demo = {
             f"- large_model_benchmark_pack_status_transition: `{demo['large_model_benchmark_pack_status_transition']}`",
             f"- mutation_campaign_tracker_status_transition: `{demo['mutation_campaign_tracker_status_transition']}`",
             f"- moat_public_scoreboard_status_transition: `{demo['moat_public_scoreboard_status_transition']}`",
+            f"- real_model_license_compliance_status_transition: `{demo['real_model_license_compliance_status_transition']}`",
+            f"- modelica_mutation_recipe_library_status_transition: `{demo['modelica_mutation_recipe_library_status_transition']}`",
+            f"- real_model_failure_yield_status_transition: `{demo['real_model_failure_yield_status_transition']}`",
+            f"- real_model_intake_backlog_status_transition: `{demo['real_model_intake_backlog_status_transition']}`",
+            f"- modelica_moat_readiness_gate_status_transition: `{demo['modelica_moat_readiness_gate_status_transition']}`",
             f"- status_delta_alert_count: `{demo['status_delta_alert_count']}`",
             f"- bundle_status: `{demo['bundle_status']}`",
             "",

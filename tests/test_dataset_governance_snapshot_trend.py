@@ -144,6 +144,26 @@ class DatasetGovernanceSnapshotTrendTests(unittest.TestCase):
                 (trend.get("status_delta") or {}).get("dataset_failure_policy_patch_advisor_status_transition"),
                 "PASS->NEEDS_REVIEW",
             )
+            self.assertIn(
+                "dataset_real_model_license_compliance_status_transition",
+                trend.get("status_delta") or {},
+            )
+            self.assertIn(
+                "dataset_modelica_mutation_recipe_library_status_transition",
+                trend.get("status_delta") or {},
+            )
+            self.assertIn(
+                "dataset_real_model_failure_yield_status_transition",
+                trend.get("status_delta") or {},
+            )
+            self.assertIn(
+                "dataset_real_model_intake_backlog_status_transition",
+                trend.get("status_delta") or {},
+            )
+            self.assertIn(
+                "dataset_modelica_moat_readiness_gate_status_transition",
+                trend.get("status_delta") or {},
+            )
 
     def test_trend_marks_pass_when_kpis_stable(self) -> None:
         with tempfile.TemporaryDirectory() as d:
@@ -265,6 +285,26 @@ class DatasetGovernanceSnapshotTrendTests(unittest.TestCase):
             self.assertEqual(
                 (trend.get("status_delta") or {}).get("dataset_failure_policy_patch_advisor_status_transition"),
                 "PASS->PASS",
+            )
+            self.assertIn(
+                "dataset_real_model_license_compliance_status_transition",
+                trend.get("status_delta") or {},
+            )
+            self.assertIn(
+                "dataset_modelica_mutation_recipe_library_status_transition",
+                trend.get("status_delta") or {},
+            )
+            self.assertIn(
+                "dataset_real_model_failure_yield_status_transition",
+                trend.get("status_delta") or {},
+            )
+            self.assertIn(
+                "dataset_real_model_intake_backlog_status_transition",
+                trend.get("status_delta") or {},
+            )
+            self.assertIn(
+                "dataset_modelica_moat_readiness_gate_status_transition",
+                trend.get("status_delta") or {},
             )
 
 
