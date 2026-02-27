@@ -147,6 +147,12 @@ mapping = {
         "execution_readiness_index": 82.0,
         "moat_score_delta": 6.5,
     },
+    "dataset_external_proof_score_demo/demo_summary.json": {
+        "bundle_status": "PASS",
+        "proof_status": "PASS",
+        "proof_score": 82.0,
+        "execution_readiness_index": 82.0,
+    },
     "dataset_backlog_execution_bridge_demo/demo_summary.json": {
         "bundle_status": "PASS",
         "bridge_status": "NEEDS_REVIEW",
@@ -280,6 +286,7 @@ else
   bash scripts/demo_dataset_policy_patch_replay_evaluator.sh >/dev/null
   bash scripts/demo_dataset_governance_evidence_pack.sh >/dev/null
   bash scripts/demo_dataset_moat_trend_snapshot.sh >/dev/null
+  bash scripts/demo_dataset_external_proof_score.sh >/dev/null
   bash scripts/demo_dataset_backlog_execution_bridge.sh >/dev/null
   bash scripts/demo_dataset_replay_quality_guard.sh >/dev/null
   bash scripts/demo_dataset_promotion_candidate.sh >/dev/null
