@@ -24,6 +24,16 @@ cat > "$OUT_DIR/backlog_summary.json" <<'JSON'
 {"status": "PASS", "p0_count": 0}
 JSON
 
+cat > "$OUT_DIR/intake_summary.json" <<'JSON'
+{
+  "status": "PASS",
+  "accepted_count": 4,
+  "accepted_large_count": 1,
+  "reject_rate_pct": 20.0,
+  "weekly_target_status": "PASS"
+}
+JSON
+
 cat > "$OUT_DIR/external_proof_summary.json" <<'JSON'
 {"external_proof_score": 82}
 JSON
@@ -33,6 +43,7 @@ python3 -m gateforge.dataset_modelica_moat_readiness_gate_v1 \
   --modelica-mutation-recipe-library-summary "$OUT_DIR/recipe_summary.json" \
   --real-model-failure-yield-summary "$OUT_DIR/yield_summary.json" \
   --real-model-intake-backlog-summary "$OUT_DIR/backlog_summary.json" \
+  --real-model-intake-summary "$OUT_DIR/intake_summary.json" \
   --external-proof-score-summary "$OUT_DIR/external_proof_summary.json" \
   --out "$OUT_DIR/summary.json" \
   --report-out "$OUT_DIR/summary.md"

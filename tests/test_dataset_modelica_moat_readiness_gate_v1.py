@@ -14,11 +14,24 @@ class DatasetModelicaMoatReadinessGateV1Tests(unittest.TestCase):
             rec = root / "rec.json"
             yld = root / "yld.json"
             back = root / "back.json"
+            intake = root / "intake.json"
             out = root / "summary.json"
             lic.write_text(json.dumps({"status": "PASS"}), encoding="utf-8")
             rec.write_text(json.dumps({"status": "PASS"}), encoding="utf-8")
             yld.write_text(json.dumps({"status": "PASS"}), encoding="utf-8")
             back.write_text(json.dumps({"status": "PASS", "p0_count": 0}), encoding="utf-8")
+            intake.write_text(
+                json.dumps(
+                    {
+                        "status": "PASS",
+                        "accepted_count": 4,
+                        "accepted_large_count": 1,
+                        "reject_rate_pct": 20.0,
+                        "weekly_target_status": "PASS",
+                    }
+                ),
+                encoding="utf-8",
+            )
             proc = subprocess.run(
                 [
                     sys.executable,
@@ -32,6 +45,8 @@ class DatasetModelicaMoatReadinessGateV1Tests(unittest.TestCase):
                     str(yld),
                     "--real-model-intake-backlog-summary",
                     str(back),
+                    "--real-model-intake-summary",
+                    str(intake),
                     "--out",
                     str(out),
                 ],
@@ -44,6 +59,7 @@ class DatasetModelicaMoatReadinessGateV1Tests(unittest.TestCase):
             self.assertIn(summary.get("release_recommendation"), {"GO", "LIMITED_GO", "HOLD"})
             self.assertIn(summary.get("confidence_level"), {"low", "medium", "high"})
             self.assertIn("critical_blockers", summary)
+            self.assertIn("intake_growth_score", summary.get("component_scores", {}))
 
     def test_moat_gate_fail_when_required_inputs_missing(self) -> None:
         with tempfile.TemporaryDirectory() as d:

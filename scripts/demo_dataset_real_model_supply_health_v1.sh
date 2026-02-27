@@ -9,7 +9,14 @@ mkdir -p "$OUT_DIR"
 rm -f "$OUT_DIR"/*.json "$OUT_DIR"/*.md
 
 cat > "$OUT_DIR/intake_summary.json" <<'JSON'
-{"status":"PASS","accepted_count":4}
+{
+  "status":"PASS",
+  "accepted_count":4,
+  "accepted_large_count":1,
+  "accepted_scale_counts":{"small":1,"medium":2,"large":1},
+  "reject_rate_pct":22.5,
+  "weekly_target_status":"PASS"
+}
 JSON
 cat > "$OUT_DIR/license_summary.json" <<'JSON'
 {"status":"PASS","license_risk_score":8.0}

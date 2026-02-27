@@ -6,10 +6,10 @@ import unittest
 from pathlib import Path
 
 
-class DatasetMoatTrendSnapshotDemoTests(unittest.TestCase):
-    def test_demo_dataset_moat_trend_snapshot_script(self) -> None:
+class DatasetRealModelIntakeWeeklyTargetGuardV1DemoTests(unittest.TestCase):
+    def test_demo_dataset_real_model_intake_weekly_target_guard_v1_script(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
-        script = repo_root / "scripts" / "demo_dataset_moat_trend_snapshot.sh"
+        script = repo_root / "scripts" / "demo_dataset_real_model_intake_weekly_target_guard_v1.sh"
         with tempfile.TemporaryDirectory() as d:
             proc = subprocess.run(
                 ["bash", str(script)],
@@ -25,15 +25,12 @@ class DatasetMoatTrendSnapshotDemoTests(unittest.TestCase):
                 (
                     repo_root
                     / "artifacts"
-                    / "dataset_moat_trend_snapshot_demo"
+                    / "dataset_real_model_intake_weekly_target_guard_v1_demo"
                     / "demo_summary.json"
                 ).read_text(encoding="utf-8")
             )
             self.assertEqual(payload.get("bundle_status"), "PASS")
-            self.assertIn(payload.get("moat_status"), {"PASS", "NEEDS_REVIEW", "FAIL"})
-            self.assertIsInstance(payload.get("milestone_readiness_index"), (int, float))
-            self.assertIsInstance(payload.get("accepted_count_delta"), int)
-            self.assertIsInstance(payload.get("accepted_large_delta"), int)
+            self.assertIn(payload.get("guard_status"), {"PASS", "NEEDS_REVIEW", "FAIL"})
 
 
 if __name__ == "__main__":
