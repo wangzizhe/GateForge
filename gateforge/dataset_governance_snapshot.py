@@ -107,6 +107,12 @@ def _status_from_signals(signals: dict) -> str:
         return "NEEDS_REVIEW"
     if signals.get("dataset_modelica_release_candidate_gate_needs_review"):
         return "NEEDS_REVIEW"
+    if signals.get("dataset_milestone_checkpoint_needs_review"):
+        return "NEEDS_REVIEW"
+    if signals.get("dataset_milestone_checkpoint_trend_needs_review"):
+        return "NEEDS_REVIEW"
+    if signals.get("dataset_milestone_public_brief_needs_review"):
+        return "NEEDS_REVIEW"
     return "PASS"
 
 
@@ -143,6 +149,9 @@ def _compute_summary(
     real_model_supply_health: dict,
     mutation_recipe_execution_audit: dict,
     modelica_release_candidate_gate: dict,
+    milestone_checkpoint: dict,
+    milestone_checkpoint_trend: dict,
+    milestone_public_brief: dict,
 ) -> dict:
     strategy_advice = (
         strategy_advisor.get("advice")
@@ -216,6 +225,12 @@ def _compute_summary(
         in {"NEEDS_REVIEW", "FAIL"},
         "dataset_modelica_release_candidate_gate_needs_review": str(modelica_release_candidate_gate.get("status") or "")
         in {"NEEDS_REVIEW", "FAIL"},
+        "dataset_milestone_checkpoint_needs_review": str(milestone_checkpoint.get("status") or "")
+        in {"NEEDS_REVIEW", "FAIL"},
+        "dataset_milestone_checkpoint_trend_needs_review": str(milestone_checkpoint_trend.get("status") or "")
+        in {"NEEDS_REVIEW", "FAIL"},
+        "dataset_milestone_public_brief_needs_review": str(milestone_public_brief.get("milestone_status") or "")
+        in {"NEEDS_REVIEW", "FAIL"},
     }
     status = _status_from_signals(signals)
 
@@ -286,6 +301,12 @@ def _compute_summary(
         risks.append("dataset_mutation_recipe_execution_audit_needs_review")
     if signals["dataset_modelica_release_candidate_gate_needs_review"]:
         risks.append("dataset_modelica_release_candidate_gate_needs_review")
+    if signals["dataset_milestone_checkpoint_needs_review"]:
+        risks.append("dataset_milestone_checkpoint_needs_review")
+    if signals["dataset_milestone_checkpoint_trend_needs_review"]:
+        risks.append("dataset_milestone_checkpoint_trend_needs_review")
+    if signals["dataset_milestone_public_brief_needs_review"]:
+        risks.append("dataset_milestone_public_brief_needs_review")
 
     policy_patch_advice = (
         failure_policy_patch_advisor.get("advice")
@@ -444,6 +465,15 @@ def _compute_summary(
             modelica_release_candidate_gate.get("release_candidate_score", 0.0)
         ),
         "dataset_modelica_release_candidate_decision": modelica_release_candidate_gate.get("candidate_decision"),
+        "dataset_milestone_checkpoint_status": milestone_checkpoint.get("status"),
+        "dataset_milestone_checkpoint_score": _to_float(milestone_checkpoint.get("checkpoint_score", 0.0)),
+        "dataset_milestone_checkpoint_decision": milestone_checkpoint.get("milestone_decision"),
+        "dataset_milestone_checkpoint_trend_status": milestone_checkpoint_trend.get("status"),
+        "dataset_milestone_checkpoint_trend_transition": ((milestone_checkpoint_trend.get("trend") or {}).get("status_transition"))
+        if isinstance(milestone_checkpoint_trend.get("trend"), dict)
+        else None,
+        "dataset_milestone_public_brief_status": milestone_public_brief.get("milestone_status"),
+        "dataset_milestone_public_brief_decision": milestone_public_brief.get("milestone_decision"),
     }
     return {
         "status": status,
@@ -548,6 +578,13 @@ def _write_markdown(path: str, summary: dict) -> None:
         f"- dataset_modelica_release_candidate_gate_status: `{kpis.get('dataset_modelica_release_candidate_gate_status')}`",
         f"- dataset_modelica_release_candidate_score: `{kpis.get('dataset_modelica_release_candidate_score')}`",
         f"- dataset_modelica_release_candidate_decision: `{kpis.get('dataset_modelica_release_candidate_decision')}`",
+        f"- dataset_milestone_checkpoint_status: `{kpis.get('dataset_milestone_checkpoint_status')}`",
+        f"- dataset_milestone_checkpoint_score: `{kpis.get('dataset_milestone_checkpoint_score')}`",
+        f"- dataset_milestone_checkpoint_decision: `{kpis.get('dataset_milestone_checkpoint_decision')}`",
+        f"- dataset_milestone_checkpoint_trend_status: `{kpis.get('dataset_milestone_checkpoint_trend_status')}`",
+        f"- dataset_milestone_checkpoint_trend_transition: `{kpis.get('dataset_milestone_checkpoint_trend_transition')}`",
+        f"- dataset_milestone_public_brief_status: `{kpis.get('dataset_milestone_public_brief_status')}`",
+        f"- dataset_milestone_public_brief_decision: `{kpis.get('dataset_milestone_public_brief_decision')}`",
         "",
         "## Risks",
         "",
@@ -700,6 +737,21 @@ def main() -> None:
         default=None,
         help="Path to dataset modelica release candidate gate summary JSON",
     )
+    parser.add_argument(
+        "--dataset-milestone-checkpoint",
+        default=None,
+        help="Path to dataset milestone checkpoint summary JSON",
+    )
+    parser.add_argument(
+        "--dataset-milestone-checkpoint-trend",
+        default=None,
+        help="Path to dataset milestone checkpoint trend summary JSON",
+    )
+    parser.add_argument(
+        "--dataset-milestone-public-brief",
+        default=None,
+        help="Path to dataset milestone public brief JSON",
+    )
     parser.add_argument("--out", default="artifacts/dataset_governance_snapshot/summary.json", help="Output JSON path")
     parser.add_argument("--report", default=None, help="Output markdown path")
     args = parser.parse_args()
@@ -736,6 +788,9 @@ def main() -> None:
     real_model_supply_health = _load_json(args.dataset_real_model_supply_health)
     mutation_recipe_execution_audit = _load_json(args.dataset_mutation_recipe_execution_audit)
     modelica_release_candidate_gate = _load_json(args.dataset_modelica_release_candidate_gate)
+    milestone_checkpoint = _load_json(args.dataset_milestone_checkpoint)
+    milestone_checkpoint_trend = _load_json(args.dataset_milestone_checkpoint_trend)
+    milestone_public_brief = _load_json(args.dataset_milestone_public_brief)
 
     summary = _compute_summary(
         dataset_pipeline,
@@ -770,6 +825,9 @@ def main() -> None:
         real_model_supply_health,
         mutation_recipe_execution_audit,
         modelica_release_candidate_gate,
+        milestone_checkpoint,
+        milestone_checkpoint_trend,
+        milestone_public_brief,
     )
     summary["generated_at_utc"] = datetime.now(timezone.utc).isoformat()
     summary["sources"] = {
@@ -805,6 +863,9 @@ def main() -> None:
         "dataset_real_model_supply_health_path": args.dataset_real_model_supply_health,
         "dataset_mutation_recipe_execution_audit_path": args.dataset_mutation_recipe_execution_audit,
         "dataset_modelica_release_candidate_gate_path": args.dataset_modelica_release_candidate_gate,
+        "dataset_milestone_checkpoint_path": args.dataset_milestone_checkpoint,
+        "dataset_milestone_checkpoint_trend_path": args.dataset_milestone_checkpoint_trend,
+        "dataset_milestone_public_brief_path": args.dataset_milestone_public_brief,
     }
 
     _write_json(args.out, summary)

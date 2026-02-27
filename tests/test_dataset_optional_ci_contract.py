@@ -108,6 +108,9 @@ class DatasetOptionalCIContractTests(unittest.TestCase):
                 "mutation_recipe_execution_coverage_pct": 81.0,
                 "modelica_release_candidate_gate_status": "PASS",
                 "modelica_release_candidate_score": 84.0,
+                "milestone_checkpoint_status": "PASS",
+                "milestone_checkpoint_score": 84.0,
+                "milestone_public_brief_status": "PASS",
             },
             "dataset_governance_snapshot_trend_demo/demo_summary.json": {
                 "bundle_status": "PASS",
@@ -129,6 +132,9 @@ class DatasetOptionalCIContractTests(unittest.TestCase):
                 "real_model_supply_health_status_transition": "PASS->PASS",
                 "mutation_recipe_execution_audit_status_transition": "PASS->PASS",
                 "modelica_release_candidate_gate_status_transition": "PASS->PASS",
+                "milestone_checkpoint_status_transition": "PASS->PASS",
+                "milestone_checkpoint_trend_status_transition": "PASS->PASS",
+                "milestone_public_brief_status_transition": "PASS->PASS",
                 "status_delta_alert_count": 1,
                 "severity_level": "medium",
             },
@@ -266,6 +272,20 @@ class DatasetOptionalCIContractTests(unittest.TestCase):
                 "bundle_status": "PASS",
                 "release_candidate_status": "PASS",
                 "candidate_decision": "GO",
+            },
+            "dataset_milestone_checkpoint_v1_demo/demo_summary.json": {
+                "bundle_status": "PASS",
+                "checkpoint_status": "PASS",
+                "milestone_decision": "ready_for_external_validation",
+            },
+            "dataset_milestone_checkpoint_trend_v1_demo/demo_summary.json": {
+                "bundle_status": "PASS",
+                "trend_status": "PASS",
+                "status_transition": "PASS->PASS",
+            },
+            "dataset_milestone_public_brief_v1_demo/demo_summary.json": {
+                "bundle_status": "PASS",
+                "brief_status": "PASS",
             },
         }
         for rel, payload in mapping.items():
