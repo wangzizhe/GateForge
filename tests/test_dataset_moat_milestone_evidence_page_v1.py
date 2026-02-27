@@ -17,7 +17,10 @@ class DatasetMoatMilestoneEvidencePageV1Tests(unittest.TestCase):
             align = root / "align.json"
             out = root / "summary.json"
 
-            moat.write_text(json.dumps({"status": "PASS", "metrics": {"moat_score": 83.0}}), encoding="utf-8")
+            moat.write_text(
+                json.dumps({"status": "PASS", "metrics": {"moat_score": 83.0, "execution_readiness_index": 84.0}}),
+                encoding="utf-8",
+            )
             checkpoint.write_text(json.dumps({"status": "PASS", "checkpoint_score": 85.0, "milestone_decision": "GO"}), encoding="utf-8")
             trend.write_text(json.dumps({"status": "PASS", "trend": {"status_transition": "PASS->PASS"}}), encoding="utf-8")
             brief.write_text(json.dumps({"milestone_status": "PASS", "milestone_decision": "GO"}), encoding="utf-8")
@@ -50,6 +53,9 @@ class DatasetMoatMilestoneEvidencePageV1Tests(unittest.TestCase):
             self.assertEqual(payload.get("status"), "PASS")
             self.assertEqual(payload.get("publishable"), True)
             self.assertGreaterEqual(float(payload.get("evidence_page_score", 0.0)), 76.0)
+            claims = payload.get("public_claims") if isinstance(payload.get("public_claims"), list) else []
+            claim_ids = {str(c.get("claim_id")) for c in claims if isinstance(c, dict)}
+            self.assertIn("claim.execution_readiness_index", claim_ids)
 
     def test_evidence_page_fail_when_required_missing(self) -> None:
         with tempfile.TemporaryDirectory() as d:
