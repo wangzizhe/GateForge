@@ -225,6 +225,11 @@ def main() -> None:
             ["bundle_status", "moat_status", "moat_score", "execution_readiness_index", "moat_score_delta"],
         ),
         (
+            "dataset_external_proof_score_demo",
+            "dataset_external_proof_score_demo/demo_summary.json",
+            ["bundle_status", "proof_status", "proof_score", "execution_readiness_index"],
+        ),
+        (
             "dataset_backlog_execution_bridge_demo",
             "dataset_backlog_execution_bridge_demo/demo_summary.json",
             ["bundle_status", "bridge_status", "total_execution_tasks"],

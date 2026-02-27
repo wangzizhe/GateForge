@@ -196,6 +196,12 @@ class DatasetOptionalCIContractTests(unittest.TestCase):
                 "execution_readiness_index": 82.0,
                 "moat_score_delta": 6.5,
             },
+            "dataset_external_proof_score_demo/demo_summary.json": {
+                "bundle_status": "PASS",
+                "proof_status": "PASS",
+                "proof_score": 82.0,
+                "execution_readiness_index": 82.0,
+            },
             "dataset_backlog_execution_bridge_demo/demo_summary.json": {
                 "bundle_status": "PASS",
                 "bridge_status": "NEEDS_REVIEW",
