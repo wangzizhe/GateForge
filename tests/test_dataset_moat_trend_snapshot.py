@@ -14,6 +14,9 @@ class DatasetMoatTrendSnapshotTests(unittest.TestCase):
             registry = root / "registry.json"
             backlog = root / "backlog.json"
             replay = root / "replay.json"
+            checkpoint = root / "checkpoint.json"
+            checkpoint_trend = root / "checkpoint_trend.json"
+            brief = root / "brief.json"
             previous = root / "previous.json"
             out = root / "summary.json"
 
@@ -21,7 +24,21 @@ class DatasetMoatTrendSnapshotTests(unittest.TestCase):
             registry.write_text(json.dumps({"total_records": 30, "missing_model_scales": []}), encoding="utf-8")
             backlog.write_text(json.dumps({"total_open_tasks": 3, "priority_counts": {"P0": 0}}), encoding="utf-8")
             replay.write_text(json.dumps({"status": "PASS", "recommendation": "ADOPT_PATCH", "evaluation_score": 5}), encoding="utf-8")
-            previous.write_text(json.dumps({"status": "NEEDS_REVIEW", "metrics": {"moat_score": 60}}), encoding="utf-8")
+            checkpoint.write_text(json.dumps({"status": "PASS", "checkpoint_score": 84.0, "milestone_decision": "GO"}), encoding="utf-8")
+            checkpoint_trend.write_text(json.dumps({"status": "PASS", "trend": {"status_transition": "PASS->PASS"}}), encoding="utf-8")
+            brief.write_text(json.dumps({"milestone_status": "PASS", "milestone_decision": "GO"}), encoding="utf-8")
+            previous.write_text(
+                json.dumps(
+                    {
+                        "status": "NEEDS_REVIEW",
+                        "metrics": {
+                            "milestone_readiness_index": 70,
+                            "moat_score": 60,
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
 
             proc = subprocess.run(
                 [
@@ -36,6 +53,12 @@ class DatasetMoatTrendSnapshotTests(unittest.TestCase):
                     str(backlog),
                     "--policy-patch-replay-evaluator",
                     str(replay),
+                    "--milestone-checkpoint-summary",
+                    str(checkpoint),
+                    "--milestone-checkpoint-trend-summary",
+                    str(checkpoint_trend),
+                    "--milestone-public-brief-summary",
+                    str(brief),
                     "--previous-snapshot",
                     str(previous),
                     "--out",
@@ -49,6 +72,7 @@ class DatasetMoatTrendSnapshotTests(unittest.TestCase):
             payload = json.loads(out.read_text(encoding="utf-8"))
             self.assertEqual(payload.get("status"), "PASS")
             self.assertGreaterEqual(float((payload.get("metrics") or {}).get("moat_score", 0.0)), 70.0)
+            self.assertGreaterEqual(float((payload.get("metrics") or {}).get("milestone_readiness_index", 0.0)), 75.0)
 
     def test_snapshot_fail_when_evidence_fail(self) -> None:
         with tempfile.TemporaryDirectory() as d:
