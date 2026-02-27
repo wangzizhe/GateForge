@@ -50,7 +50,15 @@ def _round(value: float) -> float:
     return round(value, 2)
 
 
-def _compute_metrics(evidence_pack: dict, registry: dict, backlog: dict, replay_eval: dict) -> dict:
+def _compute_metrics(
+    evidence_pack: dict,
+    registry: dict,
+    backlog: dict,
+    replay_eval: dict,
+    milestone_checkpoint: dict,
+    milestone_checkpoint_trend: dict,
+    milestone_public_brief: dict,
+) -> dict:
     evidence_strength = _to_float(evidence_pack.get("evidence_strength_score", 0.0))
     sections_present = _to_int(evidence_pack.get("evidence_sections_present", 0))
 
@@ -71,12 +79,56 @@ def _compute_metrics(evidence_pack: dict, registry: dict, backlog: dict, replay_
     reco_bonus = 10 if replay_reco == "ADOPT_PATCH" else (3 if replay_reco == "LIMITED_ROLLOUT" else -8)
     policy_learning_velocity = _clamp(55 - min(25, p0_count * 6) - min(10, int(open_tasks / 2)) + reco_bonus)
 
-    moat_score = _clamp((coverage_depth_index * 0.4) + (governance_effectiveness_index * 0.4) + (policy_learning_velocity * 0.2))
+    checkpoint_score = _to_float(milestone_checkpoint.get("checkpoint_score", 50.0))
+    checkpoint_decision = str(milestone_checkpoint.get("milestone_decision") or "")
+    checkpoint_trend_status = str(milestone_checkpoint_trend.get("status") or "")
+    checkpoint_transition = str(((milestone_checkpoint_trend.get("trend") or {}).get("status_transition")) or "")
+    brief_status = str(milestone_public_brief.get("milestone_status") or "")
+
+    decision_bonus = 0.0
+    if checkpoint_decision == "GO":
+        decision_bonus = 7.0
+    elif checkpoint_decision == "LIMITED_GO":
+        decision_bonus = 2.0
+    elif checkpoint_decision == "HOLD":
+        decision_bonus = -10.0
+
+    trend_bonus = 0.0
+    if checkpoint_trend_status == "PASS":
+        trend_bonus = 4.0
+    elif checkpoint_trend_status == "NEEDS_REVIEW":
+        trend_bonus = -3.0
+    elif checkpoint_trend_status == "FAIL":
+        trend_bonus = -8.0
+
+    brief_bonus = 0.0
+    if brief_status == "PASS":
+        brief_bonus = 4.0
+    elif brief_status == "NEEDS_REVIEW":
+        brief_bonus = -2.0
+    elif brief_status == "FAIL":
+        brief_bonus = -8.0
+
+    transition_penalty = 0.0
+    if checkpoint_transition in {"PASS->NEEDS_REVIEW", "PASS->FAIL", "NEEDS_REVIEW->FAIL"}:
+        transition_penalty = -5.0
+
+    milestone_readiness_index = _clamp(
+        (checkpoint_score * 0.7) + 20.0 + decision_bonus + trend_bonus + brief_bonus + transition_penalty
+    )
+
+    moat_score = _clamp(
+        (coverage_depth_index * 0.35)
+        + (governance_effectiveness_index * 0.35)
+        + (policy_learning_velocity * 0.15)
+        + (milestone_readiness_index * 0.15)
+    )
 
     return {
         "coverage_depth_index": _round(coverage_depth_index),
         "governance_effectiveness_index": _round(governance_effectiveness_index),
         "policy_learning_velocity": _round(policy_learning_velocity),
+        "milestone_readiness_index": _round(milestone_readiness_index),
         "moat_score": _round(moat_score),
     }
 
@@ -110,6 +162,7 @@ def _trend(current: dict, previous: dict) -> dict:
             "coverage_depth_index": delta("coverage_depth_index"),
             "governance_effectiveness_index": delta("governance_effectiveness_index"),
             "policy_learning_velocity": delta("policy_learning_velocity"),
+            "milestone_readiness_index": delta("milestone_readiness_index"),
             "moat_score": moat_delta,
         },
         "alerts": alerts,
@@ -129,6 +182,7 @@ def _write_markdown(path: str, payload: dict) -> None:
         f"- coverage_depth_index: `{metrics.get('coverage_depth_index')}`",
         f"- governance_effectiveness_index: `{metrics.get('governance_effectiveness_index')}`",
         f"- policy_learning_velocity: `{metrics.get('policy_learning_velocity')}`",
+        f"- milestone_readiness_index: `{metrics.get('milestone_readiness_index')}`",
         f"- status_transition: `{trend.get('status_transition')}`",
         f"- moat_score_delta: `{(trend.get('delta') or {}).get('moat_score')}`",
         "",
@@ -151,6 +205,9 @@ def main() -> None:
     parser.add_argument("--failure-corpus-registry-summary", default=None)
     parser.add_argument("--blind-spot-backlog", default=None)
     parser.add_argument("--policy-patch-replay-evaluator", default=None)
+    parser.add_argument("--milestone-checkpoint-summary", default=None)
+    parser.add_argument("--milestone-checkpoint-trend-summary", default=None)
+    parser.add_argument("--milestone-public-brief-summary", default=None)
     parser.add_argument("--previous-snapshot", default=None)
     parser.add_argument("--out", default="artifacts/dataset_moat_trend_snapshot/summary.json")
     parser.add_argument("--report-out", default=None)
@@ -160,9 +217,20 @@ def main() -> None:
     registry = _load_json(args.failure_corpus_registry_summary)
     backlog = _load_json(args.blind_spot_backlog)
     replay_eval = _load_json(args.policy_patch_replay_evaluator)
+    milestone_checkpoint = _load_json(args.milestone_checkpoint_summary)
+    milestone_checkpoint_trend = _load_json(args.milestone_checkpoint_trend_summary)
+    milestone_public_brief = _load_json(args.milestone_public_brief_summary)
     previous = _load_json(args.previous_snapshot)
 
-    metrics = _compute_metrics(evidence_pack, registry, backlog, replay_eval)
+    metrics = _compute_metrics(
+        evidence_pack,
+        registry,
+        backlog,
+        replay_eval,
+        milestone_checkpoint,
+        milestone_checkpoint_trend,
+        milestone_public_brief,
+    )
     status = _compute_status(_to_float(metrics.get("moat_score", 0.0)), str(evidence_pack.get("status") or ""))
 
     summary = {
@@ -174,6 +242,9 @@ def main() -> None:
             "failure_corpus_registry_summary": args.failure_corpus_registry_summary,
             "blind_spot_backlog": args.blind_spot_backlog,
             "policy_patch_replay_evaluator": args.policy_patch_replay_evaluator,
+            "milestone_checkpoint_summary": args.milestone_checkpoint_summary,
+            "milestone_checkpoint_trend_summary": args.milestone_checkpoint_trend_summary,
+            "milestone_public_brief_summary": args.milestone_public_brief_summary,
             "previous_snapshot": args.previous_snapshot,
         },
     }
