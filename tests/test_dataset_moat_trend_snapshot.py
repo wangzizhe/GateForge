@@ -19,6 +19,9 @@ class DatasetMoatTrendSnapshotTests(unittest.TestCase):
             brief = root / "brief.json"
             intake = root / "intake.json"
             previous_intake = root / "previous_intake.json"
+            execution_board = root / "execution_board.json"
+            execution_board_history = root / "execution_board_history.json"
+            execution_board_history_trend = root / "execution_board_history_trend.json"
             previous = root / "previous.json"
             out = root / "summary.json"
 
@@ -51,6 +54,18 @@ class DatasetMoatTrendSnapshotTests(unittest.TestCase):
                         "weekly_target_status": "NEEDS_REVIEW",
                     }
                 ),
+                encoding="utf-8",
+            )
+            execution_board.write_text(
+                json.dumps({"status": "PASS", "execution_score": 84.0, "critical_open_tasks": 0, "projected_weeks_to_target": 0}),
+                encoding="utf-8",
+            )
+            execution_board_history.write_text(
+                json.dumps({"status": "PASS", "avg_execution_score": 82.0, "critical_open_tasks_rate": 0.0}),
+                encoding="utf-8",
+            )
+            execution_board_history_trend.write_text(
+                json.dumps({"status": "PASS", "trend": {"alerts": []}}),
                 encoding="utf-8",
             )
             previous.write_text(
@@ -89,6 +104,12 @@ class DatasetMoatTrendSnapshotTests(unittest.TestCase):
                     str(intake),
                     "--previous-real-model-intake-summary",
                     str(previous_intake),
+                    "--intake-growth-execution-board-summary",
+                    str(execution_board),
+                    "--intake-growth-execution-board-history-summary",
+                    str(execution_board_history),
+                    "--intake-growth-execution-board-history-trend-summary",
+                    str(execution_board_history_trend),
                     "--previous-snapshot",
                     str(previous),
                     "--out",
@@ -104,6 +125,7 @@ class DatasetMoatTrendSnapshotTests(unittest.TestCase):
             self.assertGreaterEqual(float((payload.get("metrics") or {}).get("moat_score", 0.0)), 70.0)
             self.assertGreaterEqual(float((payload.get("metrics") or {}).get("milestone_readiness_index", 0.0)), 75.0)
             self.assertIn("intake_growth_score", payload.get("metrics", {}))
+            self.assertIn("execution_readiness_index", payload.get("metrics", {}))
             self.assertEqual(int((payload.get("intake_growth") or {}).get("accepted_count_delta", 0)), 1)
             self.assertEqual(int((payload.get("intake_growth") or {}).get("accepted_large_delta", 0)), 1)
 

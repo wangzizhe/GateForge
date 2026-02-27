@@ -60,6 +60,9 @@ def _compute_metrics(
     milestone_public_brief: dict,
     intake_summary: dict,
     previous_intake_summary: dict,
+    intake_growth_execution_board: dict,
+    intake_growth_execution_board_history: dict,
+    intake_growth_execution_board_history_trend: dict,
 ) -> dict:
     evidence_strength = _to_float(evidence_pack.get("evidence_strength_score", 0.0))
     sections_present = _to_int(evidence_pack.get("evidence_sections_present", 0))
@@ -142,13 +145,42 @@ def _compute_metrics(
     reject_rate_pct = _to_float(intake_summary.get("reject_rate_pct", 0.0))
 
     intake_growth_score = _clamp(60.0 + (accepted_delta * 6.0) + (large_delta * 10.0) - max(0.0, reject_rate_pct - 30.0) * 0.8)
+    board_status = str(intake_growth_execution_board.get("status") or "")
+    board_history_status = str(intake_growth_execution_board_history.get("status") or "")
+    board_history_trend_status = str(intake_growth_execution_board_history_trend.get("status") or "")
+    board_execution_score = _to_float(intake_growth_execution_board.get("execution_score", 0.0))
+    board_critical_open_tasks = _to_int(intake_growth_execution_board.get("critical_open_tasks", 0))
+    board_projected_weeks = _to_int(intake_growth_execution_board.get("projected_weeks_to_target", 0))
+    board_history_avg_execution_score = _to_float(
+        intake_growth_execution_board_history.get("avg_execution_score", 0.0)
+    )
+    board_history_critical_open_rate = _to_float(
+        intake_growth_execution_board_history.get("critical_open_tasks_rate", 0.0)
+    )
+
+    execution_readiness_index = _clamp(
+        45.0
+        + (board_execution_score * 0.38)
+        + (board_history_avg_execution_score * 0.2)
+        - min(20.0, board_critical_open_tasks * 6.0)
+        - min(15.0, board_projected_weeks * 4.0)
+        - min(15.0, board_history_critical_open_rate * 30.0)
+        + (6.0 if board_status == "PASS" else (1.0 if board_status == "NEEDS_REVIEW" else -8.0))
+        + (5.0 if board_history_status == "PASS" else (1.0 if board_history_status == "NEEDS_REVIEW" else -6.0))
+        + (
+            4.0
+            if board_history_trend_status == "PASS"
+            else (0.0 if board_history_trend_status == "NEEDS_REVIEW" else -5.0)
+        )
+    )
 
     moat_score = _clamp(
-        (coverage_depth_index * 0.33)
-        + (governance_effectiveness_index * 0.32)
+        (coverage_depth_index * 0.30)
+        + (governance_effectiveness_index * 0.28)
         + (policy_learning_velocity * 0.15)
-        + (milestone_readiness_index * 0.12)
-        + (intake_growth_score * 0.08)
+        + (milestone_readiness_index * 0.11)
+        + (intake_growth_score * 0.06)
+        + (execution_readiness_index * 0.10)
     )
 
     return {
@@ -157,6 +189,7 @@ def _compute_metrics(
         "policy_learning_velocity": _round(policy_learning_velocity),
         "milestone_readiness_index": _round(milestone_readiness_index),
         "intake_growth_score": _round(intake_growth_score),
+        "execution_readiness_index": _round(execution_readiness_index),
         "intake_reject_rate_pct": _round(reject_rate_pct),
         "moat_score": _round(moat_score),
     }
@@ -192,6 +225,7 @@ def _trend(current: dict, previous: dict) -> dict:
             "governance_effectiveness_index": delta("governance_effectiveness_index"),
             "policy_learning_velocity": delta("policy_learning_velocity"),
             "milestone_readiness_index": delta("milestone_readiness_index"),
+            "execution_readiness_index": delta("execution_readiness_index"),
             "moat_score": moat_delta,
         },
         "alerts": alerts,
@@ -213,6 +247,7 @@ def _write_markdown(path: str, payload: dict) -> None:
         f"- policy_learning_velocity: `{metrics.get('policy_learning_velocity')}`",
         f"- milestone_readiness_index: `{metrics.get('milestone_readiness_index')}`",
         f"- intake_growth_score: `{metrics.get('intake_growth_score')}`",
+        f"- execution_readiness_index: `{metrics.get('execution_readiness_index')}`",
         f"- intake_reject_rate_pct: `{metrics.get('intake_reject_rate_pct')}`",
         f"- status_transition: `{trend.get('status_transition')}`",
         f"- moat_score_delta: `{(trend.get('delta') or {}).get('moat_score')}`",
@@ -241,6 +276,9 @@ def main() -> None:
     parser.add_argument("--milestone-public-brief-summary", default=None)
     parser.add_argument("--real-model-intake-summary", default=None)
     parser.add_argument("--previous-real-model-intake-summary", default=None)
+    parser.add_argument("--intake-growth-execution-board-summary", default=None)
+    parser.add_argument("--intake-growth-execution-board-history-summary", default=None)
+    parser.add_argument("--intake-growth-execution-board-history-trend-summary", default=None)
     parser.add_argument("--previous-snapshot", default=None)
     parser.add_argument("--out", default="artifacts/dataset_moat_trend_snapshot/summary.json")
     parser.add_argument("--report-out", default=None)
@@ -255,6 +293,9 @@ def main() -> None:
     milestone_public_brief = _load_json(args.milestone_public_brief_summary)
     intake_summary = _load_json(args.real_model_intake_summary)
     previous_intake_summary = _load_json(args.previous_real_model_intake_summary)
+    intake_growth_execution_board = _load_json(args.intake_growth_execution_board_summary)
+    intake_growth_execution_board_history = _load_json(args.intake_growth_execution_board_history_summary)
+    intake_growth_execution_board_history_trend = _load_json(args.intake_growth_execution_board_history_trend_summary)
     previous = _load_json(args.previous_snapshot)
 
     metrics = _compute_metrics(
@@ -267,6 +308,9 @@ def main() -> None:
         milestone_public_brief,
         intake_summary,
         previous_intake_summary,
+        intake_growth_execution_board,
+        intake_growth_execution_board_history,
+        intake_growth_execution_board_history_trend,
     )
     status = _compute_status(_to_float(metrics.get("moat_score", 0.0)), str(evidence_pack.get("status") or ""))
 
@@ -308,6 +352,9 @@ def main() -> None:
             "policy_patch_replay_evaluator": args.policy_patch_replay_evaluator,
             "real_model_intake_summary": args.real_model_intake_summary,
             "previous_real_model_intake_summary": args.previous_real_model_intake_summary,
+            "intake_growth_execution_board_summary": args.intake_growth_execution_board_summary,
+            "intake_growth_execution_board_history_summary": args.intake_growth_execution_board_history_summary,
+            "intake_growth_execution_board_history_trend_summary": args.intake_growth_execution_board_history_trend_summary,
             "milestone_checkpoint_summary": args.milestone_checkpoint_summary,
             "milestone_checkpoint_trend_summary": args.milestone_checkpoint_trend_summary,
             "milestone_public_brief_summary": args.milestone_public_brief_summary,
