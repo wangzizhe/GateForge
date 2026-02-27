@@ -113,6 +113,8 @@ class DatasetOptionalCIContractTests(unittest.TestCase):
                 "milestone_public_brief_status": "PASS",
                 "intake_growth_advisor_status": "PASS",
                 "intake_growth_suggested_action": "keep",
+                "intake_growth_advisor_history_status": "PASS",
+                "intake_growth_advisor_history_trend_status": "PASS",
             },
             "dataset_governance_snapshot_trend_demo/demo_summary.json": {
                 "bundle_status": "PASS",
@@ -137,6 +139,9 @@ class DatasetOptionalCIContractTests(unittest.TestCase):
                 "milestone_checkpoint_status_transition": "PASS->PASS",
                 "milestone_checkpoint_trend_status_transition": "PASS->PASS",
                 "milestone_public_brief_status_transition": "PASS->PASS",
+                "intake_growth_advisor_status_transition": "PASS->PASS",
+                "intake_growth_advisor_history_status_transition": "PASS->PASS",
+                "intake_growth_advisor_history_trend_status_transition": "PASS->PASS",
                 "status_delta_alert_count": 1,
                 "severity_level": "medium",
             },
@@ -279,6 +284,16 @@ class DatasetOptionalCIContractTests(unittest.TestCase):
                 "bundle_status": "PASS",
                 "advisor_status": "PASS",
                 "suggested_action": "keep",
+            },
+            "dataset_intake_growth_advisor_history_v1_demo/demo_summary.json": {
+                "bundle_status": "PASS",
+                "history_status": "PASS",
+                "latest_suggested_action": "keep",
+            },
+            "dataset_intake_growth_advisor_history_trend_v1_demo/demo_summary.json": {
+                "bundle_status": "PASS",
+                "trend_status": "PASS",
+                "status_transition": "PASS->PASS",
             },
             "dataset_milestone_checkpoint_v1_demo/demo_summary.json": {
                 "bundle_status": "PASS",

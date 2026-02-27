@@ -119,6 +119,18 @@ def _compute_trend(current: dict, previous: dict) -> dict:
         f"{previous_kpis.get('dataset_milestone_public_brief_status')}->"
         f"{current_kpis.get('dataset_milestone_public_brief_status')}"
     )
+    intake_growth_advisor_transition = (
+        f"{previous_kpis.get('dataset_intake_growth_advisor_status')}->"
+        f"{current_kpis.get('dataset_intake_growth_advisor_status')}"
+    )
+    intake_growth_advisor_history_transition = (
+        f"{previous_kpis.get('dataset_intake_growth_advisor_history_status')}->"
+        f"{current_kpis.get('dataset_intake_growth_advisor_history_status')}"
+    )
+    intake_growth_advisor_history_trend_transition = (
+        f"{previous_kpis.get('dataset_intake_growth_advisor_history_trend_status')}->"
+        f"{current_kpis.get('dataset_intake_growth_advisor_history_trend_status')}"
+    )
     status_delta_alerts: list[str] = []
     if trend_status_transition in {"PASS->NEEDS_REVIEW", "PASS->FAIL", "NEEDS_REVIEW->FAIL"}:
         status_delta_alerts.append("promotion_effectiveness_history_trend_worsened")
@@ -162,6 +174,12 @@ def _compute_trend(current: dict, previous: dict) -> dict:
         status_delta_alerts.append("milestone_checkpoint_trend_worsened")
     if milestone_public_brief_transition in {"PASS->NEEDS_REVIEW", "PASS->FAIL", "NEEDS_REVIEW->FAIL"}:
         status_delta_alerts.append("milestone_public_brief_worsened")
+    if intake_growth_advisor_transition in {"PASS->NEEDS_REVIEW", "PASS->FAIL", "NEEDS_REVIEW->FAIL"}:
+        status_delta_alerts.append("intake_growth_advisor_worsened")
+    if intake_growth_advisor_history_transition in {"PASS->NEEDS_REVIEW", "PASS->FAIL", "NEEDS_REVIEW->FAIL"}:
+        status_delta_alerts.append("intake_growth_advisor_history_worsened")
+    if intake_growth_advisor_history_trend_transition in {"PASS->NEEDS_REVIEW", "PASS->FAIL", "NEEDS_REVIEW->FAIL"}:
+        status_delta_alerts.append("intake_growth_advisor_history_trend_worsened")
 
     status_transition = f"{previous_status}->{current_status}"
     new_risks = sorted(current_risks - previous_risks)
@@ -206,6 +224,9 @@ def _compute_trend(current: dict, previous: dict) -> dict:
             "dataset_milestone_checkpoint_status_transition": milestone_checkpoint_transition,
             "dataset_milestone_checkpoint_trend_status_transition": milestone_checkpoint_trend_transition,
             "dataset_milestone_public_brief_status_transition": milestone_public_brief_transition,
+            "dataset_intake_growth_advisor_status_transition": intake_growth_advisor_transition,
+            "dataset_intake_growth_advisor_history_status_transition": intake_growth_advisor_history_transition,
+            "dataset_intake_growth_advisor_history_trend_status_transition": intake_growth_advisor_history_trend_transition,
             "alerts": status_delta_alerts,
         },
         "kpi_delta": {
@@ -422,6 +443,11 @@ def _compute_trend(current: dict, previous: dict) -> dict:
             "dataset_milestone_checkpoint_score_delta": round(
                 _to_float(current_kpis.get("dataset_milestone_checkpoint_score"))
                 - _to_float(previous_kpis.get("dataset_milestone_checkpoint_score")),
+                4,
+            ),
+            "dataset_intake_growth_advisor_history_recovery_plan_rate_delta": round(
+                _to_float(current_kpis.get("dataset_intake_growth_advisor_history_recovery_plan_rate"))
+                - _to_float(previous_kpis.get("dataset_intake_growth_advisor_history_recovery_plan_rate")),
                 4,
             ),
         },
