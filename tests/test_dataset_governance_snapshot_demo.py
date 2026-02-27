@@ -105,6 +105,22 @@ class DatasetGovernanceSnapshotDemoTests(unittest.TestCase):
                 payload.get("intake_growth_advisor_history_trend_status"),
                 {"PASS", "NEEDS_REVIEW", "FAIL", None},
             )
+            self.assertIn(
+                payload.get("intake_growth_execution_board_status"),
+                {"PASS", "NEEDS_REVIEW", "FAIL", None},
+            )
+            self.assertIsInstance(
+                payload.get("intake_growth_execution_board_execution_score"),
+                (int, float, type(None)),
+            )
+            self.assertIn(
+                payload.get("intake_growth_execution_board_history_status"),
+                {"PASS", "NEEDS_REVIEW", "FAIL", None},
+            )
+            self.assertIn(
+                payload.get("intake_growth_execution_board_history_trend_status"),
+                {"PASS", "NEEDS_REVIEW", "FAIL", None},
+            )
 
 
 if __name__ == "__main__":

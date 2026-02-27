@@ -611,6 +611,71 @@ class DatasetGovernanceSnapshotTests(unittest.TestCase):
             self.assertIn("dataset_intake_growth_advisor_history_needs_review", payload.get("risks", []))
             self.assertIn("dataset_intake_growth_advisor_history_trend_needs_review", payload.get("risks", []))
 
+    def test_snapshot_needs_review_on_intake_growth_execution_board_chain(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            board = root / "board.json"
+            board_history = root / "board_history.json"
+            board_history_trend = root / "board_history_trend.json"
+            out = root / "snapshot.json"
+            board.write_text(
+                json.dumps(
+                    {
+                        "status": "NEEDS_REVIEW",
+                        "execution_score": 71.0,
+                        "critical_open_tasks": 1,
+                        "projected_weeks_to_target": 2,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            board_history.write_text(
+                json.dumps(
+                    {
+                        "status": "NEEDS_REVIEW",
+                        "avg_execution_score": 74.0,
+                        "critical_open_tasks_rate": 0.5,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            board_history_trend.write_text(
+                json.dumps(
+                    {
+                        "status": "NEEDS_REVIEW",
+                        "trend": {"alerts": ["critical_open_tasks_rate_increasing"]},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.dataset_governance_snapshot",
+                    "--dataset-intake-growth-execution-board",
+                    str(board),
+                    "--dataset-intake-growth-execution-board-history",
+                    str(board_history),
+                    "--dataset-intake-growth-execution-board-history-trend",
+                    str(board_history_trend),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            payload = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(payload.get("status"), "NEEDS_REVIEW")
+            self.assertIn("dataset_intake_growth_execution_board_needs_review", payload.get("risks", []))
+            self.assertIn("dataset_intake_growth_execution_board_history_needs_review", payload.get("risks", []))
+            self.assertIn(
+                "dataset_intake_growth_execution_board_history_trend_needs_review",
+                payload.get("risks", []),
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

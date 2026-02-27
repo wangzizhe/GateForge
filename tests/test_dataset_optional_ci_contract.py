@@ -115,6 +115,10 @@ class DatasetOptionalCIContractTests(unittest.TestCase):
                 "intake_growth_suggested_action": "keep",
                 "intake_growth_advisor_history_status": "PASS",
                 "intake_growth_advisor_history_trend_status": "PASS",
+                "intake_growth_execution_board_status": "PASS",
+                "intake_growth_execution_board_execution_score": 84.0,
+                "intake_growth_execution_board_history_status": "PASS",
+                "intake_growth_execution_board_history_trend_status": "PASS",
             },
             "dataset_governance_snapshot_trend_demo/demo_summary.json": {
                 "bundle_status": "PASS",
@@ -142,6 +146,9 @@ class DatasetOptionalCIContractTests(unittest.TestCase):
                 "intake_growth_advisor_status_transition": "PASS->PASS",
                 "intake_growth_advisor_history_status_transition": "PASS->PASS",
                 "intake_growth_advisor_history_trend_status_transition": "PASS->PASS",
+                "intake_growth_execution_board_status_transition": "PASS->PASS",
+                "intake_growth_execution_board_history_status_transition": "PASS->PASS",
+                "intake_growth_execution_board_history_trend_status_transition": "PASS->PASS",
                 "status_delta_alert_count": 1,
                 "severity_level": "medium",
             },
@@ -291,6 +298,21 @@ class DatasetOptionalCIContractTests(unittest.TestCase):
                 "latest_suggested_action": "keep",
             },
             "dataset_intake_growth_advisor_history_trend_v1_demo/demo_summary.json": {
+                "bundle_status": "PASS",
+                "trend_status": "PASS",
+                "status_transition": "PASS->PASS",
+            },
+            "dataset_intake_growth_execution_board_v1_demo/demo_summary.json": {
+                "bundle_status": "PASS",
+                "board_status": "PASS",
+                "execution_score": 84.0,
+            },
+            "dataset_intake_growth_execution_board_history_v1_demo/demo_summary.json": {
+                "bundle_status": "PASS",
+                "history_status": "PASS",
+                "avg_execution_score": 82.0,
+            },
+            "dataset_intake_growth_execution_board_history_trend_v1_demo/demo_summary.json": {
                 "bundle_status": "PASS",
                 "trend_status": "PASS",
                 "status_transition": "PASS->PASS",
