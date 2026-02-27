@@ -302,6 +302,11 @@ def _compute_trend(current: dict, previous: dict) -> dict:
                 - _to_float(previous_kpis.get("dataset_modelica_mutation_recipe_total")),
                 4,
             ),
+            "dataset_modelica_mutation_recipe_coverage_score_delta": round(
+                _to_float(current_kpis.get("dataset_modelica_mutation_recipe_coverage_score"))
+                - _to_float(previous_kpis.get("dataset_modelica_mutation_recipe_coverage_score")),
+                4,
+            ),
             "dataset_modelica_mutation_recipe_high_priority_delta": round(
                 _to_float(current_kpis.get("dataset_modelica_mutation_recipe_high_priority"))
                 - _to_float(previous_kpis.get("dataset_modelica_mutation_recipe_high_priority")),
@@ -317,6 +322,11 @@ def _compute_trend(current: dict, previous: dict) -> dict:
                 - _to_float(previous_kpis.get("dataset_real_model_failure_yield_execution_ratio_pct")),
                 4,
             ),
+            "dataset_real_model_failure_effective_yield_score_delta": round(
+                _to_float(current_kpis.get("dataset_real_model_failure_effective_yield_score"))
+                - _to_float(previous_kpis.get("dataset_real_model_failure_effective_yield_score")),
+                4,
+            ),
             "dataset_real_model_intake_backlog_item_count_delta": round(
                 _to_float(current_kpis.get("dataset_real_model_intake_backlog_item_count"))
                 - _to_float(previous_kpis.get("dataset_real_model_intake_backlog_item_count")),
@@ -330,6 +340,16 @@ def _compute_trend(current: dict, previous: dict) -> dict:
             "dataset_modelica_moat_readiness_score_delta": round(
                 _to_float(current_kpis.get("dataset_modelica_moat_readiness_score"))
                 - _to_float(previous_kpis.get("dataset_modelica_moat_readiness_score")),
+                4,
+            ),
+            "dataset_modelica_moat_critical_blocker_count_delta": round(
+                _to_float(current_kpis.get("dataset_modelica_moat_critical_blocker_count"))
+                - _to_float(previous_kpis.get("dataset_modelica_moat_critical_blocker_count")),
+                4,
+            ),
+            "dataset_real_model_license_risk_score_delta": round(
+                _to_float(current_kpis.get("dataset_real_model_license_risk_score"))
+                - _to_float(previous_kpis.get("dataset_real_model_license_risk_score")),
                 4,
             ),
         },

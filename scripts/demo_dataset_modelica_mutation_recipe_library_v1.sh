@@ -47,7 +47,14 @@ flags = {
     "schema_present": "PASS" if recipes.get("schema_version") == "modelica_mutation_recipe_library_v1" else "FAIL",
 }
 bundle_status = "PASS" if all(v == "PASS" for v in flags.values()) else "FAIL"
-(out / "demo_summary.json").write_text(json.dumps({"recipe_library_status": summary.get("status"), "bundle_status": bundle_status, "result_flags": flags}, indent=2), encoding="utf-8")
+payload = {
+    "recipe_library_status": summary.get("status"),
+    "recipe_coverage_score": summary.get("recipe_coverage_score"),
+    "lane_allocation": summary.get("lane_allocation"),
+    "bundle_status": bundle_status,
+    "result_flags": flags,
+}
+(out / "demo_summary.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
 print(json.dumps({"bundle_status": bundle_status, "recipe_library_status": summary.get("status")}))
 if bundle_status != "PASS":
     raise SystemExit(1)

@@ -64,6 +64,7 @@ def _write_markdown(path: str, payload: dict) -> None:
         f"- total_recipes: `{payload.get('total_recipes')}`",
         f"- large_scale_recipes: `{payload.get('large_scale_recipes')}`",
         f"- high_priority_recipes: `{payload.get('high_priority_recipes')}`",
+        f"- recipe_coverage_score: `{payload.get('recipe_coverage_score')}`",
         "",
     ]
     p.write_text("\n".join(lines), encoding="utf-8")
@@ -120,6 +121,13 @@ def main() -> None:
         alerts.append("no_recipes_generated")
     if not large_ready:
         alerts.append("large_scale_not_ready_recipe_mode_plan_only")
+    target_lane = len(target_types) * 2
+    recipe_coverage_score = round((len(recipes) / target_lane) * 100.0, 2) if target_lane > 0 else 0.0
+    lane_allocation = {
+        "p0_lane": len([x for x in recipes if x.get("priority") == "P0"]),
+        "p1_lane": len([x for x in recipes if x.get("priority") == "P1"]),
+        "p2_lane": len([x for x in recipes if x.get("priority") == "P2"]),
+    }
 
     status = "PASS"
     if reasons:
@@ -140,6 +148,8 @@ def main() -> None:
         "total_recipes": len(recipes),
         "large_scale_recipes": len([x for x in recipes if x.get("target_scale") == "large"]),
         "high_priority_recipes": len([x for x in recipes if x.get("priority") == "P0"]),
+        "recipe_coverage_score": recipe_coverage_score,
+        "lane_allocation": lane_allocation,
         "alerts": alerts,
         "reasons": sorted(set(reasons)),
         "recipes_path": args.recipes_out,

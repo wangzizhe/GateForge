@@ -97,6 +97,7 @@ def main() -> None:
     missing_provenance = 0
     missing_repro = 0
     compliant = 0
+    source_names: set[str] = set()
 
     for row in models:
         license_tag = _slug(row.get("license_tag"), default="unknown")
@@ -113,11 +114,16 @@ def main() -> None:
             missing_provenance += 1
         if not str(repro.get("repro_command") or "").strip():
             missing_repro += 1
+        source_name = str(row.get("source_name") or "").strip()
+        if source_name:
+            source_names.add(source_name)
 
         if (license_tag in allowed) and (not is_unknown) and source_path and checksum and str(repro.get("repro_command") or "").strip():
             compliant += 1
 
     unknown_ratio = _ratio(unknown, total)
+    source_diversity_count = len(source_names)
+    license_risk_score = round(min(100.0, (disallowed * 25.0) + (unknown_ratio * 0.45) + (missing_provenance * 7.5)), 2)
 
     alerts: list[str] = []
     if disallowed > 0:
@@ -128,6 +134,10 @@ def main() -> None:
         alerts.append("provenance_fields_missing")
     if missing_repro > 0:
         alerts.append("repro_command_missing")
+    if source_diversity_count < 2 and total >= 2:
+        alerts.append("source_diversity_low")
+    if license_risk_score >= 30.0:
+        alerts.append("license_risk_score_high")
 
     intake_accepted_count = int(intake.get("accepted_count", 0) or 0)
     if intake_accepted_count > 0 and total < intake_accepted_count:
@@ -153,6 +163,8 @@ def main() -> None:
         "unknown_license_ratio_pct": unknown_ratio,
         "missing_provenance_count": missing_provenance,
         "missing_repro_command_count": missing_repro,
+        "source_diversity_count": source_diversity_count,
+        "license_risk_score": license_risk_score,
         "alerts": alerts,
         "reasons": sorted(set(reasons)),
         "signals": {

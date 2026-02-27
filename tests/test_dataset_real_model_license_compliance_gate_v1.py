@@ -47,6 +47,8 @@ class DatasetRealModelLicenseComplianceGateV1Tests(unittest.TestCase):
             self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
             summary = json.loads(out.read_text(encoding="utf-8"))
             self.assertEqual(summary.get("status"), "PASS")
+            self.assertIn("license_risk_score", summary)
+            self.assertIn("source_diversity_count", summary)
 
     def test_license_gate_fail_when_registry_missing(self) -> None:
         with tempfile.TemporaryDirectory() as d:

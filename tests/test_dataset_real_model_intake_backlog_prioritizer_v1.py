@@ -45,6 +45,10 @@ class DatasetRealModelIntakeBacklogPrioritizerV1Tests(unittest.TestCase):
             self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
             summary = json.loads(out.read_text(encoding="utf-8"))
             self.assertGreaterEqual(int(summary.get("backlog_item_count", 0)), 1)
+            payload = json.loads(backlog.read_text(encoding="utf-8"))
+            first = (payload.get("items") or [{}])[0]
+            self.assertIn("owner_lane", first)
+            self.assertIn("suggested_sla_days", first)
 
     def test_backlog_prioritizer_fail_when_inputs_missing(self) -> None:
         with tempfile.TemporaryDirectory() as d:

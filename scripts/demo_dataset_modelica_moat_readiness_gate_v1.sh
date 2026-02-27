@@ -48,7 +48,14 @@ flags = {
     "score_present": "PASS" if float(summary.get("moat_readiness_score", 0) or 0) >= 0 else "FAIL",
 }
 bundle_status = "PASS" if all(v == "PASS" for v in flags.values()) else "FAIL"
-(out / "demo_summary.json").write_text(json.dumps({"moat_gate_status": summary.get("status"), "bundle_status": bundle_status, "result_flags": flags}, indent=2), encoding="utf-8")
+payload = {
+    "moat_gate_status": summary.get("status"),
+    "confidence_level": summary.get("confidence_level"),
+    "critical_blockers_count": len(summary.get("critical_blockers") or []),
+    "bundle_status": bundle_status,
+    "result_flags": flags,
+}
+(out / "demo_summary.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
 print(json.dumps({"bundle_status": bundle_status, "moat_gate_status": summary.get("status")}))
 if bundle_status != "PASS":
     raise SystemExit(1)
