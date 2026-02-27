@@ -98,6 +98,7 @@ def main() -> None:
 
     moat_status = str(moat.get("status") or "")
     moat_score = _to_float((moat.get("metrics") or {}).get("moat_score", 0.0))
+    execution_readiness_index = _to_float((moat.get("metrics") or {}).get("execution_readiness_index", 0.0))
     checkpoint_status = str(checkpoint.get("status") or "")
     checkpoint_score = _to_float(checkpoint.get("checkpoint_score", 0.0))
     milestone_decision = str(checkpoint.get("milestone_decision") or "UNKNOWN")
@@ -106,7 +107,7 @@ def main() -> None:
     brief_status = str(brief.get("milestone_status") or "")
     alignment_score = _to_float(alignment.get("alignment_score", 75.0))
 
-    score = moat_score * 0.38 + checkpoint_score * 0.36 + alignment_score * 0.16
+    score = moat_score * 0.33 + checkpoint_score * 0.33 + execution_readiness_index * 0.18 + alignment_score * 0.1
     if brief_status == "PASS":
         score += 6.0
     elif brief_status == "NEEDS_REVIEW":
@@ -153,7 +154,7 @@ def main() -> None:
 
     headline = (
         f"GateForge milestone {milestone_decision} with moat score {moat_score} "
-        f"and checkpoint score {checkpoint_score}"
+        f"and checkpoint score {checkpoint_score}; execution readiness {execution_readiness_index}"
     )
 
     payload = {
@@ -176,6 +177,11 @@ def main() -> None:
                 "claim_id": "claim.checkpoint_score",
                 "text": f"Milestone checkpoint score at {checkpoint_score}",
                 "value": checkpoint_score,
+            },
+            {
+                "claim_id": "claim.execution_readiness_index",
+                "text": f"Execution readiness index at {execution_readiness_index}",
+                "value": execution_readiness_index,
             },
             {
                 "claim_id": "claim.milestone_decision",

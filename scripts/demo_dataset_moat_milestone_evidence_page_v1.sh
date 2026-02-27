@@ -9,7 +9,7 @@ mkdir -p "$OUT_DIR"
 rm -f "$OUT_DIR"/*.json "$OUT_DIR"/*.md
 
 cat > "$OUT_DIR/moat_trend_snapshot_summary.json" <<'JSON'
-{"status":"PASS","metrics":{"moat_score":82.0}}
+{"status":"PASS","metrics":{"moat_score":82.0,"execution_readiness_index":83.0}}
 JSON
 
 cat > "$OUT_DIR/milestone_checkpoint_summary.json" <<'JSON'
