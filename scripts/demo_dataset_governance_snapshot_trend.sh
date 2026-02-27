@@ -68,6 +68,14 @@ cat > "$OUT_DIR/previous_summary.json" <<'JSON'
     "dataset_real_model_intake_backlog_p0_count": 0,
     "dataset_modelica_moat_readiness_gate_status": "PASS",
     "dataset_modelica_moat_readiness_score": 79.0,
+    "dataset_real_model_supply_health_status": "PASS",
+    "dataset_real_model_supply_health_score": 82.0,
+    "dataset_real_model_supply_gap_count": 0,
+    "dataset_mutation_recipe_execution_audit_status": "PASS",
+    "dataset_mutation_recipe_execution_coverage_pct": 78.0,
+    "dataset_mutation_recipe_missing_count": 1,
+    "dataset_modelica_release_candidate_gate_status": "PASS",
+    "dataset_modelica_release_candidate_score": 80.0,
     "dataset_promotion_effectiveness_history_trend_status": "PASS",
     "dataset_promotion_effectiveness_history_latest_decision": "KEEP"
   }
@@ -147,6 +155,15 @@ demo = {
     "modelica_moat_readiness_gate_status_transition": (trend.get("status_delta") or {}).get(
         "dataset_modelica_moat_readiness_gate_status_transition"
     ),
+    "real_model_supply_health_status_transition": (trend.get("status_delta") or {}).get(
+        "dataset_real_model_supply_health_status_transition"
+    ),
+    "mutation_recipe_execution_audit_status_transition": (trend.get("status_delta") or {}).get(
+        "dataset_mutation_recipe_execution_audit_status_transition"
+    ),
+    "modelica_release_candidate_gate_status_transition": (trend.get("status_delta") or {}).get(
+        "dataset_modelica_release_candidate_gate_status_transition"
+    ),
     "status_delta_alert_count": len((trend.get("status_delta") or {}).get("alerts") or []),
     "result_flags": flags,
     "bundle_status": bundle_status,
@@ -177,6 +194,9 @@ demo = {
             f"- real_model_failure_yield_status_transition: `{demo['real_model_failure_yield_status_transition']}`",
             f"- real_model_intake_backlog_status_transition: `{demo['real_model_intake_backlog_status_transition']}`",
             f"- modelica_moat_readiness_gate_status_transition: `{demo['modelica_moat_readiness_gate_status_transition']}`",
+            f"- real_model_supply_health_status_transition: `{demo['real_model_supply_health_status_transition']}`",
+            f"- mutation_recipe_execution_audit_status_transition: `{demo['mutation_recipe_execution_audit_status_transition']}`",
+            f"- modelica_release_candidate_gate_status_transition: `{demo['modelica_release_candidate_gate_status_transition']}`",
             f"- status_delta_alert_count: `{demo['status_delta_alert_count']}`",
             f"- bundle_status: `{demo['bundle_status']}`",
             "",

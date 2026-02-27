@@ -123,6 +123,12 @@ def main() -> None:
                 "real_model_intake_backlog_p0_count",
                 "modelica_moat_readiness_gate_status",
                 "modelica_moat_readiness_score",
+                "real_model_supply_health_status",
+                "real_model_supply_health_score",
+                "mutation_recipe_execution_audit_status",
+                "mutation_recipe_execution_coverage_pct",
+                "modelica_release_candidate_gate_status",
+                "modelica_release_candidate_score",
             ],
         ),
         (
@@ -145,6 +151,9 @@ def main() -> None:
                 "real_model_failure_yield_status_transition",
                 "real_model_intake_backlog_status_transition",
                 "modelica_moat_readiness_gate_status_transition",
+                "real_model_supply_health_status_transition",
+                "mutation_recipe_execution_audit_status_transition",
+                "modelica_release_candidate_gate_status_transition",
                 "status_delta_alert_count",
                 "severity_level",
             ],
@@ -290,6 +299,21 @@ def main() -> None:
             "dataset_modelica_moat_readiness_gate_v1_demo",
             "dataset_modelica_moat_readiness_gate_v1_demo/demo_summary.json",
             ["bundle_status", "moat_gate_status"],
+        ),
+        (
+            "dataset_real_model_supply_health_v1_demo",
+            "dataset_real_model_supply_health_v1_demo/demo_summary.json",
+            ["bundle_status", "supply_health_status", "supply_health_score"],
+        ),
+        (
+            "dataset_mutation_recipe_execution_audit_v1_demo",
+            "dataset_mutation_recipe_execution_audit_v1_demo/demo_summary.json",
+            ["bundle_status", "audit_status", "execution_coverage_pct"],
+        ),
+        (
+            "dataset_modelica_release_candidate_gate_v1_demo",
+            "dataset_modelica_release_candidate_gate_v1_demo/demo_summary.json",
+            ["bundle_status", "release_candidate_status", "candidate_decision"],
         ),
     ]
     checks = [_validate_required_summary(root, name, rel_path, keys) for name, rel_path, keys in required]

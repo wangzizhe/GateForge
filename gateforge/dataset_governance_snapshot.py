@@ -101,6 +101,12 @@ def _status_from_signals(signals: dict) -> str:
         return "NEEDS_REVIEW"
     if signals.get("dataset_modelica_moat_readiness_gate_needs_review"):
         return "NEEDS_REVIEW"
+    if signals.get("dataset_real_model_supply_health_needs_review"):
+        return "NEEDS_REVIEW"
+    if signals.get("dataset_mutation_recipe_execution_audit_needs_review"):
+        return "NEEDS_REVIEW"
+    if signals.get("dataset_modelica_release_candidate_gate_needs_review"):
+        return "NEEDS_REVIEW"
     return "PASS"
 
 
@@ -134,6 +140,9 @@ def _compute_summary(
     real_model_failure_yield: dict,
     real_model_intake_backlog: dict,
     modelica_moat_readiness_gate: dict,
+    real_model_supply_health: dict,
+    mutation_recipe_execution_audit: dict,
+    modelica_release_candidate_gate: dict,
 ) -> dict:
     strategy_advice = (
         strategy_advisor.get("advice")
@@ -201,6 +210,12 @@ def _compute_summary(
         in {"NEEDS_REVIEW", "FAIL"},
         "dataset_modelica_moat_readiness_gate_needs_review": str(modelica_moat_readiness_gate.get("status") or "")
         in {"NEEDS_REVIEW", "FAIL"},
+        "dataset_real_model_supply_health_needs_review": str(real_model_supply_health.get("status") or "")
+        in {"NEEDS_REVIEW", "FAIL"},
+        "dataset_mutation_recipe_execution_audit_needs_review": str(mutation_recipe_execution_audit.get("status") or "")
+        in {"NEEDS_REVIEW", "FAIL"},
+        "dataset_modelica_release_candidate_gate_needs_review": str(modelica_release_candidate_gate.get("status") or "")
+        in {"NEEDS_REVIEW", "FAIL"},
     }
     status = _status_from_signals(signals)
 
@@ -265,6 +280,12 @@ def _compute_summary(
         risks.append("dataset_real_model_intake_backlog_needs_review")
     if signals["dataset_modelica_moat_readiness_gate_needs_review"]:
         risks.append("dataset_modelica_moat_readiness_gate_needs_review")
+    if signals["dataset_real_model_supply_health_needs_review"]:
+        risks.append("dataset_real_model_supply_health_needs_review")
+    if signals["dataset_mutation_recipe_execution_audit_needs_review"]:
+        risks.append("dataset_mutation_recipe_execution_audit_needs_review")
+    if signals["dataset_modelica_release_candidate_gate_needs_review"]:
+        risks.append("dataset_modelica_release_candidate_gate_needs_review")
 
     policy_patch_advice = (
         failure_policy_patch_advisor.get("advice")
@@ -410,6 +431,19 @@ def _compute_summary(
         "dataset_modelica_moat_confidence_level": modelica_moat_readiness_gate.get("confidence_level"),
         "dataset_modelica_moat_critical_blocker_count": len(modelica_moat_readiness_gate.get("critical_blockers") or []),
         "dataset_real_model_license_risk_score": _to_float(real_model_license_compliance.get("license_risk_score", 0.0)),
+        "dataset_real_model_supply_health_status": real_model_supply_health.get("status"),
+        "dataset_real_model_supply_health_score": _to_float(real_model_supply_health.get("supply_health_score", 0.0)),
+        "dataset_real_model_supply_gap_count": _to_int(real_model_supply_health.get("supply_gap_count", 0)),
+        "dataset_mutation_recipe_execution_audit_status": mutation_recipe_execution_audit.get("status"),
+        "dataset_mutation_recipe_execution_coverage_pct": _to_float(
+            mutation_recipe_execution_audit.get("execution_coverage_pct", 0.0)
+        ),
+        "dataset_mutation_recipe_missing_count": _to_int(mutation_recipe_execution_audit.get("missing_recipe_count", 0)),
+        "dataset_modelica_release_candidate_gate_status": modelica_release_candidate_gate.get("status"),
+        "dataset_modelica_release_candidate_score": _to_float(
+            modelica_release_candidate_gate.get("release_candidate_score", 0.0)
+        ),
+        "dataset_modelica_release_candidate_decision": modelica_release_candidate_gate.get("candidate_decision"),
     }
     return {
         "status": status,
@@ -505,6 +539,15 @@ def _write_markdown(path: str, summary: dict) -> None:
         f"- dataset_modelica_moat_confidence_level: `{kpis.get('dataset_modelica_moat_confidence_level')}`",
         f"- dataset_modelica_moat_critical_blocker_count: `{kpis.get('dataset_modelica_moat_critical_blocker_count')}`",
         f"- dataset_real_model_license_risk_score: `{kpis.get('dataset_real_model_license_risk_score')}`",
+        f"- dataset_real_model_supply_health_status: `{kpis.get('dataset_real_model_supply_health_status')}`",
+        f"- dataset_real_model_supply_health_score: `{kpis.get('dataset_real_model_supply_health_score')}`",
+        f"- dataset_real_model_supply_gap_count: `{kpis.get('dataset_real_model_supply_gap_count')}`",
+        f"- dataset_mutation_recipe_execution_audit_status: `{kpis.get('dataset_mutation_recipe_execution_audit_status')}`",
+        f"- dataset_mutation_recipe_execution_coverage_pct: `{kpis.get('dataset_mutation_recipe_execution_coverage_pct')}`",
+        f"- dataset_mutation_recipe_missing_count: `{kpis.get('dataset_mutation_recipe_missing_count')}`",
+        f"- dataset_modelica_release_candidate_gate_status: `{kpis.get('dataset_modelica_release_candidate_gate_status')}`",
+        f"- dataset_modelica_release_candidate_score: `{kpis.get('dataset_modelica_release_candidate_score')}`",
+        f"- dataset_modelica_release_candidate_decision: `{kpis.get('dataset_modelica_release_candidate_decision')}`",
         "",
         "## Risks",
         "",
@@ -642,6 +685,21 @@ def main() -> None:
         default=None,
         help="Path to dataset modelica moat readiness gate summary JSON",
     )
+    parser.add_argument(
+        "--dataset-real-model-supply-health",
+        default=None,
+        help="Path to dataset real model supply health summary JSON",
+    )
+    parser.add_argument(
+        "--dataset-mutation-recipe-execution-audit",
+        default=None,
+        help="Path to dataset mutation recipe execution audit summary JSON",
+    )
+    parser.add_argument(
+        "--dataset-modelica-release-candidate-gate",
+        default=None,
+        help="Path to dataset modelica release candidate gate summary JSON",
+    )
     parser.add_argument("--out", default="artifacts/dataset_governance_snapshot/summary.json", help="Output JSON path")
     parser.add_argument("--report", default=None, help="Output markdown path")
     args = parser.parse_args()
@@ -675,6 +733,9 @@ def main() -> None:
     real_model_failure_yield = _load_json(args.dataset_real_model_failure_yield)
     real_model_intake_backlog = _load_json(args.dataset_real_model_intake_backlog)
     modelica_moat_readiness_gate = _load_json(args.dataset_modelica_moat_readiness_gate)
+    real_model_supply_health = _load_json(args.dataset_real_model_supply_health)
+    mutation_recipe_execution_audit = _load_json(args.dataset_mutation_recipe_execution_audit)
+    modelica_release_candidate_gate = _load_json(args.dataset_modelica_release_candidate_gate)
 
     summary = _compute_summary(
         dataset_pipeline,
@@ -706,6 +767,9 @@ def main() -> None:
         real_model_failure_yield,
         real_model_intake_backlog,
         modelica_moat_readiness_gate,
+        real_model_supply_health,
+        mutation_recipe_execution_audit,
+        modelica_release_candidate_gate,
     )
     summary["generated_at_utc"] = datetime.now(timezone.utc).isoformat()
     summary["sources"] = {
@@ -738,6 +802,9 @@ def main() -> None:
         "dataset_real_model_failure_yield_path": args.dataset_real_model_failure_yield,
         "dataset_real_model_intake_backlog_path": args.dataset_real_model_intake_backlog,
         "dataset_modelica_moat_readiness_gate_path": args.dataset_modelica_moat_readiness_gate,
+        "dataset_real_model_supply_health_path": args.dataset_real_model_supply_health,
+        "dataset_mutation_recipe_execution_audit_path": args.dataset_mutation_recipe_execution_audit,
+        "dataset_modelica_release_candidate_gate_path": args.dataset_modelica_release_candidate_gate,
     }
 
     _write_json(args.out, summary)

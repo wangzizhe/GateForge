@@ -19,7 +19,9 @@ if [ "${GATEFORGE_DEMO_FAST:-0}" = "1" ]; then
     artifacts/dataset_large_model_benchmark_pack_v1_demo artifacts/dataset_mutation_campaign_tracker_v1_demo \
     artifacts/dataset_moat_public_scoreboard_v1_demo artifacts/dataset_real_model_license_compliance_gate_v1_demo \
     artifacts/dataset_modelica_mutation_recipe_library_v1_demo artifacts/dataset_real_model_failure_yield_tracker_v1_demo \
-    artifacts/dataset_real_model_intake_backlog_prioritizer_v1_demo artifacts/dataset_modelica_moat_readiness_gate_v1_demo
+    artifacts/dataset_real_model_intake_backlog_prioritizer_v1_demo artifacts/dataset_modelica_moat_readiness_gate_v1_demo \
+    artifacts/dataset_real_model_supply_health_v1_demo artifacts/dataset_mutation_recipe_execution_audit_v1_demo \
+    artifacts/dataset_modelica_release_candidate_gate_v1_demo
   cat > artifacts/dataset_pipeline_demo/summary.json <<'JSON'
 {"bundle_status":"PASS","build_deduplicated_cases":12,"quality_failure_case_rate":0.3}
 JSON
@@ -107,6 +109,15 @@ JSON
   cat > artifacts/dataset_modelica_moat_readiness_gate_v1_demo/summary.json <<'JSON'
 {"status":"PASS","moat_readiness_score":83.0,"release_recommendation":"GO"}
 JSON
+  cat > artifacts/dataset_real_model_supply_health_v1_demo/summary.json <<'JSON'
+{"status":"PASS","supply_health_score":84.0,"supply_gap_count":0}
+JSON
+  cat > artifacts/dataset_mutation_recipe_execution_audit_v1_demo/summary.json <<'JSON'
+{"status":"PASS","execution_coverage_pct":81.0,"missing_recipe_count":1}
+JSON
+  cat > artifacts/dataset_modelica_release_candidate_gate_v1_demo/summary.json <<'JSON'
+{"status":"PASS","release_candidate_score":84.0,"candidate_decision":"GO"}
+JSON
 else
   bash scripts/demo_dataset_pipeline.sh >/dev/null
   bash scripts/demo_dataset_history.sh >/dev/null
@@ -138,6 +149,9 @@ else
   bash scripts/demo_dataset_real_model_failure_yield_tracker_v1.sh >/dev/null
   bash scripts/demo_dataset_real_model_intake_backlog_prioritizer_v1.sh >/dev/null
   bash scripts/demo_dataset_modelica_moat_readiness_gate_v1.sh >/dev/null
+  bash scripts/demo_dataset_real_model_supply_health_v1.sh >/dev/null
+  bash scripts/demo_dataset_mutation_recipe_execution_audit_v1.sh >/dev/null
+  bash scripts/demo_dataset_modelica_release_candidate_gate_v1.sh >/dev/null
 fi
 
 ARGS=(
@@ -208,6 +222,15 @@ fi
 if [ -f artifacts/dataset_modelica_moat_readiness_gate_v1_demo/summary.json ]; then
   ARGS+=(--dataset-modelica-moat-readiness-gate artifacts/dataset_modelica_moat_readiness_gate_v1_demo/summary.json)
 fi
+if [ -f artifacts/dataset_real_model_supply_health_v1_demo/summary.json ]; then
+  ARGS+=(--dataset-real-model-supply-health artifacts/dataset_real_model_supply_health_v1_demo/summary.json)
+fi
+if [ -f artifacts/dataset_mutation_recipe_execution_audit_v1_demo/summary.json ]; then
+  ARGS+=(--dataset-mutation-recipe-execution-audit artifacts/dataset_mutation_recipe_execution_audit_v1_demo/summary.json)
+fi
+if [ -f artifacts/dataset_modelica_release_candidate_gate_v1_demo/summary.json ]; then
+  ARGS+=(--dataset-modelica-release-candidate-gate artifacts/dataset_modelica_release_candidate_gate_v1_demo/summary.json)
+fi
 
 python3 -m gateforge.dataset_governance_snapshot \
   "${ARGS[@]}" \
@@ -266,6 +289,15 @@ flags = {
     "modelica_moat_readiness_gate_kpi_present": "PASS"
     if isinstance((payload.get("kpis") or {}).get("dataset_modelica_moat_readiness_gate_status"), (str, type(None)))
     else "FAIL",
+    "real_model_supply_health_kpi_present": "PASS"
+    if isinstance((payload.get("kpis") or {}).get("dataset_real_model_supply_health_status"), (str, type(None)))
+    else "FAIL",
+    "mutation_recipe_execution_audit_kpi_present": "PASS"
+    if isinstance((payload.get("kpis") or {}).get("dataset_mutation_recipe_execution_audit_status"), (str, type(None)))
+    else "FAIL",
+    "modelica_release_candidate_gate_kpi_present": "PASS"
+    if isinstance((payload.get("kpis") or {}).get("dataset_modelica_release_candidate_gate_status"), (str, type(None)))
+    else "FAIL",
 }
 bundle_status = "PASS" if all(v == "PASS" for v in flags.values()) else "FAIL"
 summary = {
@@ -317,6 +349,14 @@ summary = {
         "dataset_modelica_moat_readiness_gate_status"
     ),
     "modelica_moat_readiness_score": (payload.get("kpis") or {}).get("dataset_modelica_moat_readiness_score"),
+    "real_model_supply_health_status": (payload.get("kpis") or {}).get("dataset_real_model_supply_health_status"),
+    "real_model_supply_health_score": (payload.get("kpis") or {}).get("dataset_real_model_supply_health_score"),
+    "mutation_recipe_execution_audit_status": (payload.get("kpis") or {}).get("dataset_mutation_recipe_execution_audit_status"),
+    "mutation_recipe_execution_coverage_pct": (payload.get("kpis") or {}).get(
+        "dataset_mutation_recipe_execution_coverage_pct"
+    ),
+    "modelica_release_candidate_gate_status": (payload.get("kpis") or {}).get("dataset_modelica_release_candidate_gate_status"),
+    "modelica_release_candidate_score": (payload.get("kpis") or {}).get("dataset_modelica_release_candidate_score"),
     "result_flags": flags,
     "bundle_status": bundle_status,
 }
@@ -356,6 +396,12 @@ summary = {
             f"- real_model_intake_backlog_p0_count: `{summary['real_model_intake_backlog_p0_count']}`",
             f"- modelica_moat_readiness_gate_status: `{summary['modelica_moat_readiness_gate_status']}`",
             f"- modelica_moat_readiness_score: `{summary['modelica_moat_readiness_score']}`",
+            f"- real_model_supply_health_status: `{summary['real_model_supply_health_status']}`",
+            f"- real_model_supply_health_score: `{summary['real_model_supply_health_score']}`",
+            f"- mutation_recipe_execution_audit_status: `{summary['mutation_recipe_execution_audit_status']}`",
+            f"- mutation_recipe_execution_coverage_pct: `{summary['mutation_recipe_execution_coverage_pct']}`",
+            f"- modelica_release_candidate_gate_status: `{summary['modelica_release_candidate_gate_status']}`",
+            f"- modelica_release_candidate_score: `{summary['modelica_release_candidate_score']}`",
             f"- bundle_status: `{summary['bundle_status']}`",
             "",
             "## Result Flags",
