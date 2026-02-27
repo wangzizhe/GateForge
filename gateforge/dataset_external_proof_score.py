@@ -47,6 +47,7 @@ def _write_markdown(path: str, payload: dict) -> None:
         f"- status: `{payload.get('status')}`",
         f"- proof_score: `{payload.get('proof_score')}`",
         f"- release_ready: `{payload.get('release_ready')}`",
+        f"- execution_readiness_index: `{payload.get('execution_readiness_index')}`",
         f"- confidence_band: `{payload.get('confidence_band')}`",
         "",
     ]
@@ -57,6 +58,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Compute external proof score from release manifest and moat forecast")
     parser.add_argument("--evidence-release-manifest", required=True)
     parser.add_argument("--moat-execution-forecast", required=True)
+    parser.add_argument("--moat-trend-snapshot-summary", default=None)
     parser.add_argument("--governance-decision-proofbook", default=None)
     parser.add_argument("--out", default="artifacts/dataset_external_proof_score/summary.json")
     parser.add_argument("--report-out", default=None)
@@ -64,6 +66,7 @@ def main() -> None:
 
     manifest = _load_json(args.evidence_release_manifest)
     forecast = _load_json(args.moat_execution_forecast)
+    moat_snapshot = _load_json(args.moat_trend_snapshot_summary)
     proofbook = _load_json(args.governance_decision_proofbook)
 
     reasons: list[str] = []
@@ -76,12 +79,14 @@ def main() -> None:
     release_ready = bool(manifest.get("release_ready", False))
 
     projected_moat = _to_float(forecast.get("projected_moat_score_30d", 0.0))
+    execution_readiness = _to_float(((moat_snapshot.get("metrics") or {}).get("execution_readiness_index", 0.0)))
     decision = str(proofbook.get("decision") or "")
 
     score = 30.0
     score += min(25.0, artifact_count * 6.0)
     score += 20.0 if release_ready else 6.0
     score += min(20.0, projected_moat * 0.25)
+    score += min(12.0, execution_readiness * 0.12)
     if decision == "PROMOTE":
         score += 8.0
     elif decision == "PROMOTE_WITH_GUARDS":
@@ -107,10 +112,12 @@ def main() -> None:
         "confidence_band": confidence_band,
         "artifact_count": artifact_count,
         "projected_moat_score_30d": projected_moat,
+        "execution_readiness_index": execution_readiness,
         "reasons": sorted(set(reasons)),
         "sources": {
             "evidence_release_manifest": args.evidence_release_manifest,
             "moat_execution_forecast": args.moat_execution_forecast,
+            "moat_trend_snapshot_summary": args.moat_trend_snapshot_summary,
             "governance_decision_proofbook": args.governance_decision_proofbook,
         },
     }

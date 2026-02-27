@@ -15,6 +15,7 @@ class DatasetExternalProofScoreDemoTests(unittest.TestCase):
             self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
             payload = json.loads((repo_root / "artifacts" / "dataset_external_proof_score_demo" / "demo_summary.json").read_text(encoding="utf-8"))
             self.assertEqual(payload.get("bundle_status"), "PASS")
+            self.assertIsInstance(payload.get("execution_readiness_index"), (int, float))
 
 
 if __name__ == "__main__":
