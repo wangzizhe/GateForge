@@ -28,12 +28,22 @@ cat > "$OUT_DIR/modelica_library_provenance_guard_summary.json" <<'JSON'
 {"status":"PASS","unknown_license_ratio_pct":1.0}
 JSON
 
+cat > "$OUT_DIR/real_model_supply_health_summary.json" <<'JSON'
+{"status":"PASS","supply_health_score":84.0}
+JSON
+
+cat > "$OUT_DIR/modelica_release_candidate_gate_summary.json" <<'JSON'
+{"status":"PASS","release_candidate_score":84.0,"candidate_decision":"GO"}
+JSON
+
 python3 -m gateforge.dataset_snapshot_moat_alignment_v1 \
   --governance-snapshot-summary "$OUT_DIR/governance_snapshot_summary.json" \
   --governance-snapshot-trend-summary "$OUT_DIR/governance_snapshot_trend_summary.json" \
   --moat-public-scoreboard-summary "$OUT_DIR/moat_public_scoreboard_summary.json" \
   --mutation-campaign-tracker-summary "$OUT_DIR/mutation_campaign_tracker_summary.json" \
   --modelica-library-provenance-guard-summary "$OUT_DIR/modelica_library_provenance_guard_summary.json" \
+  --real-model-supply-health-summary "$OUT_DIR/real_model_supply_health_summary.json" \
+  --modelica-release-candidate-gate-summary "$OUT_DIR/modelica_release_candidate_gate_summary.json" \
   --out "$OUT_DIR/summary.json" \
   --report-out "$OUT_DIR/summary.md"
 
@@ -53,6 +63,9 @@ payload = {
     "alignment_status": summary.get("status"),
     "alignment_score": summary.get("alignment_score"),
     "contradiction_count": summary.get("contradiction_count"),
+    "supply_status": (summary.get("signals") or {}).get("supply_status"),
+    "release_candidate_status": (summary.get("signals") or {}).get("release_candidate_status"),
+    "release_candidate_decision": (summary.get("signals") or {}).get("release_candidate_decision"),
     "result_flags": flags,
     "bundle_status": bundle_status,
 }

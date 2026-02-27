@@ -67,6 +67,8 @@ def main() -> None:
     parser.add_argument("--moat-public-scoreboard-summary", required=True)
     parser.add_argument("--mutation-campaign-tracker-summary", required=True)
     parser.add_argument("--modelica-library-provenance-guard-summary", default=None)
+    parser.add_argument("--real-model-supply-health-summary", default=None)
+    parser.add_argument("--modelica-release-candidate-gate-summary", default=None)
     parser.add_argument("--out", default="artifacts/dataset_snapshot_moat_alignment_v1/summary.json")
     parser.add_argument("--report-out", default=None)
     args = parser.parse_args()
@@ -76,6 +78,8 @@ def main() -> None:
     scoreboard = _load_json(args.moat_public_scoreboard_summary)
     campaign = _load_json(args.mutation_campaign_tracker_summary)
     provenance = _load_json(args.modelica_library_provenance_guard_summary)
+    supply = _load_json(args.real_model_supply_health_summary)
+    release_candidate = _load_json(args.modelica_release_candidate_gate_summary)
 
     reasons: list[str] = []
     if not snapshot:
@@ -92,12 +96,17 @@ def main() -> None:
     scoreboard_status = _status(scoreboard)
     campaign_status = _status(campaign)
     provenance_status = _status(provenance) if provenance else "NOT_PROVIDED"
+    supply_status = _status(supply) if supply else "NOT_PROVIDED"
+    release_candidate_status = _status(release_candidate) if release_candidate else "NOT_PROVIDED"
 
     scoreboard_score = _to_float(scoreboard.get("moat_public_score", 0.0))
     campaign_completion = _to_float(campaign.get("completion_ratio_pct", 0.0))
     trend_severity = _to_int(((trend.get("trend") or {}).get("severity_score")) if isinstance(trend.get("trend"), dict) else 0)
     snapshot_risk_count = len(snapshot.get("risks") or []) if isinstance(snapshot.get("risks"), list) else 0
     unknown_license_ratio = _to_float(provenance.get("unknown_license_ratio_pct", 0.0)) if provenance else 0.0
+    supply_health_score = _to_float(supply.get("supply_health_score", 0.0)) if supply else 0.0
+    release_candidate_score = _to_float(release_candidate.get("release_candidate_score", 0.0)) if release_candidate else 0.0
+    release_candidate_decision = str(release_candidate.get("candidate_decision") or "UNKNOWN") if release_candidate else "UNKNOWN"
 
     contradictions: list[str] = []
     if snapshot_status == "PASS" and scoreboard_status in {"NEEDS_REVIEW", "FAIL"}:
@@ -114,6 +123,12 @@ def main() -> None:
         contradictions.append("license_risk_high_but_scoreboard_pass")
     if snapshot_risk_count == 0 and scoreboard_status in {"NEEDS_REVIEW", "FAIL"}:
         contradictions.append("snapshot_no_risk_but_scoreboard_not_pass")
+    if release_candidate_decision == "GO" and snapshot_status in {"NEEDS_REVIEW", "FAIL"}:
+        contradictions.append("release_candidate_go_but_snapshot_not_pass")
+    if release_candidate_decision == "HOLD" and scoreboard_score >= 85.0:
+        contradictions.append("release_candidate_hold_but_public_score_high")
+    if supply and supply_status == "NEEDS_REVIEW" and snapshot_status == "PASS":
+        contradictions.append("supply_needs_review_but_snapshot_pass")
 
     alignment_score = round(
         max(
@@ -140,6 +155,10 @@ def main() -> None:
         followups.append("address_snapshot_trend_alerts_before_public_release")
     if provenance and unknown_license_ratio > 10.0:
         followups.append("reduce_unknown_license_assets_in_modelica_library")
+    if supply and supply_health_score < 75.0:
+        followups.append("increase_real_model_supply_health_score")
+    if release_candidate and release_candidate_score < 80.0:
+        followups.append("raise_release_candidate_score_before_public_promotion")
 
     alerts: list[str] = []
     if contradictions:
@@ -167,11 +186,16 @@ def main() -> None:
             "scoreboard_status": scoreboard_status,
             "campaign_status": campaign_status,
             "provenance_status": provenance_status,
+            "supply_status": supply_status,
+            "release_candidate_status": release_candidate_status,
             "scoreboard_score": scoreboard_score,
             "campaign_completion_ratio_pct": campaign_completion,
             "trend_severity_score": trend_severity,
             "snapshot_risk_count": snapshot_risk_count,
             "provenance_unknown_license_ratio_pct": unknown_license_ratio,
+            "supply_health_score": supply_health_score,
+            "release_candidate_score": release_candidate_score,
+            "release_candidate_decision": release_candidate_decision,
         },
         "reasons": sorted(set(reasons)),
         "sources": {
@@ -180,6 +204,8 @@ def main() -> None:
             "moat_public_scoreboard_summary": args.moat_public_scoreboard_summary,
             "mutation_campaign_tracker_summary": args.mutation_campaign_tracker_summary,
             "modelica_library_provenance_guard_summary": args.modelica_library_provenance_guard_summary,
+            "real_model_supply_health_summary": args.real_model_supply_health_summary,
+            "modelica_release_candidate_gate_summary": args.modelica_release_candidate_gate_summary,
         },
     }
     _write_json(args.out, payload)

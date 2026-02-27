@@ -31,6 +31,11 @@ class DatasetSnapshotMoatAlignmentV1DemoTests(unittest.TestCase):
             )
             self.assertEqual(payload.get("bundle_status"), "PASS")
             self.assertIn(payload.get("alignment_status"), {"PASS", "NEEDS_REVIEW", "FAIL"})
+            self.assertIn(payload.get("supply_status"), {"PASS", "NEEDS_REVIEW", "FAIL", "NOT_PROVIDED", None})
+            self.assertIn(
+                payload.get("release_candidate_status"),
+                {"PASS", "NEEDS_REVIEW", "FAIL", "NOT_PROVIDED", None},
+            )
 
 
 if __name__ == "__main__":

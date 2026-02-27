@@ -77,6 +77,9 @@ def main() -> None:
     parser.add_argument("--mutation-campaign-tracker-v1-summary", required=True)
     parser.add_argument("--modelica-library-expansion-plan-v1-summary", required=True)
     parser.add_argument("--modelica-library-provenance-guard-v1-summary", default=None)
+    parser.add_argument("--real-model-supply-health-v1-summary", default=None)
+    parser.add_argument("--mutation-recipe-execution-audit-v1-summary", default=None)
+    parser.add_argument("--modelica-release-candidate-gate-v1-summary", default=None)
     parser.add_argument("--out", default="artifacts/dataset_moat_public_scoreboard_v1/summary.json")
     parser.add_argument("--report-out", default=None)
     args = parser.parse_args()
@@ -87,6 +90,9 @@ def main() -> None:
     campaign = _load_json(args.mutation_campaign_tracker_v1_summary)
     expansion = _load_json(args.modelica_library_expansion_plan_v1_summary)
     provenance = _load_json(args.modelica_library_provenance_guard_v1_summary)
+    supply_health = _load_json(args.real_model_supply_health_v1_summary)
+    recipe_audit = _load_json(args.mutation_recipe_execution_audit_v1_summary)
+    release_candidate = _load_json(args.modelica_release_candidate_gate_v1_summary)
 
     reasons: list[str] = []
     if not release:
@@ -106,15 +112,21 @@ def main() -> None:
     campaign_completion = _to_float(campaign.get("completion_ratio_pct", 0.0))
     expansion_score = _to_float(expansion.get("expansion_readiness_score", 0.0))
     provenance_score = _to_float(provenance.get("provenance_completeness_pct", 92.0)) if provenance else 92.0
+    supply_score = _to_float(supply_health.get("supply_health_score", 76.0)) if supply_health else 76.0
+    recipe_exec_score = _to_float(recipe_audit.get("execution_coverage_pct", 74.0)) if recipe_audit else 74.0
+    release_candidate_score = _to_float(release_candidate.get("release_candidate_score", 70.0)) if release_candidate else 70.0
 
     moat_public_score = round(
         _clamp(
-            (release_score * 0.27)
-            + (chain_score * 0.22)
-            + (roadmap_score * 0.2)
-            + (campaign_completion * 0.16)
-            + (expansion_score * 0.1)
+            (release_score * 0.22)
+            + (chain_score * 0.18)
+            + (roadmap_score * 0.16)
+            + (campaign_completion * 0.13)
+            + (expansion_score * 0.08)
             + (provenance_score * 0.05)
+            + (supply_score * 0.08)
+            + (recipe_exec_score * 0.05)
+            + (release_candidate_score * 0.05)
         ),
         2,
     )
@@ -126,6 +138,9 @@ def main() -> None:
         "campaign": _status(campaign),
         "expansion": _status(expansion),
         "provenance": _status(provenance) if provenance else "NOT_PROVIDED",
+        "supply_health": _status(supply_health) if supply_health else "NOT_PROVIDED",
+        "recipe_execution_audit": _status(recipe_audit) if recipe_audit else "NOT_PROVIDED",
+        "release_candidate_gate": _status(release_candidate) if release_candidate else "NOT_PROVIDED",
     }
 
     fail_components = [k for k, v in component_status.items() if v == "FAIL"]
@@ -142,6 +157,12 @@ def main() -> None:
         alerts.append("campaign_completion_low")
     if expansion_score < 72.0:
         alerts.append("expansion_readiness_low")
+    if supply_score < 72.0:
+        alerts.append("real_model_supply_health_low")
+    if recipe_exec_score < 70.0:
+        alerts.append("mutation_recipe_execution_coverage_low")
+    if release_candidate and str(release_candidate.get("candidate_decision") or "") == "HOLD":
+        alerts.append("release_candidate_on_hold")
 
     verdict = "EMERGING_MOAT"
     if moat_public_score >= 85.0 and not fail_components:
@@ -171,6 +192,9 @@ def main() -> None:
             "campaign_completion_ratio_pct": campaign_completion,
             "expansion_readiness_score": expansion_score,
             "provenance_completeness_pct": provenance_score,
+            "real_model_supply_health_score": supply_score,
+            "mutation_recipe_execution_coverage_pct": recipe_exec_score,
+            "release_candidate_score": release_candidate_score,
         },
         "sources": {
             "anchor_public_release_v1_summary": args.anchor_public_release_v1_summary,
@@ -179,6 +203,9 @@ def main() -> None:
             "mutation_campaign_tracker_v1_summary": args.mutation_campaign_tracker_v1_summary,
             "modelica_library_expansion_plan_v1_summary": args.modelica_library_expansion_plan_v1_summary,
             "modelica_library_provenance_guard_v1_summary": args.modelica_library_provenance_guard_v1_summary,
+            "real_model_supply_health_v1_summary": args.real_model_supply_health_v1_summary,
+            "mutation_recipe_execution_audit_v1_summary": args.mutation_recipe_execution_audit_v1_summary,
+            "modelica_release_candidate_gate_v1_summary": args.modelica_release_candidate_gate_v1_summary,
         },
     }
     _write_json(args.out, payload)
