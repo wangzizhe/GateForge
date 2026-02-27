@@ -129,6 +129,9 @@ def main() -> None:
                 "mutation_recipe_execution_coverage_pct",
                 "modelica_release_candidate_gate_status",
                 "modelica_release_candidate_score",
+                "milestone_checkpoint_status",
+                "milestone_checkpoint_score",
+                "milestone_public_brief_status",
             ],
         ),
         (
@@ -154,6 +157,9 @@ def main() -> None:
                 "real_model_supply_health_status_transition",
                 "mutation_recipe_execution_audit_status_transition",
                 "modelica_release_candidate_gate_status_transition",
+                "milestone_checkpoint_status_transition",
+                "milestone_checkpoint_trend_status_transition",
+                "milestone_public_brief_status_transition",
                 "status_delta_alert_count",
                 "severity_level",
             ],
@@ -314,6 +320,21 @@ def main() -> None:
             "dataset_modelica_release_candidate_gate_v1_demo",
             "dataset_modelica_release_candidate_gate_v1_demo/demo_summary.json",
             ["bundle_status", "release_candidate_status", "candidate_decision"],
+        ),
+        (
+            "dataset_milestone_checkpoint_v1_demo",
+            "dataset_milestone_checkpoint_v1_demo/demo_summary.json",
+            ["bundle_status", "checkpoint_status", "milestone_decision"],
+        ),
+        (
+            "dataset_milestone_checkpoint_trend_v1_demo",
+            "dataset_milestone_checkpoint_trend_v1_demo/demo_summary.json",
+            ["bundle_status", "trend_status", "status_transition"],
+        ),
+        (
+            "dataset_milestone_public_brief_v1_demo",
+            "dataset_milestone_public_brief_v1_demo/demo_summary.json",
+            ["bundle_status", "brief_status"],
         ),
     ]
     checks = [_validate_required_summary(root, name, rel_path, keys) for name, rel_path, keys in required]
