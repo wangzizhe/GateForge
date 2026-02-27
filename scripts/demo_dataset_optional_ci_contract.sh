@@ -59,6 +59,8 @@ mapping = {
         "mutation_recipe_execution_coverage_pct": 81.0,
         "modelica_release_candidate_gate_status": "PASS",
         "modelica_release_candidate_score": 84.0,
+        "intake_growth_advisor_status": "PASS",
+        "intake_growth_suggested_action": "keep",
     },
     "dataset_governance_snapshot_trend_demo/demo_summary.json": {
         "bundle_status": "PASS",
@@ -203,6 +205,11 @@ mapping = {
         "release_candidate_status": "PASS",
         "candidate_decision": "GO",
     },
+    "dataset_intake_growth_advisor_v1_demo/demo_summary.json": {
+        "bundle_status": "PASS",
+        "advisor_status": "PASS",
+        "suggested_action": "keep",
+    },
 }
 for rel, payload in mapping.items():
     p = root / rel
@@ -250,6 +257,7 @@ else
   bash scripts/demo_dataset_real_model_supply_health_v1.sh >/dev/null
   bash scripts/demo_dataset_mutation_recipe_execution_audit_v1.sh >/dev/null
   bash scripts/demo_dataset_modelica_release_candidate_gate_v1.sh >/dev/null
+  bash scripts/demo_dataset_intake_growth_advisor_v1.sh >/dev/null
 fi
 
 python3 -m gateforge.dataset_optional_ci_contract \

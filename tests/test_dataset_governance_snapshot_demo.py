@@ -93,6 +93,10 @@ class DatasetGovernanceSnapshotDemoTests(unittest.TestCase):
                 payload.get("modelica_release_candidate_gate_status"),
                 {"PASS", "NEEDS_REVIEW", "FAIL", None},
             )
+            self.assertIn(
+                payload.get("intake_growth_advisor_status"),
+                {"PASS", "NEEDS_REVIEW", "FAIL", None},
+            )
 
 
 if __name__ == "__main__":
