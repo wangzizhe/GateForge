@@ -32,6 +32,18 @@ cat > "$OUT_DIR/modelica_library_provenance_guard_v1_summary.json" <<'JSON'
 {"status":"PASS","provenance_completeness_pct":98.0}
 JSON
 
+cat > "$OUT_DIR/real_model_supply_health_v1_summary.json" <<'JSON'
+{"status":"PASS","supply_health_score":84.0}
+JSON
+
+cat > "$OUT_DIR/mutation_recipe_execution_audit_v1_summary.json" <<'JSON'
+{"status":"PASS","execution_coverage_pct":81.0}
+JSON
+
+cat > "$OUT_DIR/modelica_release_candidate_gate_v1_summary.json" <<'JSON'
+{"status":"PASS","release_candidate_score":84.0,"candidate_decision":"GO"}
+JSON
+
 python3 -m gateforge.dataset_moat_public_scoreboard_v1 \
   --anchor-public-release-v1-summary "$OUT_DIR/anchor_public_release_v1_summary.json" \
   --evidence-chain-summary "$OUT_DIR/evidence_chain_summary.json" \
@@ -39,6 +51,9 @@ python3 -m gateforge.dataset_moat_public_scoreboard_v1 \
   --mutation-campaign-tracker-v1-summary "$OUT_DIR/mutation_campaign_tracker_v1_summary.json" \
   --modelica-library-expansion-plan-v1-summary "$OUT_DIR/modelica_library_expansion_plan_v1_summary.json" \
   --modelica-library-provenance-guard-v1-summary "$OUT_DIR/modelica_library_provenance_guard_v1_summary.json" \
+  --real-model-supply-health-v1-summary "$OUT_DIR/real_model_supply_health_v1_summary.json" \
+  --mutation-recipe-execution-audit-v1-summary "$OUT_DIR/mutation_recipe_execution_audit_v1_summary.json" \
+  --modelica-release-candidate-gate-v1-summary "$OUT_DIR/modelica_release_candidate_gate_v1_summary.json" \
   --out "$OUT_DIR/summary.json" \
   --report-out "$OUT_DIR/summary.md"
 
@@ -58,6 +73,9 @@ payload = {
     "scoreboard_status": summary.get("status"),
     "moat_public_score": summary.get("moat_public_score"),
     "verdict": summary.get("verdict"),
+    "real_model_supply_health_score": (summary.get("score_breakdown") or {}).get("real_model_supply_health_score"),
+    "recipe_execution_coverage_pct": (summary.get("score_breakdown") or {}).get("mutation_recipe_execution_coverage_pct"),
+    "release_candidate_score": (summary.get("score_breakdown") or {}).get("release_candidate_score"),
     "result_flags": flags,
     "bundle_status": bundle_status,
 }

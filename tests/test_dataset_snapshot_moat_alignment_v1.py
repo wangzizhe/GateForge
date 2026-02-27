@@ -14,12 +14,19 @@ class DatasetSnapshotMoatAlignmentV1Tests(unittest.TestCase):
             trend = root / "trend.json"
             scoreboard = root / "scoreboard.json"
             campaign = root / "campaign.json"
+            supply = root / "supply.json"
+            release_candidate = root / "release_candidate.json"
             out = root / "summary.json"
 
             snapshot.write_text(json.dumps({"status": "PASS", "risks": []}), encoding="utf-8")
             trend.write_text(json.dumps({"status": "PASS", "trend": {"severity_score": 1}}), encoding="utf-8")
             scoreboard.write_text(json.dumps({"status": "PASS", "moat_public_score": 86.0}), encoding="utf-8")
             campaign.write_text(json.dumps({"status": "PASS", "completion_ratio_pct": 92.0}), encoding="utf-8")
+            supply.write_text(json.dumps({"status": "PASS", "supply_health_score": 84.0}), encoding="utf-8")
+            release_candidate.write_text(
+                json.dumps({"status": "PASS", "release_candidate_score": 84.0, "candidate_decision": "GO"}),
+                encoding="utf-8",
+            )
 
             proc = subprocess.run(
                 [
@@ -34,6 +41,10 @@ class DatasetSnapshotMoatAlignmentV1Tests(unittest.TestCase):
                     str(scoreboard),
                     "--mutation-campaign-tracker-summary",
                     str(campaign),
+                    "--real-model-supply-health-summary",
+                    str(supply),
+                    "--modelica-release-candidate-gate-summary",
+                    str(release_candidate),
                     "--out",
                     str(out),
                 ],
@@ -44,6 +55,8 @@ class DatasetSnapshotMoatAlignmentV1Tests(unittest.TestCase):
             self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
             summary = json.loads(out.read_text(encoding="utf-8"))
             self.assertEqual(summary.get("status"), "PASS")
+            self.assertIn("supply_status", summary.get("signals", {}))
+            self.assertIn("release_candidate_status", summary.get("signals", {}))
 
     def test_alignment_needs_review_on_contradictions(self) -> None:
         with tempfile.TemporaryDirectory() as d:
@@ -52,12 +65,17 @@ class DatasetSnapshotMoatAlignmentV1Tests(unittest.TestCase):
             trend = root / "trend.json"
             scoreboard = root / "scoreboard.json"
             campaign = root / "campaign.json"
+            release_candidate = root / "release_candidate.json"
             out = root / "summary.json"
 
             snapshot.write_text(json.dumps({"status": "PASS", "risks": []}), encoding="utf-8")
             trend.write_text(json.dumps({"status": "NEEDS_REVIEW", "trend": {"severity_score": 7}}), encoding="utf-8")
             scoreboard.write_text(json.dumps({"status": "PASS", "moat_public_score": 88.0}), encoding="utf-8")
             campaign.write_text(json.dumps({"status": "NEEDS_REVIEW", "completion_ratio_pct": 55.0}), encoding="utf-8")
+            release_candidate.write_text(
+                json.dumps({"status": "PASS", "release_candidate_score": 86.0, "candidate_decision": "GO"}),
+                encoding="utf-8",
+            )
 
             proc = subprocess.run(
                 [
@@ -72,6 +90,8 @@ class DatasetSnapshotMoatAlignmentV1Tests(unittest.TestCase):
                     str(scoreboard),
                     "--mutation-campaign-tracker-summary",
                     str(campaign),
+                    "--modelica-release-candidate-gate-summary",
+                    str(release_candidate),
                     "--out",
                     str(out),
                 ],

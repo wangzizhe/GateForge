@@ -31,6 +31,9 @@ class DatasetMoatPublicScoreboardV1DemoTests(unittest.TestCase):
             )
             self.assertEqual(payload.get("bundle_status"), "PASS")
             self.assertIn(payload.get("scoreboard_status"), {"PASS", "NEEDS_REVIEW", "FAIL"})
+            self.assertIsNotNone(payload.get("real_model_supply_health_score"))
+            self.assertIsNotNone(payload.get("recipe_execution_coverage_pct"))
+            self.assertIsNotNone(payload.get("release_candidate_score"))
 
 
 if __name__ == "__main__":

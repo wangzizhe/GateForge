@@ -48,6 +48,9 @@ class DatasetMoatPublicScoreboardV1Tests(unittest.TestCase):
             self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
             summary = json.loads(out.read_text(encoding="utf-8"))
             self.assertEqual(summary.get("status"), "PASS")
+            self.assertIn("real_model_supply_health_score", summary.get("score_breakdown", {}))
+            self.assertIn("mutation_recipe_execution_coverage_pct", summary.get("score_breakdown", {}))
+            self.assertIn("release_candidate_score", summary.get("score_breakdown", {}))
 
     def test_scoreboard_needs_review_when_scores_are_low(self) -> None:
         with tempfile.TemporaryDirectory() as d:
