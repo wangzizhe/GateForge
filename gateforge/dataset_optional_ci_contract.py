@@ -145,6 +145,9 @@ def main() -> None:
                 "real_model_intake_portfolio_large_models",
                 "mutation_coverage_depth_status",
                 "mutation_coverage_depth_score",
+                "failure_distribution_stability_status",
+                "failure_distribution_stability_score",
+                "failure_distribution_stability_rare_failure_replay_rate",
             ],
         ),
         (
@@ -181,6 +184,7 @@ def main() -> None:
                 "intake_growth_execution_board_history_trend_status_transition",
                 "real_model_intake_portfolio_status_transition",
                 "mutation_coverage_depth_status_transition",
+                "failure_distribution_stability_status_transition",
                 "status_delta_alert_count",
                 "severity_level",
             ],
@@ -351,6 +355,11 @@ def main() -> None:
             "dataset_mutation_coverage_depth_v1_demo",
             "dataset_mutation_coverage_depth_v1_demo/demo_summary.json",
             ["bundle_status", "coverage_status", "coverage_depth_score", "uncovered_cells_count"],
+        ),
+        (
+            "dataset_failure_distribution_stability_v1_demo",
+            "dataset_failure_distribution_stability_v1_demo/demo_summary.json",
+            ["bundle_status", "stability_status", "stability_score", "rare_failure_replay_rate"],
         ),
         (
             "dataset_modelica_release_candidate_gate_v1_demo",

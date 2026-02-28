@@ -137,6 +137,14 @@ class DatasetGovernanceSnapshotDemoTests(unittest.TestCase):
                 payload.get("mutation_coverage_depth_score"),
                 (int, float, type(None)),
             )
+            self.assertIn(
+                payload.get("failure_distribution_stability_status"),
+                {"PASS", "NEEDS_REVIEW", "FAIL", None},
+            )
+            self.assertIsInstance(
+                payload.get("failure_distribution_stability_score"),
+                (int, float, type(None)),
+            )
 
 
 if __name__ == "__main__":

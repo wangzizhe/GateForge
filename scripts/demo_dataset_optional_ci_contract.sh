@@ -75,6 +75,9 @@ mapping = {
         "real_model_intake_portfolio_large_models": 1,
         "mutation_coverage_depth_status": "PASS",
         "mutation_coverage_depth_score": 91.0,
+        "failure_distribution_stability_status": "PASS",
+        "failure_distribution_stability_score": 83.0,
+        "failure_distribution_stability_rare_failure_replay_rate": 1.0,
     },
     "dataset_governance_snapshot_trend_demo/demo_summary.json": {
         "bundle_status": "PASS",
@@ -107,6 +110,7 @@ mapping = {
         "intake_growth_execution_board_history_trend_status_transition": "PASS->PASS",
         "real_model_intake_portfolio_status_transition": "PASS->PASS",
         "mutation_coverage_depth_status_transition": "PASS->PASS",
+        "failure_distribution_stability_status_transition": "PASS->PASS",
         "status_delta_alert_count": 0,
         "severity_level": "low",
     },
@@ -244,6 +248,12 @@ mapping = {
         "coverage_depth_score": 91.0,
         "uncovered_cells_count": 1,
     },
+    "dataset_failure_distribution_stability_v1_demo/demo_summary.json": {
+        "bundle_status": "PASS",
+        "stability_status": "PASS",
+        "stability_score": 83.0,
+        "rare_failure_replay_rate": 1.0
+    },
     "dataset_modelica_release_candidate_gate_v1_demo/demo_summary.json": {
         "bundle_status": "PASS",
         "release_candidate_status": "PASS",
@@ -328,6 +338,7 @@ else
   bash scripts/demo_dataset_mutation_recipe_execution_audit_v1.sh >/dev/null
   bash scripts/demo_dataset_real_model_intake_portfolio_v1.sh >/dev/null
   bash scripts/demo_dataset_mutation_coverage_depth_v1.sh >/dev/null
+  bash scripts/demo_dataset_failure_distribution_stability_v1.sh >/dev/null
   bash scripts/demo_dataset_modelica_release_candidate_gate_v1.sh >/dev/null
   bash scripts/demo_dataset_intake_growth_advisor_v1.sh >/dev/null
   bash scripts/demo_dataset_intake_growth_advisor_history_v1.sh >/dev/null

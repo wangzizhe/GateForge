@@ -25,7 +25,8 @@ if [ "${GATEFORGE_DEMO_FAST:-0}" = "1" ]; then
     artifacts/dataset_intake_growth_advisor_history_v1_demo artifacts/dataset_intake_growth_advisor_history_trend_v1_demo \
     artifacts/dataset_intake_growth_execution_board_v1_demo artifacts/dataset_intake_growth_execution_board_history_v1_demo \
     artifacts/dataset_intake_growth_execution_board_history_trend_v1_demo \
-    artifacts/dataset_real_model_intake_portfolio_v1_demo artifacts/dataset_mutation_coverage_depth_v1_demo
+    artifacts/dataset_real_model_intake_portfolio_v1_demo artifacts/dataset_mutation_coverage_depth_v1_demo \
+    artifacts/dataset_failure_distribution_stability_v1_demo
   cat > artifacts/dataset_pipeline_demo/summary.json <<'JSON'
 {"bundle_status":"PASS","build_deduplicated_cases":12,"quality_failure_case_rate":0.3}
 JSON
@@ -146,6 +147,9 @@ JSON
   cat > artifacts/dataset_mutation_coverage_depth_v1_demo/summary.json <<'JSON'
 {"status":"PASS","coverage_depth_score":91.0,"uncovered_cells_count":1,"high_risk_gaps_count":0}
 JSON
+  cat > artifacts/dataset_failure_distribution_stability_v1_demo/summary.json <<'JSON'
+{"status":"PASS","stability_score":83.0,"drift_band":"low","rare_failure_replay_rate":1.0,"delta_distribution_drift_score":0.01}
+JSON
 else
   bash scripts/demo_dataset_pipeline.sh >/dev/null
   bash scripts/demo_dataset_history.sh >/dev/null
@@ -188,6 +192,7 @@ else
   bash scripts/demo_dataset_intake_growth_execution_board_history_trend_v1.sh >/dev/null
   bash scripts/demo_dataset_real_model_intake_portfolio_v1.sh >/dev/null
   bash scripts/demo_dataset_mutation_coverage_depth_v1.sh >/dev/null
+  bash scripts/demo_dataset_failure_distribution_stability_v1.sh >/dev/null
 fi
 
 ARGS=(
@@ -291,6 +296,9 @@ fi
 if [ -f artifacts/dataset_mutation_coverage_depth_v1_demo/summary.json ]; then
   ARGS+=(--dataset-mutation-coverage-depth artifacts/dataset_mutation_coverage_depth_v1_demo/summary.json)
 fi
+if [ -f artifacts/dataset_failure_distribution_stability_v1_demo/summary.json ]; then
+  ARGS+=(--dataset-failure-distribution-stability artifacts/dataset_failure_distribution_stability_v1_demo/summary.json)
+fi
 
 python3 -m gateforge.dataset_governance_snapshot \
   "${ARGS[@]}" \
@@ -382,6 +390,9 @@ flags = {
     "mutation_coverage_depth_kpi_present": "PASS"
     if isinstance((payload.get("kpis") or {}).get("dataset_mutation_coverage_depth_status"), (str, type(None)))
     else "FAIL",
+    "failure_distribution_stability_kpi_present": "PASS"
+    if isinstance((payload.get("kpis") or {}).get("dataset_failure_distribution_stability_status"), (str, type(None)))
+    else "FAIL",
 }
 bundle_status = "PASS" if all(v == "PASS" for v in flags.values()) else "FAIL"
 summary = {
@@ -455,6 +466,9 @@ summary = {
     "real_model_intake_portfolio_large_models": (payload.get("kpis") or {}).get("dataset_real_model_intake_portfolio_large_models"),
     "mutation_coverage_depth_status": (payload.get("kpis") or {}).get("dataset_mutation_coverage_depth_status"),
     "mutation_coverage_depth_score": (payload.get("kpis") or {}).get("dataset_mutation_coverage_depth_score"),
+    "failure_distribution_stability_status": (payload.get("kpis") or {}).get("dataset_failure_distribution_stability_status"),
+    "failure_distribution_stability_score": (payload.get("kpis") or {}).get("dataset_failure_distribution_stability_score"),
+    "failure_distribution_stability_rare_failure_replay_rate": (payload.get("kpis") or {}).get("dataset_failure_distribution_stability_rare_failure_replay_rate"),
     "result_flags": flags,
     "bundle_status": bundle_status,
 }
@@ -514,6 +528,9 @@ summary = {
             f"- real_model_intake_portfolio_large_models: `{summary['real_model_intake_portfolio_large_models']}`",
             f"- mutation_coverage_depth_status: `{summary['mutation_coverage_depth_status']}`",
             f"- mutation_coverage_depth_score: `{summary['mutation_coverage_depth_score']}`",
+            f"- failure_distribution_stability_status: `{summary['failure_distribution_stability_status']}`",
+            f"- failure_distribution_stability_score: `{summary['failure_distribution_stability_score']}`",
+            f"- failure_distribution_stability_rare_failure_replay_rate: `{summary['failure_distribution_stability_rare_failure_replay_rate']}`",
             f"- bundle_status: `{summary['bundle_status']}`",
             "",
             "## Result Flags",

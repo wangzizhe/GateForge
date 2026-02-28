@@ -208,6 +208,10 @@ class DatasetGovernanceSnapshotTrendTests(unittest.TestCase):
                 "dataset_mutation_coverage_depth_status_transition",
                 trend.get("status_delta") or {},
             )
+            self.assertIn(
+                "dataset_failure_distribution_stability_status_transition",
+                trend.get("status_delta") or {},
+            )
 
     def test_trend_marks_pass_when_kpis_stable(self) -> None:
         with tempfile.TemporaryDirectory() as d:

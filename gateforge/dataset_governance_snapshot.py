@@ -129,6 +129,8 @@ def _status_from_signals(signals: dict) -> str:
         return "NEEDS_REVIEW"
     if signals.get("dataset_mutation_coverage_depth_needs_review"):
         return "NEEDS_REVIEW"
+    if signals.get("dataset_failure_distribution_stability_needs_review"):
+        return "NEEDS_REVIEW"
     return "PASS"
 
 
@@ -176,6 +178,7 @@ def _compute_summary(
     intake_growth_execution_board_history_trend: dict,
     real_model_intake_portfolio: dict,
     mutation_coverage_depth: dict,
+    failure_distribution_stability: dict,
 ) -> dict:
     strategy_advice = (
         strategy_advisor.get("advice")
@@ -279,6 +282,10 @@ def _compute_summary(
         in {"NEEDS_REVIEW", "FAIL"},
         "dataset_mutation_coverage_depth_needs_review": str(mutation_coverage_depth.get("status") or "")
         in {"NEEDS_REVIEW", "FAIL"},
+        "dataset_failure_distribution_stability_needs_review": str(
+            failure_distribution_stability.get("status") or ""
+        )
+        in {"NEEDS_REVIEW", "FAIL"},
     }
     status = _status_from_signals(signals)
 
@@ -371,6 +378,8 @@ def _compute_summary(
         risks.append("dataset_real_model_intake_portfolio_needs_review")
     if signals["dataset_mutation_coverage_depth_needs_review"]:
         risks.append("dataset_mutation_coverage_depth_needs_review")
+    if signals["dataset_failure_distribution_stability_needs_review"]:
+        risks.append("dataset_failure_distribution_stability_needs_review")
 
     policy_patch_advice = (
         failure_policy_patch_advisor.get("advice")
@@ -610,6 +619,17 @@ def _compute_summary(
         "dataset_mutation_coverage_depth_high_risk_gaps_count": _to_int(
             mutation_coverage_depth.get("high_risk_gaps_count", 0)
         ),
+        "dataset_failure_distribution_stability_status": failure_distribution_stability.get("status"),
+        "dataset_failure_distribution_stability_score": _to_float(
+            failure_distribution_stability.get("stability_score", 0.0)
+        ),
+        "dataset_failure_distribution_stability_drift_band": failure_distribution_stability.get("drift_band"),
+        "dataset_failure_distribution_stability_rare_failure_replay_rate": _to_float(
+            failure_distribution_stability.get("rare_failure_replay_rate", 0.0)
+        ),
+        "dataset_failure_distribution_stability_delta_drift": _to_float(
+            failure_distribution_stability.get("delta_distribution_drift_score", 0.0)
+        ),
     }
     return {
         "status": status,
@@ -747,6 +767,11 @@ def _write_markdown(path: str, summary: dict) -> None:
         f"- dataset_mutation_coverage_depth_score: `{kpis.get('dataset_mutation_coverage_depth_score')}`",
         f"- dataset_mutation_coverage_depth_uncovered_cells_count: `{kpis.get('dataset_mutation_coverage_depth_uncovered_cells_count')}`",
         f"- dataset_mutation_coverage_depth_high_risk_gaps_count: `{kpis.get('dataset_mutation_coverage_depth_high_risk_gaps_count')}`",
+        f"- dataset_failure_distribution_stability_status: `{kpis.get('dataset_failure_distribution_stability_status')}`",
+        f"- dataset_failure_distribution_stability_score: `{kpis.get('dataset_failure_distribution_stability_score')}`",
+        f"- dataset_failure_distribution_stability_drift_band: `{kpis.get('dataset_failure_distribution_stability_drift_band')}`",
+        f"- dataset_failure_distribution_stability_rare_failure_replay_rate: `{kpis.get('dataset_failure_distribution_stability_rare_failure_replay_rate')}`",
+        f"- dataset_failure_distribution_stability_delta_drift: `{kpis.get('dataset_failure_distribution_stability_delta_drift')}`",
         "",
         "## Risks",
         "",
@@ -954,6 +979,11 @@ def main() -> None:
         default=None,
         help="Path to dataset mutation coverage depth summary JSON",
     )
+    parser.add_argument(
+        "--dataset-failure-distribution-stability",
+        default=None,
+        help="Path to dataset failure distribution stability summary JSON",
+    )
     parser.add_argument("--out", default="artifacts/dataset_governance_snapshot/summary.json", help="Output JSON path")
     parser.add_argument("--report", default=None, help="Output markdown path")
     args = parser.parse_args()
@@ -1001,6 +1031,7 @@ def main() -> None:
     intake_growth_execution_board_history_trend = _load_json(args.dataset_intake_growth_execution_board_history_trend)
     real_model_intake_portfolio = _load_json(args.dataset_real_model_intake_portfolio)
     mutation_coverage_depth = _load_json(args.dataset_mutation_coverage_depth)
+    failure_distribution_stability = _load_json(args.dataset_failure_distribution_stability)
 
     summary = _compute_summary(
         dataset_pipeline,
@@ -1046,6 +1077,7 @@ def main() -> None:
         intake_growth_execution_board_history_trend,
         real_model_intake_portfolio,
         mutation_coverage_depth,
+        failure_distribution_stability,
     )
     summary["generated_at_utc"] = datetime.now(timezone.utc).isoformat()
     summary["sources"] = {
@@ -1092,6 +1124,7 @@ def main() -> None:
         "dataset_intake_growth_execution_board_history_trend_path": args.dataset_intake_growth_execution_board_history_trend,
         "dataset_real_model_intake_portfolio_path": args.dataset_real_model_intake_portfolio,
         "dataset_mutation_coverage_depth_path": args.dataset_mutation_coverage_depth,
+        "dataset_failure_distribution_stability_path": args.dataset_failure_distribution_stability,
     }
 
     _write_json(args.out, summary)
