@@ -263,6 +263,14 @@ mapping = {
         "stability_score": 83.0,
         "rare_failure_replay_rate": 1.0
     },
+    "dataset_real_model_growth_trend_v1_demo/demo_summary.json": {
+        "bundle_status": "PASS",
+        "growth_trend_status": "PASS",
+        "growth_velocity_score": 81.0,
+        "trend_band": "accelerating",
+        "delta_total_real_models": 2,
+        "delta_large_models": 1
+    },
     "dataset_moat_anchor_brief_v1_demo/demo_summary.json": {
         "bundle_status": "PASS",
         "anchor_brief_status": "PASS",
@@ -366,6 +374,7 @@ else
   bash scripts/demo_dataset_real_model_intake_portfolio_v1.sh >/dev/null
   bash scripts/demo_dataset_mutation_coverage_depth_v1.sh >/dev/null
   bash scripts/demo_dataset_failure_distribution_stability_v1.sh >/dev/null
+  bash scripts/demo_dataset_real_model_growth_trend_v1.sh >/dev/null
   bash scripts/demo_dataset_moat_anchor_brief_v1.sh >/dev/null
   bash scripts/demo_dataset_moat_anchor_brief_history_v1.sh >/dev/null
   bash scripts/demo_dataset_moat_anchor_brief_history_trend_v1.sh >/dev/null

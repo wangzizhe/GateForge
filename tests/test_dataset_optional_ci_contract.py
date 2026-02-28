@@ -327,6 +327,14 @@ class DatasetOptionalCIContractTests(unittest.TestCase):
                 "stability_score": 83.0,
                 "rare_failure_replay_rate": 1.0,
             },
+            "dataset_real_model_growth_trend_v1_demo/demo_summary.json": {
+                "bundle_status": "PASS",
+                "growth_trend_status": "PASS",
+                "growth_velocity_score": 81.0,
+                "trend_band": "accelerating",
+                "delta_total_real_models": 2,
+                "delta_large_models": 1,
+            },
             "dataset_moat_anchor_brief_v1_demo/demo_summary.json": {
                 "bundle_status": "PASS",
                 "anchor_brief_status": "PASS",
