@@ -70,6 +70,11 @@ mapping = {
         "intake_growth_execution_board_execution_score": 84.0,
         "intake_growth_execution_board_history_status": "PASS",
         "intake_growth_execution_board_history_trend_status": "PASS",
+        "real_model_intake_portfolio_status": "PASS",
+        "real_model_intake_portfolio_total_real_models": 4,
+        "real_model_intake_portfolio_large_models": 1,
+        "mutation_coverage_depth_status": "PASS",
+        "mutation_coverage_depth_score": 91.0,
     },
     "dataset_governance_snapshot_trend_demo/demo_summary.json": {
         "bundle_status": "PASS",
@@ -100,6 +105,8 @@ mapping = {
         "intake_growth_execution_board_status_transition": "PASS->PASS",
         "intake_growth_execution_board_history_status_transition": "PASS->PASS",
         "intake_growth_execution_board_history_trend_status_transition": "PASS->PASS",
+        "real_model_intake_portfolio_status_transition": "PASS->PASS",
+        "mutation_coverage_depth_status_transition": "PASS->PASS",
         "status_delta_alert_count": 0,
         "severity_level": "low",
     },
@@ -225,6 +232,18 @@ mapping = {
         "audit_status": "PASS",
         "execution_coverage_pct": 81.0,
     },
+    "dataset_real_model_intake_portfolio_v1_demo/demo_summary.json": {
+        "bundle_status": "PASS",
+        "portfolio_status": "PASS",
+        "total_real_models": 4,
+        "large_models": 1,
+    },
+    "dataset_mutation_coverage_depth_v1_demo/demo_summary.json": {
+        "bundle_status": "PASS",
+        "coverage_status": "PASS",
+        "coverage_depth_score": 91.0,
+        "uncovered_cells_count": 1,
+    },
     "dataset_modelica_release_candidate_gate_v1_demo/demo_summary.json": {
         "bundle_status": "PASS",
         "release_candidate_status": "PASS",
@@ -307,6 +326,8 @@ else
   bash scripts/demo_dataset_modelica_moat_readiness_gate_v1.sh >/dev/null
   bash scripts/demo_dataset_real_model_supply_health_v1.sh >/dev/null
   bash scripts/demo_dataset_mutation_recipe_execution_audit_v1.sh >/dev/null
+  bash scripts/demo_dataset_real_model_intake_portfolio_v1.sh >/dev/null
+  bash scripts/demo_dataset_mutation_coverage_depth_v1.sh >/dev/null
   bash scripts/demo_dataset_modelica_release_candidate_gate_v1.sh >/dev/null
   bash scripts/demo_dataset_intake_growth_advisor_v1.sh >/dev/null
   bash scripts/demo_dataset_intake_growth_advisor_history_v1.sh >/dev/null

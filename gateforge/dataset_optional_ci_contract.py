@@ -140,6 +140,11 @@ def main() -> None:
                 "intake_growth_execution_board_execution_score",
                 "intake_growth_execution_board_history_status",
                 "intake_growth_execution_board_history_trend_status",
+                "real_model_intake_portfolio_status",
+                "real_model_intake_portfolio_total_real_models",
+                "real_model_intake_portfolio_large_models",
+                "mutation_coverage_depth_status",
+                "mutation_coverage_depth_score",
             ],
         ),
         (
@@ -174,6 +179,8 @@ def main() -> None:
                 "intake_growth_execution_board_status_transition",
                 "intake_growth_execution_board_history_status_transition",
                 "intake_growth_execution_board_history_trend_status_transition",
+                "real_model_intake_portfolio_status_transition",
+                "mutation_coverage_depth_status_transition",
                 "status_delta_alert_count",
                 "severity_level",
             ],
@@ -334,6 +341,16 @@ def main() -> None:
             "dataset_mutation_recipe_execution_audit_v1_demo",
             "dataset_mutation_recipe_execution_audit_v1_demo/demo_summary.json",
             ["bundle_status", "audit_status", "execution_coverage_pct"],
+        ),
+        (
+            "dataset_real_model_intake_portfolio_v1_demo",
+            "dataset_real_model_intake_portfolio_v1_demo/demo_summary.json",
+            ["bundle_status", "portfolio_status", "total_real_models", "large_models"],
+        ),
+        (
+            "dataset_mutation_coverage_depth_v1_demo",
+            "dataset_mutation_coverage_depth_v1_demo/demo_summary.json",
+            ["bundle_status", "coverage_status", "coverage_depth_score", "uncovered_cells_count"],
         ),
         (
             "dataset_modelica_release_candidate_gate_v1_demo",
