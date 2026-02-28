@@ -727,6 +727,42 @@ class DatasetGovernanceSnapshotTests(unittest.TestCase):
             self.assertIn("dataset_real_model_intake_portfolio_needs_review", payload.get("risks", []))
             self.assertIn("dataset_mutation_coverage_depth_needs_review", payload.get("risks", []))
 
+    def test_snapshot_needs_review_on_failure_distribution_stability(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            stability = root / "stability.json"
+            out = root / "snapshot.json"
+            stability.write_text(
+                json.dumps(
+                    {
+                        "status": "NEEDS_REVIEW",
+                        "stability_score": 68.0,
+                        "drift_band": "medium",
+                        "rare_failure_replay_rate": 0.25,
+                        "delta_distribution_drift_score": 0.12,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.dataset_governance_snapshot",
+                    "--dataset-failure-distribution-stability",
+                    str(stability),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            payload = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(payload.get("status"), "NEEDS_REVIEW")
+            self.assertIn("dataset_failure_distribution_stability_needs_review", payload.get("risks", []))
+
 
 if __name__ == "__main__":
     unittest.main()

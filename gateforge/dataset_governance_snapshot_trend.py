@@ -151,6 +151,10 @@ def _compute_trend(current: dict, previous: dict) -> dict:
         f"{previous_kpis.get('dataset_mutation_coverage_depth_status')}->"
         f"{current_kpis.get('dataset_mutation_coverage_depth_status')}"
     )
+    failure_distribution_stability_transition = (
+        f"{previous_kpis.get('dataset_failure_distribution_stability_status')}->"
+        f"{current_kpis.get('dataset_failure_distribution_stability_status')}"
+    )
     status_delta_alerts: list[str] = []
     if trend_status_transition in {"PASS->NEEDS_REVIEW", "PASS->FAIL", "NEEDS_REVIEW->FAIL"}:
         status_delta_alerts.append("promotion_effectiveness_history_trend_worsened")
@@ -214,6 +218,8 @@ def _compute_trend(current: dict, previous: dict) -> dict:
         status_delta_alerts.append("real_model_intake_portfolio_worsened")
     if mutation_coverage_depth_transition in {"PASS->NEEDS_REVIEW", "PASS->FAIL", "NEEDS_REVIEW->FAIL"}:
         status_delta_alerts.append("mutation_coverage_depth_worsened")
+    if failure_distribution_stability_transition in {"PASS->NEEDS_REVIEW", "PASS->FAIL", "NEEDS_REVIEW->FAIL"}:
+        status_delta_alerts.append("failure_distribution_stability_worsened")
 
     status_transition = f"{previous_status}->{current_status}"
     new_risks = sorted(current_risks - previous_risks)
@@ -266,6 +272,7 @@ def _compute_trend(current: dict, previous: dict) -> dict:
             "dataset_intake_growth_execution_board_history_trend_status_transition": intake_growth_execution_board_history_trend_transition,
             "dataset_real_model_intake_portfolio_status_transition": real_model_intake_portfolio_transition,
             "dataset_mutation_coverage_depth_status_transition": mutation_coverage_depth_transition,
+            "dataset_failure_distribution_stability_status_transition": failure_distribution_stability_transition,
             "alerts": status_delta_alerts,
         },
         "kpi_delta": {
@@ -537,6 +544,21 @@ def _compute_trend(current: dict, previous: dict) -> dict:
             "dataset_mutation_coverage_depth_uncovered_cells_count_delta": round(
                 _to_float(current_kpis.get("dataset_mutation_coverage_depth_uncovered_cells_count"))
                 - _to_float(previous_kpis.get("dataset_mutation_coverage_depth_uncovered_cells_count")),
+                4,
+            ),
+            "dataset_failure_distribution_stability_score_delta": round(
+                _to_float(current_kpis.get("dataset_failure_distribution_stability_score"))
+                - _to_float(previous_kpis.get("dataset_failure_distribution_stability_score")),
+                4,
+            ),
+            "dataset_failure_distribution_stability_rare_failure_replay_rate_delta": round(
+                _to_float(current_kpis.get("dataset_failure_distribution_stability_rare_failure_replay_rate"))
+                - _to_float(previous_kpis.get("dataset_failure_distribution_stability_rare_failure_replay_rate")),
+                4,
+            ),
+            "dataset_failure_distribution_stability_delta_drift_delta": round(
+                _to_float(current_kpis.get("dataset_failure_distribution_stability_delta_drift"))
+                - _to_float(previous_kpis.get("dataset_failure_distribution_stability_delta_drift")),
                 4,
             ),
         },
