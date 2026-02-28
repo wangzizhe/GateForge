@@ -84,6 +84,12 @@ mapping = {
         "moat_anchor_brief_history_status": "PASS",
         "moat_anchor_brief_history_publish_rate": 0.75,
         "moat_anchor_brief_history_trend_status": "PASS",
+        "real_model_supply_pipeline_status": "PASS",
+        "real_model_supply_pipeline_score": 84.0,
+        "real_model_supply_pipeline_new_models_30d": 2,
+        "mutation_coverage_matrix_status": "PASS",
+        "mutation_coverage_matrix_score": 83.0,
+        "mutation_coverage_matrix_high_risk_uncovered_cells": 1,
     },
     "dataset_governance_snapshot_trend_demo/demo_summary.json": {
         "bundle_status": "PASS",
@@ -120,6 +126,8 @@ mapping = {
         "moat_anchor_brief_status_transition": "PASS->PASS",
         "moat_anchor_brief_history_status_transition": "PASS->PASS",
         "moat_anchor_brief_history_trend_status_transition": "PASS->PASS",
+        "real_model_supply_pipeline_status_transition": "PASS->PASS",
+        "mutation_coverage_matrix_status_transition": "PASS->PASS",
         "status_delta_alert_count": 0,
         "severity_level": "low",
     },
@@ -263,6 +271,21 @@ mapping = {
         "stability_score": 83.0,
         "rare_failure_replay_rate": 1.0
     },
+    "dataset_real_model_supply_pipeline_v1_demo/demo_summary.json": {
+        "bundle_status": "PASS",
+        "supply_pipeline_status": "PASS",
+        "supply_pipeline_score": 84.0,
+        "new_models_30d": 2,
+        "large_model_candidates_30d": 1,
+        "license_blockers": 0
+    },
+    "dataset_mutation_coverage_matrix_v2_demo/demo_summary.json": {
+        "bundle_status": "PASS",
+        "matrix_status": "PASS",
+        "matrix_coverage_score": 83.0,
+        "total_matrix_cells": 12,
+        "high_risk_uncovered_cells": 1
+    },
     "dataset_real_model_growth_trend_v1_demo/demo_summary.json": {
         "bundle_status": "PASS",
         "growth_trend_status": "PASS",
@@ -374,6 +397,8 @@ else
   bash scripts/demo_dataset_real_model_intake_portfolio_v1.sh >/dev/null
   bash scripts/demo_dataset_mutation_coverage_depth_v1.sh >/dev/null
   bash scripts/demo_dataset_failure_distribution_stability_v1.sh >/dev/null
+  bash scripts/demo_dataset_real_model_supply_pipeline_v1.sh >/dev/null
+  bash scripts/demo_dataset_mutation_coverage_matrix_v2.sh >/dev/null
   bash scripts/demo_dataset_real_model_growth_trend_v1.sh >/dev/null
   bash scripts/demo_dataset_moat_anchor_brief_v1.sh >/dev/null
   bash scripts/demo_dataset_moat_anchor_brief_history_v1.sh >/dev/null

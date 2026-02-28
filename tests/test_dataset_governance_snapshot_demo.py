@@ -161,6 +161,22 @@ class DatasetGovernanceSnapshotDemoTests(unittest.TestCase):
                 payload.get("moat_anchor_brief_history_trend_status"),
                 {"PASS", "NEEDS_REVIEW", "FAIL", None},
             )
+            self.assertIn(
+                payload.get("real_model_supply_pipeline_status"),
+                {"PASS", "NEEDS_REVIEW", "FAIL", None},
+            )
+            self.assertIsInstance(
+                payload.get("real_model_supply_pipeline_score"),
+                (int, float, type(None)),
+            )
+            self.assertIn(
+                payload.get("mutation_coverage_matrix_status"),
+                {"PASS", "NEEDS_REVIEW", "FAIL", None},
+            )
+            self.assertIsInstance(
+                payload.get("mutation_coverage_matrix_score"),
+                (int, float, type(None)),
+            )
 
 
 if __name__ == "__main__":
