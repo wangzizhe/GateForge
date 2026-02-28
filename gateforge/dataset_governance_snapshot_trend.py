@@ -155,6 +155,14 @@ def _compute_trend(current: dict, previous: dict) -> dict:
         f"{previous_kpis.get('dataset_failure_distribution_stability_status')}->"
         f"{current_kpis.get('dataset_failure_distribution_stability_status')}"
     )
+    failure_distribution_stability_history_transition = (
+        f"{previous_kpis.get('dataset_failure_distribution_stability_history_status')}->"
+        f"{current_kpis.get('dataset_failure_distribution_stability_history_status')}"
+    )
+    failure_distribution_stability_history_trend_transition = (
+        f"{previous_kpis.get('dataset_failure_distribution_stability_history_trend_status')}->"
+        f"{current_kpis.get('dataset_failure_distribution_stability_history_trend_status')}"
+    )
     moat_anchor_brief_transition = (
         f"{previous_kpis.get('dataset_moat_anchor_brief_status')}->"
         f"{current_kpis.get('dataset_moat_anchor_brief_status')}"
@@ -240,6 +248,14 @@ def _compute_trend(current: dict, previous: dict) -> dict:
         status_delta_alerts.append("mutation_coverage_depth_worsened")
     if failure_distribution_stability_transition in {"PASS->NEEDS_REVIEW", "PASS->FAIL", "NEEDS_REVIEW->FAIL"}:
         status_delta_alerts.append("failure_distribution_stability_worsened")
+    if failure_distribution_stability_history_transition in {"PASS->NEEDS_REVIEW", "PASS->FAIL", "NEEDS_REVIEW->FAIL"}:
+        status_delta_alerts.append("failure_distribution_stability_history_worsened")
+    if failure_distribution_stability_history_trend_transition in {
+        "PASS->NEEDS_REVIEW",
+        "PASS->FAIL",
+        "NEEDS_REVIEW->FAIL",
+    }:
+        status_delta_alerts.append("failure_distribution_stability_history_trend_worsened")
     if moat_anchor_brief_transition in {"PASS->NEEDS_REVIEW", "PASS->FAIL", "NEEDS_REVIEW->FAIL"}:
         status_delta_alerts.append("moat_anchor_brief_worsened")
     if moat_anchor_brief_history_transition in {"PASS->NEEDS_REVIEW", "PASS->FAIL", "NEEDS_REVIEW->FAIL"}:
@@ -303,6 +319,8 @@ def _compute_trend(current: dict, previous: dict) -> dict:
             "dataset_real_model_intake_portfolio_status_transition": real_model_intake_portfolio_transition,
             "dataset_mutation_coverage_depth_status_transition": mutation_coverage_depth_transition,
             "dataset_failure_distribution_stability_status_transition": failure_distribution_stability_transition,
+            "dataset_failure_distribution_stability_history_status_transition": failure_distribution_stability_history_transition,
+            "dataset_failure_distribution_stability_history_trend_status_transition": failure_distribution_stability_history_trend_transition,
             "dataset_moat_anchor_brief_status_transition": moat_anchor_brief_transition,
             "dataset_moat_anchor_brief_history_status_transition": moat_anchor_brief_history_transition,
             "dataset_moat_anchor_brief_history_trend_status_transition": moat_anchor_brief_history_trend_transition,
@@ -594,6 +612,16 @@ def _compute_trend(current: dict, previous: dict) -> dict:
             "dataset_failure_distribution_stability_delta_drift_delta": round(
                 _to_float(current_kpis.get("dataset_failure_distribution_stability_delta_drift"))
                 - _to_float(previous_kpis.get("dataset_failure_distribution_stability_delta_drift")),
+                4,
+            ),
+            "dataset_failure_distribution_stability_history_avg_stability_score_delta": round(
+                _to_float(current_kpis.get("dataset_failure_distribution_stability_history_avg_stability_score"))
+                - _to_float(previous_kpis.get("dataset_failure_distribution_stability_history_avg_stability_score")),
+                4,
+            ),
+            "dataset_failure_distribution_stability_history_avg_rare_failure_replay_rate_delta": round(
+                _to_float(current_kpis.get("dataset_failure_distribution_stability_history_avg_rare_failure_replay_rate"))
+                - _to_float(previous_kpis.get("dataset_failure_distribution_stability_history_avg_rare_failure_replay_rate")),
                 4,
             ),
             "dataset_moat_anchor_brief_score_delta": round(

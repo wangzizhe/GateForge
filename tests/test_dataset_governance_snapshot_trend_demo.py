@@ -57,6 +57,8 @@ class DatasetGovernanceSnapshotTrendDemoTests(unittest.TestCase):
             self.assertIn("->", str(payload.get("real_model_intake_portfolio_status_transition")))
             self.assertIn("->", str(payload.get("mutation_coverage_depth_status_transition")))
             self.assertIn("->", str(payload.get("failure_distribution_stability_status_transition")))
+            self.assertIn("->", str(payload.get("failure_distribution_stability_history_status_transition")))
+            self.assertIn("->", str(payload.get("failure_distribution_stability_history_trend_status_transition")))
             self.assertIn("->", str(payload.get("moat_anchor_brief_status_transition")))
             self.assertIn("->", str(payload.get("moat_anchor_brief_history_status_transition")))
             self.assertIn("->", str(payload.get("moat_anchor_brief_history_trend_status_transition")))

@@ -78,6 +78,9 @@ mapping = {
         "failure_distribution_stability_status": "PASS",
         "failure_distribution_stability_score": 83.0,
         "failure_distribution_stability_rare_failure_replay_rate": 1.0,
+        "failure_distribution_stability_history_status": "PASS",
+        "failure_distribution_stability_history_avg_stability_score": 80.0,
+        "failure_distribution_stability_history_trend_status": "PASS",
         "moat_anchor_brief_status": "PASS",
         "moat_anchor_brief_score": 82.0,
         "moat_anchor_brief_recommendation": "PUBLISH",
@@ -123,6 +126,8 @@ mapping = {
         "real_model_intake_portfolio_status_transition": "PASS->PASS",
         "mutation_coverage_depth_status_transition": "PASS->PASS",
         "failure_distribution_stability_status_transition": "PASS->PASS",
+        "failure_distribution_stability_history_status_transition": "PASS->PASS",
+        "failure_distribution_stability_history_trend_status_transition": "PASS->PASS",
         "moat_anchor_brief_status_transition": "PASS->PASS",
         "moat_anchor_brief_history_status_transition": "PASS->PASS",
         "moat_anchor_brief_history_trend_status_transition": "PASS->PASS",
@@ -271,6 +276,17 @@ mapping = {
         "stability_score": 83.0,
         "rare_failure_replay_rate": 1.0
     },
+    "dataset_failure_distribution_stability_history_v1_demo/demo_summary.json": {
+        "bundle_status": "PASS",
+        "history_status": "PASS",
+        "total_records": 4,
+        "avg_stability_score": 80.0
+    },
+    "dataset_failure_distribution_stability_history_trend_v1_demo/demo_summary.json": {
+        "bundle_status": "PASS",
+        "trend_status": "PASS",
+        "status_transition": "PASS->PASS"
+    },
     "dataset_real_model_supply_pipeline_v1_demo/demo_summary.json": {
         "bundle_status": "PASS",
         "supply_pipeline_status": "PASS",
@@ -397,6 +413,8 @@ else
   bash scripts/demo_dataset_real_model_intake_portfolio_v1.sh >/dev/null
   bash scripts/demo_dataset_mutation_coverage_depth_v1.sh >/dev/null
   bash scripts/demo_dataset_failure_distribution_stability_v1.sh >/dev/null
+  bash scripts/demo_dataset_failure_distribution_stability_history_v1.sh >/dev/null
+  bash scripts/demo_dataset_failure_distribution_stability_history_trend_v1.sh >/dev/null
   bash scripts/demo_dataset_real_model_supply_pipeline_v1.sh >/dev/null
   bash scripts/demo_dataset_mutation_coverage_matrix_v2.sh >/dev/null
   bash scripts/demo_dataset_real_model_growth_trend_v1.sh >/dev/null
