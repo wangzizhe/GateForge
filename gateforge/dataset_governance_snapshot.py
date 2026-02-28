@@ -131,6 +131,12 @@ def _status_from_signals(signals: dict) -> str:
         return "NEEDS_REVIEW"
     if signals.get("dataset_failure_distribution_stability_needs_review"):
         return "NEEDS_REVIEW"
+    if signals.get("dataset_moat_anchor_brief_needs_review"):
+        return "NEEDS_REVIEW"
+    if signals.get("dataset_moat_anchor_brief_history_needs_review"):
+        return "NEEDS_REVIEW"
+    if signals.get("dataset_moat_anchor_brief_history_trend_needs_review"):
+        return "NEEDS_REVIEW"
     return "PASS"
 
 
@@ -179,6 +185,9 @@ def _compute_summary(
     real_model_intake_portfolio: dict,
     mutation_coverage_depth: dict,
     failure_distribution_stability: dict,
+    moat_anchor_brief: dict,
+    moat_anchor_brief_history: dict,
+    moat_anchor_brief_history_trend: dict,
 ) -> dict:
     strategy_advice = (
         strategy_advisor.get("advice")
@@ -286,6 +295,13 @@ def _compute_summary(
             failure_distribution_stability.get("status") or ""
         )
         in {"NEEDS_REVIEW", "FAIL"},
+        "dataset_moat_anchor_brief_needs_review": str(moat_anchor_brief.get("status") or "") in {"NEEDS_REVIEW", "FAIL"},
+        "dataset_moat_anchor_brief_history_needs_review": str(moat_anchor_brief_history.get("status") or "")
+        in {"NEEDS_REVIEW", "FAIL"},
+        "dataset_moat_anchor_brief_history_trend_needs_review": str(
+            moat_anchor_brief_history_trend.get("status") or ""
+        )
+        in {"NEEDS_REVIEW", "FAIL"},
     }
     status = _status_from_signals(signals)
 
@@ -380,6 +396,12 @@ def _compute_summary(
         risks.append("dataset_mutation_coverage_depth_needs_review")
     if signals["dataset_failure_distribution_stability_needs_review"]:
         risks.append("dataset_failure_distribution_stability_needs_review")
+    if signals["dataset_moat_anchor_brief_needs_review"]:
+        risks.append("dataset_moat_anchor_brief_needs_review")
+    if signals["dataset_moat_anchor_brief_history_needs_review"]:
+        risks.append("dataset_moat_anchor_brief_history_needs_review")
+    if signals["dataset_moat_anchor_brief_history_trend_needs_review"]:
+        risks.append("dataset_moat_anchor_brief_history_trend_needs_review")
 
     policy_patch_advice = (
         failure_policy_patch_advisor.get("advice")
@@ -630,6 +652,20 @@ def _compute_summary(
         "dataset_failure_distribution_stability_delta_drift": _to_float(
             failure_distribution_stability.get("delta_distribution_drift_score", 0.0)
         ),
+        "dataset_moat_anchor_brief_status": moat_anchor_brief.get("status"),
+        "dataset_moat_anchor_brief_score": _to_float(moat_anchor_brief.get("anchor_brief_score", 0.0)),
+        "dataset_moat_anchor_brief_recommendation": moat_anchor_brief.get("recommendation"),
+        "dataset_moat_anchor_brief_confidence_band": moat_anchor_brief.get("confidence_band"),
+        "dataset_moat_anchor_brief_history_status": moat_anchor_brief_history.get("status"),
+        "dataset_moat_anchor_brief_history_total_records": _to_int(moat_anchor_brief_history.get("total_records", 0)),
+        "dataset_moat_anchor_brief_history_publish_rate": _to_float(moat_anchor_brief_history.get("publish_rate", 0.0)),
+        "dataset_moat_anchor_brief_history_latest_recommendation": moat_anchor_brief_history.get("latest_recommendation"),
+        "dataset_moat_anchor_brief_history_trend_status": moat_anchor_brief_history_trend.get("status"),
+        "dataset_moat_anchor_brief_history_trend_status_transition": (
+            (moat_anchor_brief_history_trend.get("trend") or {}).get("status_transition")
+            if isinstance(moat_anchor_brief_history_trend.get("trend"), dict)
+            else None
+        ),
     }
     return {
         "status": status,
@@ -772,6 +808,16 @@ def _write_markdown(path: str, summary: dict) -> None:
         f"- dataset_failure_distribution_stability_drift_band: `{kpis.get('dataset_failure_distribution_stability_drift_band')}`",
         f"- dataset_failure_distribution_stability_rare_failure_replay_rate: `{kpis.get('dataset_failure_distribution_stability_rare_failure_replay_rate')}`",
         f"- dataset_failure_distribution_stability_delta_drift: `{kpis.get('dataset_failure_distribution_stability_delta_drift')}`",
+        f"- dataset_moat_anchor_brief_status: `{kpis.get('dataset_moat_anchor_brief_status')}`",
+        f"- dataset_moat_anchor_brief_score: `{kpis.get('dataset_moat_anchor_brief_score')}`",
+        f"- dataset_moat_anchor_brief_recommendation: `{kpis.get('dataset_moat_anchor_brief_recommendation')}`",
+        f"- dataset_moat_anchor_brief_confidence_band: `{kpis.get('dataset_moat_anchor_brief_confidence_band')}`",
+        f"- dataset_moat_anchor_brief_history_status: `{kpis.get('dataset_moat_anchor_brief_history_status')}`",
+        f"- dataset_moat_anchor_brief_history_total_records: `{kpis.get('dataset_moat_anchor_brief_history_total_records')}`",
+        f"- dataset_moat_anchor_brief_history_publish_rate: `{kpis.get('dataset_moat_anchor_brief_history_publish_rate')}`",
+        f"- dataset_moat_anchor_brief_history_latest_recommendation: `{kpis.get('dataset_moat_anchor_brief_history_latest_recommendation')}`",
+        f"- dataset_moat_anchor_brief_history_trend_status: `{kpis.get('dataset_moat_anchor_brief_history_trend_status')}`",
+        f"- dataset_moat_anchor_brief_history_trend_status_transition: `{kpis.get('dataset_moat_anchor_brief_history_trend_status_transition')}`",
         "",
         "## Risks",
         "",
@@ -984,6 +1030,21 @@ def main() -> None:
         default=None,
         help="Path to dataset failure distribution stability summary JSON",
     )
+    parser.add_argument(
+        "--dataset-moat-anchor-brief",
+        default=None,
+        help="Path to dataset moat anchor brief summary JSON",
+    )
+    parser.add_argument(
+        "--dataset-moat-anchor-brief-history",
+        default=None,
+        help="Path to dataset moat anchor brief history summary JSON",
+    )
+    parser.add_argument(
+        "--dataset-moat-anchor-brief-history-trend",
+        default=None,
+        help="Path to dataset moat anchor brief history trend summary JSON",
+    )
     parser.add_argument("--out", default="artifacts/dataset_governance_snapshot/summary.json", help="Output JSON path")
     parser.add_argument("--report", default=None, help="Output markdown path")
     args = parser.parse_args()
@@ -1032,6 +1093,9 @@ def main() -> None:
     real_model_intake_portfolio = _load_json(args.dataset_real_model_intake_portfolio)
     mutation_coverage_depth = _load_json(args.dataset_mutation_coverage_depth)
     failure_distribution_stability = _load_json(args.dataset_failure_distribution_stability)
+    moat_anchor_brief = _load_json(args.dataset_moat_anchor_brief)
+    moat_anchor_brief_history = _load_json(args.dataset_moat_anchor_brief_history)
+    moat_anchor_brief_history_trend = _load_json(args.dataset_moat_anchor_brief_history_trend)
 
     summary = _compute_summary(
         dataset_pipeline,
@@ -1078,6 +1142,9 @@ def main() -> None:
         real_model_intake_portfolio,
         mutation_coverage_depth,
         failure_distribution_stability,
+        moat_anchor_brief,
+        moat_anchor_brief_history,
+        moat_anchor_brief_history_trend,
     )
     summary["generated_at_utc"] = datetime.now(timezone.utc).isoformat()
     summary["sources"] = {
@@ -1125,6 +1192,9 @@ def main() -> None:
         "dataset_real_model_intake_portfolio_path": args.dataset_real_model_intake_portfolio,
         "dataset_mutation_coverage_depth_path": args.dataset_mutation_coverage_depth,
         "dataset_failure_distribution_stability_path": args.dataset_failure_distribution_stability,
+        "dataset_moat_anchor_brief_path": args.dataset_moat_anchor_brief,
+        "dataset_moat_anchor_brief_history_path": args.dataset_moat_anchor_brief_history,
+        "dataset_moat_anchor_brief_history_trend_path": args.dataset_moat_anchor_brief_history_trend,
     }
 
     _write_json(args.out, summary)

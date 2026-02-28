@@ -763,6 +763,48 @@ class DatasetGovernanceSnapshotTests(unittest.TestCase):
             self.assertEqual(payload.get("status"), "NEEDS_REVIEW")
             self.assertIn("dataset_failure_distribution_stability_needs_review", payload.get("risks", []))
 
+    def test_snapshot_needs_review_on_moat_anchor_brief_chain(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            anchor = root / "anchor.json"
+            history = root / "history.json"
+            trend = root / "trend.json"
+            out = root / "snapshot.json"
+            anchor.write_text(
+                json.dumps({"status": "NEEDS_REVIEW", "anchor_brief_score": 68.0, "recommendation": "PUBLISH_WITH_GUARDS"}),
+                encoding="utf-8",
+            )
+            history.write_text(
+                json.dumps({"status": "PASS", "total_records": 4, "publish_rate": 0.75, "latest_recommendation": "PUBLISH"}),
+                encoding="utf-8",
+            )
+            trend.write_text(
+                json.dumps({"status": "PASS", "trend": {"status_transition": "PASS->PASS"}}),
+                encoding="utf-8",
+            )
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.dataset_governance_snapshot",
+                    "--dataset-moat-anchor-brief",
+                    str(anchor),
+                    "--dataset-moat-anchor-brief-history",
+                    str(history),
+                    "--dataset-moat-anchor-brief-history-trend",
+                    str(trend),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            payload = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(payload.get("status"), "NEEDS_REVIEW")
+            self.assertIn("dataset_moat_anchor_brief_needs_review", payload.get("risks", []))
+
 
 if __name__ == "__main__":
     unittest.main()

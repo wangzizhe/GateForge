@@ -78,6 +78,12 @@ mapping = {
         "failure_distribution_stability_status": "PASS",
         "failure_distribution_stability_score": 83.0,
         "failure_distribution_stability_rare_failure_replay_rate": 1.0,
+        "moat_anchor_brief_status": "PASS",
+        "moat_anchor_brief_score": 82.0,
+        "moat_anchor_brief_recommendation": "PUBLISH",
+        "moat_anchor_brief_history_status": "PASS",
+        "moat_anchor_brief_history_publish_rate": 0.75,
+        "moat_anchor_brief_history_trend_status": "PASS",
     },
     "dataset_governance_snapshot_trend_demo/demo_summary.json": {
         "bundle_status": "PASS",
@@ -111,6 +117,9 @@ mapping = {
         "real_model_intake_portfolio_status_transition": "PASS->PASS",
         "mutation_coverage_depth_status_transition": "PASS->PASS",
         "failure_distribution_stability_status_transition": "PASS->PASS",
+        "moat_anchor_brief_status_transition": "PASS->PASS",
+        "moat_anchor_brief_history_status_transition": "PASS->PASS",
+        "moat_anchor_brief_history_trend_status_transition": "PASS->PASS",
         "status_delta_alert_count": 0,
         "severity_level": "low",
     },
@@ -254,6 +263,24 @@ mapping = {
         "stability_score": 83.0,
         "rare_failure_replay_rate": 1.0
     },
+    "dataset_moat_anchor_brief_v1_demo/demo_summary.json": {
+        "bundle_status": "PASS",
+        "anchor_brief_status": "PASS",
+        "anchor_brief_score": 82.0,
+        "recommendation": "PUBLISH"
+    },
+    "dataset_moat_anchor_brief_history_v1_demo/demo_summary.json": {
+        "bundle_status": "PASS",
+        "history_status": "PASS",
+        "total_records": 4,
+        "avg_anchor_brief_score": 79.0
+    },
+    "dataset_moat_anchor_brief_history_trend_v1_demo/demo_summary.json": {
+        "bundle_status": "PASS",
+        "trend_status": "PASS",
+        "status_transition": "PASS->PASS",
+        "recommendation_transition": "PUBLISH->PUBLISH"
+    },
     "dataset_modelica_release_candidate_gate_v1_demo/demo_summary.json": {
         "bundle_status": "PASS",
         "release_candidate_status": "PASS",
@@ -339,6 +366,9 @@ else
   bash scripts/demo_dataset_real_model_intake_portfolio_v1.sh >/dev/null
   bash scripts/demo_dataset_mutation_coverage_depth_v1.sh >/dev/null
   bash scripts/demo_dataset_failure_distribution_stability_v1.sh >/dev/null
+  bash scripts/demo_dataset_moat_anchor_brief_v1.sh >/dev/null
+  bash scripts/demo_dataset_moat_anchor_brief_history_v1.sh >/dev/null
+  bash scripts/demo_dataset_moat_anchor_brief_history_trend_v1.sh >/dev/null
   bash scripts/demo_dataset_modelica_release_candidate_gate_v1.sh >/dev/null
   bash scripts/demo_dataset_intake_growth_advisor_v1.sh >/dev/null
   bash scripts/demo_dataset_intake_growth_advisor_history_v1.sh >/dev/null

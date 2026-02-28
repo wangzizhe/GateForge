@@ -96,6 +96,12 @@ cat > "$OUT_DIR/previous_summary.json" <<'JSON'
     "dataset_failure_distribution_stability_score": 82.0,
     "dataset_failure_distribution_stability_rare_failure_replay_rate": 1.0,
     "dataset_failure_distribution_stability_delta_drift": 0.01,
+    "dataset_moat_anchor_brief_status": "PASS",
+    "dataset_moat_anchor_brief_score": 79.0,
+    "dataset_moat_anchor_brief_history_status": "PASS",
+    "dataset_moat_anchor_brief_history_total_records": 3,
+    "dataset_moat_anchor_brief_history_publish_rate": 0.67,
+    "dataset_moat_anchor_brief_history_trend_status": "PASS",
     "dataset_promotion_effectiveness_history_trend_status": "PASS",
     "dataset_promotion_effectiveness_history_latest_decision": "KEEP"
   }
@@ -211,6 +217,15 @@ demo = {
     "failure_distribution_stability_status_transition": (trend.get("status_delta") or {}).get(
         "dataset_failure_distribution_stability_status_transition"
     ),
+    "moat_anchor_brief_status_transition": (trend.get("status_delta") or {}).get(
+        "dataset_moat_anchor_brief_status_transition"
+    ),
+    "moat_anchor_brief_history_status_transition": (trend.get("status_delta") or {}).get(
+        "dataset_moat_anchor_brief_history_status_transition"
+    ),
+    "moat_anchor_brief_history_trend_status_transition": (trend.get("status_delta") or {}).get(
+        "dataset_moat_anchor_brief_history_trend_status_transition"
+    ),
     "status_delta_alert_count": len((trend.get("status_delta") or {}).get("alerts") or []),
     "result_flags": flags,
     "bundle_status": bundle_status,
@@ -253,6 +268,9 @@ demo = {
             f"- real_model_intake_portfolio_status_transition: `{demo['real_model_intake_portfolio_status_transition']}`",
             f"- mutation_coverage_depth_status_transition: `{demo['mutation_coverage_depth_status_transition']}`",
             f"- failure_distribution_stability_status_transition: `{demo['failure_distribution_stability_status_transition']}`",
+            f"- moat_anchor_brief_status_transition: `{demo['moat_anchor_brief_status_transition']}`",
+            f"- moat_anchor_brief_history_status_transition: `{demo['moat_anchor_brief_history_status_transition']}`",
+            f"- moat_anchor_brief_history_trend_status_transition: `{demo['moat_anchor_brief_history_trend_status_transition']}`",
             f"- status_delta_alert_count: `{demo['status_delta_alert_count']}`",
             f"- bundle_status: `{demo['bundle_status']}`",
             "",
