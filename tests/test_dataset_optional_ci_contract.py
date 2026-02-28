@@ -392,6 +392,12 @@ class DatasetOptionalCIContractTests(unittest.TestCase):
                 "status_transition": "PASS->PASS",
                 "recommendation_transition": "PUBLISH->PUBLISH",
             },
+            "dataset_moat_evidence_page_v2_demo/demo_summary.json": {
+                "bundle_status": "PASS",
+                "evidence_status": "PASS",
+                "publishable": True,
+                "evidence_score": 82.0,
+            },
             "dataset_modelica_release_candidate_gate_v1_demo/demo_summary.json": {
                 "bundle_status": "PASS",
                 "release_candidate_status": "PASS",

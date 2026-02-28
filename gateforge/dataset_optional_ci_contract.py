@@ -444,6 +444,11 @@ def main() -> None:
             ["bundle_status", "trend_status", "status_transition", "recommendation_transition"],
         ),
         (
+            "dataset_moat_evidence_page_v2_demo",
+            "dataset_moat_evidence_page_v2_demo/demo_summary.json",
+            ["bundle_status", "evidence_status", "publishable", "evidence_score"],
+        ),
+        (
             "dataset_modelica_release_candidate_gate_v1_demo",
             "dataset_modelica_release_candidate_gate_v1_demo/demo_summary.json",
             ["bundle_status", "release_candidate_status", "candidate_decision"],

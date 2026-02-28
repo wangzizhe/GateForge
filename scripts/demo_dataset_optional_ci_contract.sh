@@ -328,6 +328,12 @@ mapping = {
         "status_transition": "PASS->PASS",
         "recommendation_transition": "PUBLISH->PUBLISH"
     },
+    "dataset_moat_evidence_page_v2_demo/demo_summary.json": {
+        "bundle_status": "PASS",
+        "evidence_status": "PASS",
+        "publishable": True,
+        "evidence_score": 82.0
+    },
     "dataset_modelica_release_candidate_gate_v1_demo/demo_summary.json": {
         "bundle_status": "PASS",
         "release_candidate_status": "PASS",
@@ -421,6 +427,7 @@ else
   bash scripts/demo_dataset_moat_anchor_brief_v1.sh >/dev/null
   bash scripts/demo_dataset_moat_anchor_brief_history_v1.sh >/dev/null
   bash scripts/demo_dataset_moat_anchor_brief_history_trend_v1.sh >/dev/null
+  bash scripts/demo_dataset_moat_evidence_page_v2.sh >/dev/null
   bash scripts/demo_dataset_modelica_release_candidate_gate_v1.sh >/dev/null
   bash scripts/demo_dataset_intake_growth_advisor_v1.sh >/dev/null
   bash scripts/demo_dataset_intake_growth_advisor_history_v1.sh >/dev/null
