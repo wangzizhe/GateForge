@@ -146,6 +146,18 @@ class DatasetGovernanceSnapshotDemoTests(unittest.TestCase):
                 (int, float, type(None)),
             )
             self.assertIn(
+                payload.get("failure_distribution_stability_history_status"),
+                {"PASS", "NEEDS_REVIEW", "FAIL", None},
+            )
+            self.assertIsInstance(
+                payload.get("failure_distribution_stability_history_avg_stability_score"),
+                (int, float, type(None)),
+            )
+            self.assertIn(
+                payload.get("failure_distribution_stability_history_trend_status"),
+                {"PASS", "NEEDS_REVIEW", "FAIL", None},
+            )
+            self.assertIn(
                 payload.get("moat_anchor_brief_status"),
                 {"PASS", "NEEDS_REVIEW", "FAIL", None},
             )

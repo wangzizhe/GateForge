@@ -213,6 +213,14 @@ class DatasetGovernanceSnapshotTrendTests(unittest.TestCase):
                 trend.get("status_delta") or {},
             )
             self.assertIn(
+                "dataset_failure_distribution_stability_history_status_transition",
+                trend.get("status_delta") or {},
+            )
+            self.assertIn(
+                "dataset_failure_distribution_stability_history_trend_status_transition",
+                trend.get("status_delta") or {},
+            )
+            self.assertIn(
                 "dataset_moat_anchor_brief_status_transition",
                 trend.get("status_delta") or {},
             )

@@ -841,6 +841,41 @@ class DatasetGovernanceSnapshotTests(unittest.TestCase):
             self.assertIn("dataset_real_model_supply_pipeline_needs_review", payload.get("risks", []))
             self.assertIn("dataset_mutation_coverage_matrix_needs_review", payload.get("risks", []))
 
+    def test_snapshot_needs_review_on_stability_history_chain(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            history = root / "history.json"
+            trend = root / "trend.json"
+            out = root / "snapshot.json"
+            history.write_text(
+                json.dumps({"status": "NEEDS_REVIEW", "total_records": 4, "avg_stability_score": 72.0}),
+                encoding="utf-8",
+            )
+            trend.write_text(
+                json.dumps({"status": "NEEDS_REVIEW", "trend": {"status_transition": "PASS->NEEDS_REVIEW"}}),
+                encoding="utf-8",
+            )
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.dataset_governance_snapshot",
+                    "--dataset-failure-distribution-stability-history",
+                    str(history),
+                    "--dataset-failure-distribution-stability-history-trend",
+                    str(trend),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            payload = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(payload.get("status"), "NEEDS_REVIEW")
+            self.assertIn("dataset_failure_distribution_stability_history_needs_review", payload.get("risks", []))
+
 
 if __name__ == "__main__":
     unittest.main()
