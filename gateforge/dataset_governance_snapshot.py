@@ -137,6 +137,10 @@ def _status_from_signals(signals: dict) -> str:
         return "NEEDS_REVIEW"
     if signals.get("dataset_moat_anchor_brief_history_trend_needs_review"):
         return "NEEDS_REVIEW"
+    if signals.get("dataset_real_model_supply_pipeline_needs_review"):
+        return "NEEDS_REVIEW"
+    if signals.get("dataset_mutation_coverage_matrix_needs_review"):
+        return "NEEDS_REVIEW"
     return "PASS"
 
 
@@ -188,6 +192,8 @@ def _compute_summary(
     moat_anchor_brief: dict,
     moat_anchor_brief_history: dict,
     moat_anchor_brief_history_trend: dict,
+    real_model_supply_pipeline: dict,
+    mutation_coverage_matrix: dict,
 ) -> dict:
     strategy_advice = (
         strategy_advisor.get("advice")
@@ -302,6 +308,10 @@ def _compute_summary(
             moat_anchor_brief_history_trend.get("status") or ""
         )
         in {"NEEDS_REVIEW", "FAIL"},
+        "dataset_real_model_supply_pipeline_needs_review": str(real_model_supply_pipeline.get("status") or "")
+        in {"NEEDS_REVIEW", "FAIL"},
+        "dataset_mutation_coverage_matrix_needs_review": str(mutation_coverage_matrix.get("status") or "")
+        in {"NEEDS_REVIEW", "FAIL"},
     }
     status = _status_from_signals(signals)
 
@@ -402,6 +412,10 @@ def _compute_summary(
         risks.append("dataset_moat_anchor_brief_history_needs_review")
     if signals["dataset_moat_anchor_brief_history_trend_needs_review"]:
         risks.append("dataset_moat_anchor_brief_history_trend_needs_review")
+    if signals["dataset_real_model_supply_pipeline_needs_review"]:
+        risks.append("dataset_real_model_supply_pipeline_needs_review")
+    if signals["dataset_mutation_coverage_matrix_needs_review"]:
+        risks.append("dataset_mutation_coverage_matrix_needs_review")
 
     policy_patch_advice = (
         failure_policy_patch_advisor.get("advice")
@@ -666,6 +680,19 @@ def _compute_summary(
             if isinstance(moat_anchor_brief_history_trend.get("trend"), dict)
             else None
         ),
+        "dataset_real_model_supply_pipeline_status": real_model_supply_pipeline.get("status"),
+        "dataset_real_model_supply_pipeline_score": _to_float(real_model_supply_pipeline.get("supply_pipeline_score", 0.0)),
+        "dataset_real_model_supply_pipeline_new_models_30d": _to_int(real_model_supply_pipeline.get("new_models_30d", 0)),
+        "dataset_real_model_supply_pipeline_large_model_candidates_30d": _to_int(
+            real_model_supply_pipeline.get("large_model_candidates_30d", 0)
+        ),
+        "dataset_real_model_supply_pipeline_license_blockers": _to_int(real_model_supply_pipeline.get("license_blockers", 0)),
+        "dataset_mutation_coverage_matrix_status": mutation_coverage_matrix.get("status"),
+        "dataset_mutation_coverage_matrix_score": _to_float(mutation_coverage_matrix.get("matrix_coverage_score", 0.0)),
+        "dataset_mutation_coverage_matrix_total_cells": _to_int(mutation_coverage_matrix.get("total_matrix_cells", 0)),
+        "dataset_mutation_coverage_matrix_high_risk_uncovered_cells": _to_int(
+            mutation_coverage_matrix.get("high_risk_uncovered_cells", 0)
+        ),
     }
     return {
         "status": status,
@@ -818,6 +845,15 @@ def _write_markdown(path: str, summary: dict) -> None:
         f"- dataset_moat_anchor_brief_history_latest_recommendation: `{kpis.get('dataset_moat_anchor_brief_history_latest_recommendation')}`",
         f"- dataset_moat_anchor_brief_history_trend_status: `{kpis.get('dataset_moat_anchor_brief_history_trend_status')}`",
         f"- dataset_moat_anchor_brief_history_trend_status_transition: `{kpis.get('dataset_moat_anchor_brief_history_trend_status_transition')}`",
+        f"- dataset_real_model_supply_pipeline_status: `{kpis.get('dataset_real_model_supply_pipeline_status')}`",
+        f"- dataset_real_model_supply_pipeline_score: `{kpis.get('dataset_real_model_supply_pipeline_score')}`",
+        f"- dataset_real_model_supply_pipeline_new_models_30d: `{kpis.get('dataset_real_model_supply_pipeline_new_models_30d')}`",
+        f"- dataset_real_model_supply_pipeline_large_model_candidates_30d: `{kpis.get('dataset_real_model_supply_pipeline_large_model_candidates_30d')}`",
+        f"- dataset_real_model_supply_pipeline_license_blockers: `{kpis.get('dataset_real_model_supply_pipeline_license_blockers')}`",
+        f"- dataset_mutation_coverage_matrix_status: `{kpis.get('dataset_mutation_coverage_matrix_status')}`",
+        f"- dataset_mutation_coverage_matrix_score: `{kpis.get('dataset_mutation_coverage_matrix_score')}`",
+        f"- dataset_mutation_coverage_matrix_total_cells: `{kpis.get('dataset_mutation_coverage_matrix_total_cells')}`",
+        f"- dataset_mutation_coverage_matrix_high_risk_uncovered_cells: `{kpis.get('dataset_mutation_coverage_matrix_high_risk_uncovered_cells')}`",
         "",
         "## Risks",
         "",
@@ -1045,6 +1081,16 @@ def main() -> None:
         default=None,
         help="Path to dataset moat anchor brief history trend summary JSON",
     )
+    parser.add_argument(
+        "--dataset-real-model-supply-pipeline",
+        default=None,
+        help="Path to dataset real model supply pipeline summary JSON",
+    )
+    parser.add_argument(
+        "--dataset-mutation-coverage-matrix",
+        default=None,
+        help="Path to dataset mutation coverage matrix summary JSON",
+    )
     parser.add_argument("--out", default="artifacts/dataset_governance_snapshot/summary.json", help="Output JSON path")
     parser.add_argument("--report", default=None, help="Output markdown path")
     args = parser.parse_args()
@@ -1096,6 +1142,8 @@ def main() -> None:
     moat_anchor_brief = _load_json(args.dataset_moat_anchor_brief)
     moat_anchor_brief_history = _load_json(args.dataset_moat_anchor_brief_history)
     moat_anchor_brief_history_trend = _load_json(args.dataset_moat_anchor_brief_history_trend)
+    real_model_supply_pipeline = _load_json(args.dataset_real_model_supply_pipeline)
+    mutation_coverage_matrix = _load_json(args.dataset_mutation_coverage_matrix)
 
     summary = _compute_summary(
         dataset_pipeline,
@@ -1145,6 +1193,8 @@ def main() -> None:
         moat_anchor_brief,
         moat_anchor_brief_history,
         moat_anchor_brief_history_trend,
+        real_model_supply_pipeline,
+        mutation_coverage_matrix,
     )
     summary["generated_at_utc"] = datetime.now(timezone.utc).isoformat()
     summary["sources"] = {
@@ -1195,6 +1245,8 @@ def main() -> None:
         "dataset_moat_anchor_brief_path": args.dataset_moat_anchor_brief,
         "dataset_moat_anchor_brief_history_path": args.dataset_moat_anchor_brief_history,
         "dataset_moat_anchor_brief_history_trend_path": args.dataset_moat_anchor_brief_history_trend,
+        "dataset_real_model_supply_pipeline_path": args.dataset_real_model_supply_pipeline,
+        "dataset_mutation_coverage_matrix_path": args.dataset_mutation_coverage_matrix,
     }
 
     _write_json(args.out, summary)

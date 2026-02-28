@@ -167,6 +167,14 @@ def _compute_trend(current: dict, previous: dict) -> dict:
         f"{previous_kpis.get('dataset_moat_anchor_brief_history_trend_status')}->"
         f"{current_kpis.get('dataset_moat_anchor_brief_history_trend_status')}"
     )
+    real_model_supply_pipeline_transition = (
+        f"{previous_kpis.get('dataset_real_model_supply_pipeline_status')}->"
+        f"{current_kpis.get('dataset_real_model_supply_pipeline_status')}"
+    )
+    mutation_coverage_matrix_transition = (
+        f"{previous_kpis.get('dataset_mutation_coverage_matrix_status')}->"
+        f"{current_kpis.get('dataset_mutation_coverage_matrix_status')}"
+    )
     status_delta_alerts: list[str] = []
     if trend_status_transition in {"PASS->NEEDS_REVIEW", "PASS->FAIL", "NEEDS_REVIEW->FAIL"}:
         status_delta_alerts.append("promotion_effectiveness_history_trend_worsened")
@@ -238,6 +246,10 @@ def _compute_trend(current: dict, previous: dict) -> dict:
         status_delta_alerts.append("moat_anchor_brief_history_worsened")
     if moat_anchor_brief_history_trend_transition in {"PASS->NEEDS_REVIEW", "PASS->FAIL", "NEEDS_REVIEW->FAIL"}:
         status_delta_alerts.append("moat_anchor_brief_history_trend_worsened")
+    if real_model_supply_pipeline_transition in {"PASS->NEEDS_REVIEW", "PASS->FAIL", "NEEDS_REVIEW->FAIL"}:
+        status_delta_alerts.append("real_model_supply_pipeline_worsened")
+    if mutation_coverage_matrix_transition in {"PASS->NEEDS_REVIEW", "PASS->FAIL", "NEEDS_REVIEW->FAIL"}:
+        status_delta_alerts.append("mutation_coverage_matrix_worsened")
 
     status_transition = f"{previous_status}->{current_status}"
     new_risks = sorted(current_risks - previous_risks)
@@ -294,6 +306,8 @@ def _compute_trend(current: dict, previous: dict) -> dict:
             "dataset_moat_anchor_brief_status_transition": moat_anchor_brief_transition,
             "dataset_moat_anchor_brief_history_status_transition": moat_anchor_brief_history_transition,
             "dataset_moat_anchor_brief_history_trend_status_transition": moat_anchor_brief_history_trend_transition,
+            "dataset_real_model_supply_pipeline_status_transition": real_model_supply_pipeline_transition,
+            "dataset_mutation_coverage_matrix_status_transition": mutation_coverage_matrix_transition,
             "alerts": status_delta_alerts,
         },
         "kpi_delta": {
@@ -595,6 +609,26 @@ def _compute_trend(current: dict, previous: dict) -> dict:
             "dataset_moat_anchor_brief_history_total_records_delta": round(
                 _to_float(current_kpis.get("dataset_moat_anchor_brief_history_total_records"))
                 - _to_float(previous_kpis.get("dataset_moat_anchor_brief_history_total_records")),
+                4,
+            ),
+            "dataset_real_model_supply_pipeline_score_delta": round(
+                _to_float(current_kpis.get("dataset_real_model_supply_pipeline_score"))
+                - _to_float(previous_kpis.get("dataset_real_model_supply_pipeline_score")),
+                4,
+            ),
+            "dataset_real_model_supply_pipeline_new_models_30d_delta": round(
+                _to_float(current_kpis.get("dataset_real_model_supply_pipeline_new_models_30d"))
+                - _to_float(previous_kpis.get("dataset_real_model_supply_pipeline_new_models_30d")),
+                4,
+            ),
+            "dataset_mutation_coverage_matrix_score_delta": round(
+                _to_float(current_kpis.get("dataset_mutation_coverage_matrix_score"))
+                - _to_float(previous_kpis.get("dataset_mutation_coverage_matrix_score")),
+                4,
+            ),
+            "dataset_mutation_coverage_matrix_high_risk_uncovered_cells_delta": round(
+                _to_float(current_kpis.get("dataset_mutation_coverage_matrix_high_risk_uncovered_cells"))
+                - _to_float(previous_kpis.get("dataset_mutation_coverage_matrix_high_risk_uncovered_cells")),
                 4,
             ),
         },

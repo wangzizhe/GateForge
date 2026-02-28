@@ -28,7 +28,8 @@ if [ "${GATEFORGE_DEMO_FAST:-0}" = "1" ]; then
     artifacts/dataset_real_model_intake_portfolio_v1_demo artifacts/dataset_mutation_coverage_depth_v1_demo \
     artifacts/dataset_failure_distribution_stability_v1_demo \
     artifacts/dataset_moat_anchor_brief_v1_demo artifacts/dataset_moat_anchor_brief_history_v1_demo \
-    artifacts/dataset_moat_anchor_brief_history_trend_v1_demo
+    artifacts/dataset_moat_anchor_brief_history_trend_v1_demo \
+    artifacts/dataset_real_model_supply_pipeline_v1_demo artifacts/dataset_mutation_coverage_matrix_v2_demo
   cat > artifacts/dataset_pipeline_demo/summary.json <<'JSON'
 {"bundle_status":"PASS","build_deduplicated_cases":12,"quality_failure_case_rate":0.3}
 JSON
@@ -161,6 +162,12 @@ JSON
   cat > artifacts/dataset_moat_anchor_brief_history_trend_v1_demo/summary.json <<'JSON'
 {"status":"PASS","trend":{"status_transition":"PASS->PASS","recommendation_transition":"PUBLISH->PUBLISH","delta_avg_anchor_brief_score":1.2,"delta_publish_rate":0.05}}
 JSON
+  cat > artifacts/dataset_real_model_supply_pipeline_v1_demo/summary.json <<'JSON'
+{"status":"PASS","supply_pipeline_score":84.0,"new_models_30d":2,"large_model_candidates_30d":1,"license_blockers":0}
+JSON
+  cat > artifacts/dataset_mutation_coverage_matrix_v2_demo/summary.json <<'JSON'
+{"status":"PASS","matrix_coverage_score":83.0,"total_matrix_cells":12,"high_risk_uncovered_cells":1}
+JSON
 else
   bash scripts/demo_dataset_pipeline.sh >/dev/null
   bash scripts/demo_dataset_history.sh >/dev/null
@@ -207,6 +214,8 @@ else
   bash scripts/demo_dataset_moat_anchor_brief_v1.sh >/dev/null
   bash scripts/demo_dataset_moat_anchor_brief_history_v1.sh >/dev/null
   bash scripts/demo_dataset_moat_anchor_brief_history_trend_v1.sh >/dev/null
+  bash scripts/demo_dataset_real_model_supply_pipeline_v1.sh >/dev/null
+  bash scripts/demo_dataset_mutation_coverage_matrix_v2.sh >/dev/null
 fi
 
 ARGS=(
@@ -322,6 +331,12 @@ fi
 if [ -f artifacts/dataset_moat_anchor_brief_history_trend_v1_demo/summary.json ]; then
   ARGS+=(--dataset-moat-anchor-brief-history-trend artifacts/dataset_moat_anchor_brief_history_trend_v1_demo/summary.json)
 fi
+if [ -f artifacts/dataset_real_model_supply_pipeline_v1_demo/summary.json ]; then
+  ARGS+=(--dataset-real-model-supply-pipeline artifacts/dataset_real_model_supply_pipeline_v1_demo/summary.json)
+fi
+if [ -f artifacts/dataset_mutation_coverage_matrix_v2_demo/summary.json ]; then
+  ARGS+=(--dataset-mutation-coverage-matrix artifacts/dataset_mutation_coverage_matrix_v2_demo/summary.json)
+fi
 
 python3 -m gateforge.dataset_governance_snapshot \
   "${ARGS[@]}" \
@@ -425,6 +440,12 @@ flags = {
     "moat_anchor_brief_history_trend_kpi_present": "PASS"
     if isinstance((payload.get("kpis") or {}).get("dataset_moat_anchor_brief_history_trend_status"), (str, type(None)))
     else "FAIL",
+    "real_model_supply_pipeline_kpi_present": "PASS"
+    if isinstance((payload.get("kpis") or {}).get("dataset_real_model_supply_pipeline_status"), (str, type(None)))
+    else "FAIL",
+    "mutation_coverage_matrix_kpi_present": "PASS"
+    if isinstance((payload.get("kpis") or {}).get("dataset_mutation_coverage_matrix_status"), (str, type(None)))
+    else "FAIL",
 }
 bundle_status = "PASS" if all(v == "PASS" for v in flags.values()) else "FAIL"
 summary = {
@@ -507,6 +528,12 @@ summary = {
     "moat_anchor_brief_history_status": (payload.get("kpis") or {}).get("dataset_moat_anchor_brief_history_status"),
     "moat_anchor_brief_history_publish_rate": (payload.get("kpis") or {}).get("dataset_moat_anchor_brief_history_publish_rate"),
     "moat_anchor_brief_history_trend_status": (payload.get("kpis") or {}).get("dataset_moat_anchor_brief_history_trend_status"),
+    "real_model_supply_pipeline_status": (payload.get("kpis") or {}).get("dataset_real_model_supply_pipeline_status"),
+    "real_model_supply_pipeline_score": (payload.get("kpis") or {}).get("dataset_real_model_supply_pipeline_score"),
+    "real_model_supply_pipeline_new_models_30d": (payload.get("kpis") or {}).get("dataset_real_model_supply_pipeline_new_models_30d"),
+    "mutation_coverage_matrix_status": (payload.get("kpis") or {}).get("dataset_mutation_coverage_matrix_status"),
+    "mutation_coverage_matrix_score": (payload.get("kpis") or {}).get("dataset_mutation_coverage_matrix_score"),
+    "mutation_coverage_matrix_high_risk_uncovered_cells": (payload.get("kpis") or {}).get("dataset_mutation_coverage_matrix_high_risk_uncovered_cells"),
     "result_flags": flags,
     "bundle_status": bundle_status,
 }
@@ -575,6 +602,12 @@ summary = {
             f"- moat_anchor_brief_history_status: `{summary['moat_anchor_brief_history_status']}`",
             f"- moat_anchor_brief_history_publish_rate: `{summary['moat_anchor_brief_history_publish_rate']}`",
             f"- moat_anchor_brief_history_trend_status: `{summary['moat_anchor_brief_history_trend_status']}`",
+            f"- real_model_supply_pipeline_status: `{summary['real_model_supply_pipeline_status']}`",
+            f"- real_model_supply_pipeline_score: `{summary['real_model_supply_pipeline_score']}`",
+            f"- real_model_supply_pipeline_new_models_30d: `{summary['real_model_supply_pipeline_new_models_30d']}`",
+            f"- mutation_coverage_matrix_status: `{summary['mutation_coverage_matrix_status']}`",
+            f"- mutation_coverage_matrix_score: `{summary['mutation_coverage_matrix_score']}`",
+            f"- mutation_coverage_matrix_high_risk_uncovered_cells: `{summary['mutation_coverage_matrix_high_risk_uncovered_cells']}`",
             f"- bundle_status: `{summary['bundle_status']}`",
             "",
             "## Result Flags",

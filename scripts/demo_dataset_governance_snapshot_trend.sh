@@ -102,6 +102,12 @@ cat > "$OUT_DIR/previous_summary.json" <<'JSON'
     "dataset_moat_anchor_brief_history_total_records": 3,
     "dataset_moat_anchor_brief_history_publish_rate": 0.67,
     "dataset_moat_anchor_brief_history_trend_status": "PASS",
+    "dataset_real_model_supply_pipeline_status": "PASS",
+    "dataset_real_model_supply_pipeline_score": 80.0,
+    "dataset_real_model_supply_pipeline_new_models_30d": 1,
+    "dataset_mutation_coverage_matrix_status": "PASS",
+    "dataset_mutation_coverage_matrix_score": 81.0,
+    "dataset_mutation_coverage_matrix_high_risk_uncovered_cells": 1,
     "dataset_promotion_effectiveness_history_trend_status": "PASS",
     "dataset_promotion_effectiveness_history_latest_decision": "KEEP"
   }
@@ -226,6 +232,12 @@ demo = {
     "moat_anchor_brief_history_trend_status_transition": (trend.get("status_delta") or {}).get(
         "dataset_moat_anchor_brief_history_trend_status_transition"
     ),
+    "real_model_supply_pipeline_status_transition": (trend.get("status_delta") or {}).get(
+        "dataset_real_model_supply_pipeline_status_transition"
+    ),
+    "mutation_coverage_matrix_status_transition": (trend.get("status_delta") or {}).get(
+        "dataset_mutation_coverage_matrix_status_transition"
+    ),
     "status_delta_alert_count": len((trend.get("status_delta") or {}).get("alerts") or []),
     "result_flags": flags,
     "bundle_status": bundle_status,
@@ -271,6 +283,8 @@ demo = {
             f"- moat_anchor_brief_status_transition: `{demo['moat_anchor_brief_status_transition']}`",
             f"- moat_anchor_brief_history_status_transition: `{demo['moat_anchor_brief_history_status_transition']}`",
             f"- moat_anchor_brief_history_trend_status_transition: `{demo['moat_anchor_brief_history_trend_status_transition']}`",
+            f"- real_model_supply_pipeline_status_transition: `{demo['real_model_supply_pipeline_status_transition']}`",
+            f"- mutation_coverage_matrix_status_transition: `{demo['mutation_coverage_matrix_status_transition']}`",
             f"- status_delta_alert_count: `{demo['status_delta_alert_count']}`",
             f"- bundle_status: `{demo['bundle_status']}`",
             "",

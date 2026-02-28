@@ -60,6 +60,8 @@ class DatasetGovernanceSnapshotTrendDemoTests(unittest.TestCase):
             self.assertIn("->", str(payload.get("moat_anchor_brief_status_transition")))
             self.assertIn("->", str(payload.get("moat_anchor_brief_history_status_transition")))
             self.assertIn("->", str(payload.get("moat_anchor_brief_history_trend_status_transition")))
+            self.assertIn("->", str(payload.get("real_model_supply_pipeline_status_transition")))
+            self.assertIn("->", str(payload.get("mutation_coverage_matrix_status_transition")))
             self.assertIsInstance(payload.get("status_delta_alert_count"), int)
             self.assertIsInstance(payload.get("severity_score"), int)
             self.assertIn(payload.get("severity_level"), {"low", "medium", "high"})

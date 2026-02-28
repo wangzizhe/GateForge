@@ -805,6 +805,42 @@ class DatasetGovernanceSnapshotTests(unittest.TestCase):
             self.assertEqual(payload.get("status"), "NEEDS_REVIEW")
             self.assertIn("dataset_moat_anchor_brief_needs_review", payload.get("risks", []))
 
+    def test_snapshot_needs_review_on_supply_pipeline_and_matrix(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            supply = root / "supply.json"
+            matrix = root / "matrix.json"
+            out = root / "snapshot.json"
+            supply.write_text(
+                json.dumps({"status": "NEEDS_REVIEW", "supply_pipeline_score": 61.0, "new_models_30d": 0}),
+                encoding="utf-8",
+            )
+            matrix.write_text(
+                json.dumps({"status": "NEEDS_REVIEW", "matrix_coverage_score": 70.0, "high_risk_uncovered_cells": 3}),
+                encoding="utf-8",
+            )
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.dataset_governance_snapshot",
+                    "--dataset-real-model-supply-pipeline",
+                    str(supply),
+                    "--dataset-mutation-coverage-matrix",
+                    str(matrix),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            payload = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(payload.get("status"), "NEEDS_REVIEW")
+            self.assertIn("dataset_real_model_supply_pipeline_needs_review", payload.get("risks", []))
+            self.assertIn("dataset_mutation_coverage_matrix_needs_review", payload.get("risks", []))
+
 
 if __name__ == "__main__":
     unittest.main()
