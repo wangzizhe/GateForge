@@ -26,7 +26,9 @@ if [ "${GATEFORGE_DEMO_FAST:-0}" = "1" ]; then
     artifacts/dataset_intake_growth_execution_board_v1_demo artifacts/dataset_intake_growth_execution_board_history_v1_demo \
     artifacts/dataset_intake_growth_execution_board_history_trend_v1_demo \
     artifacts/dataset_real_model_intake_portfolio_v1_demo artifacts/dataset_mutation_coverage_depth_v1_demo \
-    artifacts/dataset_failure_distribution_stability_v1_demo
+    artifacts/dataset_failure_distribution_stability_v1_demo \
+    artifacts/dataset_moat_anchor_brief_v1_demo artifacts/dataset_moat_anchor_brief_history_v1_demo \
+    artifacts/dataset_moat_anchor_brief_history_trend_v1_demo
   cat > artifacts/dataset_pipeline_demo/summary.json <<'JSON'
 {"bundle_status":"PASS","build_deduplicated_cases":12,"quality_failure_case_rate":0.3}
 JSON
@@ -150,6 +152,15 @@ JSON
   cat > artifacts/dataset_failure_distribution_stability_v1_demo/summary.json <<'JSON'
 {"status":"PASS","stability_score":83.0,"drift_band":"low","rare_failure_replay_rate":1.0,"delta_distribution_drift_score":0.01}
 JSON
+  cat > artifacts/dataset_moat_anchor_brief_v1_demo/summary.json <<'JSON'
+{"status":"PASS","anchor_brief_score":82.0,"recommendation":"PUBLISH","confidence_band":"high"}
+JSON
+  cat > artifacts/dataset_moat_anchor_brief_history_v1_demo/summary.json <<'JSON'
+{"status":"PASS","total_records":4,"publish_rate":0.75,"latest_recommendation":"PUBLISH"}
+JSON
+  cat > artifacts/dataset_moat_anchor_brief_history_trend_v1_demo/summary.json <<'JSON'
+{"status":"PASS","trend":{"status_transition":"PASS->PASS","recommendation_transition":"PUBLISH->PUBLISH","delta_avg_anchor_brief_score":1.2,"delta_publish_rate":0.05}}
+JSON
 else
   bash scripts/demo_dataset_pipeline.sh >/dev/null
   bash scripts/demo_dataset_history.sh >/dev/null
@@ -193,6 +204,9 @@ else
   bash scripts/demo_dataset_real_model_intake_portfolio_v1.sh >/dev/null
   bash scripts/demo_dataset_mutation_coverage_depth_v1.sh >/dev/null
   bash scripts/demo_dataset_failure_distribution_stability_v1.sh >/dev/null
+  bash scripts/demo_dataset_moat_anchor_brief_v1.sh >/dev/null
+  bash scripts/demo_dataset_moat_anchor_brief_history_v1.sh >/dev/null
+  bash scripts/demo_dataset_moat_anchor_brief_history_trend_v1.sh >/dev/null
 fi
 
 ARGS=(
@@ -299,6 +313,15 @@ fi
 if [ -f artifacts/dataset_failure_distribution_stability_v1_demo/summary.json ]; then
   ARGS+=(--dataset-failure-distribution-stability artifacts/dataset_failure_distribution_stability_v1_demo/summary.json)
 fi
+if [ -f artifacts/dataset_moat_anchor_brief_v1_demo/summary.json ]; then
+  ARGS+=(--dataset-moat-anchor-brief artifacts/dataset_moat_anchor_brief_v1_demo/summary.json)
+fi
+if [ -f artifacts/dataset_moat_anchor_brief_history_v1_demo/summary.json ]; then
+  ARGS+=(--dataset-moat-anchor-brief-history artifacts/dataset_moat_anchor_brief_history_v1_demo/summary.json)
+fi
+if [ -f artifacts/dataset_moat_anchor_brief_history_trend_v1_demo/summary.json ]; then
+  ARGS+=(--dataset-moat-anchor-brief-history-trend artifacts/dataset_moat_anchor_brief_history_trend_v1_demo/summary.json)
+fi
 
 python3 -m gateforge.dataset_governance_snapshot \
   "${ARGS[@]}" \
@@ -393,6 +416,15 @@ flags = {
     "failure_distribution_stability_kpi_present": "PASS"
     if isinstance((payload.get("kpis") or {}).get("dataset_failure_distribution_stability_status"), (str, type(None)))
     else "FAIL",
+    "moat_anchor_brief_kpi_present": "PASS"
+    if isinstance((payload.get("kpis") or {}).get("dataset_moat_anchor_brief_status"), (str, type(None)))
+    else "FAIL",
+    "moat_anchor_brief_history_kpi_present": "PASS"
+    if isinstance((payload.get("kpis") or {}).get("dataset_moat_anchor_brief_history_status"), (str, type(None)))
+    else "FAIL",
+    "moat_anchor_brief_history_trend_kpi_present": "PASS"
+    if isinstance((payload.get("kpis") or {}).get("dataset_moat_anchor_brief_history_trend_status"), (str, type(None)))
+    else "FAIL",
 }
 bundle_status = "PASS" if all(v == "PASS" for v in flags.values()) else "FAIL"
 summary = {
@@ -469,6 +501,12 @@ summary = {
     "failure_distribution_stability_status": (payload.get("kpis") or {}).get("dataset_failure_distribution_stability_status"),
     "failure_distribution_stability_score": (payload.get("kpis") or {}).get("dataset_failure_distribution_stability_score"),
     "failure_distribution_stability_rare_failure_replay_rate": (payload.get("kpis") or {}).get("dataset_failure_distribution_stability_rare_failure_replay_rate"),
+    "moat_anchor_brief_status": (payload.get("kpis") or {}).get("dataset_moat_anchor_brief_status"),
+    "moat_anchor_brief_score": (payload.get("kpis") or {}).get("dataset_moat_anchor_brief_score"),
+    "moat_anchor_brief_recommendation": (payload.get("kpis") or {}).get("dataset_moat_anchor_brief_recommendation"),
+    "moat_anchor_brief_history_status": (payload.get("kpis") or {}).get("dataset_moat_anchor_brief_history_status"),
+    "moat_anchor_brief_history_publish_rate": (payload.get("kpis") or {}).get("dataset_moat_anchor_brief_history_publish_rate"),
+    "moat_anchor_brief_history_trend_status": (payload.get("kpis") or {}).get("dataset_moat_anchor_brief_history_trend_status"),
     "result_flags": flags,
     "bundle_status": bundle_status,
 }
@@ -531,6 +569,12 @@ summary = {
             f"- failure_distribution_stability_status: `{summary['failure_distribution_stability_status']}`",
             f"- failure_distribution_stability_score: `{summary['failure_distribution_stability_score']}`",
             f"- failure_distribution_stability_rare_failure_replay_rate: `{summary['failure_distribution_stability_rare_failure_replay_rate']}`",
+            f"- moat_anchor_brief_status: `{summary['moat_anchor_brief_status']}`",
+            f"- moat_anchor_brief_score: `{summary['moat_anchor_brief_score']}`",
+            f"- moat_anchor_brief_recommendation: `{summary['moat_anchor_brief_recommendation']}`",
+            f"- moat_anchor_brief_history_status: `{summary['moat_anchor_brief_history_status']}`",
+            f"- moat_anchor_brief_history_publish_rate: `{summary['moat_anchor_brief_history_publish_rate']}`",
+            f"- moat_anchor_brief_history_trend_status: `{summary['moat_anchor_brief_history_trend_status']}`",
             f"- bundle_status: `{summary['bundle_status']}`",
             "",
             "## Result Flags",
