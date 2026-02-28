@@ -125,6 +125,10 @@ def _status_from_signals(signals: dict) -> str:
         return "NEEDS_REVIEW"
     if signals.get("dataset_intake_growth_execution_board_history_trend_needs_review"):
         return "NEEDS_REVIEW"
+    if signals.get("dataset_real_model_intake_portfolio_needs_review"):
+        return "NEEDS_REVIEW"
+    if signals.get("dataset_mutation_coverage_depth_needs_review"):
+        return "NEEDS_REVIEW"
     return "PASS"
 
 
@@ -170,6 +174,8 @@ def _compute_summary(
     intake_growth_execution_board: dict,
     intake_growth_execution_board_history: dict,
     intake_growth_execution_board_history_trend: dict,
+    real_model_intake_portfolio: dict,
+    mutation_coverage_depth: dict,
 ) -> dict:
     strategy_advice = (
         strategy_advisor.get("advice")
@@ -269,6 +275,10 @@ def _compute_summary(
             intake_growth_execution_board_history_trend.get("status") or ""
         )
         in {"NEEDS_REVIEW", "FAIL"},
+        "dataset_real_model_intake_portfolio_needs_review": str(real_model_intake_portfolio.get("status") or "")
+        in {"NEEDS_REVIEW", "FAIL"},
+        "dataset_mutation_coverage_depth_needs_review": str(mutation_coverage_depth.get("status") or "")
+        in {"NEEDS_REVIEW", "FAIL"},
     }
     status = _status_from_signals(signals)
 
@@ -357,6 +367,10 @@ def _compute_summary(
         risks.append("dataset_intake_growth_execution_board_history_needs_review")
     if signals["dataset_intake_growth_execution_board_history_trend_needs_review"]:
         risks.append("dataset_intake_growth_execution_board_history_trend_needs_review")
+    if signals["dataset_real_model_intake_portfolio_needs_review"]:
+        risks.append("dataset_real_model_intake_portfolio_needs_review")
+    if signals["dataset_mutation_coverage_depth_needs_review"]:
+        risks.append("dataset_mutation_coverage_depth_needs_review")
 
     policy_patch_advice = (
         failure_policy_patch_advisor.get("advice")
@@ -573,6 +587,29 @@ def _compute_summary(
             if isinstance(intake_growth_execution_board_history_trend.get("trend"), dict)
             else []
         ),
+        "dataset_real_model_intake_portfolio_status": real_model_intake_portfolio.get("status"),
+        "dataset_real_model_intake_portfolio_total_real_models": _to_int(
+            real_model_intake_portfolio.get("total_real_models", 0)
+        ),
+        "dataset_real_model_intake_portfolio_large_models": _to_int(
+            real_model_intake_portfolio.get("large_models", 0)
+        ),
+        "dataset_real_model_intake_portfolio_license_clean_ratio_pct": _to_float(
+            real_model_intake_portfolio.get("license_clean_ratio_pct", 0.0)
+        ),
+        "dataset_real_model_intake_portfolio_active_domains_count": _to_int(
+            real_model_intake_portfolio.get("active_domains_count", 0)
+        ),
+        "dataset_mutation_coverage_depth_status": mutation_coverage_depth.get("status"),
+        "dataset_mutation_coverage_depth_score": _to_float(
+            mutation_coverage_depth.get("coverage_depth_score", 0.0)
+        ),
+        "dataset_mutation_coverage_depth_uncovered_cells_count": _to_int(
+            mutation_coverage_depth.get("uncovered_cells_count", 0)
+        ),
+        "dataset_mutation_coverage_depth_high_risk_gaps_count": _to_int(
+            mutation_coverage_depth.get("high_risk_gaps_count", 0)
+        ),
     }
     return {
         "status": status,
@@ -701,6 +738,15 @@ def _write_markdown(path: str, summary: dict) -> None:
         f"- dataset_intake_growth_execution_board_history_critical_open_tasks_rate: `{kpis.get('dataset_intake_growth_execution_board_history_critical_open_tasks_rate')}`",
         f"- dataset_intake_growth_execution_board_history_trend_status: `{kpis.get('dataset_intake_growth_execution_board_history_trend_status')}`",
         f"- dataset_intake_growth_execution_board_history_trend_alert_count: `{kpis.get('dataset_intake_growth_execution_board_history_trend_alert_count')}`",
+        f"- dataset_real_model_intake_portfolio_status: `{kpis.get('dataset_real_model_intake_portfolio_status')}`",
+        f"- dataset_real_model_intake_portfolio_total_real_models: `{kpis.get('dataset_real_model_intake_portfolio_total_real_models')}`",
+        f"- dataset_real_model_intake_portfolio_large_models: `{kpis.get('dataset_real_model_intake_portfolio_large_models')}`",
+        f"- dataset_real_model_intake_portfolio_license_clean_ratio_pct: `{kpis.get('dataset_real_model_intake_portfolio_license_clean_ratio_pct')}`",
+        f"- dataset_real_model_intake_portfolio_active_domains_count: `{kpis.get('dataset_real_model_intake_portfolio_active_domains_count')}`",
+        f"- dataset_mutation_coverage_depth_status: `{kpis.get('dataset_mutation_coverage_depth_status')}`",
+        f"- dataset_mutation_coverage_depth_score: `{kpis.get('dataset_mutation_coverage_depth_score')}`",
+        f"- dataset_mutation_coverage_depth_uncovered_cells_count: `{kpis.get('dataset_mutation_coverage_depth_uncovered_cells_count')}`",
+        f"- dataset_mutation_coverage_depth_high_risk_gaps_count: `{kpis.get('dataset_mutation_coverage_depth_high_risk_gaps_count')}`",
         "",
         "## Risks",
         "",
@@ -898,6 +944,16 @@ def main() -> None:
         default=None,
         help="Path to dataset intake growth execution board history trend summary JSON",
     )
+    parser.add_argument(
+        "--dataset-real-model-intake-portfolio",
+        default=None,
+        help="Path to dataset real model intake portfolio summary JSON",
+    )
+    parser.add_argument(
+        "--dataset-mutation-coverage-depth",
+        default=None,
+        help="Path to dataset mutation coverage depth summary JSON",
+    )
     parser.add_argument("--out", default="artifacts/dataset_governance_snapshot/summary.json", help="Output JSON path")
     parser.add_argument("--report", default=None, help="Output markdown path")
     args = parser.parse_args()
@@ -943,6 +999,8 @@ def main() -> None:
     intake_growth_execution_board = _load_json(args.dataset_intake_growth_execution_board)
     intake_growth_execution_board_history = _load_json(args.dataset_intake_growth_execution_board_history)
     intake_growth_execution_board_history_trend = _load_json(args.dataset_intake_growth_execution_board_history_trend)
+    real_model_intake_portfolio = _load_json(args.dataset_real_model_intake_portfolio)
+    mutation_coverage_depth = _load_json(args.dataset_mutation_coverage_depth)
 
     summary = _compute_summary(
         dataset_pipeline,
@@ -986,6 +1044,8 @@ def main() -> None:
         intake_growth_execution_board,
         intake_growth_execution_board_history,
         intake_growth_execution_board_history_trend,
+        real_model_intake_portfolio,
+        mutation_coverage_depth,
     )
     summary["generated_at_utc"] = datetime.now(timezone.utc).isoformat()
     summary["sources"] = {
@@ -1030,6 +1090,8 @@ def main() -> None:
         "dataset_intake_growth_execution_board_path": args.dataset_intake_growth_execution_board,
         "dataset_intake_growth_execution_board_history_path": args.dataset_intake_growth_execution_board_history,
         "dataset_intake_growth_execution_board_history_trend_path": args.dataset_intake_growth_execution_board_history_trend,
+        "dataset_real_model_intake_portfolio_path": args.dataset_real_model_intake_portfolio,
+        "dataset_mutation_coverage_depth_path": args.dataset_mutation_coverage_depth,
     }
 
     _write_json(args.out, summary)

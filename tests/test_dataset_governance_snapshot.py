@@ -676,6 +676,57 @@ class DatasetGovernanceSnapshotTests(unittest.TestCase):
                 payload.get("risks", []),
             )
 
+    def test_snapshot_needs_review_on_intake_portfolio_and_mutation_coverage(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            portfolio = root / "portfolio.json"
+            coverage = root / "coverage.json"
+            out = root / "snapshot.json"
+            portfolio.write_text(
+                json.dumps(
+                    {
+                        "status": "NEEDS_REVIEW",
+                        "total_real_models": 2,
+                        "large_models": 0,
+                        "license_clean_ratio_pct": 90.0,
+                        "active_domains_count": 1,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            coverage.write_text(
+                json.dumps(
+                    {
+                        "status": "NEEDS_REVIEW",
+                        "coverage_depth_score": 72.0,
+                        "uncovered_cells_count": 3,
+                        "high_risk_gaps_count": 2,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.dataset_governance_snapshot",
+                    "--dataset-real-model-intake-portfolio",
+                    str(portfolio),
+                    "--dataset-mutation-coverage-depth",
+                    str(coverage),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            payload = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(payload.get("status"), "NEEDS_REVIEW")
+            self.assertIn("dataset_real_model_intake_portfolio_needs_review", payload.get("risks", []))
+            self.assertIn("dataset_mutation_coverage_depth_needs_review", payload.get("risks", []))
+
 
 if __name__ == "__main__":
     unittest.main()

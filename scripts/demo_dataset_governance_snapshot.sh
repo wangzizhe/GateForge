@@ -24,7 +24,8 @@ if [ "${GATEFORGE_DEMO_FAST:-0}" = "1" ]; then
     artifacts/dataset_modelica_release_candidate_gate_v1_demo artifacts/dataset_intake_growth_advisor_v1_demo \
     artifacts/dataset_intake_growth_advisor_history_v1_demo artifacts/dataset_intake_growth_advisor_history_trend_v1_demo \
     artifacts/dataset_intake_growth_execution_board_v1_demo artifacts/dataset_intake_growth_execution_board_history_v1_demo \
-    artifacts/dataset_intake_growth_execution_board_history_trend_v1_demo
+    artifacts/dataset_intake_growth_execution_board_history_trend_v1_demo \
+    artifacts/dataset_real_model_intake_portfolio_v1_demo artifacts/dataset_mutation_coverage_depth_v1_demo
   cat > artifacts/dataset_pipeline_demo/summary.json <<'JSON'
 {"bundle_status":"PASS","build_deduplicated_cases":12,"quality_failure_case_rate":0.3}
 JSON
@@ -139,6 +140,12 @@ JSON
   cat > artifacts/dataset_intake_growth_execution_board_history_trend_v1_demo/summary.json <<'JSON'
 {"status":"PASS","trend":{"alerts":[]}}
 JSON
+  cat > artifacts/dataset_real_model_intake_portfolio_v1_demo/summary.json <<'JSON'
+{"status":"PASS","total_real_models":4,"large_models":1,"license_clean_ratio_pct":100.0,"active_domains_count":3}
+JSON
+  cat > artifacts/dataset_mutation_coverage_depth_v1_demo/summary.json <<'JSON'
+{"status":"PASS","coverage_depth_score":91.0,"uncovered_cells_count":1,"high_risk_gaps_count":0}
+JSON
 else
   bash scripts/demo_dataset_pipeline.sh >/dev/null
   bash scripts/demo_dataset_history.sh >/dev/null
@@ -179,6 +186,8 @@ else
   bash scripts/demo_dataset_intake_growth_execution_board_v1.sh >/dev/null
   bash scripts/demo_dataset_intake_growth_execution_board_history_v1.sh >/dev/null
   bash scripts/demo_dataset_intake_growth_execution_board_history_trend_v1.sh >/dev/null
+  bash scripts/demo_dataset_real_model_intake_portfolio_v1.sh >/dev/null
+  bash scripts/demo_dataset_mutation_coverage_depth_v1.sh >/dev/null
 fi
 
 ARGS=(
@@ -276,6 +285,12 @@ fi
 if [ -f artifacts/dataset_intake_growth_execution_board_history_trend_v1_demo/summary.json ]; then
   ARGS+=(--dataset-intake-growth-execution-board-history-trend artifacts/dataset_intake_growth_execution_board_history_trend_v1_demo/summary.json)
 fi
+if [ -f artifacts/dataset_real_model_intake_portfolio_v1_demo/summary.json ]; then
+  ARGS+=(--dataset-real-model-intake-portfolio artifacts/dataset_real_model_intake_portfolio_v1_demo/summary.json)
+fi
+if [ -f artifacts/dataset_mutation_coverage_depth_v1_demo/summary.json ]; then
+  ARGS+=(--dataset-mutation-coverage-depth artifacts/dataset_mutation_coverage_depth_v1_demo/summary.json)
+fi
 
 python3 -m gateforge.dataset_governance_snapshot \
   "${ARGS[@]}" \
@@ -361,6 +376,12 @@ flags = {
     "intake_growth_execution_board_history_trend_kpi_present": "PASS"
     if isinstance((payload.get("kpis") or {}).get("dataset_intake_growth_execution_board_history_trend_status"), (str, type(None)))
     else "FAIL",
+    "real_model_intake_portfolio_kpi_present": "PASS"
+    if isinstance((payload.get("kpis") or {}).get("dataset_real_model_intake_portfolio_status"), (str, type(None)))
+    else "FAIL",
+    "mutation_coverage_depth_kpi_present": "PASS"
+    if isinstance((payload.get("kpis") or {}).get("dataset_mutation_coverage_depth_status"), (str, type(None)))
+    else "FAIL",
 }
 bundle_status = "PASS" if all(v == "PASS" for v in flags.values()) else "FAIL"
 summary = {
@@ -429,6 +450,11 @@ summary = {
     "intake_growth_execution_board_execution_score": (payload.get("kpis") or {}).get("dataset_intake_growth_execution_board_execution_score"),
     "intake_growth_execution_board_history_status": (payload.get("kpis") or {}).get("dataset_intake_growth_execution_board_history_status"),
     "intake_growth_execution_board_history_trend_status": (payload.get("kpis") or {}).get("dataset_intake_growth_execution_board_history_trend_status"),
+    "real_model_intake_portfolio_status": (payload.get("kpis") or {}).get("dataset_real_model_intake_portfolio_status"),
+    "real_model_intake_portfolio_total_real_models": (payload.get("kpis") or {}).get("dataset_real_model_intake_portfolio_total_real_models"),
+    "real_model_intake_portfolio_large_models": (payload.get("kpis") or {}).get("dataset_real_model_intake_portfolio_large_models"),
+    "mutation_coverage_depth_status": (payload.get("kpis") or {}).get("dataset_mutation_coverage_depth_status"),
+    "mutation_coverage_depth_score": (payload.get("kpis") or {}).get("dataset_mutation_coverage_depth_score"),
     "result_flags": flags,
     "bundle_status": bundle_status,
 }
@@ -483,6 +509,11 @@ summary = {
             f"- intake_growth_execution_board_execution_score: `{summary['intake_growth_execution_board_execution_score']}`",
             f"- intake_growth_execution_board_history_status: `{summary['intake_growth_execution_board_history_status']}`",
             f"- intake_growth_execution_board_history_trend_status: `{summary['intake_growth_execution_board_history_trend_status']}`",
+            f"- real_model_intake_portfolio_status: `{summary['real_model_intake_portfolio_status']}`",
+            f"- real_model_intake_portfolio_total_real_models: `{summary['real_model_intake_portfolio_total_real_models']}`",
+            f"- real_model_intake_portfolio_large_models: `{summary['real_model_intake_portfolio_large_models']}`",
+            f"- mutation_coverage_depth_status: `{summary['mutation_coverage_depth_status']}`",
+            f"- mutation_coverage_depth_score: `{summary['mutation_coverage_depth_score']}`",
             f"- bundle_status: `{summary['bundle_status']}`",
             "",
             "## Result Flags",

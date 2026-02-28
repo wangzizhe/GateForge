@@ -54,6 +54,8 @@ class DatasetGovernanceSnapshotTrendDemoTests(unittest.TestCase):
             self.assertIn("->", str(payload.get("intake_growth_execution_board_status_transition")))
             self.assertIn("->", str(payload.get("intake_growth_execution_board_history_status_transition")))
             self.assertIn("->", str(payload.get("intake_growth_execution_board_history_trend_status_transition")))
+            self.assertIn("->", str(payload.get("real_model_intake_portfolio_status_transition")))
+            self.assertIn("->", str(payload.get("mutation_coverage_depth_status_transition")))
             self.assertIsInstance(payload.get("status_delta_alert_count"), int)
             self.assertIsInstance(payload.get("severity_score"), int)
             self.assertIn(payload.get("severity_level"), {"low", "medium", "high"})
