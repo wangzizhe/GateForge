@@ -371,6 +371,18 @@ def main() -> None:
             ["bundle_status", "stability_status", "stability_score", "rare_failure_replay_rate"],
         ),
         (
+            "dataset_real_model_growth_trend_v1_demo",
+            "dataset_real_model_growth_trend_v1_demo/demo_summary.json",
+            [
+                "bundle_status",
+                "growth_trend_status",
+                "growth_velocity_score",
+                "trend_band",
+                "delta_total_real_models",
+                "delta_large_models",
+            ],
+        ),
+        (
             "dataset_moat_anchor_brief_v1_demo",
             "dataset_moat_anchor_brief_v1_demo/demo_summary.json",
             ["bundle_status", "anchor_brief_status", "anchor_brief_score", "recommendation"],
