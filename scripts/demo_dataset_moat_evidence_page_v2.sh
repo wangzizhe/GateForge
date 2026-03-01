@@ -26,6 +26,9 @@ JSON
 cat > "$OUT_DIR/stability_history_trend.json" <<'JSON'
 {"status":"PASS","trend":{"status_transition":"PASS->PASS"}}
 JSON
+cat > "$OUT_DIR/moat_trend_snapshot.json" <<'JSON'
+{"metrics":{"target_gap_pressure_index":76.5,"model_asset_target_gap_score":28.5}}
+JSON
 
 python3 -m gateforge.dataset_moat_evidence_page_v2 \
   --moat-anchor-brief-summary "$OUT_DIR/anchor.json" \
@@ -34,6 +37,7 @@ python3 -m gateforge.dataset_moat_evidence_page_v2 \
   --mutation-coverage-matrix-summary "$OUT_DIR/matrix.json" \
   --failure-distribution-stability-history-summary "$OUT_DIR/stability_history.json" \
   --failure-distribution-stability-history-trend-summary "$OUT_DIR/stability_history_trend.json" \
+  --moat-trend-snapshot-summary "$OUT_DIR/moat_trend_snapshot.json" \
   --out "$OUT_DIR/summary.json" \
   --report-out "$OUT_DIR/summary.md"
 
@@ -53,6 +57,8 @@ payload = {
     "evidence_status": summary.get("status"),
     "publishable": summary.get("publishable"),
     "evidence_score": summary.get("evidence_score"),
+    "target_gap_pressure_index": summary.get("target_gap_pressure_index"),
+    "model_asset_target_gap_score": summary.get("model_asset_target_gap_score"),
     "bundle_status": bundle_status,
     "result_flags": flags,
 }

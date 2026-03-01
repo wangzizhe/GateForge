@@ -55,6 +55,8 @@ def _write_markdown(path: str, payload: dict) -> None:
         f"- status: `{payload.get('status')}`",
         f"- publishable: `{payload.get('publishable')}`",
         f"- evidence_score: `{payload.get('evidence_score')}`",
+        f"- target_gap_pressure_index: `{payload.get('target_gap_pressure_index')}`",
+        f"- model_asset_target_gap_score: `{payload.get('model_asset_target_gap_score')}`",
         f"- headline: `{payload.get('headline')}`",
         "",
         "## Risk Disclosures",
@@ -78,6 +80,7 @@ def main() -> None:
     parser.add_argument("--mutation-coverage-matrix-summary", required=True)
     parser.add_argument("--failure-distribution-stability-history-summary", required=True)
     parser.add_argument("--failure-distribution-stability-history-trend-summary", required=True)
+    parser.add_argument("--moat-trend-snapshot-summary", default=None)
     parser.add_argument("--min-publish-score", type=float, default=78.0)
     parser.add_argument("--out", default="artifacts/dataset_moat_evidence_page_v2/summary.json")
     parser.add_argument("--report-out", default=None)
@@ -89,6 +92,7 @@ def main() -> None:
     matrix = _load_json(args.mutation_coverage_matrix_summary)
     stability_history = _load_json(args.failure_distribution_stability_history_summary)
     stability_history_trend = _load_json(args.failure_distribution_stability_history_trend_summary)
+    moat_snapshot = _load_json(args.moat_trend_snapshot_summary)
 
     reasons: list[str] = []
     if not anchor:
@@ -111,6 +115,8 @@ def main() -> None:
     stability_score = _to_float(stability_history.get("avg_stability_score", 0.0))
     new_models_30d = _to_int(supply.get("new_models_30d", 0))
     large_candidates_30d = _to_int(supply.get("large_model_candidates_30d", 0))
+    target_gap_pressure = _to_float(((moat_snapshot.get("metrics") or {}).get("target_gap_pressure_index", 0.0)))
+    model_asset_target_gap_score = _to_float(((moat_snapshot.get("metrics") or {}).get("model_asset_target_gap_score", 0.0)))
 
     score = (
         anchor_score * 0.28
@@ -118,6 +124,8 @@ def main() -> None:
         + supply_score * 0.2
         + matrix_score * 0.2
         + stability_score * 0.16
+        + min(8.0, target_gap_pressure * 0.08)
+        - min(8.0, model_asset_target_gap_score * 0.12)
     )
     if new_models_30d >= 2:
         score += 2.0
@@ -138,6 +146,10 @@ def main() -> None:
         risk_disclosures.append("stability_history_not_pass")
     if str(stability_history_trend.get("status") or "") in {"NEEDS_REVIEW", "FAIL"}:
         risk_disclosures.append("stability_history_trend_not_pass")
+    if target_gap_pressure and target_gap_pressure < 70.0:
+        risk_disclosures.append("target_gap_pressure_low")
+    if model_asset_target_gap_score >= 25.0:
+        risk_disclosures.append("model_asset_target_gap_high")
 
     publishable = score >= float(args.min_publish_score) and not reasons and not risk_disclosures
     status = "PASS" if publishable else "NEEDS_REVIEW"
@@ -154,6 +166,8 @@ def main() -> None:
         "status": status,
         "publishable": publishable,
         "evidence_score": score,
+        "target_gap_pressure_index": target_gap_pressure,
+        "model_asset_target_gap_score": model_asset_target_gap_score,
         "headline": headline,
         "risk_disclosures": risk_disclosures,
         "public_claims": [
@@ -164,6 +178,8 @@ def main() -> None:
             {"claim_id": "claim.avg_stability_score", "value": stability_score},
             {"claim_id": "claim.new_models_30d", "value": new_models_30d},
             {"claim_id": "claim.large_model_candidates_30d", "value": large_candidates_30d},
+            {"claim_id": "claim.target_gap_pressure_index", "value": target_gap_pressure},
+            {"claim_id": "claim.model_asset_target_gap_score", "value": model_asset_target_gap_score},
         ],
         "sources": {
             "moat_anchor_brief_summary": args.moat_anchor_brief_summary,
@@ -172,6 +188,7 @@ def main() -> None:
             "mutation_coverage_matrix_summary": args.mutation_coverage_matrix_summary,
             "failure_distribution_stability_history_summary": args.failure_distribution_stability_history_summary,
             "failure_distribution_stability_history_trend_summary": args.failure_distribution_stability_history_trend_summary,
+            "moat_trend_snapshot_summary": args.moat_trend_snapshot_summary,
         },
         "reasons": sorted(set(reasons)),
     }
