@@ -106,6 +106,18 @@ cat > "$OUT_DIR/model_asset_momentum_history_trend_summary.json" <<'JSON'
 {"status":"PASS","trend":{"status_transition":"PASS->PASS","alerts":[]}}
 JSON
 
+cat > "$OUT_DIR/model_asset_target_gap_summary.json" <<'JSON'
+{"status":"NEEDS_REVIEW","target_gap_score":28.5,"critical_gap_count":1}
+JSON
+
+cat > "$OUT_DIR/model_asset_target_gap_history_summary.json" <<'JSON'
+{"status":"NEEDS_REVIEW","avg_target_gap_score":24.5,"avg_critical_gap_count":1.0}
+JSON
+
+cat > "$OUT_DIR/model_asset_target_gap_history_trend_summary.json" <<'JSON'
+{"status":"NEEDS_REVIEW","trend":{"status_transition":"PASS->NEEDS_REVIEW","alerts":["avg_target_gap_score_increasing"]}}
+JSON
+
 cat > "$OUT_DIR/previous_summary.json" <<'JSON'
 {
   "status": "NEEDS_REVIEW",
@@ -144,6 +156,9 @@ python3 -m gateforge.dataset_moat_trend_snapshot \
   --model-asset-momentum-summary "$OUT_DIR/model_asset_momentum_summary.json" \
   --model-asset-momentum-history-summary "$OUT_DIR/model_asset_momentum_history_summary.json" \
   --model-asset-momentum-history-trend-summary "$OUT_DIR/model_asset_momentum_history_trend_summary.json" \
+  --model-asset-target-gap-summary "$OUT_DIR/model_asset_target_gap_summary.json" \
+  --model-asset-target-gap-history-summary "$OUT_DIR/model_asset_target_gap_history_summary.json" \
+  --model-asset-target-gap-history-trend-summary "$OUT_DIR/model_asset_target_gap_history_trend_summary.json" \
   --previous-snapshot "$OUT_DIR/previous_summary.json" \
   --out "$OUT_DIR/summary.json" \
   --report-out "$OUT_DIR/summary.md"
@@ -165,6 +180,7 @@ flags = {
     "model_asset_quality_present": "PASS" if isinstance(metrics.get("model_asset_quality_index"), (int, float)) else "FAIL",
     "expansion_execution_present": "PASS" if isinstance(metrics.get("expansion_execution_index"), (int, float)) else "FAIL",
     "momentum_resilience_present": "PASS" if isinstance(metrics.get("momentum_resilience_index"), (int, float)) else "FAIL",
+    "target_gap_pressure_present": "PASS" if isinstance(metrics.get("target_gap_pressure_index"), (int, float)) else "FAIL",
     "trend_present": "PASS" if isinstance(payload.get("trend"), dict) else "FAIL",
 }
 bundle_status = "PASS" if all(v == "PASS" for v in flags.values()) else "FAIL"
@@ -177,6 +193,9 @@ summary = {
     "model_asset_quality_index": metrics.get("model_asset_quality_index"),
     "expansion_execution_index": metrics.get("expansion_execution_index"),
     "momentum_resilience_index": metrics.get("momentum_resilience_index"),
+    "target_gap_pressure_index": metrics.get("target_gap_pressure_index"),
+    "model_asset_target_gap_score": metrics.get("model_asset_target_gap_score"),
+    "model_asset_target_gap_critical_gap_count": metrics.get("model_asset_target_gap_critical_gap_count"),
     "accepted_count_delta": ((payload.get("intake_growth") or {}).get("accepted_count_delta")),
     "accepted_large_delta": ((payload.get("intake_growth") or {}).get("accepted_large_delta")),
     "reject_rate_pct": ((payload.get("intake_growth") or {}).get("reject_rate_pct")),
@@ -199,6 +218,9 @@ summary = {
             f"- model_asset_quality_index: `{summary['model_asset_quality_index']}`",
             f"- expansion_execution_index: `{summary['expansion_execution_index']}`",
             f"- momentum_resilience_index: `{summary['momentum_resilience_index']}`",
+            f"- target_gap_pressure_index: `{summary['target_gap_pressure_index']}`",
+            f"- model_asset_target_gap_score: `{summary['model_asset_target_gap_score']}`",
+            f"- model_asset_target_gap_critical_gap_count: `{summary['model_asset_target_gap_critical_gap_count']}`",
             f"- accepted_count_delta: `{summary['accepted_count_delta']}`",
             f"- accepted_large_delta: `{summary['accepted_large_delta']}`",
             f"- reject_rate_pct: `{summary['reject_rate_pct']}`",

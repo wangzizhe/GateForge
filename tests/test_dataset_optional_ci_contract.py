@@ -260,6 +260,8 @@ class DatasetOptionalCIContractTests(unittest.TestCase):
                 "moat_score": 74.2,
                 "execution_readiness_index": 82.0,
                 "momentum_resilience_index": 80.0,
+                "target_gap_pressure_index": 76.5,
+                "model_asset_target_gap_score": 28.5,
                 "moat_score_delta": 6.5,
             },
             "dataset_external_proof_score_demo/demo_summary.json": {

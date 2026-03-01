@@ -293,6 +293,8 @@ def main() -> None:
                 "moat_score",
                 "execution_readiness_index",
                 "momentum_resilience_index",
+                "target_gap_pressure_index",
+                "model_asset_target_gap_score",
                 "moat_score_delta",
             ],
         ),

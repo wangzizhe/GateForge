@@ -36,6 +36,9 @@ class DatasetMoatTrendSnapshotDemoTests(unittest.TestCase):
             self.assertIsInstance(payload.get("model_asset_quality_index"), (int, float))
             self.assertIsInstance(payload.get("expansion_execution_index"), (int, float))
             self.assertIsInstance(payload.get("momentum_resilience_index"), (int, float))
+            self.assertIsInstance(payload.get("target_gap_pressure_index"), (int, float))
+            self.assertIsInstance(payload.get("model_asset_target_gap_score"), (int, float))
+            self.assertIsInstance(payload.get("model_asset_target_gap_critical_gap_count"), (int, float))
             self.assertIsInstance(payload.get("accepted_count_delta"), int)
             self.assertIsInstance(payload.get("accepted_large_delta"), int)
 
