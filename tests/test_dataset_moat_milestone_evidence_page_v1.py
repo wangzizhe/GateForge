@@ -23,7 +23,19 @@ class DatasetMoatMilestoneEvidencePageV1Tests(unittest.TestCase):
             )
             checkpoint.write_text(json.dumps({"status": "PASS", "checkpoint_score": 85.0, "milestone_decision": "GO"}), encoding="utf-8")
             trend.write_text(json.dumps({"status": "PASS", "trend": {"status_transition": "PASS->PASS"}}), encoding="utf-8")
-            brief.write_text(json.dumps({"milestone_status": "PASS", "milestone_decision": "GO"}), encoding="utf-8")
+            brief.write_text(
+                json.dumps(
+                    {
+                        "milestone_status": "PASS",
+                        "milestone_decision": "GO",
+                        "target_gap_narrative_status": "PASS",
+                        "target_gap_pressure_index": 76.5,
+                        "model_asset_target_gap_score": 24.0,
+                        "target_gap_supply_pressure_index": 61,
+                    }
+                ),
+                encoding="utf-8",
+            )
             align.write_text(json.dumps({"alignment_score": 82.0}), encoding="utf-8")
 
             proc = subprocess.run(
@@ -56,6 +68,8 @@ class DatasetMoatMilestoneEvidencePageV1Tests(unittest.TestCase):
             claims = payload.get("public_claims") if isinstance(payload.get("public_claims"), list) else []
             claim_ids = {str(c.get("claim_id")) for c in claims if isinstance(c, dict)}
             self.assertIn("claim.execution_readiness_index", claim_ids)
+            self.assertIn("claim.target_gap_pressure_index", claim_ids)
+            self.assertIsInstance(payload.get("model_asset_target_gap_score"), (int, float))
 
     def test_evidence_page_fail_when_required_missing(self) -> None:
         with tempfile.TemporaryDirectory() as d:

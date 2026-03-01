@@ -16,6 +16,8 @@ class DatasetSnapshotMoatAlignmentV1Tests(unittest.TestCase):
             campaign = root / "campaign.json"
             supply = root / "supply.json"
             release_candidate = root / "release_candidate.json"
+            proofbook = root / "proofbook.json"
+            failure_supply = root / "failure_supply.json"
             out = root / "summary.json"
 
             snapshot.write_text(json.dumps({"status": "PASS", "risks": []}), encoding="utf-8")
@@ -27,6 +29,11 @@ class DatasetSnapshotMoatAlignmentV1Tests(unittest.TestCase):
                 json.dumps({"status": "PASS", "release_candidate_score": 84.0, "candidate_decision": "GO"}),
                 encoding="utf-8",
             )
+            proofbook.write_text(
+                json.dumps({"status": "PASS", "target_gap_pressure_index": 74.0, "model_asset_target_gap_score": 22.0}),
+                encoding="utf-8",
+            )
+            failure_supply.write_text(json.dumps({"status": "NEEDS_REVIEW", "target_gap_supply_pressure_index": 62}), encoding="utf-8")
 
             proc = subprocess.run(
                 [
@@ -45,6 +52,10 @@ class DatasetSnapshotMoatAlignmentV1Tests(unittest.TestCase):
                     str(supply),
                     "--modelica-release-candidate-gate-summary",
                     str(release_candidate),
+                    "--governance-decision-proofbook-summary",
+                    str(proofbook),
+                    "--failure-supply-plan-summary",
+                    str(failure_supply),
                     "--out",
                     str(out),
                 ],
@@ -57,6 +68,7 @@ class DatasetSnapshotMoatAlignmentV1Tests(unittest.TestCase):
             self.assertEqual(summary.get("status"), "PASS")
             self.assertIn("supply_status", summary.get("signals", {}))
             self.assertIn("release_candidate_status", summary.get("signals", {}))
+            self.assertIsInstance((summary.get("signals") or {}).get("target_gap_pressure_index"), (int, float))
 
     def test_alignment_needs_review_on_contradictions(self) -> None:
         with tempfile.TemporaryDirectory() as d:
@@ -66,6 +78,8 @@ class DatasetSnapshotMoatAlignmentV1Tests(unittest.TestCase):
             scoreboard = root / "scoreboard.json"
             campaign = root / "campaign.json"
             release_candidate = root / "release_candidate.json"
+            proofbook = root / "proofbook.json"
+            failure_supply = root / "failure_supply.json"
             out = root / "summary.json"
 
             snapshot.write_text(json.dumps({"status": "PASS", "risks": []}), encoding="utf-8")
@@ -76,6 +90,11 @@ class DatasetSnapshotMoatAlignmentV1Tests(unittest.TestCase):
                 json.dumps({"status": "PASS", "release_candidate_score": 86.0, "candidate_decision": "GO"}),
                 encoding="utf-8",
             )
+            proofbook.write_text(
+                json.dumps({"status": "NEEDS_REVIEW", "target_gap_pressure_index": 54.0, "model_asset_target_gap_score": 39.0}),
+                encoding="utf-8",
+            )
+            failure_supply.write_text(json.dumps({"status": "NEEDS_REVIEW", "target_gap_supply_pressure_index": 67}), encoding="utf-8")
 
             proc = subprocess.run(
                 [
@@ -92,6 +111,10 @@ class DatasetSnapshotMoatAlignmentV1Tests(unittest.TestCase):
                     str(campaign),
                     "--modelica-release-candidate-gate-summary",
                     str(release_candidate),
+                    "--governance-decision-proofbook-summary",
+                    str(proofbook),
+                    "--failure-supply-plan-summary",
+                    str(failure_supply),
                     "--out",
                     str(out),
                 ],

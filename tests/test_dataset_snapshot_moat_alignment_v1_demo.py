@@ -36,6 +36,7 @@ class DatasetSnapshotMoatAlignmentV1DemoTests(unittest.TestCase):
                 payload.get("release_candidate_status"),
                 {"PASS", "NEEDS_REVIEW", "FAIL", "NOT_PROVIDED", None},
             )
+            self.assertIsInstance(payload.get("target_gap_pressure_index"), (int, float))
 
 
 if __name__ == "__main__":

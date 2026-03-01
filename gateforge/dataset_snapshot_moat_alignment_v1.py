@@ -55,6 +55,9 @@ def _write_markdown(path: str, payload: dict) -> None:
         f"- status: `{payload.get('status')}`",
         f"- alignment_score: `{payload.get('alignment_score')}`",
         f"- contradiction_count: `{payload.get('contradiction_count')}`",
+        f"- target_gap_pressure_index: `{(payload.get('signals') or {}).get('target_gap_pressure_index')}`",
+        f"- model_asset_target_gap_score: `{(payload.get('signals') or {}).get('model_asset_target_gap_score')}`",
+        f"- target_gap_supply_pressure_index: `{(payload.get('signals') or {}).get('target_gap_supply_pressure_index')}`",
         "",
     ]
     p.write_text("\n".join(lines), encoding="utf-8")
@@ -69,6 +72,8 @@ def main() -> None:
     parser.add_argument("--modelica-library-provenance-guard-summary", default=None)
     parser.add_argument("--real-model-supply-health-summary", default=None)
     parser.add_argument("--modelica-release-candidate-gate-summary", default=None)
+    parser.add_argument("--governance-decision-proofbook-summary", default=None)
+    parser.add_argument("--failure-supply-plan-summary", default=None)
     parser.add_argument("--out", default="artifacts/dataset_snapshot_moat_alignment_v1/summary.json")
     parser.add_argument("--report-out", default=None)
     args = parser.parse_args()
@@ -80,6 +85,8 @@ def main() -> None:
     provenance = _load_json(args.modelica_library_provenance_guard_summary)
     supply = _load_json(args.real_model_supply_health_summary)
     release_candidate = _load_json(args.modelica_release_candidate_gate_summary)
+    proofbook = _load_json(args.governance_decision_proofbook_summary)
+    failure_supply = _load_json(args.failure_supply_plan_summary)
 
     reasons: list[str] = []
     if not snapshot:
@@ -98,6 +105,8 @@ def main() -> None:
     provenance_status = _status(provenance) if provenance else "NOT_PROVIDED"
     supply_status = _status(supply) if supply else "NOT_PROVIDED"
     release_candidate_status = _status(release_candidate) if release_candidate else "NOT_PROVIDED"
+    proofbook_status = _status(proofbook) if proofbook else "NOT_PROVIDED"
+    failure_supply_status = _status(failure_supply) if failure_supply else "NOT_PROVIDED"
 
     scoreboard_score = _to_float(scoreboard.get("moat_public_score", 0.0))
     campaign_completion = _to_float(campaign.get("completion_ratio_pct", 0.0))
@@ -107,6 +116,9 @@ def main() -> None:
     supply_health_score = _to_float(supply.get("supply_health_score", 0.0)) if supply else 0.0
     release_candidate_score = _to_float(release_candidate.get("release_candidate_score", 0.0)) if release_candidate else 0.0
     release_candidate_decision = str(release_candidate.get("candidate_decision") or "UNKNOWN") if release_candidate else "UNKNOWN"
+    target_gap_pressure = _to_float(proofbook.get("target_gap_pressure_index", 0.0)) if proofbook else 0.0
+    target_gap_score = _to_float(proofbook.get("model_asset_target_gap_score", 0.0)) if proofbook else 0.0
+    target_gap_supply_pressure = _to_float(failure_supply.get("target_gap_supply_pressure_index", 0.0)) if failure_supply else 0.0
 
     contradictions: list[str] = []
     if snapshot_status == "PASS" and scoreboard_status in {"NEEDS_REVIEW", "FAIL"}:
@@ -129,6 +141,12 @@ def main() -> None:
         contradictions.append("release_candidate_hold_but_public_score_high")
     if supply and supply_status == "NEEDS_REVIEW" and snapshot_status == "PASS":
         contradictions.append("supply_needs_review_but_snapshot_pass")
+    if proofbook and target_gap_score >= 35.0 and snapshot_status == "PASS":
+        contradictions.append("target_gap_high_but_snapshot_pass")
+    if proofbook and target_gap_pressure < 60.0 and scoreboard_status == "PASS":
+        contradictions.append("target_gap_pressure_low_but_scoreboard_pass")
+    if failure_supply and target_gap_supply_pressure >= 65.0 and scoreboard_status == "PASS":
+        contradictions.append("target_gap_supply_pressure_high_but_scoreboard_pass")
 
     alignment_score = round(
         max(
@@ -159,6 +177,12 @@ def main() -> None:
         followups.append("increase_real_model_supply_health_score")
     if release_candidate and release_candidate_score < 80.0:
         followups.append("raise_release_candidate_score_before_public_promotion")
+    if proofbook and target_gap_score >= 30.0:
+        followups.append("reduce_model_asset_target_gap_score")
+    if proofbook and target_gap_pressure < 60.0:
+        followups.append("increase_target_gap_pressure_index")
+    if failure_supply and target_gap_supply_pressure >= 65.0:
+        followups.append("lower_target_gap_supply_pressure_index")
 
     alerts: list[str] = []
     if contradictions:
@@ -188,6 +212,8 @@ def main() -> None:
             "provenance_status": provenance_status,
             "supply_status": supply_status,
             "release_candidate_status": release_candidate_status,
+            "proofbook_status": proofbook_status,
+            "failure_supply_status": failure_supply_status,
             "scoreboard_score": scoreboard_score,
             "campaign_completion_ratio_pct": campaign_completion,
             "trend_severity_score": trend_severity,
@@ -196,6 +222,9 @@ def main() -> None:
             "supply_health_score": supply_health_score,
             "release_candidate_score": release_candidate_score,
             "release_candidate_decision": release_candidate_decision,
+            "target_gap_pressure_index": target_gap_pressure,
+            "model_asset_target_gap_score": target_gap_score,
+            "target_gap_supply_pressure_index": target_gap_supply_pressure,
         },
         "reasons": sorted(set(reasons)),
         "sources": {
@@ -206,6 +235,8 @@ def main() -> None:
             "modelica_library_provenance_guard_summary": args.modelica_library_provenance_guard_summary,
             "real_model_supply_health_summary": args.real_model_supply_health_summary,
             "modelica_release_candidate_gate_summary": args.modelica_release_candidate_gate_summary,
+            "governance_decision_proofbook_summary": args.governance_decision_proofbook_summary,
+            "failure_supply_plan_summary": args.failure_supply_plan_summary,
         },
     }
     _write_json(args.out, payload)

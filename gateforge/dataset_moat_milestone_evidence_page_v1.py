@@ -52,6 +52,9 @@ def _write_markdown(path: str, payload: dict) -> None:
         f"- publishable: `{payload.get('publishable')}`",
         f"- evidence_page_score: `{payload.get('evidence_page_score')}`",
         f"- milestone_decision: `{payload.get('milestone_decision')}`",
+        f"- target_gap_pressure_index: `{payload.get('target_gap_pressure_index')}`",
+        f"- model_asset_target_gap_score: `{payload.get('model_asset_target_gap_score')}`",
+        f"- target_gap_supply_pressure_index: `{payload.get('target_gap_supply_pressure_index')}`",
         "",
         "## Headline",
         "",
@@ -105,6 +108,10 @@ def main() -> None:
     trend_status = str(checkpoint_trend.get("status") or "")
     trend_transition = str(((checkpoint_trend.get("trend") or {}).get("status_transition")) or "")
     brief_status = str(brief.get("milestone_status") or "")
+    target_gap_narrative_status = str(brief.get("target_gap_narrative_status") or "")
+    target_gap_pressure = _to_float(brief.get("target_gap_pressure_index", 0.0))
+    target_gap_score = _to_float(brief.get("model_asset_target_gap_score", 0.0))
+    target_gap_supply_pressure = _to_float(brief.get("target_gap_supply_pressure_index", 0.0))
     alignment_score = _to_float(alignment.get("alignment_score", 75.0))
 
     score = moat_score * 0.33 + checkpoint_score * 0.33 + execution_readiness_index * 0.18 + alignment_score * 0.1
@@ -121,6 +128,16 @@ def main() -> None:
         score -= 3.0
     elif trend_status == "FAIL":
         score -= 8.0
+
+    score += min(6.0, target_gap_pressure * 0.06)
+    score -= min(8.0, target_gap_score * 0.16)
+    score -= min(6.0, target_gap_supply_pressure * 0.08)
+    if target_gap_narrative_status == "PASS":
+        score += 2.0
+    elif target_gap_narrative_status == "NEEDS_REVIEW":
+        score -= 2.0
+    elif target_gap_narrative_status == "FAIL":
+        score -= 6.0
 
     if trend_transition in {"PASS->NEEDS_REVIEW", "PASS->FAIL", "NEEDS_REVIEW->FAIL"}:
         score -= 4.0
@@ -145,6 +162,14 @@ def main() -> None:
         risk_disclosures.append("milestone_decision_not_go")
     if trend_transition in {"PASS->NEEDS_REVIEW", "PASS->FAIL", "NEEDS_REVIEW->FAIL"}:
         risk_disclosures.append("milestone_trend_worsened")
+    if target_gap_pressure and target_gap_pressure < 60.0:
+        risk_disclosures.append("target_gap_pressure_low")
+    if target_gap_score >= 30.0:
+        risk_disclosures.append("model_asset_target_gap_high")
+    if target_gap_supply_pressure >= 65.0:
+        risk_disclosures.append("target_gap_supply_pressure_high")
+    if target_gap_narrative_status in {"NEEDS_REVIEW", "FAIL"}:
+        risk_disclosures.append("target_gap_narrative_not_pass")
 
     publishable = score >= float(args.min_publish_score) and not reasons and not risk_disclosures
 
@@ -166,6 +191,10 @@ def main() -> None:
         "milestone_decision": milestone_decision,
         "milestone_status": checkpoint_status,
         "moat_status": moat_status,
+        "target_gap_pressure_index": target_gap_pressure,
+        "model_asset_target_gap_score": target_gap_score,
+        "target_gap_supply_pressure_index": target_gap_supply_pressure,
+        "target_gap_narrative_status": target_gap_narrative_status,
         "risk_disclosures": risk_disclosures,
         "public_claims": [
             {
@@ -187,6 +216,16 @@ def main() -> None:
                 "claim_id": "claim.milestone_decision",
                 "text": f"Milestone decision is {milestone_decision}",
                 "value": milestone_decision,
+            },
+            {
+                "claim_id": "claim.target_gap_pressure_index",
+                "text": f"Target-gap pressure index at {target_gap_pressure}",
+                "value": target_gap_pressure,
+            },
+            {
+                "claim_id": "claim.model_asset_target_gap_score",
+                "text": f"Model-asset target-gap score at {target_gap_score}",
+                "value": target_gap_score,
             },
         ],
         "sources": {
