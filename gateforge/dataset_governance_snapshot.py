@@ -163,6 +163,8 @@ def _status_from_signals(signals: dict) -> str:
         return "NEEDS_REVIEW"
     if signals.get("dataset_model_asset_momentum_history_trend_needs_review"):
         return "NEEDS_REVIEW"
+    if signals.get("dataset_model_asset_target_gap_needs_review"):
+        return "NEEDS_REVIEW"
     return "PASS"
 
 
@@ -227,6 +229,7 @@ def _compute_summary(
     model_asset_momentum: dict,
     model_asset_momentum_history: dict,
     model_asset_momentum_history_trend: dict,
+    model_asset_target_gap: dict,
 ) -> dict:
     strategy_advice = (
         strategy_advisor.get("advice")
@@ -381,6 +384,8 @@ def _compute_summary(
             model_asset_momentum_history_trend.get("status") or ""
         )
         in {"NEEDS_REVIEW", "FAIL"},
+        "dataset_model_asset_target_gap_needs_review": str(model_asset_target_gap.get("status") or "")
+        in {"NEEDS_REVIEW", "FAIL"},
     }
     status = _status_from_signals(signals)
 
@@ -507,6 +512,8 @@ def _compute_summary(
         risks.append("dataset_model_asset_momentum_history_needs_review")
     if signals["dataset_model_asset_momentum_history_trend_needs_review"]:
         risks.append("dataset_model_asset_momentum_history_trend_needs_review")
+    if signals["dataset_model_asset_target_gap_needs_review"]:
+        risks.append("dataset_model_asset_target_gap_needs_review")
 
     policy_patch_advice = (
         failure_policy_patch_advisor.get("advice")
@@ -874,6 +881,11 @@ def _compute_summary(
             if isinstance(model_asset_momentum_history_trend.get("trend"), dict)
             else None
         ),
+        "dataset_model_asset_target_gap_status": model_asset_target_gap.get("status"),
+        "dataset_model_asset_target_gap_score": _to_float(model_asset_target_gap.get("target_gap_score", 0.0)),
+        "dataset_model_asset_target_gap_critical_gap_count": _to_int(
+            model_asset_target_gap.get("critical_gap_count", 0)
+        ),
     }
     return {
         "status": status,
@@ -1071,6 +1083,9 @@ def _write_markdown(path: str, summary: dict) -> None:
         f"- dataset_model_asset_momentum_history_avg_momentum_score: `{kpis.get('dataset_model_asset_momentum_history_avg_momentum_score')}`",
         f"- dataset_model_asset_momentum_history_trend_status: `{kpis.get('dataset_model_asset_momentum_history_trend_status')}`",
         f"- dataset_model_asset_momentum_history_trend_status_transition: `{kpis.get('dataset_model_asset_momentum_history_trend_status_transition')}`",
+        f"- dataset_model_asset_target_gap_status: `{kpis.get('dataset_model_asset_target_gap_status')}`",
+        f"- dataset_model_asset_target_gap_score: `{kpis.get('dataset_model_asset_target_gap_score')}`",
+        f"- dataset_model_asset_target_gap_critical_gap_count: `{kpis.get('dataset_model_asset_target_gap_critical_gap_count')}`",
         "",
         "## Risks",
         "",
@@ -1363,6 +1378,11 @@ def main() -> None:
         default=None,
         help="Path to dataset model asset momentum history trend summary JSON",
     )
+    parser.add_argument(
+        "--dataset-model-asset-target-gap",
+        default=None,
+        help="Path to dataset model asset target gap summary JSON",
+    )
     parser.add_argument("--out", default="artifacts/dataset_governance_snapshot/summary.json", help="Output JSON path")
     parser.add_argument("--report", default=None, help="Output markdown path")
     args = parser.parse_args()
@@ -1427,6 +1447,7 @@ def main() -> None:
     model_asset_momentum = _load_json(args.dataset_model_asset_momentum)
     model_asset_momentum_history = _load_json(args.dataset_model_asset_momentum_history)
     model_asset_momentum_history_trend = _load_json(args.dataset_model_asset_momentum_history_trend)
+    model_asset_target_gap = _load_json(args.dataset_model_asset_target_gap)
 
     summary = _compute_summary(
         dataset_pipeline,
@@ -1489,6 +1510,7 @@ def main() -> None:
         model_asset_momentum,
         model_asset_momentum_history,
         model_asset_momentum_history_trend,
+        model_asset_target_gap,
     )
     summary["generated_at_utc"] = datetime.now(timezone.utc).isoformat()
     summary["sources"] = {
@@ -1552,6 +1574,7 @@ def main() -> None:
         "dataset_model_asset_momentum_path": args.dataset_model_asset_momentum,
         "dataset_model_asset_momentum_history_path": args.dataset_model_asset_momentum_history,
         "dataset_model_asset_momentum_history_trend_path": args.dataset_model_asset_momentum_history_trend,
+        "dataset_model_asset_target_gap_path": args.dataset_model_asset_target_gap,
     }
 
     _write_json(args.out, summary)

@@ -156,6 +156,9 @@ class DatasetOptionalCIContractTests(unittest.TestCase):
                 "model_asset_momentum_history_status": "PASS",
                 "model_asset_momentum_history_avg_momentum_score": 80.0,
                 "model_asset_momentum_history_trend_status": "PASS",
+                "model_asset_target_gap_status": "NEEDS_REVIEW",
+                "model_asset_target_gap_score": 28.5,
+                "model_asset_target_gap_critical_gap_count": 1,
             },
             "dataset_governance_snapshot_trend_demo/demo_summary.json": {
                 "bundle_status": "PASS",
@@ -205,6 +208,7 @@ class DatasetOptionalCIContractTests(unittest.TestCase):
                 "model_asset_momentum_status_transition": "PASS->PASS",
                 "model_asset_momentum_history_status_transition": "PASS->PASS",
                 "model_asset_momentum_history_trend_status_transition": "PASS->PASS",
+                "model_asset_target_gap_status_transition": "PASS->NEEDS_REVIEW",
                 "status_delta_alert_count": 1,
                 "severity_level": "medium",
             },

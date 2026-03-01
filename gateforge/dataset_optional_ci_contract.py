@@ -177,6 +177,9 @@ def main() -> None:
                 "model_asset_momentum_history_status",
                 "model_asset_momentum_history_avg_momentum_score",
                 "model_asset_momentum_history_trend_status",
+                "model_asset_target_gap_status",
+                "model_asset_target_gap_score",
+                "model_asset_target_gap_critical_gap_count",
             ],
         ),
         (
@@ -230,6 +233,7 @@ def main() -> None:
                 "model_asset_momentum_status_transition",
                 "model_asset_momentum_history_status_transition",
                 "model_asset_momentum_history_trend_status_transition",
+                "model_asset_target_gap_status_transition",
                 "status_delta_alert_count",
                 "severity_level",
             ],

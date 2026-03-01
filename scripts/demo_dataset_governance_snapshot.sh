@@ -36,7 +36,7 @@ if [ "${GATEFORGE_DEMO_FAST:-0}" = "1" ]; then
     artifacts/dataset_anchor_model_pack_history_v1_demo artifacts/dataset_anchor_model_pack_history_trend_v1_demo \
     artifacts/dataset_failure_matrix_expansion_history_v1_demo artifacts/dataset_failure_matrix_expansion_history_trend_v1_demo \
     artifacts/dataset_model_asset_momentum_v1_demo artifacts/dataset_model_asset_momentum_history_v1_demo \
-    artifacts/dataset_model_asset_momentum_history_trend_v1_demo
+    artifacts/dataset_model_asset_momentum_history_trend_v1_demo artifacts/dataset_model_asset_target_gap_v1_demo
   cat > artifacts/dataset_pipeline_demo/summary.json <<'JSON'
 {"bundle_status":"PASS","build_deduplicated_cases":12,"quality_failure_case_rate":0.3}
 JSON
@@ -208,6 +208,9 @@ JSON
   cat > artifacts/dataset_model_asset_momentum_history_trend_v1_demo/summary.json <<'JSON'
 {"status":"PASS","trend":{"status_transition":"PASS->PASS","delta_avg_momentum_score":0.5}}
 JSON
+  cat > artifacts/dataset_model_asset_target_gap_v1_demo/summary.json <<'JSON'
+{"status":"NEEDS_REVIEW","target_gap_score":28.5,"critical_gap_count":1}
+JSON
 else
   bash scripts/demo_dataset_pipeline.sh >/dev/null
   bash scripts/demo_dataset_history.sh >/dev/null
@@ -267,6 +270,7 @@ else
   bash scripts/demo_dataset_model_asset_momentum_v1.sh >/dev/null
   bash scripts/demo_dataset_model_asset_momentum_history_v1.sh >/dev/null
   bash scripts/demo_dataset_model_asset_momentum_history_trend_v1.sh >/dev/null
+  bash scripts/demo_dataset_model_asset_target_gap_v1.sh >/dev/null
 fi
 
 ARGS=(
@@ -421,6 +425,9 @@ fi
 if [ -f artifacts/dataset_model_asset_momentum_history_trend_v1_demo/summary.json ]; then
   ARGS+=(--dataset-model-asset-momentum-history-trend artifacts/dataset_model_asset_momentum_history_trend_v1_demo/summary.json)
 fi
+if [ -f artifacts/dataset_model_asset_target_gap_v1_demo/summary.json ]; then
+  ARGS+=(--dataset-model-asset-target-gap artifacts/dataset_model_asset_target_gap_v1_demo/summary.json)
+fi
 
 python3 -m gateforge.dataset_governance_snapshot \
   "${ARGS[@]}" \
@@ -563,6 +570,9 @@ flags = {
     "model_asset_momentum_history_trend_kpi_present": "PASS"
     if isinstance((payload.get("kpis") or {}).get("dataset_model_asset_momentum_history_trend_status"), (str, type(None)))
     else "FAIL",
+    "model_asset_target_gap_kpi_present": "PASS"
+    if isinstance((payload.get("kpis") or {}).get("dataset_model_asset_target_gap_status"), (str, type(None)))
+    else "FAIL",
 }
 bundle_status = "PASS" if all(v == "PASS" for v in flags.values()) else "FAIL"
 summary = {
@@ -668,6 +678,9 @@ summary = {
     "model_asset_momentum_history_status": (payload.get("kpis") or {}).get("dataset_model_asset_momentum_history_status"),
     "model_asset_momentum_history_avg_momentum_score": (payload.get("kpis") or {}).get("dataset_model_asset_momentum_history_avg_momentum_score"),
     "model_asset_momentum_history_trend_status": (payload.get("kpis") or {}).get("dataset_model_asset_momentum_history_trend_status"),
+    "model_asset_target_gap_status": (payload.get("kpis") or {}).get("dataset_model_asset_target_gap_status"),
+    "model_asset_target_gap_score": (payload.get("kpis") or {}).get("dataset_model_asset_target_gap_score"),
+    "model_asset_target_gap_critical_gap_count": (payload.get("kpis") or {}).get("dataset_model_asset_target_gap_critical_gap_count"),
     "result_flags": flags,
     "bundle_status": bundle_status,
 }
@@ -759,6 +772,9 @@ summary = {
             f"- model_asset_momentum_history_status: `{summary['model_asset_momentum_history_status']}`",
             f"- model_asset_momentum_history_avg_momentum_score: `{summary['model_asset_momentum_history_avg_momentum_score']}`",
             f"- model_asset_momentum_history_trend_status: `{summary['model_asset_momentum_history_trend_status']}`",
+            f"- model_asset_target_gap_status: `{summary['model_asset_target_gap_status']}`",
+            f"- model_asset_target_gap_score: `{summary['model_asset_target_gap_score']}`",
+            f"- model_asset_target_gap_critical_gap_count: `{summary['model_asset_target_gap_critical_gap_count']}`",
             f"- bundle_status: `{summary['bundle_status']}`",
             "",
             "## Result Flags",
