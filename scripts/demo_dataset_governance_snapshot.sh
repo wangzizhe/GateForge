@@ -31,7 +31,10 @@ if [ "${GATEFORGE_DEMO_FAST:-0}" = "1" ]; then
     artifacts/dataset_failure_distribution_stability_history_trend_v1_demo \
     artifacts/dataset_moat_anchor_brief_v1_demo artifacts/dataset_moat_anchor_brief_history_v1_demo \
     artifacts/dataset_moat_anchor_brief_history_trend_v1_demo \
-    artifacts/dataset_real_model_supply_pipeline_v1_demo artifacts/dataset_mutation_coverage_matrix_v2_demo
+    artifacts/dataset_real_model_supply_pipeline_v1_demo artifacts/dataset_mutation_coverage_matrix_v2_demo \
+    artifacts/dataset_model_intake_board_history_v1_demo artifacts/dataset_model_intake_board_history_trend_v1_demo \
+    artifacts/dataset_anchor_model_pack_history_v1_demo artifacts/dataset_anchor_model_pack_history_trend_v1_demo \
+    artifacts/dataset_failure_matrix_expansion_history_v1_demo artifacts/dataset_failure_matrix_expansion_history_trend_v1_demo
   cat > artifacts/dataset_pipeline_demo/summary.json <<'JSON'
 {"bundle_status":"PASS","build_deduplicated_cases":12,"quality_failure_case_rate":0.3}
 JSON
@@ -176,6 +179,24 @@ JSON
   cat > artifacts/dataset_mutation_coverage_matrix_v2_demo/summary.json <<'JSON'
 {"status":"PASS","matrix_coverage_score":83.0,"total_matrix_cells":12,"high_risk_uncovered_cells":1}
 JSON
+  cat > artifacts/dataset_model_intake_board_history_v1_demo/summary.json <<'JSON'
+{"status":"PASS","total_records":4,"avg_board_score":80.0,"blocked_rate":0.1,"ingested_rate":0.3}
+JSON
+  cat > artifacts/dataset_model_intake_board_history_trend_v1_demo/summary.json <<'JSON'
+{"status":"PASS","trend":{"status_transition":"PASS->PASS","delta_avg_board_score":1.0}}
+JSON
+  cat > artifacts/dataset_anchor_model_pack_history_v1_demo/summary.json <<'JSON'
+{"status":"PASS","total_records":4,"avg_pack_quality_score":83.0,"avg_selected_large_cases":6.0,"avg_unique_failure_types":5.0}
+JSON
+  cat > artifacts/dataset_anchor_model_pack_history_trend_v1_demo/summary.json <<'JSON'
+{"status":"PASS","trend":{"status_transition":"PASS->PASS","delta_avg_pack_quality_score":0.5}}
+JSON
+  cat > artifacts/dataset_failure_matrix_expansion_history_v1_demo/summary.json <<'JSON'
+{"status":"PASS","total_records":4,"avg_expansion_readiness_score":78.0,"avg_high_risk_uncovered_cells":0.0,"avg_planned_expansion_tasks":7.0}
+JSON
+  cat > artifacts/dataset_failure_matrix_expansion_history_trend_v1_demo/summary.json <<'JSON'
+{"status":"PASS","trend":{"status_transition":"PASS->PASS","delta_avg_expansion_readiness_score":0.4}}
+JSON
 else
   bash scripts/demo_dataset_pipeline.sh >/dev/null
   bash scripts/demo_dataset_history.sh >/dev/null
@@ -226,6 +247,12 @@ else
   bash scripts/demo_dataset_moat_anchor_brief_history_trend_v1.sh >/dev/null
   bash scripts/demo_dataset_real_model_supply_pipeline_v1.sh >/dev/null
   bash scripts/demo_dataset_mutation_coverage_matrix_v2.sh >/dev/null
+  bash scripts/demo_dataset_model_intake_board_history_v1.sh >/dev/null
+  bash scripts/demo_dataset_model_intake_board_history_trend_v1.sh >/dev/null
+  bash scripts/demo_dataset_anchor_model_pack_history_v1.sh >/dev/null
+  bash scripts/demo_dataset_anchor_model_pack_history_trend_v1.sh >/dev/null
+  bash scripts/demo_dataset_failure_matrix_expansion_history_v1.sh >/dev/null
+  bash scripts/demo_dataset_failure_matrix_expansion_history_trend_v1.sh >/dev/null
 fi
 
 ARGS=(
@@ -353,6 +380,24 @@ fi
 if [ -f artifacts/dataset_mutation_coverage_matrix_v2_demo/summary.json ]; then
   ARGS+=(--dataset-mutation-coverage-matrix artifacts/dataset_mutation_coverage_matrix_v2_demo/summary.json)
 fi
+if [ -f artifacts/dataset_model_intake_board_history_v1_demo/summary.json ]; then
+  ARGS+=(--dataset-model-intake-board-history artifacts/dataset_model_intake_board_history_v1_demo/summary.json)
+fi
+if [ -f artifacts/dataset_model_intake_board_history_trend_v1_demo/summary.json ]; then
+  ARGS+=(--dataset-model-intake-board-history-trend artifacts/dataset_model_intake_board_history_trend_v1_demo/summary.json)
+fi
+if [ -f artifacts/dataset_anchor_model_pack_history_v1_demo/summary.json ]; then
+  ARGS+=(--dataset-anchor-model-pack-history artifacts/dataset_anchor_model_pack_history_v1_demo/summary.json)
+fi
+if [ -f artifacts/dataset_anchor_model_pack_history_trend_v1_demo/summary.json ]; then
+  ARGS+=(--dataset-anchor-model-pack-history-trend artifacts/dataset_anchor_model_pack_history_trend_v1_demo/summary.json)
+fi
+if [ -f artifacts/dataset_failure_matrix_expansion_history_v1_demo/summary.json ]; then
+  ARGS+=(--dataset-failure-matrix-expansion-history artifacts/dataset_failure_matrix_expansion_history_v1_demo/summary.json)
+fi
+if [ -f artifacts/dataset_failure_matrix_expansion_history_trend_v1_demo/summary.json ]; then
+  ARGS+=(--dataset-failure-matrix-expansion-history-trend artifacts/dataset_failure_matrix_expansion_history_trend_v1_demo/summary.json)
+fi
 
 python3 -m gateforge.dataset_governance_snapshot \
   "${ARGS[@]}" \
@@ -468,6 +513,24 @@ flags = {
     "mutation_coverage_matrix_kpi_present": "PASS"
     if isinstance((payload.get("kpis") or {}).get("dataset_mutation_coverage_matrix_status"), (str, type(None)))
     else "FAIL",
+    "model_intake_board_history_kpi_present": "PASS"
+    if isinstance((payload.get("kpis") or {}).get("dataset_model_intake_board_history_status"), (str, type(None)))
+    else "FAIL",
+    "model_intake_board_history_trend_kpi_present": "PASS"
+    if isinstance((payload.get("kpis") or {}).get("dataset_model_intake_board_history_trend_status"), (str, type(None)))
+    else "FAIL",
+    "anchor_model_pack_history_kpi_present": "PASS"
+    if isinstance((payload.get("kpis") or {}).get("dataset_anchor_model_pack_history_status"), (str, type(None)))
+    else "FAIL",
+    "anchor_model_pack_history_trend_kpi_present": "PASS"
+    if isinstance((payload.get("kpis") or {}).get("dataset_anchor_model_pack_history_trend_status"), (str, type(None)))
+    else "FAIL",
+    "failure_matrix_expansion_history_kpi_present": "PASS"
+    if isinstance((payload.get("kpis") or {}).get("dataset_failure_matrix_expansion_history_status"), (str, type(None)))
+    else "FAIL",
+    "failure_matrix_expansion_history_trend_kpi_present": "PASS"
+    if isinstance((payload.get("kpis") or {}).get("dataset_failure_matrix_expansion_history_trend_status"), (str, type(None)))
+    else "FAIL",
 }
 bundle_status = "PASS" if all(v == "PASS" for v in flags.values()) else "FAIL"
 summary = {
@@ -559,6 +622,15 @@ summary = {
     "mutation_coverage_matrix_status": (payload.get("kpis") or {}).get("dataset_mutation_coverage_matrix_status"),
     "mutation_coverage_matrix_score": (payload.get("kpis") or {}).get("dataset_mutation_coverage_matrix_score"),
     "mutation_coverage_matrix_high_risk_uncovered_cells": (payload.get("kpis") or {}).get("dataset_mutation_coverage_matrix_high_risk_uncovered_cells"),
+    "model_intake_board_history_status": (payload.get("kpis") or {}).get("dataset_model_intake_board_history_status"),
+    "model_intake_board_history_avg_board_score": (payload.get("kpis") or {}).get("dataset_model_intake_board_history_avg_board_score"),
+    "model_intake_board_history_trend_status": (payload.get("kpis") or {}).get("dataset_model_intake_board_history_trend_status"),
+    "anchor_model_pack_history_status": (payload.get("kpis") or {}).get("dataset_anchor_model_pack_history_status"),
+    "anchor_model_pack_history_avg_pack_quality_score": (payload.get("kpis") or {}).get("dataset_anchor_model_pack_history_avg_pack_quality_score"),
+    "anchor_model_pack_history_trend_status": (payload.get("kpis") or {}).get("dataset_anchor_model_pack_history_trend_status"),
+    "failure_matrix_expansion_history_status": (payload.get("kpis") or {}).get("dataset_failure_matrix_expansion_history_status"),
+    "failure_matrix_expansion_history_avg_expansion_readiness_score": (payload.get("kpis") or {}).get("dataset_failure_matrix_expansion_history_avg_expansion_readiness_score"),
+    "failure_matrix_expansion_history_trend_status": (payload.get("kpis") or {}).get("dataset_failure_matrix_expansion_history_trend_status"),
     "result_flags": flags,
     "bundle_status": bundle_status,
 }
@@ -636,6 +708,15 @@ summary = {
             f"- mutation_coverage_matrix_status: `{summary['mutation_coverage_matrix_status']}`",
             f"- mutation_coverage_matrix_score: `{summary['mutation_coverage_matrix_score']}`",
             f"- mutation_coverage_matrix_high_risk_uncovered_cells: `{summary['mutation_coverage_matrix_high_risk_uncovered_cells']}`",
+            f"- model_intake_board_history_status: `{summary['model_intake_board_history_status']}`",
+            f"- model_intake_board_history_avg_board_score: `{summary['model_intake_board_history_avg_board_score']}`",
+            f"- model_intake_board_history_trend_status: `{summary['model_intake_board_history_trend_status']}`",
+            f"- anchor_model_pack_history_status: `{summary['anchor_model_pack_history_status']}`",
+            f"- anchor_model_pack_history_avg_pack_quality_score: `{summary['anchor_model_pack_history_avg_pack_quality_score']}`",
+            f"- anchor_model_pack_history_trend_status: `{summary['anchor_model_pack_history_trend_status']}`",
+            f"- failure_matrix_expansion_history_status: `{summary['failure_matrix_expansion_history_status']}`",
+            f"- failure_matrix_expansion_history_avg_expansion_readiness_score: `{summary['failure_matrix_expansion_history_avg_expansion_readiness_score']}`",
+            f"- failure_matrix_expansion_history_trend_status: `{summary['failure_matrix_expansion_history_trend_status']}`",
             f"- bundle_status: `{summary['bundle_status']}`",
             "",
             "## Result Flags",

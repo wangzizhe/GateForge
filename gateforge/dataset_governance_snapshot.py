@@ -145,6 +145,18 @@ def _status_from_signals(signals: dict) -> str:
         return "NEEDS_REVIEW"
     if signals.get("dataset_mutation_coverage_matrix_needs_review"):
         return "NEEDS_REVIEW"
+    if signals.get("dataset_model_intake_board_history_needs_review"):
+        return "NEEDS_REVIEW"
+    if signals.get("dataset_model_intake_board_history_trend_needs_review"):
+        return "NEEDS_REVIEW"
+    if signals.get("dataset_anchor_model_pack_history_needs_review"):
+        return "NEEDS_REVIEW"
+    if signals.get("dataset_anchor_model_pack_history_trend_needs_review"):
+        return "NEEDS_REVIEW"
+    if signals.get("dataset_failure_matrix_expansion_history_needs_review"):
+        return "NEEDS_REVIEW"
+    if signals.get("dataset_failure_matrix_expansion_history_trend_needs_review"):
+        return "NEEDS_REVIEW"
     return "PASS"
 
 
@@ -200,6 +212,12 @@ def _compute_summary(
     moat_anchor_brief_history_trend: dict,
     real_model_supply_pipeline: dict,
     mutation_coverage_matrix: dict,
+    model_intake_board_history: dict,
+    model_intake_board_history_trend: dict,
+    anchor_model_pack_history: dict,
+    anchor_model_pack_history_trend: dict,
+    failure_matrix_expansion_history: dict,
+    failure_matrix_expansion_history_trend: dict,
 ) -> dict:
     strategy_advice = (
         strategy_advisor.get("advice")
@@ -326,6 +344,26 @@ def _compute_summary(
         in {"NEEDS_REVIEW", "FAIL"},
         "dataset_mutation_coverage_matrix_needs_review": str(mutation_coverage_matrix.get("status") or "")
         in {"NEEDS_REVIEW", "FAIL"},
+        "dataset_model_intake_board_history_needs_review": str(model_intake_board_history.get("status") or "")
+        in {"NEEDS_REVIEW", "FAIL"},
+        "dataset_model_intake_board_history_trend_needs_review": str(
+            model_intake_board_history_trend.get("status") or ""
+        )
+        in {"NEEDS_REVIEW", "FAIL"},
+        "dataset_anchor_model_pack_history_needs_review": str(anchor_model_pack_history.get("status") or "")
+        in {"NEEDS_REVIEW", "FAIL"},
+        "dataset_anchor_model_pack_history_trend_needs_review": str(
+            anchor_model_pack_history_trend.get("status") or ""
+        )
+        in {"NEEDS_REVIEW", "FAIL"},
+        "dataset_failure_matrix_expansion_history_needs_review": str(
+            failure_matrix_expansion_history.get("status") or ""
+        )
+        in {"NEEDS_REVIEW", "FAIL"},
+        "dataset_failure_matrix_expansion_history_trend_needs_review": str(
+            failure_matrix_expansion_history_trend.get("status") or ""
+        )
+        in {"NEEDS_REVIEW", "FAIL"},
     }
     status = _status_from_signals(signals)
 
@@ -434,6 +472,18 @@ def _compute_summary(
         risks.append("dataset_real_model_supply_pipeline_needs_review")
     if signals["dataset_mutation_coverage_matrix_needs_review"]:
         risks.append("dataset_mutation_coverage_matrix_needs_review")
+    if signals["dataset_model_intake_board_history_needs_review"]:
+        risks.append("dataset_model_intake_board_history_needs_review")
+    if signals["dataset_model_intake_board_history_trend_needs_review"]:
+        risks.append("dataset_model_intake_board_history_trend_needs_review")
+    if signals["dataset_anchor_model_pack_history_needs_review"]:
+        risks.append("dataset_anchor_model_pack_history_needs_review")
+    if signals["dataset_anchor_model_pack_history_trend_needs_review"]:
+        risks.append("dataset_anchor_model_pack_history_trend_needs_review")
+    if signals["dataset_failure_matrix_expansion_history_needs_review"]:
+        risks.append("dataset_failure_matrix_expansion_history_needs_review")
+    if signals["dataset_failure_matrix_expansion_history_trend_needs_review"]:
+        risks.append("dataset_failure_matrix_expansion_history_trend_needs_review")
 
     policy_patch_advice = (
         failure_policy_patch_advisor.get("advice")
@@ -729,6 +779,57 @@ def _compute_summary(
         "dataset_mutation_coverage_matrix_high_risk_uncovered_cells": _to_int(
             mutation_coverage_matrix.get("high_risk_uncovered_cells", 0)
         ),
+        "dataset_model_intake_board_history_status": model_intake_board_history.get("status"),
+        "dataset_model_intake_board_history_total_records": _to_int(model_intake_board_history.get("total_records", 0)),
+        "dataset_model_intake_board_history_avg_board_score": _to_float(
+            model_intake_board_history.get("avg_board_score", 0.0)
+        ),
+        "dataset_model_intake_board_history_blocked_rate": _to_float(model_intake_board_history.get("blocked_rate", 0.0)),
+        "dataset_model_intake_board_history_ingested_rate": _to_float(
+            model_intake_board_history.get("ingested_rate", 0.0)
+        ),
+        "dataset_model_intake_board_history_trend_status": model_intake_board_history_trend.get("status"),
+        "dataset_model_intake_board_history_trend_status_transition": (
+            (model_intake_board_history_trend.get("trend") or {}).get("status_transition")
+            if isinstance(model_intake_board_history_trend.get("trend"), dict)
+            else None
+        ),
+        "dataset_anchor_model_pack_history_status": anchor_model_pack_history.get("status"),
+        "dataset_anchor_model_pack_history_total_records": _to_int(anchor_model_pack_history.get("total_records", 0)),
+        "dataset_anchor_model_pack_history_avg_pack_quality_score": _to_float(
+            anchor_model_pack_history.get("avg_pack_quality_score", 0.0)
+        ),
+        "dataset_anchor_model_pack_history_avg_selected_large_cases": _to_float(
+            anchor_model_pack_history.get("avg_selected_large_cases", 0.0)
+        ),
+        "dataset_anchor_model_pack_history_avg_unique_failure_types": _to_float(
+            anchor_model_pack_history.get("avg_unique_failure_types", 0.0)
+        ),
+        "dataset_anchor_model_pack_history_trend_status": anchor_model_pack_history_trend.get("status"),
+        "dataset_anchor_model_pack_history_trend_status_transition": (
+            (anchor_model_pack_history_trend.get("trend") or {}).get("status_transition")
+            if isinstance(anchor_model_pack_history_trend.get("trend"), dict)
+            else None
+        ),
+        "dataset_failure_matrix_expansion_history_status": failure_matrix_expansion_history.get("status"),
+        "dataset_failure_matrix_expansion_history_total_records": _to_int(
+            failure_matrix_expansion_history.get("total_records", 0)
+        ),
+        "dataset_failure_matrix_expansion_history_avg_expansion_readiness_score": _to_float(
+            failure_matrix_expansion_history.get("avg_expansion_readiness_score", 0.0)
+        ),
+        "dataset_failure_matrix_expansion_history_avg_high_risk_uncovered_cells": _to_float(
+            failure_matrix_expansion_history.get("avg_high_risk_uncovered_cells", 0.0)
+        ),
+        "dataset_failure_matrix_expansion_history_avg_planned_expansion_tasks": _to_float(
+            failure_matrix_expansion_history.get("avg_planned_expansion_tasks", 0.0)
+        ),
+        "dataset_failure_matrix_expansion_history_trend_status": failure_matrix_expansion_history_trend.get("status"),
+        "dataset_failure_matrix_expansion_history_trend_status_transition": (
+            (failure_matrix_expansion_history_trend.get("trend") or {}).get("status_transition")
+            if isinstance(failure_matrix_expansion_history_trend.get("trend"), dict)
+            else None
+        ),
     }
     return {
         "status": status,
@@ -896,6 +997,27 @@ def _write_markdown(path: str, summary: dict) -> None:
         f"- dataset_mutation_coverage_matrix_score: `{kpis.get('dataset_mutation_coverage_matrix_score')}`",
         f"- dataset_mutation_coverage_matrix_total_cells: `{kpis.get('dataset_mutation_coverage_matrix_total_cells')}`",
         f"- dataset_mutation_coverage_matrix_high_risk_uncovered_cells: `{kpis.get('dataset_mutation_coverage_matrix_high_risk_uncovered_cells')}`",
+        f"- dataset_model_intake_board_history_status: `{kpis.get('dataset_model_intake_board_history_status')}`",
+        f"- dataset_model_intake_board_history_total_records: `{kpis.get('dataset_model_intake_board_history_total_records')}`",
+        f"- dataset_model_intake_board_history_avg_board_score: `{kpis.get('dataset_model_intake_board_history_avg_board_score')}`",
+        f"- dataset_model_intake_board_history_blocked_rate: `{kpis.get('dataset_model_intake_board_history_blocked_rate')}`",
+        f"- dataset_model_intake_board_history_ingested_rate: `{kpis.get('dataset_model_intake_board_history_ingested_rate')}`",
+        f"- dataset_model_intake_board_history_trend_status: `{kpis.get('dataset_model_intake_board_history_trend_status')}`",
+        f"- dataset_model_intake_board_history_trend_status_transition: `{kpis.get('dataset_model_intake_board_history_trend_status_transition')}`",
+        f"- dataset_anchor_model_pack_history_status: `{kpis.get('dataset_anchor_model_pack_history_status')}`",
+        f"- dataset_anchor_model_pack_history_total_records: `{kpis.get('dataset_anchor_model_pack_history_total_records')}`",
+        f"- dataset_anchor_model_pack_history_avg_pack_quality_score: `{kpis.get('dataset_anchor_model_pack_history_avg_pack_quality_score')}`",
+        f"- dataset_anchor_model_pack_history_avg_selected_large_cases: `{kpis.get('dataset_anchor_model_pack_history_avg_selected_large_cases')}`",
+        f"- dataset_anchor_model_pack_history_avg_unique_failure_types: `{kpis.get('dataset_anchor_model_pack_history_avg_unique_failure_types')}`",
+        f"- dataset_anchor_model_pack_history_trend_status: `{kpis.get('dataset_anchor_model_pack_history_trend_status')}`",
+        f"- dataset_anchor_model_pack_history_trend_status_transition: `{kpis.get('dataset_anchor_model_pack_history_trend_status_transition')}`",
+        f"- dataset_failure_matrix_expansion_history_status: `{kpis.get('dataset_failure_matrix_expansion_history_status')}`",
+        f"- dataset_failure_matrix_expansion_history_total_records: `{kpis.get('dataset_failure_matrix_expansion_history_total_records')}`",
+        f"- dataset_failure_matrix_expansion_history_avg_expansion_readiness_score: `{kpis.get('dataset_failure_matrix_expansion_history_avg_expansion_readiness_score')}`",
+        f"- dataset_failure_matrix_expansion_history_avg_high_risk_uncovered_cells: `{kpis.get('dataset_failure_matrix_expansion_history_avg_high_risk_uncovered_cells')}`",
+        f"- dataset_failure_matrix_expansion_history_avg_planned_expansion_tasks: `{kpis.get('dataset_failure_matrix_expansion_history_avg_planned_expansion_tasks')}`",
+        f"- dataset_failure_matrix_expansion_history_trend_status: `{kpis.get('dataset_failure_matrix_expansion_history_trend_status')}`",
+        f"- dataset_failure_matrix_expansion_history_trend_status_transition: `{kpis.get('dataset_failure_matrix_expansion_history_trend_status_transition')}`",
         "",
         "## Risks",
         "",
@@ -1143,6 +1265,36 @@ def main() -> None:
         default=None,
         help="Path to dataset mutation coverage matrix summary JSON",
     )
+    parser.add_argument(
+        "--dataset-model-intake-board-history",
+        default=None,
+        help="Path to dataset model intake board history summary JSON",
+    )
+    parser.add_argument(
+        "--dataset-model-intake-board-history-trend",
+        default=None,
+        help="Path to dataset model intake board history trend summary JSON",
+    )
+    parser.add_argument(
+        "--dataset-anchor-model-pack-history",
+        default=None,
+        help="Path to dataset anchor model pack history summary JSON",
+    )
+    parser.add_argument(
+        "--dataset-anchor-model-pack-history-trend",
+        default=None,
+        help="Path to dataset anchor model pack history trend summary JSON",
+    )
+    parser.add_argument(
+        "--dataset-failure-matrix-expansion-history",
+        default=None,
+        help="Path to dataset failure matrix expansion history summary JSON",
+    )
+    parser.add_argument(
+        "--dataset-failure-matrix-expansion-history-trend",
+        default=None,
+        help="Path to dataset failure matrix expansion history trend summary JSON",
+    )
     parser.add_argument("--out", default="artifacts/dataset_governance_snapshot/summary.json", help="Output JSON path")
     parser.add_argument("--report", default=None, help="Output markdown path")
     args = parser.parse_args()
@@ -1198,6 +1350,12 @@ def main() -> None:
     moat_anchor_brief_history_trend = _load_json(args.dataset_moat_anchor_brief_history_trend)
     real_model_supply_pipeline = _load_json(args.dataset_real_model_supply_pipeline)
     mutation_coverage_matrix = _load_json(args.dataset_mutation_coverage_matrix)
+    model_intake_board_history = _load_json(args.dataset_model_intake_board_history)
+    model_intake_board_history_trend = _load_json(args.dataset_model_intake_board_history_trend)
+    anchor_model_pack_history = _load_json(args.dataset_anchor_model_pack_history)
+    anchor_model_pack_history_trend = _load_json(args.dataset_anchor_model_pack_history_trend)
+    failure_matrix_expansion_history = _load_json(args.dataset_failure_matrix_expansion_history)
+    failure_matrix_expansion_history_trend = _load_json(args.dataset_failure_matrix_expansion_history_trend)
 
     summary = _compute_summary(
         dataset_pipeline,
@@ -1251,6 +1409,12 @@ def main() -> None:
         moat_anchor_brief_history_trend,
         real_model_supply_pipeline,
         mutation_coverage_matrix,
+        model_intake_board_history,
+        model_intake_board_history_trend,
+        anchor_model_pack_history,
+        anchor_model_pack_history_trend,
+        failure_matrix_expansion_history,
+        failure_matrix_expansion_history_trend,
     )
     summary["generated_at_utc"] = datetime.now(timezone.utc).isoformat()
     summary["sources"] = {
@@ -1305,6 +1469,12 @@ def main() -> None:
         "dataset_moat_anchor_brief_history_trend_path": args.dataset_moat_anchor_brief_history_trend,
         "dataset_real_model_supply_pipeline_path": args.dataset_real_model_supply_pipeline,
         "dataset_mutation_coverage_matrix_path": args.dataset_mutation_coverage_matrix,
+        "dataset_model_intake_board_history_path": args.dataset_model_intake_board_history,
+        "dataset_model_intake_board_history_trend_path": args.dataset_model_intake_board_history_trend,
+        "dataset_anchor_model_pack_history_path": args.dataset_anchor_model_pack_history,
+        "dataset_anchor_model_pack_history_trend_path": args.dataset_anchor_model_pack_history_trend,
+        "dataset_failure_matrix_expansion_history_path": args.dataset_failure_matrix_expansion_history,
+        "dataset_failure_matrix_expansion_history_trend_path": args.dataset_failure_matrix_expansion_history_trend,
     }
 
     _write_json(args.out, summary)

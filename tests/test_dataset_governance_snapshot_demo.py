@@ -189,6 +189,42 @@ class DatasetGovernanceSnapshotDemoTests(unittest.TestCase):
                 payload.get("mutation_coverage_matrix_score"),
                 (int, float, type(None)),
             )
+            self.assertIn(
+                payload.get("model_intake_board_history_status"),
+                {"PASS", "NEEDS_REVIEW", "FAIL", None},
+            )
+            self.assertIsInstance(
+                payload.get("model_intake_board_history_avg_board_score"),
+                (int, float, type(None)),
+            )
+            self.assertIn(
+                payload.get("model_intake_board_history_trend_status"),
+                {"PASS", "NEEDS_REVIEW", "FAIL", None},
+            )
+            self.assertIn(
+                payload.get("anchor_model_pack_history_status"),
+                {"PASS", "NEEDS_REVIEW", "FAIL", None},
+            )
+            self.assertIsInstance(
+                payload.get("anchor_model_pack_history_avg_pack_quality_score"),
+                (int, float, type(None)),
+            )
+            self.assertIn(
+                payload.get("anchor_model_pack_history_trend_status"),
+                {"PASS", "NEEDS_REVIEW", "FAIL", None},
+            )
+            self.assertIn(
+                payload.get("failure_matrix_expansion_history_status"),
+                {"PASS", "NEEDS_REVIEW", "FAIL", None},
+            )
+            self.assertIsInstance(
+                payload.get("failure_matrix_expansion_history_avg_expansion_readiness_score"),
+                (int, float, type(None)),
+            )
+            self.assertIn(
+                payload.get("failure_matrix_expansion_history_trend_status"),
+                {"PASS", "NEEDS_REVIEW", "FAIL", None},
+            )
 
 
 if __name__ == "__main__":
