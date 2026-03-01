@@ -988,6 +988,34 @@ class DatasetGovernanceSnapshotTests(unittest.TestCase):
             self.assertIn("dataset_model_asset_momentum_history_needs_review", payload.get("risks", []))
             self.assertIn("dataset_model_asset_momentum_history_trend_needs_review", payload.get("risks", []))
 
+    def test_snapshot_needs_review_on_model_asset_target_gap(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            target_gap = root / "target_gap.json"
+            out = root / "snapshot.json"
+            target_gap.write_text(
+                json.dumps({"status": "NEEDS_REVIEW", "target_gap_score": 28.5, "critical_gap_count": 1}),
+                encoding="utf-8",
+            )
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.dataset_governance_snapshot",
+                    "--dataset-model-asset-target-gap",
+                    str(target_gap),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            payload = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(payload.get("status"), "NEEDS_REVIEW")
+            self.assertIn("dataset_model_asset_target_gap_needs_review", payload.get("risks", []))
+
 
 if __name__ == "__main__":
     unittest.main()
