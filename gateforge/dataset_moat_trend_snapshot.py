@@ -72,6 +72,9 @@ def _compute_metrics(
     model_asset_momentum: dict,
     model_asset_momentum_history: dict,
     model_asset_momentum_history_trend: dict,
+    model_asset_target_gap: dict,
+    model_asset_target_gap_history: dict,
+    model_asset_target_gap_history_trend: dict,
 ) -> dict:
     evidence_strength = _to_float(evidence_pack.get("evidence_strength_score", 0.0))
     sections_present = _to_int(evidence_pack.get("evidence_sections_present", 0))
@@ -239,6 +242,31 @@ def _compute_metrics(
     momentum_history_trend_status = str(model_asset_momentum_history_trend.get("status") or "")
     delta_total_models = _to_float(model_asset_momentum.get("delta_total_real_models", 0.0))
     delta_large_models = _to_float(model_asset_momentum.get("delta_large_models", 0.0))
+    target_gap_score = _to_float(model_asset_target_gap.get("target_gap_score", 0.0))
+    target_gap_critical = _to_float(model_asset_target_gap.get("critical_gap_count", 0.0))
+    target_gap_status = str(model_asset_target_gap.get("status") or "")
+    target_gap_history_avg = _to_float(model_asset_target_gap_history.get("avg_target_gap_score", 0.0))
+    target_gap_history_critical_avg = _to_float(model_asset_target_gap_history.get("avg_critical_gap_count", 0.0))
+    target_gap_history_status = str(model_asset_target_gap_history.get("status") or "")
+    target_gap_history_trend_status = str(model_asset_target_gap_history_trend.get("status") or "")
+    target_gap_pressure_index = _clamp(
+        88.0
+        - min(35.0, target_gap_score * 0.9)
+        - min(30.0, target_gap_critical * 12.0)
+        - min(20.0, target_gap_history_avg * 0.45)
+        - min(15.0, target_gap_history_critical_avg * 10.0)
+        + (4.0 if target_gap_status == "PASS" else (0.0 if target_gap_status == "NEEDS_REVIEW" else -8.0))
+        + (
+            3.0
+            if target_gap_history_status == "PASS"
+            else (0.0 if target_gap_history_status == "NEEDS_REVIEW" else -6.0)
+        )
+        + (
+            3.0
+            if target_gap_history_trend_status == "PASS"
+            else (0.0 if target_gap_history_trend_status == "NEEDS_REVIEW" else -5.0)
+        )
+    )
 
     momentum_resilience_index = _clamp(
         26.0
@@ -253,6 +281,7 @@ def _compute_metrics(
             if momentum_history_trend_status == "PASS"
             else (0.0 if momentum_history_trend_status == "NEEDS_REVIEW" else -5.0)
         )
+        + (target_gap_pressure_index * 0.18)
     )
 
     moat_score = _clamp(
@@ -265,6 +294,7 @@ def _compute_metrics(
         + (model_asset_quality_index * 0.08)
         + (expansion_execution_index * 0.06)
         + (momentum_resilience_index * 0.04)
+        + (target_gap_pressure_index * 0.04)
     )
 
     return {
@@ -277,6 +307,9 @@ def _compute_metrics(
         "model_asset_quality_index": _round(model_asset_quality_index),
         "expansion_execution_index": _round(expansion_execution_index),
         "momentum_resilience_index": _round(momentum_resilience_index),
+        "target_gap_pressure_index": _round(target_gap_pressure_index),
+        "model_asset_target_gap_score": _round(target_gap_score),
+        "model_asset_target_gap_critical_gap_count": _round(target_gap_critical),
         "intake_reject_rate_pct": _round(reject_rate_pct),
         "moat_score": _round(moat_score),
     }
@@ -316,6 +349,7 @@ def _trend(current: dict, previous: dict) -> dict:
             "model_asset_quality_index": delta("model_asset_quality_index"),
             "expansion_execution_index": delta("expansion_execution_index"),
             "momentum_resilience_index": delta("momentum_resilience_index"),
+            "target_gap_pressure_index": delta("target_gap_pressure_index"),
             "moat_score": moat_delta,
         },
         "alerts": alerts,
@@ -341,6 +375,9 @@ def _write_markdown(path: str, payload: dict) -> None:
         f"- model_asset_quality_index: `{metrics.get('model_asset_quality_index')}`",
         f"- expansion_execution_index: `{metrics.get('expansion_execution_index')}`",
         f"- momentum_resilience_index: `{metrics.get('momentum_resilience_index')}`",
+        f"- target_gap_pressure_index: `{metrics.get('target_gap_pressure_index')}`",
+        f"- model_asset_target_gap_score: `{metrics.get('model_asset_target_gap_score')}`",
+        f"- model_asset_target_gap_critical_gap_count: `{metrics.get('model_asset_target_gap_critical_gap_count')}`",
         f"- intake_reject_rate_pct: `{metrics.get('intake_reject_rate_pct')}`",
         f"- status_transition: `{trend.get('status_transition')}`",
         f"- moat_score_delta: `{(trend.get('delta') or {}).get('moat_score')}`",
@@ -381,6 +418,9 @@ def main() -> None:
     parser.add_argument("--model-asset-momentum-summary", default=None)
     parser.add_argument("--model-asset-momentum-history-summary", default=None)
     parser.add_argument("--model-asset-momentum-history-trend-summary", default=None)
+    parser.add_argument("--model-asset-target-gap-summary", default=None)
+    parser.add_argument("--model-asset-target-gap-history-summary", default=None)
+    parser.add_argument("--model-asset-target-gap-history-trend-summary", default=None)
     parser.add_argument("--previous-snapshot", default=None)
     parser.add_argument("--out", default="artifacts/dataset_moat_trend_snapshot/summary.json")
     parser.add_argument("--report-out", default=None)
@@ -407,6 +447,9 @@ def main() -> None:
     model_asset_momentum = _load_json(args.model_asset_momentum_summary)
     model_asset_momentum_history = _load_json(args.model_asset_momentum_history_summary)
     model_asset_momentum_history_trend = _load_json(args.model_asset_momentum_history_trend_summary)
+    model_asset_target_gap = _load_json(args.model_asset_target_gap_summary)
+    model_asset_target_gap_history = _load_json(args.model_asset_target_gap_history_summary)
+    model_asset_target_gap_history_trend = _load_json(args.model_asset_target_gap_history_trend_summary)
     previous = _load_json(args.previous_snapshot)
 
     metrics = _compute_metrics(
@@ -431,6 +474,9 @@ def main() -> None:
         model_asset_momentum,
         model_asset_momentum_history,
         model_asset_momentum_history_trend,
+        model_asset_target_gap,
+        model_asset_target_gap_history,
+        model_asset_target_gap_history_trend,
     )
     status = _compute_status(_to_float(metrics.get("moat_score", 0.0)), str(evidence_pack.get("status") or ""))
 
@@ -484,6 +530,9 @@ def main() -> None:
             "model_asset_momentum_summary": args.model_asset_momentum_summary,
             "model_asset_momentum_history_summary": args.model_asset_momentum_history_summary,
             "model_asset_momentum_history_trend_summary": args.model_asset_momentum_history_trend_summary,
+            "model_asset_target_gap_summary": args.model_asset_target_gap_summary,
+            "model_asset_target_gap_history_summary": args.model_asset_target_gap_history_summary,
+            "model_asset_target_gap_history_trend_summary": args.model_asset_target_gap_history_trend_summary,
             "milestone_checkpoint_summary": args.milestone_checkpoint_summary,
             "milestone_checkpoint_trend_summary": args.milestone_checkpoint_trend_summary,
             "milestone_public_brief_summary": args.milestone_public_brief_summary,
