@@ -13,7 +13,7 @@ cat > "$OUT_DIR/pack_execution_tracker.json" <<'JSON'
 {"status": "NEEDS_REVIEW", "large_scale_progress_percent": 35.0}
 JSON
 cat > "$OUT_DIR/moat_execution_forecast.json" <<'JSON'
-{"status": "PASS", "projected_moat_score_30d": 68.2}
+{"status": "PASS", "projected_moat_score_30d": 68.2, "target_gap_pressure_index": 57.0, "model_asset_target_gap_score": 39.0}
 JSON
 
 python3 -m gateforge.dataset_large_model_campaign_board \
@@ -27,8 +27,19 @@ import json
 from pathlib import Path
 out = Path("artifacts/dataset_large_model_campaign_board_demo")
 p = json.loads((out / "summary.json").read_text(encoding="utf-8"))
-flags = {"status_present": "PASS" if p.get("status") in {"PASS","NEEDS_REVIEW","FAIL"} else "FAIL", "phase_present": "PASS" if p.get("campaign_phase") in {"stabilize","scale_out","accelerate"} else "FAIL"}
-summary = {"board_status": p.get("status"), "campaign_phase": p.get("campaign_phase"), "result_flags": flags, "bundle_status": "PASS" if all(v=="PASS" for v in flags.values()) else "FAIL"}
+flags = {
+    "status_present": "PASS" if p.get("status") in {"PASS","NEEDS_REVIEW","FAIL"} else "FAIL",
+    "phase_present": "PASS" if p.get("campaign_phase") in {"stabilize","scale_out","accelerate"} else "FAIL",
+    "target_gap_present": "PASS" if isinstance(p.get("model_asset_target_gap_score"), (int, float)) else "FAIL",
+}
+summary = {
+    "board_status": p.get("status"),
+    "campaign_phase": p.get("campaign_phase"),
+    "target_gap_pressure_index": p.get("target_gap_pressure_index"),
+    "model_asset_target_gap_score": p.get("model_asset_target_gap_score"),
+    "result_flags": flags,
+    "bundle_status": "PASS" if all(v=="PASS" for v in flags.values()) else "FAIL"
+}
 (out / "demo_summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
 print(json.dumps({"bundle_status": summary["bundle_status"], "board_status": summary["board_status"]}))
 if summary["bundle_status"] != "PASS":

@@ -32,6 +32,12 @@ def _status(v: dict) -> str:
     return str(v.get("status") or "UNKNOWN")
 
 
+def _to_float(v: object) -> float:
+    if isinstance(v, (int, float)):
+        return float(v)
+    return 0.0
+
+
 def _write_markdown(path: str, payload: dict) -> None:
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
@@ -41,6 +47,8 @@ def _write_markdown(path: str, payload: dict) -> None:
         f"- status: `{payload.get('status')}`",
         f"- decision: `{payload.get('decision')}`",
         f"- confidence: `{payload.get('confidence')}`",
+        f"- target_gap_pressure_index: `{payload.get('target_gap_pressure_index')}`",
+        f"- model_asset_target_gap_score: `{payload.get('model_asset_target_gap_score')}`",
         "",
         "## Evidence Cards",
         "",
@@ -85,6 +93,21 @@ def main() -> None:
 
     pass_count = len([c for c in cards if c["status"] == "PASS"])
     fail_count = len([c for c in cards if c["status"] == "FAIL"])
+    target_gap_pressure = _to_float(forecast.get("target_gap_pressure_index", 0.0))
+    target_gap_score = _to_float(forecast.get("model_asset_target_gap_score", 0.0))
+    target_gap_band = "LOW"
+    if target_gap_score >= 45.0:
+        target_gap_band = "HIGH"
+    elif target_gap_score >= 25.0:
+        target_gap_band = "MEDIUM"
+
+    cards.append(
+        {
+            "name": "target_gap_signal",
+            "status": "PASS" if (target_gap_pressure >= 60.0 and target_gap_score < 35.0) else "NEEDS_REVIEW",
+            "signal": f"pressure={round(target_gap_pressure, 2)} score={round(target_gap_score, 2)}",
+        }
+    )
 
     decision = "PROMOTE_WITH_GUARDS"
     confidence = "medium"
@@ -94,6 +117,16 @@ def main() -> None:
         decision = "HOLD"
         confidence = "low"
         status = "FAIL" if reasons else "NEEDS_REVIEW"
+    elif target_gap_score >= 45.0:
+        decision = "HOLD"
+        confidence = "low"
+        status = "NEEDS_REVIEW"
+        reasons.append("model_asset_target_gap_score_high")
+    elif target_gap_pressure < 55.0:
+        decision = "PROMOTE_WITH_GUARDS"
+        confidence = "medium"
+        status = "NEEDS_REVIEW"
+        reasons.append("target_gap_pressure_low")
     elif pass_count >= 3:
         decision = "PROMOTE"
         confidence = "high"
@@ -104,6 +137,9 @@ def main() -> None:
         "status": status,
         "decision": decision,
         "confidence": confidence,
+        "target_gap_pressure_index": round(target_gap_pressure, 2),
+        "model_asset_target_gap_score": round(target_gap_score, 2),
+        "target_gap_band": target_gap_band,
         "evidence_cards": cards,
         "reasons": sorted(set(reasons)),
         "sources": {
