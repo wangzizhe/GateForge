@@ -301,7 +301,14 @@ def main() -> None:
         (
             "dataset_external_proof_score_demo",
             "dataset_external_proof_score_demo/demo_summary.json",
-            ["bundle_status", "proof_status", "proof_score", "execution_readiness_index"],
+            [
+                "bundle_status",
+                "proof_status",
+                "proof_score",
+                "execution_readiness_index",
+                "target_gap_pressure_index",
+                "model_asset_target_gap_score",
+            ],
         ),
         (
             "dataset_backlog_execution_bridge_demo",
