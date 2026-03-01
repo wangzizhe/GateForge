@@ -270,7 +270,14 @@ def main() -> None:
         (
             "dataset_moat_trend_snapshot_demo",
             "dataset_moat_trend_snapshot_demo/demo_summary.json",
-            ["bundle_status", "moat_status", "moat_score", "execution_readiness_index", "moat_score_delta"],
+            [
+                "bundle_status",
+                "moat_status",
+                "moat_score",
+                "execution_readiness_index",
+                "momentum_resilience_index",
+                "moat_score_delta",
+            ],
         ),
         (
             "dataset_external_proof_score_demo",
@@ -506,6 +513,21 @@ def main() -> None:
             "dataset_failure_matrix_expansion_history_trend_v1_demo",
             "dataset_failure_matrix_expansion_history_trend_v1_demo/demo_summary.json",
             ["bundle_status", "trend_status", "status_transition", "delta_avg_expansion_readiness_score"],
+        ),
+        (
+            "dataset_model_asset_momentum_v1_demo",
+            "dataset_model_asset_momentum_v1_demo/demo_summary.json",
+            ["bundle_status", "momentum_status", "momentum_score", "delta_total_real_models", "delta_large_models"],
+        ),
+        (
+            "dataset_model_asset_momentum_history_v1_demo",
+            "dataset_model_asset_momentum_history_v1_demo/demo_summary.json",
+            ["bundle_status", "history_status", "total_records", "avg_momentum_score"],
+        ),
+        (
+            "dataset_model_asset_momentum_history_trend_v1_demo",
+            "dataset_model_asset_momentum_history_trend_v1_demo/demo_summary.json",
+            ["bundle_status", "trend_status", "status_transition", "delta_avg_momentum_score"],
         ),
         (
             "dataset_moat_anchor_brief_v1_demo",

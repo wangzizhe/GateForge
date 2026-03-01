@@ -28,6 +28,9 @@ class DatasetMoatTrendSnapshotTests(unittest.TestCase):
             anchor_model_pack_history_trend = root / "anchor_model_pack_history_trend.json"
             failure_matrix_expansion_history = root / "failure_matrix_expansion_history.json"
             failure_matrix_expansion_history_trend = root / "failure_matrix_expansion_history_trend.json"
+            model_asset_momentum = root / "model_asset_momentum.json"
+            model_asset_momentum_history = root / "model_asset_momentum_history.json"
+            model_asset_momentum_history_trend = root / "model_asset_momentum_history_trend.json"
             previous = root / "previous.json"
             out = root / "summary.json"
 
@@ -98,6 +101,18 @@ class DatasetMoatTrendSnapshotTests(unittest.TestCase):
                 json.dumps({"status": "PASS", "trend": {"status_transition": "PASS->PASS", "alerts": []}}),
                 encoding="utf-8",
             )
+            model_asset_momentum.write_text(
+                json.dumps({"status": "PASS", "momentum_score": 82.0, "delta_total_real_models": 2, "delta_large_models": 1}),
+                encoding="utf-8",
+            )
+            model_asset_momentum_history.write_text(
+                json.dumps({"status": "PASS", "avg_momentum_score": 80.0}),
+                encoding="utf-8",
+            )
+            model_asset_momentum_history_trend.write_text(
+                json.dumps({"status": "PASS", "trend": {"status_transition": "PASS->PASS", "alerts": []}}),
+                encoding="utf-8",
+            )
             previous.write_text(
                 json.dumps(
                     {
@@ -152,6 +167,12 @@ class DatasetMoatTrendSnapshotTests(unittest.TestCase):
                     str(failure_matrix_expansion_history),
                     "--failure-matrix-expansion-history-trend-summary",
                     str(failure_matrix_expansion_history_trend),
+                    "--model-asset-momentum-summary",
+                    str(model_asset_momentum),
+                    "--model-asset-momentum-history-summary",
+                    str(model_asset_momentum_history),
+                    "--model-asset-momentum-history-trend-summary",
+                    str(model_asset_momentum_history_trend),
                     "--previous-snapshot",
                     str(previous),
                     "--out",
@@ -170,6 +191,7 @@ class DatasetMoatTrendSnapshotTests(unittest.TestCase):
             self.assertIn("execution_readiness_index", payload.get("metrics", {}))
             self.assertIn("model_asset_quality_index", payload.get("metrics", {}))
             self.assertIn("expansion_execution_index", payload.get("metrics", {}))
+            self.assertIn("momentum_resilience_index", payload.get("metrics", {}))
             self.assertEqual(int((payload.get("intake_growth") or {}).get("accepted_count_delta", 0)), 1)
             self.assertEqual(int((payload.get("intake_growth") or {}).get("accepted_large_delta", 0)), 1)
 

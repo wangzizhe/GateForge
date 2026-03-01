@@ -242,6 +242,7 @@ class DatasetOptionalCIContractTests(unittest.TestCase):
                 "moat_status": "PASS",
                 "moat_score": 74.2,
                 "execution_readiness_index": 82.0,
+                "momentum_resilience_index": 80.0,
                 "moat_score_delta": 6.5,
             },
             "dataset_external_proof_score_demo/demo_summary.json": {
@@ -446,6 +447,25 @@ class DatasetOptionalCIContractTests(unittest.TestCase):
                 "trend_status": "PASS",
                 "status_transition": "PASS->PASS",
                 "delta_avg_expansion_readiness_score": 0.4,
+            },
+            "dataset_model_asset_momentum_v1_demo/demo_summary.json": {
+                "bundle_status": "PASS",
+                "momentum_status": "PASS",
+                "momentum_score": 82.0,
+                "delta_total_real_models": 2,
+                "delta_large_models": 1,
+            },
+            "dataset_model_asset_momentum_history_v1_demo/demo_summary.json": {
+                "bundle_status": "PASS",
+                "history_status": "PASS",
+                "total_records": 4,
+                "avg_momentum_score": 80.0,
+            },
+            "dataset_model_asset_momentum_history_trend_v1_demo/demo_summary.json": {
+                "bundle_status": "PASS",
+                "trend_status": "PASS",
+                "status_transition": "PASS->PASS",
+                "delta_avg_momentum_score": 0.5,
             },
             "dataset_moat_anchor_brief_v1_demo/demo_summary.json": {
                 "bundle_status": "PASS",
