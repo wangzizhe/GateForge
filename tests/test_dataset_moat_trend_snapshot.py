@@ -22,6 +22,12 @@ class DatasetMoatTrendSnapshotTests(unittest.TestCase):
             execution_board = root / "execution_board.json"
             execution_board_history = root / "execution_board_history.json"
             execution_board_history_trend = root / "execution_board_history_trend.json"
+            model_intake_board_history = root / "model_intake_board_history.json"
+            model_intake_board_history_trend = root / "model_intake_board_history_trend.json"
+            anchor_model_pack_history = root / "anchor_model_pack_history.json"
+            anchor_model_pack_history_trend = root / "anchor_model_pack_history_trend.json"
+            failure_matrix_expansion_history = root / "failure_matrix_expansion_history.json"
+            failure_matrix_expansion_history_trend = root / "failure_matrix_expansion_history_trend.json"
             previous = root / "previous.json"
             out = root / "summary.json"
 
@@ -68,6 +74,30 @@ class DatasetMoatTrendSnapshotTests(unittest.TestCase):
                 json.dumps({"status": "PASS", "trend": {"alerts": []}}),
                 encoding="utf-8",
             )
+            model_intake_board_history.write_text(
+                json.dumps({"status": "PASS", "avg_board_score": 81.0, "blocked_rate": 0.15, "ready_rate": 0.5, "ingested_rate": 0.35}),
+                encoding="utf-8",
+            )
+            model_intake_board_history_trend.write_text(
+                json.dumps({"status": "PASS", "trend": {"status_transition": "PASS->PASS", "alerts": []}}),
+                encoding="utf-8",
+            )
+            anchor_model_pack_history.write_text(
+                json.dumps({"status": "PASS", "avg_pack_quality_score": 84.0, "avg_selected_cases": 24.0, "avg_selected_large_cases": 7.0, "avg_unique_failure_types": 5.0}),
+                encoding="utf-8",
+            )
+            anchor_model_pack_history_trend.write_text(
+                json.dumps({"status": "PASS", "trend": {"status_transition": "PASS->PASS", "alerts": []}}),
+                encoding="utf-8",
+            )
+            failure_matrix_expansion_history.write_text(
+                json.dumps({"status": "PASS", "avg_expansion_readiness_score": 78.0, "avg_high_risk_uncovered_cells": 0.0, "avg_planned_expansion_tasks": 7.0}),
+                encoding="utf-8",
+            )
+            failure_matrix_expansion_history_trend.write_text(
+                json.dumps({"status": "PASS", "trend": {"status_transition": "PASS->PASS", "alerts": []}}),
+                encoding="utf-8",
+            )
             previous.write_text(
                 json.dumps(
                     {
@@ -110,6 +140,18 @@ class DatasetMoatTrendSnapshotTests(unittest.TestCase):
                     str(execution_board_history),
                     "--intake-growth-execution-board-history-trend-summary",
                     str(execution_board_history_trend),
+                    "--model-intake-board-history-summary",
+                    str(model_intake_board_history),
+                    "--model-intake-board-history-trend-summary",
+                    str(model_intake_board_history_trend),
+                    "--anchor-model-pack-history-summary",
+                    str(anchor_model_pack_history),
+                    "--anchor-model-pack-history-trend-summary",
+                    str(anchor_model_pack_history_trend),
+                    "--failure-matrix-expansion-history-summary",
+                    str(failure_matrix_expansion_history),
+                    "--failure-matrix-expansion-history-trend-summary",
+                    str(failure_matrix_expansion_history_trend),
                     "--previous-snapshot",
                     str(previous),
                     "--out",
@@ -126,6 +168,8 @@ class DatasetMoatTrendSnapshotTests(unittest.TestCase):
             self.assertGreaterEqual(float((payload.get("metrics") or {}).get("milestone_readiness_index", 0.0)), 75.0)
             self.assertIn("intake_growth_score", payload.get("metrics", {}))
             self.assertIn("execution_readiness_index", payload.get("metrics", {}))
+            self.assertIn("model_asset_quality_index", payload.get("metrics", {}))
+            self.assertIn("expansion_execution_index", payload.get("metrics", {}))
             self.assertEqual(int((payload.get("intake_growth") or {}).get("accepted_count_delta", 0)), 1)
             self.assertEqual(int((payload.get("intake_growth") or {}).get("accepted_large_delta", 0)), 1)
 

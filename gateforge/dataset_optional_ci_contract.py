@@ -463,6 +463,36 @@ def main() -> None:
             ],
         ),
         (
+            "dataset_model_intake_board_history_v1_demo",
+            "dataset_model_intake_board_history_v1_demo/demo_summary.json",
+            ["bundle_status", "history_status", "total_records", "avg_board_score"],
+        ),
+        (
+            "dataset_model_intake_board_history_trend_v1_demo",
+            "dataset_model_intake_board_history_trend_v1_demo/demo_summary.json",
+            ["bundle_status", "trend_status", "status_transition", "delta_avg_board_score"],
+        ),
+        (
+            "dataset_anchor_model_pack_history_v1_demo",
+            "dataset_anchor_model_pack_history_v1_demo/demo_summary.json",
+            ["bundle_status", "history_status", "total_records", "avg_pack_quality_score"],
+        ),
+        (
+            "dataset_anchor_model_pack_history_trend_v1_demo",
+            "dataset_anchor_model_pack_history_trend_v1_demo/demo_summary.json",
+            ["bundle_status", "trend_status", "status_transition", "delta_avg_pack_quality_score"],
+        ),
+        (
+            "dataset_failure_matrix_expansion_history_v1_demo",
+            "dataset_failure_matrix_expansion_history_v1_demo/demo_summary.json",
+            ["bundle_status", "history_status", "total_records", "avg_expansion_readiness_score"],
+        ),
+        (
+            "dataset_failure_matrix_expansion_history_trend_v1_demo",
+            "dataset_failure_matrix_expansion_history_trend_v1_demo/demo_summary.json",
+            ["bundle_status", "trend_status", "status_transition", "delta_avg_expansion_readiness_score"],
+        ),
+        (
             "dataset_moat_anchor_brief_v1_demo",
             "dataset_moat_anchor_brief_v1_demo/demo_summary.json",
             ["bundle_status", "anchor_brief_status", "anchor_brief_score", "recommendation"],

@@ -63,6 +63,12 @@ def _compute_metrics(
     intake_growth_execution_board: dict,
     intake_growth_execution_board_history: dict,
     intake_growth_execution_board_history_trend: dict,
+    model_intake_board_history: dict,
+    model_intake_board_history_trend: dict,
+    anchor_model_pack_history: dict,
+    anchor_model_pack_history_trend: dict,
+    failure_matrix_expansion_history: dict,
+    failure_matrix_expansion_history_trend: dict,
 ) -> dict:
     evidence_strength = _to_float(evidence_pack.get("evidence_strength_score", 0.0))
     sections_present = _to_int(evidence_pack.get("evidence_sections_present", 0))
@@ -174,13 +180,64 @@ def _compute_metrics(
         )
     )
 
+    intake_board_avg = _to_float(model_intake_board_history.get("avg_board_score", 0.0))
+    intake_board_blocked_rate = _to_float(model_intake_board_history.get("blocked_rate", 0.0))
+    intake_board_ingested_rate = _to_float(model_intake_board_history.get("ingested_rate", 0.0))
+    intake_board_status = str(model_intake_board_history.get("status") or "")
+    intake_board_trend_status = str(model_intake_board_history_trend.get("status") or "")
+
+    anchor_avg_quality = _to_float(anchor_model_pack_history.get("avg_pack_quality_score", 0.0))
+    anchor_avg_large = _to_float(anchor_model_pack_history.get("avg_selected_large_cases", 0.0))
+    anchor_avg_failure_types = _to_float(anchor_model_pack_history.get("avg_unique_failure_types", 0.0))
+    anchor_status = str(anchor_model_pack_history.get("status") or "")
+    anchor_trend_status = str(anchor_model_pack_history_trend.get("status") or "")
+
+    model_asset_quality_index = _clamp(
+        30.0
+        + (intake_board_avg * 0.28)
+        + (anchor_avg_quality * 0.32)
+        + min(10.0, anchor_avg_large * 2.0)
+        + min(10.0, anchor_avg_failure_types * 1.6)
+        + min(12.0, intake_board_ingested_rate * 30.0)
+        - min(15.0, intake_board_blocked_rate * 30.0)
+        + (5.0 if intake_board_status == "PASS" else (1.0 if intake_board_status == "NEEDS_REVIEW" else -6.0))
+        + (
+            4.0
+            if intake_board_trend_status == "PASS"
+            else (0.0 if intake_board_trend_status == "NEEDS_REVIEW" else -5.0)
+        )
+        + (5.0 if anchor_status == "PASS" else (1.0 if anchor_status == "NEEDS_REVIEW" else -6.0))
+        + (4.0 if anchor_trend_status == "PASS" else (0.0 if anchor_trend_status == "NEEDS_REVIEW" else -5.0))
+    )
+
+    expansion_avg_readiness = _to_float(failure_matrix_expansion_history.get("avg_expansion_readiness_score", 0.0))
+    expansion_avg_uncovered = _to_float(failure_matrix_expansion_history.get("avg_high_risk_uncovered_cells", 0.0))
+    expansion_avg_tasks = _to_float(failure_matrix_expansion_history.get("avg_planned_expansion_tasks", 0.0))
+    expansion_status = str(failure_matrix_expansion_history.get("status") or "")
+    expansion_trend_status = str(failure_matrix_expansion_history_trend.get("status") or "")
+
+    expansion_execution_index = _clamp(
+        38.0
+        + (expansion_avg_readiness * 0.42)
+        + min(12.0, expansion_avg_tasks * 1.8)
+        - min(20.0, expansion_avg_uncovered * 12.0)
+        + (5.0 if expansion_status == "PASS" else (1.0 if expansion_status == "NEEDS_REVIEW" else -7.0))
+        + (
+            4.0
+            if expansion_trend_status == "PASS"
+            else (0.0 if expansion_trend_status == "NEEDS_REVIEW" else -5.0)
+        )
+    )
+
     moat_score = _clamp(
-        (coverage_depth_index * 0.30)
-        + (governance_effectiveness_index * 0.28)
-        + (policy_learning_velocity * 0.15)
-        + (milestone_readiness_index * 0.11)
+        (coverage_depth_index * 0.25)
+        + (governance_effectiveness_index * 0.24)
+        + (policy_learning_velocity * 0.13)
+        + (milestone_readiness_index * 0.10)
         + (intake_growth_score * 0.06)
-        + (execution_readiness_index * 0.10)
+        + (execution_readiness_index * 0.08)
+        + (model_asset_quality_index * 0.08)
+        + (expansion_execution_index * 0.06)
     )
 
     return {
@@ -190,6 +247,8 @@ def _compute_metrics(
         "milestone_readiness_index": _round(milestone_readiness_index),
         "intake_growth_score": _round(intake_growth_score),
         "execution_readiness_index": _round(execution_readiness_index),
+        "model_asset_quality_index": _round(model_asset_quality_index),
+        "expansion_execution_index": _round(expansion_execution_index),
         "intake_reject_rate_pct": _round(reject_rate_pct),
         "moat_score": _round(moat_score),
     }
@@ -226,6 +285,8 @@ def _trend(current: dict, previous: dict) -> dict:
             "policy_learning_velocity": delta("policy_learning_velocity"),
             "milestone_readiness_index": delta("milestone_readiness_index"),
             "execution_readiness_index": delta("execution_readiness_index"),
+            "model_asset_quality_index": delta("model_asset_quality_index"),
+            "expansion_execution_index": delta("expansion_execution_index"),
             "moat_score": moat_delta,
         },
         "alerts": alerts,
@@ -248,6 +309,8 @@ def _write_markdown(path: str, payload: dict) -> None:
         f"- milestone_readiness_index: `{metrics.get('milestone_readiness_index')}`",
         f"- intake_growth_score: `{metrics.get('intake_growth_score')}`",
         f"- execution_readiness_index: `{metrics.get('execution_readiness_index')}`",
+        f"- model_asset_quality_index: `{metrics.get('model_asset_quality_index')}`",
+        f"- expansion_execution_index: `{metrics.get('expansion_execution_index')}`",
         f"- intake_reject_rate_pct: `{metrics.get('intake_reject_rate_pct')}`",
         f"- status_transition: `{trend.get('status_transition')}`",
         f"- moat_score_delta: `{(trend.get('delta') or {}).get('moat_score')}`",
@@ -279,6 +342,12 @@ def main() -> None:
     parser.add_argument("--intake-growth-execution-board-summary", default=None)
     parser.add_argument("--intake-growth-execution-board-history-summary", default=None)
     parser.add_argument("--intake-growth-execution-board-history-trend-summary", default=None)
+    parser.add_argument("--model-intake-board-history-summary", default=None)
+    parser.add_argument("--model-intake-board-history-trend-summary", default=None)
+    parser.add_argument("--anchor-model-pack-history-summary", default=None)
+    parser.add_argument("--anchor-model-pack-history-trend-summary", default=None)
+    parser.add_argument("--failure-matrix-expansion-history-summary", default=None)
+    parser.add_argument("--failure-matrix-expansion-history-trend-summary", default=None)
     parser.add_argument("--previous-snapshot", default=None)
     parser.add_argument("--out", default="artifacts/dataset_moat_trend_snapshot/summary.json")
     parser.add_argument("--report-out", default=None)
@@ -296,6 +365,12 @@ def main() -> None:
     intake_growth_execution_board = _load_json(args.intake_growth_execution_board_summary)
     intake_growth_execution_board_history = _load_json(args.intake_growth_execution_board_history_summary)
     intake_growth_execution_board_history_trend = _load_json(args.intake_growth_execution_board_history_trend_summary)
+    model_intake_board_history = _load_json(args.model_intake_board_history_summary)
+    model_intake_board_history_trend = _load_json(args.model_intake_board_history_trend_summary)
+    anchor_model_pack_history = _load_json(args.anchor_model_pack_history_summary)
+    anchor_model_pack_history_trend = _load_json(args.anchor_model_pack_history_trend_summary)
+    failure_matrix_expansion_history = _load_json(args.failure_matrix_expansion_history_summary)
+    failure_matrix_expansion_history_trend = _load_json(args.failure_matrix_expansion_history_trend_summary)
     previous = _load_json(args.previous_snapshot)
 
     metrics = _compute_metrics(
@@ -311,6 +386,12 @@ def main() -> None:
         intake_growth_execution_board,
         intake_growth_execution_board_history,
         intake_growth_execution_board_history_trend,
+        model_intake_board_history,
+        model_intake_board_history_trend,
+        anchor_model_pack_history,
+        anchor_model_pack_history_trend,
+        failure_matrix_expansion_history,
+        failure_matrix_expansion_history_trend,
     )
     status = _compute_status(_to_float(metrics.get("moat_score", 0.0)), str(evidence_pack.get("status") or ""))
 
@@ -355,6 +436,12 @@ def main() -> None:
             "intake_growth_execution_board_summary": args.intake_growth_execution_board_summary,
             "intake_growth_execution_board_history_summary": args.intake_growth_execution_board_history_summary,
             "intake_growth_execution_board_history_trend_summary": args.intake_growth_execution_board_history_trend_summary,
+            "model_intake_board_history_summary": args.model_intake_board_history_summary,
+            "model_intake_board_history_trend_summary": args.model_intake_board_history_trend_summary,
+            "anchor_model_pack_history_summary": args.anchor_model_pack_history_summary,
+            "anchor_model_pack_history_trend_summary": args.anchor_model_pack_history_trend_summary,
+            "failure_matrix_expansion_history_summary": args.failure_matrix_expansion_history_summary,
+            "failure_matrix_expansion_history_trend_summary": args.failure_matrix_expansion_history_trend_summary,
             "milestone_checkpoint_summary": args.milestone_checkpoint_summary,
             "milestone_checkpoint_trend_summary": args.milestone_checkpoint_trend_summary,
             "milestone_public_brief_summary": args.milestone_public_brief_summary,

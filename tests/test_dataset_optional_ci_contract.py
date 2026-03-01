@@ -396,6 +396,42 @@ class DatasetOptionalCIContractTests(unittest.TestCase):
                 "planned_expansion_tasks": 2,
                 "high_risk_uncovered_cells": 2,
             },
+            "dataset_model_intake_board_history_v1_demo/demo_summary.json": {
+                "bundle_status": "PASS",
+                "history_status": "PASS",
+                "total_records": 4,
+                "avg_board_score": 80.0,
+            },
+            "dataset_model_intake_board_history_trend_v1_demo/demo_summary.json": {
+                "bundle_status": "PASS",
+                "trend_status": "PASS",
+                "status_transition": "PASS->PASS",
+                "delta_avg_board_score": 1.0,
+            },
+            "dataset_anchor_model_pack_history_v1_demo/demo_summary.json": {
+                "bundle_status": "PASS",
+                "history_status": "PASS",
+                "total_records": 4,
+                "avg_pack_quality_score": 83.0,
+            },
+            "dataset_anchor_model_pack_history_trend_v1_demo/demo_summary.json": {
+                "bundle_status": "PASS",
+                "trend_status": "PASS",
+                "status_transition": "PASS->PASS",
+                "delta_avg_pack_quality_score": 0.5,
+            },
+            "dataset_failure_matrix_expansion_history_v1_demo/demo_summary.json": {
+                "bundle_status": "PASS",
+                "history_status": "PASS",
+                "total_records": 4,
+                "avg_expansion_readiness_score": 78.0,
+            },
+            "dataset_failure_matrix_expansion_history_trend_v1_demo/demo_summary.json": {
+                "bundle_status": "PASS",
+                "trend_status": "PASS",
+                "status_transition": "PASS->PASS",
+                "delta_avg_expansion_readiness_score": 0.4,
+            },
             "dataset_moat_anchor_brief_v1_demo/demo_summary.json": {
                 "bundle_status": "PASS",
                 "anchor_brief_status": "PASS",
