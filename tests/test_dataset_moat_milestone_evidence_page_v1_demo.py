@@ -31,6 +31,7 @@ class DatasetMoatMilestoneEvidencePageV1DemoTests(unittest.TestCase):
             )
             self.assertEqual(payload.get("bundle_status"), "PASS")
             self.assertIn(payload.get("evidence_page_status"), {"PASS", "NEEDS_REVIEW", "FAIL"})
+            self.assertIsInstance(payload.get("target_gap_pressure_index"), (int, float))
 
 
 if __name__ == "__main__":

@@ -21,7 +21,7 @@ cat > "$OUT_DIR/milestone_checkpoint_trend_summary.json" <<'JSON'
 JSON
 
 cat > "$OUT_DIR/milestone_public_brief_summary.json" <<'JSON'
-{"milestone_status":"PASS","milestone_decision":"GO"}
+{"milestone_status":"PASS","milestone_decision":"GO","target_gap_narrative_status":"PASS","target_gap_pressure_index":76.5,"model_asset_target_gap_score":24.0,"target_gap_supply_pressure_index":61}
 JSON
 
 cat > "$OUT_DIR/snapshot_moat_alignment_summary.json" <<'JSON'
@@ -54,6 +54,8 @@ payload = {
     "evidence_page_status": summary.get("status"),
     "publishable": summary.get("publishable"),
     "evidence_page_score": summary.get("evidence_page_score"),
+    "target_gap_pressure_index": summary.get("target_gap_pressure_index"),
+    "model_asset_target_gap_score": summary.get("model_asset_target_gap_score"),
     "bundle_status": bundle_status,
     "result_flags": flags,
 }
