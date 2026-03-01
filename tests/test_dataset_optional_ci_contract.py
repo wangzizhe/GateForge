@@ -564,6 +564,18 @@ class DatasetOptionalCIContractTests(unittest.TestCase):
                 "target_gap_score": 28.5,
                 "critical_gap_count": 1,
             },
+            "dataset_model_asset_target_gap_history_v1_demo/demo_summary.json": {
+                "bundle_status": "PASS",
+                "history_status": "NEEDS_REVIEW",
+                "total_records": 4,
+                "avg_target_gap_score": 24.5,
+            },
+            "dataset_model_asset_target_gap_history_trend_v1_demo/demo_summary.json": {
+                "bundle_status": "PASS",
+                "trend_status": "NEEDS_REVIEW",
+                "status_transition": "PASS->NEEDS_REVIEW",
+                "delta_avg_target_gap_score": 2.0,
+            },
         }
         for rel, payload in mapping.items():
             path = root / rel

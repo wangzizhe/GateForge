@@ -633,6 +633,16 @@ def main() -> None:
             "dataset_model_asset_target_gap_v1_demo/demo_summary.json",
             ["bundle_status", "target_gap_status", "target_gap_score", "critical_gap_count"],
         ),
+        (
+            "dataset_model_asset_target_gap_history_v1_demo",
+            "dataset_model_asset_target_gap_history_v1_demo/demo_summary.json",
+            ["bundle_status", "history_status", "total_records", "avg_target_gap_score"],
+        ),
+        (
+            "dataset_model_asset_target_gap_history_trend_v1_demo",
+            "dataset_model_asset_target_gap_history_trend_v1_demo/demo_summary.json",
+            ["bundle_status", "trend_status", "status_transition", "delta_avg_target_gap_score"],
+        ),
     ]
     checks = [_validate_required_summary(root, name, rel_path, keys) for name, rel_path, keys in required]
     pass_count = len([x for x in checks if x.get("status") == "PASS"])
