@@ -52,6 +52,12 @@ def _round(v: float) -> float:
 
 def _forecast_rows(pack: dict, experiments: dict, moat: dict, guard: dict) -> list[dict]:
     current_moat = _to_float(((moat.get("metrics") or {}).get("moat_score") if isinstance(moat.get("metrics"), dict) else 0.0))
+    target_gap_pressure = _to_float(
+        ((moat.get("metrics") or {}).get("target_gap_pressure_index") if isinstance(moat.get("metrics"), dict) else 0.0)
+    )
+    target_gap_score = _to_float(
+        ((moat.get("metrics") or {}).get("model_asset_target_gap_score") if isinstance(moat.get("metrics"), dict) else 0.0)
+    )
 
     total_new_cases = _to_int(pack.get("total_target_new_cases", 0))
     medium_cases = _to_int(pack.get("medium_target_new_cases", 0))
@@ -67,9 +73,11 @@ def _forecast_rows(pack: dict, experiments: dict, moat: dict, guard: dict) -> li
     confidence_multiplier = 1.0 if guard_conf == "high" else (0.82 if guard_conf == "medium" else 0.6)
     if guard_status == "FAIL":
         confidence_multiplier *= 0.75
+    if target_gap_pressure:
+        confidence_multiplier *= (0.88 + min(0.14, target_gap_pressure / 100.0 * 0.14))
 
     base_case_uplift = ((total_new_cases * 0.9) + (medium_cases * 1.1) + (large_cases * 1.6) + (top_exp_score * 0.18))
-    risk_drag = top_exp_risk * 0.08
+    risk_drag = (top_exp_risk * 0.08) + (max(0.0, target_gap_score - 15.0) * 0.12)
 
     scenarios = [
         {"scenario": "cautious", "uplift_factor": 0.65, "risk_factor": 1.2},
@@ -88,6 +96,8 @@ def _forecast_rows(pack: dict, experiments: dict, moat: dict, guard: dict) -> li
                 "projected_gain_30d": _round(projected_gain),
                 "confidence_multiplier": _round(confidence_multiplier),
                 "execution_load_index": _round(total_new_cases * (1.2 if s["scenario"] == "stretch" else 1.0)),
+                "target_gap_pressure_index": _round(target_gap_pressure),
+                "model_asset_target_gap_score": _round(target_gap_score),
             }
         )
 
@@ -106,6 +116,8 @@ def _write_markdown(path: str, payload: dict) -> None:
         f"- recommendation: `{payload.get('recommendation')}`",
         f"- preferred_scenario: `{payload.get('preferred_scenario')}`",
         f"- projected_moat_score_30d: `{payload.get('projected_moat_score_30d')}`",
+        f"- target_gap_pressure_index: `{payload.get('target_gap_pressure_index')}`",
+        f"- model_asset_target_gap_score: `{payload.get('model_asset_target_gap_score')}`",
         "",
         "## Scenario Forecast",
         "",
@@ -154,6 +166,12 @@ def main() -> None:
 
     guard_status = str(guard.get("status") or "NEEDS_REVIEW")
     recommended = str(experiments.get("recommended_experiment_id") or "")
+    target_gap_pressure = _to_float(
+        ((moat.get("metrics") or {}).get("target_gap_pressure_index") if isinstance(moat.get("metrics"), dict) else 0.0)
+    )
+    target_gap_score = _to_float(
+        ((moat.get("metrics") or {}).get("model_asset_target_gap_score") if isinstance(moat.get("metrics"), dict) else 0.0)
+    )
 
     status = "PASS"
     recommendation = "EXECUTE_BASE_PLAN"
@@ -175,6 +193,16 @@ def main() -> None:
         status = "NEEDS_REVIEW"
         recommendation = "RAISE_COVERAGE_BEFORE_SCALING"
         reasons.append("forecast_below_target")
+    elif target_gap_pressure and target_gap_pressure < 70.0:
+        status = "NEEDS_REVIEW"
+        recommendation = "PRIORITIZE_TARGET_GAP_CLOSURE"
+        preferred_scenario = "cautious"
+        reasons.append("target_gap_pressure_low")
+    elif target_gap_score >= 25.0:
+        status = "NEEDS_REVIEW"
+        recommendation = "PRIORITIZE_TARGET_GAP_CLOSURE"
+        preferred_scenario = "cautious"
+        reasons.append("target_gap_score_high")
 
     if recommended and "aggressive" in recommended and guard_status != "PASS":
         reasons.append("aggressive_experiment_with_limited_confidence")
@@ -191,6 +219,8 @@ def main() -> None:
         "recommendation": recommendation,
         "preferred_scenario": preferred_scenario,
         "projected_moat_score_30d": _round(projected_score),
+        "target_gap_pressure_index": _round(target_gap_pressure),
+        "model_asset_target_gap_score": _round(target_gap_score),
         "forecast": forecast,
         "reasons": sorted(set(reasons)),
         "sources": {

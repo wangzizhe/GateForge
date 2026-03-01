@@ -45,7 +45,9 @@ cat > "$OUT_DIR/moat_trend_snapshot.json" <<'JSON'
 {
   "status": "NEEDS_REVIEW",
   "metrics": {
-    "moat_score": 61.4
+    "moat_score": 61.4,
+    "target_gap_pressure_index": 76.5,
+    "model_asset_target_gap_score": 28.5
   }
 }
 JSON
@@ -77,6 +79,7 @@ flags = {
     "forecast_present": "PASS" if len(forecast) == 3 else "FAIL",
     "preferred_scenario_present": "PASS" if payload.get("preferred_scenario") in {"cautious", "base", "stretch", "none"} else "FAIL",
     "projected_score_present": "PASS" if isinstance(payload.get("projected_moat_score_30d"), (int, float)) else "FAIL",
+    "target_gap_pressure_present": "PASS" if isinstance(payload.get("target_gap_pressure_index"), (int, float)) else "FAIL",
 }
 bundle_status = "PASS" if all(v == "PASS" for v in flags.values()) else "FAIL"
 summary = {
@@ -84,6 +87,8 @@ summary = {
     "recommendation": payload.get("recommendation"),
     "preferred_scenario": payload.get("preferred_scenario"),
     "projected_moat_score_30d": payload.get("projected_moat_score_30d"),
+    "target_gap_pressure_index": payload.get("target_gap_pressure_index"),
+    "model_asset_target_gap_score": payload.get("model_asset_target_gap_score"),
     "result_flags": flags,
     "bundle_status": bundle_status,
 }

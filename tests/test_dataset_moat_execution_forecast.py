@@ -38,7 +38,18 @@ class DatasetMoatExecutionForecastTests(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
-            moat.write_text(json.dumps({"metrics": {"moat_score": 60.0}}), encoding="utf-8")
+            moat.write_text(
+                json.dumps(
+                    {
+                        "metrics": {
+                            "moat_score": 60.0,
+                            "target_gap_pressure_index": 76.5,
+                            "model_asset_target_gap_score": 28.5,
+                        }
+                    }
+                ),
+                encoding="utf-8",
+            )
             guard.write_text(json.dumps({"status": "PASS", "confidence_level": "high"}), encoding="utf-8")
 
             proc = subprocess.run(
@@ -67,6 +78,8 @@ class DatasetMoatExecutionForecastTests(unittest.TestCase):
             forecast = payload.get("forecast") if isinstance(payload.get("forecast"), list) else []
             self.assertEqual(len(forecast), 3)
             self.assertGreaterEqual(float(payload.get("projected_moat_score_30d", 0.0)), 0.0)
+            self.assertIsInstance(payload.get("target_gap_pressure_index"), (int, float))
+            self.assertIsInstance(payload.get("model_asset_target_gap_score"), (int, float))
 
     def test_forecast_fails_when_inputs_missing(self) -> None:
         with tempfile.TemporaryDirectory() as d:

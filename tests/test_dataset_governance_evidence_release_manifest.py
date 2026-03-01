@@ -16,13 +16,18 @@ class DatasetGovernanceEvidenceReleaseManifestTests(unittest.TestCase):
             s = root / "s.json"
             out = root / "out.json"
             p.write_text(json.dumps({"status": "PASS"}), encoding="utf-8")
-            f.write_text(json.dumps({"status": "PASS"}), encoding="utf-8")
+            f.write_text(
+                json.dumps({"status": "PASS", "target_gap_pressure_index": 76.5, "model_asset_target_gap_score": 28.5}),
+                encoding="utf-8",
+            )
             m.write_text(json.dumps({"status": "PASS"}), encoding="utf-8")
             s.write_text(json.dumps({"status": "PASS"}), encoding="utf-8")
             proc = subprocess.run([sys.executable, "-m", "gateforge.dataset_governance_evidence_release_manifest", "--governance-decision-proofbook", str(p), "--moat-execution-forecast", str(f), "--model-scale-mix-guard", str(m), "--failure-supply-plan", str(s), "--out", str(out)], capture_output=True, text=True, check=False)
             self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
             payload = json.loads(out.read_text(encoding="utf-8"))
             self.assertTrue(isinstance(payload.get("release_ready"), bool))
+            self.assertIsInstance(payload.get("target_gap_pressure_index"), (int, float))
+            self.assertIsInstance(payload.get("model_asset_target_gap_score"), (int, float))
 
     def test_manifest_fail_when_missing_inputs(self) -> None:
         with tempfile.TemporaryDirectory() as d:
