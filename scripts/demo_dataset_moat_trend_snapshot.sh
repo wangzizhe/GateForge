@@ -94,6 +94,18 @@ cat > "$OUT_DIR/failure_matrix_expansion_history_trend_summary.json" <<'JSON'
 {"status":"PASS","trend":{"status_transition":"PASS->PASS","alerts":[]}}
 JSON
 
+cat > "$OUT_DIR/model_asset_momentum_summary.json" <<'JSON'
+{"status":"PASS","momentum_score":82.0,"delta_total_real_models":2,"delta_large_models":1}
+JSON
+
+cat > "$OUT_DIR/model_asset_momentum_history_summary.json" <<'JSON'
+{"status":"PASS","avg_momentum_score":80.0}
+JSON
+
+cat > "$OUT_DIR/model_asset_momentum_history_trend_summary.json" <<'JSON'
+{"status":"PASS","trend":{"status_transition":"PASS->PASS","alerts":[]}}
+JSON
+
 cat > "$OUT_DIR/previous_summary.json" <<'JSON'
 {
   "status": "NEEDS_REVIEW",
@@ -104,6 +116,7 @@ cat > "$OUT_DIR/previous_summary.json" <<'JSON'
     "milestone_readiness_index": 70,
     "model_asset_quality_index": 60,
     "expansion_execution_index": 58,
+    "momentum_resilience_index": 59,
     "moat_score": 56
   }
 }
@@ -128,6 +141,9 @@ python3 -m gateforge.dataset_moat_trend_snapshot \
   --anchor-model-pack-history-trend-summary "$OUT_DIR/anchor_model_pack_history_trend_summary.json" \
   --failure-matrix-expansion-history-summary "$OUT_DIR/failure_matrix_expansion_history_summary.json" \
   --failure-matrix-expansion-history-trend-summary "$OUT_DIR/failure_matrix_expansion_history_trend_summary.json" \
+  --model-asset-momentum-summary "$OUT_DIR/model_asset_momentum_summary.json" \
+  --model-asset-momentum-history-summary "$OUT_DIR/model_asset_momentum_history_summary.json" \
+  --model-asset-momentum-history-trend-summary "$OUT_DIR/model_asset_momentum_history_trend_summary.json" \
   --previous-snapshot "$OUT_DIR/previous_summary.json" \
   --out "$OUT_DIR/summary.json" \
   --report-out "$OUT_DIR/summary.md"
@@ -148,6 +164,7 @@ flags = {
     "execution_readiness_present": "PASS" if isinstance(metrics.get("execution_readiness_index"), (int, float)) else "FAIL",
     "model_asset_quality_present": "PASS" if isinstance(metrics.get("model_asset_quality_index"), (int, float)) else "FAIL",
     "expansion_execution_present": "PASS" if isinstance(metrics.get("expansion_execution_index"), (int, float)) else "FAIL",
+    "momentum_resilience_present": "PASS" if isinstance(metrics.get("momentum_resilience_index"), (int, float)) else "FAIL",
     "trend_present": "PASS" if isinstance(payload.get("trend"), dict) else "FAIL",
 }
 bundle_status = "PASS" if all(v == "PASS" for v in flags.values()) else "FAIL"
@@ -159,6 +176,7 @@ summary = {
     "execution_readiness_index": metrics.get("execution_readiness_index"),
     "model_asset_quality_index": metrics.get("model_asset_quality_index"),
     "expansion_execution_index": metrics.get("expansion_execution_index"),
+    "momentum_resilience_index": metrics.get("momentum_resilience_index"),
     "accepted_count_delta": ((payload.get("intake_growth") or {}).get("accepted_count_delta")),
     "accepted_large_delta": ((payload.get("intake_growth") or {}).get("accepted_large_delta")),
     "reject_rate_pct": ((payload.get("intake_growth") or {}).get("reject_rate_pct")),
@@ -180,6 +198,7 @@ summary = {
             f"- execution_readiness_index: `{summary['execution_readiness_index']}`",
             f"- model_asset_quality_index: `{summary['model_asset_quality_index']}`",
             f"- expansion_execution_index: `{summary['expansion_execution_index']}`",
+            f"- momentum_resilience_index: `{summary['momentum_resilience_index']}`",
             f"- accepted_count_delta: `{summary['accepted_count_delta']}`",
             f"- accepted_large_delta: `{summary['accepted_large_delta']}`",
             f"- reject_rate_pct: `{summary['reject_rate_pct']}`",

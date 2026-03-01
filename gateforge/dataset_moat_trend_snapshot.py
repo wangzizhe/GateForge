@@ -69,6 +69,9 @@ def _compute_metrics(
     anchor_model_pack_history_trend: dict,
     failure_matrix_expansion_history: dict,
     failure_matrix_expansion_history_trend: dict,
+    model_asset_momentum: dict,
+    model_asset_momentum_history: dict,
+    model_asset_momentum_history_trend: dict,
 ) -> dict:
     evidence_strength = _to_float(evidence_pack.get("evidence_strength_score", 0.0))
     sections_present = _to_int(evidence_pack.get("evidence_sections_present", 0))
@@ -229,15 +232,39 @@ def _compute_metrics(
         )
     )
 
+    momentum_score = _to_float(model_asset_momentum.get("momentum_score", 0.0))
+    momentum_history_avg = _to_float(model_asset_momentum_history.get("avg_momentum_score", 0.0))
+    momentum_status = str(model_asset_momentum.get("status") or "")
+    momentum_history_status = str(model_asset_momentum_history.get("status") or "")
+    momentum_history_trend_status = str(model_asset_momentum_history_trend.get("status") or "")
+    delta_total_models = _to_float(model_asset_momentum.get("delta_total_real_models", 0.0))
+    delta_large_models = _to_float(model_asset_momentum.get("delta_large_models", 0.0))
+
+    momentum_resilience_index = _clamp(
+        26.0
+        + (momentum_score * 0.42)
+        + (momentum_history_avg * 0.28)
+        + min(10.0, max(0.0, delta_total_models) * 3.0)
+        + min(9.0, max(0.0, delta_large_models) * 4.0)
+        + (5.0 if momentum_status == "PASS" else (1.0 if momentum_status == "NEEDS_REVIEW" else -8.0))
+        + (4.0 if momentum_history_status == "PASS" else (1.0 if momentum_history_status == "NEEDS_REVIEW" else -6.0))
+        + (
+            4.0
+            if momentum_history_trend_status == "PASS"
+            else (0.0 if momentum_history_trend_status == "NEEDS_REVIEW" else -5.0)
+        )
+    )
+
     moat_score = _clamp(
-        (coverage_depth_index * 0.25)
-        + (governance_effectiveness_index * 0.24)
-        + (policy_learning_velocity * 0.13)
+        (coverage_depth_index * 0.23)
+        + (governance_effectiveness_index * 0.23)
+        + (policy_learning_velocity * 0.12)
         + (milestone_readiness_index * 0.10)
         + (intake_growth_score * 0.06)
         + (execution_readiness_index * 0.08)
         + (model_asset_quality_index * 0.08)
         + (expansion_execution_index * 0.06)
+        + (momentum_resilience_index * 0.04)
     )
 
     return {
@@ -249,6 +276,7 @@ def _compute_metrics(
         "execution_readiness_index": _round(execution_readiness_index),
         "model_asset_quality_index": _round(model_asset_quality_index),
         "expansion_execution_index": _round(expansion_execution_index),
+        "momentum_resilience_index": _round(momentum_resilience_index),
         "intake_reject_rate_pct": _round(reject_rate_pct),
         "moat_score": _round(moat_score),
     }
@@ -287,6 +315,7 @@ def _trend(current: dict, previous: dict) -> dict:
             "execution_readiness_index": delta("execution_readiness_index"),
             "model_asset_quality_index": delta("model_asset_quality_index"),
             "expansion_execution_index": delta("expansion_execution_index"),
+            "momentum_resilience_index": delta("momentum_resilience_index"),
             "moat_score": moat_delta,
         },
         "alerts": alerts,
@@ -311,6 +340,7 @@ def _write_markdown(path: str, payload: dict) -> None:
         f"- execution_readiness_index: `{metrics.get('execution_readiness_index')}`",
         f"- model_asset_quality_index: `{metrics.get('model_asset_quality_index')}`",
         f"- expansion_execution_index: `{metrics.get('expansion_execution_index')}`",
+        f"- momentum_resilience_index: `{metrics.get('momentum_resilience_index')}`",
         f"- intake_reject_rate_pct: `{metrics.get('intake_reject_rate_pct')}`",
         f"- status_transition: `{trend.get('status_transition')}`",
         f"- moat_score_delta: `{(trend.get('delta') or {}).get('moat_score')}`",
@@ -348,6 +378,9 @@ def main() -> None:
     parser.add_argument("--anchor-model-pack-history-trend-summary", default=None)
     parser.add_argument("--failure-matrix-expansion-history-summary", default=None)
     parser.add_argument("--failure-matrix-expansion-history-trend-summary", default=None)
+    parser.add_argument("--model-asset-momentum-summary", default=None)
+    parser.add_argument("--model-asset-momentum-history-summary", default=None)
+    parser.add_argument("--model-asset-momentum-history-trend-summary", default=None)
     parser.add_argument("--previous-snapshot", default=None)
     parser.add_argument("--out", default="artifacts/dataset_moat_trend_snapshot/summary.json")
     parser.add_argument("--report-out", default=None)
@@ -371,6 +404,9 @@ def main() -> None:
     anchor_model_pack_history_trend = _load_json(args.anchor_model_pack_history_trend_summary)
     failure_matrix_expansion_history = _load_json(args.failure_matrix_expansion_history_summary)
     failure_matrix_expansion_history_trend = _load_json(args.failure_matrix_expansion_history_trend_summary)
+    model_asset_momentum = _load_json(args.model_asset_momentum_summary)
+    model_asset_momentum_history = _load_json(args.model_asset_momentum_history_summary)
+    model_asset_momentum_history_trend = _load_json(args.model_asset_momentum_history_trend_summary)
     previous = _load_json(args.previous_snapshot)
 
     metrics = _compute_metrics(
@@ -392,6 +428,9 @@ def main() -> None:
         anchor_model_pack_history_trend,
         failure_matrix_expansion_history,
         failure_matrix_expansion_history_trend,
+        model_asset_momentum,
+        model_asset_momentum_history,
+        model_asset_momentum_history_trend,
     )
     status = _compute_status(_to_float(metrics.get("moat_score", 0.0)), str(evidence_pack.get("status") or ""))
 
@@ -442,6 +481,9 @@ def main() -> None:
             "anchor_model_pack_history_trend_summary": args.anchor_model_pack_history_trend_summary,
             "failure_matrix_expansion_history_summary": args.failure_matrix_expansion_history_summary,
             "failure_matrix_expansion_history_trend_summary": args.failure_matrix_expansion_history_trend_summary,
+            "model_asset_momentum_summary": args.model_asset_momentum_summary,
+            "model_asset_momentum_history_summary": args.model_asset_momentum_history_summary,
+            "model_asset_momentum_history_trend_summary": args.model_asset_momentum_history_trend_summary,
             "milestone_checkpoint_summary": args.milestone_checkpoint_summary,
             "milestone_checkpoint_trend_summary": args.milestone_checkpoint_trend_summary,
             "milestone_public_brief_summary": args.milestone_public_brief_summary,
