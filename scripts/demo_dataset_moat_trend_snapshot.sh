@@ -70,6 +70,30 @@ cat > "$OUT_DIR/intake_growth_execution_board_history_trend_summary.json" <<'JSO
 {"status":"PASS","trend":{"alerts":[]}}
 JSON
 
+cat > "$OUT_DIR/model_intake_board_history_summary.json" <<'JSON'
+{"status":"PASS","avg_board_score":81.0,"blocked_rate":0.15,"ready_rate":0.5,"ingested_rate":0.35}
+JSON
+
+cat > "$OUT_DIR/model_intake_board_history_trend_summary.json" <<'JSON'
+{"status":"PASS","trend":{"status_transition":"PASS->PASS","alerts":[]}}
+JSON
+
+cat > "$OUT_DIR/anchor_model_pack_history_summary.json" <<'JSON'
+{"status":"PASS","avg_pack_quality_score":84.0,"avg_selected_cases":24.0,"avg_selected_large_cases":7.0,"avg_unique_failure_types":5.0}
+JSON
+
+cat > "$OUT_DIR/anchor_model_pack_history_trend_summary.json" <<'JSON'
+{"status":"PASS","trend":{"status_transition":"PASS->PASS","alerts":[]}}
+JSON
+
+cat > "$OUT_DIR/failure_matrix_expansion_history_summary.json" <<'JSON'
+{"status":"PASS","avg_expansion_readiness_score":78.0,"avg_high_risk_uncovered_cells":0.0,"avg_planned_expansion_tasks":7.0}
+JSON
+
+cat > "$OUT_DIR/failure_matrix_expansion_history_trend_summary.json" <<'JSON'
+{"status":"PASS","trend":{"status_transition":"PASS->PASS","alerts":[]}}
+JSON
+
 cat > "$OUT_DIR/previous_summary.json" <<'JSON'
 {
   "status": "NEEDS_REVIEW",
@@ -78,6 +102,8 @@ cat > "$OUT_DIR/previous_summary.json" <<'JSON'
     "governance_effectiveness_index": 60,
     "policy_learning_velocity": 52,
     "milestone_readiness_index": 70,
+    "model_asset_quality_index": 60,
+    "expansion_execution_index": 58,
     "moat_score": 56
   }
 }
@@ -96,6 +122,12 @@ python3 -m gateforge.dataset_moat_trend_snapshot \
   --intake-growth-execution-board-summary "$OUT_DIR/intake_growth_execution_board_summary.json" \
   --intake-growth-execution-board-history-summary "$OUT_DIR/intake_growth_execution_board_history_summary.json" \
   --intake-growth-execution-board-history-trend-summary "$OUT_DIR/intake_growth_execution_board_history_trend_summary.json" \
+  --model-intake-board-history-summary "$OUT_DIR/model_intake_board_history_summary.json" \
+  --model-intake-board-history-trend-summary "$OUT_DIR/model_intake_board_history_trend_summary.json" \
+  --anchor-model-pack-history-summary "$OUT_DIR/anchor_model_pack_history_summary.json" \
+  --anchor-model-pack-history-trend-summary "$OUT_DIR/anchor_model_pack_history_trend_summary.json" \
+  --failure-matrix-expansion-history-summary "$OUT_DIR/failure_matrix_expansion_history_summary.json" \
+  --failure-matrix-expansion-history-trend-summary "$OUT_DIR/failure_matrix_expansion_history_trend_summary.json" \
   --previous-snapshot "$OUT_DIR/previous_summary.json" \
   --out "$OUT_DIR/summary.json" \
   --report-out "$OUT_DIR/summary.md"
@@ -114,6 +146,8 @@ flags = {
     "milestone_readiness_present": "PASS" if isinstance(metrics.get("milestone_readiness_index"), (int, float)) else "FAIL",
     "intake_growth_present": "PASS" if isinstance(metrics.get("intake_growth_score"), (int, float)) else "FAIL",
     "execution_readiness_present": "PASS" if isinstance(metrics.get("execution_readiness_index"), (int, float)) else "FAIL",
+    "model_asset_quality_present": "PASS" if isinstance(metrics.get("model_asset_quality_index"), (int, float)) else "FAIL",
+    "expansion_execution_present": "PASS" if isinstance(metrics.get("expansion_execution_index"), (int, float)) else "FAIL",
     "trend_present": "PASS" if isinstance(payload.get("trend"), dict) else "FAIL",
 }
 bundle_status = "PASS" if all(v == "PASS" for v in flags.values()) else "FAIL"
@@ -123,6 +157,8 @@ summary = {
     "milestone_readiness_index": metrics.get("milestone_readiness_index"),
     "intake_growth_score": metrics.get("intake_growth_score"),
     "execution_readiness_index": metrics.get("execution_readiness_index"),
+    "model_asset_quality_index": metrics.get("model_asset_quality_index"),
+    "expansion_execution_index": metrics.get("expansion_execution_index"),
     "accepted_count_delta": ((payload.get("intake_growth") or {}).get("accepted_count_delta")),
     "accepted_large_delta": ((payload.get("intake_growth") or {}).get("accepted_large_delta")),
     "reject_rate_pct": ((payload.get("intake_growth") or {}).get("reject_rate_pct")),
@@ -142,6 +178,8 @@ summary = {
             f"- milestone_readiness_index: `{summary['milestone_readiness_index']}`",
             f"- intake_growth_score: `{summary['intake_growth_score']}`",
             f"- execution_readiness_index: `{summary['execution_readiness_index']}`",
+            f"- model_asset_quality_index: `{summary['model_asset_quality_index']}`",
+            f"- expansion_execution_index: `{summary['expansion_execution_index']}`",
             f"- accepted_count_delta: `{summary['accepted_count_delta']}`",
             f"- accepted_large_delta: `{summary['accepted_large_delta']}`",
             f"- reject_rate_pct: `{summary['reject_rate_pct']}`",
