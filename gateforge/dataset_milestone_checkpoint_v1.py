@@ -55,6 +55,10 @@ def _write_markdown(path: str, payload: dict) -> None:
         f"- status: `{payload.get('status')}`",
         f"- checkpoint_score: `{payload.get('checkpoint_score')}`",
         f"- milestone_decision: `{payload.get('milestone_decision')}`",
+        f"- model_asset_momentum_status: `{payload.get('model_asset_momentum_status')}`",
+        f"- model_asset_momentum_score: `{payload.get('model_asset_momentum_score')}`",
+        f"- delta_total_real_models: `{payload.get('delta_total_real_models')}`",
+        f"- delta_large_models: `{payload.get('delta_large_models')}`",
         f"- blocker_count: `{len(payload.get('blockers') or [])}`",
         "",
     ]
@@ -67,6 +71,7 @@ def main() -> None:
     parser.add_argument("--moat-public-scoreboard-summary", required=True)
     parser.add_argument("--snapshot-moat-alignment-summary", required=True)
     parser.add_argument("--modelica-release-candidate-gate-summary", required=True)
+    parser.add_argument("--model-asset-momentum-summary", required=True)
     parser.add_argument("--min-checkpoint-score", type=float, default=80.0)
     parser.add_argument("--out", default="artifacts/dataset_milestone_checkpoint_v1/summary.json")
     parser.add_argument("--report-out", default=None)
@@ -76,6 +81,7 @@ def main() -> None:
     scoreboard = _load_json(args.moat_public_scoreboard_summary)
     alignment = _load_json(args.snapshot_moat_alignment_summary)
     release_candidate = _load_json(args.modelica_release_candidate_gate_summary)
+    model_asset_momentum = _load_json(args.model_asset_momentum_summary)
 
     reasons: list[str] = []
     if not moat:
@@ -86,13 +92,26 @@ def main() -> None:
         reasons.append("snapshot_moat_alignment_summary_missing")
     if not release_candidate:
         reasons.append("modelica_release_candidate_gate_summary_missing")
+    if not model_asset_momentum:
+        reasons.append("model_asset_momentum_summary_missing")
 
     moat_score = _to_float((moat.get("metrics") or {}).get("moat_score", moat.get("moat_score", 0.0)))
     public_score = _to_float(scoreboard.get("moat_public_score", 0.0))
     alignment_score = _to_float(alignment.get("alignment_score", 0.0))
     release_score = _to_float(release_candidate.get("release_candidate_score", 0.0))
+    model_asset_momentum_score = _to_float(model_asset_momentum.get("momentum_score", 0.0))
+    delta_total_real_models = _to_int(model_asset_momentum.get("delta_total_real_models", 0))
+    delta_large_models = _to_int(model_asset_momentum.get("delta_large_models", 0))
+    model_asset_momentum_status = _status(model_asset_momentum.get("status"))
 
-    checkpoint_score = round((moat_score * 0.3) + (public_score * 0.25) + (alignment_score * 0.2) + (release_score * 0.25), 2)
+    checkpoint_score = round(
+        (moat_score * 0.25)
+        + (public_score * 0.2)
+        + (alignment_score * 0.15)
+        + (release_score * 0.2)
+        + (model_asset_momentum_score * 0.2),
+        2,
+    )
 
     blockers: list[str] = []
     if _status(moat.get("status")) == "FAIL":
@@ -103,6 +122,8 @@ def main() -> None:
         blockers.append("snapshot_alignment_fail")
     if _status(release_candidate.get("status")) == "FAIL":
         blockers.append("release_candidate_fail")
+    if model_asset_momentum_status == "FAIL":
+        blockers.append("model_asset_momentum_fail")
     if _to_int(alignment.get("contradiction_count", 0)) >= 2:
         blockers.append("alignment_contradictions_high")
     if str(release_candidate.get("candidate_decision") or "") == "HOLD":
@@ -117,6 +138,12 @@ def main() -> None:
         alerts.append("moat_scoreboard_needs_review")
     if _status(alignment.get("status")) == "NEEDS_REVIEW":
         alerts.append("snapshot_alignment_needs_review")
+    if model_asset_momentum_status == "NEEDS_REVIEW":
+        alerts.append("model_asset_momentum_needs_review")
+    if delta_total_real_models <= 0:
+        alerts.append("model_asset_growth_stalled")
+    if delta_large_models <= 0:
+        alerts.append("large_model_growth_stalled")
 
     milestone_decision = "GO"
     if blockers:
@@ -143,12 +170,18 @@ def main() -> None:
             "public_score": public_score,
             "alignment_score": alignment_score,
             "release_candidate_score": release_score,
+            "model_asset_momentum_score": model_asset_momentum_score,
         },
+        "model_asset_momentum_status": model_asset_momentum_status,
+        "model_asset_momentum_score": model_asset_momentum_score,
+        "delta_total_real_models": delta_total_real_models,
+        "delta_large_models": delta_large_models,
         "sources": {
             "moat_trend_snapshot_summary": args.moat_trend_snapshot_summary,
             "moat_public_scoreboard_summary": args.moat_public_scoreboard_summary,
             "snapshot_moat_alignment_summary": args.snapshot_moat_alignment_summary,
             "modelica_release_candidate_gate_summary": args.modelica_release_candidate_gate_summary,
+            "model_asset_momentum_summary": args.model_asset_momentum_summary,
         },
     }
     _write_json(args.out, payload)

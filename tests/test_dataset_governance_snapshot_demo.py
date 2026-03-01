@@ -225,6 +225,26 @@ class DatasetGovernanceSnapshotDemoTests(unittest.TestCase):
                 payload.get("failure_matrix_expansion_history_trend_status"),
                 {"PASS", "NEEDS_REVIEW", "FAIL", None},
             )
+            self.assertIn(
+                payload.get("model_asset_momentum_status"),
+                {"PASS", "NEEDS_REVIEW", "FAIL", None},
+            )
+            self.assertIsInstance(
+                payload.get("model_asset_momentum_score"),
+                (int, float, type(None)),
+            )
+            self.assertIn(
+                payload.get("model_asset_momentum_history_status"),
+                {"PASS", "NEEDS_REVIEW", "FAIL", None},
+            )
+            self.assertIsInstance(
+                payload.get("model_asset_momentum_history_avg_momentum_score"),
+                (int, float, type(None)),
+            )
+            self.assertIn(
+                payload.get("model_asset_momentum_history_trend_status"),
+                {"PASS", "NEEDS_REVIEW", "FAIL", None},
+            )
 
 
 if __name__ == "__main__":

@@ -127,6 +127,14 @@ cat > "$OUT_DIR/previous_summary.json" <<'JSON'
     "dataset_failure_matrix_expansion_history_avg_high_risk_uncovered_cells": 0.5,
     "dataset_failure_matrix_expansion_history_avg_planned_expansion_tasks": 6.0,
     "dataset_failure_matrix_expansion_history_trend_status": "PASS",
+    "dataset_model_asset_momentum_status": "PASS",
+    "dataset_model_asset_momentum_score": 80.0,
+    "dataset_model_asset_momentum_delta_total_real_models": 1,
+    "dataset_model_asset_momentum_delta_large_models": 1,
+    "dataset_model_asset_momentum_history_status": "PASS",
+    "dataset_model_asset_momentum_history_total_records": 3,
+    "dataset_model_asset_momentum_history_avg_momentum_score": 78.0,
+    "dataset_model_asset_momentum_history_trend_status": "PASS",
     "dataset_promotion_effectiveness_history_trend_status": "PASS",
     "dataset_promotion_effectiveness_history_latest_decision": "KEEP"
   }
@@ -281,6 +289,15 @@ demo = {
     "failure_matrix_expansion_history_trend_status_transition": (trend.get("status_delta") or {}).get(
         "dataset_failure_matrix_expansion_history_trend_status_transition"
     ),
+    "model_asset_momentum_status_transition": (trend.get("status_delta") or {}).get(
+        "dataset_model_asset_momentum_status_transition"
+    ),
+    "model_asset_momentum_history_status_transition": (trend.get("status_delta") or {}).get(
+        "dataset_model_asset_momentum_history_status_transition"
+    ),
+    "model_asset_momentum_history_trend_status_transition": (trend.get("status_delta") or {}).get(
+        "dataset_model_asset_momentum_history_trend_status_transition"
+    ),
     "status_delta_alert_count": len((trend.get("status_delta") or {}).get("alerts") or []),
     "result_flags": flags,
     "bundle_status": bundle_status,
@@ -336,6 +353,9 @@ demo = {
             f"- anchor_model_pack_history_trend_status_transition: `{demo['anchor_model_pack_history_trend_status_transition']}`",
             f"- failure_matrix_expansion_history_status_transition: `{demo['failure_matrix_expansion_history_status_transition']}`",
             f"- failure_matrix_expansion_history_trend_status_transition: `{demo['failure_matrix_expansion_history_trend_status_transition']}`",
+            f"- model_asset_momentum_status_transition: `{demo['model_asset_momentum_status_transition']}`",
+            f"- model_asset_momentum_history_status_transition: `{demo['model_asset_momentum_history_status_transition']}`",
+            f"- model_asset_momentum_history_trend_status_transition: `{demo['model_asset_momentum_history_trend_status_transition']}`",
             f"- status_delta_alert_count: `{demo['status_delta_alert_count']}`",
             f"- bundle_status: `{demo['bundle_status']}`",
             "",

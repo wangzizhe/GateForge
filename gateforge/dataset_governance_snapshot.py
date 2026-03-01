@@ -157,6 +157,12 @@ def _status_from_signals(signals: dict) -> str:
         return "NEEDS_REVIEW"
     if signals.get("dataset_failure_matrix_expansion_history_trend_needs_review"):
         return "NEEDS_REVIEW"
+    if signals.get("dataset_model_asset_momentum_needs_review"):
+        return "NEEDS_REVIEW"
+    if signals.get("dataset_model_asset_momentum_history_needs_review"):
+        return "NEEDS_REVIEW"
+    if signals.get("dataset_model_asset_momentum_history_trend_needs_review"):
+        return "NEEDS_REVIEW"
     return "PASS"
 
 
@@ -218,6 +224,9 @@ def _compute_summary(
     anchor_model_pack_history_trend: dict,
     failure_matrix_expansion_history: dict,
     failure_matrix_expansion_history_trend: dict,
+    model_asset_momentum: dict,
+    model_asset_momentum_history: dict,
+    model_asset_momentum_history_trend: dict,
 ) -> dict:
     strategy_advice = (
         strategy_advisor.get("advice")
@@ -364,6 +373,14 @@ def _compute_summary(
             failure_matrix_expansion_history_trend.get("status") or ""
         )
         in {"NEEDS_REVIEW", "FAIL"},
+        "dataset_model_asset_momentum_needs_review": str(model_asset_momentum.get("status") or "")
+        in {"NEEDS_REVIEW", "FAIL"},
+        "dataset_model_asset_momentum_history_needs_review": str(model_asset_momentum_history.get("status") or "")
+        in {"NEEDS_REVIEW", "FAIL"},
+        "dataset_model_asset_momentum_history_trend_needs_review": str(
+            model_asset_momentum_history_trend.get("status") or ""
+        )
+        in {"NEEDS_REVIEW", "FAIL"},
     }
     status = _status_from_signals(signals)
 
@@ -484,6 +501,12 @@ def _compute_summary(
         risks.append("dataset_failure_matrix_expansion_history_needs_review")
     if signals["dataset_failure_matrix_expansion_history_trend_needs_review"]:
         risks.append("dataset_failure_matrix_expansion_history_trend_needs_review")
+    if signals["dataset_model_asset_momentum_needs_review"]:
+        risks.append("dataset_model_asset_momentum_needs_review")
+    if signals["dataset_model_asset_momentum_history_needs_review"]:
+        risks.append("dataset_model_asset_momentum_history_needs_review")
+    if signals["dataset_model_asset_momentum_history_trend_needs_review"]:
+        risks.append("dataset_model_asset_momentum_history_trend_needs_review")
 
     policy_patch_advice = (
         failure_policy_patch_advisor.get("advice")
@@ -830,6 +853,27 @@ def _compute_summary(
             if isinstance(failure_matrix_expansion_history_trend.get("trend"), dict)
             else None
         ),
+        "dataset_model_asset_momentum_status": model_asset_momentum.get("status"),
+        "dataset_model_asset_momentum_score": _to_float(model_asset_momentum.get("momentum_score", 0.0)),
+        "dataset_model_asset_momentum_delta_total_real_models": _to_int(
+            model_asset_momentum.get("delta_total_real_models", 0)
+        ),
+        "dataset_model_asset_momentum_delta_large_models": _to_int(
+            model_asset_momentum.get("delta_large_models", 0)
+        ),
+        "dataset_model_asset_momentum_history_status": model_asset_momentum_history.get("status"),
+        "dataset_model_asset_momentum_history_total_records": _to_int(
+            model_asset_momentum_history.get("total_records", 0)
+        ),
+        "dataset_model_asset_momentum_history_avg_momentum_score": _to_float(
+            model_asset_momentum_history.get("avg_momentum_score", 0.0)
+        ),
+        "dataset_model_asset_momentum_history_trend_status": model_asset_momentum_history_trend.get("status"),
+        "dataset_model_asset_momentum_history_trend_status_transition": (
+            (model_asset_momentum_history_trend.get("trend") or {}).get("status_transition")
+            if isinstance(model_asset_momentum_history_trend.get("trend"), dict)
+            else None
+        ),
     }
     return {
         "status": status,
@@ -1018,6 +1062,15 @@ def _write_markdown(path: str, summary: dict) -> None:
         f"- dataset_failure_matrix_expansion_history_avg_planned_expansion_tasks: `{kpis.get('dataset_failure_matrix_expansion_history_avg_planned_expansion_tasks')}`",
         f"- dataset_failure_matrix_expansion_history_trend_status: `{kpis.get('dataset_failure_matrix_expansion_history_trend_status')}`",
         f"- dataset_failure_matrix_expansion_history_trend_status_transition: `{kpis.get('dataset_failure_matrix_expansion_history_trend_status_transition')}`",
+        f"- dataset_model_asset_momentum_status: `{kpis.get('dataset_model_asset_momentum_status')}`",
+        f"- dataset_model_asset_momentum_score: `{kpis.get('dataset_model_asset_momentum_score')}`",
+        f"- dataset_model_asset_momentum_delta_total_real_models: `{kpis.get('dataset_model_asset_momentum_delta_total_real_models')}`",
+        f"- dataset_model_asset_momentum_delta_large_models: `{kpis.get('dataset_model_asset_momentum_delta_large_models')}`",
+        f"- dataset_model_asset_momentum_history_status: `{kpis.get('dataset_model_asset_momentum_history_status')}`",
+        f"- dataset_model_asset_momentum_history_total_records: `{kpis.get('dataset_model_asset_momentum_history_total_records')}`",
+        f"- dataset_model_asset_momentum_history_avg_momentum_score: `{kpis.get('dataset_model_asset_momentum_history_avg_momentum_score')}`",
+        f"- dataset_model_asset_momentum_history_trend_status: `{kpis.get('dataset_model_asset_momentum_history_trend_status')}`",
+        f"- dataset_model_asset_momentum_history_trend_status_transition: `{kpis.get('dataset_model_asset_momentum_history_trend_status_transition')}`",
         "",
         "## Risks",
         "",
@@ -1295,6 +1348,21 @@ def main() -> None:
         default=None,
         help="Path to dataset failure matrix expansion history trend summary JSON",
     )
+    parser.add_argument(
+        "--dataset-model-asset-momentum",
+        default=None,
+        help="Path to dataset model asset momentum summary JSON",
+    )
+    parser.add_argument(
+        "--dataset-model-asset-momentum-history",
+        default=None,
+        help="Path to dataset model asset momentum history summary JSON",
+    )
+    parser.add_argument(
+        "--dataset-model-asset-momentum-history-trend",
+        default=None,
+        help="Path to dataset model asset momentum history trend summary JSON",
+    )
     parser.add_argument("--out", default="artifacts/dataset_governance_snapshot/summary.json", help="Output JSON path")
     parser.add_argument("--report", default=None, help="Output markdown path")
     args = parser.parse_args()
@@ -1356,6 +1424,9 @@ def main() -> None:
     anchor_model_pack_history_trend = _load_json(args.dataset_anchor_model_pack_history_trend)
     failure_matrix_expansion_history = _load_json(args.dataset_failure_matrix_expansion_history)
     failure_matrix_expansion_history_trend = _load_json(args.dataset_failure_matrix_expansion_history_trend)
+    model_asset_momentum = _load_json(args.dataset_model_asset_momentum)
+    model_asset_momentum_history = _load_json(args.dataset_model_asset_momentum_history)
+    model_asset_momentum_history_trend = _load_json(args.dataset_model_asset_momentum_history_trend)
 
     summary = _compute_summary(
         dataset_pipeline,
@@ -1415,6 +1486,9 @@ def main() -> None:
         anchor_model_pack_history_trend,
         failure_matrix_expansion_history,
         failure_matrix_expansion_history_trend,
+        model_asset_momentum,
+        model_asset_momentum_history,
+        model_asset_momentum_history_trend,
     )
     summary["generated_at_utc"] = datetime.now(timezone.utc).isoformat()
     summary["sources"] = {
@@ -1475,6 +1549,9 @@ def main() -> None:
         "dataset_anchor_model_pack_history_trend_path": args.dataset_anchor_model_pack_history_trend,
         "dataset_failure_matrix_expansion_history_path": args.dataset_failure_matrix_expansion_history,
         "dataset_failure_matrix_expansion_history_trend_path": args.dataset_failure_matrix_expansion_history_trend,
+        "dataset_model_asset_momentum_path": args.dataset_model_asset_momentum,
+        "dataset_model_asset_momentum_history_path": args.dataset_model_asset_momentum_history,
+        "dataset_model_asset_momentum_history_trend_path": args.dataset_model_asset_momentum_history_trend,
     }
 
     _write_json(args.out, summary)

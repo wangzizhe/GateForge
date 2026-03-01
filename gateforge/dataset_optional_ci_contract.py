@@ -172,6 +172,11 @@ def main() -> None:
                 "failure_matrix_expansion_history_status",
                 "failure_matrix_expansion_history_avg_expansion_readiness_score",
                 "failure_matrix_expansion_history_trend_status",
+                "model_asset_momentum_status",
+                "model_asset_momentum_score",
+                "model_asset_momentum_history_status",
+                "model_asset_momentum_history_avg_momentum_score",
+                "model_asset_momentum_history_trend_status",
             ],
         ),
         (
@@ -222,6 +227,9 @@ def main() -> None:
                 "anchor_model_pack_history_trend_status_transition",
                 "failure_matrix_expansion_history_status_transition",
                 "failure_matrix_expansion_history_trend_status_transition",
+                "model_asset_momentum_status_transition",
+                "model_asset_momentum_history_status_transition",
+                "model_asset_momentum_history_trend_status_transition",
                 "status_delta_alert_count",
                 "severity_level",
             ],
@@ -587,17 +595,39 @@ def main() -> None:
         (
             "dataset_milestone_checkpoint_v1_demo",
             "dataset_milestone_checkpoint_v1_demo/demo_summary.json",
-            ["bundle_status", "checkpoint_status", "milestone_decision"],
+            [
+                "bundle_status",
+                "checkpoint_status",
+                "milestone_decision",
+                "model_asset_momentum_status",
+                "model_asset_momentum_score",
+            ],
         ),
         (
             "dataset_milestone_checkpoint_trend_v1_demo",
             "dataset_milestone_checkpoint_trend_v1_demo/demo_summary.json",
-            ["bundle_status", "trend_status", "status_transition"],
+            [
+                "bundle_status",
+                "trend_status",
+                "status_transition",
+                "model_asset_momentum_status_transition",
+                "model_asset_momentum_score_delta",
+            ],
         ),
         (
             "dataset_milestone_public_brief_v1_demo",
             "dataset_milestone_public_brief_v1_demo/demo_summary.json",
-            ["bundle_status", "brief_status"],
+            [
+                "bundle_status",
+                "brief_status",
+                "model_asset_momentum_status",
+                "model_asset_momentum_score",
+            ],
+        ),
+        (
+            "dataset_model_asset_target_gap_v1_demo",
+            "dataset_model_asset_target_gap_v1_demo/demo_summary.json",
+            ["bundle_status", "target_gap_status", "target_gap_score", "critical_gap_count"],
         ),
     ]
     checks = [_validate_required_summary(root, name, rel_path, keys) for name, rel_path, keys in required]

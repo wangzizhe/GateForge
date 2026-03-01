@@ -15,6 +15,7 @@ class DatasetMilestoneCheckpointTrendV1DemoTests(unittest.TestCase):
             self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
             payload = json.loads((repo_root / "artifacts" / "dataset_milestone_checkpoint_trend_v1_demo" / "demo_summary.json").read_text(encoding="utf-8"))
             self.assertEqual(payload.get("bundle_status"), "PASS")
+            self.assertIn("->", str(payload.get("model_asset_momentum_status_transition")))
 
 
 if __name__ == "__main__":
