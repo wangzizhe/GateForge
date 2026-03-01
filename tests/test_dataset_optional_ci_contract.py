@@ -511,6 +511,8 @@ class DatasetOptionalCIContractTests(unittest.TestCase):
                 "evidence_status": "PASS",
                 "publishable": True,
                 "evidence_score": 82.0,
+                "target_gap_pressure_index": 76.5,
+                "model_asset_target_gap_score": 28.5,
             },
             "dataset_modelica_release_candidate_gate_v1_demo/demo_summary.json": {
                 "bundle_status": "PASS",

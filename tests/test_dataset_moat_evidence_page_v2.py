@@ -16,6 +16,7 @@ class DatasetMoatEvidencePageV2Tests(unittest.TestCase):
             matrix = root / "matrix.json"
             history = root / "history.json"
             trend = root / "trend.json"
+            moat_snapshot = root / "moat_snapshot.json"
             out = root / "summary.json"
             anchor.write_text(json.dumps({"status": "PASS", "anchor_brief_score": 82.0}), encoding="utf-8")
             growth.write_text(json.dumps({"status": "PASS", "growth_velocity_score": 81.0}), encoding="utf-8")
@@ -23,6 +24,10 @@ class DatasetMoatEvidencePageV2Tests(unittest.TestCase):
             matrix.write_text(json.dumps({"status": "PASS", "matrix_coverage_score": 83.0}), encoding="utf-8")
             history.write_text(json.dumps({"status": "PASS", "avg_stability_score": 80.0}), encoding="utf-8")
             trend.write_text(json.dumps({"status": "PASS", "trend": {"status_transition": "PASS->PASS"}}), encoding="utf-8")
+            moat_snapshot.write_text(
+                json.dumps({"metrics": {"target_gap_pressure_index": 76.5, "model_asset_target_gap_score": 20.0}}),
+                encoding="utf-8",
+            )
             proc = subprocess.run(
                 [
                     sys.executable,
@@ -40,6 +45,8 @@ class DatasetMoatEvidencePageV2Tests(unittest.TestCase):
                     str(history),
                     "--failure-distribution-stability-history-trend-summary",
                     str(trend),
+                    "--moat-trend-snapshot-summary",
+                    str(moat_snapshot),
                     "--out",
                     str(out),
                 ],
@@ -51,6 +58,8 @@ class DatasetMoatEvidencePageV2Tests(unittest.TestCase):
             payload = json.loads(out.read_text(encoding="utf-8"))
             self.assertEqual(payload.get("status"), "PASS")
             self.assertTrue(bool(payload.get("publishable")))
+            self.assertIsInstance(payload.get("target_gap_pressure_index"), (int, float))
+            self.assertIsInstance(payload.get("model_asset_target_gap_score"), (int, float))
 
 
 if __name__ == "__main__":
