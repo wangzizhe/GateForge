@@ -102,6 +102,11 @@ mapping = {
         "failure_matrix_expansion_history_status": "PASS",
         "failure_matrix_expansion_history_avg_expansion_readiness_score": 78.0,
         "failure_matrix_expansion_history_trend_status": "PASS",
+        "model_asset_momentum_status": "PASS",
+        "model_asset_momentum_score": 82.0,
+        "model_asset_momentum_history_status": "PASS",
+        "model_asset_momentum_history_avg_momentum_score": 80.0,
+        "model_asset_momentum_history_trend_status": "PASS",
     },
     "dataset_governance_snapshot_trend_demo/demo_summary.json": {
         "bundle_status": "PASS",
@@ -148,6 +153,9 @@ mapping = {
         "anchor_model_pack_history_trend_status_transition": "PASS->PASS",
         "failure_matrix_expansion_history_status_transition": "PASS->PASS",
         "failure_matrix_expansion_history_trend_status_transition": "PASS->PASS",
+        "model_asset_momentum_status_transition": "PASS->PASS",
+        "model_asset_momentum_history_status_transition": "PASS->PASS",
+        "model_asset_momentum_history_trend_status_transition": "PASS->PASS",
         "status_delta_alert_count": 0,
         "severity_level": "low",
     },
@@ -462,6 +470,32 @@ mapping = {
         "trend_status": "PASS",
         "status_transition": "PASS->PASS",
     },
+    "dataset_milestone_checkpoint_v1_demo/demo_summary.json": {
+        "bundle_status": "PASS",
+        "checkpoint_status": "PASS",
+        "milestone_decision": "GO",
+        "model_asset_momentum_status": "PASS",
+        "model_asset_momentum_score": 82.0,
+    },
+    "dataset_milestone_checkpoint_trend_v1_demo/demo_summary.json": {
+        "bundle_status": "PASS",
+        "trend_status": "PASS",
+        "status_transition": "PASS->PASS",
+        "model_asset_momentum_status_transition": "PASS->PASS",
+        "model_asset_momentum_score_delta": 0.0,
+    },
+    "dataset_milestone_public_brief_v1_demo/demo_summary.json": {
+        "bundle_status": "PASS",
+        "brief_status": "PASS",
+        "model_asset_momentum_status": "PASS",
+        "model_asset_momentum_score": 82.0,
+    },
+    "dataset_model_asset_target_gap_v1_demo/demo_summary.json": {
+        "bundle_status": "PASS",
+        "target_gap_status": "NEEDS_REVIEW",
+        "target_gap_score": 28.5,
+        "critical_gap_count": 1,
+    },
 }
 for rel, payload in mapping.items():
     p = root / rel
@@ -540,6 +574,10 @@ else
   bash scripts/demo_dataset_intake_growth_execution_board_v1.sh >/dev/null
   bash scripts/demo_dataset_intake_growth_execution_board_history_v1.sh >/dev/null
   bash scripts/demo_dataset_intake_growth_execution_board_history_trend_v1.sh >/dev/null
+  bash scripts/demo_dataset_milestone_checkpoint_v1.sh >/dev/null
+  bash scripts/demo_dataset_milestone_checkpoint_trend_v1.sh >/dev/null
+  bash scripts/demo_dataset_milestone_public_brief_v1.sh >/dev/null
+  bash scripts/demo_dataset_model_asset_target_gap_v1.sh >/dev/null
 fi
 
 python3 -m gateforge.dataset_optional_ci_contract \

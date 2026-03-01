@@ -207,6 +207,18 @@ def _compute_trend(current: dict, previous: dict) -> dict:
         f"{previous_kpis.get('dataset_failure_matrix_expansion_history_trend_status')}->"
         f"{current_kpis.get('dataset_failure_matrix_expansion_history_trend_status')}"
     )
+    model_asset_momentum_transition = (
+        f"{previous_kpis.get('dataset_model_asset_momentum_status')}->"
+        f"{current_kpis.get('dataset_model_asset_momentum_status')}"
+    )
+    model_asset_momentum_history_transition = (
+        f"{previous_kpis.get('dataset_model_asset_momentum_history_status')}->"
+        f"{current_kpis.get('dataset_model_asset_momentum_history_status')}"
+    )
+    model_asset_momentum_history_trend_transition = (
+        f"{previous_kpis.get('dataset_model_asset_momentum_history_trend_status')}->"
+        f"{current_kpis.get('dataset_model_asset_momentum_history_trend_status')}"
+    )
     status_delta_alerts: list[str] = []
     if trend_status_transition in {"PASS->NEEDS_REVIEW", "PASS->FAIL", "NEEDS_REVIEW->FAIL"}:
         status_delta_alerts.append("promotion_effectiveness_history_trend_worsened")
@@ -302,6 +314,12 @@ def _compute_trend(current: dict, previous: dict) -> dict:
         status_delta_alerts.append("failure_matrix_expansion_history_worsened")
     if failure_matrix_expansion_history_trend_transition in {"PASS->NEEDS_REVIEW", "PASS->FAIL", "NEEDS_REVIEW->FAIL"}:
         status_delta_alerts.append("failure_matrix_expansion_history_trend_worsened")
+    if model_asset_momentum_transition in {"PASS->NEEDS_REVIEW", "PASS->FAIL", "NEEDS_REVIEW->FAIL"}:
+        status_delta_alerts.append("model_asset_momentum_worsened")
+    if model_asset_momentum_history_transition in {"PASS->NEEDS_REVIEW", "PASS->FAIL", "NEEDS_REVIEW->FAIL"}:
+        status_delta_alerts.append("model_asset_momentum_history_worsened")
+    if model_asset_momentum_history_trend_transition in {"PASS->NEEDS_REVIEW", "PASS->FAIL", "NEEDS_REVIEW->FAIL"}:
+        status_delta_alerts.append("model_asset_momentum_history_trend_worsened")
 
     status_transition = f"{previous_status}->{current_status}"
     new_risks = sorted(current_risks - previous_risks)
@@ -368,6 +386,9 @@ def _compute_trend(current: dict, previous: dict) -> dict:
             "dataset_anchor_model_pack_history_trend_status_transition": anchor_model_pack_history_trend_transition,
             "dataset_failure_matrix_expansion_history_status_transition": failure_matrix_expansion_history_transition,
             "dataset_failure_matrix_expansion_history_trend_status_transition": failure_matrix_expansion_history_trend_transition,
+            "dataset_model_asset_momentum_status_transition": model_asset_momentum_transition,
+            "dataset_model_asset_momentum_history_status_transition": model_asset_momentum_history_transition,
+            "dataset_model_asset_momentum_history_trend_status_transition": model_asset_momentum_history_trend_transition,
             "alerts": status_delta_alerts,
         },
         "kpi_delta": {
@@ -744,6 +765,26 @@ def _compute_trend(current: dict, previous: dict) -> dict:
             "dataset_failure_matrix_expansion_history_avg_planned_expansion_tasks_delta": round(
                 _to_float(current_kpis.get("dataset_failure_matrix_expansion_history_avg_planned_expansion_tasks"))
                 - _to_float(previous_kpis.get("dataset_failure_matrix_expansion_history_avg_planned_expansion_tasks")),
+                4,
+            ),
+            "dataset_model_asset_momentum_score_delta": round(
+                _to_float(current_kpis.get("dataset_model_asset_momentum_score"))
+                - _to_float(previous_kpis.get("dataset_model_asset_momentum_score")),
+                4,
+            ),
+            "dataset_model_asset_momentum_delta_total_real_models_delta": round(
+                _to_float(current_kpis.get("dataset_model_asset_momentum_delta_total_real_models"))
+                - _to_float(previous_kpis.get("dataset_model_asset_momentum_delta_total_real_models")),
+                4,
+            ),
+            "dataset_model_asset_momentum_delta_large_models_delta": round(
+                _to_float(current_kpis.get("dataset_model_asset_momentum_delta_large_models"))
+                - _to_float(previous_kpis.get("dataset_model_asset_momentum_delta_large_models")),
+                4,
+            ),
+            "dataset_model_asset_momentum_history_avg_momentum_score_delta": round(
+                _to_float(current_kpis.get("dataset_model_asset_momentum_history_avg_momentum_score"))
+                - _to_float(previous_kpis.get("dataset_model_asset_momentum_history_avg_momentum_score")),
                 4,
             ),
         },

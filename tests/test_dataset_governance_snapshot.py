@@ -944,6 +944,50 @@ class DatasetGovernanceSnapshotTests(unittest.TestCase):
             self.assertIn("dataset_failure_matrix_expansion_history_needs_review", payload.get("risks", []))
             self.assertIn("dataset_failure_matrix_expansion_history_trend_needs_review", payload.get("risks", []))
 
+    def test_snapshot_needs_review_on_model_asset_momentum_chain(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            momentum = root / "momentum.json"
+            momentum_history = root / "momentum_history.json"
+            momentum_history_trend = root / "momentum_history_trend.json"
+            out = root / "snapshot.json"
+            momentum.write_text(
+                json.dumps({"status": "NEEDS_REVIEW", "momentum_score": 68.0, "delta_total_real_models": 0}),
+                encoding="utf-8",
+            )
+            momentum_history.write_text(
+                json.dumps({"status": "NEEDS_REVIEW", "total_records": 4, "avg_momentum_score": 70.0}),
+                encoding="utf-8",
+            )
+            momentum_history_trend.write_text(
+                json.dumps({"status": "NEEDS_REVIEW", "trend": {"status_transition": "PASS->NEEDS_REVIEW"}}),
+                encoding="utf-8",
+            )
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.dataset_governance_snapshot",
+                    "--dataset-model-asset-momentum",
+                    str(momentum),
+                    "--dataset-model-asset-momentum-history",
+                    str(momentum_history),
+                    "--dataset-model-asset-momentum-history-trend",
+                    str(momentum_history_trend),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            payload = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(payload.get("status"), "NEEDS_REVIEW")
+            self.assertIn("dataset_model_asset_momentum_needs_review", payload.get("risks", []))
+            self.assertIn("dataset_model_asset_momentum_history_needs_review", payload.get("risks", []))
+            self.assertIn("dataset_model_asset_momentum_history_trend_needs_review", payload.get("risks", []))
+
 
 if __name__ == "__main__":
     unittest.main()

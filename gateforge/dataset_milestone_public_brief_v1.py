@@ -31,6 +31,10 @@ def _write_markdown(path: str, payload: dict) -> None:
         f"- checkpoint_score: `{payload.get('checkpoint_score')}`",
         f"- moat_public_score: `{payload.get('moat_public_score')}`",
         f"- alignment_score: `{payload.get('alignment_score')}`",
+        f"- model_asset_momentum_status: `{payload.get('model_asset_momentum_status')}`",
+        f"- model_asset_momentum_score: `{payload.get('model_asset_momentum_score')}`",
+        f"- delta_total_real_models: `{payload.get('delta_total_real_models')}`",
+        f"- delta_large_models: `{payload.get('delta_large_models')}`",
         "",
     ]
     p.write_text("\n".join(lines), encoding="utf-8")
@@ -55,6 +59,10 @@ def main() -> None:
         "checkpoint_score": checkpoint.get("checkpoint_score"),
         "moat_public_score": scoreboard.get("moat_public_score"),
         "alignment_score": alignment.get("alignment_score"),
+        "model_asset_momentum_status": checkpoint.get("model_asset_momentum_status"),
+        "model_asset_momentum_score": checkpoint.get("model_asset_momentum_score"),
+        "delta_total_real_models": checkpoint.get("delta_total_real_models"),
+        "delta_large_models": checkpoint.get("delta_large_models"),
         "headline": f"GateForge milestone {checkpoint.get('milestone_decision')} at score {checkpoint.get('checkpoint_score')}",
         "key_risks": checkpoint.get("blockers") or checkpoint.get("alerts") or [],
         "sources": {

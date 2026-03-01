@@ -34,7 +34,9 @@ if [ "${GATEFORGE_DEMO_FAST:-0}" = "1" ]; then
     artifacts/dataset_real_model_supply_pipeline_v1_demo artifacts/dataset_mutation_coverage_matrix_v2_demo \
     artifacts/dataset_model_intake_board_history_v1_demo artifacts/dataset_model_intake_board_history_trend_v1_demo \
     artifacts/dataset_anchor_model_pack_history_v1_demo artifacts/dataset_anchor_model_pack_history_trend_v1_demo \
-    artifacts/dataset_failure_matrix_expansion_history_v1_demo artifacts/dataset_failure_matrix_expansion_history_trend_v1_demo
+    artifacts/dataset_failure_matrix_expansion_history_v1_demo artifacts/dataset_failure_matrix_expansion_history_trend_v1_demo \
+    artifacts/dataset_model_asset_momentum_v1_demo artifacts/dataset_model_asset_momentum_history_v1_demo \
+    artifacts/dataset_model_asset_momentum_history_trend_v1_demo
   cat > artifacts/dataset_pipeline_demo/summary.json <<'JSON'
 {"bundle_status":"PASS","build_deduplicated_cases":12,"quality_failure_case_rate":0.3}
 JSON
@@ -197,6 +199,15 @@ JSON
   cat > artifacts/dataset_failure_matrix_expansion_history_trend_v1_demo/summary.json <<'JSON'
 {"status":"PASS","trend":{"status_transition":"PASS->PASS","delta_avg_expansion_readiness_score":0.4}}
 JSON
+  cat > artifacts/dataset_model_asset_momentum_v1_demo/summary.json <<'JSON'
+{"status":"PASS","momentum_score":82.0,"delta_total_real_models":2,"delta_large_models":1}
+JSON
+  cat > artifacts/dataset_model_asset_momentum_history_v1_demo/summary.json <<'JSON'
+{"status":"PASS","total_records":4,"avg_momentum_score":80.0}
+JSON
+  cat > artifacts/dataset_model_asset_momentum_history_trend_v1_demo/summary.json <<'JSON'
+{"status":"PASS","trend":{"status_transition":"PASS->PASS","delta_avg_momentum_score":0.5}}
+JSON
 else
   bash scripts/demo_dataset_pipeline.sh >/dev/null
   bash scripts/demo_dataset_history.sh >/dev/null
@@ -253,6 +264,9 @@ else
   bash scripts/demo_dataset_anchor_model_pack_history_trend_v1.sh >/dev/null
   bash scripts/demo_dataset_failure_matrix_expansion_history_v1.sh >/dev/null
   bash scripts/demo_dataset_failure_matrix_expansion_history_trend_v1.sh >/dev/null
+  bash scripts/demo_dataset_model_asset_momentum_v1.sh >/dev/null
+  bash scripts/demo_dataset_model_asset_momentum_history_v1.sh >/dev/null
+  bash scripts/demo_dataset_model_asset_momentum_history_trend_v1.sh >/dev/null
 fi
 
 ARGS=(
@@ -398,6 +412,15 @@ fi
 if [ -f artifacts/dataset_failure_matrix_expansion_history_trend_v1_demo/summary.json ]; then
   ARGS+=(--dataset-failure-matrix-expansion-history-trend artifacts/dataset_failure_matrix_expansion_history_trend_v1_demo/summary.json)
 fi
+if [ -f artifacts/dataset_model_asset_momentum_v1_demo/summary.json ]; then
+  ARGS+=(--dataset-model-asset-momentum artifacts/dataset_model_asset_momentum_v1_demo/summary.json)
+fi
+if [ -f artifacts/dataset_model_asset_momentum_history_v1_demo/summary.json ]; then
+  ARGS+=(--dataset-model-asset-momentum-history artifacts/dataset_model_asset_momentum_history_v1_demo/summary.json)
+fi
+if [ -f artifacts/dataset_model_asset_momentum_history_trend_v1_demo/summary.json ]; then
+  ARGS+=(--dataset-model-asset-momentum-history-trend artifacts/dataset_model_asset_momentum_history_trend_v1_demo/summary.json)
+fi
 
 python3 -m gateforge.dataset_governance_snapshot \
   "${ARGS[@]}" \
@@ -531,6 +554,15 @@ flags = {
     "failure_matrix_expansion_history_trend_kpi_present": "PASS"
     if isinstance((payload.get("kpis") or {}).get("dataset_failure_matrix_expansion_history_trend_status"), (str, type(None)))
     else "FAIL",
+    "model_asset_momentum_kpi_present": "PASS"
+    if isinstance((payload.get("kpis") or {}).get("dataset_model_asset_momentum_status"), (str, type(None)))
+    else "FAIL",
+    "model_asset_momentum_history_kpi_present": "PASS"
+    if isinstance((payload.get("kpis") or {}).get("dataset_model_asset_momentum_history_status"), (str, type(None)))
+    else "FAIL",
+    "model_asset_momentum_history_trend_kpi_present": "PASS"
+    if isinstance((payload.get("kpis") or {}).get("dataset_model_asset_momentum_history_trend_status"), (str, type(None)))
+    else "FAIL",
 }
 bundle_status = "PASS" if all(v == "PASS" for v in flags.values()) else "FAIL"
 summary = {
@@ -631,6 +663,11 @@ summary = {
     "failure_matrix_expansion_history_status": (payload.get("kpis") or {}).get("dataset_failure_matrix_expansion_history_status"),
     "failure_matrix_expansion_history_avg_expansion_readiness_score": (payload.get("kpis") or {}).get("dataset_failure_matrix_expansion_history_avg_expansion_readiness_score"),
     "failure_matrix_expansion_history_trend_status": (payload.get("kpis") or {}).get("dataset_failure_matrix_expansion_history_trend_status"),
+    "model_asset_momentum_status": (payload.get("kpis") or {}).get("dataset_model_asset_momentum_status"),
+    "model_asset_momentum_score": (payload.get("kpis") or {}).get("dataset_model_asset_momentum_score"),
+    "model_asset_momentum_history_status": (payload.get("kpis") or {}).get("dataset_model_asset_momentum_history_status"),
+    "model_asset_momentum_history_avg_momentum_score": (payload.get("kpis") or {}).get("dataset_model_asset_momentum_history_avg_momentum_score"),
+    "model_asset_momentum_history_trend_status": (payload.get("kpis") or {}).get("dataset_model_asset_momentum_history_trend_status"),
     "result_flags": flags,
     "bundle_status": bundle_status,
 }
@@ -717,6 +754,11 @@ summary = {
             f"- failure_matrix_expansion_history_status: `{summary['failure_matrix_expansion_history_status']}`",
             f"- failure_matrix_expansion_history_avg_expansion_readiness_score: `{summary['failure_matrix_expansion_history_avg_expansion_readiness_score']}`",
             f"- failure_matrix_expansion_history_trend_status: `{summary['failure_matrix_expansion_history_trend_status']}`",
+            f"- model_asset_momentum_status: `{summary['model_asset_momentum_status']}`",
+            f"- model_asset_momentum_score: `{summary['model_asset_momentum_score']}`",
+            f"- model_asset_momentum_history_status: `{summary['model_asset_momentum_history_status']}`",
+            f"- model_asset_momentum_history_avg_momentum_score: `{summary['model_asset_momentum_history_avg_momentum_score']}`",
+            f"- model_asset_momentum_history_trend_status: `{summary['model_asset_momentum_history_trend_status']}`",
             f"- bundle_status: `{summary['bundle_status']}`",
             "",
             "## Result Flags",

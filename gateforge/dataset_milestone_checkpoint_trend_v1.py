@@ -31,20 +31,33 @@ def _to_float(v: object) -> float:
 def _compute(current: dict, previous: dict) -> dict:
     cs = _to_float(current.get("checkpoint_score", 0.0))
     ps = _to_float(previous.get("checkpoint_score", 0.0))
+    cms = _to_float(current.get("model_asset_momentum_score", 0.0))
+    pms = _to_float(previous.get("model_asset_momentum_score", 0.0))
     delta = round(cs - ps, 2)
+    momentum_delta = round(cms - pms, 2)
     transition = f"{previous.get('status', 'UNKNOWN')}->{current.get('status', 'UNKNOWN')}"
+    momentum_transition = (
+        f"{previous.get('model_asset_momentum_status', 'UNKNOWN')}"
+        f"->{current.get('model_asset_momentum_status', 'UNKNOWN')}"
+    )
 
     alerts: list[str] = []
     if delta < -5:
         alerts.append("checkpoint_score_drop_significant")
+    if momentum_delta < -5:
+        alerts.append("model_asset_momentum_drop_significant")
     if transition in {"PASS->NEEDS_REVIEW", "PASS->FAIL", "NEEDS_REVIEW->FAIL"}:
         alerts.append("status_worsened")
+    if momentum_transition in {"PASS->NEEDS_REVIEW", "PASS->FAIL", "NEEDS_REVIEW->FAIL"}:
+        alerts.append("model_asset_momentum_status_worsened")
     if str(current.get("milestone_decision") or "") == "HOLD":
         alerts.append("milestone_hold")
 
     return {
         "status_transition": transition,
         "checkpoint_score_delta": delta,
+        "model_asset_momentum_status_transition": momentum_transition,
+        "model_asset_momentum_score_delta": momentum_delta,
         "alerts": alerts,
     }
 
@@ -59,6 +72,8 @@ def _write_markdown(path: str, payload: dict) -> None:
         f"- status: `{payload.get('status')}`",
         f"- status_transition: `{trend.get('status_transition')}`",
         f"- checkpoint_score_delta: `{trend.get('checkpoint_score_delta')}`",
+        f"- model_asset_momentum_status_transition: `{trend.get('model_asset_momentum_status_transition')}`",
+        f"- model_asset_momentum_score_delta: `{trend.get('model_asset_momentum_score_delta')}`",
         "",
     ]
     p.write_text("\n".join(lines), encoding="utf-8")

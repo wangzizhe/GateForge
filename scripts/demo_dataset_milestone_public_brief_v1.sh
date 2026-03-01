@@ -9,7 +9,7 @@ mkdir -p "$OUT_DIR"
 rm -f "$OUT_DIR"/*.json "$OUT_DIR"/*.md
 
 cat > "$OUT_DIR/checkpoint.json" <<'JSON'
-{"status":"PASS","milestone_decision":"GO","checkpoint_score":85.0,"blockers":[]}
+{"status":"PASS","milestone_decision":"GO","checkpoint_score":85.0,"blockers":[],"model_asset_momentum_status":"PASS","model_asset_momentum_score":82.0,"delta_total_real_models":2,"delta_large_models":1}
 JSON
 cat > "$OUT_DIR/scoreboard.json" <<'JSON'
 {"moat_public_score":86.0}
@@ -33,9 +33,16 @@ brief = json.loads((out / "brief.json").read_text(encoding="utf-8"))
 flags = {
     "status_present": "PASS" if isinstance(brief.get("milestone_status"), str) else "FAIL",
     "headline_present": "PASS" if isinstance(brief.get("headline"), str) and brief.get("headline") else "FAIL",
+    "model_asset_momentum_present": "PASS" if isinstance(brief.get("model_asset_momentum_status"), str) else "FAIL",
 }
 bundle_status = "PASS" if all(v == "PASS" for v in flags.values()) else "FAIL"
-(out / "demo_summary.json").write_text(json.dumps({"brief_status": brief.get("milestone_status"), "bundle_status": bundle_status, "result_flags": flags}, indent=2), encoding="utf-8")
+(out / "demo_summary.json").write_text(json.dumps({
+    "brief_status": brief.get("milestone_status"),
+    "model_asset_momentum_status": brief.get("model_asset_momentum_status"),
+    "model_asset_momentum_score": brief.get("model_asset_momentum_score"),
+    "bundle_status": bundle_status,
+    "result_flags": flags
+}, indent=2), encoding="utf-8")
 print(json.dumps({"bundle_status": bundle_status, "brief_status": brief.get("milestone_status")}))
 if bundle_status != "PASS":
     raise SystemExit(1)
