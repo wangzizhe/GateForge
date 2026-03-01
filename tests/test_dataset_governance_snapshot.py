@@ -876,6 +876,74 @@ class DatasetGovernanceSnapshotTests(unittest.TestCase):
             self.assertEqual(payload.get("status"), "NEEDS_REVIEW")
             self.assertIn("dataset_failure_distribution_stability_history_needs_review", payload.get("risks", []))
 
+    def test_snapshot_needs_review_on_model_asset_history_chains(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            intake_history = root / "intake_history.json"
+            intake_history_trend = root / "intake_history_trend.json"
+            anchor_history = root / "anchor_history.json"
+            anchor_history_trend = root / "anchor_history_trend.json"
+            expansion_history = root / "expansion_history.json"
+            expansion_history_trend = root / "expansion_history_trend.json"
+            out = root / "snapshot.json"
+            intake_history.write_text(
+                json.dumps({"status": "NEEDS_REVIEW", "total_records": 4, "avg_board_score": 72.0}),
+                encoding="utf-8",
+            )
+            intake_history_trend.write_text(
+                json.dumps({"status": "NEEDS_REVIEW", "trend": {"status_transition": "PASS->NEEDS_REVIEW"}}),
+                encoding="utf-8",
+            )
+            anchor_history.write_text(
+                json.dumps({"status": "NEEDS_REVIEW", "total_records": 4, "avg_pack_quality_score": 77.0}),
+                encoding="utf-8",
+            )
+            anchor_history_trend.write_text(
+                json.dumps({"status": "NEEDS_REVIEW", "trend": {"status_transition": "PASS->NEEDS_REVIEW"}}),
+                encoding="utf-8",
+            )
+            expansion_history.write_text(
+                json.dumps({"status": "NEEDS_REVIEW", "total_records": 4, "avg_expansion_readiness_score": 70.0}),
+                encoding="utf-8",
+            )
+            expansion_history_trend.write_text(
+                json.dumps({"status": "NEEDS_REVIEW", "trend": {"status_transition": "PASS->NEEDS_REVIEW"}}),
+                encoding="utf-8",
+            )
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.dataset_governance_snapshot",
+                    "--dataset-model-intake-board-history",
+                    str(intake_history),
+                    "--dataset-model-intake-board-history-trend",
+                    str(intake_history_trend),
+                    "--dataset-anchor-model-pack-history",
+                    str(anchor_history),
+                    "--dataset-anchor-model-pack-history-trend",
+                    str(anchor_history_trend),
+                    "--dataset-failure-matrix-expansion-history",
+                    str(expansion_history),
+                    "--dataset-failure-matrix-expansion-history-trend",
+                    str(expansion_history_trend),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            payload = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(payload.get("status"), "NEEDS_REVIEW")
+            self.assertIn("dataset_model_intake_board_history_needs_review", payload.get("risks", []))
+            self.assertIn("dataset_model_intake_board_history_trend_needs_review", payload.get("risks", []))
+            self.assertIn("dataset_anchor_model_pack_history_needs_review", payload.get("risks", []))
+            self.assertIn("dataset_anchor_model_pack_history_trend_needs_review", payload.get("risks", []))
+            self.assertIn("dataset_failure_matrix_expansion_history_needs_review", payload.get("risks", []))
+            self.assertIn("dataset_failure_matrix_expansion_history_trend_needs_review", payload.get("risks", []))
+
 
 if __name__ == "__main__":
     unittest.main()

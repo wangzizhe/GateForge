@@ -112,6 +112,21 @@ cat > "$OUT_DIR/previous_summary.json" <<'JSON'
     "dataset_mutation_coverage_matrix_status": "PASS",
     "dataset_mutation_coverage_matrix_score": 81.0,
     "dataset_mutation_coverage_matrix_high_risk_uncovered_cells": 1,
+    "dataset_model_intake_board_history_status": "PASS",
+    "dataset_model_intake_board_history_avg_board_score": 79.0,
+    "dataset_model_intake_board_history_blocked_rate": 0.2,
+    "dataset_model_intake_board_history_ingested_rate": 0.25,
+    "dataset_model_intake_board_history_trend_status": "PASS",
+    "dataset_anchor_model_pack_history_status": "PASS",
+    "dataset_anchor_model_pack_history_avg_pack_quality_score": 81.0,
+    "dataset_anchor_model_pack_history_avg_selected_large_cases": 5.0,
+    "dataset_anchor_model_pack_history_avg_unique_failure_types": 4.0,
+    "dataset_anchor_model_pack_history_trend_status": "PASS",
+    "dataset_failure_matrix_expansion_history_status": "PASS",
+    "dataset_failure_matrix_expansion_history_avg_expansion_readiness_score": 76.0,
+    "dataset_failure_matrix_expansion_history_avg_high_risk_uncovered_cells": 0.5,
+    "dataset_failure_matrix_expansion_history_avg_planned_expansion_tasks": 6.0,
+    "dataset_failure_matrix_expansion_history_trend_status": "PASS",
     "dataset_promotion_effectiveness_history_trend_status": "PASS",
     "dataset_promotion_effectiveness_history_latest_decision": "KEEP"
   }
@@ -248,6 +263,24 @@ demo = {
     "mutation_coverage_matrix_status_transition": (trend.get("status_delta") or {}).get(
         "dataset_mutation_coverage_matrix_status_transition"
     ),
+    "model_intake_board_history_status_transition": (trend.get("status_delta") or {}).get(
+        "dataset_model_intake_board_history_status_transition"
+    ),
+    "model_intake_board_history_trend_status_transition": (trend.get("status_delta") or {}).get(
+        "dataset_model_intake_board_history_trend_status_transition"
+    ),
+    "anchor_model_pack_history_status_transition": (trend.get("status_delta") or {}).get(
+        "dataset_anchor_model_pack_history_status_transition"
+    ),
+    "anchor_model_pack_history_trend_status_transition": (trend.get("status_delta") or {}).get(
+        "dataset_anchor_model_pack_history_trend_status_transition"
+    ),
+    "failure_matrix_expansion_history_status_transition": (trend.get("status_delta") or {}).get(
+        "dataset_failure_matrix_expansion_history_status_transition"
+    ),
+    "failure_matrix_expansion_history_trend_status_transition": (trend.get("status_delta") or {}).get(
+        "dataset_failure_matrix_expansion_history_trend_status_transition"
+    ),
     "status_delta_alert_count": len((trend.get("status_delta") or {}).get("alerts") or []),
     "result_flags": flags,
     "bundle_status": bundle_status,
@@ -297,6 +330,12 @@ demo = {
             f"- moat_anchor_brief_history_trend_status_transition: `{demo['moat_anchor_brief_history_trend_status_transition']}`",
             f"- real_model_supply_pipeline_status_transition: `{demo['real_model_supply_pipeline_status_transition']}`",
             f"- mutation_coverage_matrix_status_transition: `{demo['mutation_coverage_matrix_status_transition']}`",
+            f"- model_intake_board_history_status_transition: `{demo['model_intake_board_history_status_transition']}`",
+            f"- model_intake_board_history_trend_status_transition: `{demo['model_intake_board_history_trend_status_transition']}`",
+            f"- anchor_model_pack_history_status_transition: `{demo['anchor_model_pack_history_status_transition']}`",
+            f"- anchor_model_pack_history_trend_status_transition: `{demo['anchor_model_pack_history_trend_status_transition']}`",
+            f"- failure_matrix_expansion_history_status_transition: `{demo['failure_matrix_expansion_history_status_transition']}`",
+            f"- failure_matrix_expansion_history_trend_status_transition: `{demo['failure_matrix_expansion_history_trend_status_transition']}`",
             f"- status_delta_alert_count: `{demo['status_delta_alert_count']}`",
             f"- bundle_status: `{demo['bundle_status']}`",
             "",

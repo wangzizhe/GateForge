@@ -183,6 +183,30 @@ def _compute_trend(current: dict, previous: dict) -> dict:
         f"{previous_kpis.get('dataset_mutation_coverage_matrix_status')}->"
         f"{current_kpis.get('dataset_mutation_coverage_matrix_status')}"
     )
+    model_intake_board_history_transition = (
+        f"{previous_kpis.get('dataset_model_intake_board_history_status')}->"
+        f"{current_kpis.get('dataset_model_intake_board_history_status')}"
+    )
+    model_intake_board_history_trend_transition = (
+        f"{previous_kpis.get('dataset_model_intake_board_history_trend_status')}->"
+        f"{current_kpis.get('dataset_model_intake_board_history_trend_status')}"
+    )
+    anchor_model_pack_history_transition = (
+        f"{previous_kpis.get('dataset_anchor_model_pack_history_status')}->"
+        f"{current_kpis.get('dataset_anchor_model_pack_history_status')}"
+    )
+    anchor_model_pack_history_trend_transition = (
+        f"{previous_kpis.get('dataset_anchor_model_pack_history_trend_status')}->"
+        f"{current_kpis.get('dataset_anchor_model_pack_history_trend_status')}"
+    )
+    failure_matrix_expansion_history_transition = (
+        f"{previous_kpis.get('dataset_failure_matrix_expansion_history_status')}->"
+        f"{current_kpis.get('dataset_failure_matrix_expansion_history_status')}"
+    )
+    failure_matrix_expansion_history_trend_transition = (
+        f"{previous_kpis.get('dataset_failure_matrix_expansion_history_trend_status')}->"
+        f"{current_kpis.get('dataset_failure_matrix_expansion_history_trend_status')}"
+    )
     status_delta_alerts: list[str] = []
     if trend_status_transition in {"PASS->NEEDS_REVIEW", "PASS->FAIL", "NEEDS_REVIEW->FAIL"}:
         status_delta_alerts.append("promotion_effectiveness_history_trend_worsened")
@@ -266,6 +290,18 @@ def _compute_trend(current: dict, previous: dict) -> dict:
         status_delta_alerts.append("real_model_supply_pipeline_worsened")
     if mutation_coverage_matrix_transition in {"PASS->NEEDS_REVIEW", "PASS->FAIL", "NEEDS_REVIEW->FAIL"}:
         status_delta_alerts.append("mutation_coverage_matrix_worsened")
+    if model_intake_board_history_transition in {"PASS->NEEDS_REVIEW", "PASS->FAIL", "NEEDS_REVIEW->FAIL"}:
+        status_delta_alerts.append("model_intake_board_history_worsened")
+    if model_intake_board_history_trend_transition in {"PASS->NEEDS_REVIEW", "PASS->FAIL", "NEEDS_REVIEW->FAIL"}:
+        status_delta_alerts.append("model_intake_board_history_trend_worsened")
+    if anchor_model_pack_history_transition in {"PASS->NEEDS_REVIEW", "PASS->FAIL", "NEEDS_REVIEW->FAIL"}:
+        status_delta_alerts.append("anchor_model_pack_history_worsened")
+    if anchor_model_pack_history_trend_transition in {"PASS->NEEDS_REVIEW", "PASS->FAIL", "NEEDS_REVIEW->FAIL"}:
+        status_delta_alerts.append("anchor_model_pack_history_trend_worsened")
+    if failure_matrix_expansion_history_transition in {"PASS->NEEDS_REVIEW", "PASS->FAIL", "NEEDS_REVIEW->FAIL"}:
+        status_delta_alerts.append("failure_matrix_expansion_history_worsened")
+    if failure_matrix_expansion_history_trend_transition in {"PASS->NEEDS_REVIEW", "PASS->FAIL", "NEEDS_REVIEW->FAIL"}:
+        status_delta_alerts.append("failure_matrix_expansion_history_trend_worsened")
 
     status_transition = f"{previous_status}->{current_status}"
     new_risks = sorted(current_risks - previous_risks)
@@ -326,6 +362,12 @@ def _compute_trend(current: dict, previous: dict) -> dict:
             "dataset_moat_anchor_brief_history_trend_status_transition": moat_anchor_brief_history_trend_transition,
             "dataset_real_model_supply_pipeline_status_transition": real_model_supply_pipeline_transition,
             "dataset_mutation_coverage_matrix_status_transition": mutation_coverage_matrix_transition,
+            "dataset_model_intake_board_history_status_transition": model_intake_board_history_transition,
+            "dataset_model_intake_board_history_trend_status_transition": model_intake_board_history_trend_transition,
+            "dataset_anchor_model_pack_history_status_transition": anchor_model_pack_history_transition,
+            "dataset_anchor_model_pack_history_trend_status_transition": anchor_model_pack_history_trend_transition,
+            "dataset_failure_matrix_expansion_history_status_transition": failure_matrix_expansion_history_transition,
+            "dataset_failure_matrix_expansion_history_trend_status_transition": failure_matrix_expansion_history_trend_transition,
             "alerts": status_delta_alerts,
         },
         "kpi_delta": {
@@ -657,6 +699,51 @@ def _compute_trend(current: dict, previous: dict) -> dict:
             "dataset_mutation_coverage_matrix_high_risk_uncovered_cells_delta": round(
                 _to_float(current_kpis.get("dataset_mutation_coverage_matrix_high_risk_uncovered_cells"))
                 - _to_float(previous_kpis.get("dataset_mutation_coverage_matrix_high_risk_uncovered_cells")),
+                4,
+            ),
+            "dataset_model_intake_board_history_avg_board_score_delta": round(
+                _to_float(current_kpis.get("dataset_model_intake_board_history_avg_board_score"))
+                - _to_float(previous_kpis.get("dataset_model_intake_board_history_avg_board_score")),
+                4,
+            ),
+            "dataset_model_intake_board_history_blocked_rate_delta": round(
+                _to_float(current_kpis.get("dataset_model_intake_board_history_blocked_rate"))
+                - _to_float(previous_kpis.get("dataset_model_intake_board_history_blocked_rate")),
+                4,
+            ),
+            "dataset_model_intake_board_history_ingested_rate_delta": round(
+                _to_float(current_kpis.get("dataset_model_intake_board_history_ingested_rate"))
+                - _to_float(previous_kpis.get("dataset_model_intake_board_history_ingested_rate")),
+                4,
+            ),
+            "dataset_anchor_model_pack_history_avg_pack_quality_score_delta": round(
+                _to_float(current_kpis.get("dataset_anchor_model_pack_history_avg_pack_quality_score"))
+                - _to_float(previous_kpis.get("dataset_anchor_model_pack_history_avg_pack_quality_score")),
+                4,
+            ),
+            "dataset_anchor_model_pack_history_avg_selected_large_cases_delta": round(
+                _to_float(current_kpis.get("dataset_anchor_model_pack_history_avg_selected_large_cases"))
+                - _to_float(previous_kpis.get("dataset_anchor_model_pack_history_avg_selected_large_cases")),
+                4,
+            ),
+            "dataset_anchor_model_pack_history_avg_unique_failure_types_delta": round(
+                _to_float(current_kpis.get("dataset_anchor_model_pack_history_avg_unique_failure_types"))
+                - _to_float(previous_kpis.get("dataset_anchor_model_pack_history_avg_unique_failure_types")),
+                4,
+            ),
+            "dataset_failure_matrix_expansion_history_avg_expansion_readiness_score_delta": round(
+                _to_float(current_kpis.get("dataset_failure_matrix_expansion_history_avg_expansion_readiness_score"))
+                - _to_float(previous_kpis.get("dataset_failure_matrix_expansion_history_avg_expansion_readiness_score")),
+                4,
+            ),
+            "dataset_failure_matrix_expansion_history_avg_high_risk_uncovered_cells_delta": round(
+                _to_float(current_kpis.get("dataset_failure_matrix_expansion_history_avg_high_risk_uncovered_cells"))
+                - _to_float(previous_kpis.get("dataset_failure_matrix_expansion_history_avg_high_risk_uncovered_cells")),
+                4,
+            ),
+            "dataset_failure_matrix_expansion_history_avg_planned_expansion_tasks_delta": round(
+                _to_float(current_kpis.get("dataset_failure_matrix_expansion_history_avg_planned_expansion_tasks"))
+                - _to_float(previous_kpis.get("dataset_failure_matrix_expansion_history_avg_planned_expansion_tasks")),
                 4,
             ),
         },
