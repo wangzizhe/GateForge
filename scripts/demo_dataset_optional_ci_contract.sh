@@ -310,6 +310,28 @@ mapping = {
         "delta_total_real_models": 2,
         "delta_large_models": 1
     },
+    "dataset_model_intake_board_v1_demo/demo_summary.json": {
+        "bundle_status": "PASS",
+        "board_status": "NEEDS_REVIEW",
+        "board_score": 74.0,
+        "ready_count": 1,
+        "blocked_count": 1,
+        "ingested_count": 1
+    },
+    "dataset_anchor_model_pack_v1_demo/demo_summary.json": {
+        "bundle_status": "PASS",
+        "pack_status": "PASS",
+        "pack_quality_score": 83.0,
+        "selected_cases": 3,
+        "selected_large_cases": 2
+    },
+    "dataset_failure_matrix_expansion_v1_demo/demo_summary.json": {
+        "bundle_status": "PASS",
+        "expansion_status": "NEEDS_REVIEW",
+        "expansion_readiness_score": 69.0,
+        "planned_expansion_tasks": 2,
+        "high_risk_uncovered_cells": 2
+    },
     "dataset_moat_anchor_brief_v1_demo/demo_summary.json": {
         "bundle_status": "PASS",
         "anchor_brief_status": "PASS",
@@ -424,6 +446,9 @@ else
   bash scripts/demo_dataset_real_model_supply_pipeline_v1.sh >/dev/null
   bash scripts/demo_dataset_mutation_coverage_matrix_v2.sh >/dev/null
   bash scripts/demo_dataset_real_model_growth_trend_v1.sh >/dev/null
+  bash scripts/demo_dataset_model_intake_board_v1.sh >/dev/null
+  bash scripts/demo_dataset_anchor_model_pack_v1.sh >/dev/null
+  bash scripts/demo_dataset_failure_matrix_expansion_v1.sh >/dev/null
   bash scripts/demo_dataset_moat_anchor_brief_v1.sh >/dev/null
   bash scripts/demo_dataset_moat_anchor_brief_history_v1.sh >/dev/null
   bash scripts/demo_dataset_moat_anchor_brief_history_trend_v1.sh >/dev/null
