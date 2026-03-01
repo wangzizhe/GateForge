@@ -429,6 +429,40 @@ def main() -> None:
             ],
         ),
         (
+            "dataset_model_intake_board_v1_demo",
+            "dataset_model_intake_board_v1_demo/demo_summary.json",
+            [
+                "bundle_status",
+                "board_status",
+                "board_score",
+                "ready_count",
+                "blocked_count",
+                "ingested_count",
+            ],
+        ),
+        (
+            "dataset_anchor_model_pack_v1_demo",
+            "dataset_anchor_model_pack_v1_demo/demo_summary.json",
+            [
+                "bundle_status",
+                "pack_status",
+                "pack_quality_score",
+                "selected_cases",
+                "selected_large_cases",
+            ],
+        ),
+        (
+            "dataset_failure_matrix_expansion_v1_demo",
+            "dataset_failure_matrix_expansion_v1_demo/demo_summary.json",
+            [
+                "bundle_status",
+                "expansion_status",
+                "expansion_readiness_score",
+                "planned_expansion_tasks",
+                "high_risk_uncovered_cells",
+            ],
+        ),
+        (
             "dataset_moat_anchor_brief_v1_demo",
             "dataset_moat_anchor_brief_v1_demo/demo_summary.json",
             ["bundle_status", "anchor_brief_status", "anchor_brief_score", "recommendation"],
