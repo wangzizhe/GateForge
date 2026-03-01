@@ -15,6 +15,7 @@ class DatasetGovernanceDecisionProofbookDemoTests(unittest.TestCase):
             self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
             payload = json.loads((repo_root / "artifacts" / "dataset_governance_decision_proofbook_demo" / "demo_summary.json").read_text(encoding="utf-8"))
             self.assertEqual(payload.get("bundle_status"), "PASS")
+            self.assertIsInstance(payload.get("target_gap_pressure_index"), (int, float))
 
 
 if __name__ == "__main__":

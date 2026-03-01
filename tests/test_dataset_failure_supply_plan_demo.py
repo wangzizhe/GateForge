@@ -15,6 +15,7 @@ class DatasetFailureSupplyPlanDemoTests(unittest.TestCase):
             self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
             payload = json.loads((repo_root / "artifacts" / "dataset_failure_supply_plan_demo" / "demo_summary.json").read_text(encoding="utf-8"))
             self.assertEqual(payload.get("bundle_status"), "PASS")
+            self.assertIsInstance(payload.get("target_gap_supply_pressure_index"), int)
 
 
 if __name__ == "__main__":

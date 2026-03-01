@@ -16,13 +16,24 @@ class DatasetGovernanceDecisionProofbookTests(unittest.TestCase):
             x = root / "x.json"
             out = root / "out.json"
             e.write_text(json.dumps({"status": "PASS"}), encoding="utf-8")
-            f.write_text(json.dumps({"status": "PASS"}), encoding="utf-8")
+            f.write_text(
+                json.dumps(
+                    {
+                        "status": "PASS",
+                        "target_gap_pressure_index": 76.5,
+                        "model_asset_target_gap_score": 24.0,
+                    }
+                ),
+                encoding="utf-8",
+            )
             t.write_text(json.dumps({"status": "PASS"}), encoding="utf-8")
             x.write_text(json.dumps({"status": "PASS"}), encoding="utf-8")
             proc = subprocess.run([sys.executable, "-m", "gateforge.dataset_governance_decision_proofbook", "--governance-evidence-pack", str(e), "--moat-execution-forecast", str(f), "--pack-execution-tracker", str(t), "--policy-experiment-runner", str(x), "--out", str(out)], capture_output=True, text=True, check=False)
             self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
             p = json.loads(out.read_text(encoding="utf-8"))
             self.assertIn(p.get("decision"), {"PROMOTE", "PROMOTE_WITH_GUARDS", "HOLD"})
+            self.assertIsInstance(p.get("target_gap_pressure_index"), (int, float))
+            self.assertIsInstance(p.get("model_asset_target_gap_score"), (int, float))
 
     def test_proofbook_fails_missing_inputs(self) -> None:
         with tempfile.TemporaryDirectory() as d:
