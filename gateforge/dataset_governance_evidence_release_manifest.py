@@ -32,6 +32,12 @@ def _status(v: dict) -> str:
     return str(v.get("status") or "UNKNOWN")
 
 
+def _to_float(v: object) -> float:
+    if isinstance(v, (int, float)):
+        return float(v)
+    return 0.0
+
+
 def _write_markdown(path: str, payload: dict) -> None:
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
@@ -41,6 +47,8 @@ def _write_markdown(path: str, payload: dict) -> None:
         f"- status: `{payload.get('status')}`",
         f"- release_ready: `{payload.get('release_ready')}`",
         f"- artifact_count: `{payload.get('artifact_count')}`",
+        f"- target_gap_pressure_index: `{payload.get('target_gap_pressure_index')}`",
+        f"- model_asset_target_gap_score: `{payload.get('model_asset_target_gap_score')}`",
         "",
         "## Artifacts",
         "",
@@ -85,6 +93,8 @@ def main() -> None:
 
     fail_count = len([a for a in artifacts if a["status"] == "FAIL"])
     pass_count = len([a for a in artifacts if a["status"] == "PASS"])
+    target_gap_pressure = _to_float(forecast.get("target_gap_pressure_index", 0.0))
+    target_gap_score = _to_float(forecast.get("model_asset_target_gap_score", 0.0))
 
     release_ready = False
     status = "NEEDS_REVIEW"
@@ -94,11 +104,22 @@ def main() -> None:
         release_ready = True
         status = "PASS"
 
+    if status != "FAIL" and target_gap_pressure and target_gap_pressure < 70.0:
+        status = "NEEDS_REVIEW"
+        release_ready = False
+        reasons.append("target_gap_pressure_low")
+    if status != "FAIL" and target_gap_score >= 25.0:
+        status = "NEEDS_REVIEW"
+        release_ready = False
+        reasons.append("model_asset_target_gap_high")
+
     payload = {
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
         "status": status,
         "release_ready": release_ready,
         "artifact_count": len(artifacts),
+        "target_gap_pressure_index": round(target_gap_pressure, 2),
+        "model_asset_target_gap_score": round(target_gap_score, 2),
         "artifacts": artifacts,
         "reasons": sorted(set(reasons)),
         "sources": {

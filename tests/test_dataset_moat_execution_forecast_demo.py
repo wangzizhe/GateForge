@@ -31,6 +31,8 @@ class DatasetMoatExecutionForecastDemoTests(unittest.TestCase):
             )
             self.assertEqual(payload.get("bundle_status"), "PASS")
             self.assertIn(payload.get("forecast_status"), {"PASS", "NEEDS_REVIEW", "FAIL"})
+            self.assertIsInstance(payload.get("target_gap_pressure_index"), (int, float))
+            self.assertIsInstance(payload.get("model_asset_target_gap_score"), (int, float))
 
 
 if __name__ == "__main__":

@@ -15,6 +15,8 @@ class DatasetGovernanceEvidenceReleaseManifestDemoTests(unittest.TestCase):
             self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
             payload = json.loads((repo_root / "artifacts" / "dataset_governance_evidence_release_manifest_demo" / "demo_summary.json").read_text(encoding="utf-8"))
             self.assertEqual(payload.get("bundle_status"), "PASS")
+            self.assertIsInstance(payload.get("target_gap_pressure_index"), (int, float))
+            self.assertIsInstance(payload.get("model_asset_target_gap_score"), (int, float))
 
 
 if __name__ == "__main__":
