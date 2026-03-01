@@ -1016,6 +1016,42 @@ class DatasetGovernanceSnapshotTests(unittest.TestCase):
             self.assertEqual(payload.get("status"), "NEEDS_REVIEW")
             self.assertIn("dataset_model_asset_target_gap_needs_review", payload.get("risks", []))
 
+    def test_snapshot_needs_review_on_model_asset_target_gap_history_chain(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            target_gap_history = root / "target_gap_history.json"
+            target_gap_history_trend = root / "target_gap_history_trend.json"
+            out = root / "snapshot.json"
+            target_gap_history.write_text(
+                json.dumps({"status": "NEEDS_REVIEW", "total_records": 4, "avg_target_gap_score": 24.5}),
+                encoding="utf-8",
+            )
+            target_gap_history_trend.write_text(
+                json.dumps({"status": "NEEDS_REVIEW", "trend": {"status_transition": "PASS->NEEDS_REVIEW"}}),
+                encoding="utf-8",
+            )
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.dataset_governance_snapshot",
+                    "--dataset-model-asset-target-gap-history",
+                    str(target_gap_history),
+                    "--dataset-model-asset-target-gap-history-trend",
+                    str(target_gap_history_trend),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            payload = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(payload.get("status"), "NEEDS_REVIEW")
+            self.assertIn("dataset_model_asset_target_gap_history_needs_review", payload.get("risks", []))
+            self.assertIn("dataset_model_asset_target_gap_history_trend_needs_review", payload.get("risks", []))
+
 
 if __name__ == "__main__":
     unittest.main()

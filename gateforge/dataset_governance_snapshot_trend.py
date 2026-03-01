@@ -223,6 +223,14 @@ def _compute_trend(current: dict, previous: dict) -> dict:
         f"{previous_kpis.get('dataset_model_asset_target_gap_status')}->"
         f"{current_kpis.get('dataset_model_asset_target_gap_status')}"
     )
+    model_asset_target_gap_history_transition = (
+        f"{previous_kpis.get('dataset_model_asset_target_gap_history_status')}->"
+        f"{current_kpis.get('dataset_model_asset_target_gap_history_status')}"
+    )
+    model_asset_target_gap_history_trend_transition = (
+        f"{previous_kpis.get('dataset_model_asset_target_gap_history_trend_status')}->"
+        f"{current_kpis.get('dataset_model_asset_target_gap_history_trend_status')}"
+    )
     status_delta_alerts: list[str] = []
     if trend_status_transition in {"PASS->NEEDS_REVIEW", "PASS->FAIL", "NEEDS_REVIEW->FAIL"}:
         status_delta_alerts.append("promotion_effectiveness_history_trend_worsened")
@@ -326,6 +334,10 @@ def _compute_trend(current: dict, previous: dict) -> dict:
         status_delta_alerts.append("model_asset_momentum_history_trend_worsened")
     if model_asset_target_gap_transition in {"PASS->NEEDS_REVIEW", "PASS->FAIL", "NEEDS_REVIEW->FAIL"}:
         status_delta_alerts.append("model_asset_target_gap_worsened")
+    if model_asset_target_gap_history_transition in {"PASS->NEEDS_REVIEW", "PASS->FAIL", "NEEDS_REVIEW->FAIL"}:
+        status_delta_alerts.append("model_asset_target_gap_history_worsened")
+    if model_asset_target_gap_history_trend_transition in {"PASS->NEEDS_REVIEW", "PASS->FAIL", "NEEDS_REVIEW->FAIL"}:
+        status_delta_alerts.append("model_asset_target_gap_history_trend_worsened")
 
     status_transition = f"{previous_status}->{current_status}"
     new_risks = sorted(current_risks - previous_risks)
@@ -396,6 +408,8 @@ def _compute_trend(current: dict, previous: dict) -> dict:
             "dataset_model_asset_momentum_history_status_transition": model_asset_momentum_history_transition,
             "dataset_model_asset_momentum_history_trend_status_transition": model_asset_momentum_history_trend_transition,
             "dataset_model_asset_target_gap_status_transition": model_asset_target_gap_transition,
+            "dataset_model_asset_target_gap_history_status_transition": model_asset_target_gap_history_transition,
+            "dataset_model_asset_target_gap_history_trend_status_transition": model_asset_target_gap_history_trend_transition,
             "alerts": status_delta_alerts,
         },
         "kpi_delta": {
@@ -802,6 +816,16 @@ def _compute_trend(current: dict, previous: dict) -> dict:
             "dataset_model_asset_target_gap_critical_gap_count_delta": round(
                 _to_float(current_kpis.get("dataset_model_asset_target_gap_critical_gap_count"))
                 - _to_float(previous_kpis.get("dataset_model_asset_target_gap_critical_gap_count")),
+                4,
+            ),
+            "dataset_model_asset_target_gap_history_avg_target_gap_score_delta": round(
+                _to_float(current_kpis.get("dataset_model_asset_target_gap_history_avg_target_gap_score"))
+                - _to_float(previous_kpis.get("dataset_model_asset_target_gap_history_avg_target_gap_score")),
+                4,
+            ),
+            "dataset_model_asset_target_gap_history_avg_critical_gap_count_delta": round(
+                _to_float(current_kpis.get("dataset_model_asset_target_gap_history_avg_critical_gap_count"))
+                - _to_float(previous_kpis.get("dataset_model_asset_target_gap_history_avg_critical_gap_count")),
                 4,
             ),
         },
