@@ -110,6 +110,9 @@ mapping = {
         "model_asset_target_gap_status": "NEEDS_REVIEW",
         "model_asset_target_gap_score": 28.5,
         "model_asset_target_gap_critical_gap_count": 1,
+        "model_asset_target_gap_history_status": "NEEDS_REVIEW",
+        "model_asset_target_gap_history_avg_target_gap_score": 24.5,
+        "model_asset_target_gap_history_trend_status": "NEEDS_REVIEW",
     },
     "dataset_governance_snapshot_trend_demo/demo_summary.json": {
         "bundle_status": "PASS",
@@ -160,6 +163,8 @@ mapping = {
         "model_asset_momentum_history_status_transition": "PASS->PASS",
         "model_asset_momentum_history_trend_status_transition": "PASS->PASS",
         "model_asset_target_gap_status_transition": "PASS->NEEDS_REVIEW",
+        "model_asset_target_gap_history_status_transition": "PASS->NEEDS_REVIEW",
+        "model_asset_target_gap_history_trend_status_transition": "PASS->NEEDS_REVIEW",
         "status_delta_alert_count": 0,
         "severity_level": "low",
     },

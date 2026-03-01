@@ -138,6 +138,11 @@ cat > "$OUT_DIR/previous_summary.json" <<'JSON'
     "dataset_model_asset_target_gap_status": "PASS",
     "dataset_model_asset_target_gap_score": 20.0,
     "dataset_model_asset_target_gap_critical_gap_count": 0,
+    "dataset_model_asset_target_gap_history_status": "PASS",
+    "dataset_model_asset_target_gap_history_total_records": 3,
+    "dataset_model_asset_target_gap_history_avg_target_gap_score": 22.0,
+    "dataset_model_asset_target_gap_history_avg_critical_gap_count": 0.5,
+    "dataset_model_asset_target_gap_history_trend_status": "PASS",
     "dataset_promotion_effectiveness_history_trend_status": "PASS",
     "dataset_promotion_effectiveness_history_latest_decision": "KEEP"
   }
@@ -304,6 +309,12 @@ demo = {
     "model_asset_target_gap_status_transition": (trend.get("status_delta") or {}).get(
         "dataset_model_asset_target_gap_status_transition"
     ),
+    "model_asset_target_gap_history_status_transition": (trend.get("status_delta") or {}).get(
+        "dataset_model_asset_target_gap_history_status_transition"
+    ),
+    "model_asset_target_gap_history_trend_status_transition": (trend.get("status_delta") or {}).get(
+        "dataset_model_asset_target_gap_history_trend_status_transition"
+    ),
     "status_delta_alert_count": len((trend.get("status_delta") or {}).get("alerts") or []),
     "result_flags": flags,
     "bundle_status": bundle_status,
@@ -363,6 +374,8 @@ demo = {
             f"- model_asset_momentum_history_status_transition: `{demo['model_asset_momentum_history_status_transition']}`",
             f"- model_asset_momentum_history_trend_status_transition: `{demo['model_asset_momentum_history_trend_status_transition']}`",
             f"- model_asset_target_gap_status_transition: `{demo['model_asset_target_gap_status_transition']}`",
+            f"- model_asset_target_gap_history_status_transition: `{demo['model_asset_target_gap_history_status_transition']}`",
+            f"- model_asset_target_gap_history_trend_status_transition: `{demo['model_asset_target_gap_history_trend_status_transition']}`",
             f"- status_delta_alert_count: `{demo['status_delta_alert_count']}`",
             f"- bundle_status: `{demo['bundle_status']}`",
             "",
