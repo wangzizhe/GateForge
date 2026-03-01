@@ -269,6 +269,8 @@ class DatasetOptionalCIContractTests(unittest.TestCase):
                 "proof_status": "PASS",
                 "proof_score": 82.0,
                 "execution_readiness_index": 82.0,
+                "target_gap_pressure_index": 76.5,
+                "model_asset_target_gap_score": 28.5,
             },
             "dataset_backlog_execution_bridge_demo/demo_summary.json": {
                 "bundle_status": "PASS",

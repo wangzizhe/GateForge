@@ -48,6 +48,8 @@ def _write_markdown(path: str, payload: dict) -> None:
         f"- proof_score: `{payload.get('proof_score')}`",
         f"- release_ready: `{payload.get('release_ready')}`",
         f"- execution_readiness_index: `{payload.get('execution_readiness_index')}`",
+        f"- target_gap_pressure_index: `{payload.get('target_gap_pressure_index')}`",
+        f"- model_asset_target_gap_score: `{payload.get('model_asset_target_gap_score')}`",
         f"- confidence_band: `{payload.get('confidence_band')}`",
         "",
     ]
@@ -80,6 +82,8 @@ def main() -> None:
 
     projected_moat = _to_float(forecast.get("projected_moat_score_30d", 0.0))
     execution_readiness = _to_float(((moat_snapshot.get("metrics") or {}).get("execution_readiness_index", 0.0)))
+    target_gap_pressure = _to_float(((moat_snapshot.get("metrics") or {}).get("target_gap_pressure_index", 0.0)))
+    model_asset_target_gap_score = _to_float(((moat_snapshot.get("metrics") or {}).get("model_asset_target_gap_score", 0.0)))
     decision = str(proofbook.get("decision") or "")
 
     score = 30.0
@@ -87,6 +91,8 @@ def main() -> None:
     score += 20.0 if release_ready else 6.0
     score += min(20.0, projected_moat * 0.25)
     score += min(12.0, execution_readiness * 0.12)
+    score += min(8.0, target_gap_pressure * 0.08)
+    score -= min(10.0, model_asset_target_gap_score * 0.2)
     if decision == "PROMOTE":
         score += 8.0
     elif decision == "PROMOTE_WITH_GUARDS":
@@ -113,6 +119,8 @@ def main() -> None:
         "artifact_count": artifact_count,
         "projected_moat_score_30d": projected_moat,
         "execution_readiness_index": execution_readiness,
+        "target_gap_pressure_index": target_gap_pressure,
+        "model_asset_target_gap_score": model_asset_target_gap_score,
         "reasons": sorted(set(reasons)),
         "sources": {
             "evidence_release_manifest": args.evidence_release_manifest,

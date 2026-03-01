@@ -13,7 +13,7 @@ cat > "$OUT_DIR/moat_execution_forecast.json" <<'JSON'
 {"projected_moat_score_30d": 72.4}
 JSON
 cat > "$OUT_DIR/moat_trend_snapshot_summary.json" <<'JSON'
-{"metrics":{"execution_readiness_index":82.0}}
+{"metrics":{"execution_readiness_index":82.0,"target_gap_pressure_index":76.5,"model_asset_target_gap_score":28.5}}
 JSON
 cat > "$OUT_DIR/governance_decision_proofbook.json" <<'JSON'
 {"decision": "PROMOTE_WITH_GUARDS"}
@@ -35,11 +35,14 @@ flags = {
     "status_present": "PASS" if p.get("status") in {"PASS","NEEDS_REVIEW","FAIL"} else "FAIL",
     "score_present": "PASS" if isinstance(p.get("proof_score"), (int,float)) else "FAIL",
     "execution_readiness_present": "PASS" if isinstance(p.get("execution_readiness_index"), (int,float)) else "FAIL",
+    "target_gap_pressure_present": "PASS" if isinstance(p.get("target_gap_pressure_index"), (int,float)) else "FAIL",
 }
 summary = {
     "proof_status": p.get("status"),
     "proof_score": p.get("proof_score"),
     "execution_readiness_index": p.get("execution_readiness_index"),
+    "target_gap_pressure_index": p.get("target_gap_pressure_index"),
+    "model_asset_target_gap_score": p.get("model_asset_target_gap_score"),
     "result_flags": flags,
     "bundle_status": "PASS" if all(v=="PASS" for v in flags.values()) else "FAIL",
 }

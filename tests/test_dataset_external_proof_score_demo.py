@@ -16,6 +16,8 @@ class DatasetExternalProofScoreDemoTests(unittest.TestCase):
             payload = json.loads((repo_root / "artifacts" / "dataset_external_proof_score_demo" / "demo_summary.json").read_text(encoding="utf-8"))
             self.assertEqual(payload.get("bundle_status"), "PASS")
             self.assertIsInstance(payload.get("execution_readiness_index"), (int, float))
+            self.assertIsInstance(payload.get("target_gap_pressure_index"), (int, float))
+            self.assertIsInstance(payload.get("model_asset_target_gap_score"), (int, float))
 
 
 if __name__ == "__main__":
