@@ -43,18 +43,7 @@ python -m gateforge.run \
 cat artifacts/proposal_run.json
 ```
 
-## MVP Scope (Current)
-
-- Proposal validation, run, regress, and policy-gated decision (`PASS` / `NEEDS_REVIEW` / `FAIL`)
-- Human-reviewable governance loop with replayable artifacts and promotion controls
-- Agent/autopilot guarded execution for intent-to-change workflows
-- Runtime/governance history and trend layers for regressibility and auditability
-- Dataset governance snapshots and evidence packs for external proof
-- Failure taxonomy + failure distribution benchmarking (including policy patch/replay analysis)
-- Modelica-first model/mutation asset pipeline (registry, intake, mutation, reproducibility checks)
-- Moat-oriented execution modules (forecast, decision proofbook, campaign board, supply planning)
-
-Detailed module-level inventory lives in `DEMO.md` and `gateforge/`.
+Internal execution scope is maintained in `MVP_CHECKLIST.md`.
 
 ## Most Used Commands
 
