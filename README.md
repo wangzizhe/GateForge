@@ -45,56 +45,16 @@ cat artifacts/proposal_run.json
 
 ## MVP Scope (Current)
 
-- Proposal schema + validation
-- Run pipeline with structured evidence output
-- Regression gate with strict comparability controls
-- Policy engine: `PASS` / `NEEDS_REVIEW` / `FAIL`
-- Human review resolution path
-- Agent/autopilot entrypoints with guarded execution
-- Runtime decision ledger + history + trend
-- Governance snapshot/report from multi-source signals
-- Failure taxonomy coverage ledger (failure type / model scale / stage)
-- Failure distribution benchmark (detection/false-positive/regression/drift)
-- Model scale ladder (small/medium/large readiness + CI lane recommendation)
-- Failure policy patch advisor (evidence-driven policy tightening suggestions)
-- Governance evidence pack (externally shareable proof artifact)
-- Failure corpus registry (stable IDs, fingerprints, corpus versioning)
-- Blind-spot backlog generator (prioritized coverage gap tasks)
-- Policy patch replay evaluator (before/after patch impact scoring)
-- Governance evidence pack v2 (action-outcome + policy ROI context)
-- Moat trend snapshot (time-series moat metrics and deltas)
-- Backlog execution bridge (convert blind spots to ready execution tasks)
-- Replay quality guard (sample-size and stability checks for replay conclusions)
-- Failure coverage planner (prioritized coverage plan with expected moat deltas)
-- Policy experiment runner (ranked conservative/balanced/aggressive policy experiments)
-- Modelica failure pack planner (scale-aware case targets for small/medium/large packs)
-- Moat execution forecast (30-day moat projection from pack + experiment execution plans)
-- Pack execution tracker (execution progress and large-scale completion visibility)
-- Large model failure queue (priority queue for large-scale failure gap closure)
-- Failure signal calibrator (adaptive weighting for detection/fp/regression/drift signals)
-- Governance decision proofbook (compact decision-ready evidence cards)
-- Large model campaign board (weekly execution board for large-scale closure)
-- Failure supply plan (weekly failure-case supply targets and channels)
-- Model scale mix guard (ratio guardrail for medium/large dataset share)
-- Governance evidence release manifest (externally shareable proof artifact manifest)
-- External proof score (single score for external evidence strength communication)
-- Failure corpus DB v1 (normalized failure-case database with reproducibility metadata)
-- Failure baseline pack v1 (fixed reproducible small/medium/large baseline slice)
-- Failure distribution quality gate v1 (baseline distribution and diversity quality guard)
-- Anchor benchmark artifact v1 (externally shareable reproducible benchmark anchor)
-- Modelica library registry v1 (checksummed model inventory with complexity metadata)
-- Model family generator v1 (derive small/medium/large family manifests from registry assets)
-- Mutation factory v1 (deterministic mutation manifest with multi-failure-type operators)
-- Repro stability gate v1 (repeat-run consistency gate for mutation reproducibility)
-- Failure corpus ingest bridge v1 (ingest stable mutation evidence into failure corpus DB v1)
-- Anchor benchmark pack v2 (end-to-end reproducible anchor pack from baseline+mutation+stability)
-- Open-source model intake v1 (license/reproducibility gate for external Modelica candidate import)
-- Mutation execution validator v1 (validate expected failure labels against repeated execution observations)
-- Failure distribution benchmark v2 (baseline + validated mutation outcome distribution benchmarking)
-- GateForge vs plain CI benchmark v1 (head-to-head critical block/escape/fp comparison)
-- Anchor release bundle v3 (external release bundle scoring and reproducible playbook packaging)
-- Large model synthesizer v1 (programmatic medium/small to large model variant generation)
-- Mutation real runner v1 (real command execution and raw observation capture for validated mutations)
+- Proposal validation, run, regress, and policy-gated decision (`PASS` / `NEEDS_REVIEW` / `FAIL`)
+- Human-reviewable governance loop with replayable artifacts and promotion controls
+- Agent/autopilot guarded execution for intent-to-change workflows
+- Runtime/governance history and trend layers for regressibility and auditability
+- Dataset governance snapshots and evidence packs for external proof
+- Failure taxonomy + failure distribution benchmarking (including policy patch/replay analysis)
+- Modelica-first model/mutation asset pipeline (registry, intake, mutation, reproducibility checks)
+- Moat-oriented execution modules (forecast, decision proofbook, campaign board, supply planning)
+
+Detailed module-level inventory lives in `DEMO.md` and `gateforge/`.
 
 ## Most Used Commands
 
