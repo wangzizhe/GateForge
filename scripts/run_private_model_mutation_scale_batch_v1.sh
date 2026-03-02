@@ -9,6 +9,11 @@ mkdir -p "$OUT_DIR"
 rm -f "$OUT_DIR"/*.json "$OUT_DIR"/*.md "$OUT_DIR"/*.jsonl
 export OUT_DIR
 
+TARGET_SCALES="${GATEFORGE_TARGET_SCALES:-medium,large}"
+FAILURE_TYPES="${GATEFORGE_FAILURE_TYPES:-simulate_error,model_check_error,semantic_regression,numerical_instability,constraint_violation}"
+export TARGET_SCALES
+export FAILURE_TYPES
+
 ROOTS_RAW="${GATEFORGE_PRIVATE_MODEL_ROOTS:-assets_private/modelica:examples_private/modelica:data/private_modelica}"
 ROOTS_CSV="${ROOTS_RAW//:/,}"
 IFS=',' read -r -a ROOTS <<< "$ROOTS_CSV"
@@ -77,11 +82,70 @@ python3 -m gateforge.dataset_real_model_intake_runner_v1 \
   --out "$OUT_DIR/intake_runner_summary.json" \
   --report-out "$OUT_DIR/intake_runner_summary.md"
 
+# Auto-scale mutation density based on accepted medium/large models and min-generated target.
+python3 - <<'PY'
+import json
+import math
+import os
+from pathlib import Path
+
+out = Path(os.environ["OUT_DIR"])
+registry = json.loads((out / "intake_registry_rows.json").read_text(encoding="utf-8"))
+rows = registry.get("models") if isinstance(registry.get("models"), list) else []
+
+target_scales = {x.strip().lower() for x in os.environ.get("TARGET_SCALES", "medium,large").split(",") if x.strip()}
+failure_types = [x.strip() for x in os.environ.get("FAILURE_TYPES", "").split(",") if x.strip()]
+
+selected_models = [
+    x
+    for x in rows
+    if isinstance(x, dict) and str(x.get("asset_type") or "") == "model_source" and str(x.get("suggested_scale") or "").lower() in target_scales
+]
+
+base_per_type = max(1, int(os.environ.get("GATEFORGE_MUTATIONS_PER_FAILURE_TYPE", "2") or 2))
+min_generated = max(0, int(os.environ.get("GATEFORGE_MIN_GENERATED_MUTATIONS", "24") or 24))
+
+if selected_models and failure_types:
+    required = int(math.ceil(min_generated / (len(selected_models) * len(failure_types))))
+else:
+    required = base_per_type
+
+auto_per_type = max(base_per_type, required)
+
+(out / "auto_mutation_scale.json").write_text(
+    json.dumps(
+        {
+            "selected_mutation_models": len(selected_models),
+            "failure_types_count": len(failure_types),
+            "base_mutations_per_failure_type": base_per_type,
+            "required_mutations_per_failure_type": required,
+            "auto_mutations_per_failure_type": auto_per_type,
+            "target_scales": sorted(target_scales),
+        },
+        indent=2,
+    ),
+    encoding="utf-8",
+)
+(out / "auto_mutation_scale.env").write_text(
+    "\n".join(
+        [
+            f"AUTO_MUTATIONS_PER_FAILURE_TYPE={auto_per_type}",
+            f"SELECTED_MUTATION_MODELS={len(selected_models)}",
+            f"FAILURE_TYPE_COUNT={len(failure_types)}",
+        ]
+    )
+    + "\n",
+    encoding="utf-8",
+)
+PY
+
+source "$OUT_DIR/auto_mutation_scale.env"
+
 python3 -m gateforge.dataset_mutation_bulk_pack_builder_v1 \
   --model-registry "$OUT_DIR/intake_registry_rows.json" \
-  --target-scales "medium,large" \
-  --failure-types "simulate_error,model_check_error,semantic_regression,numerical_instability,constraint_violation" \
-  --mutations-per-failure-type "${GATEFORGE_MUTATIONS_PER_FAILURE_TYPE:-2}" \
+  --target-scales "$TARGET_SCALES" \
+  --failure-types "$FAILURE_TYPES" \
+  --mutations-per-failure-type "${AUTO_MUTATIONS_PER_FAILURE_TYPE}" \
   --manifest-out "$OUT_DIR/mutation_manifest.json" \
   --out "$OUT_DIR/mutation_pack_summary.json" \
   --report-out "$OUT_DIR/mutation_pack_summary.md"
@@ -125,6 +189,7 @@ runner = _load("intake_runner_summary.json")
 pack = _load("mutation_pack_summary.json")
 realrun = _load("mutation_real_runner_summary.json")
 gate = _load("scale_gate_summary.json")
+auto_scale = _load("auto_mutation_scale.json")
 
 flags = {
     "discovery_exists": "PASS" if int(discovery.get("total_candidates", 0)) >= 0 else "FAIL",
@@ -144,6 +209,10 @@ summary = {
     "accepted_large_models": runner.get("accepted_large_count"),
     "generated_mutations": pack.get("total_mutations"),
     "reproducible_mutations": realrun.get("executed_count"),
+    "target_scales": auto_scale.get("target_scales"),
+    "selected_mutation_models": auto_scale.get("selected_mutation_models"),
+    "failure_types_count": auto_scale.get("failure_types_count"),
+    "mutations_per_failure_type": auto_scale.get("auto_mutations_per_failure_type"),
     "result_flags": flags,
 }
 
@@ -160,6 +229,9 @@ summary = {
             f"- accepted_large_models: `{summary['accepted_large_models']}`",
             f"- generated_mutations: `{summary['generated_mutations']}`",
             f"- reproducible_mutations: `{summary['reproducible_mutations']}`",
+            f"- selected_mutation_models: `{summary['selected_mutation_models']}`",
+            f"- failure_types_count: `{summary['failure_types_count']}`",
+            f"- mutations_per_failure_type: `{summary['mutations_per_failure_type']}`",
             "",
         ]
     ),

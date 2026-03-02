@@ -78,6 +78,7 @@ class RunPrivateModelMutationScaleBatchV1Tests(unittest.TestCase):
             self.assertEqual(summary.get("bundle_status"), "PASS")
             self.assertGreaterEqual(int(summary.get("accepted_models", 0)), 2)
             self.assertGreaterEqual(int(summary.get("generated_mutations", 0)), 20)
+            self.assertGreaterEqual(int(summary.get("mutations_per_failure_type", 0)), 2)
 
 
 if __name__ == "__main__":
