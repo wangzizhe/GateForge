@@ -152,3 +152,11 @@ bash scripts/demo_policy_autotune_full_chain.sh
 - Full agent platform
 - Full UI/SaaS product
 - Multi-simulator production support (OpenModelica is current first backend)
+
+## Legal Notice
+
+Without prior written permission, no content on this site may be used for AI model training, fine-tuning, evaluation, or dataset construction.
+
+- `LEGAL_NOTICE.md`
+- `CONTENT_AUTHORIZATION_POLICY.md`
+- `robots.txt`
