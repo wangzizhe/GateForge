@@ -113,6 +113,9 @@ mapping = {
         "model_asset_target_gap_history_status": "NEEDS_REVIEW",
         "model_asset_target_gap_history_avg_target_gap_score": 24.5,
         "model_asset_target_gap_history_trend_status": "NEEDS_REVIEW",
+        "moat_weekly_summary_status": "PASS",
+        "moat_weekly_summary_history_status": "PASS",
+        "moat_weekly_summary_history_trend_status": "PASS",
     },
     "dataset_governance_snapshot_trend_demo/demo_summary.json": {
         "bundle_status": "PASS",
@@ -523,6 +526,24 @@ mapping = {
         "status_transition": "PASS->NEEDS_REVIEW",
         "delta_avg_target_gap_score": 2.0,
     },
+    "dataset_moat_weekly_summary_v1_demo/demo_summary.json": {
+        "bundle_status": "PASS",
+        "weekly_status": "PASS",
+        "week_tag": "2026-W10",
+        "kpis": {"real_model_count": 12},
+    },
+    "dataset_moat_weekly_summary_history_v1_demo/demo_summary.json": {
+        "bundle_status": "PASS",
+        "history_status": "PASS",
+        "total_records": 2,
+        "avg_stability_score": 89.0,
+    },
+    "dataset_moat_weekly_summary_history_trend_v1_demo/demo_summary.json": {
+        "bundle_status": "PASS",
+        "trend_status": "PASS",
+        "status_transition": "PASS->PASS",
+        "delta_avg_stability_score": 1.0,
+    },
 }
 for rel, payload in mapping.items():
     p = root / rel
@@ -607,6 +628,9 @@ else
   bash scripts/demo_dataset_model_asset_target_gap_v1.sh >/dev/null
   bash scripts/demo_dataset_model_asset_target_gap_history_v1.sh >/dev/null
   bash scripts/demo_dataset_model_asset_target_gap_history_trend_v1.sh >/dev/null
+  bash scripts/demo_dataset_moat_weekly_summary_v1.sh >/dev/null
+  bash scripts/demo_dataset_moat_weekly_summary_history_v1.sh >/dev/null
+  bash scripts/demo_dataset_moat_weekly_summary_history_trend_v1.sh >/dev/null
 fi
 
 python3 -m gateforge.dataset_optional_ci_contract \

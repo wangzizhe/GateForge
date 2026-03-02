@@ -1052,6 +1052,69 @@ class DatasetGovernanceSnapshotTests(unittest.TestCase):
             self.assertIn("dataset_model_asset_target_gap_history_needs_review", payload.get("risks", []))
             self.assertIn("dataset_model_asset_target_gap_history_trend_needs_review", payload.get("risks", []))
 
+    def test_snapshot_needs_review_on_moat_weekly_summary_chain(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            weekly = root / "weekly.json"
+            weekly_history = root / "weekly_history.json"
+            weekly_trend = root / "weekly_trend.json"
+            out = root / "snapshot.json"
+            weekly.write_text(
+                json.dumps(
+                    {
+                        "status": "NEEDS_REVIEW",
+                        "week_tag": "2026-W10",
+                        "kpis": {
+                            "real_model_count": 8,
+                            "reproducible_mutation_count": 24,
+                            "failure_distribution_stability_score": 78.0,
+                            "gateforge_vs_plain_ci_advantage_score": 6,
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            weekly_history.write_text(
+                json.dumps(
+                    {
+                        "status": "PASS",
+                        "total_records": 2,
+                        "latest_week_tag": "2026-W10",
+                        "avg_stability_score": 84.0,
+                        "avg_advantage_score": 7.0,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            weekly_trend.write_text(
+                json.dumps({"status": "NEEDS_REVIEW", "trend": {"status_transition": "PASS->NEEDS_REVIEW"}}),
+                encoding="utf-8",
+            )
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.dataset_governance_snapshot",
+                    "--dataset-moat-weekly-summary",
+                    str(weekly),
+                    "--dataset-moat-weekly-summary-history",
+                    str(weekly_history),
+                    "--dataset-moat-weekly-summary-history-trend",
+                    str(weekly_trend),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            payload = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(payload.get("status"), "NEEDS_REVIEW")
+            self.assertIn("dataset_moat_weekly_summary_needs_review", payload.get("risks", []))
+            self.assertIn("dataset_moat_weekly_summary_history_trend_needs_review", payload.get("risks", []))
+            self.assertEqual((payload.get("kpis") or {}).get("dataset_moat_weekly_summary_week_tag"), "2026-W10")
+
 
 if __name__ == "__main__":
     unittest.main()
