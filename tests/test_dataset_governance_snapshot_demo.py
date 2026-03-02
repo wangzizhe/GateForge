@@ -269,6 +269,22 @@ class DatasetGovernanceSnapshotDemoTests(unittest.TestCase):
                 payload.get("model_asset_target_gap_history_trend_status"),
                 {"PASS", "NEEDS_REVIEW", "FAIL", None},
             )
+            self.assertIn(
+                payload.get("moat_weekly_summary_status"),
+                {"PASS", "NEEDS_REVIEW", "FAIL", None},
+            )
+            self.assertIn(
+                payload.get("moat_weekly_summary_history_status"),
+                {"PASS", "NEEDS_REVIEW", "FAIL", None},
+            )
+            self.assertIn(
+                payload.get("moat_weekly_summary_history_trend_status"),
+                {"PASS", "NEEDS_REVIEW", "FAIL", None},
+            )
+            self.assertIsInstance(
+                payload.get("moat_weekly_summary_real_model_count"),
+                (int, type(None)),
+            )
 
 
 if __name__ == "__main__":

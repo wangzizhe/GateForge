@@ -169,6 +169,12 @@ def _status_from_signals(signals: dict) -> str:
         return "NEEDS_REVIEW"
     if signals.get("dataset_model_asset_target_gap_history_trend_needs_review"):
         return "NEEDS_REVIEW"
+    if signals.get("dataset_moat_weekly_summary_needs_review"):
+        return "NEEDS_REVIEW"
+    if signals.get("dataset_moat_weekly_summary_history_needs_review"):
+        return "NEEDS_REVIEW"
+    if signals.get("dataset_moat_weekly_summary_history_trend_needs_review"):
+        return "NEEDS_REVIEW"
     return "PASS"
 
 
@@ -236,6 +242,9 @@ def _compute_summary(
     model_asset_target_gap: dict,
     model_asset_target_gap_history: dict,
     model_asset_target_gap_history_trend: dict,
+    moat_weekly_summary: dict,
+    moat_weekly_summary_history: dict,
+    moat_weekly_summary_history_trend: dict,
 ) -> dict:
     strategy_advice = (
         strategy_advisor.get("advice")
@@ -398,6 +407,16 @@ def _compute_summary(
             model_asset_target_gap_history_trend.get("status") or ""
         )
         in {"NEEDS_REVIEW", "FAIL"},
+        "dataset_moat_weekly_summary_needs_review": str(moat_weekly_summary.get("status") or "")
+        in {"NEEDS_REVIEW", "FAIL"},
+        "dataset_moat_weekly_summary_history_needs_review": str(
+            moat_weekly_summary_history.get("status") or ""
+        )
+        in {"NEEDS_REVIEW", "FAIL"},
+        "dataset_moat_weekly_summary_history_trend_needs_review": str(
+            moat_weekly_summary_history_trend.get("status") or ""
+        )
+        in {"NEEDS_REVIEW", "FAIL"},
     }
     status = _status_from_signals(signals)
 
@@ -530,6 +549,12 @@ def _compute_summary(
         risks.append("dataset_model_asset_target_gap_history_needs_review")
     if signals["dataset_model_asset_target_gap_history_trend_needs_review"]:
         risks.append("dataset_model_asset_target_gap_history_trend_needs_review")
+    if signals["dataset_moat_weekly_summary_needs_review"]:
+        risks.append("dataset_moat_weekly_summary_needs_review")
+    if signals["dataset_moat_weekly_summary_history_needs_review"]:
+        risks.append("dataset_moat_weekly_summary_history_needs_review")
+    if signals["dataset_moat_weekly_summary_history_trend_needs_review"]:
+        risks.append("dataset_moat_weekly_summary_history_trend_needs_review")
 
     policy_patch_advice = (
         failure_policy_patch_advisor.get("advice")
@@ -918,6 +943,60 @@ def _compute_summary(
             if isinstance(model_asset_target_gap_history_trend.get("trend"), dict)
             else None
         ),
+        "dataset_moat_weekly_summary_status": moat_weekly_summary.get("status"),
+        "dataset_moat_weekly_summary_week_tag": moat_weekly_summary.get("week_tag"),
+        "dataset_moat_weekly_summary_real_model_count": _to_int(
+            ((moat_weekly_summary.get("kpis") or {}).get("real_model_count"))
+            if isinstance(moat_weekly_summary.get("kpis"), dict)
+            else 0
+        ),
+        "dataset_moat_weekly_summary_reproducible_mutation_count": _to_int(
+            ((moat_weekly_summary.get("kpis") or {}).get("reproducible_mutation_count"))
+            if isinstance(moat_weekly_summary.get("kpis"), dict)
+            else 0
+        ),
+        "dataset_moat_weekly_summary_failure_distribution_stability_score": _to_float(
+            ((moat_weekly_summary.get("kpis") or {}).get("failure_distribution_stability_score"))
+            if isinstance(moat_weekly_summary.get("kpis"), dict)
+            else 0.0
+        ),
+        "dataset_moat_weekly_summary_gateforge_vs_plain_ci_advantage_score": _to_int(
+            ((moat_weekly_summary.get("kpis") or {}).get("gateforge_vs_plain_ci_advantage_score"))
+            if isinstance(moat_weekly_summary.get("kpis"), dict)
+            else 0
+        ),
+        "dataset_moat_weekly_summary_history_status": moat_weekly_summary_history.get("status"),
+        "dataset_moat_weekly_summary_history_total_records": _to_int(
+            moat_weekly_summary_history.get("total_records", 0)
+        ),
+        "dataset_moat_weekly_summary_history_latest_week_tag": moat_weekly_summary_history.get("latest_week_tag"),
+        "dataset_moat_weekly_summary_history_avg_stability_score": _to_float(
+            moat_weekly_summary_history.get("avg_stability_score", 0.0)
+        ),
+        "dataset_moat_weekly_summary_history_avg_advantage_score": _to_float(
+            moat_weekly_summary_history.get("avg_advantage_score", 0.0)
+        ),
+        "dataset_moat_weekly_summary_history_trend_status": moat_weekly_summary_history_trend.get("status"),
+        "dataset_moat_weekly_summary_history_trend_status_transition": (
+            (moat_weekly_summary_history_trend.get("trend") or {}).get("status_transition")
+            if isinstance(moat_weekly_summary_history_trend.get("trend"), dict)
+            else None
+        ),
+        "dataset_moat_weekly_summary_history_trend_delta_avg_real_model_count": _to_float(
+            ((moat_weekly_summary_history_trend.get("trend") or {}).get("delta_avg_real_model_count"))
+            if isinstance(moat_weekly_summary_history_trend.get("trend"), dict)
+            else 0.0
+        ),
+        "dataset_moat_weekly_summary_history_trend_delta_avg_stability_score": _to_float(
+            ((moat_weekly_summary_history_trend.get("trend") or {}).get("delta_avg_stability_score"))
+            if isinstance(moat_weekly_summary_history_trend.get("trend"), dict)
+            else 0.0
+        ),
+        "dataset_moat_weekly_summary_history_trend_delta_avg_advantage_score": _to_float(
+            ((moat_weekly_summary_history_trend.get("trend") or {}).get("delta_avg_advantage_score"))
+            if isinstance(moat_weekly_summary_history_trend.get("trend"), dict)
+            else 0.0
+        ),
     }
     return {
         "status": status,
@@ -1124,6 +1203,22 @@ def _write_markdown(path: str, summary: dict) -> None:
         f"- dataset_model_asset_target_gap_history_avg_critical_gap_count: `{kpis.get('dataset_model_asset_target_gap_history_avg_critical_gap_count')}`",
         f"- dataset_model_asset_target_gap_history_trend_status: `{kpis.get('dataset_model_asset_target_gap_history_trend_status')}`",
         f"- dataset_model_asset_target_gap_history_trend_status_transition: `{kpis.get('dataset_model_asset_target_gap_history_trend_status_transition')}`",
+        f"- dataset_moat_weekly_summary_status: `{kpis.get('dataset_moat_weekly_summary_status')}`",
+        f"- dataset_moat_weekly_summary_week_tag: `{kpis.get('dataset_moat_weekly_summary_week_tag')}`",
+        f"- dataset_moat_weekly_summary_real_model_count: `{kpis.get('dataset_moat_weekly_summary_real_model_count')}`",
+        f"- dataset_moat_weekly_summary_reproducible_mutation_count: `{kpis.get('dataset_moat_weekly_summary_reproducible_mutation_count')}`",
+        f"- dataset_moat_weekly_summary_failure_distribution_stability_score: `{kpis.get('dataset_moat_weekly_summary_failure_distribution_stability_score')}`",
+        f"- dataset_moat_weekly_summary_gateforge_vs_plain_ci_advantage_score: `{kpis.get('dataset_moat_weekly_summary_gateforge_vs_plain_ci_advantage_score')}`",
+        f"- dataset_moat_weekly_summary_history_status: `{kpis.get('dataset_moat_weekly_summary_history_status')}`",
+        f"- dataset_moat_weekly_summary_history_total_records: `{kpis.get('dataset_moat_weekly_summary_history_total_records')}`",
+        f"- dataset_moat_weekly_summary_history_latest_week_tag: `{kpis.get('dataset_moat_weekly_summary_history_latest_week_tag')}`",
+        f"- dataset_moat_weekly_summary_history_avg_stability_score: `{kpis.get('dataset_moat_weekly_summary_history_avg_stability_score')}`",
+        f"- dataset_moat_weekly_summary_history_avg_advantage_score: `{kpis.get('dataset_moat_weekly_summary_history_avg_advantage_score')}`",
+        f"- dataset_moat_weekly_summary_history_trend_status: `{kpis.get('dataset_moat_weekly_summary_history_trend_status')}`",
+        f"- dataset_moat_weekly_summary_history_trend_status_transition: `{kpis.get('dataset_moat_weekly_summary_history_trend_status_transition')}`",
+        f"- dataset_moat_weekly_summary_history_trend_delta_avg_real_model_count: `{kpis.get('dataset_moat_weekly_summary_history_trend_delta_avg_real_model_count')}`",
+        f"- dataset_moat_weekly_summary_history_trend_delta_avg_stability_score: `{kpis.get('dataset_moat_weekly_summary_history_trend_delta_avg_stability_score')}`",
+        f"- dataset_moat_weekly_summary_history_trend_delta_avg_advantage_score: `{kpis.get('dataset_moat_weekly_summary_history_trend_delta_avg_advantage_score')}`",
         "",
         "## Risks",
         "",
@@ -1431,6 +1526,21 @@ def main() -> None:
         default=None,
         help="Path to dataset model asset target gap history trend summary JSON",
     )
+    parser.add_argument(
+        "--dataset-moat-weekly-summary",
+        default=None,
+        help="Path to dataset moat weekly summary JSON",
+    )
+    parser.add_argument(
+        "--dataset-moat-weekly-summary-history",
+        default=None,
+        help="Path to dataset moat weekly summary history JSON",
+    )
+    parser.add_argument(
+        "--dataset-moat-weekly-summary-history-trend",
+        default=None,
+        help="Path to dataset moat weekly summary history trend JSON",
+    )
     parser.add_argument("--out", default="artifacts/dataset_governance_snapshot/summary.json", help="Output JSON path")
     parser.add_argument("--report", default=None, help="Output markdown path")
     args = parser.parse_args()
@@ -1498,6 +1608,9 @@ def main() -> None:
     model_asset_target_gap = _load_json(args.dataset_model_asset_target_gap)
     model_asset_target_gap_history = _load_json(args.dataset_model_asset_target_gap_history)
     model_asset_target_gap_history_trend = _load_json(args.dataset_model_asset_target_gap_history_trend)
+    moat_weekly_summary = _load_json(args.dataset_moat_weekly_summary)
+    moat_weekly_summary_history = _load_json(args.dataset_moat_weekly_summary_history)
+    moat_weekly_summary_history_trend = _load_json(args.dataset_moat_weekly_summary_history_trend)
 
     summary = _compute_summary(
         dataset_pipeline,
@@ -1563,6 +1676,9 @@ def main() -> None:
         model_asset_target_gap,
         model_asset_target_gap_history,
         model_asset_target_gap_history_trend,
+        moat_weekly_summary,
+        moat_weekly_summary_history,
+        moat_weekly_summary_history_trend,
     )
     summary["generated_at_utc"] = datetime.now(timezone.utc).isoformat()
     summary["sources"] = {
@@ -1629,6 +1745,9 @@ def main() -> None:
         "dataset_model_asset_target_gap_path": args.dataset_model_asset_target_gap,
         "dataset_model_asset_target_gap_history_path": args.dataset_model_asset_target_gap_history,
         "dataset_model_asset_target_gap_history_trend_path": args.dataset_model_asset_target_gap_history_trend,
+        "dataset_moat_weekly_summary_path": args.dataset_moat_weekly_summary,
+        "dataset_moat_weekly_summary_history_path": args.dataset_moat_weekly_summary_history,
+        "dataset_moat_weekly_summary_history_trend_path": args.dataset_moat_weekly_summary_history_trend,
     }
 
     _write_json(args.out, summary)

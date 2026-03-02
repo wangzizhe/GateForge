@@ -183,6 +183,9 @@ def main() -> None:
                 "model_asset_target_gap_history_status",
                 "model_asset_target_gap_history_avg_target_gap_score",
                 "model_asset_target_gap_history_trend_status",
+                "moat_weekly_summary_status",
+                "moat_weekly_summary_history_status",
+                "moat_weekly_summary_history_trend_status",
             ],
         ),
         (
@@ -663,6 +666,21 @@ def main() -> None:
             "dataset_model_asset_target_gap_history_trend_v1_demo",
             "dataset_model_asset_target_gap_history_trend_v1_demo/demo_summary.json",
             ["bundle_status", "trend_status", "status_transition", "delta_avg_target_gap_score"],
+        ),
+        (
+            "dataset_moat_weekly_summary_v1_demo",
+            "dataset_moat_weekly_summary_v1_demo/demo_summary.json",
+            ["bundle_status", "weekly_status", "week_tag", "kpis"],
+        ),
+        (
+            "dataset_moat_weekly_summary_history_v1_demo",
+            "dataset_moat_weekly_summary_history_v1_demo/demo_summary.json",
+            ["bundle_status", "history_status", "total_records", "avg_stability_score"],
+        ),
+        (
+            "dataset_moat_weekly_summary_history_trend_v1_demo",
+            "dataset_moat_weekly_summary_history_trend_v1_demo/demo_summary.json",
+            ["bundle_status", "trend_status", "status_transition", "delta_avg_stability_score"],
         ),
     ]
     checks = [_validate_required_summary(root, name, rel_path, keys) for name, rel_path, keys in required]
