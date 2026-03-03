@@ -1,0 +1,126 @@
+import json
+import subprocess
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+
+class DatasetHardMoatGatesV1Tests(unittest.TestCase):
+    def test_hard_moat_gates_pass(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            discovery = root / "discovery.json"
+            runner = root / "runner.json"
+            canonical = root / "canonical.json"
+            pack = root / "pack.json"
+            realrun = root / "realrun.json"
+            validation_v2 = root / "validation_v2.json"
+            guard = root / "guard.json"
+            out = root / "summary.json"
+
+            discovery.write_text(json.dumps({"total_candidates": 50}), encoding="utf-8")
+            runner.write_text(json.dumps({"accepted_count": 20, "accepted_large_count": 8}), encoding="utf-8")
+            canonical.write_text(json.dumps({"status": "PASS", "canonical_net_growth_models": 6}), encoding="utf-8")
+            pack.write_text(json.dumps({"total_mutations": 200}), encoding="utf-8")
+            realrun.write_text(json.dumps({"executed_count": 180}), encoding="utf-8")
+            validation_v2.write_text(
+                json.dumps({"status": "PASS", "overall": {"type_match_rate_pct": 72.0}}),
+                encoding="utf-8",
+            )
+            guard.write_text(
+                json.dumps({"status": "PASS", "failure_type_entropy": 2.0, "distribution_drift_tvd": 0.1}),
+                encoding="utf-8",
+            )
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.dataset_hard_moat_gates_v1",
+                    "--asset-discovery-summary",
+                    str(discovery),
+                    "--intake-runner-summary",
+                    str(runner),
+                    "--canonical-registry-summary",
+                    str(canonical),
+                    "--mutation-pack-summary",
+                    str(pack),
+                    "--mutation-real-runner-summary",
+                    str(realrun),
+                    "--mutation-validation-matrix-v2-summary",
+                    str(validation_v2),
+                    "--failure-distribution-stability-guard-summary",
+                    str(guard),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            payload = json.loads(out.read_text(encoding="utf-8"))
+            self.assertIn(payload.get("status"), {"PASS", "NEEDS_REVIEW"})
+            self.assertEqual(int(payload.get("critical_failed_gate_count", 0)), 0)
+
+    def test_hard_moat_gates_fail_on_critical(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            discovery = root / "discovery.json"
+            runner = root / "runner.json"
+            canonical = root / "canonical.json"
+            pack = root / "pack.json"
+            realrun = root / "realrun.json"
+            validation_v2 = root / "validation_v2.json"
+            guard = root / "guard.json"
+            out = root / "summary.json"
+
+            discovery.write_text(json.dumps({"total_candidates": 5}), encoding="utf-8")
+            runner.write_text(json.dumps({"accepted_count": 0, "accepted_large_count": 0}), encoding="utf-8")
+            canonical.write_text(json.dumps({"status": "PASS", "canonical_net_growth_models": 0}), encoding="utf-8")
+            pack.write_text(json.dumps({"total_mutations": 0}), encoding="utf-8")
+            realrun.write_text(json.dumps({"executed_count": 0}), encoding="utf-8")
+            validation_v2.write_text(json.dumps({"status": "PASS", "overall": {"type_match_rate_pct": 10.0}}), encoding="utf-8")
+            guard.write_text(json.dumps({"status": "PASS", "failure_type_entropy": 1.8, "distribution_drift_tvd": 0.1}), encoding="utf-8")
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.dataset_hard_moat_gates_v1",
+                    "--asset-discovery-summary",
+                    str(discovery),
+                    "--intake-runner-summary",
+                    str(runner),
+                    "--canonical-registry-summary",
+                    str(canonical),
+                    "--mutation-pack-summary",
+                    str(pack),
+                    "--mutation-real-runner-summary",
+                    str(realrun),
+                    "--mutation-validation-matrix-v2-summary",
+                    str(validation_v2),
+                    "--failure-distribution-stability-guard-summary",
+                    str(guard),
+                    "--min-accepted-models",
+                    "2",
+                    "--min-generated-mutations",
+                    "20",
+                    "--min-reproducible-mutations",
+                    "10",
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 1)
+            payload = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(payload.get("status"), "FAIL")
+            self.assertGreaterEqual(int(payload.get("critical_failed_gate_count", 0)), 1)
+
+
+if __name__ == "__main__":
+    unittest.main()

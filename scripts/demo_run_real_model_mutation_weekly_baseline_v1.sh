@@ -161,6 +161,8 @@ payload = {
     "mutation_validation_fidelity_score": summary.get("mutation_validation_fidelity_score"),
     "freeze_status": summary.get("freeze_status"),
     "freeze_id": summary.get("freeze_id"),
+    "freeze_history_status": summary.get("freeze_history_status"),
+    "freeze_history_trend_status": summary.get("freeze_history_trend_status"),
     "result_flags": flags,
 }
 (out / "demo_summary.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
