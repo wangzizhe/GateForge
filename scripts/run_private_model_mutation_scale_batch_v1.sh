@@ -46,6 +46,8 @@ VALIDATION_MIN_STAGE_MATCH_PCT="${GATEFORGE_MUTATION_VALIDATION_MIN_STAGE_MATCH_
 VALIDATION_MIN_TYPE_MATCH_PCT="${GATEFORGE_MUTATION_VALIDATION_MIN_TYPE_MATCH_PCT:-0}"
 MANIFEST_BASELINE_PATH="${GATEFORGE_MUTATION_MANIFEST_BASELINE_PATH:-$OUT_DIR/state/previous_mutation_manifest.json}"
 SCALE_HISTORY_LEDGER_PATH="${GATEFORGE_SCALE_HISTORY_LEDGER_PATH:-$OUT_DIR/state/scale_history.jsonl}"
+ACTION_BACKLOG_HISTORY_LEDGER_PATH="${GATEFORGE_ACTION_BACKLOG_HISTORY_LEDGER_PATH:-$OUT_DIR/state/action_backlog_history.jsonl}"
+ACTION_BACKLOG_HISTORY_LAST_SUMMARY_PATH="${GATEFORGE_ACTION_BACKLOG_HISTORY_LAST_SUMMARY_PATH:-$OUT_DIR/state/action_backlog_history_last_summary.json}"
 HARD_MOAT_MIN_DISCOVERED_MODELS="${GATEFORGE_HARD_MOAT_MIN_DISCOVERED_MODELS:-2}"
 HARD_MOAT_MIN_ACCEPTED_MODELS="${GATEFORGE_HARD_MOAT_MIN_ACCEPTED_MODELS:-2}"
 HARD_MOAT_MIN_ACCEPTED_LARGE_MODELS="${GATEFORGE_HARD_MOAT_MIN_ACCEPTED_LARGE_MODELS:-1}"
@@ -74,6 +76,8 @@ export VALIDATION_MIN_STAGE_MATCH_PCT
 export VALIDATION_MIN_TYPE_MATCH_PCT
 export MANIFEST_BASELINE_PATH
 export SCALE_HISTORY_LEDGER_PATH
+export ACTION_BACKLOG_HISTORY_LEDGER_PATH
+export ACTION_BACKLOG_HISTORY_LAST_SUMMARY_PATH
 export HARD_MOAT_MIN_DISCOVERED_MODELS
 export HARD_MOAT_MIN_ACCEPTED_MODELS
 export HARD_MOAT_MIN_ACCEPTED_LARGE_MODELS
@@ -782,6 +786,53 @@ python3 -m gateforge.dataset_failure_balance_backfill_plan_v1 \
   --out "$OUT_DIR/failure_balance_backfill_plan_summary.json" \
   --report-out "$OUT_DIR/failure_balance_backfill_plan_summary.md"
 
+if [ -f "$ACTION_BACKLOG_HISTORY_LAST_SUMMARY_PATH" ]; then
+  cp "$ACTION_BACKLOG_HISTORY_LAST_SUMMARY_PATH" "$OUT_DIR/action_backlog_history_previous_summary.json"
+else
+  rm -f "$OUT_DIR/action_backlog_history_previous_summary.json"
+fi
+
+python3 -m gateforge.dataset_scale_action_backlog_history_v1 \
+  --scale-execution-priority-board-summary "$OUT_DIR/scale_execution_priority_board_summary.json" \
+  --family-gap-action-plan-summary "$OUT_DIR/family_gap_action_plan_summary.json" \
+  --failure-balance-backfill-plan-summary "$OUT_DIR/failure_balance_backfill_plan_summary.json" \
+  --weekly-scale-milestone-checkpoint-summary "$OUT_DIR/weekly_scale_milestone_checkpoint_summary.json" \
+  --ledger "$ACTION_BACKLOG_HISTORY_LEDGER_PATH" \
+  --out "$OUT_DIR/action_backlog_history_summary.json" \
+  --report-out "$OUT_DIR/action_backlog_history_summary.md"
+
+if [ -f "$OUT_DIR/action_backlog_history_previous_summary.json" ]; then
+  python3 -m gateforge.dataset_scale_action_backlog_trend_v1 \
+    --previous "$OUT_DIR/action_backlog_history_previous_summary.json" \
+    --current "$OUT_DIR/action_backlog_history_summary.json" \
+    --out "$OUT_DIR/action_backlog_history_trend_summary.json" \
+    --report-out "$OUT_DIR/action_backlog_history_trend_summary.md"
+else
+  cat > "$OUT_DIR/action_backlog_history_trend_summary.json" <<'JSON'
+{
+  "status": "PASS",
+  "trend": {
+    "status_transition": "BOOTSTRAP->BOOTSTRAP",
+    "delta_avg_total_actions": 0.0,
+    "delta_avg_total_p0_actions": 0.0,
+    "delta_avg_checkpoint_score": 0.0,
+    "alerts": []
+  },
+  "alerts": []
+}
+JSON
+fi
+mkdir -p "$(dirname "$ACTION_BACKLOG_HISTORY_LAST_SUMMARY_PATH")"
+cp "$OUT_DIR/action_backlog_history_summary.json" "$ACTION_BACKLOG_HISTORY_LAST_SUMMARY_PATH"
+
+python3 -m gateforge.dataset_scale_checkpoint_feedback_gate_v1 \
+  --weekly-scale-milestone-checkpoint-summary "$OUT_DIR/weekly_scale_milestone_checkpoint_summary.json" \
+  --scale-action-backlog-history-summary "$OUT_DIR/action_backlog_history_summary.json" \
+  --scale-action-backlog-trend-summary "$OUT_DIR/action_backlog_history_trend_summary.json" \
+  --scale-velocity-forecast-summary "$OUT_DIR/scale_velocity_forecast_summary.json" \
+  --out "$OUT_DIR/scale_checkpoint_feedback_gate_summary.json" \
+  --report-out "$OUT_DIR/scale_checkpoint_feedback_gate_summary.md"
+
 python3 - <<'PY'
 import json
 import os
@@ -797,6 +848,9 @@ checkpoint = json.loads((out / "weekly_scale_milestone_checkpoint_summary.json")
 velocity = json.loads((out / "scale_velocity_forecast_summary.json").read_text(encoding="utf-8"))
 family_plan = json.loads((out / "family_gap_action_plan_summary.json").read_text(encoding="utf-8"))
 failure_plan = json.loads((out / "failure_balance_backfill_plan_summary.json").read_text(encoding="utf-8"))
+action_history = json.loads((out / "action_backlog_history_summary.json").read_text(encoding="utf-8"))
+action_trend = json.loads((out / "action_backlog_history_trend_summary.json").read_text(encoding="utf-8"))
+feedback_gate = json.loads((out / "scale_checkpoint_feedback_gate_summary.json").read_text(encoding="utf-8"))
 
 flags = summary.get("result_flags") if isinstance(summary.get("result_flags"), dict) else {}
 flags["scale_history_exists"] = "PASS" if str(history.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL"
@@ -806,6 +860,9 @@ flags["weekly_scale_milestone_checkpoint_exists"] = "PASS" if str(checkpoint.get
 flags["scale_velocity_forecast_exists"] = "PASS" if str(velocity.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL"
 flags["family_gap_action_plan_exists"] = "PASS" if str(family_plan.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL"
 flags["failure_balance_backfill_plan_exists"] = "PASS" if str(failure_plan.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL"
+flags["action_backlog_history_exists"] = "PASS" if str(action_history.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL"
+flags["action_backlog_trend_exists"] = "PASS" if str(action_trend.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL"
+flags["checkpoint_feedback_gate_exists"] = "PASS" if str(feedback_gate.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL"
 
 summary["result_flags"] = flags
 summary["scale_history_status"] = history.get("status")
@@ -834,6 +891,14 @@ summary["family_gap_action_plan_p0_actions"] = family_plan.get("p0_actions")
 summary["failure_balance_backfill_plan_status"] = failure_plan.get("status")
 summary["failure_balance_backfill_plan_total_actions"] = failure_plan.get("total_actions")
 summary["failure_balance_backfill_plan_p0_actions"] = failure_plan.get("p0_actions")
+summary["action_backlog_history_status"] = action_history.get("status")
+summary["action_backlog_history_total_records"] = action_history.get("total_records")
+summary["action_backlog_history_latest_total_p0_actions"] = action_history.get("latest_total_p0_actions")
+summary["action_backlog_trend_status"] = action_trend.get("status")
+summary["action_backlog_trend_delta_avg_total_p0_actions"] = (action_trend.get("trend") or {}).get("delta_avg_total_p0_actions")
+summary["checkpoint_feedback_gate_status"] = feedback_gate.get("status")
+summary["checkpoint_feedback_gate_feedback_score"] = feedback_gate.get("feedback_score")
+summary["checkpoint_feedback_gate_adjusted_status"] = feedback_gate.get("adjusted_checkpoint_status")
 
 summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
 md_path = out / "summary.md"
@@ -865,6 +930,14 @@ extra_lines = [
     f"- failure_balance_backfill_plan_status: `{summary.get('failure_balance_backfill_plan_status')}`",
     f"- failure_balance_backfill_plan_total_actions: `{summary.get('failure_balance_backfill_plan_total_actions')}`",
     f"- failure_balance_backfill_plan_p0_actions: `{summary.get('failure_balance_backfill_plan_p0_actions')}`",
+    f"- action_backlog_history_status: `{summary.get('action_backlog_history_status')}`",
+    f"- action_backlog_history_total_records: `{summary.get('action_backlog_history_total_records')}`",
+    f"- action_backlog_history_latest_total_p0_actions: `{summary.get('action_backlog_history_latest_total_p0_actions')}`",
+    f"- action_backlog_trend_status: `{summary.get('action_backlog_trend_status')}`",
+    f"- action_backlog_trend_delta_avg_total_p0_actions: `{summary.get('action_backlog_trend_delta_avg_total_p0_actions')}`",
+    f"- checkpoint_feedback_gate_status: `{summary.get('checkpoint_feedback_gate_status')}`",
+    f"- checkpoint_feedback_gate_feedback_score: `{summary.get('checkpoint_feedback_gate_feedback_score')}`",
+    f"- checkpoint_feedback_gate_adjusted_status: `{summary.get('checkpoint_feedback_gate_adjusted_status')}`",
 ]
 md_path.write_text(old + "\n" + "\n".join(extra_lines) + "\n", encoding="utf-8")
 print(json.dumps({"bundle_status": summary.get("bundle_status"), "scale_target_gap_status": summary.get("scale_target_gap_status")}))
