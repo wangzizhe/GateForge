@@ -52,6 +52,8 @@ MUTATION_SELECTION_HISTORY_LEDGER_PATH="${GATEFORGE_MUTATION_SELECTION_HISTORY_L
 MUTATION_SELECTION_HISTORY_LAST_SUMMARY_PATH="${GATEFORGE_MUTATION_SELECTION_HISTORY_LAST_SUMMARY_PATH:-$OUT_DIR/state/mutation_selection_history_last_summary.json}"
 MUTATION_REPRO_DEPTH_HISTORY_LEDGER_PATH="${GATEFORGE_MUTATION_REPRO_DEPTH_HISTORY_LEDGER_PATH:-$OUT_DIR/state/mutation_repro_depth_history.jsonl}"
 MUTATION_REPRO_DEPTH_HISTORY_LAST_SUMMARY_PATH="${GATEFORGE_MUTATION_REPRO_DEPTH_HISTORY_LAST_SUMMARY_PATH:-$OUT_DIR/state/mutation_repro_depth_history_last_summary.json}"
+REAL_MODEL_SOURCE_DIVERSITY_HISTORY_LEDGER_PATH="${GATEFORGE_REAL_MODEL_SOURCE_DIVERSITY_HISTORY_LEDGER_PATH:-$OUT_DIR/state/real_model_source_diversity_history.jsonl}"
+REAL_MODEL_SOURCE_DIVERSITY_HISTORY_LAST_SUMMARY_PATH="${GATEFORGE_REAL_MODEL_SOURCE_DIVERSITY_HISTORY_LAST_SUMMARY_PATH:-$OUT_DIR/state/real_model_source_diversity_history_last_summary.json}"
 HARD_MOAT_MIN_DISCOVERED_MODELS="${GATEFORGE_HARD_MOAT_MIN_DISCOVERED_MODELS:-2}"
 HARD_MOAT_MIN_ACCEPTED_MODELS="${GATEFORGE_HARD_MOAT_MIN_ACCEPTED_MODELS:-2}"
 HARD_MOAT_MIN_ACCEPTED_LARGE_MODELS="${GATEFORGE_HARD_MOAT_MIN_ACCEPTED_LARGE_MODELS:-1}"
@@ -86,6 +88,8 @@ export MUTATION_SELECTION_HISTORY_LEDGER_PATH
 export MUTATION_SELECTION_HISTORY_LAST_SUMMARY_PATH
 export MUTATION_REPRO_DEPTH_HISTORY_LEDGER_PATH
 export MUTATION_REPRO_DEPTH_HISTORY_LAST_SUMMARY_PATH
+export REAL_MODEL_SOURCE_DIVERSITY_HISTORY_LEDGER_PATH
+export REAL_MODEL_SOURCE_DIVERSITY_HISTORY_LAST_SUMMARY_PATH
 export HARD_MOAT_MIN_DISCOVERED_MODELS
 export HARD_MOAT_MIN_ACCEPTED_MODELS
 export HARD_MOAT_MIN_ACCEPTED_LARGE_MODELS
@@ -575,6 +579,49 @@ python3 -m gateforge.dataset_real_model_family_coverage_board_v1 \
   --out "$OUT_DIR/real_model_family_coverage_board_summary.json" \
   --report-out "$OUT_DIR/real_model_family_coverage_board_summary.md"
 
+python3 -m gateforge.dataset_real_model_source_diversity_guard_v1 \
+  --executable-registry "$OUT_DIR/executable_registry_rows.json" \
+  --out "$OUT_DIR/real_model_source_diversity_guard_summary.json" \
+  --report-out "$OUT_DIR/real_model_source_diversity_guard_summary.md"
+
+if [ -f "$REAL_MODEL_SOURCE_DIVERSITY_HISTORY_LAST_SUMMARY_PATH" ]; then
+  cp "$REAL_MODEL_SOURCE_DIVERSITY_HISTORY_LAST_SUMMARY_PATH" "$OUT_DIR/real_model_source_diversity_history_previous_summary.json"
+else
+  rm -f "$OUT_DIR/real_model_source_diversity_history_previous_summary.json"
+fi
+
+python3 -m gateforge.dataset_real_model_source_diversity_history_ledger_v1 \
+  --source-diversity-guard-summary "$OUT_DIR/real_model_source_diversity_guard_summary.json" \
+  --asset-discovery-summary "$OUT_DIR/asset_discovery_summary.json" \
+  --intake-runner-summary "$OUT_DIR/intake_runner_summary.json" \
+  --ledger "$REAL_MODEL_SOURCE_DIVERSITY_HISTORY_LEDGER_PATH" \
+  --out "$OUT_DIR/real_model_source_diversity_history_summary.json" \
+  --report-out "$OUT_DIR/real_model_source_diversity_history_summary.md"
+
+if [ -f "$OUT_DIR/real_model_source_diversity_history_previous_summary.json" ]; then
+  python3 -m gateforge.dataset_real_model_source_diversity_history_trend_v1 \
+    --previous "$OUT_DIR/real_model_source_diversity_history_previous_summary.json" \
+    --current "$OUT_DIR/real_model_source_diversity_history_summary.json" \
+    --out "$OUT_DIR/real_model_source_diversity_history_trend_summary.json" \
+    --report-out "$OUT_DIR/real_model_source_diversity_history_trend_summary.md"
+else
+  cat > "$OUT_DIR/real_model_source_diversity_history_trend_summary.json" <<'JSON'
+{
+  "status": "PASS",
+  "trend": {
+    "status_transition": "BOOTSTRAP->BOOTSTRAP",
+    "delta_unique_source_buckets": 0,
+    "delta_unique_large_source_buckets": 0,
+    "delta_max_source_bucket_share_pct": 0.0,
+    "alerts": []
+  },
+  "alerts": []
+}
+JSON
+fi
+mkdir -p "$(dirname "$REAL_MODEL_SOURCE_DIVERSITY_HISTORY_LAST_SUMMARY_PATH")"
+cp "$OUT_DIR/real_model_source_diversity_history_summary.json" "$REAL_MODEL_SOURCE_DIVERSITY_HISTORY_LAST_SUMMARY_PATH"
+
 python3 -m gateforge.dataset_mutation_artifact_inventory_v1 \
   --mutation-manifest "$OUT_DIR/mutation_manifest.json" \
   --mutation-raw-observations "$OUT_DIR/mutation_raw_observations.json" \
@@ -640,6 +687,9 @@ gate = _load("scale_gate_summary.json")
 hard_moat = _load("hard_moat_gates_summary.json")
 pool_audit = _load("real_model_pool_audit_summary.json")
 family_board = _load("real_model_family_coverage_board_summary.json")
+source_diversity_guard = _load("real_model_source_diversity_guard_summary.json")
+source_diversity_history = _load("real_model_source_diversity_history_summary.json")
+source_diversity_history_trend = _load("real_model_source_diversity_history_trend_summary.json")
 mutation_inventory = _load("mutation_artifact_inventory_summary.json")
 asset_locator = _load("asset_locator_manifest_summary.json")
 repro_sample_pack = _load("reproducible_mutation_sample_pack_summary.json")
@@ -680,6 +730,9 @@ flags = {
     "hard_moat_target_profile_exists": "PASS" if str(hard_moat_target.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "real_model_pool_audit_exists": "PASS" if str(pool_audit.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "real_model_family_coverage_exists": "PASS" if str(family_board.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
+    "real_model_source_diversity_guard_exists": "PASS" if str(source_diversity_guard.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
+    "real_model_source_diversity_history_exists": "PASS" if str(source_diversity_history.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
+    "real_model_source_diversity_history_trend_exists": "PASS" if str(source_diversity_history_trend.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "mutation_artifact_inventory_exists": "PASS" if str(mutation_inventory.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "asset_locator_manifest_exists": "PASS" if str(asset_locator.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "reproducible_sample_pack_exists": "PASS" if str(repro_sample_pack.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
@@ -777,6 +830,17 @@ summary = {
     "real_model_family_coverage_status": family_board.get("status"),
     "real_model_family_coverage_count": family_board.get("covered_families"),
     "real_model_family_entropy": family_board.get("family_entropy"),
+    "real_model_source_diversity_guard_status": source_diversity_guard.get("status"),
+    "real_model_source_diversity_unique_source_repos": source_diversity_guard.get("unique_source_repos"),
+    "real_model_source_diversity_unique_source_buckets": source_diversity_guard.get("unique_source_buckets"),
+    "real_model_source_diversity_max_source_bucket_share_pct": source_diversity_guard.get("max_source_bucket_share_pct"),
+    "real_model_source_diversity_history_status": source_diversity_history.get("status"),
+    "real_model_source_diversity_history_total_records": source_diversity_history.get("total_records"),
+    "real_model_source_diversity_history_latest_unique_source_buckets": source_diversity_history.get("latest_unique_source_buckets"),
+    "real_model_source_diversity_history_latest_max_source_bucket_share_pct": source_diversity_history.get("latest_max_source_bucket_share_pct"),
+    "real_model_source_diversity_history_trend_status": source_diversity_history_trend.get("status"),
+    "real_model_source_diversity_history_trend_delta_unique_source_buckets": (source_diversity_history_trend.get("trend") or {}).get("delta_unique_source_buckets"),
+    "real_model_source_diversity_history_trend_delta_max_source_bucket_share_pct": (source_diversity_history_trend.get("trend") or {}).get("delta_max_source_bucket_share_pct"),
     "mutation_artifact_inventory_status": mutation_inventory.get("status"),
     "mutation_artifact_existing_file_ratio": mutation_inventory.get("existing_file_ratio"),
     "mutation_artifact_execution_coverage_ratio": mutation_inventory.get("execution_coverage_ratio"),
@@ -888,6 +952,17 @@ summary = {
             f"- real_model_family_coverage_status: `{summary['real_model_family_coverage_status']}`",
             f"- real_model_family_coverage_count: `{summary['real_model_family_coverage_count']}`",
             f"- real_model_family_entropy: `{summary['real_model_family_entropy']}`",
+            f"- real_model_source_diversity_guard_status: `{summary['real_model_source_diversity_guard_status']}`",
+            f"- real_model_source_diversity_unique_source_repos: `{summary['real_model_source_diversity_unique_source_repos']}`",
+            f"- real_model_source_diversity_unique_source_buckets: `{summary['real_model_source_diversity_unique_source_buckets']}`",
+            f"- real_model_source_diversity_max_source_bucket_share_pct: `{summary['real_model_source_diversity_max_source_bucket_share_pct']}`",
+            f"- real_model_source_diversity_history_status: `{summary['real_model_source_diversity_history_status']}`",
+            f"- real_model_source_diversity_history_total_records: `{summary['real_model_source_diversity_history_total_records']}`",
+            f"- real_model_source_diversity_history_latest_unique_source_buckets: `{summary['real_model_source_diversity_history_latest_unique_source_buckets']}`",
+            f"- real_model_source_diversity_history_latest_max_source_bucket_share_pct: `{summary['real_model_source_diversity_history_latest_max_source_bucket_share_pct']}`",
+            f"- real_model_source_diversity_history_trend_status: `{summary['real_model_source_diversity_history_trend_status']}`",
+            f"- real_model_source_diversity_history_trend_delta_unique_source_buckets: `{summary['real_model_source_diversity_history_trend_delta_unique_source_buckets']}`",
+            f"- real_model_source_diversity_history_trend_delta_max_source_bucket_share_pct: `{summary['real_model_source_diversity_history_trend_delta_max_source_bucket_share_pct']}`",
             f"- mutation_artifact_inventory_status: `{summary['mutation_artifact_inventory_status']}`",
             f"- mutation_artifact_existing_file_ratio: `{summary['mutation_artifact_existing_file_ratio']}`",
             f"- mutation_artifact_execution_coverage_ratio: `{summary['mutation_artifact_execution_coverage_ratio']}`",
