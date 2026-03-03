@@ -441,6 +441,25 @@ python3 -m gateforge.dataset_hard_moat_gates_v1 \
   --out "$OUT_DIR/hard_moat_gates_summary.json" \
   --report-out "$OUT_DIR/hard_moat_gates_summary.md"
 
+python3 -m gateforge.dataset_real_model_pool_audit_v1 \
+  --executable-registry "$OUT_DIR/executable_registry_rows.json" \
+  --intake-runner-accepted "$OUT_DIR/intake_runner_accepted.json" \
+  --out "$OUT_DIR/real_model_pool_audit_summary.json" \
+  --report-out "$OUT_DIR/real_model_pool_audit_summary.md"
+
+python3 -m gateforge.dataset_mutation_artifact_inventory_v1 \
+  --mutation-manifest "$OUT_DIR/mutation_manifest.json" \
+  --mutation-raw-observations "$OUT_DIR/mutation_raw_observations.json" \
+  --out "$OUT_DIR/mutation_artifact_inventory_summary.json" \
+  --report-out "$OUT_DIR/mutation_artifact_inventory_summary.md"
+
+python3 -m gateforge.dataset_scale_evidence_stamp_v1 \
+  --real-model-pool-audit-summary "$OUT_DIR/real_model_pool_audit_summary.json" \
+  --mutation-artifact-inventory-summary "$OUT_DIR/mutation_artifact_inventory_summary.json" \
+  --scale-gate-summary "$OUT_DIR/scale_gate_summary.json" \
+  --out "$OUT_DIR/scale_evidence_stamp_summary.json" \
+  --report-out "$OUT_DIR/scale_evidence_stamp_summary.md"
+
 python3 - <<'PY'
 import json
 import os
@@ -468,6 +487,9 @@ hard_moat_target = _load("hard_moat_target_profile_summary.json")
 realrun = _load("mutation_real_runner_summary.json")
 gate = _load("scale_gate_summary.json")
 hard_moat = _load("hard_moat_gates_summary.json")
+pool_audit = _load("real_model_pool_audit_summary.json")
+mutation_inventory = _load("mutation_artifact_inventory_summary.json")
+evidence_stamp = _load("scale_evidence_stamp_summary.json")
 auto_scale = _load("auto_mutation_scale.json")
 profile = _load("profile_config.json")
 
@@ -494,6 +516,9 @@ flags = {
     "coverage_backfill_exists": "PASS" if str(coverage_backfill.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "ingest_source_channel_planner_exists": "PASS" if str(ingest_planner.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "hard_moat_target_profile_exists": "PASS" if str(hard_moat_target.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
+    "real_model_pool_audit_exists": "PASS" if str(pool_audit.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
+    "mutation_artifact_inventory_exists": "PASS" if str(mutation_inventory.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
+    "scale_evidence_stamp_exists": "PASS" if str(evidence_stamp.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "gate_status_present": "PASS" if str(gate.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "hard_moat_gates_not_fail": "PASS" if str(hard_moat.get("status") or "") in {"PASS", "NEEDS_REVIEW"} else "FAIL",
     "accepted_large_ratio_gate": "PASS"
@@ -549,6 +574,15 @@ summary = {
     "hard_moat_target_profile_strictness_level": hard_moat_target.get("strictness_level"),
     "hard_moat_target_profile_weekly_model_target": hard_moat_target.get("weekly_model_target"),
     "hard_moat_target_profile_weekly_mutation_target": hard_moat_target.get("weekly_mutation_target"),
+    "real_model_pool_audit_status": pool_audit.get("status"),
+    "real_model_pool_existing_file_ratio": pool_audit.get("existing_file_ratio"),
+    "real_model_pool_nontrivial_model_ratio": pool_audit.get("nontrivial_model_ratio"),
+    "mutation_artifact_inventory_status": mutation_inventory.get("status"),
+    "mutation_artifact_existing_file_ratio": mutation_inventory.get("existing_file_ratio"),
+    "mutation_artifact_execution_coverage_ratio": mutation_inventory.get("execution_coverage_ratio"),
+    "scale_evidence_stamp_status": evidence_stamp.get("status"),
+    "scale_evidence_stamp_score": evidence_stamp.get("evidence_score"),
+    "scale_evidence_stamp_grade": evidence_stamp.get("evidence_grade"),
     "reproducible_mutations": realrun.get("executed_count"),
     "hard_moat_gates_status": hard_moat.get("status"),
     "hard_moat_hardness_score": hard_moat.get("moat_hardness_score"),
@@ -611,6 +645,15 @@ summary = {
             f"- hard_moat_target_profile_strictness_level: `{summary['hard_moat_target_profile_strictness_level']}`",
             f"- hard_moat_target_profile_weekly_model_target: `{summary['hard_moat_target_profile_weekly_model_target']}`",
             f"- hard_moat_target_profile_weekly_mutation_target: `{summary['hard_moat_target_profile_weekly_mutation_target']}`",
+            f"- real_model_pool_audit_status: `{summary['real_model_pool_audit_status']}`",
+            f"- real_model_pool_existing_file_ratio: `{summary['real_model_pool_existing_file_ratio']}`",
+            f"- real_model_pool_nontrivial_model_ratio: `{summary['real_model_pool_nontrivial_model_ratio']}`",
+            f"- mutation_artifact_inventory_status: `{summary['mutation_artifact_inventory_status']}`",
+            f"- mutation_artifact_existing_file_ratio: `{summary['mutation_artifact_existing_file_ratio']}`",
+            f"- mutation_artifact_execution_coverage_ratio: `{summary['mutation_artifact_execution_coverage_ratio']}`",
+            f"- scale_evidence_stamp_status: `{summary['scale_evidence_stamp_status']}`",
+            f"- scale_evidence_stamp_score: `{summary['scale_evidence_stamp_score']}`",
+            f"- scale_evidence_stamp_grade: `{summary['scale_evidence_stamp_grade']}`",
             f"- reproducible_mutations: `{summary['reproducible_mutations']}`",
             f"- hard_moat_gates_status: `{summary['hard_moat_gates_status']}`",
             f"- hard_moat_hardness_score: `{summary['hard_moat_hardness_score']}`",
