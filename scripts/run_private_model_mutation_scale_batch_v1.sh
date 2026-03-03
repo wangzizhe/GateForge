@@ -845,6 +845,9 @@ python3 -m gateforge.dataset_hard_moat_gates_v1 \
   --mutation-real-runner-summary "$OUT_DIR/mutation_real_runner_summary.json" \
   --mutation-validation-matrix-v2-summary "$OUT_DIR/mutation_validation_matrix_v2_summary.json" \
   --failure-distribution-stability-guard-summary "$OUT_DIR/failure_distribution_stability_guard_summary.json" \
+  --mutation-effective-scale-summary "$OUT_DIR/mutation_effective_scale_summary.json" \
+  --mutation-effective-depth-summary "$OUT_DIR/mutation_effective_depth_summary.json" \
+  --mutation-source-provenance-summary "$OUT_DIR/mutation_source_provenance_summary.json" \
   --min-discovered-models "$HARD_MOAT_MIN_DISCOVERED_MODELS" \
   --min-accepted-models "$HARD_MOAT_MIN_ACCEPTED_MODELS" \
   --min-accepted-large-models "$HARD_MOAT_MIN_ACCEPTED_LARGE_MODELS" \
