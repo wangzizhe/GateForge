@@ -50,6 +50,8 @@ ACTION_BACKLOG_HISTORY_LEDGER_PATH="${GATEFORGE_ACTION_BACKLOG_HISTORY_LEDGER_PA
 ACTION_BACKLOG_HISTORY_LAST_SUMMARY_PATH="${GATEFORGE_ACTION_BACKLOG_HISTORY_LAST_SUMMARY_PATH:-$OUT_DIR/state/action_backlog_history_last_summary.json}"
 MUTATION_SELECTION_HISTORY_LEDGER_PATH="${GATEFORGE_MUTATION_SELECTION_HISTORY_LEDGER_PATH:-$OUT_DIR/state/mutation_selection_history.jsonl}"
 MUTATION_SELECTION_HISTORY_LAST_SUMMARY_PATH="${GATEFORGE_MUTATION_SELECTION_HISTORY_LAST_SUMMARY_PATH:-$OUT_DIR/state/mutation_selection_history_last_summary.json}"
+MUTATION_REPRO_DEPTH_HISTORY_LEDGER_PATH="${GATEFORGE_MUTATION_REPRO_DEPTH_HISTORY_LEDGER_PATH:-$OUT_DIR/state/mutation_repro_depth_history.jsonl}"
+MUTATION_REPRO_DEPTH_HISTORY_LAST_SUMMARY_PATH="${GATEFORGE_MUTATION_REPRO_DEPTH_HISTORY_LAST_SUMMARY_PATH:-$OUT_DIR/state/mutation_repro_depth_history_last_summary.json}"
 HARD_MOAT_MIN_DISCOVERED_MODELS="${GATEFORGE_HARD_MOAT_MIN_DISCOVERED_MODELS:-2}"
 HARD_MOAT_MIN_ACCEPTED_MODELS="${GATEFORGE_HARD_MOAT_MIN_ACCEPTED_MODELS:-2}"
 HARD_MOAT_MIN_ACCEPTED_LARGE_MODELS="${GATEFORGE_HARD_MOAT_MIN_ACCEPTED_LARGE_MODELS:-1}"
@@ -82,6 +84,8 @@ export ACTION_BACKLOG_HISTORY_LEDGER_PATH
 export ACTION_BACKLOG_HISTORY_LAST_SUMMARY_PATH
 export MUTATION_SELECTION_HISTORY_LEDGER_PATH
 export MUTATION_SELECTION_HISTORY_LAST_SUMMARY_PATH
+export MUTATION_REPRO_DEPTH_HISTORY_LEDGER_PATH
+export MUTATION_REPRO_DEPTH_HISTORY_LAST_SUMMARY_PATH
 export HARD_MOAT_MIN_DISCOVERED_MODELS
 export HARD_MOAT_MIN_ACCEPTED_MODELS
 export HARD_MOAT_MIN_ACCEPTED_LARGE_MODELS
@@ -476,6 +480,53 @@ python3 -m gateforge.dataset_mutation_real_runner_v1 \
   --out "$OUT_DIR/mutation_real_runner_summary.json" \
   --report-out "$OUT_DIR/mutation_real_runner_summary.md"
 
+python3 -m gateforge.dataset_mutation_repro_depth_guard_v1 \
+  --mutation-manifest "$OUT_DIR/mutation_manifest.json" \
+  --mutation-raw-observations "$OUT_DIR/mutation_raw_observations.json" \
+  --selection-plan "$OUT_DIR/mutation_model_selection_plan.json" \
+  --min-reproducible-mutations-per-model "${GATEFORGE_MIN_REPRO_DEPTH_PER_MODEL:-6}" \
+  --min-large-model-reproducible-mutations-per-model "${GATEFORGE_MIN_LARGE_REPRO_DEPTH_PER_MODEL:-8}" \
+  --out "$OUT_DIR/mutation_repro_depth_guard_summary.json" \
+  --report-out "$OUT_DIR/mutation_repro_depth_guard_summary.md"
+
+if [ -f "$MUTATION_REPRO_DEPTH_HISTORY_LAST_SUMMARY_PATH" ]; then
+  cp "$MUTATION_REPRO_DEPTH_HISTORY_LAST_SUMMARY_PATH" "$OUT_DIR/mutation_repro_depth_history_previous_summary.json"
+else
+  rm -f "$OUT_DIR/mutation_repro_depth_history_previous_summary.json"
+fi
+
+python3 -m gateforge.dataset_mutation_repro_depth_history_ledger_v1 \
+  --mutation-repro-depth-guard-summary "$OUT_DIR/mutation_repro_depth_guard_summary.json" \
+  --mutation-pack-summary "$OUT_DIR/mutation_pack_summary.json" \
+  --mutation-real-runner-summary "$OUT_DIR/mutation_real_runner_summary.json" \
+  --ledger "$MUTATION_REPRO_DEPTH_HISTORY_LEDGER_PATH" \
+  --out "$OUT_DIR/mutation_repro_depth_history_summary.json" \
+  --report-out "$OUT_DIR/mutation_repro_depth_history_summary.md"
+
+if [ -f "$OUT_DIR/mutation_repro_depth_history_previous_summary.json" ]; then
+  python3 -m gateforge.dataset_mutation_repro_depth_history_trend_v1 \
+    --previous "$OUT_DIR/mutation_repro_depth_history_previous_summary.json" \
+    --current "$OUT_DIR/mutation_repro_depth_history_summary.json" \
+    --out "$OUT_DIR/mutation_repro_depth_history_trend_summary.json" \
+    --report-out "$OUT_DIR/mutation_repro_depth_history_trend_summary.md"
+else
+  cat > "$OUT_DIR/mutation_repro_depth_history_trend_summary.json" <<'JSON'
+{
+  "status": "PASS",
+  "trend": {
+    "status_transition": "BOOTSTRAP->BOOTSTRAP",
+    "delta_depth_ratio_pct": 0.0,
+    "delta_p10_depth": 0.0,
+    "delta_concentration_pct": 0.0,
+    "alerts": []
+  },
+  "alerts": []
+}
+JSON
+fi
+mkdir -p "$(dirname "$MUTATION_REPRO_DEPTH_HISTORY_LAST_SUMMARY_PATH")"
+cp "$OUT_DIR/mutation_repro_depth_history_summary.json" "$MUTATION_REPRO_DEPTH_HISTORY_LAST_SUMMARY_PATH"
+
 python3 -m gateforge.dataset_real_model_mutation_scale_gate_v1 \
   --asset-discovery-summary "$OUT_DIR/asset_discovery_summary.json" \
   --intake-pipeline-summary "$OUT_DIR/intake_pipeline_summary.json" \
@@ -573,6 +624,9 @@ pack = _load("mutation_pack_summary.json")
 selection_guard = _load("mutation_selection_balance_guard_summary.json")
 selection_history = _load("mutation_selection_history_summary.json")
 selection_history_trend = _load("mutation_selection_history_trend_summary.json")
+repro_depth_guard = _load("mutation_repro_depth_guard_summary.json")
+repro_depth_history = _load("mutation_repro_depth_history_summary.json")
+repro_depth_history_trend = _load("mutation_repro_depth_history_trend_summary.json")
 validation = _load("mutation_validation_summary.json")
 validation_v2 = _load("mutation_validation_matrix_v2_summary.json")
 stability_guard = _load("failure_distribution_stability_guard_summary.json")
@@ -612,6 +666,9 @@ flags = {
     "selection_plan_exists": "PASS" if str(selection_plan.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "selection_history_exists": "PASS" if str(selection_history.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "selection_history_trend_exists": "PASS" if str(selection_history_trend.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
+    "repro_depth_guard_exists": "PASS" if str(repro_depth_guard.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
+    "repro_depth_history_exists": "PASS" if str(repro_depth_history.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
+    "repro_depth_history_trend_exists": "PASS" if str(repro_depth_history_trend.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "validation_exists": "PASS" if str(validation.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "validation_v2_exists": "PASS" if str(validation_v2.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "selection_balance_guard_exists": "PASS" if str(selection_guard.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
@@ -670,6 +727,20 @@ summary = {
     "mutation_selection_history_trend_delta_selected_large_ratio_pct": (selection_history_trend.get("trend") or {}).get("delta_selected_large_ratio_pct"),
     "mutation_selection_history_trend_delta_selected_family_coverage": (selection_history_trend.get("trend") or {}).get("delta_selected_family_coverage"),
     "mutation_selection_history_trend_delta_max_family_share_pct": (selection_history_trend.get("trend") or {}).get("delta_max_family_share_pct"),
+    "mutation_repro_depth_guard_status": repro_depth_guard.get("status"),
+    "mutation_repro_depth_guard_tracked_models": repro_depth_guard.get("tracked_models"),
+    "mutation_repro_depth_guard_models_meeting_depth_ratio_pct": repro_depth_guard.get("models_meeting_depth_ratio_pct"),
+    "mutation_repro_depth_guard_p10_reproducible_mutations_per_model": repro_depth_guard.get("p10_reproducible_mutations_per_model"),
+    "mutation_repro_depth_guard_max_model_share_pct": repro_depth_guard.get("max_model_share_pct"),
+    "mutation_repro_depth_history_status": repro_depth_history.get("status"),
+    "mutation_repro_depth_history_total_records": repro_depth_history.get("total_records"),
+    "mutation_repro_depth_history_latest_depth_ratio_pct": repro_depth_history.get("latest_models_meeting_depth_ratio_pct"),
+    "mutation_repro_depth_history_latest_p10_depth": repro_depth_history.get("latest_p10_reproducible_mutations_per_model"),
+    "mutation_repro_depth_history_latest_concentration_pct": repro_depth_history.get("latest_max_model_share_pct"),
+    "mutation_repro_depth_history_trend_status": repro_depth_history_trend.get("status"),
+    "mutation_repro_depth_history_trend_delta_depth_ratio_pct": (repro_depth_history_trend.get("trend") or {}).get("delta_depth_ratio_pct"),
+    "mutation_repro_depth_history_trend_delta_p10_depth": (repro_depth_history_trend.get("trend") or {}).get("delta_p10_depth"),
+    "mutation_repro_depth_history_trend_delta_concentration_pct": (repro_depth_history_trend.get("trend") or {}).get("delta_concentration_pct"),
     "generated_mutations": pack.get("total_mutations"),
     "materialized_mutations": pack.get("materialized_mutations"),
     "failed_materializations": pack.get("failed_materializations"),
@@ -769,6 +840,20 @@ summary = {
             f"- mutation_selection_history_trend_delta_selected_large_ratio_pct: `{summary['mutation_selection_history_trend_delta_selected_large_ratio_pct']}`",
             f"- mutation_selection_history_trend_delta_selected_family_coverage: `{summary['mutation_selection_history_trend_delta_selected_family_coverage']}`",
             f"- mutation_selection_history_trend_delta_max_family_share_pct: `{summary['mutation_selection_history_trend_delta_max_family_share_pct']}`",
+            f"- mutation_repro_depth_guard_status: `{summary['mutation_repro_depth_guard_status']}`",
+            f"- mutation_repro_depth_guard_tracked_models: `{summary['mutation_repro_depth_guard_tracked_models']}`",
+            f"- mutation_repro_depth_guard_models_meeting_depth_ratio_pct: `{summary['mutation_repro_depth_guard_models_meeting_depth_ratio_pct']}`",
+            f"- mutation_repro_depth_guard_p10_reproducible_mutations_per_model: `{summary['mutation_repro_depth_guard_p10_reproducible_mutations_per_model']}`",
+            f"- mutation_repro_depth_guard_max_model_share_pct: `{summary['mutation_repro_depth_guard_max_model_share_pct']}`",
+            f"- mutation_repro_depth_history_status: `{summary['mutation_repro_depth_history_status']}`",
+            f"- mutation_repro_depth_history_total_records: `{summary['mutation_repro_depth_history_total_records']}`",
+            f"- mutation_repro_depth_history_latest_depth_ratio_pct: `{summary['mutation_repro_depth_history_latest_depth_ratio_pct']}`",
+            f"- mutation_repro_depth_history_latest_p10_depth: `{summary['mutation_repro_depth_history_latest_p10_depth']}`",
+            f"- mutation_repro_depth_history_latest_concentration_pct: `{summary['mutation_repro_depth_history_latest_concentration_pct']}`",
+            f"- mutation_repro_depth_history_trend_status: `{summary['mutation_repro_depth_history_trend_status']}`",
+            f"- mutation_repro_depth_history_trend_delta_depth_ratio_pct: `{summary['mutation_repro_depth_history_trend_delta_depth_ratio_pct']}`",
+            f"- mutation_repro_depth_history_trend_delta_p10_depth: `{summary['mutation_repro_depth_history_trend_delta_p10_depth']}`",
+            f"- mutation_repro_depth_history_trend_delta_concentration_pct: `{summary['mutation_repro_depth_history_trend_delta_concentration_pct']}`",
             f"- generated_mutations: `{summary['generated_mutations']}`",
             f"- materialized_mutations: `{summary['materialized_mutations']}`",
             f"- mutation_validation_status: `{summary['mutation_validation_status']}`",
