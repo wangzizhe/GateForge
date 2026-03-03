@@ -19,12 +19,32 @@ ROOTS_CSV="${ROOTS_RAW//:/,}"
 IFS=',' read -r -a ROOTS <<< "$ROOTS_CSV"
 
 DISCOVERY_ARGS=()
+EXISTING_ROOTS=()
 for r in "${ROOTS[@]}"; do
   rr="$(echo "$r" | xargs)"
   if [ -n "$rr" ]; then
     DISCOVERY_ARGS+=(--model-root "$rr")
+    if [ -d "$rr" ]; then
+      EXISTING_ROOTS+=("$rr")
+    fi
   fi
 done
+
+if [ "${#EXISTING_ROOTS[@]}" -eq 0 ]; then
+  echo "{\"status\":\"FAIL\",\"reason\":\"private_model_roots_missing\",\"roots\":\"$ROOTS_RAW\"}" >&2
+  exit 1
+fi
+
+MODEL_FILE_COUNT=0
+for rr in "${EXISTING_ROOTS[@]}"; do
+  count="$(find "$rr" -type f -name '*.mo' 2>/dev/null | wc -l | xargs)"
+  MODEL_FILE_COUNT=$((MODEL_FILE_COUNT + count))
+done
+
+if [ "$MODEL_FILE_COUNT" -le 0 ]; then
+  echo "{\"status\":\"FAIL\",\"reason\":\"private_model_files_missing\",\"roots\":\"$ROOTS_RAW\"}" >&2
+  exit 1
+fi
 
 python3 -m gateforge.dataset_real_model_asset_discovery_v1 \
   "${DISCOVERY_ARGS[@]}" \
