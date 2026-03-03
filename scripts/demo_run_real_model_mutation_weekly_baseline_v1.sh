@@ -163,6 +163,9 @@ payload = {
     "freeze_id": summary.get("freeze_id"),
     "freeze_history_status": summary.get("freeze_history_status"),
     "freeze_history_trend_status": summary.get("freeze_history_trend_status"),
+    "failure_distribution_snapshot_status": summary.get("failure_distribution_snapshot_status"),
+    "failure_distribution_stability_history_status": summary.get("failure_distribution_stability_history_status"),
+    "failure_distribution_stability_history_trend_status": summary.get("failure_distribution_stability_history_trend_status"),
     "result_flags": flags,
 }
 (out / "demo_summary.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")

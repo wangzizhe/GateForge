@@ -89,6 +89,8 @@ class RunPrivateModelMutationScaleBatchV1Tests(unittest.TestCase):
             self.assertIn(summary.get("mismatch_triage_status"), {"PASS", "NEEDS_REVIEW", "FAIL"})
             self.assertIn(summary.get("coverage_backfill_status"), {"PASS", "NEEDS_REVIEW", "FAIL"})
             self.assertIn(summary.get("ingest_source_channel_planner_status"), {"PASS", "NEEDS_REVIEW", "FAIL"})
+            self.assertIn(summary.get("hard_moat_target_profile_status"), {"PASS", "NEEDS_REVIEW", "FAIL"})
+            self.assertIn(summary.get("hard_moat_target_profile_strictness_level"), {"standard", "strict", "adaptive"})
             self.assertIn(summary.get("hard_moat_gates_status"), {"PASS", "NEEDS_REVIEW", "FAIL"})
             self.assertGreaterEqual(float(summary.get("hard_moat_hardness_score", 0.0) or 0.0), 0.0)
             self.assertIn(summary.get("validation_backend_used"), {"syntax", "omc"})

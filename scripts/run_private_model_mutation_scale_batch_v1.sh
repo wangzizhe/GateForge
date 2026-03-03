@@ -353,6 +353,45 @@ python3 -m gateforge.dataset_ingest_source_channel_planner_v1 \
   --out "$OUT_DIR/ingest_source_channel_planner_summary.json" \
   --report-out "$OUT_DIR/ingest_source_channel_planner_summary.md"
 
+python3 -m gateforge.dataset_hard_moat_target_profile_v1 \
+  --profile-config "$OUT_DIR/profile_config.json" \
+  --ingest-source-channel-planner-summary "$OUT_DIR/ingest_source_channel_planner_summary.json" \
+  --asset-discovery-summary "$OUT_DIR/asset_discovery_summary.json" \
+  --intake-runner-summary "$OUT_DIR/intake_runner_summary.json" \
+  --mutation-pack-summary "$OUT_DIR/mutation_pack_summary.json" \
+  --canonical-registry-summary "$OUT_DIR/canonical_registry_summary.json" \
+  --coverage-backfill-summary "$OUT_DIR/mutation_coverage_backfill_summary.json" \
+  --target-profile-out "$OUT_DIR/hard_moat_target_profile.json" \
+  --out "$OUT_DIR/hard_moat_target_profile_summary.json" \
+  --report-out "$OUT_DIR/hard_moat_target_profile_summary.md"
+
+python3 - <<'PY'
+import json
+import os
+from pathlib import Path
+
+out = Path(os.environ["OUT_DIR"])
+summary = json.loads((out / "hard_moat_target_profile_summary.json").read_text(encoding="utf-8"))
+thresholds = summary.get("thresholds") if isinstance(summary.get("thresholds"), dict) else {}
+
+mapping = {
+    "HARD_MOAT_MIN_DISCOVERED_MODELS": int(thresholds.get("min_discovered_models", os.environ.get("HARD_MOAT_MIN_DISCOVERED_MODELS", "2"))),
+    "HARD_MOAT_MIN_ACCEPTED_MODELS": int(thresholds.get("min_accepted_models", os.environ.get("HARD_MOAT_MIN_ACCEPTED_MODELS", "2"))),
+    "HARD_MOAT_MIN_ACCEPTED_LARGE_MODELS": int(thresholds.get("min_accepted_large_models", os.environ.get("HARD_MOAT_MIN_ACCEPTED_LARGE_MODELS", "1"))),
+    "HARD_MOAT_MIN_ACCEPTED_LARGE_RATIO_PCT": float(thresholds.get("min_accepted_large_ratio_pct", os.environ.get("HARD_MOAT_MIN_ACCEPTED_LARGE_RATIO_PCT", "25"))),
+    "HARD_MOAT_MIN_GENERATED_MUTATIONS": int(thresholds.get("min_generated_mutations", os.environ.get("HARD_MOAT_MIN_GENERATED_MUTATIONS", "20"))),
+    "HARD_MOAT_MIN_REPRODUCIBLE_MUTATIONS": int(thresholds.get("min_reproducible_mutations", os.environ.get("HARD_MOAT_MIN_REPRODUCIBLE_MUTATIONS", "10"))),
+    "HARD_MOAT_MIN_CANONICAL_NET_GROWTH_MODELS": int(thresholds.get("min_canonical_net_growth_models", os.environ.get("HARD_MOAT_MIN_CANONICAL_NET_GROWTH_MODELS", "0"))),
+    "HARD_MOAT_MIN_VALIDATION_TYPE_MATCH_RATE_PCT": float(thresholds.get("min_validation_type_match_rate_pct", os.environ.get("HARD_MOAT_MIN_VALIDATION_TYPE_MATCH_RATE_PCT", "30"))),
+    "HARD_MOAT_MIN_FAILURE_TYPE_ENTROPY": float(thresholds.get("min_failure_type_entropy", os.environ.get("HARD_MOAT_MIN_FAILURE_TYPE_ENTROPY", "1.0"))),
+    "HARD_MOAT_MAX_DISTRIBUTION_DRIFT_TVD": float(thresholds.get("max_distribution_drift_tvd", os.environ.get("HARD_MOAT_MAX_DISTRIBUTION_DRIFT_TVD", "0.4"))),
+}
+
+lines = [f"{key}={value}" for key, value in mapping.items()]
+(out / "hard_moat_target_profile.env").write_text("\n".join(lines) + "\n", encoding="utf-8")
+PY
+source "$OUT_DIR/hard_moat_target_profile.env"
+
 mkdir -p "$(dirname "$MANIFEST_BASELINE_PATH")"
 cp "$OUT_DIR/mutation_manifest.json" "$MANIFEST_BASELINE_PATH"
 
@@ -423,6 +462,7 @@ stability_guard = _load("failure_distribution_stability_guard_summary.json")
 mismatch_triage = _load("mutation_mismatch_triage_summary.json")
 coverage_backfill = _load("mutation_coverage_backfill_summary.json")
 ingest_planner = _load("ingest_source_channel_planner_summary.json")
+hard_moat_target = _load("hard_moat_target_profile_summary.json")
 realrun = _load("mutation_real_runner_summary.json")
 gate = _load("scale_gate_summary.json")
 hard_moat = _load("hard_moat_gates_summary.json")
@@ -451,6 +491,7 @@ flags = {
     "mismatch_triage_exists": "PASS" if str(mismatch_triage.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "coverage_backfill_exists": "PASS" if str(coverage_backfill.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "ingest_source_channel_planner_exists": "PASS" if str(ingest_planner.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
+    "hard_moat_target_profile_exists": "PASS" if str(hard_moat_target.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "gate_status_present": "PASS" if str(gate.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "hard_moat_gates_not_fail": "PASS" if str(hard_moat.get("status") or "") in {"PASS", "NEEDS_REVIEW"} else "FAIL",
     "accepted_large_ratio_gate": "PASS"
@@ -502,6 +543,10 @@ summary = {
     "ingest_source_channel_planner_status": ingest_planner.get("status"),
     "ingest_source_channel_planner_p0_channels": ingest_planner.get("p0_channels"),
     "ingest_source_channel_planner_planned_weekly_new_models": ingest_planner.get("planned_weekly_new_models"),
+    "hard_moat_target_profile_status": hard_moat_target.get("status"),
+    "hard_moat_target_profile_strictness_level": hard_moat_target.get("strictness_level"),
+    "hard_moat_target_profile_weekly_model_target": hard_moat_target.get("weekly_model_target"),
+    "hard_moat_target_profile_weekly_mutation_target": hard_moat_target.get("weekly_mutation_target"),
     "reproducible_mutations": realrun.get("executed_count"),
     "hard_moat_gates_status": hard_moat.get("status"),
     "hard_moat_hardness_score": hard_moat.get("moat_hardness_score"),
@@ -560,6 +605,10 @@ summary = {
             f"- ingest_source_channel_planner_status: `{summary['ingest_source_channel_planner_status']}`",
             f"- ingest_source_channel_planner_p0_channels: `{summary['ingest_source_channel_planner_p0_channels']}`",
             f"- ingest_source_channel_planner_planned_weekly_new_models: `{summary['ingest_source_channel_planner_planned_weekly_new_models']}`",
+            f"- hard_moat_target_profile_status: `{summary['hard_moat_target_profile_status']}`",
+            f"- hard_moat_target_profile_strictness_level: `{summary['hard_moat_target_profile_strictness_level']}`",
+            f"- hard_moat_target_profile_weekly_model_target: `{summary['hard_moat_target_profile_weekly_model_target']}`",
+            f"- hard_moat_target_profile_weekly_mutation_target: `{summary['hard_moat_target_profile_weekly_mutation_target']}`",
             f"- reproducible_mutations: `{summary['reproducible_mutations']}`",
             f"- hard_moat_gates_status: `{summary['hard_moat_gates_status']}`",
             f"- hard_moat_hardness_score: `{summary['hard_moat_hardness_score']}`",

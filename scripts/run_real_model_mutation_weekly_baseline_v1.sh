@@ -13,6 +13,7 @@ DEPTH_REPORT_SUMMARY="${GATEFORGE_DEPTH_UPGRADE_REPORT_SUMMARY:-}"
 STABILITY_SUMMARY="${GATEFORGE_STABILITY_TRIPLET_SUMMARY:-artifacts/private_model_mutation_depth6_stability_triplet_v1/summary.json}"
 LEDGER_PATH="${GATEFORGE_WEEKLY_LEDGER_PATH:-$OUT_DIR/history.jsonl}"
 FREEZE_HISTORY_LEDGER_PATH="${GATEFORGE_WEEKLY_FREEZE_HISTORY_LEDGER_PATH:-$OUT_DIR/freeze_history.jsonl}"
+FD_STABILITY_HISTORY_LEDGER_PATH="${GATEFORGE_WEEKLY_FD_STABILITY_HISTORY_LEDGER_PATH:-$OUT_DIR/failure_distribution_stability_history.jsonl}"
 
 if [ -z "$SCALE_SUMMARY" ]; then
   if [ -f "artifacts/private_model_mutation_scale_depth6_sprint_v1/summary.json" ]; then
@@ -62,8 +63,13 @@ if [ -f "$OUT_DIR/freeze_history_summary.json" ]; then
 else
   rm -f "$OUT_DIR/freeze_history_summary_previous.json"
 fi
+if [ -f "$OUT_DIR/failure_distribution_stability_history_summary.json" ]; then
+  cp "$OUT_DIR/failure_distribution_stability_history_summary.json" "$OUT_DIR/failure_distribution_stability_history_summary_previous.json"
+else
+  rm -f "$OUT_DIR/failure_distribution_stability_history_summary_previous.json"
+fi
 
-rm -f "$OUT_DIR"/weekly_summary.json "$OUT_DIR"/weekly_summary.md "$OUT_DIR"/history_summary.json "$OUT_DIR"/history_summary.md "$OUT_DIR"/history_trend.json "$OUT_DIR"/history_trend.md "$OUT_DIR"/freeze_history_summary.json "$OUT_DIR"/freeze_history_summary.md "$OUT_DIR"/freeze_history_trend.json "$OUT_DIR"/freeze_history_trend.md "$OUT_DIR"/summary.json "$OUT_DIR"/summary.md
+rm -f "$OUT_DIR"/weekly_summary.json "$OUT_DIR"/weekly_summary.md "$OUT_DIR"/history_summary.json "$OUT_DIR"/history_summary.md "$OUT_DIR"/history_trend.json "$OUT_DIR"/history_trend.md "$OUT_DIR"/freeze_history_summary.json "$OUT_DIR"/freeze_history_summary.md "$OUT_DIR"/freeze_history_trend.json "$OUT_DIR"/freeze_history_trend.md "$OUT_DIR"/failure_distribution_guard_snapshot_summary.json "$OUT_DIR"/failure_distribution_guard_snapshot_summary.md "$OUT_DIR"/failure_distribution_stability_history_summary.json "$OUT_DIR"/failure_distribution_stability_history_summary.md "$OUT_DIR"/failure_distribution_stability_history_trend.json "$OUT_DIR"/failure_distribution_stability_history_trend.md "$OUT_DIR"/summary.json "$OUT_DIR"/summary.md
 
 SCALE_DIR="$(cd "$(dirname "$SCALE_SUMMARY")" && pwd)"
 python3 -m gateforge.dataset_real_model_uniqueness_guard_v1 \
@@ -191,6 +197,39 @@ else
 JSON
 fi
 
+python3 -m gateforge.dataset_failure_distribution_guard_snapshot_v1 \
+  --failure-distribution-stability-guard-summary "$SCALE_DIR/failure_distribution_stability_guard_summary.json" \
+  --weekly-summary "$OUT_DIR/weekly_summary.json" \
+  --out "$OUT_DIR/failure_distribution_guard_snapshot_summary.json" \
+  --report-out "$OUT_DIR/failure_distribution_guard_snapshot_summary.md"
+
+python3 -m gateforge.dataset_failure_distribution_stability_history_v1 \
+  --record "$OUT_DIR/failure_distribution_guard_snapshot_summary.json" \
+  --ledger "$FD_STABILITY_HISTORY_LEDGER_PATH" \
+  --out "$OUT_DIR/failure_distribution_stability_history_summary.json" \
+  --report-out "$OUT_DIR/failure_distribution_stability_history_summary.md"
+
+if [ -f "$OUT_DIR/failure_distribution_stability_history_summary_previous.json" ]; then
+  python3 -m gateforge.dataset_failure_distribution_stability_history_trend_v1 \
+    --previous "$OUT_DIR/failure_distribution_stability_history_summary_previous.json" \
+    --current "$OUT_DIR/failure_distribution_stability_history_summary.json" \
+    --out "$OUT_DIR/failure_distribution_stability_history_trend.json" \
+    --report-out "$OUT_DIR/failure_distribution_stability_history_trend.md"
+else
+  cat > "$OUT_DIR/failure_distribution_stability_history_trend.json" <<'JSON'
+{
+  "status": "PASS",
+  "trend": {
+    "status_transition": "BOOTSTRAP->BOOTSTRAP",
+    "delta_avg_stability_score": 0.0,
+    "delta_avg_distribution_drift_score": 0.0,
+    "delta_avg_rare_failure_replay_rate": 0.0,
+    "alerts": []
+  }
+}
+JSON
+fi
+
 python3 - <<'PY'
 import json
 import os
@@ -204,6 +243,9 @@ freeze = json.loads((out / "freeze_summary.json").read_text(encoding="utf-8"))
 freeze_trend = json.loads((out / "freeze_trend_summary.json").read_text(encoding="utf-8"))
 freeze_history = json.loads((out / "freeze_history_summary.json").read_text(encoding="utf-8"))
 freeze_history_trend = json.loads((out / "freeze_history_trend.json").read_text(encoding="utf-8"))
+fd_snapshot = json.loads((out / "failure_distribution_guard_snapshot_summary.json").read_text(encoding="utf-8"))
+fd_history = json.loads((out / "failure_distribution_stability_history_summary.json").read_text(encoding="utf-8"))
+fd_history_trend = json.loads((out / "failure_distribution_stability_history_trend.json").read_text(encoding="utf-8"))
 kpis = weekly.get("kpis") if isinstance(weekly.get("kpis"), dict) else {}
 
 payload = {
@@ -238,10 +280,25 @@ payload = {
     "freeze_history_status_transition": (freeze_history_trend.get("trend") or {}).get("status_transition"),
     "freeze_history_delta_avg_generated_mutations": (freeze_history_trend.get("trend") or {}).get("delta_avg_generated_mutations"),
     "freeze_history_delta_needs_review_rate": (freeze_history_trend.get("trend") or {}).get("delta_needs_review_rate"),
+    "failure_distribution_snapshot_status": fd_snapshot.get("status"),
+    "failure_distribution_snapshot_stability_score": fd_snapshot.get("stability_score"),
+    "failure_distribution_snapshot_drift_score": fd_snapshot.get("distribution_drift_score"),
+    "failure_distribution_stability_history_status": fd_history.get("status"),
+    "failure_distribution_stability_history_total_records": fd_history.get("total_records"),
+    "failure_distribution_stability_history_avg_stability_score": fd_history.get("avg_stability_score"),
+    "failure_distribution_stability_history_trend_status": fd_history_trend.get("status"),
+    "failure_distribution_stability_history_status_transition": (fd_history_trend.get("trend") or {}).get("status_transition"),
+    "failure_distribution_stability_history_delta_avg_stability_score": (fd_history_trend.get("trend") or {}).get("delta_avg_stability_score"),
+    "failure_distribution_stability_history_delta_avg_distribution_drift_score": (fd_history_trend.get("trend") or {}).get("delta_avg_distribution_drift_score"),
 }
 (out / "summary.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
 print(json.dumps(payload))
-if str(weekly.get("status") or "") == "FAIL":
+if (
+    str(weekly.get("status") or "") == "FAIL"
+    or str(fd_snapshot.get("status") or "") == "FAIL"
+    or str(fd_history.get("status") or "") == "FAIL"
+    or str(fd_history_trend.get("status") or "") == "FAIL"
+):
     raise SystemExit(1)
 PY
 
