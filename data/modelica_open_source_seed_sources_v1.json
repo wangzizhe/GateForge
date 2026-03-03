@@ -95,6 +95,69 @@
         "OpenIPSL/Examples",
         "OpenIPSL/Tests"
       ]
+    },
+    {
+      "source_id": "modelica_standard_library_math_clocked",
+      "mode": "local",
+      "local_path": "assets_private/modelica_sources/modelica_standard_library",
+      "license": "BSD-3-Clause",
+      "scale_hint": "medium",
+      "package_roots": [
+        "Modelica/Math",
+        "Modelica/Clocked",
+        "Modelica/ComplexBlocks"
+      ]
+    },
+    {
+      "source_id": "modelica_buildings_applications_air",
+      "mode": "local",
+      "local_path": "assets_private/modelica_sources/modelica_buildings",
+      "license": "BSD-3-Clause",
+      "scale_hint": "large",
+      "package_roots": [
+        "Buildings/Air",
+        "Buildings/Airflow",
+        "Buildings/Applications",
+        "Buildings/Templates",
+        "Buildings/DHC"
+      ]
+    },
+    {
+      "source_id": "modelica_ibpsa_airflow_media",
+      "mode": "local",
+      "local_path": "assets_private/modelica_sources/modelica_ibpsa",
+      "license": "BSD-3-Clause",
+      "scale_hint": "large",
+      "package_roots": [
+        "IBPSA/Airflow",
+        "IBPSA/Media",
+        "IBPSA/BoundaryConditions"
+      ]
+    },
+    {
+      "source_id": "aixlib_media_boundary_airflow",
+      "mode": "local",
+      "local_path": "assets_private/modelica_sources/aixlib",
+      "license": "BSD-3-Clause",
+      "scale_hint": "large",
+      "package_roots": [
+        "AixLib/Media",
+        "AixLib/BoundaryConditions",
+        "AixLib/Airflow",
+        "AixLib/Utilities"
+      ]
+    },
+    {
+      "source_id": "openipsl_nonelectrical_interfaces",
+      "mode": "local",
+      "local_path": "assets_private/modelica_sources/openipsl",
+      "license": "BSD-3-Clause",
+      "scale_hint": "medium",
+      "package_roots": [
+        "OpenIPSL/NonElectrical",
+        "OpenIPSL/Interfaces",
+        "OpenIPSL/Data"
+      ]
     }
   ]
 }
