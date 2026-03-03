@@ -58,6 +58,10 @@ NET_GROWTH_AUTH_HISTORY_LEDGER_PATH="${GATEFORGE_NET_GROWTH_AUTH_HISTORY_LEDGER_
 NET_GROWTH_AUTH_HISTORY_LAST_SUMMARY_PATH="${GATEFORGE_NET_GROWTH_AUTH_HISTORY_LAST_SUMMARY_PATH:-$OUT_DIR/state/net_growth_authenticity_history_last_summary.json}"
 LARGE_MODEL_TRUTH_HISTORY_LEDGER_PATH="${GATEFORGE_LARGE_MODEL_TRUTH_HISTORY_LEDGER_PATH:-$OUT_DIR/state/large_model_executable_truth_history.jsonl}"
 LARGE_MODEL_TRUTH_HISTORY_LAST_SUMMARY_PATH="${GATEFORGE_LARGE_MODEL_TRUTH_HISTORY_LAST_SUMMARY_PATH:-$OUT_DIR/state/large_model_executable_truth_last_summary.json}"
+JOINT_MOAT_STRENGTH_HISTORY_LEDGER_PATH="${GATEFORGE_JOINT_MOAT_STRENGTH_HISTORY_LEDGER_PATH:-$OUT_DIR/state/joint_moat_strength_history.jsonl}"
+JOINT_MOAT_STRENGTH_HISTORY_LAST_SUMMARY_PATH="${GATEFORGE_JOINT_MOAT_STRENGTH_HISTORY_LAST_SUMMARY_PATH:-$OUT_DIR/state/joint_moat_strength_last_summary.json}"
+MUTATION_SIGNATURE_HISTORY_LEDGER_PATH="${GATEFORGE_MUTATION_SIGNATURE_HISTORY_LEDGER_PATH:-$OUT_DIR/state/mutation_signature_uniqueness_history.jsonl}"
+MUTATION_SIGNATURE_HISTORY_LAST_SUMMARY_PATH="${GATEFORGE_MUTATION_SIGNATURE_HISTORY_LAST_SUMMARY_PATH:-$OUT_DIR/state/mutation_signature_uniqueness_last_summary.json}"
 HARD_MOAT_MIN_DISCOVERED_MODELS="${GATEFORGE_HARD_MOAT_MIN_DISCOVERED_MODELS:-2}"
 HARD_MOAT_MIN_ACCEPTED_MODELS="${GATEFORGE_HARD_MOAT_MIN_ACCEPTED_MODELS:-2}"
 HARD_MOAT_MIN_ACCEPTED_LARGE_MODELS="${GATEFORGE_HARD_MOAT_MIN_ACCEPTED_LARGE_MODELS:-1}"
@@ -98,6 +102,10 @@ export NET_GROWTH_AUTH_HISTORY_LEDGER_PATH
 export NET_GROWTH_AUTH_HISTORY_LAST_SUMMARY_PATH
 export LARGE_MODEL_TRUTH_HISTORY_LEDGER_PATH
 export LARGE_MODEL_TRUTH_HISTORY_LAST_SUMMARY_PATH
+export JOINT_MOAT_STRENGTH_HISTORY_LEDGER_PATH
+export JOINT_MOAT_STRENGTH_HISTORY_LAST_SUMMARY_PATH
+export MUTATION_SIGNATURE_HISTORY_LEDGER_PATH
+export MUTATION_SIGNATURE_HISTORY_LAST_SUMMARY_PATH
 export HARD_MOAT_MIN_DISCOVERED_MODELS
 export HARD_MOAT_MIN_ACCEPTED_MODELS
 export HARD_MOAT_MIN_ACCEPTED_LARGE_MODELS
@@ -719,6 +727,89 @@ fi
 mkdir -p "$(dirname "$REAL_MODEL_SOURCE_DIVERSITY_HISTORY_LAST_SUMMARY_PATH")"
 cp "$OUT_DIR/real_model_source_diversity_history_summary.json" "$REAL_MODEL_SOURCE_DIVERSITY_HISTORY_LAST_SUMMARY_PATH"
 
+python3 -m gateforge.dataset_joint_moat_strength_gate_v1 \
+  --real-model-family-coverage-summary "$OUT_DIR/real_model_family_coverage_board_summary.json" \
+  --real-model-source-diversity-summary "$OUT_DIR/real_model_source_diversity_guard_summary.json" \
+  --mutation-repro-depth-summary "$OUT_DIR/mutation_repro_depth_guard_summary.json" \
+  --large-model-executable-truth-summary "$OUT_DIR/large_model_executable_truth_summary.json" \
+  --real-model-net-growth-authenticity-summary "$OUT_DIR/real_model_net_growth_authenticity_summary.json" \
+  --hard-moat-gates-summary "$OUT_DIR/hard_moat_gates_summary.json" \
+  --out "$OUT_DIR/joint_moat_strength_summary.json" \
+  --report-out "$OUT_DIR/joint_moat_strength_summary.md"
+
+if [ -f "$JOINT_MOAT_STRENGTH_HISTORY_LAST_SUMMARY_PATH" ]; then
+  cp "$JOINT_MOAT_STRENGTH_HISTORY_LAST_SUMMARY_PATH" "$OUT_DIR/joint_moat_strength_history_previous_summary.json"
+else
+  rm -f "$OUT_DIR/joint_moat_strength_history_previous_summary.json"
+fi
+
+python3 -m gateforge.dataset_joint_moat_strength_history_ledger_v1 \
+  --joint-moat-strength-summary "$OUT_DIR/joint_moat_strength_summary.json" \
+  --ledger "$JOINT_MOAT_STRENGTH_HISTORY_LEDGER_PATH" \
+  --out "$OUT_DIR/joint_moat_strength_history_summary.json" \
+  --report-out "$OUT_DIR/joint_moat_strength_history_summary.md"
+
+if [ -f "$OUT_DIR/joint_moat_strength_history_previous_summary.json" ]; then
+  python3 -m gateforge.dataset_joint_moat_strength_history_trend_v1 \
+    --previous "$OUT_DIR/joint_moat_strength_history_previous_summary.json" \
+    --current "$OUT_DIR/joint_moat_strength_history_summary.json" \
+    --out "$OUT_DIR/joint_moat_strength_history_trend_summary.json" \
+    --report-out "$OUT_DIR/joint_moat_strength_history_trend_summary.md"
+else
+  cat > "$OUT_DIR/joint_moat_strength_history_trend_summary.json" <<'JSON'
+{
+  "status": "PASS",
+  "trend": {
+    "status_transition": "BOOTSTRAP->BOOTSTRAP",
+    "delta_moat_strength_score": 0.0,
+    "alerts": []
+  },
+  "alerts": []
+}
+JSON
+fi
+mkdir -p "$(dirname "$JOINT_MOAT_STRENGTH_HISTORY_LAST_SUMMARY_PATH")"
+cp "$OUT_DIR/joint_moat_strength_history_summary.json" "$JOINT_MOAT_STRENGTH_HISTORY_LAST_SUMMARY_PATH"
+
+python3 -m gateforge.dataset_mutation_signature_uniqueness_guard_v1 \
+  --mutation-manifest "$OUT_DIR/mutation_manifest.json" \
+  --out "$OUT_DIR/mutation_signature_uniqueness_summary.json" \
+  --report-out "$OUT_DIR/mutation_signature_uniqueness_summary.md"
+
+if [ -f "$MUTATION_SIGNATURE_HISTORY_LAST_SUMMARY_PATH" ]; then
+  cp "$MUTATION_SIGNATURE_HISTORY_LAST_SUMMARY_PATH" "$OUT_DIR/mutation_signature_uniqueness_history_previous_summary.json"
+else
+  rm -f "$OUT_DIR/mutation_signature_uniqueness_history_previous_summary.json"
+fi
+
+python3 -m gateforge.dataset_mutation_signature_uniqueness_history_ledger_v1 \
+  --mutation-signature-uniqueness-summary "$OUT_DIR/mutation_signature_uniqueness_summary.json" \
+  --ledger "$MUTATION_SIGNATURE_HISTORY_LEDGER_PATH" \
+  --out "$OUT_DIR/mutation_signature_uniqueness_history_summary.json" \
+  --report-out "$OUT_DIR/mutation_signature_uniqueness_history_summary.md"
+
+if [ -f "$OUT_DIR/mutation_signature_uniqueness_history_previous_summary.json" ]; then
+  python3 -m gateforge.dataset_mutation_signature_uniqueness_history_trend_v1 \
+    --previous "$OUT_DIR/mutation_signature_uniqueness_history_previous_summary.json" \
+    --current "$OUT_DIR/mutation_signature_uniqueness_history_summary.json" \
+    --out "$OUT_DIR/mutation_signature_uniqueness_history_trend_summary.json" \
+    --report-out "$OUT_DIR/mutation_signature_uniqueness_history_trend_summary.md"
+else
+  cat > "$OUT_DIR/mutation_signature_uniqueness_history_trend_summary.json" <<'JSON'
+{
+  "status": "PASS",
+  "trend": {
+    "status_transition": "BOOTSTRAP->BOOTSTRAP",
+    "delta_unique_signature_ratio_pct": 0.0,
+    "alerts": []
+  },
+  "alerts": []
+}
+JSON
+fi
+mkdir -p "$(dirname "$MUTATION_SIGNATURE_HISTORY_LAST_SUMMARY_PATH")"
+cp "$OUT_DIR/mutation_signature_uniqueness_history_summary.json" "$MUTATION_SIGNATURE_HISTORY_LAST_SUMMARY_PATH"
+
 python3 -m gateforge.dataset_mutation_artifact_inventory_v1 \
   --mutation-manifest "$OUT_DIR/mutation_manifest.json" \
   --mutation-raw-observations "$OUT_DIR/mutation_raw_observations.json" \
@@ -793,6 +884,12 @@ family_board = _load("real_model_family_coverage_board_summary.json")
 source_diversity_guard = _load("real_model_source_diversity_guard_summary.json")
 source_diversity_history = _load("real_model_source_diversity_history_summary.json")
 source_diversity_history_trend = _load("real_model_source_diversity_history_trend_summary.json")
+joint_moat_strength = _load("joint_moat_strength_summary.json")
+joint_moat_strength_history = _load("joint_moat_strength_history_summary.json")
+joint_moat_strength_history_trend = _load("joint_moat_strength_history_trend_summary.json")
+mutation_signature_uniqueness = _load("mutation_signature_uniqueness_summary.json")
+mutation_signature_uniqueness_history = _load("mutation_signature_uniqueness_history_summary.json")
+mutation_signature_uniqueness_history_trend = _load("mutation_signature_uniqueness_history_trend_summary.json")
 mutation_inventory = _load("mutation_artifact_inventory_summary.json")
 asset_locator = _load("asset_locator_manifest_summary.json")
 repro_sample_pack = _load("reproducible_mutation_sample_pack_summary.json")
@@ -842,6 +939,12 @@ flags = {
     "real_model_source_diversity_guard_exists": "PASS" if str(source_diversity_guard.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "real_model_source_diversity_history_exists": "PASS" if str(source_diversity_history.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "real_model_source_diversity_history_trend_exists": "PASS" if str(source_diversity_history_trend.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
+    "joint_moat_strength_exists": "PASS" if str(joint_moat_strength.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
+    "joint_moat_strength_history_exists": "PASS" if str(joint_moat_strength_history.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
+    "joint_moat_strength_history_trend_exists": "PASS" if str(joint_moat_strength_history_trend.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
+    "mutation_signature_uniqueness_exists": "PASS" if str(mutation_signature_uniqueness.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
+    "mutation_signature_uniqueness_history_exists": "PASS" if str(mutation_signature_uniqueness_history.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
+    "mutation_signature_uniqueness_history_trend_exists": "PASS" if str(mutation_signature_uniqueness_history_trend.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "mutation_artifact_inventory_exists": "PASS" if str(mutation_inventory.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "asset_locator_manifest_exists": "PASS" if str(asset_locator.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "reproducible_sample_pack_exists": "PASS" if str(repro_sample_pack.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
@@ -961,6 +1064,25 @@ summary = {
     "real_model_source_diversity_history_trend_status": source_diversity_history_trend.get("status"),
     "real_model_source_diversity_history_trend_delta_unique_source_buckets": (source_diversity_history_trend.get("trend") or {}).get("delta_unique_source_buckets"),
     "real_model_source_diversity_history_trend_delta_max_source_bucket_share_pct": (source_diversity_history_trend.get("trend") or {}).get("delta_max_source_bucket_share_pct"),
+    "joint_moat_strength_status": joint_moat_strength.get("status"),
+    "joint_moat_strength_score": joint_moat_strength.get("moat_strength_score"),
+    "joint_moat_strength_grade": joint_moat_strength.get("moat_strength_grade"),
+    "joint_moat_strength_hard_fail_count": joint_moat_strength.get("hard_fail_count"),
+    "joint_moat_strength_history_status": joint_moat_strength_history.get("status"),
+    "joint_moat_strength_history_total_records": joint_moat_strength_history.get("total_records"),
+    "joint_moat_strength_history_latest_score": joint_moat_strength_history.get("latest_moat_strength_score"),
+    "joint_moat_strength_history_trend_status": joint_moat_strength_history_trend.get("status"),
+    "joint_moat_strength_history_trend_delta_score": (joint_moat_strength_history_trend.get("trend") or {}).get("delta_moat_strength_score"),
+    "mutation_signature_uniqueness_status": mutation_signature_uniqueness.get("status"),
+    "mutation_signature_uniqueness_total_mutations": mutation_signature_uniqueness.get("total_mutations"),
+    "mutation_signature_uniqueness_unique_signatures": mutation_signature_uniqueness.get("unique_signatures"),
+    "mutation_signature_uniqueness_unique_signature_ratio_pct": mutation_signature_uniqueness.get("unique_signature_ratio_pct"),
+    "mutation_signature_uniqueness_duplicate_signatures": mutation_signature_uniqueness.get("duplicate_signatures"),
+    "mutation_signature_uniqueness_history_status": mutation_signature_uniqueness_history.get("status"),
+    "mutation_signature_uniqueness_history_total_records": mutation_signature_uniqueness_history.get("total_records"),
+    "mutation_signature_uniqueness_history_latest_unique_signature_ratio_pct": mutation_signature_uniqueness_history.get("latest_unique_signature_ratio_pct"),
+    "mutation_signature_uniqueness_history_trend_status": mutation_signature_uniqueness_history_trend.get("status"),
+    "mutation_signature_uniqueness_history_trend_delta_unique_signature_ratio_pct": (mutation_signature_uniqueness_history_trend.get("trend") or {}).get("delta_unique_signature_ratio_pct"),
     "mutation_artifact_inventory_status": mutation_inventory.get("status"),
     "mutation_artifact_existing_file_ratio": mutation_inventory.get("existing_file_ratio"),
     "mutation_artifact_execution_coverage_ratio": mutation_inventory.get("execution_coverage_ratio"),
@@ -1105,6 +1227,25 @@ summary = {
             f"- real_model_source_diversity_history_trend_status: `{summary['real_model_source_diversity_history_trend_status']}`",
             f"- real_model_source_diversity_history_trend_delta_unique_source_buckets: `{summary['real_model_source_diversity_history_trend_delta_unique_source_buckets']}`",
             f"- real_model_source_diversity_history_trend_delta_max_source_bucket_share_pct: `{summary['real_model_source_diversity_history_trend_delta_max_source_bucket_share_pct']}`",
+            f"- joint_moat_strength_status: `{summary['joint_moat_strength_status']}`",
+            f"- joint_moat_strength_score: `{summary['joint_moat_strength_score']}`",
+            f"- joint_moat_strength_grade: `{summary['joint_moat_strength_grade']}`",
+            f"- joint_moat_strength_hard_fail_count: `{summary['joint_moat_strength_hard_fail_count']}`",
+            f"- joint_moat_strength_history_status: `{summary['joint_moat_strength_history_status']}`",
+            f"- joint_moat_strength_history_total_records: `{summary['joint_moat_strength_history_total_records']}`",
+            f"- joint_moat_strength_history_latest_score: `{summary['joint_moat_strength_history_latest_score']}`",
+            f"- joint_moat_strength_history_trend_status: `{summary['joint_moat_strength_history_trend_status']}`",
+            f"- joint_moat_strength_history_trend_delta_score: `{summary['joint_moat_strength_history_trend_delta_score']}`",
+            f"- mutation_signature_uniqueness_status: `{summary['mutation_signature_uniqueness_status']}`",
+            f"- mutation_signature_uniqueness_total_mutations: `{summary['mutation_signature_uniqueness_total_mutations']}`",
+            f"- mutation_signature_uniqueness_unique_signatures: `{summary['mutation_signature_uniqueness_unique_signatures']}`",
+            f"- mutation_signature_uniqueness_unique_signature_ratio_pct: `{summary['mutation_signature_uniqueness_unique_signature_ratio_pct']}`",
+            f"- mutation_signature_uniqueness_duplicate_signatures: `{summary['mutation_signature_uniqueness_duplicate_signatures']}`",
+            f"- mutation_signature_uniqueness_history_status: `{summary['mutation_signature_uniqueness_history_status']}`",
+            f"- mutation_signature_uniqueness_history_total_records: `{summary['mutation_signature_uniqueness_history_total_records']}`",
+            f"- mutation_signature_uniqueness_history_latest_unique_signature_ratio_pct: `{summary['mutation_signature_uniqueness_history_latest_unique_signature_ratio_pct']}`",
+            f"- mutation_signature_uniqueness_history_trend_status: `{summary['mutation_signature_uniqueness_history_trend_status']}`",
+            f"- mutation_signature_uniqueness_history_trend_delta_unique_signature_ratio_pct: `{summary['mutation_signature_uniqueness_history_trend_delta_unique_signature_ratio_pct']}`",
             f"- mutation_artifact_inventory_status: `{summary['mutation_artifact_inventory_status']}`",
             f"- mutation_artifact_existing_file_ratio: `{summary['mutation_artifact_existing_file_ratio']}`",
             f"- mutation_artifact_execution_coverage_ratio: `{summary['mutation_artifact_execution_coverage_ratio']}`",
