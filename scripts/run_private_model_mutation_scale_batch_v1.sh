@@ -44,6 +44,7 @@ VALIDATION_MAX_BASELINES="${GATEFORGE_MUTATION_VALIDATION_MAX_BASELINES:-200}"
 VALIDATION_MAX_MUTATIONS="${GATEFORGE_MUTATION_VALIDATION_MAX_MUTATIONS:-1200}"
 VALIDATION_MIN_STAGE_MATCH_PCT="${GATEFORGE_MUTATION_VALIDATION_MIN_STAGE_MATCH_PCT:-0}"
 VALIDATION_MIN_TYPE_MATCH_PCT="${GATEFORGE_MUTATION_VALIDATION_MIN_TYPE_MATCH_PCT:-0}"
+MANIFEST_BASELINE_PATH="${GATEFORGE_MUTATION_MANIFEST_BASELINE_PATH:-$OUT_DIR/state/previous_mutation_manifest.json}"
 export TARGET_SCALES
 export FAILURE_TYPES
 export PROFILE
@@ -60,6 +61,7 @@ export VALIDATION_MAX_BASELINES
 export VALIDATION_MAX_MUTATIONS
 export VALIDATION_MIN_STAGE_MATCH_PCT
 export VALIDATION_MIN_TYPE_MATCH_PCT
+export MANIFEST_BASELINE_PATH
 
 python3 - <<'PY'
 import json
@@ -288,6 +290,28 @@ python3 -m gateforge.dataset_mutation_validation_matrix_v1 \
   --out "$OUT_DIR/mutation_validation_summary.json" \
   --report-out "$OUT_DIR/mutation_validation_summary.md"
 
+python3 -m gateforge.dataset_mutation_validation_matrix_v2 \
+  --validation-records "$OUT_DIR/mutation_validation_records.json" \
+  --mutation-manifest "$OUT_DIR/mutation_manifest.json" \
+  --matrix-out "$OUT_DIR/mutation_validation_matrix_v2_matrix.json" \
+  --out "$OUT_DIR/mutation_validation_matrix_v2_summary.json" \
+  --report-out "$OUT_DIR/mutation_validation_matrix_v2_summary.md"
+
+GUARD_ARGS=(
+  --current-mutation-manifest "$OUT_DIR/mutation_manifest.json"
+)
+if [ -f "$MANIFEST_BASELINE_PATH" ]; then
+  GUARD_ARGS+=(--previous-mutation-manifest "$MANIFEST_BASELINE_PATH")
+fi
+
+python3 -m gateforge.dataset_failure_distribution_stability_guard_v1 \
+  "${GUARD_ARGS[@]}" \
+  --out "$OUT_DIR/failure_distribution_stability_guard_summary.json" \
+  --report-out "$OUT_DIR/failure_distribution_stability_guard_summary.md"
+
+mkdir -p "$(dirname "$MANIFEST_BASELINE_PATH")"
+cp "$OUT_DIR/mutation_manifest.json" "$MANIFEST_BASELINE_PATH"
+
 python3 -m gateforge.dataset_mutation_real_runner_v1 \
   --validated-mutation-manifest "$OUT_DIR/mutation_manifest.json" \
   --timeout-seconds "${GATEFORGE_MUTATION_TIMEOUT_SECONDS:-15}" \
@@ -329,6 +353,8 @@ canonical = _load("canonical_registry_summary.json")
 recipe = _load("mutation_recipe_library_v2_summary.json")
 pack = _load("mutation_pack_summary.json")
 validation = _load("mutation_validation_summary.json")
+validation_v2 = _load("mutation_validation_matrix_v2_summary.json")
+stability_guard = _load("failure_distribution_stability_guard_summary.json")
 realrun = _load("mutation_real_runner_summary.json")
 gate = _load("scale_gate_summary.json")
 auto_scale = _load("auto_mutation_scale.json")
@@ -351,6 +377,8 @@ flags = {
     "canonical_registry_present": "PASS" if int(canonical.get("canonical_total_models", 0)) >= 0 else "FAIL",
     "recipe_library_present": "PASS" if int(recipe.get("total_recipes", 0)) >= 0 else "FAIL",
     "validation_exists": "PASS" if str(validation.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
+    "validation_v2_exists": "PASS" if str(validation_v2.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
+    "stability_guard_exists": "PASS" if str(stability_guard.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "gate_status_present": "PASS" if str(gate.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "accepted_large_ratio_gate": "PASS"
     if (not ratio_gate_enabled or accepted_large_ratio_pct >= min_accepted_large_ratio_pct)
@@ -386,6 +414,13 @@ summary = {
     "baseline_check_pass_rate_pct": validation.get("baseline_check_pass_rate_pct"),
     "validation_stage_match_rate_pct": validation.get("stage_match_rate_pct"),
     "validation_type_match_rate_pct": validation.get("type_match_rate_pct"),
+    "validation_v2_status": validation_v2.get("status"),
+    "validation_v2_medium_type_match_rate_pct": ((validation_v2.get("by_scale") or {}).get("medium") or {}).get("type_match_rate_pct"),
+    "validation_v2_large_type_match_rate_pct": ((validation_v2.get("by_scale") or {}).get("large") or {}).get("type_match_rate_pct"),
+    "validation_v2_overall_type_match_rate_pct": (validation_v2.get("overall") or {}).get("type_match_rate_pct"),
+    "failure_distribution_guard_status": stability_guard.get("status"),
+    "failure_distribution_guard_entropy": stability_guard.get("failure_type_entropy"),
+    "failure_distribution_guard_drift_tvd": stability_guard.get("distribution_drift_tvd"),
     "reproducible_mutations": realrun.get("executed_count"),
     "target_scales": auto_scale.get("target_scales"),
     "selected_mutation_models": auto_scale.get("selected_mutation_models"),
@@ -426,6 +461,12 @@ summary = {
             f"- baseline_check_pass_rate_pct: `{summary['baseline_check_pass_rate_pct']}`",
             f"- validation_stage_match_rate_pct: `{summary['validation_stage_match_rate_pct']}`",
             f"- validation_type_match_rate_pct: `{summary['validation_type_match_rate_pct']}`",
+            f"- validation_v2_status: `{summary['validation_v2_status']}`",
+            f"- validation_v2_medium_type_match_rate_pct: `{summary['validation_v2_medium_type_match_rate_pct']}`",
+            f"- validation_v2_large_type_match_rate_pct: `{summary['validation_v2_large_type_match_rate_pct']}`",
+            f"- failure_distribution_guard_status: `{summary['failure_distribution_guard_status']}`",
+            f"- failure_distribution_guard_entropy: `{summary['failure_distribution_guard_entropy']}`",
+            f"- failure_distribution_guard_drift_tvd: `{summary['failure_distribution_guard_drift_tvd']}`",
             f"- reproducible_mutations: `{summary['reproducible_mutations']}`",
             f"- selected_mutation_models: `{summary['selected_mutation_models']}`",
             f"- selected_mutation_models_total: `{summary['selected_mutation_models_total']}`",

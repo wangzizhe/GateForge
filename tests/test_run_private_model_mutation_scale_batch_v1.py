@@ -84,6 +84,8 @@ class RunPrivateModelMutationScaleBatchV1Tests(unittest.TestCase):
             self.assertGreaterEqual(int(summary.get("canonical_total_models", 0) or 0), 2)
             self.assertIn(summary.get("mutation_recipe_library_v2_status"), {"PASS", "NEEDS_REVIEW", "FAIL"})
             self.assertIn(summary.get("mutation_validation_status"), {"PASS", "NEEDS_REVIEW", "FAIL"})
+            self.assertIn(summary.get("validation_v2_status"), {"PASS", "NEEDS_REVIEW", "FAIL"})
+            self.assertIn(summary.get("failure_distribution_guard_status"), {"PASS", "NEEDS_REVIEW", "FAIL"})
             self.assertIn(summary.get("validation_backend_used"), {"syntax", "omc"})
 
             manifest = json.loads((out_dir / "mutation_manifest.json").read_text(encoding="utf-8"))

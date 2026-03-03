@@ -40,6 +40,29 @@ cat > "$OUT_DIR/depth_upgrade_report.json" <<'JSON'
 {"status":"PASS","upgrade_status":"UPGRADED","current_mutations_per_failure_type":4}
 JSON
 
+cat > "$OUT_DIR/canonical_registry_summary.json" <<'JSON'
+{"status":"PASS","canonical_total_models":900,"canonical_net_growth_models":12}
+JSON
+
+cat > "$OUT_DIR/mutation_validation_summary.json" <<'JSON'
+{"status":"PASS","validation_backend_used":"syntax","baseline_check_pass_rate_pct":100.0}
+JSON
+
+cat > "$OUT_DIR/mutation_validation_matrix_v2_summary.json" <<'JSON'
+{
+  "status":"PASS",
+  "overall":{"validated_count":100,"type_match_rate_pct":72.0},
+  "by_scale":{
+    "medium":{"validated_count":50,"type_match_rate_pct":70.0},
+    "large":{"validated_count":50,"type_match_rate_pct":74.0}
+  }
+}
+JSON
+
+cat > "$OUT_DIR/failure_distribution_stability_guard_summary.json" <<'JSON'
+{"status":"PASS","unique_failure_types":5,"failure_type_entropy":2.1,"distribution_drift_tvd":0.08}
+JSON
+
 cat > "$OUT_DIR/intake_runner_accepted.json" <<JSON
 {
   "rows": [
@@ -136,6 +159,8 @@ payload = {
     "trend_status": summary.get("trend_status"),
     "mutation_validation_status": summary.get("mutation_validation_status"),
     "mutation_validation_fidelity_score": summary.get("mutation_validation_fidelity_score"),
+    "freeze_status": summary.get("freeze_status"),
+    "freeze_id": summary.get("freeze_id"),
     "result_flags": flags,
 }
 (out / "demo_summary.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
