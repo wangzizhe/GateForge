@@ -46,6 +46,16 @@ def _clamp(v: float, lo: float, hi: float) -> float:
     return max(lo, min(hi, v))
 
 
+def _authenticity_score(auth: dict) -> float:
+    if not auth:
+        return 0.0
+    solver_ratio = _clamp(_to_float(auth.get("solver_command_ratio_pct", 0.0)), 0.0, 100.0)
+    probe_ratio = _clamp(_to_float(auth.get("probe_only_command_ratio_pct", 100.0)), 0.0, 100.0)
+    failure_signal = _clamp(_to_float(auth.get("failure_signal_ratio_pct", 0.0)), 0.0, 100.0)
+    score = solver_ratio * 0.5 + (100.0 - probe_ratio) * 0.3 + failure_signal * 0.2
+    return round(_clamp(score, 0.0, 100.0), 2)
+
+
 def _write_markdown(path: str, payload: dict) -> None:
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
@@ -82,6 +92,7 @@ def main() -> None:
     parser.add_argument("--large-model-executable-truth-summary", required=True)
     parser.add_argument("--real-model-net-growth-authenticity-summary", required=True)
     parser.add_argument("--hard-moat-gates-summary", required=True)
+    parser.add_argument("--mutation-execution-authenticity-summary", default=None)
     parser.add_argument("--min-score-pass", type=float, default=78.0)
     parser.add_argument("--out", default="artifacts/dataset_joint_moat_strength_gate_v1/summary.json")
     parser.add_argument("--report-out", default=None)
@@ -93,6 +104,7 @@ def main() -> None:
     large_truth = _load_json(args.large_model_executable_truth_summary)
     net_growth = _load_json(args.real_model_net_growth_authenticity_summary)
     hard_moat = _load_json(args.hard_moat_gates_summary)
+    exec_auth = _load_json(args.mutation_execution_authenticity_summary)
 
     reasons: list[str] = []
     if not family:
@@ -114,8 +126,9 @@ def main() -> None:
     large_truth_score = _clamp(_to_float(large_truth.get("large_executable_real_rate_pct", 0.0)), 0.0, 100.0)
     growth_auth_score = _clamp(_to_float(net_growth.get("true_growth_ratio_pct", 0.0)), 0.0, 100.0)
     hard_moat_score = _clamp(_to_float(hard_moat.get("moat_hardness_score", 0.0)), 0.0, 100.0)
+    exec_auth_score = _authenticity_score(exec_auth)
 
-    weighted = (
+    base_weighted = (
         family_score * 0.12
         + source_score * 0.14
         + repro_score * 0.22
@@ -123,6 +136,9 @@ def main() -> None:
         + growth_auth_score * 0.14
         + hard_moat_score * 0.16
     )
+    weighted = base_weighted
+    if exec_auth:
+        weighted = base_weighted * 0.88 + exec_auth_score * 0.12
     moat_strength_score = round(weighted, 2)
     moat_strength_grade = _grade(moat_strength_score)
 
@@ -146,6 +162,10 @@ def main() -> None:
         warning_reasons.append("large_model_truth_not_pass")
     if str(net_growth.get("status") or "") in {"NEEDS_REVIEW", "FAIL"}:
         warning_reasons.append("net_growth_auth_not_pass")
+    if exec_auth and str(exec_auth.get("status") or "") in {"NEEDS_REVIEW", "FAIL"}:
+        warning_reasons.append("mutation_execution_authenticity_not_pass")
+    if exec_auth and exec_auth_score < 30.0:
+        warning_reasons.append("mutation_execution_authenticity_score_low")
     if moat_strength_score < float(args.min_score_pass):
         warning_reasons.append("joint_moat_strength_score_below_threshold")
 
@@ -173,6 +193,7 @@ def main() -> None:
             "large_truth_score": round(large_truth_score, 2),
             "growth_auth_score": round(growth_auth_score, 2),
             "hard_moat_score": round(hard_moat_score, 2),
+            "mutation_execution_authenticity_score": round(exec_auth_score, 2),
         },
         "alerts": warning_reasons,
         "reasons": sorted(set(reasons)),
@@ -183,6 +204,7 @@ def main() -> None:
             "large_model_executable_truth_summary": args.large_model_executable_truth_summary,
             "real_model_net_growth_authenticity_summary": args.real_model_net_growth_authenticity_summary,
             "hard_moat_gates_summary": args.hard_moat_gates_summary,
+            "mutation_execution_authenticity_summary": args.mutation_execution_authenticity_summary,
         },
     }
     _write_json(args.out, payload)

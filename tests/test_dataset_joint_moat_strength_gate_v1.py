@@ -84,6 +84,66 @@ class DatasetJointMoatStrengthGateV1Tests(unittest.TestCase):
             payload = json.loads(out.read_text(encoding="utf-8"))
             self.assertEqual(payload.get("status"), "FAIL")
 
+    def test_joint_gate_ingests_execution_authenticity_when_provided(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            family = root / "family.json"
+            source = root / "source.json"
+            repro = root / "repro.json"
+            large = root / "large.json"
+            growth = root / "growth.json"
+            hard = root / "hard.json"
+            auth = root / "auth.json"
+            out = root / "summary.json"
+            family.write_text(json.dumps({"status": "PASS", "family_entropy": 1.8}), encoding="utf-8")
+            source.write_text(json.dumps({"status": "PASS", "max_source_bucket_share_pct": 35.0}), encoding="utf-8")
+            repro.write_text(json.dumps({"status": "PASS", "models_meeting_depth_ratio_pct": 85.0}), encoding="utf-8")
+            large.write_text(json.dumps({"status": "PASS", "large_executable_real_rate_pct": 82.0}), encoding="utf-8")
+            growth.write_text(json.dumps({"status": "PASS", "true_growth_ratio_pct": 78.0}), encoding="utf-8")
+            hard.write_text(json.dumps({"status": "PASS", "moat_hardness_score": 88.0}), encoding="utf-8")
+            auth.write_text(
+                json.dumps(
+                    {
+                        "status": "NEEDS_REVIEW",
+                        "solver_command_ratio_pct": 0.0,
+                        "probe_only_command_ratio_pct": 98.0,
+                        "failure_signal_ratio_pct": 0.0,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.dataset_joint_moat_strength_gate_v1",
+                    "--real-model-family-coverage-summary",
+                    str(family),
+                    "--real-model-source-diversity-summary",
+                    str(source),
+                    "--mutation-repro-depth-summary",
+                    str(repro),
+                    "--large-model-executable-truth-summary",
+                    str(large),
+                    "--real-model-net-growth-authenticity-summary",
+                    str(growth),
+                    "--hard-moat-gates-summary",
+                    str(hard),
+                    "--mutation-execution-authenticity-summary",
+                    str(auth),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            payload = json.loads(out.read_text(encoding="utf-8"))
+            scores = payload.get("component_scores") if isinstance(payload.get("component_scores"), dict) else {}
+            self.assertIn("mutation_execution_authenticity_score", scores)
+            self.assertIn("mutation_execution_authenticity_not_pass", payload.get("warning_reasons") or [])
+
 
 if __name__ == "__main__":
     unittest.main()

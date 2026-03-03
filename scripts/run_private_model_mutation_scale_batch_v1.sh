@@ -779,6 +779,7 @@ python3 -m gateforge.dataset_joint_moat_strength_gate_v1 \
   --large-model-executable-truth-summary "$OUT_DIR/large_model_executable_truth_summary.json" \
   --real-model-net-growth-authenticity-summary "$OUT_DIR/real_model_net_growth_authenticity_summary.json" \
   --hard-moat-gates-summary "$OUT_DIR/hard_moat_gates_summary.json" \
+  --mutation-execution-authenticity-summary "$OUT_DIR/mutation_execution_authenticity_summary.json" \
   --out "$OUT_DIR/joint_moat_strength_summary.json" \
   --report-out "$OUT_DIR/joint_moat_strength_summary.md"
 
