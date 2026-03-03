@@ -66,6 +66,26 @@ def _failure_signal_authenticity_score(failure_auth: dict) -> float:
     return round(_clamp(score, 0.0, 100.0), 2)
 
 
+def _effective_depth_score(depth: dict) -> float:
+    if not depth:
+        return 0.0
+    ratio = _clamp(_to_float(depth.get("models_meeting_effective_depth_ratio_pct", 0.0)), 0.0, 100.0)
+    large_ratio = _clamp(_to_float(depth.get("large_models_meeting_effective_depth_ratio_pct", 0.0)), 0.0, 100.0)
+    p10 = _clamp(_to_float(depth.get("p10_effective_mutations_per_model", 0.0)) * 20.0, 0.0, 100.0)
+    score = ratio * 0.5 + large_ratio * 0.3 + p10 * 0.2
+    return round(_clamp(score, 0.0, 100.0), 2)
+
+
+def _source_provenance_score(source_prov: dict) -> float:
+    if not source_prov:
+        return 0.0
+    existing_ratio = _clamp(_to_float(source_prov.get("existing_source_path_ratio_pct", 0.0)), 0.0, 100.0)
+    allowed_ratio = _clamp(_to_float(source_prov.get("allowed_root_ratio_pct", 0.0)), 0.0, 100.0)
+    registry_ratio = _clamp(_to_float(source_prov.get("registry_match_ratio_pct", 0.0)), 0.0, 100.0)
+    score = existing_ratio * 0.45 + allowed_ratio * 0.35 + registry_ratio * 0.2
+    return round(_clamp(score, 0.0, 100.0), 2)
+
+
 def _write_markdown(path: str, payload: dict) -> None:
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
@@ -104,6 +124,8 @@ def main() -> None:
     parser.add_argument("--hard-moat-gates-summary", required=True)
     parser.add_argument("--mutation-execution-authenticity-summary", default=None)
     parser.add_argument("--mutation-failure-signal-authenticity-summary", default=None)
+    parser.add_argument("--mutation-effective-depth-summary", default=None)
+    parser.add_argument("--mutation-source-provenance-summary", default=None)
     parser.add_argument("--min-score-pass", type=float, default=78.0)
     parser.add_argument("--out", default="artifacts/dataset_joint_moat_strength_gate_v1/summary.json")
     parser.add_argument("--report-out", default=None)
@@ -117,6 +139,8 @@ def main() -> None:
     hard_moat = _load_json(args.hard_moat_gates_summary)
     exec_auth = _load_json(args.mutation_execution_authenticity_summary)
     failure_auth = _load_json(args.mutation_failure_signal_authenticity_summary)
+    effective_depth = _load_json(args.mutation_effective_depth_summary)
+    source_prov = _load_json(args.mutation_source_provenance_summary)
 
     reasons: list[str] = []
     if not family:
@@ -140,6 +164,8 @@ def main() -> None:
     hard_moat_score = _clamp(_to_float(hard_moat.get("moat_hardness_score", 0.0)), 0.0, 100.0)
     exec_auth_score = _authenticity_score(exec_auth)
     failure_auth_score = _failure_signal_authenticity_score(failure_auth)
+    effective_depth_score = _effective_depth_score(effective_depth)
+    source_prov_score = _source_provenance_score(source_prov)
 
     base_weighted = (
         family_score * 0.12
@@ -155,6 +181,10 @@ def main() -> None:
         optional_scores.append(exec_auth_score)
     if failure_auth:
         optional_scores.append(failure_auth_score)
+    if effective_depth:
+        optional_scores.append(effective_depth_score)
+    if source_prov:
+        optional_scores.append(source_prov_score)
     if optional_scores:
         optional_avg = sum(optional_scores) / max(1, len(optional_scores))
         weighted = base_weighted * 0.85 + optional_avg * 0.15
@@ -189,6 +219,14 @@ def main() -> None:
         warning_reasons.append("mutation_failure_signal_authenticity_not_pass")
     if failure_auth and failure_auth_score < 30.0:
         warning_reasons.append("mutation_failure_signal_authenticity_score_low")
+    if effective_depth and str(effective_depth.get("status") or "") in {"NEEDS_REVIEW", "FAIL"}:
+        warning_reasons.append("mutation_effective_depth_not_pass")
+    if effective_depth and effective_depth_score < 30.0:
+        warning_reasons.append("mutation_effective_depth_score_low")
+    if source_prov and str(source_prov.get("status") or "") in {"NEEDS_REVIEW", "FAIL"}:
+        warning_reasons.append("mutation_source_provenance_not_pass")
+    if source_prov and source_prov_score < 30.0:
+        warning_reasons.append("mutation_source_provenance_score_low")
     if moat_strength_score < float(args.min_score_pass):
         warning_reasons.append("joint_moat_strength_score_below_threshold")
 
@@ -218,6 +256,8 @@ def main() -> None:
             "hard_moat_score": round(hard_moat_score, 2),
             "mutation_execution_authenticity_score": round(exec_auth_score, 2),
             "mutation_failure_signal_authenticity_score": round(failure_auth_score, 2),
+            "mutation_effective_depth_score": round(effective_depth_score, 2),
+            "mutation_source_provenance_score": round(source_prov_score, 2),
         },
         "alerts": warning_reasons,
         "reasons": sorted(set(reasons)),
@@ -230,6 +270,8 @@ def main() -> None:
             "hard_moat_gates_summary": args.hard_moat_gates_summary,
             "mutation_execution_authenticity_summary": args.mutation_execution_authenticity_summary,
             "mutation_failure_signal_authenticity_summary": args.mutation_failure_signal_authenticity_summary,
+            "mutation_effective_depth_summary": args.mutation_effective_depth_summary,
+            "mutation_source_provenance_summary": args.mutation_source_provenance_summary,
         },
     }
     _write_json(args.out, payload)

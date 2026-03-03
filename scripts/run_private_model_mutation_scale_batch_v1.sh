@@ -922,6 +922,8 @@ python3 -m gateforge.dataset_joint_moat_strength_gate_v1 \
   --hard-moat-gates-summary "$OUT_DIR/hard_moat_gates_summary.json" \
   --mutation-execution-authenticity-summary "$OUT_DIR/mutation_execution_authenticity_summary.json" \
   --mutation-failure-signal-authenticity-summary "$OUT_DIR/mutation_failure_signal_authenticity_summary.json" \
+  --mutation-effective-depth-summary "$OUT_DIR/mutation_effective_depth_summary.json" \
+  --mutation-source-provenance-summary "$OUT_DIR/mutation_source_provenance_summary.json" \
   --out "$OUT_DIR/joint_moat_strength_summary.json" \
   --report-out "$OUT_DIR/joint_moat_strength_summary.md"
 
