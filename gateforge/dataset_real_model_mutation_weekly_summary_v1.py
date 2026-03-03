@@ -75,7 +75,9 @@ def main() -> None:
     parser.add_argument("--scale-batch-summary", required=True)
     parser.add_argument("--scale-gate-summary", required=True)
     parser.add_argument("--depth-upgrade-report-summary", default=None)
+    parser.add_argument("--uniqueness-guard-summary", default=None)
     parser.add_argument("--min-accepted-models", type=int, default=300)
+    parser.add_argument("--min-unique-accepted-models", type=int, default=260)
     parser.add_argument("--min-large-models", type=int, default=80)
     parser.add_argument("--min-reproducibility-ratio-pct", type=float, default=98.0)
     parser.add_argument("--out", default="artifacts/dataset_real_model_mutation_weekly_summary_v1/summary.json")
@@ -86,6 +88,7 @@ def main() -> None:
     scale_batch = _load_json(args.scale_batch_summary)
     scale_gate = _load_json(args.scale_gate_summary)
     depth = _load_json(args.depth_upgrade_report_summary)
+    uniqueness = _load_json(args.uniqueness_guard_summary)
 
     reasons: list[str] = []
     if not bootstrap:
@@ -104,6 +107,9 @@ def main() -> None:
     selected_mutation_models = _to_int(scale_batch.get("selected_mutation_models", 0))
     harvest_total_candidates = _to_int(bootstrap.get("harvest_total_candidates", 0))
     source_library_count = _to_int(depth.get("source_library_count", 0))
+    unique_real_model_count = _to_int(uniqueness.get("effective_unique_accepted_models", accepted_models))
+    duplicate_ratio_pct = _to_float(uniqueness.get("duplicate_ratio_pct", 0.0))
+    uniqueness_status = str(uniqueness.get("status") or "UNKNOWN")
 
     reproducibility_ratio_pct = _round(100.0 * reproducible_mutations / max(1, generated_mutations))
     mutations_per_model = _round(generated_mutations / max(1, accepted_models))
@@ -123,6 +129,8 @@ def main() -> None:
     focus_next_week: list[str] = []
     if accepted_models < int(args.min_accepted_models):
         focus_next_week.append("increase_accepted_real_models")
+    if unique_real_model_count < int(args.min_unique_accepted_models):
+        focus_next_week.append("increase_unique_accepted_real_models")
     if large_models < int(args.min_large_models):
         focus_next_week.append("increase_large_real_models")
     if reproducibility_ratio_pct < float(args.min_reproducibility_ratio_pct):
@@ -137,6 +145,10 @@ def main() -> None:
         alerts.append("scale_gate_not_pass")
     if bundle_status != "PASS":
         alerts.append("scale_batch_bundle_not_pass")
+    if uniqueness and uniqueness_status != "PASS":
+        alerts.append("uniqueness_guard_not_pass")
+    if uniqueness and duplicate_ratio_pct > 8.0:
+        alerts.append("duplicate_ratio_above_8pct")
     if reproducibility_ratio_pct < float(args.min_reproducibility_ratio_pct):
         alerts.append("reproducibility_ratio_below_target")
 
@@ -148,6 +160,9 @@ def main() -> None:
 
     kpis = {
         "real_model_count": accepted_models,
+        "unique_real_model_count": unique_real_model_count,
+        "duplicate_ratio_pct": _round(duplicate_ratio_pct),
+        "uniqueness_status": uniqueness_status,
         "large_model_count": large_models,
         "harvest_total_candidates": harvest_total_candidates,
         "reproducible_mutation_count": reproducible_mutations,
@@ -177,6 +192,7 @@ def main() -> None:
             "scale_batch_summary": args.scale_batch_summary,
             "scale_gate_summary": args.scale_gate_summary,
             "depth_upgrade_report_summary": args.depth_upgrade_report_summary,
+            "uniqueness_guard_summary": args.uniqueness_guard_summary,
         },
     }
     _write_json(args.out, payload)

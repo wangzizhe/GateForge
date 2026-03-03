@@ -8,12 +8,13 @@ OUT_DIR="${GATEFORGE_MODELICA_BOOTSTRAP_OUT_DIR:-artifacts/modelica_open_source_
 MANIFEST="${GATEFORGE_MODELICA_SOURCE_MANIFEST:-data/modelica_open_source_seed_sources_v1.json}"
 CACHE_ROOT="${GATEFORGE_MODELICA_SOURCE_CACHE_ROOT:-assets_private/modelica_sources}"
 EXPORT_ROOT="${GATEFORGE_MODELICA_EXPORT_ROOT:-assets_private/modelica/open_source}"
-MAX_MODELS_PER_SOURCE="${GATEFORGE_MAX_MODELS_PER_SOURCE:-120}"
+MAX_MODELS_PER_SOURCE="${GATEFORGE_MAX_MODELS_PER_SOURCE:-180}"
 FETCH="${GATEFORGE_MODELICA_BOOTSTRAP_FETCH:-1}"
 
 mkdir -p "$OUT_DIR"
 rm -f "$OUT_DIR"/*.json "$OUT_DIR"/*.md
 export OUT_DIR EXPORT_ROOT
+export MAX_MODELS_PER_SOURCE
 
 HARVEST_ARGS=(
   --source-manifest "$MANIFEST"
@@ -100,6 +101,7 @@ summary = {
     "harvest_total_candidates": harvest.get("total_candidates"),
     "accepted_models": accepted,
     "rejected_models": intake.get("rejected_count"),
+    "max_models_per_source": int(os.environ.get("MAX_MODELS_PER_SOURCE", "0") or 0),
     "export_root": export_root,
     "next_command": next_cmd,
 }

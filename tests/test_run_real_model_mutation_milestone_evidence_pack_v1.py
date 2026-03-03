@@ -17,6 +17,8 @@ class RunRealModelMutationMilestoneEvidencePackV1Tests(unittest.TestCase):
             gate = root / "scale_gate.json"
             manifest = root / "manifest.json"
             out_dir = root / "milestone_out"
+            intake_runner_accepted = root / "intake_runner_accepted.json"
+            intake_registry_rows = root / "intake_registry_rows.json"
 
             bootstrap.write_text(json.dumps({"status": "PASS", "harvest_total_candidates": 720, "accepted_models": 720}), encoding="utf-8")
             scale.write_text(
@@ -37,6 +39,38 @@ class RunRealModelMutationMilestoneEvidencePackV1Tests(unittest.TestCase):
             )
             gate.write_text(json.dumps({"status": "PASS"}), encoding="utf-8")
             manifest.write_text(json.dumps({"sources": [{"source_id": "a"}]}), encoding="utf-8")
+            intake_runner_accepted.write_text(
+                json.dumps(
+                    {
+                        "rows": [
+                            {
+                                "candidate_id": "m1",
+                                "model_path": str(root / "m1.mo"),
+                                "source_url": "https://x/m1",
+                                "expected_scale": "large",
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            intake_registry_rows.write_text(
+                json.dumps(
+                    {
+                        "models": [
+                            {
+                                "model_id": "m1",
+                                "asset_type": "model_source",
+                                "source_name": "s1",
+                                "source_path": str(root / "m1.mo"),
+                                "suggested_scale": "large",
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (root / "m1.mo").write_text("model M1\n Real x;\nequation\n der(x)= -x;\nend M1;\n", encoding="utf-8")
 
             proc = subprocess.run(
                 ["bash", str(script)],

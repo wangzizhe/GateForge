@@ -13,7 +13,9 @@ DEPTH_REPORT_SUMMARY="${GATEFORGE_DEPTH_UPGRADE_REPORT_SUMMARY:-artifacts/privat
 LEDGER_PATH="${GATEFORGE_WEEKLY_LEDGER_PATH:-$OUT_DIR/history.jsonl}"
 
 if [ -z "$SCALE_SUMMARY" ]; then
-  if [ -f "artifacts/private_model_mutation_scale_depth4_sprint_v1/summary.json" ]; then
+  if [ -f "artifacts/private_model_mutation_scale_depth6_sprint_v1/summary.json" ]; then
+    SCALE_SUMMARY="artifacts/private_model_mutation_scale_depth6_sprint_v1/summary.json"
+  elif [ -f "artifacts/private_model_mutation_scale_depth4_sprint_v1/summary.json" ]; then
     SCALE_SUMMARY="artifacts/private_model_mutation_scale_depth4_sprint_v1/summary.json"
   else
     SCALE_SUMMARY="artifacts/private_model_mutation_scale_sprint_v1/summary.json"
@@ -21,7 +23,9 @@ if [ -z "$SCALE_SUMMARY" ]; then
 fi
 
 if [ -z "$SCALE_GATE_SUMMARY" ]; then
-  if [ -f "artifacts/private_model_mutation_scale_depth4_sprint_v1/scale_gate_summary.json" ]; then
+  if [ -f "artifacts/private_model_mutation_scale_depth6_sprint_v1/scale_gate_summary.json" ]; then
+    SCALE_GATE_SUMMARY="artifacts/private_model_mutation_scale_depth6_sprint_v1/scale_gate_summary.json"
+  elif [ -f "artifacts/private_model_mutation_scale_depth4_sprint_v1/scale_gate_summary.json" ]; then
     SCALE_GATE_SUMMARY="artifacts/private_model_mutation_scale_depth4_sprint_v1/scale_gate_summary.json"
   else
     SCALE_GATE_SUMMARY="artifacts/private_model_mutation_scale_sprint_v1/scale_gate_summary.json"
@@ -39,11 +43,19 @@ fi
 
 rm -f "$OUT_DIR"/weekly_summary.json "$OUT_DIR"/weekly_summary.md "$OUT_DIR"/history_summary.json "$OUT_DIR"/history_summary.md "$OUT_DIR"/history_trend.json "$OUT_DIR"/history_trend.md "$OUT_DIR"/summary.json "$OUT_DIR"/summary.md
 
+SCALE_DIR="$(cd "$(dirname "$SCALE_SUMMARY")" && pwd)"
+python3 -m gateforge.dataset_real_model_uniqueness_guard_v1 \
+  --intake-runner-accepted "$SCALE_DIR/intake_runner_accepted.json" \
+  --intake-registry-rows "$SCALE_DIR/intake_registry_rows.json" \
+  --out "$OUT_DIR/uniqueness_guard_summary.json" \
+  --report-out "$OUT_DIR/uniqueness_guard_summary.md"
+
 python3 -m gateforge.dataset_real_model_mutation_weekly_summary_v1 \
   --week-tag "$WEEK_TAG" \
   --open-source-bootstrap-summary "$BOOTSTRAP_SUMMARY" \
   --scale-batch-summary "$SCALE_SUMMARY" \
   --scale-gate-summary "$SCALE_GATE_SUMMARY" \
+  --uniqueness-guard-summary "$OUT_DIR/uniqueness_guard_summary.json" \
   --depth-upgrade-report-summary "$DEPTH_REPORT_SUMMARY" \
   --out "$OUT_DIR/weekly_summary.json" \
   --report-out "$OUT_DIR/weekly_summary.md"
@@ -92,6 +104,8 @@ payload = {
     "history_status": history.get("status"),
     "trend_status": trend.get("status"),
     "real_model_count": kpis.get("real_model_count"),
+    "unique_real_model_count": kpis.get("unique_real_model_count"),
+    "duplicate_ratio_pct": kpis.get("duplicate_ratio_pct"),
     "large_model_count": kpis.get("large_model_count"),
     "reproducible_mutation_count": kpis.get("reproducible_mutation_count"),
     "mutations_per_failure_type": kpis.get("mutations_per_failure_type"),

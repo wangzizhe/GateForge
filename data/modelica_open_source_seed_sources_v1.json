@@ -13,7 +13,9 @@
         "Modelica/Mechanics",
         "Modelica/Electrical",
         "Modelica/Thermal",
-        "Modelica/Magnetic"
+        "Modelica/Magnetic",
+        "Modelica/Blocks",
+        "Modelica/Media"
       ]
     },
     {
@@ -27,7 +29,9 @@
         "Buildings/Fluid",
         "Buildings/ThermalZones",
         "Buildings/Electrical",
-        "Buildings/Controls"
+        "Buildings/Controls",
+        "Buildings/HeatTransfer",
+        "Buildings/Examples"
       ]
     },
     {
@@ -41,7 +45,9 @@
         "IBPSA/Fluid",
         "IBPSA/ThermalZones",
         "IBPSA/Controls",
-        "IBPSA/Electrical"
+        "IBPSA/Electrical",
+        "IBPSA/HeatTransfer",
+        "IBPSA/Examples"
       ]
     },
     {
@@ -55,7 +61,9 @@
         "AixLib/Fluid",
         "AixLib/ThermalZones",
         "AixLib/Systems",
-        "AixLib/Controls"
+        "AixLib/Controls",
+        "AixLib/Electrical",
+        "AixLib/Examples"
       ]
     },
     {
@@ -69,7 +77,9 @@
         "TRANSFORM/Fluid",
         "TRANSFORM/HeatAndMassTransfer",
         "TRANSFORM/Electrical",
-        "TRANSFORM/Controls"
+        "TRANSFORM/Controls",
+        "TRANSFORM/Nuclear",
+        "TRANSFORM/Examples"
       ]
     },
     {
@@ -82,7 +92,8 @@
       "package_roots": [
         "OpenIPSL/Electrical",
         "OpenIPSL/Controls",
-        "OpenIPSL/Examples"
+        "OpenIPSL/Examples",
+        "OpenIPSL/Tests"
       ]
     }
   ]
