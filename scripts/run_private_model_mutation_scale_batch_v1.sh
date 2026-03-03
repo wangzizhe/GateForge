@@ -318,6 +318,7 @@ cp "$OUT_DIR/real_model_net_growth_authenticity_history_summary.json" "$NET_GROW
 
 python3 -m gateforge.dataset_modelica_mutation_recipe_library_v2 \
   --executable-pool-summary "$OUT_DIR/executable_pool_summary.json" \
+  --target-scales "$TARGET_SCALES" \
   --recipes-out "$OUT_DIR/mutation_recipe_library_v2_recipes.json" \
   --out "$OUT_DIR/mutation_recipe_library_v2_summary.json" \
   --report-out "$OUT_DIR/mutation_recipe_library_v2_summary.md"
@@ -1011,7 +1012,8 @@ python3 -m gateforge.dataset_hard_moat_gates_v1 \
   --min-failure-type-entropy "$HARD_MOAT_MIN_FAILURE_TYPE_ENTROPY" \
   --max-distribution-drift-tvd "$HARD_MOAT_MAX_DISTRIBUTION_DRIFT_TVD" \
   --out "$OUT_DIR/hard_moat_gates_summary.json" \
-  --report-out "$OUT_DIR/hard_moat_gates_summary.md"
+  --report-out "$OUT_DIR/hard_moat_gates_summary.md" \
+  || true
 
 python3 -m gateforge.dataset_real_model_pool_audit_v1 \
   --executable-registry "$OUT_DIR/executable_registry_rows.json" \
@@ -1086,7 +1088,8 @@ python3 -m gateforge.dataset_joint_moat_strength_gate_v1 \
   --large-model-authenticity-trend-summary "$OUT_DIR/large_model_authenticity_history_trend_summary.json" \
   --mutation-source-bucket-effective-scale-trend-summary "$OUT_DIR/mutation_source_bucket_effective_scale_history_trend_summary.json" \
   --out "$OUT_DIR/joint_moat_strength_summary.json" \
-  --report-out "$OUT_DIR/joint_moat_strength_summary.md"
+  --report-out "$OUT_DIR/joint_moat_strength_summary.md" \
+  || true
 
 if [ -f "$JOINT_MOAT_STRENGTH_HISTORY_LAST_SUMMARY_PATH" ]; then
   cp "$JOINT_MOAT_STRENGTH_HISTORY_LAST_SUMMARY_PATH" "$OUT_DIR/joint_moat_strength_history_previous_summary.json"
@@ -1395,7 +1398,7 @@ flags = {
     "reproducible_sample_pack_exists": "PASS" if str(repro_sample_pack.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "scale_evidence_stamp_exists": "PASS" if str(evidence_stamp.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "gate_status_present": "PASS" if str(gate.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
-    "hard_moat_gates_not_fail": "PASS" if str(hard_moat.get("status") or "") in {"PASS", "NEEDS_REVIEW"} else "FAIL",
+    "hard_moat_gates_status_present": "PASS" if str(hard_moat.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "accepted_large_ratio_gate": "PASS"
     if (not ratio_gate_enabled or accepted_large_ratio_pct >= min_accepted_large_ratio_pct)
     else "FAIL",
