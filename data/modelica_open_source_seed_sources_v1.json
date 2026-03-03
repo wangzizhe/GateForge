@@ -5,9 +5,9 @@
       "source_id": "modelica_standard_library",
       "mode": "git",
       "repo_url": "https://github.com/modelica/ModelicaStandardLibrary.git",
-      "ref": "v4.1.0",
+      "ref": "master",
       "license": "BSD-3-Clause",
-      "scale_hint": "large",
+      "scale_hint": "medium",
       "package_roots": [
         "Modelica/Fluid",
         "Modelica/Mechanics",
@@ -22,7 +22,7 @@
       "repo_url": "https://github.com/lbl-srg/modelica-buildings.git",
       "ref": "master",
       "license": "BSD-3-Clause",
-      "scale_hint": "large",
+      "scale_hint": "medium",
       "package_roots": [
         "Buildings/Fluid",
         "Buildings/ThermalZones",
@@ -48,7 +48,7 @@
       "source_id": "aixlib",
       "mode": "git",
       "repo_url": "https://github.com/RWTH-EBC/AixLib.git",
-      "ref": "master",
+      "ref": "main",
       "license": "BSD-3-Clause",
       "scale_hint": "large",
       "package_roots": [
