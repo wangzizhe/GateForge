@@ -111,6 +111,18 @@ else
 JSON
 fi
 
+python3 -m gateforge.dataset_real_model_mutation_weekly_freeze_manifest_v1 \
+  --week-tag "$WEEK_TAG" \
+  --scale-batch-summary "$SCALE_SUMMARY" \
+  --canonical-registry-summary "$SCALE_DIR/canonical_registry_summary.json" \
+  --mutation-manifest "$SCALE_DIR/mutation_manifest.json" \
+  --mutation-validation-summary "$SCALE_DIR/mutation_validation_summary.json" \
+  --mutation-validation-matrix-v2-summary "$SCALE_DIR/mutation_validation_matrix_v2_summary.json" \
+  --failure-distribution-stability-guard-summary "$SCALE_DIR/failure_distribution_stability_guard_summary.json" \
+  --freeze-manifest-out "$OUT_DIR/freeze_manifest.json" \
+  --out "$OUT_DIR/freeze_summary.json" \
+  --report-out "$OUT_DIR/freeze_summary.md"
+
 python3 - <<'PY'
 import json
 import os
@@ -120,6 +132,7 @@ out = Path(os.environ["OUT_DIR"])
 weekly = json.loads((out / "weekly_summary.json").read_text(encoding="utf-8"))
 history = json.loads((out / "history_summary.json").read_text(encoding="utf-8"))
 trend = json.loads((out / "history_trend.json").read_text(encoding="utf-8"))
+freeze = json.loads((out / "freeze_summary.json").read_text(encoding="utf-8"))
 kpis = weekly.get("kpis") if isinstance(weekly.get("kpis"), dict) else {}
 
 payload = {
@@ -139,6 +152,8 @@ payload = {
     "baseline_check_pass_rate_pct": kpis.get("baseline_check_pass_rate_pct"),
     "validation_stage_match_rate_pct": kpis.get("validation_stage_match_rate_pct"),
     "validation_type_match_rate_pct": kpis.get("validation_type_match_rate_pct"),
+    "freeze_status": freeze.get("status"),
+    "freeze_id": freeze.get("freeze_id"),
 }
 (out / "summary.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
 print(json.dumps(payload))
