@@ -36,6 +36,12 @@ MIN_ACCEPTED_LARGE_RATIO_PCT="${GATEFORGE_MIN_ACCEPTED_LARGE_RATIO_PCT:-$DEFAULT
 MAX_MUTATION_MODELS="${GATEFORGE_MAX_MUTATION_MODELS:-$DEFAULT_MAX_MUTATION_MODELS}"
 MUTANT_ROOT="${GATEFORGE_MUTANT_ROOT:-$OUT_DIR/mutants}"
 FAILURE_TYPES="${GATEFORGE_FAILURE_TYPES:-simulate_error,model_check_error,semantic_regression,numerical_instability,constraint_violation}"
+VALIDATION_BACKEND="${GATEFORGE_MUTATION_VALIDATION_BACKEND:-auto}"
+VALIDATION_TIMEOUT_SECONDS="${GATEFORGE_MUTATION_VALIDATION_TIMEOUT_SECONDS:-20}"
+VALIDATION_MAX_BASELINES="${GATEFORGE_MUTATION_VALIDATION_MAX_BASELINES:-200}"
+VALIDATION_MAX_MUTATIONS="${GATEFORGE_MUTATION_VALIDATION_MAX_MUTATIONS:-1200}"
+VALIDATION_MIN_STAGE_MATCH_PCT="${GATEFORGE_MUTATION_VALIDATION_MIN_STAGE_MATCH_PCT:-0}"
+VALIDATION_MIN_TYPE_MATCH_PCT="${GATEFORGE_MUTATION_VALIDATION_MIN_TYPE_MATCH_PCT:-0}"
 export TARGET_SCALES
 export FAILURE_TYPES
 export PROFILE
@@ -44,6 +50,12 @@ export DISCOVERY_MIN_LARGE_COMPLEXITY_SCORE
 export MIN_ACCEPTED_LARGE_RATIO_PCT
 export MAX_MUTATION_MODELS
 export MUTANT_ROOT
+export VALIDATION_BACKEND
+export VALIDATION_TIMEOUT_SECONDS
+export VALIDATION_MAX_BASELINES
+export VALIDATION_MAX_MUTATIONS
+export VALIDATION_MIN_STAGE_MATCH_PCT
+export VALIDATION_MIN_TYPE_MATCH_PCT
 
 python3 - <<'PY'
 import json
@@ -244,6 +256,18 @@ python3 -m gateforge.dataset_mutation_model_materializer_v1 \
   --out "$OUT_DIR/mutation_pack_summary.json" \
   --report-out "$OUT_DIR/mutation_pack_summary.md"
 
+python3 -m gateforge.dataset_mutation_validation_matrix_v1 \
+  --mutation-manifest "$OUT_DIR/mutation_manifest.json" \
+  --backend "$VALIDATION_BACKEND" \
+  --timeout-seconds "$VALIDATION_TIMEOUT_SECONDS" \
+  --max-baseline-models "$VALIDATION_MAX_BASELINES" \
+  --max-validated-mutations "$VALIDATION_MAX_MUTATIONS" \
+  --min-stage-match-rate-pct "$VALIDATION_MIN_STAGE_MATCH_PCT" \
+  --min-type-match-rate-pct "$VALIDATION_MIN_TYPE_MATCH_PCT" \
+  --records-out "$OUT_DIR/mutation_validation_records.json" \
+  --out "$OUT_DIR/mutation_validation_summary.json" \
+  --report-out "$OUT_DIR/mutation_validation_summary.md"
+
 python3 -m gateforge.dataset_mutation_real_runner_v1 \
   --validated-mutation-manifest "$OUT_DIR/mutation_manifest.json" \
   --timeout-seconds "${GATEFORGE_MUTATION_TIMEOUT_SECONDS:-15}" \
@@ -282,6 +306,7 @@ pipeline = _load("intake_pipeline_summary.json")
 runner = _load("intake_runner_summary.json")
 executable = _load("executable_pool_summary.json")
 pack = _load("mutation_pack_summary.json")
+validation = _load("mutation_validation_summary.json")
 realrun = _load("mutation_real_runner_summary.json")
 gate = _load("scale_gate_summary.json")
 auto_scale = _load("auto_mutation_scale.json")
@@ -301,6 +326,7 @@ flags = {
     "pack_exists": "PASS" if int(pack.get("total_mutations", 0)) >= 0 else "FAIL",
     "realrun_exists": "PASS" if int(realrun.get("total_mutations", 0)) >= 0 else "FAIL",
     "executable_pool_present": "PASS" if int(executable.get("executable_unique_models", 0)) >= 0 else "FAIL",
+    "validation_exists": "PASS" if str(validation.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "gate_status_present": "PASS" if str(gate.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "accepted_large_ratio_gate": "PASS"
     if (not ratio_gate_enabled or accepted_large_ratio_pct >= min_accepted_large_ratio_pct)
@@ -324,6 +350,11 @@ summary = {
     "generated_mutations": pack.get("total_mutations"),
     "materialized_mutations": pack.get("materialized_mutations"),
     "failed_materializations": pack.get("failed_materializations"),
+    "mutation_validation_status": validation.get("status"),
+    "validation_backend_used": validation.get("validation_backend_used"),
+    "baseline_check_pass_rate_pct": validation.get("baseline_check_pass_rate_pct"),
+    "validation_stage_match_rate_pct": validation.get("stage_match_rate_pct"),
+    "validation_type_match_rate_pct": validation.get("type_match_rate_pct"),
     "reproducible_mutations": realrun.get("executed_count"),
     "target_scales": auto_scale.get("target_scales"),
     "selected_mutation_models": auto_scale.get("selected_mutation_models"),
@@ -352,6 +383,11 @@ summary = {
             f"- executable_large_models: `{summary['executable_large_models']}`",
             f"- generated_mutations: `{summary['generated_mutations']}`",
             f"- materialized_mutations: `{summary['materialized_mutations']}`",
+            f"- mutation_validation_status: `{summary['mutation_validation_status']}`",
+            f"- validation_backend_used: `{summary['validation_backend_used']}`",
+            f"- baseline_check_pass_rate_pct: `{summary['baseline_check_pass_rate_pct']}`",
+            f"- validation_stage_match_rate_pct: `{summary['validation_stage_match_rate_pct']}`",
+            f"- validation_type_match_rate_pct: `{summary['validation_type_match_rate_pct']}`",
             f"- reproducible_mutations: `{summary['reproducible_mutations']}`",
             f"- selected_mutation_models: `{summary['selected_mutation_models']}`",
             f"- selected_mutation_models_total: `{summary['selected_mutation_models_total']}`",
