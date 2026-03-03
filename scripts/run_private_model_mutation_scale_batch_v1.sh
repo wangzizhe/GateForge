@@ -48,6 +48,8 @@ MANIFEST_BASELINE_PATH="${GATEFORGE_MUTATION_MANIFEST_BASELINE_PATH:-$OUT_DIR/st
 SCALE_HISTORY_LEDGER_PATH="${GATEFORGE_SCALE_HISTORY_LEDGER_PATH:-$OUT_DIR/state/scale_history.jsonl}"
 ACTION_BACKLOG_HISTORY_LEDGER_PATH="${GATEFORGE_ACTION_BACKLOG_HISTORY_LEDGER_PATH:-$OUT_DIR/state/action_backlog_history.jsonl}"
 ACTION_BACKLOG_HISTORY_LAST_SUMMARY_PATH="${GATEFORGE_ACTION_BACKLOG_HISTORY_LAST_SUMMARY_PATH:-$OUT_DIR/state/action_backlog_history_last_summary.json}"
+MUTATION_SELECTION_HISTORY_LEDGER_PATH="${GATEFORGE_MUTATION_SELECTION_HISTORY_LEDGER_PATH:-$OUT_DIR/state/mutation_selection_history.jsonl}"
+MUTATION_SELECTION_HISTORY_LAST_SUMMARY_PATH="${GATEFORGE_MUTATION_SELECTION_HISTORY_LAST_SUMMARY_PATH:-$OUT_DIR/state/mutation_selection_history_last_summary.json}"
 HARD_MOAT_MIN_DISCOVERED_MODELS="${GATEFORGE_HARD_MOAT_MIN_DISCOVERED_MODELS:-2}"
 HARD_MOAT_MIN_ACCEPTED_MODELS="${GATEFORGE_HARD_MOAT_MIN_ACCEPTED_MODELS:-2}"
 HARD_MOAT_MIN_ACCEPTED_LARGE_MODELS="${GATEFORGE_HARD_MOAT_MIN_ACCEPTED_LARGE_MODELS:-1}"
@@ -78,6 +80,8 @@ export MANIFEST_BASELINE_PATH
 export SCALE_HISTORY_LEDGER_PATH
 export ACTION_BACKLOG_HISTORY_LEDGER_PATH
 export ACTION_BACKLOG_HISTORY_LAST_SUMMARY_PATH
+export MUTATION_SELECTION_HISTORY_LEDGER_PATH
+export MUTATION_SELECTION_HISTORY_LAST_SUMMARY_PATH
 export HARD_MOAT_MIN_DISCOVERED_MODELS
 export HARD_MOAT_MIN_ACCEPTED_MODELS
 export HARD_MOAT_MIN_ACCEPTED_LARGE_MODELS
@@ -322,6 +326,45 @@ python3 -m gateforge.dataset_mutation_selection_balance_guard_v1 \
   --out "$OUT_DIR/mutation_selection_balance_guard_summary.json" \
   --report-out "$OUT_DIR/mutation_selection_balance_guard_summary.md"
 
+if [ -f "$MUTATION_SELECTION_HISTORY_LAST_SUMMARY_PATH" ]; then
+  cp "$MUTATION_SELECTION_HISTORY_LAST_SUMMARY_PATH" "$OUT_DIR/mutation_selection_history_previous_summary.json"
+else
+  rm -f "$OUT_DIR/mutation_selection_history_previous_summary.json"
+fi
+
+python3 -m gateforge.dataset_mutation_selection_history_ledger_v1 \
+  --selection-plan-summary "$OUT_DIR/mutation_model_selection_plan_summary.json" \
+  --selection-balance-guard-summary "$OUT_DIR/mutation_selection_balance_guard_summary.json" \
+  --mutation-pack-summary "$OUT_DIR/mutation_pack_summary.json" \
+  --ledger "$MUTATION_SELECTION_HISTORY_LEDGER_PATH" \
+  --out "$OUT_DIR/mutation_selection_history_summary.json" \
+  --report-out "$OUT_DIR/mutation_selection_history_summary.md"
+
+if [ -f "$OUT_DIR/mutation_selection_history_previous_summary.json" ]; then
+  python3 -m gateforge.dataset_mutation_selection_history_trend_v1 \
+    --previous "$OUT_DIR/mutation_selection_history_previous_summary.json" \
+    --current "$OUT_DIR/mutation_selection_history_summary.json" \
+    --out "$OUT_DIR/mutation_selection_history_trend_summary.json" \
+    --report-out "$OUT_DIR/mutation_selection_history_trend_summary.md"
+else
+  cat > "$OUT_DIR/mutation_selection_history_trend_summary.json" <<'JSON'
+{
+  "status": "PASS",
+  "trend": {
+    "status_transition": "BOOTSTRAP->BOOTSTRAP",
+    "delta_selected_large_ratio_pct": 0.0,
+    "delta_selected_family_coverage": 0,
+    "delta_selected_source_coverage": 0,
+    "delta_max_family_share_pct": 0.0,
+    "alerts": []
+  },
+  "alerts": []
+}
+JSON
+fi
+mkdir -p "$(dirname "$MUTATION_SELECTION_HISTORY_LAST_SUMMARY_PATH")"
+cp "$OUT_DIR/mutation_selection_history_summary.json" "$MUTATION_SELECTION_HISTORY_LAST_SUMMARY_PATH"
+
 python3 -m gateforge.dataset_mutation_validation_matrix_v1 \
   --mutation-manifest "$OUT_DIR/mutation_manifest.json" \
   --backend "$VALIDATION_BACKEND" \
@@ -528,6 +571,8 @@ recipe = _load("mutation_recipe_library_v2_summary.json")
 selection_plan = _load("mutation_model_selection_plan_summary.json")
 pack = _load("mutation_pack_summary.json")
 selection_guard = _load("mutation_selection_balance_guard_summary.json")
+selection_history = _load("mutation_selection_history_summary.json")
+selection_history_trend = _load("mutation_selection_history_trend_summary.json")
 validation = _load("mutation_validation_summary.json")
 validation_v2 = _load("mutation_validation_matrix_v2_summary.json")
 stability_guard = _load("failure_distribution_stability_guard_summary.json")
@@ -565,6 +610,8 @@ flags = {
     "canonical_registry_present": "PASS" if int(canonical.get("canonical_total_models", 0)) >= 0 else "FAIL",
     "recipe_library_present": "PASS" if int(recipe.get("total_recipes", 0)) >= 0 else "FAIL",
     "selection_plan_exists": "PASS" if str(selection_plan.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
+    "selection_history_exists": "PASS" if str(selection_history.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
+    "selection_history_trend_exists": "PASS" if str(selection_history_trend.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "validation_exists": "PASS" if str(validation.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "validation_v2_exists": "PASS" if str(validation_v2.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "selection_balance_guard_exists": "PASS" if str(selection_guard.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
@@ -615,6 +662,14 @@ summary = {
     "mutation_selection_plan_selected_source_buckets": selection_plan.get("selected_source_buckets"),
     "mutation_selection_balance_guard_status": selection_guard.get("status"),
     "mutation_selection_balance_guard_max_family_share_pct": selection_guard.get("max_family_share_pct"),
+    "mutation_selection_history_status": selection_history.get("status"),
+    "mutation_selection_history_total_records": selection_history.get("total_records"),
+    "mutation_selection_history_latest_selected_large_ratio_pct": selection_history.get("latest_selected_large_ratio_pct"),
+    "mutation_selection_history_latest_max_family_share_pct": selection_history.get("latest_max_family_share_pct"),
+    "mutation_selection_history_trend_status": selection_history_trend.get("status"),
+    "mutation_selection_history_trend_delta_selected_large_ratio_pct": (selection_history_trend.get("trend") or {}).get("delta_selected_large_ratio_pct"),
+    "mutation_selection_history_trend_delta_selected_family_coverage": (selection_history_trend.get("trend") or {}).get("delta_selected_family_coverage"),
+    "mutation_selection_history_trend_delta_max_family_share_pct": (selection_history_trend.get("trend") or {}).get("delta_max_family_share_pct"),
     "generated_mutations": pack.get("total_mutations"),
     "materialized_mutations": pack.get("materialized_mutations"),
     "failed_materializations": pack.get("failed_materializations"),
@@ -706,6 +761,14 @@ summary = {
             f"- mutation_selection_plan_selected_source_buckets: `{summary['mutation_selection_plan_selected_source_buckets']}`",
             f"- mutation_selection_balance_guard_status: `{summary['mutation_selection_balance_guard_status']}`",
             f"- mutation_selection_balance_guard_max_family_share_pct: `{summary['mutation_selection_balance_guard_max_family_share_pct']}`",
+            f"- mutation_selection_history_status: `{summary['mutation_selection_history_status']}`",
+            f"- mutation_selection_history_total_records: `{summary['mutation_selection_history_total_records']}`",
+            f"- mutation_selection_history_latest_selected_large_ratio_pct: `{summary['mutation_selection_history_latest_selected_large_ratio_pct']}`",
+            f"- mutation_selection_history_latest_max_family_share_pct: `{summary['mutation_selection_history_latest_max_family_share_pct']}`",
+            f"- mutation_selection_history_trend_status: `{summary['mutation_selection_history_trend_status']}`",
+            f"- mutation_selection_history_trend_delta_selected_large_ratio_pct: `{summary['mutation_selection_history_trend_delta_selected_large_ratio_pct']}`",
+            f"- mutation_selection_history_trend_delta_selected_family_coverage: `{summary['mutation_selection_history_trend_delta_selected_family_coverage']}`",
+            f"- mutation_selection_history_trend_delta_max_family_share_pct: `{summary['mutation_selection_history_trend_delta_max_family_share_pct']}`",
             f"- generated_mutations: `{summary['generated_mutations']}`",
             f"- materialized_mutations: `{summary['materialized_mutations']}`",
             f"- mutation_validation_status: `{summary['mutation_validation_status']}`",
