@@ -68,6 +68,8 @@ MUTATION_FAILURE_SIGNAL_HISTORY_LEDGER_PATH="${GATEFORGE_MUTATION_FAILURE_SIGNAL
 MUTATION_FAILURE_SIGNAL_HISTORY_LAST_SUMMARY_PATH="${GATEFORGE_MUTATION_FAILURE_SIGNAL_HISTORY_LAST_SUMMARY_PATH:-$OUT_DIR/state/mutation_failure_signal_authenticity_last_summary.json}"
 MUTATION_EFFECTIVE_SCALE_HISTORY_LEDGER_PATH="${GATEFORGE_MUTATION_EFFECTIVE_SCALE_HISTORY_LEDGER_PATH:-$OUT_DIR/state/mutation_effective_scale_history.jsonl}"
 MUTATION_EFFECTIVE_SCALE_HISTORY_LAST_SUMMARY_PATH="${GATEFORGE_MUTATION_EFFECTIVE_SCALE_HISTORY_LAST_SUMMARY_PATH:-$OUT_DIR/state/mutation_effective_scale_last_summary.json}"
+MUTATION_EFFECTIVE_DEPTH_HISTORY_LEDGER_PATH="${GATEFORGE_MUTATION_EFFECTIVE_DEPTH_HISTORY_LEDGER_PATH:-$OUT_DIR/state/mutation_effective_depth_history.jsonl}"
+MUTATION_EFFECTIVE_DEPTH_HISTORY_LAST_SUMMARY_PATH="${GATEFORGE_MUTATION_EFFECTIVE_DEPTH_HISTORY_LAST_SUMMARY_PATH:-$OUT_DIR/state/mutation_effective_depth_last_summary.json}"
 HARD_MOAT_MIN_DISCOVERED_MODELS="${GATEFORGE_HARD_MOAT_MIN_DISCOVERED_MODELS:-2}"
 HARD_MOAT_MIN_ACCEPTED_MODELS="${GATEFORGE_HARD_MOAT_MIN_ACCEPTED_MODELS:-2}"
 HARD_MOAT_MIN_ACCEPTED_LARGE_MODELS="${GATEFORGE_HARD_MOAT_MIN_ACCEPTED_LARGE_MODELS:-1}"
@@ -118,6 +120,8 @@ export MUTATION_FAILURE_SIGNAL_HISTORY_LEDGER_PATH
 export MUTATION_FAILURE_SIGNAL_HISTORY_LAST_SUMMARY_PATH
 export MUTATION_EFFECTIVE_SCALE_HISTORY_LEDGER_PATH
 export MUTATION_EFFECTIVE_SCALE_HISTORY_LAST_SUMMARY_PATH
+export MUTATION_EFFECTIVE_DEPTH_HISTORY_LEDGER_PATH
+export MUTATION_EFFECTIVE_DEPTH_HISTORY_LAST_SUMMARY_PATH
 export HARD_MOAT_MIN_DISCOVERED_MODELS
 export HARD_MOAT_MIN_ACCEPTED_MODELS
 export HARD_MOAT_MIN_ACCEPTED_LARGE_MODELS
@@ -685,6 +689,48 @@ fi
 mkdir -p "$(dirname "$MUTATION_REPRO_DEPTH_HISTORY_LAST_SUMMARY_PATH")"
 cp "$OUT_DIR/mutation_repro_depth_history_summary.json" "$MUTATION_REPRO_DEPTH_HISTORY_LAST_SUMMARY_PATH"
 
+python3 -m gateforge.dataset_mutation_effective_depth_guard_v1 \
+  --mutation-manifest "$OUT_DIR/mutation_manifest.json" \
+  --mutation-raw-observations "$OUT_DIR/mutation_raw_observations.json" \
+  --selection-plan "$OUT_DIR/mutation_model_selection_plan.json" \
+  --out "$OUT_DIR/mutation_effective_depth_summary.json" \
+  --report-out "$OUT_DIR/mutation_effective_depth_summary.md"
+
+if [ -f "$MUTATION_EFFECTIVE_DEPTH_HISTORY_LAST_SUMMARY_PATH" ]; then
+  cp "$MUTATION_EFFECTIVE_DEPTH_HISTORY_LAST_SUMMARY_PATH" "$OUT_DIR/mutation_effective_depth_history_previous_summary.json"
+else
+  rm -f "$OUT_DIR/mutation_effective_depth_history_previous_summary.json"
+fi
+
+python3 -m gateforge.dataset_mutation_effective_depth_history_ledger_v1 \
+  --mutation-effective-depth-summary "$OUT_DIR/mutation_effective_depth_summary.json" \
+  --ledger "$MUTATION_EFFECTIVE_DEPTH_HISTORY_LEDGER_PATH" \
+  --out "$OUT_DIR/mutation_effective_depth_history_summary.json" \
+  --report-out "$OUT_DIR/mutation_effective_depth_history_summary.md"
+
+if [ -f "$OUT_DIR/mutation_effective_depth_history_previous_summary.json" ]; then
+  python3 -m gateforge.dataset_mutation_effective_depth_history_trend_v1 \
+    --previous "$OUT_DIR/mutation_effective_depth_history_previous_summary.json" \
+    --current "$OUT_DIR/mutation_effective_depth_history_summary.json" \
+    --out "$OUT_DIR/mutation_effective_depth_history_trend_summary.json" \
+    --report-out "$OUT_DIR/mutation_effective_depth_history_trend_summary.md"
+else
+  cat > "$OUT_DIR/mutation_effective_depth_history_trend_summary.json" <<'JSON'
+{
+  "status": "PASS",
+  "trend": {
+    "status_transition": "BOOTSTRAP->BOOTSTRAP",
+    "delta_total_effective_mutations": 0,
+    "delta_p10_effective_mutations_per_model": 0.0,
+    "alerts": []
+  },
+  "alerts": []
+}
+JSON
+fi
+mkdir -p "$(dirname "$MUTATION_EFFECTIVE_DEPTH_HISTORY_LAST_SUMMARY_PATH")"
+cp "$OUT_DIR/mutation_effective_depth_history_summary.json" "$MUTATION_EFFECTIVE_DEPTH_HISTORY_LAST_SUMMARY_PATH"
+
 python3 -m gateforge.dataset_large_model_executable_truth_gate_v1 \
   --executable-registry "$OUT_DIR/executable_registry_rows.json" \
   --mutation-validation-records "$OUT_DIR/mutation_validation_records.json" \
@@ -1039,6 +1085,9 @@ mutation_signature_uniqueness_history_trend = _load("mutation_signature_uniquene
 mutation_effective_scale = _load("mutation_effective_scale_summary.json")
 mutation_effective_scale_history = _load("mutation_effective_scale_history_summary.json")
 mutation_effective_scale_history_trend = _load("mutation_effective_scale_history_trend_summary.json")
+mutation_effective_depth = _load("mutation_effective_depth_summary.json")
+mutation_effective_depth_history = _load("mutation_effective_depth_history_summary.json")
+mutation_effective_depth_history_trend = _load("mutation_effective_depth_history_trend_summary.json")
 mutation_inventory = _load("mutation_artifact_inventory_summary.json")
 asset_locator = _load("asset_locator_manifest_summary.json")
 repro_sample_pack = _load("reproducible_mutation_sample_pack_summary.json")
@@ -1103,6 +1152,9 @@ flags = {
     "mutation_effective_scale_exists": "PASS" if str(mutation_effective_scale.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "mutation_effective_scale_history_exists": "PASS" if str(mutation_effective_scale_history.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "mutation_effective_scale_history_trend_exists": "PASS" if str(mutation_effective_scale_history_trend.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
+    "mutation_effective_depth_exists": "PASS" if str(mutation_effective_depth.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
+    "mutation_effective_depth_history_exists": "PASS" if str(mutation_effective_depth_history.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
+    "mutation_effective_depth_history_trend_exists": "PASS" if str(mutation_effective_depth_history_trend.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "mutation_artifact_inventory_exists": "PASS" if str(mutation_inventory.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "asset_locator_manifest_exists": "PASS" if str(asset_locator.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "reproducible_sample_pack_exists": "PASS" if str(repro_sample_pack.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
@@ -1252,6 +1304,18 @@ summary = {
     "mutation_effective_scale_history_trend_status": mutation_effective_scale_history_trend.get("status"),
     "mutation_effective_scale_history_trend_delta_effective_reproducible_mutations": (mutation_effective_scale_history_trend.get("trend") or {}).get("delta_effective_reproducible_mutations"),
     "mutation_effective_scale_history_trend_delta_authenticity_multiplier": (mutation_effective_scale_history_trend.get("trend") or {}).get("delta_authenticity_multiplier"),
+    "mutation_effective_depth_status": mutation_effective_depth.get("status"),
+    "mutation_effective_depth_tracked_models": mutation_effective_depth.get("tracked_models"),
+    "mutation_effective_depth_total_effective_mutations": mutation_effective_depth.get("total_effective_mutations"),
+    "mutation_effective_depth_p10_effective_mutations_per_model": mutation_effective_depth.get("p10_effective_mutations_per_model"),
+    "mutation_effective_depth_large_models_meeting_effective_depth_ratio_pct": mutation_effective_depth.get("large_models_meeting_effective_depth_ratio_pct"),
+    "mutation_effective_depth_history_status": mutation_effective_depth_history.get("status"),
+    "mutation_effective_depth_history_total_records": mutation_effective_depth_history.get("total_records"),
+    "mutation_effective_depth_history_latest_total_effective_mutations": mutation_effective_depth_history.get("latest_total_effective_mutations"),
+    "mutation_effective_depth_history_latest_p10_effective_mutations_per_model": mutation_effective_depth_history.get("latest_p10_effective_mutations_per_model"),
+    "mutation_effective_depth_history_trend_status": mutation_effective_depth_history_trend.get("status"),
+    "mutation_effective_depth_history_trend_delta_total_effective_mutations": (mutation_effective_depth_history_trend.get("trend") or {}).get("delta_total_effective_mutations"),
+    "mutation_effective_depth_history_trend_delta_p10_effective_mutations_per_model": (mutation_effective_depth_history_trend.get("trend") or {}).get("delta_p10_effective_mutations_per_model"),
     "mutation_artifact_inventory_status": mutation_inventory.get("status"),
     "mutation_artifact_existing_file_ratio": mutation_inventory.get("existing_file_ratio"),
     "mutation_artifact_execution_coverage_ratio": mutation_inventory.get("execution_coverage_ratio"),
@@ -1449,6 +1513,18 @@ summary = {
             f"- mutation_effective_scale_history_trend_status: `{summary['mutation_effective_scale_history_trend_status']}`",
             f"- mutation_effective_scale_history_trend_delta_effective_reproducible_mutations: `{summary['mutation_effective_scale_history_trend_delta_effective_reproducible_mutations']}`",
             f"- mutation_effective_scale_history_trend_delta_authenticity_multiplier: `{summary['mutation_effective_scale_history_trend_delta_authenticity_multiplier']}`",
+            f"- mutation_effective_depth_status: `{summary['mutation_effective_depth_status']}`",
+            f"- mutation_effective_depth_tracked_models: `{summary['mutation_effective_depth_tracked_models']}`",
+            f"- mutation_effective_depth_total_effective_mutations: `{summary['mutation_effective_depth_total_effective_mutations']}`",
+            f"- mutation_effective_depth_p10_effective_mutations_per_model: `{summary['mutation_effective_depth_p10_effective_mutations_per_model']}`",
+            f"- mutation_effective_depth_large_models_meeting_effective_depth_ratio_pct: `{summary['mutation_effective_depth_large_models_meeting_effective_depth_ratio_pct']}`",
+            f"- mutation_effective_depth_history_status: `{summary['mutation_effective_depth_history_status']}`",
+            f"- mutation_effective_depth_history_total_records: `{summary['mutation_effective_depth_history_total_records']}`",
+            f"- mutation_effective_depth_history_latest_total_effective_mutations: `{summary['mutation_effective_depth_history_latest_total_effective_mutations']}`",
+            f"- mutation_effective_depth_history_latest_p10_effective_mutations_per_model: `{summary['mutation_effective_depth_history_latest_p10_effective_mutations_per_model']}`",
+            f"- mutation_effective_depth_history_trend_status: `{summary['mutation_effective_depth_history_trend_status']}`",
+            f"- mutation_effective_depth_history_trend_delta_total_effective_mutations: `{summary['mutation_effective_depth_history_trend_delta_total_effective_mutations']}`",
+            f"- mutation_effective_depth_history_trend_delta_p10_effective_mutations_per_model: `{summary['mutation_effective_depth_history_trend_delta_p10_effective_mutations_per_model']}`",
             f"- mutation_artifact_inventory_status: `{summary['mutation_artifact_inventory_status']}`",
             f"- mutation_artifact_existing_file_ratio: `{summary['mutation_artifact_existing_file_ratio']}`",
             f"- mutation_artifact_execution_coverage_ratio: `{summary['mutation_artifact_execution_coverage_ratio']}`",
