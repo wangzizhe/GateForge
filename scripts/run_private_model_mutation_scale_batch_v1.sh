@@ -54,6 +54,10 @@ MUTATION_REPRO_DEPTH_HISTORY_LEDGER_PATH="${GATEFORGE_MUTATION_REPRO_DEPTH_HISTO
 MUTATION_REPRO_DEPTH_HISTORY_LAST_SUMMARY_PATH="${GATEFORGE_MUTATION_REPRO_DEPTH_HISTORY_LAST_SUMMARY_PATH:-$OUT_DIR/state/mutation_repro_depth_history_last_summary.json}"
 REAL_MODEL_SOURCE_DIVERSITY_HISTORY_LEDGER_PATH="${GATEFORGE_REAL_MODEL_SOURCE_DIVERSITY_HISTORY_LEDGER_PATH:-$OUT_DIR/state/real_model_source_diversity_history.jsonl}"
 REAL_MODEL_SOURCE_DIVERSITY_HISTORY_LAST_SUMMARY_PATH="${GATEFORGE_REAL_MODEL_SOURCE_DIVERSITY_HISTORY_LAST_SUMMARY_PATH:-$OUT_DIR/state/real_model_source_diversity_history_last_summary.json}"
+NET_GROWTH_AUTH_HISTORY_LEDGER_PATH="${GATEFORGE_NET_GROWTH_AUTH_HISTORY_LEDGER_PATH:-$OUT_DIR/state/net_growth_authenticity_history.jsonl}"
+NET_GROWTH_AUTH_HISTORY_LAST_SUMMARY_PATH="${GATEFORGE_NET_GROWTH_AUTH_HISTORY_LAST_SUMMARY_PATH:-$OUT_DIR/state/net_growth_authenticity_history_last_summary.json}"
+LARGE_MODEL_TRUTH_HISTORY_LEDGER_PATH="${GATEFORGE_LARGE_MODEL_TRUTH_HISTORY_LEDGER_PATH:-$OUT_DIR/state/large_model_executable_truth_history.jsonl}"
+LARGE_MODEL_TRUTH_HISTORY_LAST_SUMMARY_PATH="${GATEFORGE_LARGE_MODEL_TRUTH_HISTORY_LAST_SUMMARY_PATH:-$OUT_DIR/state/large_model_executable_truth_last_summary.json}"
 HARD_MOAT_MIN_DISCOVERED_MODELS="${GATEFORGE_HARD_MOAT_MIN_DISCOVERED_MODELS:-2}"
 HARD_MOAT_MIN_ACCEPTED_MODELS="${GATEFORGE_HARD_MOAT_MIN_ACCEPTED_MODELS:-2}"
 HARD_MOAT_MIN_ACCEPTED_LARGE_MODELS="${GATEFORGE_HARD_MOAT_MIN_ACCEPTED_LARGE_MODELS:-1}"
@@ -90,6 +94,10 @@ export MUTATION_REPRO_DEPTH_HISTORY_LEDGER_PATH
 export MUTATION_REPRO_DEPTH_HISTORY_LAST_SUMMARY_PATH
 export REAL_MODEL_SOURCE_DIVERSITY_HISTORY_LEDGER_PATH
 export REAL_MODEL_SOURCE_DIVERSITY_HISTORY_LAST_SUMMARY_PATH
+export NET_GROWTH_AUTH_HISTORY_LEDGER_PATH
+export NET_GROWTH_AUTH_HISTORY_LAST_SUMMARY_PATH
+export LARGE_MODEL_TRUTH_HISTORY_LEDGER_PATH
+export LARGE_MODEL_TRUTH_HISTORY_LAST_SUMMARY_PATH
 export HARD_MOAT_MIN_DISCOVERED_MODELS
 export HARD_MOAT_MIN_ACCEPTED_MODELS
 export HARD_MOAT_MIN_ACCEPTED_LARGE_MODELS
@@ -223,6 +231,50 @@ python3 -m gateforge.dataset_real_model_canonical_registry_v2 \
   --out-registry "$CANONICAL_REGISTRY_PATH" \
   --out "$OUT_DIR/canonical_registry_summary.json" \
   --report-out "$OUT_DIR/canonical_registry_summary.md"
+
+python3 -m gateforge.dataset_real_model_net_growth_authenticity_gate_v1 \
+  --canonical-registry-summary "$OUT_DIR/canonical_registry_summary.json" \
+  --canonical-registry "$CANONICAL_REGISTRY_PATH" \
+  --out "$OUT_DIR/real_model_net_growth_authenticity_summary.json" \
+  --report-out "$OUT_DIR/real_model_net_growth_authenticity_summary.md"
+
+if [ -f "$NET_GROWTH_AUTH_HISTORY_LAST_SUMMARY_PATH" ]; then
+  cp "$NET_GROWTH_AUTH_HISTORY_LAST_SUMMARY_PATH" "$OUT_DIR/real_model_net_growth_authenticity_history_previous_summary.json"
+else
+  rm -f "$OUT_DIR/real_model_net_growth_authenticity_history_previous_summary.json"
+fi
+
+python3 -m gateforge.dataset_real_model_net_growth_authenticity_history_ledger_v1 \
+  --net-growth-authenticity-summary "$OUT_DIR/real_model_net_growth_authenticity_summary.json" \
+  --canonical-registry-summary "$OUT_DIR/canonical_registry_summary.json" \
+  --intake-runner-summary "$OUT_DIR/intake_runner_summary.json" \
+  --ledger "$NET_GROWTH_AUTH_HISTORY_LEDGER_PATH" \
+  --out "$OUT_DIR/real_model_net_growth_authenticity_history_summary.json" \
+  --report-out "$OUT_DIR/real_model_net_growth_authenticity_history_summary.md"
+
+if [ -f "$OUT_DIR/real_model_net_growth_authenticity_history_previous_summary.json" ]; then
+  python3 -m gateforge.dataset_real_model_net_growth_authenticity_history_trend_v1 \
+    --previous "$OUT_DIR/real_model_net_growth_authenticity_history_previous_summary.json" \
+    --current "$OUT_DIR/real_model_net_growth_authenticity_history_summary.json" \
+    --out "$OUT_DIR/real_model_net_growth_authenticity_history_trend_summary.json" \
+    --report-out "$OUT_DIR/real_model_net_growth_authenticity_history_trend_summary.md"
+else
+  cat > "$OUT_DIR/real_model_net_growth_authenticity_history_trend_summary.json" <<'JSON'
+{
+  "status": "PASS",
+  "trend": {
+    "status_transition": "BOOTSTRAP->BOOTSTRAP",
+    "delta_net_new_unique_models": 0,
+    "delta_true_growth_ratio_pct": 0.0,
+    "delta_suspected_duplicate_ratio_pct": 0.0,
+    "alerts": []
+  },
+  "alerts": []
+}
+JSON
+fi
+mkdir -p "$(dirname "$NET_GROWTH_AUTH_HISTORY_LAST_SUMMARY_PATH")"
+cp "$OUT_DIR/real_model_net_growth_authenticity_history_summary.json" "$NET_GROWTH_AUTH_HISTORY_LAST_SUMMARY_PATH"
 
 python3 -m gateforge.dataset_modelica_mutation_recipe_library_v2 \
   --executable-pool-summary "$OUT_DIR/executable_pool_summary.json" \
@@ -531,6 +583,51 @@ fi
 mkdir -p "$(dirname "$MUTATION_REPRO_DEPTH_HISTORY_LAST_SUMMARY_PATH")"
 cp "$OUT_DIR/mutation_repro_depth_history_summary.json" "$MUTATION_REPRO_DEPTH_HISTORY_LAST_SUMMARY_PATH"
 
+python3 -m gateforge.dataset_large_model_executable_truth_gate_v1 \
+  --executable-registry "$OUT_DIR/executable_registry_rows.json" \
+  --mutation-validation-records "$OUT_DIR/mutation_validation_records.json" \
+  --mutation-manifest "$OUT_DIR/mutation_manifest.json" \
+  --mutation-raw-observations "$OUT_DIR/mutation_raw_observations.json" \
+  --out "$OUT_DIR/large_model_executable_truth_summary.json" \
+  --report-out "$OUT_DIR/large_model_executable_truth_summary.md"
+
+if [ -f "$LARGE_MODEL_TRUTH_HISTORY_LAST_SUMMARY_PATH" ]; then
+  cp "$LARGE_MODEL_TRUTH_HISTORY_LAST_SUMMARY_PATH" "$OUT_DIR/large_model_executable_truth_history_previous_summary.json"
+else
+  rm -f "$OUT_DIR/large_model_executable_truth_history_previous_summary.json"
+fi
+
+python3 -m gateforge.dataset_large_model_executable_truth_history_ledger_v1 \
+  --large-model-executable-truth-summary "$OUT_DIR/large_model_executable_truth_summary.json" \
+  --intake-runner-summary "$OUT_DIR/intake_runner_summary.json" \
+  --ledger "$LARGE_MODEL_TRUTH_HISTORY_LEDGER_PATH" \
+  --out "$OUT_DIR/large_model_executable_truth_history_summary.json" \
+  --report-out "$OUT_DIR/large_model_executable_truth_history_summary.md"
+
+if [ -f "$OUT_DIR/large_model_executable_truth_history_previous_summary.json" ]; then
+  python3 -m gateforge.dataset_large_model_executable_truth_history_trend_v1 \
+    --previous "$OUT_DIR/large_model_executable_truth_history_previous_summary.json" \
+    --current "$OUT_DIR/large_model_executable_truth_history_summary.json" \
+    --out "$OUT_DIR/large_model_executable_truth_history_trend_summary.json" \
+    --report-out "$OUT_DIR/large_model_executable_truth_history_trend_summary.md"
+else
+  cat > "$OUT_DIR/large_model_executable_truth_history_trend_summary.json" <<'JSON'
+{
+  "status": "PASS",
+  "trend": {
+    "status_transition": "BOOTSTRAP->BOOTSTRAP",
+    "delta_large_executable_real_count": 0,
+    "delta_large_executable_real_rate_pct": 0.0,
+    "delta_large_model_check_pass_rate_pct": 0.0,
+    "alerts": []
+  },
+  "alerts": []
+}
+JSON
+fi
+mkdir -p "$(dirname "$LARGE_MODEL_TRUTH_HISTORY_LAST_SUMMARY_PATH")"
+cp "$OUT_DIR/large_model_executable_truth_history_summary.json" "$LARGE_MODEL_TRUTH_HISTORY_LAST_SUMMARY_PATH"
+
 python3 -m gateforge.dataset_real_model_mutation_scale_gate_v1 \
   --asset-discovery-summary "$OUT_DIR/asset_discovery_summary.json" \
   --intake-pipeline-summary "$OUT_DIR/intake_pipeline_summary.json" \
@@ -665,6 +762,9 @@ pipeline = _load("intake_pipeline_summary.json")
 runner = _load("intake_runner_summary.json")
 executable = _load("executable_pool_summary.json")
 canonical = _load("canonical_registry_summary.json")
+net_growth_auth = _load("real_model_net_growth_authenticity_summary.json")
+net_growth_auth_history = _load("real_model_net_growth_authenticity_history_summary.json")
+net_growth_auth_history_trend = _load("real_model_net_growth_authenticity_history_trend_summary.json")
 recipe = _load("mutation_recipe_library_v2_summary.json")
 selection_plan = _load("mutation_model_selection_plan_summary.json")
 pack = _load("mutation_pack_summary.json")
@@ -683,6 +783,9 @@ failure_balance = _load("mutation_failure_type_balance_guard_summary.json")
 ingest_planner = _load("ingest_source_channel_planner_summary.json")
 hard_moat_target = _load("hard_moat_target_profile_summary.json")
 realrun = _load("mutation_real_runner_summary.json")
+large_model_truth = _load("large_model_executable_truth_summary.json")
+large_model_truth_history = _load("large_model_executable_truth_history_summary.json")
+large_model_truth_history_trend = _load("large_model_executable_truth_history_trend_summary.json")
 gate = _load("scale_gate_summary.json")
 hard_moat = _load("hard_moat_gates_summary.json")
 pool_audit = _load("real_model_pool_audit_summary.json")
@@ -712,6 +815,9 @@ flags = {
     "realrun_exists": "PASS" if int(realrun.get("total_mutations", 0)) >= 0 else "FAIL",
     "executable_pool_present": "PASS" if int(executable.get("executable_unique_models", 0)) >= 0 else "FAIL",
     "canonical_registry_present": "PASS" if int(canonical.get("canonical_total_models", 0)) >= 0 else "FAIL",
+    "net_growth_authenticity_exists": "PASS" if str(net_growth_auth.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
+    "net_growth_authenticity_history_exists": "PASS" if str(net_growth_auth_history.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
+    "net_growth_authenticity_history_trend_exists": "PASS" if str(net_growth_auth_history_trend.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "recipe_library_present": "PASS" if int(recipe.get("total_recipes", 0)) >= 0 else "FAIL",
     "selection_plan_exists": "PASS" if str(selection_plan.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "selection_history_exists": "PASS" if str(selection_history.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
@@ -719,6 +825,9 @@ flags = {
     "repro_depth_guard_exists": "PASS" if str(repro_depth_guard.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "repro_depth_history_exists": "PASS" if str(repro_depth_history.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "repro_depth_history_trend_exists": "PASS" if str(repro_depth_history_trend.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
+    "large_model_truth_exists": "PASS" if str(large_model_truth.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
+    "large_model_truth_history_exists": "PASS" if str(large_model_truth_history.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
+    "large_model_truth_history_trend_exists": "PASS" if str(large_model_truth_history_trend.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "validation_exists": "PASS" if str(validation.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "validation_v2_exists": "PASS" if str(validation_v2.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "selection_balance_guard_exists": "PASS" if str(selection_guard.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
@@ -762,6 +871,17 @@ summary = {
     "canonical_new_models": canonical.get("canonical_new_models"),
     "canonical_net_growth_models": canonical.get("canonical_net_growth_models"),
     "canonical_new_large_models": canonical.get("canonical_new_large_models"),
+    "real_model_net_growth_authenticity_status": net_growth_auth.get("status"),
+    "real_model_net_growth_authenticity_net_new_unique_models": net_growth_auth.get("net_new_unique_models"),
+    "real_model_net_growth_authenticity_true_growth_ratio_pct": net_growth_auth.get("true_growth_ratio_pct"),
+    "real_model_net_growth_authenticity_suspected_duplicate_ratio_pct": net_growth_auth.get("suspected_duplicate_ratio_pct"),
+    "real_model_net_growth_authenticity_history_status": net_growth_auth_history.get("status"),
+    "real_model_net_growth_authenticity_history_total_records": net_growth_auth_history.get("total_records"),
+    "real_model_net_growth_authenticity_history_latest_net_new_unique_models": net_growth_auth_history.get("latest_net_new_unique_models"),
+    "real_model_net_growth_authenticity_history_latest_true_growth_ratio_pct": net_growth_auth_history.get("latest_true_growth_ratio_pct"),
+    "real_model_net_growth_authenticity_history_trend_status": net_growth_auth_history_trend.get("status"),
+    "real_model_net_growth_authenticity_history_trend_delta_net_new_unique_models": (net_growth_auth_history_trend.get("trend") or {}).get("delta_net_new_unique_models"),
+    "real_model_net_growth_authenticity_history_trend_delta_true_growth_ratio_pct": (net_growth_auth_history_trend.get("trend") or {}).get("delta_true_growth_ratio_pct"),
     "mutation_recipe_library_v2_status": recipe.get("status"),
     "mutation_recipe_total_recipes": recipe.get("total_recipes"),
     "mutation_recipe_operator_family_count": recipe.get("operator_family_count"),
@@ -853,6 +973,17 @@ summary = {
     "scale_evidence_stamp_score": evidence_stamp.get("evidence_score"),
     "scale_evidence_stamp_grade": evidence_stamp.get("evidence_grade"),
     "reproducible_mutations": realrun.get("executed_count"),
+    "large_model_executable_truth_status": large_model_truth.get("status"),
+    "large_model_executable_truth_large_model_count": large_model_truth.get("large_model_count"),
+    "large_model_executable_truth_large_executable_real_count": large_model_truth.get("large_executable_real_count"),
+    "large_model_executable_truth_large_executable_real_rate_pct": large_model_truth.get("large_executable_real_rate_pct"),
+    "large_model_executable_truth_history_status": large_model_truth_history.get("status"),
+    "large_model_executable_truth_history_total_records": large_model_truth_history.get("total_records"),
+    "large_model_executable_truth_history_latest_large_executable_real_count": large_model_truth_history.get("latest_large_executable_real_count"),
+    "large_model_executable_truth_history_latest_large_executable_real_rate_pct": large_model_truth_history.get("latest_large_executable_real_rate_pct"),
+    "large_model_executable_truth_history_trend_status": large_model_truth_history_trend.get("status"),
+    "large_model_executable_truth_history_trend_delta_large_executable_real_count": (large_model_truth_history_trend.get("trend") or {}).get("delta_large_executable_real_count"),
+    "large_model_executable_truth_history_trend_delta_large_executable_real_rate_pct": (large_model_truth_history_trend.get("trend") or {}).get("delta_large_executable_real_rate_pct"),
     "hard_moat_gates_status": hard_moat.get("status"),
     "hard_moat_hardness_score": hard_moat.get("moat_hardness_score"),
     "hard_moat_failed_gate_count": hard_moat.get("failed_gate_count"),
@@ -886,6 +1017,17 @@ summary = {
             f"- canonical_new_models: `{summary['canonical_new_models']}`",
             f"- canonical_net_growth_models: `{summary['canonical_net_growth_models']}`",
             f"- canonical_new_large_models: `{summary['canonical_new_large_models']}`",
+            f"- real_model_net_growth_authenticity_status: `{summary['real_model_net_growth_authenticity_status']}`",
+            f"- real_model_net_growth_authenticity_net_new_unique_models: `{summary['real_model_net_growth_authenticity_net_new_unique_models']}`",
+            f"- real_model_net_growth_authenticity_true_growth_ratio_pct: `{summary['real_model_net_growth_authenticity_true_growth_ratio_pct']}`",
+            f"- real_model_net_growth_authenticity_suspected_duplicate_ratio_pct: `{summary['real_model_net_growth_authenticity_suspected_duplicate_ratio_pct']}`",
+            f"- real_model_net_growth_authenticity_history_status: `{summary['real_model_net_growth_authenticity_history_status']}`",
+            f"- real_model_net_growth_authenticity_history_total_records: `{summary['real_model_net_growth_authenticity_history_total_records']}`",
+            f"- real_model_net_growth_authenticity_history_latest_net_new_unique_models: `{summary['real_model_net_growth_authenticity_history_latest_net_new_unique_models']}`",
+            f"- real_model_net_growth_authenticity_history_latest_true_growth_ratio_pct: `{summary['real_model_net_growth_authenticity_history_latest_true_growth_ratio_pct']}`",
+            f"- real_model_net_growth_authenticity_history_trend_status: `{summary['real_model_net_growth_authenticity_history_trend_status']}`",
+            f"- real_model_net_growth_authenticity_history_trend_delta_net_new_unique_models: `{summary['real_model_net_growth_authenticity_history_trend_delta_net_new_unique_models']}`",
+            f"- real_model_net_growth_authenticity_history_trend_delta_true_growth_ratio_pct: `{summary['real_model_net_growth_authenticity_history_trend_delta_true_growth_ratio_pct']}`",
             f"- mutation_recipe_library_v2_status: `{summary['mutation_recipe_library_v2_status']}`",
             f"- mutation_recipe_total_recipes: `{summary['mutation_recipe_total_recipes']}`",
             f"- mutation_recipe_operator_family_count: `{summary['mutation_recipe_operator_family_count']}`",
@@ -975,6 +1117,17 @@ summary = {
             f"- scale_evidence_stamp_score: `{summary['scale_evidence_stamp_score']}`",
             f"- scale_evidence_stamp_grade: `{summary['scale_evidence_stamp_grade']}`",
             f"- reproducible_mutations: `{summary['reproducible_mutations']}`",
+            f"- large_model_executable_truth_status: `{summary['large_model_executable_truth_status']}`",
+            f"- large_model_executable_truth_large_model_count: `{summary['large_model_executable_truth_large_model_count']}`",
+            f"- large_model_executable_truth_large_executable_real_count: `{summary['large_model_executable_truth_large_executable_real_count']}`",
+            f"- large_model_executable_truth_large_executable_real_rate_pct: `{summary['large_model_executable_truth_large_executable_real_rate_pct']}`",
+            f"- large_model_executable_truth_history_status: `{summary['large_model_executable_truth_history_status']}`",
+            f"- large_model_executable_truth_history_total_records: `{summary['large_model_executable_truth_history_total_records']}`",
+            f"- large_model_executable_truth_history_latest_large_executable_real_count: `{summary['large_model_executable_truth_history_latest_large_executable_real_count']}`",
+            f"- large_model_executable_truth_history_latest_large_executable_real_rate_pct: `{summary['large_model_executable_truth_history_latest_large_executable_real_rate_pct']}`",
+            f"- large_model_executable_truth_history_trend_status: `{summary['large_model_executable_truth_history_trend_status']}`",
+            f"- large_model_executable_truth_history_trend_delta_large_executable_real_count: `{summary['large_model_executable_truth_history_trend_delta_large_executable_real_count']}`",
+            f"- large_model_executable_truth_history_trend_delta_large_executable_real_rate_pct: `{summary['large_model_executable_truth_history_trend_delta_large_executable_real_rate_pct']}`",
             f"- hard_moat_gates_status: `{summary['hard_moat_gates_status']}`",
             f"- hard_moat_hardness_score: `{summary['hard_moat_hardness_score']}`",
             f"- hard_moat_failed_gate_count: `{summary['hard_moat_failed_gate_count']}`",
