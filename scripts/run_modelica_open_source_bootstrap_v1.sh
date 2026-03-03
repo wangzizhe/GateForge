@@ -100,6 +100,12 @@ python3 -m gateforge.dataset_open_source_model_intake_v1 \
   --out "$OUT_DIR/intake_summary.json" \
   --report-out "$OUT_DIR/intake_summary.md"
 
+python3 -m gateforge.dataset_real_model_executable_pool_v1 \
+  --intake-registry-rows "$OUT_DIR/accepted_registry_rows.json" \
+  --out-registry "$OUT_DIR/executable_registry_rows.json" \
+  --out "$OUT_DIR/executable_pool_summary.json" \
+  --report-out "$OUT_DIR/executable_pool_summary.md"
+
 python3 - <<'PY'
 import json
 import os
@@ -111,12 +117,15 @@ export_root = os.environ.get("EXPORT_ROOT", "assets_private/modelica/open_source
 harvest = json.loads((out / "harvest_summary.json").read_text(encoding="utf-8"))
 intake = json.loads((out / "intake_summary.json").read_text(encoding="utf-8"))
 registry = json.loads((out / "accepted_registry_rows.json").read_text(encoding="utf-8"))
+executable_pool = json.loads((out / "executable_pool_summary.json").read_text(encoding="utf-8"))
 
-accepted = int(intake.get("accepted_count", 0) or 0)
-models = registry.get("models") if isinstance(registry.get("models"), list) else []
-accepted_large = len([x for x in models if isinstance(x, dict) and str(x.get("suggested_scale") or "").lower() == "large"])
-accepted_medium = len([x for x in models if isinstance(x, dict) and str(x.get("suggested_scale") or "").lower() == "medium"])
+accepted_raw = int(intake.get("accepted_count", 0) or 0)
+accepted = int(executable_pool.get("executable_unique_models", 0) or 0)
+accepted_large = int(executable_pool.get("executable_large_models", 0) or 0)
+accepted_medium = int(executable_pool.get("executable_medium_models", 0) or 0)
 accepted_large_ratio_pct = round((accepted_large / accepted) * 100.0, 2) if accepted > 0 else 0.0
+
+models = registry.get("models") if isinstance(registry.get("models"), list) else []
 
 min_accepted = int(os.environ.get("MIN_ACCEPTED_MODELS", "1") or 1)
 min_accepted_large = int(os.environ.get("MIN_ACCEPTED_LARGE_MODELS", "0") or 0)
@@ -144,8 +153,10 @@ summary = {
     "profile": profile,
     "harvest_status": harvest.get("status"),
     "intake_status": intake.get("status"),
+    "executable_pool_status": executable_pool.get("status"),
     "quality_gate_status": quality_gate_status,
     "harvest_total_candidates": harvest.get("total_candidates"),
+    "raw_accepted_models": accepted_raw,
     "accepted_models": accepted,
     "accepted_medium_models": accepted_medium,
     "accepted_large_models": accepted_large,
@@ -174,8 +185,10 @@ if alerts:
             f"- profile: `{summary['profile']}`",
             f"- harvest_status: `{summary['harvest_status']}`",
             f"- intake_status: `{summary['intake_status']}`",
+            f"- executable_pool_status: `{summary['executable_pool_status']}`",
             f"- quality_gate_status: `{summary['quality_gate_status']}`",
             f"- harvest_total_candidates: `{summary['harvest_total_candidates']}`",
+            f"- raw_accepted_models: `{summary['raw_accepted_models']}`",
             f"- accepted_models: `{summary['accepted_models']}`",
             f"- accepted_large_models: `{summary['accepted_large_models']}`",
             f"- accepted_large_ratio_pct: `{summary['accepted_large_ratio_pct']}`",

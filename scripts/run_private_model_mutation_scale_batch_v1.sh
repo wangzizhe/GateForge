@@ -34,6 +34,7 @@ DISCOVERY_MIN_MEDIUM_COMPLEXITY_SCORE="${GATEFORGE_DISCOVERY_MIN_MEDIUM_COMPLEXI
 DISCOVERY_MIN_LARGE_COMPLEXITY_SCORE="${GATEFORGE_DISCOVERY_MIN_LARGE_COMPLEXITY_SCORE:-$DEFAULT_MIN_LARGE_COMPLEXITY_SCORE}"
 MIN_ACCEPTED_LARGE_RATIO_PCT="${GATEFORGE_MIN_ACCEPTED_LARGE_RATIO_PCT:-$DEFAULT_MIN_ACCEPTED_LARGE_RATIO_PCT}"
 MAX_MUTATION_MODELS="${GATEFORGE_MAX_MUTATION_MODELS:-$DEFAULT_MAX_MUTATION_MODELS}"
+MUTANT_ROOT="${GATEFORGE_MUTANT_ROOT:-$OUT_DIR/mutants}"
 FAILURE_TYPES="${GATEFORGE_FAILURE_TYPES:-simulate_error,model_check_error,semantic_regression,numerical_instability,constraint_violation}"
 export TARGET_SCALES
 export FAILURE_TYPES
@@ -42,6 +43,7 @@ export DISCOVERY_MIN_MEDIUM_COMPLEXITY_SCORE
 export DISCOVERY_MIN_LARGE_COMPLEXITY_SCORE
 export MIN_ACCEPTED_LARGE_RATIO_PCT
 export MAX_MUTATION_MODELS
+export MUTANT_ROOT
 
 python3 - <<'PY'
 import json
@@ -56,6 +58,7 @@ payload = {
     "min_large_complexity_score": int(os.environ.get("DISCOVERY_MIN_LARGE_COMPLEXITY_SCORE", "140") or 140),
     "min_accepted_large_ratio_pct": float(os.environ.get("MIN_ACCEPTED_LARGE_RATIO_PCT", "0") or 0.0),
     "max_mutation_models": int(os.environ.get("MAX_MUTATION_MODELS", "0") or 0),
+    "mutant_root": os.environ.get("MUTANT_ROOT"),
 }
 (out / "profile_config.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
 PY
@@ -150,6 +153,13 @@ python3 -m gateforge.dataset_real_model_intake_runner_v1 \
   --out "$OUT_DIR/intake_runner_summary.json" \
   --report-out "$OUT_DIR/intake_runner_summary.md"
 
+python3 -m gateforge.dataset_real_model_executable_pool_v1 \
+  --intake-registry-rows "$OUT_DIR/intake_registry_rows.json" \
+  --intake-runner-accepted "$OUT_DIR/intake_runner_accepted.json" \
+  --out-registry "$OUT_DIR/executable_registry_rows.json" \
+  --out "$OUT_DIR/executable_pool_summary.json" \
+  --report-out "$OUT_DIR/executable_pool_summary.md"
+
 # Auto-scale mutation density based on accepted medium/large models and min-generated target.
 python3 - <<'PY'
 import json
@@ -158,7 +168,7 @@ import os
 from pathlib import Path
 
 out = Path(os.environ["OUT_DIR"])
-registry = json.loads((out / "intake_registry_rows.json").read_text(encoding="utf-8"))
+registry = json.loads((out / "executable_registry_rows.json").read_text(encoding="utf-8"))
 rows = registry.get("models") if isinstance(registry.get("models"), list) else []
 
 target_scales = {x.strip().lower() for x in os.environ.get("TARGET_SCALES", "medium,large").split(",") if x.strip()}
@@ -223,12 +233,13 @@ PY
 
 source "$OUT_DIR/auto_mutation_scale.env"
 
-python3 -m gateforge.dataset_mutation_bulk_pack_builder_v1 \
-  --model-registry "$OUT_DIR/intake_registry_rows.json" \
+python3 -m gateforge.dataset_mutation_model_materializer_v1 \
+  --model-registry "$OUT_DIR/executable_registry_rows.json" \
   --target-scales "$TARGET_SCALES" \
   --failure-types "$FAILURE_TYPES" \
   --mutations-per-failure-type "${AUTO_MUTATIONS_PER_FAILURE_TYPE}" \
   --max-models "${MAX_MUTATION_MODELS}" \
+  --mutant-root "${MUTANT_ROOT}" \
   --manifest-out "$OUT_DIR/mutation_manifest.json" \
   --out "$OUT_DIR/mutation_pack_summary.json" \
   --report-out "$OUT_DIR/mutation_pack_summary.md"
@@ -269,6 +280,7 @@ def _load(name: str) -> dict:
 discovery = _load("asset_discovery_summary.json")
 pipeline = _load("intake_pipeline_summary.json")
 runner = _load("intake_runner_summary.json")
+executable = _load("executable_pool_summary.json")
 pack = _load("mutation_pack_summary.json")
 realrun = _load("mutation_real_runner_summary.json")
 gate = _load("scale_gate_summary.json")
@@ -288,6 +300,7 @@ flags = {
     "runner_exists": "PASS" if int(runner.get("total_candidates", 0)) >= 0 else "FAIL",
     "pack_exists": "PASS" if int(pack.get("total_mutations", 0)) >= 0 else "FAIL",
     "realrun_exists": "PASS" if int(realrun.get("total_mutations", 0)) >= 0 else "FAIL",
+    "executable_pool_present": "PASS" if int(executable.get("executable_unique_models", 0)) >= 0 else "FAIL",
     "gate_status_present": "PASS" if str(gate.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "accepted_large_ratio_gate": "PASS"
     if (not ratio_gate_enabled or accepted_large_ratio_pct >= min_accepted_large_ratio_pct)
@@ -305,7 +318,12 @@ summary = {
     "accepted_large_ratio_pct": accepted_large_ratio_pct,
     "min_accepted_large_ratio_pct": min_accepted_large_ratio_pct,
     "ratio_gate_enabled": ratio_gate_enabled,
+    "raw_models": executable.get("raw_models"),
+    "executable_unique_models": executable.get("executable_unique_models"),
+    "executable_large_models": executable.get("executable_large_models"),
     "generated_mutations": pack.get("total_mutations"),
+    "materialized_mutations": pack.get("materialized_mutations"),
+    "failed_materializations": pack.get("failed_materializations"),
     "reproducible_mutations": realrun.get("executed_count"),
     "target_scales": auto_scale.get("target_scales"),
     "selected_mutation_models": auto_scale.get("selected_mutation_models"),
@@ -329,7 +347,11 @@ summary = {
             f"- accepted_models: `{summary['accepted_models']}`",
             f"- accepted_large_models: `{summary['accepted_large_models']}`",
             f"- accepted_large_ratio_pct: `{summary['accepted_large_ratio_pct']}`",
+            f"- raw_models: `{summary['raw_models']}`",
+            f"- executable_unique_models: `{summary['executable_unique_models']}`",
+            f"- executable_large_models: `{summary['executable_large_models']}`",
             f"- generated_mutations: `{summary['generated_mutations']}`",
+            f"- materialized_mutations: `{summary['materialized_mutations']}`",
             f"- reproducible_mutations: `{summary['reproducible_mutations']}`",
             f"- selected_mutation_models: `{summary['selected_mutation_models']}`",
             f"- selected_mutation_models_total: `{summary['selected_mutation_models_total']}`",
