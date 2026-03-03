@@ -45,6 +45,7 @@ VALIDATION_MAX_MUTATIONS="${GATEFORGE_MUTATION_VALIDATION_MAX_MUTATIONS:-1200}"
 VALIDATION_MIN_STAGE_MATCH_PCT="${GATEFORGE_MUTATION_VALIDATION_MIN_STAGE_MATCH_PCT:-0}"
 VALIDATION_MIN_TYPE_MATCH_PCT="${GATEFORGE_MUTATION_VALIDATION_MIN_TYPE_MATCH_PCT:-0}"
 MANIFEST_BASELINE_PATH="${GATEFORGE_MUTATION_MANIFEST_BASELINE_PATH:-$OUT_DIR/state/previous_mutation_manifest.json}"
+SCALE_HISTORY_LEDGER_PATH="${GATEFORGE_SCALE_HISTORY_LEDGER_PATH:-$OUT_DIR/state/scale_history.jsonl}"
 HARD_MOAT_MIN_DISCOVERED_MODELS="${GATEFORGE_HARD_MOAT_MIN_DISCOVERED_MODELS:-2}"
 HARD_MOAT_MIN_ACCEPTED_MODELS="${GATEFORGE_HARD_MOAT_MIN_ACCEPTED_MODELS:-2}"
 HARD_MOAT_MIN_ACCEPTED_LARGE_MODELS="${GATEFORGE_HARD_MOAT_MIN_ACCEPTED_LARGE_MODELS:-1}"
@@ -72,6 +73,7 @@ export VALIDATION_MAX_MUTATIONS
 export VALIDATION_MIN_STAGE_MATCH_PCT
 export VALIDATION_MIN_TYPE_MATCH_PCT
 export MANIFEST_BASELINE_PATH
+export SCALE_HISTORY_LEDGER_PATH
 export HARD_MOAT_MIN_DISCOVERED_MODELS
 export HARD_MOAT_MIN_ACCEPTED_MODELS
 export HARD_MOAT_MIN_ACCEPTED_LARGE_MODELS
@@ -626,6 +628,84 @@ summary = {
 )
 print(json.dumps({"bundle_status": bundle_status, "scale_gate_status": summary["scale_gate_status"]}))
 if bundle_status != "PASS":
+    raise SystemExit(1)
+PY
+
+python3 -m gateforge.dataset_scale_batch_history_ledger_v1 \
+  --record "$OUT_DIR/summary.json" \
+  --ledger "$SCALE_HISTORY_LEDGER_PATH" \
+  --out "$OUT_DIR/scale_history_summary.json" \
+  --report-out "$OUT_DIR/scale_history_summary.md"
+
+python3 -m gateforge.dataset_scale_target_gap_v1 \
+  --scale-batch-summary "$OUT_DIR/summary.json" \
+  --scale-batch-history-summary "$OUT_DIR/scale_history_summary.json" \
+  --target-model-pool-size "${GATEFORGE_TARGET_MODEL_POOL_SIZE:-8000}" \
+  --target-reproducible-mutations "${GATEFORGE_TARGET_REPRO_MUTATIONS:-36000}" \
+  --target-hardness-score "${GATEFORGE_TARGET_HARDNESS_SCORE:-85}" \
+  --target-horizon-weeks "${GATEFORGE_TARGET_HORIZON_WEEKS:-12}" \
+  --out "$OUT_DIR/scale_target_gap_summary.json" \
+  --report-out "$OUT_DIR/scale_target_gap_summary.md"
+
+python3 -m gateforge.dataset_scale_execution_priority_board_v1 \
+  --scale-target-gap-summary "$OUT_DIR/scale_target_gap_summary.json" \
+  --ingest-source-channel-planner-summary "$OUT_DIR/ingest_source_channel_planner_summary.json" \
+  --hard-moat-gates-summary "$OUT_DIR/hard_moat_gates_summary.json" \
+  --coverage-backfill-summary "$OUT_DIR/mutation_coverage_backfill_summary.json" \
+  --out "$OUT_DIR/scale_execution_priority_board_summary.json" \
+  --report-out "$OUT_DIR/scale_execution_priority_board_summary.md"
+
+python3 - <<'PY'
+import json
+import os
+from pathlib import Path
+
+out = Path(os.environ["OUT_DIR"])
+summary_path = out / "summary.json"
+summary = json.loads(summary_path.read_text(encoding="utf-8"))
+history = json.loads((out / "scale_history_summary.json").read_text(encoding="utf-8"))
+gap = json.loads((out / "scale_target_gap_summary.json").read_text(encoding="utf-8"))
+board = json.loads((out / "scale_execution_priority_board_summary.json").read_text(encoding="utf-8"))
+
+flags = summary.get("result_flags") if isinstance(summary.get("result_flags"), dict) else {}
+flags["scale_history_exists"] = "PASS" if str(history.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL"
+flags["scale_target_gap_exists"] = "PASS" if str(gap.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL"
+flags["scale_execution_board_exists"] = "PASS" if str(board.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL"
+
+summary["result_flags"] = flags
+summary["scale_history_status"] = history.get("status")
+summary["scale_history_total_records"] = history.get("total_records")
+summary["scale_history_delta_canonical_total_models"] = history.get("delta_canonical_total_models")
+summary["scale_target_gap_status"] = gap.get("status")
+summary["scale_target_gap_overall_progress_pct"] = gap.get("overall_progress_pct")
+summary["scale_target_gap_models"] = gap.get("gap_models")
+summary["scale_target_gap_reproducible_mutations"] = gap.get("gap_reproducible_mutations")
+summary["scale_target_gap_hardness_score"] = gap.get("gap_hardness_score")
+summary["scale_execution_board_status"] = board.get("status")
+summary["scale_execution_board_task_count"] = board.get("task_count")
+summary["scale_execution_board_p0_tasks"] = board.get("p0_tasks")
+summary["scale_execution_board_projected_weeks"] = board.get("projected_weeks_to_close_key_gaps")
+
+summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
+md_path = out / "summary.md"
+old = md_path.read_text(encoding="utf-8")
+extra_lines = [
+    f"- scale_history_status: `{summary.get('scale_history_status')}`",
+    f"- scale_history_total_records: `{summary.get('scale_history_total_records')}`",
+    f"- scale_history_delta_canonical_total_models: `{summary.get('scale_history_delta_canonical_total_models')}`",
+    f"- scale_target_gap_status: `{summary.get('scale_target_gap_status')}`",
+    f"- scale_target_gap_overall_progress_pct: `{summary.get('scale_target_gap_overall_progress_pct')}`",
+    f"- scale_target_gap_models: `{summary.get('scale_target_gap_models')}`",
+    f"- scale_target_gap_reproducible_mutations: `{summary.get('scale_target_gap_reproducible_mutations')}`",
+    f"- scale_target_gap_hardness_score: `{summary.get('scale_target_gap_hardness_score')}`",
+    f"- scale_execution_board_status: `{summary.get('scale_execution_board_status')}`",
+    f"- scale_execution_board_task_count: `{summary.get('scale_execution_board_task_count')}`",
+    f"- scale_execution_board_p0_tasks: `{summary.get('scale_execution_board_p0_tasks')}`",
+    f"- scale_execution_board_projected_weeks: `{summary.get('scale_execution_board_projected_weeks')}`",
+]
+md_path.write_text(old + "\n" + "\n".join(extra_lines) + "\n", encoding="utf-8")
+print(json.dumps({"bundle_status": summary.get("bundle_status"), "scale_target_gap_status": summary.get("scale_target_gap_status")}))
+if str(summary.get("bundle_status") or "") != "PASS":
     raise SystemExit(1)
 PY
 
