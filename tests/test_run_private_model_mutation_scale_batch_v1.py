@@ -99,6 +99,8 @@ class RunPrivateModelMutationScaleBatchV1Tests(unittest.TestCase):
             self.assertGreaterEqual(int(summary.get("scale_execution_board_task_count", 0) or 0), 0)
             self.assertIn(summary.get("real_model_pool_audit_status"), {"PASS", "NEEDS_REVIEW", "FAIL"})
             self.assertIn(summary.get("mutation_artifact_inventory_status"), {"PASS", "NEEDS_REVIEW", "FAIL"})
+            self.assertIn(summary.get("asset_locator_manifest_status"), {"PASS", "NEEDS_REVIEW", "FAIL"})
+            self.assertIn(summary.get("reproducible_sample_pack_status"), {"PASS", "NEEDS_REVIEW", "FAIL"})
             self.assertIn(summary.get("scale_evidence_stamp_status"), {"PASS", "NEEDS_REVIEW", "FAIL"})
             self.assertGreaterEqual(float(summary.get("scale_evidence_stamp_score", 0.0) or 0.0), 0.0)
             self.assertIn(summary.get("validation_backend_used"), {"syntax", "omc"})
