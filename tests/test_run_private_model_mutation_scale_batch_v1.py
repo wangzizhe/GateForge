@@ -86,6 +86,8 @@ class RunPrivateModelMutationScaleBatchV1Tests(unittest.TestCase):
             self.assertIn(summary.get("mutation_validation_status"), {"PASS", "NEEDS_REVIEW", "FAIL"})
             self.assertIn(summary.get("validation_v2_status"), {"PASS", "NEEDS_REVIEW", "FAIL"})
             self.assertIn(summary.get("failure_distribution_guard_status"), {"PASS", "NEEDS_REVIEW", "FAIL"})
+            self.assertIn(summary.get("mismatch_triage_status"), {"PASS", "NEEDS_REVIEW", "FAIL"})
+            self.assertIn(summary.get("coverage_backfill_status"), {"PASS", "NEEDS_REVIEW", "FAIL"})
             self.assertIn(summary.get("validation_backend_used"), {"syntax", "omc"})
 
             manifest = json.loads((out_dir / "mutation_manifest.json").read_text(encoding="utf-8"))

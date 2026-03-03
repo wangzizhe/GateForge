@@ -309,6 +309,20 @@ python3 -m gateforge.dataset_failure_distribution_stability_guard_v1 \
   --out "$OUT_DIR/failure_distribution_stability_guard_summary.json" \
   --report-out "$OUT_DIR/failure_distribution_stability_guard_summary.md"
 
+python3 -m gateforge.dataset_mutation_mismatch_triage_dataset_v1 \
+  --validation-records "$OUT_DIR/mutation_validation_records.json" \
+  --mutation-manifest "$OUT_DIR/mutation_manifest.json" \
+  --triage-dataset-out "$OUT_DIR/mutation_mismatch_triage_dataset.json" \
+  --out "$OUT_DIR/mutation_mismatch_triage_summary.json" \
+  --report-out "$OUT_DIR/mutation_mismatch_triage_summary.md"
+
+python3 -m gateforge.dataset_mutation_coverage_gap_backfill_v1 \
+  --validation-matrix-v2-summary "$OUT_DIR/mutation_validation_matrix_v2_summary.json" \
+  --failure-distribution-stability-guard-summary "$OUT_DIR/failure_distribution_stability_guard_summary.json" \
+  --tasks-out "$OUT_DIR/mutation_coverage_backfill_tasks.json" \
+  --out "$OUT_DIR/mutation_coverage_backfill_summary.json" \
+  --report-out "$OUT_DIR/mutation_coverage_backfill_summary.md"
+
 mkdir -p "$(dirname "$MANIFEST_BASELINE_PATH")"
 cp "$OUT_DIR/mutation_manifest.json" "$MANIFEST_BASELINE_PATH"
 
@@ -355,6 +369,8 @@ pack = _load("mutation_pack_summary.json")
 validation = _load("mutation_validation_summary.json")
 validation_v2 = _load("mutation_validation_matrix_v2_summary.json")
 stability_guard = _load("failure_distribution_stability_guard_summary.json")
+mismatch_triage = _load("mutation_mismatch_triage_summary.json")
+coverage_backfill = _load("mutation_coverage_backfill_summary.json")
 realrun = _load("mutation_real_runner_summary.json")
 gate = _load("scale_gate_summary.json")
 auto_scale = _load("auto_mutation_scale.json")
@@ -379,6 +395,8 @@ flags = {
     "validation_exists": "PASS" if str(validation.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "validation_v2_exists": "PASS" if str(validation_v2.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "stability_guard_exists": "PASS" if str(stability_guard.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
+    "mismatch_triage_exists": "PASS" if str(mismatch_triage.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
+    "coverage_backfill_exists": "PASS" if str(coverage_backfill.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "gate_status_present": "PASS" if str(gate.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "accepted_large_ratio_gate": "PASS"
     if (not ratio_gate_enabled or accepted_large_ratio_pct >= min_accepted_large_ratio_pct)
@@ -421,6 +439,11 @@ summary = {
     "failure_distribution_guard_status": stability_guard.get("status"),
     "failure_distribution_guard_entropy": stability_guard.get("failure_type_entropy"),
     "failure_distribution_guard_drift_tvd": stability_guard.get("distribution_drift_tvd"),
+    "mismatch_triage_status": mismatch_triage.get("status"),
+    "mismatch_triage_count": mismatch_triage.get("mismatch_count"),
+    "coverage_backfill_status": coverage_backfill.get("status"),
+    "coverage_backfill_total_tasks": coverage_backfill.get("total_tasks"),
+    "coverage_backfill_p0_tasks": coverage_backfill.get("p0_tasks"),
     "reproducible_mutations": realrun.get("executed_count"),
     "target_scales": auto_scale.get("target_scales"),
     "selected_mutation_models": auto_scale.get("selected_mutation_models"),
@@ -467,6 +490,11 @@ summary = {
             f"- failure_distribution_guard_status: `{summary['failure_distribution_guard_status']}`",
             f"- failure_distribution_guard_entropy: `{summary['failure_distribution_guard_entropy']}`",
             f"- failure_distribution_guard_drift_tvd: `{summary['failure_distribution_guard_drift_tvd']}`",
+            f"- mismatch_triage_status: `{summary['mismatch_triage_status']}`",
+            f"- mismatch_triage_count: `{summary['mismatch_triage_count']}`",
+            f"- coverage_backfill_status: `{summary['coverage_backfill_status']}`",
+            f"- coverage_backfill_total_tasks: `{summary['coverage_backfill_total_tasks']}`",
+            f"- coverage_backfill_p0_tasks: `{summary['coverage_backfill_p0_tasks']}`",
             f"- reproducible_mutations: `{summary['reproducible_mutations']}`",
             f"- selected_mutation_models: `{summary['selected_mutation_models']}`",
             f"- selected_mutation_models_total: `{summary['selected_mutation_models_total']}`",
