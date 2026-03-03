@@ -98,6 +98,16 @@ def _source_bucket_effective_scale_score(bucket: dict) -> float:
     return round(_clamp(score, 0.0, 100.0), 2)
 
 
+def _trend_has_worsened(trend_summary: dict) -> bool:
+    trend = trend_summary.get("trend") if isinstance(trend_summary.get("trend"), dict) else {}
+    alerts = trend.get("alerts") if isinstance(trend.get("alerts"), list) else []
+    for alert in alerts:
+        text = str(alert or "")
+        if ("worsened" in text) or ("decreasing" in text) or ("increasing" in text):
+            return True
+    return False
+
+
 def _write_markdown(path: str, payload: dict) -> None:
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
@@ -141,6 +151,9 @@ def main() -> None:
     parser.add_argument("--mutation-authentic-scale-score-summary", default=None)
     parser.add_argument("--large-model-authenticity-gate-summary", default=None)
     parser.add_argument("--mutation-source-bucket-effective-scale-summary", default=None)
+    parser.add_argument("--mutation-authentic-scale-score-trend-summary", default=None)
+    parser.add_argument("--large-model-authenticity-trend-summary", default=None)
+    parser.add_argument("--mutation-source-bucket-effective-scale-trend-summary", default=None)
     parser.add_argument("--min-score-pass", type=float, default=78.0)
     parser.add_argument("--out", default="artifacts/dataset_joint_moat_strength_gate_v1/summary.json")
     parser.add_argument("--report-out", default=None)
@@ -159,6 +172,9 @@ def main() -> None:
     authentic_scale = _load_json(args.mutation_authentic_scale_score_summary)
     large_model_auth = _load_json(args.large_model_authenticity_gate_summary)
     source_bucket_effective_scale = _load_json(args.mutation_source_bucket_effective_scale_summary)
+    authentic_scale_trend = _load_json(args.mutation_authentic_scale_score_trend_summary)
+    large_model_auth_trend = _load_json(args.large_model_authenticity_trend_summary)
+    source_bucket_effective_scale_trend = _load_json(args.mutation_source_bucket_effective_scale_trend_summary)
 
     reasons: list[str] = []
     if not family:
@@ -266,6 +282,18 @@ def main() -> None:
         warning_reasons.append("mutation_source_bucket_effective_scale_not_pass")
     if source_bucket_effective_scale and source_bucket_effective_scale_score < 30.0:
         warning_reasons.append("mutation_source_bucket_effective_scale_score_low")
+    if authentic_scale_trend and str(authentic_scale_trend.get("status") or "") in {"NEEDS_REVIEW", "FAIL"}:
+        warning_reasons.append("mutation_authentic_scale_trend_not_pass")
+    if large_model_auth_trend and str(large_model_auth_trend.get("status") or "") in {"NEEDS_REVIEW", "FAIL"}:
+        warning_reasons.append("large_model_authenticity_trend_not_pass")
+    if source_bucket_effective_scale_trend and str(source_bucket_effective_scale_trend.get("status") or "") in {"NEEDS_REVIEW", "FAIL"}:
+        warning_reasons.append("mutation_source_bucket_effective_scale_trend_not_pass")
+    if authentic_scale_trend and _trend_has_worsened(authentic_scale_trend):
+        warning_reasons.append("mutation_authentic_scale_trend_worsening")
+    if large_model_auth_trend and _trend_has_worsened(large_model_auth_trend):
+        warning_reasons.append("large_model_authenticity_trend_worsening")
+    if source_bucket_effective_scale_trend and _trend_has_worsened(source_bucket_effective_scale_trend):
+        warning_reasons.append("mutation_source_bucket_effective_scale_trend_worsening")
     if moat_strength_score < float(args.min_score_pass):
         warning_reasons.append("joint_moat_strength_score_below_threshold")
 
@@ -317,6 +345,9 @@ def main() -> None:
             "mutation_authentic_scale_score_summary": args.mutation_authentic_scale_score_summary,
             "large_model_authenticity_gate_summary": args.large_model_authenticity_gate_summary,
             "mutation_source_bucket_effective_scale_summary": args.mutation_source_bucket_effective_scale_summary,
+            "mutation_authentic_scale_score_trend_summary": args.mutation_authentic_scale_score_trend_summary,
+            "large_model_authenticity_trend_summary": args.large_model_authenticity_trend_summary,
+            "mutation_source_bucket_effective_scale_trend_summary": args.mutation_source_bucket_effective_scale_trend_summary,
         },
     }
     _write_json(args.out, payload)

@@ -137,6 +137,9 @@ class DatasetHardMoatGatesV1Tests(unittest.TestCase):
             authentic_scale = root / "authentic_scale.json"
             large_auth = root / "large_auth.json"
             source_bucket = root / "source_bucket.json"
+            authentic_scale_trend = root / "authentic_scale_trend.json"
+            large_auth_trend = root / "large_auth_trend.json"
+            source_bucket_trend = root / "source_bucket_trend.json"
             out = root / "summary.json"
 
             discovery.write_text(json.dumps({"total_candidates": 50}), encoding="utf-8")
@@ -177,6 +180,18 @@ class DatasetHardMoatGatesV1Tests(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
+            authentic_scale_trend.write_text(
+                json.dumps({"status": "PASS", "trend": {"alerts": []}}),
+                encoding="utf-8",
+            )
+            large_auth_trend.write_text(
+                json.dumps({"status": "PASS", "trend": {"alerts": []}}),
+                encoding="utf-8",
+            )
+            source_bucket_trend.write_text(
+                json.dumps({"status": "PASS", "trend": {"alerts": []}}),
+                encoding="utf-8",
+            )
 
             proc = subprocess.run(
                 [
@@ -209,6 +224,12 @@ class DatasetHardMoatGatesV1Tests(unittest.TestCase):
                     str(large_auth),
                     "--mutation-source-bucket-effective-scale-summary",
                     str(source_bucket),
+                    "--mutation-authentic-scale-score-trend-summary",
+                    str(authentic_scale_trend),
+                    "--large-model-authenticity-trend-summary",
+                    str(large_auth_trend),
+                    "--mutation-source-bucket-effective-scale-trend-summary",
+                    str(source_bucket_trend),
                     "--out",
                     str(out),
                 ],
@@ -223,6 +244,7 @@ class DatasetHardMoatGatesV1Tests(unittest.TestCase):
             self.assertIn("effective_reproducible_mutations", signals)
             self.assertIn("authentic_scale_score", signals)
             self.assertIn("large_model_authenticity_score", signals)
+            self.assertIn("authentic_scale_trend_status", signals)
 
 
 if __name__ == "__main__":
