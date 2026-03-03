@@ -88,6 +88,102 @@ class MutationModelMaterializerV1Tests(unittest.TestCase):
                 self.assertIn("GateForge mutation", text)
                 self.assertTrue(str(row.get("repro_command") or "").startswith("python3 -c "))
 
+    def test_materialize_with_recipe_library_v2(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            models_dir = root / "models"
+            models_dir.mkdir(parents=True, exist_ok=True)
+
+            large = models_dir / "LargePlant.mo"
+            large.write_text(
+                "\n".join(
+                    ["model LargePlant", "  Real x;", "  Real y;"]
+                    + [f"  parameter Real p{i}={i};" for i in range(1, 140)]
+                    + ["equation", "  der(x)=p1-p2+p3;", "  der(y)=p4-p5+p6;", "end LargePlant;"]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            registry = root / "registry.json"
+            registry.write_text(
+                json.dumps(
+                    {
+                        "models": [
+                            {"model_id": "m_large", "asset_type": "model_source", "source_path": str(large), "suggested_scale": "large"},
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            recipe_library = root / "recipes.json"
+            recipe_library.write_text(
+                json.dumps(
+                    {
+                        "schema_version": "modelica_mutation_recipe_library_v2",
+                        "recipes": [
+                            {
+                                "recipe_id": "r1",
+                                "target_scale": "large",
+                                "operator_family": "semantic_shift",
+                                "operator": "inject_parameter_bias_drift",
+                                "expected_failure_type": "semantic_regression",
+                                "expected_stage": "simulate",
+                            },
+                            {
+                                "recipe_id": "r2",
+                                "target_scale": "large",
+                                "operator_family": "model_integrity",
+                                "operator": "inject_bad_connector_equation",
+                                "expected_failure_type": "model_check_error",
+                                "expected_stage": "check",
+                            },
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            manifest = root / "mutation_manifest.json"
+            out = root / "summary.json"
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.dataset_mutation_model_materializer_v1",
+                    "--model-registry",
+                    str(registry),
+                    "--target-scales",
+                    "large",
+                    "--recipe-library",
+                    str(recipe_library),
+                    "--mutations-per-recipe",
+                    "1",
+                    "--max-models",
+                    "1",
+                    "--mutant-root",
+                    str(root / "mutants"),
+                    "--manifest-out",
+                    str(manifest),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            summary = json.loads(out.read_text(encoding="utf-8"))
+            payload = json.loads(manifest.read_text(encoding="utf-8"))
+            rows = payload.get("mutations") if isinstance(payload.get("mutations"), list) else []
+            self.assertEqual(summary.get("status"), "PASS")
+            self.assertEqual(int(summary.get("total_mutations", 0)), 2)
+            self.assertGreaterEqual(int(summary.get("operator_family_count", 0)), 2)
+            self.assertEqual(len(rows), 2)
+            self.assertTrue(all(str(x.get("recipe_id") or "") for x in rows))
+            self.assertTrue(all(str(x.get("operator_family") or "") for x in rows))
+
 
 if __name__ == "__main__":
     unittest.main()

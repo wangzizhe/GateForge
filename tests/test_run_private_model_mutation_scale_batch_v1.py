@@ -81,6 +81,8 @@ class RunPrivateModelMutationScaleBatchV1Tests(unittest.TestCase):
             self.assertGreaterEqual(int(summary.get("mutations_per_failure_type", 0)), 2)
             self.assertGreaterEqual(int(summary.get("executable_unique_models", 0) or 0), 2)
             self.assertGreaterEqual(int(summary.get("materialized_mutations", 0) or 0), 20)
+            self.assertGreaterEqual(int(summary.get("canonical_total_models", 0) or 0), 2)
+            self.assertIn(summary.get("mutation_recipe_library_v2_status"), {"PASS", "NEEDS_REVIEW", "FAIL"})
             self.assertIn(summary.get("mutation_validation_status"), {"PASS", "NEEDS_REVIEW", "FAIL"})
             self.assertIn(summary.get("validation_backend_used"), {"syntax", "omc"})
 
