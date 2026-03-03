@@ -111,6 +111,8 @@ def main() -> None:
     parser.add_argument("--scale-batch-summary", required=True)
     parser.add_argument("--scale-gate-summary", required=True)
     parser.add_argument("--uniqueness-guard-summary", default=None)
+    parser.add_argument("--stability-triplet-summary", default=None)
+    parser.add_argument("--coverage-quality-gate-summary", default=None)
     parser.add_argument("--source-manifest", default=None)
     parser.add_argument("--min-accepted-models", type=int, default=300)
     parser.add_argument("--min-unique-accepted-models", type=int, default=260)
@@ -125,6 +127,8 @@ def main() -> None:
     scale_batch = _load_json(args.scale_batch_summary)
     scale_gate = _load_json(args.scale_gate_summary)
     uniqueness = _load_json(args.uniqueness_guard_summary)
+    stability = _load_json(args.stability_triplet_summary)
+    coverage = _load_json(args.coverage_quality_gate_summary)
     manifest = _load_json(args.source_manifest)
 
     reasons: list[str] = []
@@ -150,6 +154,8 @@ def main() -> None:
     unique_accepted_models = _to_int(uniqueness.get("effective_unique_accepted_models", accepted_models))
     duplicate_ratio_pct = _to_float(uniqueness.get("duplicate_ratio_pct", 0.0))
     uniqueness_status = str(uniqueness.get("status") or "UNKNOWN")
+    stability_status = str(stability.get("status") or "UNKNOWN")
+    coverage_status = str(coverage.get("status") or "UNKNOWN")
 
     reproducibility_ratio_pct = _round(
         100.0 * reproducible_mutations / max(1, generated_mutations)
@@ -175,6 +181,10 @@ def main() -> None:
         alerts.append("uniqueness_guard_not_pass")
     if uniqueness and duplicate_ratio_pct > 8.0:
         alerts.append("duplicate_ratio_above_8pct")
+    if stability and stability_status != "PASS":
+        alerts.append("stability_triplet_not_pass")
+    if coverage and coverage_status != "PASS":
+        alerts.append("coverage_quality_gate_not_pass")
 
     evidence_score = _round(
         _clamp(
@@ -217,6 +227,8 @@ def main() -> None:
         "unique_accepted_models": unique_accepted_models,
         "duplicate_ratio_pct": _round(duplicate_ratio_pct),
         "uniqueness_status": uniqueness_status,
+        "stability_status": stability_status,
+        "coverage_quality_status": coverage_status,
         "accepted_large_models": accepted_large_models,
         "generated_mutations": generated_mutations,
         "reproducible_mutations": reproducible_mutations,
@@ -267,6 +279,8 @@ def main() -> None:
             "scale_batch_summary": args.scale_batch_summary,
             "scale_gate_summary": args.scale_gate_summary,
             "uniqueness_guard_summary": args.uniqueness_guard_summary,
+            "stability_triplet_summary": args.stability_triplet_summary,
+            "coverage_quality_gate_summary": args.coverage_quality_gate_summary,
             "source_manifest": args.source_manifest,
         },
     }

@@ -19,6 +19,9 @@ class RunRealModelMutationMilestoneEvidencePackV1Tests(unittest.TestCase):
             out_dir = root / "milestone_out"
             intake_runner_accepted = root / "intake_runner_accepted.json"
             intake_registry_rows = root / "intake_registry_rows.json"
+            mutation_manifest = root / "mutation_manifest.json"
+            mutation_raw = root / "mutation_raw_observations.json"
+            coverage_summary = root / "coverage_summary.json"
 
             bootstrap.write_text(json.dumps({"status": "PASS", "harvest_total_candidates": 720, "accepted_models": 720}), encoding="utf-8")
             scale.write_text(
@@ -71,6 +74,25 @@ class RunRealModelMutationMilestoneEvidencePackV1Tests(unittest.TestCase):
                 encoding="utf-8",
             )
             (root / "m1.mo").write_text("model M1\n Real x;\nequation\n der(x)= -x;\nend M1;\n", encoding="utf-8")
+            mutation_manifest.write_text(
+                json.dumps({"mutations": [{"mutation_id": "z1", "target_model_id": "m1", "expected_failure_type": "simulate_error"}]}),
+                encoding="utf-8",
+            )
+            mutation_raw.write_text(
+                json.dumps({"observations": [{"mutation_id": "z1", "execution_status": "EXECUTED"}]}),
+                encoding="utf-8",
+            )
+            coverage_summary.write_text(
+                json.dumps(
+                    {
+                        "status": "PASS",
+                        "required_cell_count": 10,
+                        "covered_required_cell_count": 10,
+                        "required_cell_coverage_ratio_pct": 100.0,
+                    }
+                ),
+                encoding="utf-8",
+            )
 
             proc = subprocess.run(
                 ["bash", str(script)],
@@ -85,6 +107,7 @@ class RunRealModelMutationMilestoneEvidencePackV1Tests(unittest.TestCase):
                     "GATEFORGE_SCALE_BATCH_SUMMARY": str(scale),
                     "GATEFORGE_SCALE_GATE_SUMMARY": str(gate),
                     "GATEFORGE_MODELICA_SOURCE_MANIFEST": str(manifest),
+                    "GATEFORGE_COVERAGE_QUALITY_SUMMARY": str(coverage_summary),
                 },
                 timeout=120,
             )

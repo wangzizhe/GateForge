@@ -9,6 +9,8 @@ BOOTSTRAP_SUMMARY="${GATEFORGE_MODELICA_BOOTSTRAP_SUMMARY:-artifacts/modelica_op
 SCALE_SUMMARY="${GATEFORGE_SCALE_BATCH_SUMMARY:-}"
 SCALE_GATE_SUMMARY="${GATEFORGE_SCALE_GATE_SUMMARY:-}"
 SOURCE_MANIFEST="${GATEFORGE_MODELICA_SOURCE_MANIFEST:-data/modelica_open_source_seed_sources_v1.json}"
+STABILITY_SUMMARY="${GATEFORGE_STABILITY_TRIPLET_SUMMARY:-artifacts/private_model_mutation_depth6_stability_triplet_v1/summary.json}"
+COVERAGE_SUMMARY="${GATEFORGE_COVERAGE_QUALITY_SUMMARY:-artifacts/real_model_mutation_coverage_quality_gate_v1/summary.json}"
 
 if [ -z "$SCALE_SUMMARY" ]; then
   if [ -f "artifacts/private_model_mutation_scale_depth6_sprint_v1/summary.json" ]; then
@@ -41,13 +43,27 @@ python3 -m gateforge.dataset_real_model_uniqueness_guard_v1 \
   --out "$UNIQUENESS_SUMMARY" \
   --report-out "$OUT_DIR/uniqueness_guard_summary.md"
 
-python3 -m gateforge.dataset_real_model_mutation_milestone_evidence_pack_v1 \
-  --open-source-bootstrap-summary "$BOOTSTRAP_SUMMARY" \
-  --scale-batch-summary "$SCALE_SUMMARY" \
-  --scale-gate-summary "$SCALE_GATE_SUMMARY" \
-  --uniqueness-guard-summary "$UNIQUENESS_SUMMARY" \
-  --source-manifest "$SOURCE_MANIFEST" \
-  --out "$OUT_DIR/summary.json" \
+if [ ! -f "$COVERAGE_SUMMARY" ]; then
+  GATEFORGE_SCALE_BATCH_SUMMARY="$SCALE_SUMMARY" \
+  GATEFORGE_COVERAGE_GATE_OUT_DIR="$(dirname "$COVERAGE_SUMMARY")" \
+  bash scripts/run_real_model_mutation_coverage_quality_gate_v1.sh >/dev/null
+fi
+
+MILESTONE_CMD=(python3 -m gateforge.dataset_real_model_mutation_milestone_evidence_pack_v1
+  --open-source-bootstrap-summary "$BOOTSTRAP_SUMMARY"
+  --scale-batch-summary "$SCALE_SUMMARY"
+  --scale-gate-summary "$SCALE_GATE_SUMMARY"
+  --uniqueness-guard-summary "$UNIQUENESS_SUMMARY"
+  --source-manifest "$SOURCE_MANIFEST"
+  --out "$OUT_DIR/summary.json"
   --report-out "$OUT_DIR/summary.md"
+)
+if [ -f "$STABILITY_SUMMARY" ]; then
+  MILESTONE_CMD+=(--stability-triplet-summary "$STABILITY_SUMMARY")
+fi
+if [ -f "$COVERAGE_SUMMARY" ]; then
+  MILESTONE_CMD+=(--coverage-quality-gate-summary "$COVERAGE_SUMMARY")
+fi
+"${MILESTONE_CMD[@]}"
 
 cat "$OUT_DIR/summary.json"
