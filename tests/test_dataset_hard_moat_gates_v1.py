@@ -134,6 +134,9 @@ class DatasetHardMoatGatesV1Tests(unittest.TestCase):
             effective_scale = root / "effective_scale.json"
             effective_depth = root / "effective_depth.json"
             source_prov = root / "source_prov.json"
+            authentic_scale = root / "authentic_scale.json"
+            large_auth = root / "large_auth.json"
+            source_bucket = root / "source_bucket.json"
             out = root / "summary.json"
 
             discovery.write_text(json.dumps({"total_candidates": 50}), encoding="utf-8")
@@ -158,6 +161,18 @@ class DatasetHardMoatGatesV1Tests(unittest.TestCase):
                         "existing_source_path_ratio_pct": 100.0,
                         "allowed_root_ratio_pct": 100.0,
                         "registry_match_ratio_pct": 95.0,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            authentic_scale.write_text(json.dumps({"status": "PASS", "authentic_scale_score": 74.0}), encoding="utf-8")
+            large_auth.write_text(json.dumps({"status": "PASS", "large_model_authenticity_score": 78.0}), encoding="utf-8")
+            source_bucket.write_text(
+                json.dumps(
+                    {
+                        "status": "PASS",
+                        "source_bucket_count": 4,
+                        "max_bucket_share_pct": 42.0,
                     }
                 ),
                 encoding="utf-8",
@@ -188,6 +203,12 @@ class DatasetHardMoatGatesV1Tests(unittest.TestCase):
                     str(effective_depth),
                     "--mutation-source-provenance-summary",
                     str(source_prov),
+                    "--mutation-authentic-scale-score-summary",
+                    str(authentic_scale),
+                    "--large-model-authenticity-gate-summary",
+                    str(large_auth),
+                    "--mutation-source-bucket-effective-scale-summary",
+                    str(source_bucket),
                     "--out",
                     str(out),
                 ],
@@ -200,6 +221,8 @@ class DatasetHardMoatGatesV1Tests(unittest.TestCase):
             self.assertIn(payload.get("status"), {"PASS", "NEEDS_REVIEW"})
             signals = payload.get("signals") if isinstance(payload.get("signals"), dict) else {}
             self.assertIn("effective_reproducible_mutations", signals)
+            self.assertIn("authentic_scale_score", signals)
+            self.assertIn("large_model_authenticity_score", signals)
 
 
 if __name__ == "__main__":

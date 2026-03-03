@@ -86,6 +86,18 @@ def _source_provenance_score(source_prov: dict) -> float:
     return round(_clamp(score, 0.0, 100.0), 2)
 
 
+def _source_bucket_effective_scale_score(bucket: dict) -> float:
+    if not bucket:
+        return 0.0
+    source_bucket_count = _clamp(_to_float(bucket.get("source_bucket_count", 0.0)), 0.0, 10.0)
+    max_share = _clamp(_to_float(bucket.get("max_bucket_share_pct", 100.0)), 0.0, 100.0)
+    weighted_effective = _clamp(_to_float(bucket.get("weighted_effective_mutations", 0.0)), 0.0, 100.0)
+    bucket_coverage_score = source_bucket_count * 10.0
+    concentration_score = 100.0 - max_share
+    score = bucket_coverage_score * 0.35 + concentration_score * 0.40 + weighted_effective * 0.25
+    return round(_clamp(score, 0.0, 100.0), 2)
+
+
 def _write_markdown(path: str, payload: dict) -> None:
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
@@ -126,6 +138,9 @@ def main() -> None:
     parser.add_argument("--mutation-failure-signal-authenticity-summary", default=None)
     parser.add_argument("--mutation-effective-depth-summary", default=None)
     parser.add_argument("--mutation-source-provenance-summary", default=None)
+    parser.add_argument("--mutation-authentic-scale-score-summary", default=None)
+    parser.add_argument("--large-model-authenticity-gate-summary", default=None)
+    parser.add_argument("--mutation-source-bucket-effective-scale-summary", default=None)
     parser.add_argument("--min-score-pass", type=float, default=78.0)
     parser.add_argument("--out", default="artifacts/dataset_joint_moat_strength_gate_v1/summary.json")
     parser.add_argument("--report-out", default=None)
@@ -141,6 +156,9 @@ def main() -> None:
     failure_auth = _load_json(args.mutation_failure_signal_authenticity_summary)
     effective_depth = _load_json(args.mutation_effective_depth_summary)
     source_prov = _load_json(args.mutation_source_provenance_summary)
+    authentic_scale = _load_json(args.mutation_authentic_scale_score_summary)
+    large_model_auth = _load_json(args.large_model_authenticity_gate_summary)
+    source_bucket_effective_scale = _load_json(args.mutation_source_bucket_effective_scale_summary)
 
     reasons: list[str] = []
     if not family:
@@ -166,6 +184,9 @@ def main() -> None:
     failure_auth_score = _failure_signal_authenticity_score(failure_auth)
     effective_depth_score = _effective_depth_score(effective_depth)
     source_prov_score = _source_provenance_score(source_prov)
+    authentic_scale_score = _clamp(_to_float(authentic_scale.get("authentic_scale_score", 0.0)), 0.0, 100.0)
+    large_model_auth_score = _clamp(_to_float(large_model_auth.get("large_model_authenticity_score", 0.0)), 0.0, 100.0)
+    source_bucket_effective_scale_score = _source_bucket_effective_scale_score(source_bucket_effective_scale)
 
     base_weighted = (
         family_score * 0.12
@@ -185,6 +206,12 @@ def main() -> None:
         optional_scores.append(effective_depth_score)
     if source_prov:
         optional_scores.append(source_prov_score)
+    if authentic_scale:
+        optional_scores.append(authentic_scale_score)
+    if large_model_auth:
+        optional_scores.append(large_model_auth_score)
+    if source_bucket_effective_scale:
+        optional_scores.append(source_bucket_effective_scale_score)
     if optional_scores:
         optional_avg = sum(optional_scores) / max(1, len(optional_scores))
         weighted = base_weighted * 0.85 + optional_avg * 0.15
@@ -227,6 +254,18 @@ def main() -> None:
         warning_reasons.append("mutation_source_provenance_not_pass")
     if source_prov and source_prov_score < 30.0:
         warning_reasons.append("mutation_source_provenance_score_low")
+    if authentic_scale and str(authentic_scale.get("status") or "") in {"NEEDS_REVIEW", "FAIL"}:
+        warning_reasons.append("mutation_authentic_scale_score_not_pass")
+    if authentic_scale and authentic_scale_score < 30.0:
+        warning_reasons.append("mutation_authentic_scale_score_low")
+    if large_model_auth and str(large_model_auth.get("status") or "") in {"NEEDS_REVIEW", "FAIL"}:
+        warning_reasons.append("large_model_authenticity_not_pass")
+    if large_model_auth and large_model_auth_score < 30.0:
+        warning_reasons.append("large_model_authenticity_score_low")
+    if source_bucket_effective_scale and str(source_bucket_effective_scale.get("status") or "") in {"NEEDS_REVIEW", "FAIL"}:
+        warning_reasons.append("mutation_source_bucket_effective_scale_not_pass")
+    if source_bucket_effective_scale and source_bucket_effective_scale_score < 30.0:
+        warning_reasons.append("mutation_source_bucket_effective_scale_score_low")
     if moat_strength_score < float(args.min_score_pass):
         warning_reasons.append("joint_moat_strength_score_below_threshold")
 
@@ -258,6 +297,9 @@ def main() -> None:
             "mutation_failure_signal_authenticity_score": round(failure_auth_score, 2),
             "mutation_effective_depth_score": round(effective_depth_score, 2),
             "mutation_source_provenance_score": round(source_prov_score, 2),
+            "mutation_authentic_scale_score": round(authentic_scale_score, 2),
+            "large_model_authenticity_score": round(large_model_auth_score, 2),
+            "mutation_source_bucket_effective_scale_score": round(source_bucket_effective_scale_score, 2),
         },
         "alerts": warning_reasons,
         "reasons": sorted(set(reasons)),
@@ -272,6 +314,9 @@ def main() -> None:
             "mutation_failure_signal_authenticity_summary": args.mutation_failure_signal_authenticity_summary,
             "mutation_effective_depth_summary": args.mutation_effective_depth_summary,
             "mutation_source_provenance_summary": args.mutation_source_provenance_summary,
+            "mutation_authentic_scale_score_summary": args.mutation_authentic_scale_score_summary,
+            "large_model_authenticity_gate_summary": args.large_model_authenticity_gate_summary,
+            "mutation_source_bucket_effective_scale_summary": args.mutation_source_bucket_effective_scale_summary,
         },
     }
     _write_json(args.out, payload)

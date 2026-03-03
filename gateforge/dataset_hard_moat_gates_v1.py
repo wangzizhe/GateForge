@@ -75,6 +75,9 @@ def main() -> None:
     parser.add_argument("--mutation-effective-scale-summary", default=None)
     parser.add_argument("--mutation-effective-depth-summary", default=None)
     parser.add_argument("--mutation-source-provenance-summary", default=None)
+    parser.add_argument("--mutation-authentic-scale-score-summary", default=None)
+    parser.add_argument("--large-model-authenticity-gate-summary", default=None)
+    parser.add_argument("--mutation-source-bucket-effective-scale-summary", default=None)
     parser.add_argument("--min-discovered-models", type=int, default=2)
     parser.add_argument("--min-accepted-models", type=int, default=2)
     parser.add_argument("--min-accepted-large-models", type=int, default=1)
@@ -90,6 +93,10 @@ def main() -> None:
     parser.add_argument("--min-source-existing-source-path-ratio-pct", type=float, default=80.0)
     parser.add_argument("--min-source-allowed-root-ratio-pct", type=float, default=80.0)
     parser.add_argument("--min-source-registry-match-ratio-pct", type=float, default=50.0)
+    parser.add_argument("--min-authentic-scale-score", type=float, default=60.0)
+    parser.add_argument("--min-large-model-authenticity-score", type=float, default=60.0)
+    parser.add_argument("--min-source-bucket-count", type=int, default=2)
+    parser.add_argument("--max-source-bucket-share-pct", type=float, default=75.0)
     parser.add_argument("--out", default="artifacts/dataset_hard_moat_gates_v1/summary.json")
     parser.add_argument("--report-out", default=None)
     args = parser.parse_args()
@@ -104,6 +111,9 @@ def main() -> None:
     effective_scale = _load_json(args.mutation_effective_scale_summary)
     effective_depth = _load_json(args.mutation_effective_depth_summary)
     source_provenance = _load_json(args.mutation_source_provenance_summary)
+    authentic_scale_score = _load_json(args.mutation_authentic_scale_score_summary)
+    large_model_authenticity = _load_json(args.large_model_authenticity_gate_summary)
+    source_bucket_effective_scale = _load_json(args.mutation_source_bucket_effective_scale_summary)
 
     reasons: list[str] = []
     if not discovery:
@@ -136,6 +146,10 @@ def main() -> None:
     source_existing_ratio = _to_float(source_provenance.get("existing_source_path_ratio_pct", 0.0))
     source_allowed_ratio = _to_float(source_provenance.get("allowed_root_ratio_pct", 0.0))
     source_registry_ratio = _to_float(source_provenance.get("registry_match_ratio_pct", 0.0))
+    authentic_scale_value = _to_float(authentic_scale_score.get("authentic_scale_score", 0.0))
+    large_model_authenticity_score = _to_float(large_model_authenticity.get("large_model_authenticity_score", 0.0))
+    source_bucket_count = _to_int(source_bucket_effective_scale.get("source_bucket_count", 0))
+    source_bucket_max_share_pct = _to_float(source_bucket_effective_scale.get("max_bucket_share_pct", 0.0))
 
     gates = {
         "discovered_models": {
@@ -248,6 +262,37 @@ def main() -> None:
             "observed": round(source_registry_ratio, 4),
             "status": _gate(source_registry_ratio, float(args.min_source_registry_match_ratio_pct), mode="min"),
         }
+    if authentic_scale_score:
+        gates["authentic_scale_score"] = {
+            "critical": False,
+            "threshold": float(args.min_authentic_scale_score),
+            "mode": "min",
+            "observed": round(authentic_scale_value, 2),
+            "status": _gate(authentic_scale_value, float(args.min_authentic_scale_score), mode="min"),
+        }
+    if large_model_authenticity:
+        gates["large_model_authenticity_score"] = {
+            "critical": False,
+            "threshold": float(args.min_large_model_authenticity_score),
+            "mode": "min",
+            "observed": round(large_model_authenticity_score, 2),
+            "status": _gate(large_model_authenticity_score, float(args.min_large_model_authenticity_score), mode="min"),
+        }
+    if source_bucket_effective_scale:
+        gates["source_bucket_count"] = {
+            "critical": False,
+            "threshold": int(args.min_source_bucket_count),
+            "mode": "min",
+            "observed": source_bucket_count,
+            "status": _gate(float(source_bucket_count), float(args.min_source_bucket_count), mode="min"),
+        }
+        gates["source_bucket_max_share_pct"] = {
+            "critical": False,
+            "threshold": float(args.max_source_bucket_share_pct),
+            "mode": "max",
+            "observed": round(source_bucket_max_share_pct, 4),
+            "status": _gate(source_bucket_max_share_pct, float(args.max_source_bucket_share_pct), mode="max"),
+        }
 
     failed_gates = [name for name, gate in gates.items() if str(gate.get("status") or "") == "FAIL"]
     critical_failed_gates = [name for name, gate in gates.items() if bool(gate.get("critical")) and str(gate.get("status") or "") == "FAIL"]
@@ -265,6 +310,12 @@ def main() -> None:
         alerts.append("effective_depth_not_pass")
     if source_provenance and str(source_provenance.get("status") or "") in {"NEEDS_REVIEW", "FAIL"}:
         alerts.append("source_provenance_not_pass")
+    if authentic_scale_score and str(authentic_scale_score.get("status") or "") in {"NEEDS_REVIEW", "FAIL"}:
+        alerts.append("authentic_scale_score_not_pass")
+    if large_model_authenticity and str(large_model_authenticity.get("status") or "") in {"NEEDS_REVIEW", "FAIL"}:
+        alerts.append("large_model_authenticity_not_pass")
+    if source_bucket_effective_scale and str(source_bucket_effective_scale.get("status") or "") in {"NEEDS_REVIEW", "FAIL"}:
+        alerts.append("source_bucket_effective_scale_not_pass")
     if failed_gates:
         alerts.append("hard_moat_gate_failures_present")
 
@@ -304,6 +355,10 @@ def main() -> None:
             "source_existing_source_path_ratio_pct": round(source_existing_ratio, 4) if source_provenance else None,
             "source_allowed_root_ratio_pct": round(source_allowed_ratio, 4) if source_provenance else None,
             "source_registry_match_ratio_pct": round(source_registry_ratio, 4) if source_provenance else None,
+            "authentic_scale_score": round(authentic_scale_value, 2) if authentic_scale_score else None,
+            "large_model_authenticity_score": round(large_model_authenticity_score, 2) if large_model_authenticity else None,
+            "source_bucket_count": source_bucket_count if source_bucket_effective_scale else None,
+            "source_bucket_max_share_pct": round(source_bucket_max_share_pct, 4) if source_bucket_effective_scale else None,
         },
         "alerts": alerts,
         "reasons": sorted(set(reasons)),
@@ -318,6 +373,9 @@ def main() -> None:
             "mutation_effective_scale_summary": args.mutation_effective_scale_summary,
             "mutation_effective_depth_summary": args.mutation_effective_depth_summary,
             "mutation_source_provenance_summary": args.mutation_source_provenance_summary,
+            "mutation_authentic_scale_score_summary": args.mutation_authentic_scale_score_summary,
+            "large_model_authenticity_gate_summary": args.large_model_authenticity_gate_summary,
+            "mutation_source_bucket_effective_scale_summary": args.mutation_source_bucket_effective_scale_summary,
         },
     }
     _write_json(args.out, payload)
