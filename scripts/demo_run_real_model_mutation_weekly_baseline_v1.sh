@@ -21,6 +21,11 @@ cat > "$OUT_DIR/scale_summary.json" <<'JSON'
   "accepted_large_models":153,
   "generated_mutations":3780,
   "reproducible_mutations":3780,
+  "mutation_validation_status":"PASS",
+  "validation_backend_used":"syntax",
+  "baseline_check_pass_rate_pct":100.0,
+  "validation_stage_match_rate_pct":80.0,
+  "validation_type_match_rate_pct":74.0,
   "selected_mutation_models":378,
   "failure_types_count":5,
   "mutations_per_failure_type":2
@@ -129,6 +134,8 @@ payload = {
     "weekly_status": summary.get("weekly_status"),
     "history_status": summary.get("history_status"),
     "trend_status": summary.get("trend_status"),
+    "mutation_validation_status": summary.get("mutation_validation_status"),
+    "mutation_validation_fidelity_score": summary.get("mutation_validation_fidelity_score"),
     "result_flags": flags,
 }
 (out / "demo_summary.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")

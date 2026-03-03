@@ -25,6 +25,7 @@ class DatasetMoatWeeklySummaryHistoryV1Tests(unittest.TestCase):
                             "reproducible_mutation_count": 30,
                             "failure_distribution_stability_score": 88.0,
                             "gateforge_vs_plain_ci_advantage_score": 8,
+                            "mutation_validation_fidelity_score": 72.0,
                         },
                     }
                 ),
@@ -40,6 +41,7 @@ class DatasetMoatWeeklySummaryHistoryV1Tests(unittest.TestCase):
                             "reproducible_mutation_count": 36,
                             "failure_distribution_stability_score": 90.0,
                             "gateforge_vs_plain_ci_advantage_score": 10,
+                            "mutation_validation_fidelity_score": 78.0,
                         },
                     }
                 ),
@@ -68,6 +70,7 @@ class DatasetMoatWeeklySummaryHistoryV1Tests(unittest.TestCase):
             payload = json.loads(out.read_text(encoding="utf-8"))
             self.assertEqual(int(payload.get("total_records", 0)), 2)
             self.assertIsInstance(payload.get("avg_stability_score"), (int, float))
+            self.assertIsInstance(payload.get("avg_mutation_validation_fidelity_score"), (int, float))
 
 
 if __name__ == "__main__":

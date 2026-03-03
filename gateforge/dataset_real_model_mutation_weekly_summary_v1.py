@@ -63,6 +63,8 @@ def _write_markdown(path: str, payload: dict) -> None:
         f"- accepted_large_models: `{kpis.get('large_model_count')}`",
         f"- reproducible_mutations: `{kpis.get('reproducible_mutation_count')}`",
         f"- mutation_depth_per_failure_type: `{kpis.get('mutations_per_failure_type')}`",
+        f"- mutation_validation_status: `{kpis.get('mutation_validation_status')}`",
+        f"- mutation_validation_fidelity_score: `{kpis.get('mutation_validation_fidelity_score')}`",
         "",
     ]
     p.write_text("\n".join(lines), encoding="utf-8")
@@ -82,6 +84,9 @@ def main() -> None:
     parser.add_argument("--min-unique-accepted-models", type=int, default=260)
     parser.add_argument("--min-large-models", type=int, default=80)
     parser.add_argument("--min-reproducibility-ratio-pct", type=float, default=98.0)
+    parser.add_argument("--min-baseline-check-pass-rate-pct", type=float, default=90.0)
+    parser.add_argument("--min-validation-stage-match-rate-pct", type=float, default=60.0)
+    parser.add_argument("--min-validation-type-match-rate-pct", type=float, default=40.0)
     parser.add_argument("--out", default="artifacts/dataset_real_model_mutation_weekly_summary_v1/summary.json")
     parser.add_argument("--report-out", default=None)
     args = parser.parse_args()
@@ -118,6 +123,18 @@ def main() -> None:
     coverage_status = str(coverage.get("status") or "UNKNOWN")
 
     reproducibility_ratio_pct = _round(100.0 * reproducible_mutations / max(1, generated_mutations))
+    mutation_validation_status = str(scale_batch.get("mutation_validation_status") or "UNKNOWN")
+    validation_backend_used = str(scale_batch.get("validation_backend_used") or "unknown")
+    baseline_check_pass_rate_pct = _to_float(scale_batch.get("baseline_check_pass_rate_pct", 0.0))
+    validation_stage_match_rate_pct = _to_float(scale_batch.get("validation_stage_match_rate_pct", 0.0))
+    validation_type_match_rate_pct = _to_float(scale_batch.get("validation_type_match_rate_pct", 0.0))
+    mutation_validation_fidelity_score = _round(
+        _clamp(
+            (baseline_check_pass_rate_pct * 0.25)
+            + (validation_stage_match_rate_pct * 0.35)
+            + (validation_type_match_rate_pct * 0.40)
+        )
+    )
     mutations_per_model = _round(generated_mutations / max(1, accepted_models))
     scale_gate_status = str(scale_gate.get("status") or scale_batch.get("scale_gate_status") or "UNKNOWN")
     bundle_status = str(scale_batch.get("bundle_status") or "UNKNOWN")
@@ -145,6 +162,14 @@ def main() -> None:
         focus_next_week.append("upgrade_mutation_depth_to_4")
     if scale_gate_status != "PASS":
         focus_next_week.append("recover_scale_gate_to_pass")
+    if mutation_validation_status != "PASS":
+        focus_next_week.append("stabilize_mutation_validation_status")
+    if mutation_validation_status != "UNKNOWN" and baseline_check_pass_rate_pct < float(args.min_baseline_check_pass_rate_pct):
+        focus_next_week.append("increase_baseline_check_pass_rate")
+    if mutation_validation_status != "UNKNOWN" and validation_stage_match_rate_pct < float(args.min_validation_stage_match_rate_pct):
+        focus_next_week.append("improve_stage_match_rate")
+    if mutation_validation_status != "UNKNOWN" and validation_type_match_rate_pct < float(args.min_validation_type_match_rate_pct):
+        focus_next_week.append("improve_type_match_rate")
 
     alerts: list[str] = []
     if scale_gate_status != "PASS":
@@ -161,6 +186,14 @@ def main() -> None:
         alerts.append("coverage_quality_gate_not_pass")
     if reproducibility_ratio_pct < float(args.min_reproducibility_ratio_pct):
         alerts.append("reproducibility_ratio_below_target")
+    if mutation_validation_status == "FAIL":
+        alerts.append("mutation_validation_status_fail")
+    if mutation_validation_status != "UNKNOWN" and baseline_check_pass_rate_pct < float(args.min_baseline_check_pass_rate_pct):
+        alerts.append("baseline_check_pass_rate_below_target")
+    if mutation_validation_status != "UNKNOWN" and validation_stage_match_rate_pct < float(args.min_validation_stage_match_rate_pct):
+        alerts.append("validation_stage_match_rate_below_target")
+    if mutation_validation_status != "UNKNOWN" and validation_type_match_rate_pct < float(args.min_validation_type_match_rate_pct):
+        alerts.append("validation_type_match_rate_below_target")
 
     status = "PASS"
     if reasons:
@@ -180,6 +213,12 @@ def main() -> None:
         "reproducible_mutation_count": reproducible_mutations,
         "generated_mutation_count": generated_mutations,
         "mutation_reproducibility_ratio_pct": reproducibility_ratio_pct,
+        "mutation_validation_status": mutation_validation_status,
+        "validation_backend_used": validation_backend_used,
+        "baseline_check_pass_rate_pct": _round(baseline_check_pass_rate_pct),
+        "validation_stage_match_rate_pct": _round(validation_stage_match_rate_pct),
+        "validation_type_match_rate_pct": _round(validation_type_match_rate_pct),
+        "mutation_validation_fidelity_score": mutation_validation_fidelity_score,
         "mutations_per_model": mutations_per_model,
         "mutations_per_failure_type": mutations_per_failure_type,
         "failure_types_count": failure_types_count,

@@ -21,6 +21,7 @@ class DatasetMoatWeeklySummaryHistoryTrendV1Tests(unittest.TestCase):
                         "avg_real_model_count": 12.0,
                         "avg_stability_score": 90.0,
                         "avg_advantage_score": 10.0,
+                        "avg_mutation_validation_fidelity_score": 80.0,
                     }
                 ),
                 encoding="utf-8",
@@ -32,6 +33,7 @@ class DatasetMoatWeeklySummaryHistoryTrendV1Tests(unittest.TestCase):
                         "avg_real_model_count": 10.0,
                         "avg_stability_score": 85.0,
                         "avg_advantage_score": 8.0,
+                        "avg_mutation_validation_fidelity_score": 70.0,
                     }
                 ),
                 encoding="utf-8",
@@ -57,6 +59,7 @@ class DatasetMoatWeeklySummaryHistoryTrendV1Tests(unittest.TestCase):
             payload = json.loads(out.read_text(encoding="utf-8"))
             self.assertEqual(payload.get("status"), "NEEDS_REVIEW")
             self.assertIn("avg_stability_score_decreasing", (payload.get("trend") or {}).get("alerts", []))
+            self.assertIn("avg_mutation_validation_fidelity_score_decreasing", (payload.get("trend") or {}).get("alerts", []))
 
 
 if __name__ == "__main__":
