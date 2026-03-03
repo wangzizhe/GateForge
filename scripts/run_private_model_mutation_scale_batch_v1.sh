@@ -765,6 +765,23 @@ python3 -m gateforge.dataset_weekly_scale_milestone_checkpoint_v1 \
   --out "$OUT_DIR/weekly_scale_milestone_checkpoint_summary.json" \
   --report-out "$OUT_DIR/weekly_scale_milestone_checkpoint_summary.md"
 
+python3 -m gateforge.dataset_scale_velocity_forecast_v1 \
+  --scale-target-gap-summary "$OUT_DIR/scale_target_gap_summary.json" \
+  --scale-history-summary "$OUT_DIR/scale_history_summary.json" \
+  --out "$OUT_DIR/scale_velocity_forecast_summary.json" \
+  --report-out "$OUT_DIR/scale_velocity_forecast_summary.md"
+
+python3 -m gateforge.dataset_family_gap_action_plan_v1 \
+  --real-model-family-coverage-board-summary "$OUT_DIR/real_model_family_coverage_board_summary.json" \
+  --weekly-scale-milestone-checkpoint-summary "$OUT_DIR/weekly_scale_milestone_checkpoint_summary.json" \
+  --out "$OUT_DIR/family_gap_action_plan_summary.json" \
+  --report-out "$OUT_DIR/family_gap_action_plan_summary.md"
+
+python3 -m gateforge.dataset_failure_balance_backfill_plan_v1 \
+  --mutation-failure-type-balance-guard-summary "$OUT_DIR/mutation_failure_type_balance_guard_summary.json" \
+  --out "$OUT_DIR/failure_balance_backfill_plan_summary.json" \
+  --report-out "$OUT_DIR/failure_balance_backfill_plan_summary.md"
+
 python3 - <<'PY'
 import json
 import os
@@ -777,12 +794,18 @@ history = json.loads((out / "scale_history_summary.json").read_text(encoding="ut
 gap = json.loads((out / "scale_target_gap_summary.json").read_text(encoding="utf-8"))
 board = json.loads((out / "scale_execution_priority_board_summary.json").read_text(encoding="utf-8"))
 checkpoint = json.loads((out / "weekly_scale_milestone_checkpoint_summary.json").read_text(encoding="utf-8"))
+velocity = json.loads((out / "scale_velocity_forecast_summary.json").read_text(encoding="utf-8"))
+family_plan = json.loads((out / "family_gap_action_plan_summary.json").read_text(encoding="utf-8"))
+failure_plan = json.loads((out / "failure_balance_backfill_plan_summary.json").read_text(encoding="utf-8"))
 
 flags = summary.get("result_flags") if isinstance(summary.get("result_flags"), dict) else {}
 flags["scale_history_exists"] = "PASS" if str(history.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL"
 flags["scale_target_gap_exists"] = "PASS" if str(gap.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL"
 flags["scale_execution_board_exists"] = "PASS" if str(board.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL"
 flags["weekly_scale_milestone_checkpoint_exists"] = "PASS" if str(checkpoint.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL"
+flags["scale_velocity_forecast_exists"] = "PASS" if str(velocity.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL"
+flags["family_gap_action_plan_exists"] = "PASS" if str(family_plan.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL"
+flags["failure_balance_backfill_plan_exists"] = "PASS" if str(failure_plan.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL"
 
 summary["result_flags"] = flags
 summary["scale_history_status"] = history.get("status")
@@ -801,6 +824,16 @@ summary["weekly_scale_milestone_checkpoint_status"] = checkpoint.get("status")
 summary["weekly_scale_milestone_checkpoint_score"] = checkpoint.get("milestone_score")
 summary["weekly_scale_milestone_checkpoint_grade"] = checkpoint.get("milestone_grade")
 summary["weekly_scale_milestone_checkpoint_top_actions_count"] = checkpoint.get("top_actions_count")
+summary["scale_velocity_forecast_status"] = velocity.get("status")
+summary["scale_velocity_model_gap_weeks_to_close"] = velocity.get("model_gap_weeks_to_close")
+summary["scale_velocity_mutation_gap_weeks_to_close"] = velocity.get("mutation_gap_weeks_to_close")
+summary["scale_velocity_on_track_within_horizon"] = velocity.get("on_track_within_horizon")
+summary["family_gap_action_plan_status"] = family_plan.get("status")
+summary["family_gap_action_plan_total_actions"] = family_plan.get("total_actions")
+summary["family_gap_action_plan_p0_actions"] = family_plan.get("p0_actions")
+summary["failure_balance_backfill_plan_status"] = failure_plan.get("status")
+summary["failure_balance_backfill_plan_total_actions"] = failure_plan.get("total_actions")
+summary["failure_balance_backfill_plan_p0_actions"] = failure_plan.get("p0_actions")
 
 summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
 md_path = out / "summary.md"
@@ -822,6 +855,16 @@ extra_lines = [
     f"- weekly_scale_milestone_checkpoint_score: `{summary.get('weekly_scale_milestone_checkpoint_score')}`",
     f"- weekly_scale_milestone_checkpoint_grade: `{summary.get('weekly_scale_milestone_checkpoint_grade')}`",
     f"- weekly_scale_milestone_checkpoint_top_actions_count: `{summary.get('weekly_scale_milestone_checkpoint_top_actions_count')}`",
+    f"- scale_velocity_forecast_status: `{summary.get('scale_velocity_forecast_status')}`",
+    f"- scale_velocity_model_gap_weeks_to_close: `{summary.get('scale_velocity_model_gap_weeks_to_close')}`",
+    f"- scale_velocity_mutation_gap_weeks_to_close: `{summary.get('scale_velocity_mutation_gap_weeks_to_close')}`",
+    f"- scale_velocity_on_track_within_horizon: `{summary.get('scale_velocity_on_track_within_horizon')}`",
+    f"- family_gap_action_plan_status: `{summary.get('family_gap_action_plan_status')}`",
+    f"- family_gap_action_plan_total_actions: `{summary.get('family_gap_action_plan_total_actions')}`",
+    f"- family_gap_action_plan_p0_actions: `{summary.get('family_gap_action_plan_p0_actions')}`",
+    f"- failure_balance_backfill_plan_status: `{summary.get('failure_balance_backfill_plan_status')}`",
+    f"- failure_balance_backfill_plan_total_actions: `{summary.get('failure_balance_backfill_plan_total_actions')}`",
+    f"- failure_balance_backfill_plan_p0_actions: `{summary.get('failure_balance_backfill_plan_p0_actions')}`",
 ]
 md_path.write_text(old + "\n" + "\n".join(extra_lines) + "\n", encoding="utf-8")
 print(json.dumps({"bundle_status": summary.get("bundle_status"), "scale_target_gap_status": summary.get("scale_target_gap_status")}))
