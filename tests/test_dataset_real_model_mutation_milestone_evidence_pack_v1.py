@@ -26,6 +26,11 @@ class DatasetRealModelMutationMilestoneEvidencePackV1Tests(unittest.TestCase):
                         "accepted_large_models": 153,
                         "generated_mutations": 3780,
                         "reproducible_mutations": 3780,
+                        "mutation_validation_status": "PASS",
+                        "validation_backend_used": "syntax",
+                        "baseline_check_pass_rate_pct": 100.0,
+                        "validation_stage_match_rate_pct": 82.0,
+                        "validation_type_match_rate_pct": 76.0,
                         "selected_mutation_models": 378,
                         "failure_types_count": 5,
                         "mutations_per_failure_type": 2,
@@ -62,6 +67,8 @@ class DatasetRealModelMutationMilestoneEvidencePackV1Tests(unittest.TestCase):
             self.assertTrue(payload.get("publishable"))
             self.assertGreaterEqual(float(payload.get("evidence_score", 0.0)), 80.0)
             self.assertGreaterEqual(len(payload.get("milestone_claims") or []), 3)
+            self.assertEqual(payload.get("mutation_validation_status"), "PASS")
+            self.assertGreaterEqual(float(payload.get("validation_type_match_rate_pct", 0.0)), 70.0)
 
     def test_milestone_evidence_pack_fail_on_missing_required(self) -> None:
         with tempfile.TemporaryDirectory() as d:

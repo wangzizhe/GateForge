@@ -25,6 +25,11 @@ class DatasetRealModelMutationWeeklySummaryV1Tests(unittest.TestCase):
                         "accepted_large_models": 153,
                         "generated_mutations": 3780,
                         "reproducible_mutations": 3780,
+                        "mutation_validation_status": "PASS",
+                        "validation_backend_used": "syntax",
+                        "baseline_check_pass_rate_pct": 100.0,
+                        "validation_stage_match_rate_pct": 80.0,
+                        "validation_type_match_rate_pct": 74.0,
                         "failure_types_count": 5,
                         "selected_mutation_models": 378,
                         "mutations_per_failure_type": 4,
@@ -59,6 +64,8 @@ class DatasetRealModelMutationWeeklySummaryV1Tests(unittest.TestCase):
             self.assertEqual(payload.get("status"), "PASS")
             self.assertEqual((payload.get("kpis") or {}).get("real_model_count"), 606)
             self.assertEqual((payload.get("kpis") or {}).get("mutations_per_failure_type"), 4)
+            self.assertEqual((payload.get("kpis") or {}).get("mutation_validation_status"), "PASS")
+            self.assertGreaterEqual(float((payload.get("kpis") or {}).get("mutation_validation_fidelity_score", 0.0)), 70.0)
 
     def test_weekly_summary_fail_on_missing_required(self) -> None:
         with tempfile.TemporaryDirectory() as d:

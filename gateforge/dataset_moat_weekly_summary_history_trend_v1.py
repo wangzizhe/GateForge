@@ -40,6 +40,7 @@ def _write_markdown(path: str, payload: dict) -> None:
         f"- delta_avg_real_model_count: `{trend.get('delta_avg_real_model_count')}`",
         f"- delta_avg_stability_score: `{trend.get('delta_avg_stability_score')}`",
         f"- delta_avg_advantage_score: `{trend.get('delta_avg_advantage_score')}`",
+        f"- delta_avg_mutation_validation_fidelity_score: `{trend.get('delta_avg_mutation_validation_fidelity_score')}`",
         "",
     ]
     p.write_text("\n".join(lines), encoding="utf-8")
@@ -66,6 +67,11 @@ def main() -> None:
     delta_avg_advantage_score = round(
         _to_float(current.get("avg_advantage_score")) - _to_float(previous.get("avg_advantage_score")), 4
     )
+    delta_avg_mutation_validation_fidelity_score = round(
+        _to_float(current.get("avg_mutation_validation_fidelity_score"))
+        - _to_float(previous.get("avg_mutation_validation_fidelity_score")),
+        4,
+    )
 
     alerts: list[str] = []
     if status_transition in {"PASS->NEEDS_REVIEW", "PASS->FAIL", "NEEDS_REVIEW->FAIL"}:
@@ -76,6 +82,8 @@ def main() -> None:
         alerts.append("avg_stability_score_decreasing")
     if delta_avg_advantage_score < 0:
         alerts.append("avg_advantage_score_decreasing")
+    if delta_avg_mutation_validation_fidelity_score < 0:
+        alerts.append("avg_mutation_validation_fidelity_score_decreasing")
 
     status = "PASS" if not alerts else "NEEDS_REVIEW"
     payload = {
@@ -85,6 +93,7 @@ def main() -> None:
             "delta_avg_real_model_count": delta_avg_real_model_count,
             "delta_avg_stability_score": delta_avg_stability_score,
             "delta_avg_advantage_score": delta_avg_advantage_score,
+            "delta_avg_mutation_validation_fidelity_score": delta_avg_mutation_validation_fidelity_score,
             "alerts": alerts,
         },
     }

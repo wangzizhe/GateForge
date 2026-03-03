@@ -134,6 +134,11 @@ payload = {
     "reproducible_mutation_count": kpis.get("reproducible_mutation_count"),
     "mutations_per_failure_type": kpis.get("mutations_per_failure_type"),
     "failure_distribution_stability_score": kpis.get("failure_distribution_stability_score"),
+    "mutation_validation_status": kpis.get("mutation_validation_status"),
+    "mutation_validation_fidelity_score": kpis.get("mutation_validation_fidelity_score"),
+    "baseline_check_pass_rate_pct": kpis.get("baseline_check_pass_rate_pct"),
+    "validation_stage_match_rate_pct": kpis.get("validation_stage_match_rate_pct"),
+    "validation_type_match_rate_pct": kpis.get("validation_type_match_rate_pct"),
 }
 (out / "summary.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
 print(json.dumps(payload))

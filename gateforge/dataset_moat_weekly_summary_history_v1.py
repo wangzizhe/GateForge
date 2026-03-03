@@ -69,6 +69,7 @@ def _write_markdown(path: str, payload: dict) -> None:
         f"- avg_real_model_count: `{payload.get('avg_real_model_count')}`",
         f"- avg_stability_score: `{payload.get('avg_stability_score')}`",
         f"- avg_advantage_score: `{payload.get('avg_advantage_score')}`",
+        f"- avg_mutation_validation_fidelity_score: `{payload.get('avg_mutation_validation_fidelity_score')}`",
         "",
     ]
     p.write_text("\n".join(lines), encoding="utf-8")
@@ -99,6 +100,7 @@ def main() -> None:
                 "reproducible_mutation_count": _to_int(kpis.get("reproducible_mutation_count", 0)),
                 "failure_distribution_stability_score": round(_to_float(kpis.get("failure_distribution_stability_score", 0.0)), 2),
                 "gateforge_vs_plain_ci_advantage_score": _to_int(kpis.get("gateforge_vs_plain_ci_advantage_score", 0)),
+                "mutation_validation_fidelity_score": round(_to_float(kpis.get("mutation_validation_fidelity_score", 0.0)), 2),
             }
         )
     if append_rows:
@@ -110,6 +112,7 @@ def main() -> None:
     avg_real = round(sum(_to_float(r.get("real_model_count", 0.0)) for r in rows) / max(1, total), 4)
     avg_stability = round(sum(_to_float(r.get("failure_distribution_stability_score", 0.0)) for r in rows) / max(1, total), 4)
     avg_adv = round(sum(_to_float(r.get("gateforge_vs_plain_ci_advantage_score", 0.0)) for r in rows) / max(1, total), 4)
+    avg_validation_fidelity = round(sum(_to_float(r.get("mutation_validation_fidelity_score", 0.0)) for r in rows) / max(1, total), 4)
 
     status = "PASS"
     alerts: list[str] = []
@@ -119,6 +122,8 @@ def main() -> None:
         alerts.append("avg_stability_score_low")
     if total >= 3 and avg_adv <= 0.0:
         alerts.append("avg_gateforge_advantage_non_positive")
+    if total >= 3 and avg_validation_fidelity < 60.0:
+        alerts.append("avg_mutation_validation_fidelity_low")
     if alerts:
         status = "NEEDS_REVIEW"
 
@@ -133,6 +138,7 @@ def main() -> None:
         "avg_real_model_count": avg_real,
         "avg_stability_score": avg_stability,
         "avg_advantage_score": avg_adv,
+        "avg_mutation_validation_fidelity_score": avg_validation_fidelity,
         "alerts": alerts,
     }
     _write_json(args.out, out)
