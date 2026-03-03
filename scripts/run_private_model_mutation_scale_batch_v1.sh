@@ -291,8 +291,18 @@ PY
 
 source "$OUT_DIR/auto_mutation_scale.env"
 
+python3 -m gateforge.dataset_mutation_model_selection_plan_v1 \
+  --executable-registry "$OUT_DIR/executable_registry_rows.json" \
+  --target-scales "$TARGET_SCALES" \
+  --max-models "${MAX_MUTATION_MODELS}" \
+  --min-large-ratio-pct "${MIN_ACCEPTED_LARGE_RATIO_PCT}" \
+  --plan-out "$OUT_DIR/mutation_model_selection_plan.json" \
+  --out "$OUT_DIR/mutation_model_selection_plan_summary.json" \
+  --report-out "$OUT_DIR/mutation_model_selection_plan_summary.md"
+
 python3 -m gateforge.dataset_mutation_model_materializer_v1 \
   --model-registry "$OUT_DIR/executable_registry_rows.json" \
+  --selection-plan "$OUT_DIR/mutation_model_selection_plan.json" \
   --target-scales "$TARGET_SCALES" \
   --failure-types "$FAILURE_TYPES" \
   --recipe-library "$OUT_DIR/mutation_recipe_library_v2_recipes.json" \
@@ -303,6 +313,14 @@ python3 -m gateforge.dataset_mutation_model_materializer_v1 \
   --manifest-out "$OUT_DIR/mutation_manifest.json" \
   --out "$OUT_DIR/mutation_pack_summary.json" \
   --report-out "$OUT_DIR/mutation_pack_summary.md"
+
+python3 -m gateforge.dataset_mutation_selection_balance_guard_v1 \
+  --selection-plan-summary "$OUT_DIR/mutation_model_selection_plan_summary.json" \
+  --mutation-pack-summary "$OUT_DIR/mutation_pack_summary.json" \
+  --min-selected-models "${GATEFORGE_MIN_SELECTED_MODELS:-4}" \
+  --min-large-ratio-pct "${MIN_ACCEPTED_LARGE_RATIO_PCT}" \
+  --out "$OUT_DIR/mutation_selection_balance_guard_summary.json" \
+  --report-out "$OUT_DIR/mutation_selection_balance_guard_summary.md"
 
 python3 -m gateforge.dataset_mutation_validation_matrix_v1 \
   --mutation-manifest "$OUT_DIR/mutation_manifest.json" \
@@ -507,7 +525,9 @@ runner = _load("intake_runner_summary.json")
 executable = _load("executable_pool_summary.json")
 canonical = _load("canonical_registry_summary.json")
 recipe = _load("mutation_recipe_library_v2_summary.json")
+selection_plan = _load("mutation_model_selection_plan_summary.json")
 pack = _load("mutation_pack_summary.json")
+selection_guard = _load("mutation_selection_balance_guard_summary.json")
 validation = _load("mutation_validation_summary.json")
 validation_v2 = _load("mutation_validation_matrix_v2_summary.json")
 stability_guard = _load("failure_distribution_stability_guard_summary.json")
@@ -544,8 +564,10 @@ flags = {
     "executable_pool_present": "PASS" if int(executable.get("executable_unique_models", 0)) >= 0 else "FAIL",
     "canonical_registry_present": "PASS" if int(canonical.get("canonical_total_models", 0)) >= 0 else "FAIL",
     "recipe_library_present": "PASS" if int(recipe.get("total_recipes", 0)) >= 0 else "FAIL",
+    "selection_plan_exists": "PASS" if str(selection_plan.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "validation_exists": "PASS" if str(validation.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "validation_v2_exists": "PASS" if str(validation_v2.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
+    "selection_balance_guard_exists": "PASS" if str(selection_guard.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "stability_guard_exists": "PASS" if str(stability_guard.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "mismatch_triage_exists": "PASS" if str(mismatch_triage.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "coverage_backfill_exists": "PASS" if str(coverage_backfill.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
@@ -586,6 +608,13 @@ summary = {
     "mutation_recipe_library_v2_status": recipe.get("status"),
     "mutation_recipe_total_recipes": recipe.get("total_recipes"),
     "mutation_recipe_operator_family_count": recipe.get("operator_family_count"),
+    "mutation_selection_plan_status": selection_plan.get("status"),
+    "mutation_selection_plan_selected_models": selection_plan.get("selected_models"),
+    "mutation_selection_plan_selected_large_ratio_pct": selection_plan.get("selected_large_ratio_pct"),
+    "mutation_selection_plan_selected_families": selection_plan.get("selected_families"),
+    "mutation_selection_plan_selected_source_buckets": selection_plan.get("selected_source_buckets"),
+    "mutation_selection_balance_guard_status": selection_guard.get("status"),
+    "mutation_selection_balance_guard_max_family_share_pct": selection_guard.get("max_family_share_pct"),
     "generated_mutations": pack.get("total_mutations"),
     "materialized_mutations": pack.get("materialized_mutations"),
     "failed_materializations": pack.get("failed_materializations"),
@@ -670,6 +699,13 @@ summary = {
             f"- mutation_recipe_library_v2_status: `{summary['mutation_recipe_library_v2_status']}`",
             f"- mutation_recipe_total_recipes: `{summary['mutation_recipe_total_recipes']}`",
             f"- mutation_recipe_operator_family_count: `{summary['mutation_recipe_operator_family_count']}`",
+            f"- mutation_selection_plan_status: `{summary['mutation_selection_plan_status']}`",
+            f"- mutation_selection_plan_selected_models: `{summary['mutation_selection_plan_selected_models']}`",
+            f"- mutation_selection_plan_selected_large_ratio_pct: `{summary['mutation_selection_plan_selected_large_ratio_pct']}`",
+            f"- mutation_selection_plan_selected_families: `{summary['mutation_selection_plan_selected_families']}`",
+            f"- mutation_selection_plan_selected_source_buckets: `{summary['mutation_selection_plan_selected_source_buckets']}`",
+            f"- mutation_selection_balance_guard_status: `{summary['mutation_selection_balance_guard_status']}`",
+            f"- mutation_selection_balance_guard_max_family_share_pct: `{summary['mutation_selection_balance_guard_max_family_share_pct']}`",
             f"- generated_mutations: `{summary['generated_mutations']}`",
             f"- materialized_mutations: `{summary['materialized_mutations']}`",
             f"- mutation_validation_status: `{summary['mutation_validation_status']}`",

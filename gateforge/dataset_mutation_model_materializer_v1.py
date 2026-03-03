@@ -279,6 +279,7 @@ def _write_markdown(path: str, payload: dict) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Materialize real Modelica mutant files at scale")
     parser.add_argument("--model-registry", required=True)
+    parser.add_argument("--selection-plan", default=None)
     parser.add_argument("--target-scales", default="medium,large")
     parser.add_argument("--failure-types", default=",".join(DEFAULT_FAILURE_TYPES))
     parser.add_argument("--mutations-per-failure-type", type=int, default=2)
@@ -293,6 +294,7 @@ def main() -> None:
     args = parser.parse_args()
 
     registry = _load_json(args.model_registry)
+    selection_plan = _load_json(args.selection_plan)
     recipe_library = _load_json(args.recipe_library)
     reasons: list[str] = []
     if not registry:
@@ -309,6 +311,19 @@ def main() -> None:
     selected_models.sort(
         key=lambda x: (0 if _slug(x.get("suggested_scale"), default="small") == "large" else 1, str(x.get("model_id") or ""))
     )
+    selection_plan_requested = bool(args.selection_plan)
+    selection_plan_applied = False
+    selection_plan_missing_models = 0
+    if selection_plan_requested:
+        selected_ids = selection_plan.get("selected_model_ids") if isinstance(selection_plan.get("selected_model_ids"), list) else []
+        selected_ids = [str(x or "").strip() for x in selected_ids if str(x or "").strip()]
+        if selected_ids:
+            model_map = {str(x.get("model_id") or ""): x for x in selected_models if str(x.get("model_id") or "")}
+            planned = [model_map[mid] for mid in selected_ids if mid in model_map]
+            selection_plan_missing_models = max(0, len(selected_ids) - len(planned))
+            if planned:
+                selected_models = planned
+                selection_plan_applied = True
     if int(args.max_models) > 0:
         selected_models = selected_models[: int(args.max_models)]
 
@@ -438,6 +453,12 @@ def main() -> None:
         alerts.append("selected_models_empty")
     if not mutations:
         alerts.append("mutations_empty")
+    if selection_plan_requested and not selection_plan:
+        alerts.append("selection_plan_missing_or_empty")
+    elif selection_plan_requested and not selection_plan_applied:
+        alerts.append("selection_plan_no_matching_models")
+    elif selection_plan_missing_models > 0:
+        alerts.append("selection_plan_partial_match")
     if args.recipe_library and not recipes:
         alerts.append("recipe_library_empty_or_missing")
     if scale_counts["large"] == 0:
@@ -471,6 +492,9 @@ def main() -> None:
         "generated_failure_types": generated_failure_types,
         "operator_family_count": len(materialized_operator_families),
         "scale_mutation_counts": scale_counts,
+        "selection_plan_requested": selection_plan_requested,
+        "selection_plan_applied": selection_plan_applied,
+        "selection_plan_missing_models": selection_plan_missing_models,
         "alerts": alerts,
         "reasons": sorted(set(reasons)),
         "manifest_out": args.manifest_out,
@@ -480,6 +504,7 @@ def main() -> None:
             "target_scales": sorted(scales),
             "failure_types": failure_types,
             "mutations_per_failure_type": per_type,
+            "selection_plan": args.selection_plan,
             "recipe_library": args.recipe_library,
             "mutations_per_recipe": per_recipe,
             "max_models": int(args.max_models),
