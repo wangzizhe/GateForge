@@ -35,6 +35,40 @@ cat > "$OUT_DIR/depth_upgrade_report.json" <<'JSON'
 {"status":"PASS","upgrade_status":"UPGRADED","current_mutations_per_failure_type":4}
 JSON
 
+cat > "$OUT_DIR/intake_runner_accepted.json" <<JSON
+{
+  "rows": [
+    {"candidate_id":"m1","model_path":"$OUT_DIR/m1.mo","source_url":"https://x/m1","expected_scale":"large"},
+    {"candidate_id":"m2","model_path":"$OUT_DIR/m2.mo","source_url":"https://x/m2","expected_scale":"medium"}
+  ]
+}
+JSON
+
+cat > "$OUT_DIR/intake_registry_rows.json" <<JSON
+{
+  "models": [
+    {"model_id":"m1","asset_type":"model_source","source_name":"s1","source_path":"$OUT_DIR/m1.mo","suggested_scale":"large"},
+    {"model_id":"m2","asset_type":"model_source","source_name":"s1","source_path":"$OUT_DIR/m2.mo","suggested_scale":"medium"}
+  ]
+}
+JSON
+
+cat > "$OUT_DIR/m1.mo" <<'EOF'
+model M1
+  Real x;
+equation
+  der(x) = -x;
+end M1;
+EOF
+
+cat > "$OUT_DIR/m2.mo" <<'EOF'
+model M2
+  Real y;
+equation
+  der(y) = -0.2 * y;
+end M2;
+EOF
+
 GATEFORGE_WEEK_TAG="2026-W10" \
 GATEFORGE_WEEKLY_BASELINE_OUT_DIR="$OUT_DIR" \
 GATEFORGE_WEEKLY_LEDGER_PATH="$OUT_DIR/history.jsonl" \

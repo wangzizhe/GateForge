@@ -110,8 +110,10 @@ def main() -> None:
     parser.add_argument("--open-source-bootstrap-summary", required=True)
     parser.add_argument("--scale-batch-summary", required=True)
     parser.add_argument("--scale-gate-summary", required=True)
+    parser.add_argument("--uniqueness-guard-summary", default=None)
     parser.add_argument("--source-manifest", default=None)
     parser.add_argument("--min-accepted-models", type=int, default=300)
+    parser.add_argument("--min-unique-accepted-models", type=int, default=260)
     parser.add_argument("--min-accepted-large-models", type=int, default=80)
     parser.add_argument("--min-generated-mutations", type=int, default=2000)
     parser.add_argument("--min-reproducibility-ratio-pct", type=float, default=98.0)
@@ -122,6 +124,7 @@ def main() -> None:
     bootstrap = _load_json(args.open_source_bootstrap_summary)
     scale_batch = _load_json(args.scale_batch_summary)
     scale_gate = _load_json(args.scale_gate_summary)
+    uniqueness = _load_json(args.uniqueness_guard_summary)
     manifest = _load_json(args.source_manifest)
 
     reasons: list[str] = []
@@ -144,6 +147,9 @@ def main() -> None:
 
     scale_gate_status = str(scale_gate.get("status") or scale_batch.get("scale_gate_status") or "UNKNOWN")
     bundle_status = str(scale_batch.get("bundle_status") or "UNKNOWN")
+    unique_accepted_models = _to_int(uniqueness.get("effective_unique_accepted_models", accepted_models))
+    duplicate_ratio_pct = _to_float(uniqueness.get("duplicate_ratio_pct", 0.0))
+    uniqueness_status = str(uniqueness.get("status") or "UNKNOWN")
 
     reproducibility_ratio_pct = _round(
         100.0 * reproducible_mutations / max(1, generated_mutations)
@@ -153,6 +159,8 @@ def main() -> None:
     alerts: list[str] = []
     if accepted_models < int(args.min_accepted_models):
         alerts.append("accepted_models_below_target")
+    if unique_accepted_models < int(args.min_unique_accepted_models):
+        alerts.append("unique_accepted_models_below_target")
     if accepted_large_models < int(args.min_accepted_large_models):
         alerts.append("accepted_large_models_below_target")
     if generated_mutations < int(args.min_generated_mutations):
@@ -163,10 +171,14 @@ def main() -> None:
         alerts.append("scale_gate_not_pass")
     if bundle_status != "PASS":
         alerts.append("scale_batch_bundle_not_pass")
+    if uniqueness and uniqueness_status != "PASS":
+        alerts.append("uniqueness_guard_not_pass")
+    if uniqueness and duplicate_ratio_pct > 8.0:
+        alerts.append("duplicate_ratio_above_8pct")
 
     evidence_score = _round(
         _clamp(
-            min(35.0, accepted_models / max(1.0, float(args.min_accepted_models)) * 35.0)
+            min(35.0, unique_accepted_models / max(1.0, float(args.min_unique_accepted_models)) * 35.0)
             + min(20.0, accepted_large_models / max(1.0, float(args.min_accepted_large_models)) * 20.0)
             + min(25.0, generated_mutations / max(1.0, float(args.min_generated_mutations)) * 25.0)
             + min(15.0, reproducibility_ratio_pct / max(1.0, float(args.min_reproducibility_ratio_pct)) * 15.0)
@@ -202,6 +214,9 @@ def main() -> None:
         "harvest_total_candidates": harvest_total_candidates,
         "bootstrap_accepted_models": bootstrap_accepted_models,
         "accepted_models": accepted_models,
+        "unique_accepted_models": unique_accepted_models,
+        "duplicate_ratio_pct": _round(duplicate_ratio_pct),
+        "uniqueness_status": uniqueness_status,
         "accepted_large_models": accepted_large_models,
         "generated_mutations": generated_mutations,
         "reproducible_mutations": reproducible_mutations,
@@ -213,6 +228,11 @@ def main() -> None:
         "source_library_count": source_library_count,
         "artifact_digest_sha256": digest,
         "milestone_claims": [
+            {
+                "claim_id": "real_model.unique_accepted_count",
+                "value": unique_accepted_models,
+                "text": f"unique accepted real models = {unique_accepted_models}",
+            },
             {
                 "claim_id": "real_model.accepted_count",
                 "value": accepted_models,
@@ -238,6 +258,7 @@ def main() -> None:
             "bash scripts/run_modelica_open_source_bootstrap_v1.sh",
             'GATEFORGE_PRIVATE_MODEL_ROOTS="assets_private/modelica/open_source" bash scripts/run_private_model_mutation_scale_sprint_v1.sh',
             'GATEFORGE_PRIVATE_MODEL_ROOTS="assets_private/modelica/open_source" bash scripts/run_private_model_mutation_depth4_sprint_v1.sh',
+            'GATEFORGE_PRIVATE_MODEL_ROOTS="assets_private/modelica/open_source" bash scripts/run_private_model_mutation_depth6_sprint_v1.sh',
         ],
         "alerts": alerts,
         "reasons": sorted(set(reasons)),
@@ -245,6 +266,7 @@ def main() -> None:
             "open_source_bootstrap_summary": args.open_source_bootstrap_summary,
             "scale_batch_summary": args.scale_batch_summary,
             "scale_gate_summary": args.scale_gate_summary,
+            "uniqueness_guard_summary": args.uniqueness_guard_summary,
             "source_manifest": args.source_manifest,
         },
     }
