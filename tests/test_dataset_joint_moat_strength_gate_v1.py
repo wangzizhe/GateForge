@@ -95,6 +95,8 @@ class DatasetJointMoatStrengthGateV1Tests(unittest.TestCase):
             hard = root / "hard.json"
             auth = root / "auth.json"
             failure_auth = root / "failure_auth.json"
+            effective_depth = root / "effective_depth.json"
+            source_prov = root / "source_prov.json"
             out = root / "summary.json"
             family.write_text(json.dumps({"status": "PASS", "family_entropy": 1.8}), encoding="utf-8")
             source.write_text(json.dumps({"status": "PASS", "max_source_bucket_share_pct": 35.0}), encoding="utf-8")
@@ -124,6 +126,28 @@ class DatasetJointMoatStrengthGateV1Tests(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
+            effective_depth.write_text(
+                json.dumps(
+                    {
+                        "status": "NEEDS_REVIEW",
+                        "models_meeting_effective_depth_ratio_pct": 10.0,
+                        "large_models_meeting_effective_depth_ratio_pct": 0.0,
+                        "p10_effective_mutations_per_model": 0.0,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            source_prov.write_text(
+                json.dumps(
+                    {
+                        "status": "NEEDS_REVIEW",
+                        "existing_source_path_ratio_pct": 50.0,
+                        "allowed_root_ratio_pct": 40.0,
+                        "registry_match_ratio_pct": 20.0,
+                    }
+                ),
+                encoding="utf-8",
+            )
             proc = subprocess.run(
                 [
                     sys.executable,
@@ -145,6 +169,10 @@ class DatasetJointMoatStrengthGateV1Tests(unittest.TestCase):
                     str(auth),
                     "--mutation-failure-signal-authenticity-summary",
                     str(failure_auth),
+                    "--mutation-effective-depth-summary",
+                    str(effective_depth),
+                    "--mutation-source-provenance-summary",
+                    str(source_prov),
                     "--out",
                     str(out),
                 ],
@@ -157,8 +185,12 @@ class DatasetJointMoatStrengthGateV1Tests(unittest.TestCase):
             scores = payload.get("component_scores") if isinstance(payload.get("component_scores"), dict) else {}
             self.assertIn("mutation_execution_authenticity_score", scores)
             self.assertIn("mutation_failure_signal_authenticity_score", scores)
+            self.assertIn("mutation_effective_depth_score", scores)
+            self.assertIn("mutation_source_provenance_score", scores)
             self.assertIn("mutation_execution_authenticity_not_pass", payload.get("warning_reasons") or [])
             self.assertIn("mutation_failure_signal_authenticity_not_pass", payload.get("warning_reasons") or [])
+            self.assertIn("mutation_effective_depth_not_pass", payload.get("warning_reasons") or [])
+            self.assertIn("mutation_source_provenance_not_pass", payload.get("warning_reasons") or [])
 
 
 if __name__ == "__main__":
