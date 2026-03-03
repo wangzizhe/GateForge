@@ -100,6 +100,9 @@ class DatasetJointMoatStrengthGateV1Tests(unittest.TestCase):
             authentic_scale = root / "authentic_scale.json"
             large_auth = root / "large_auth.json"
             source_bucket = root / "source_bucket.json"
+            authentic_scale_trend = root / "authentic_scale_trend.json"
+            large_auth_trend = root / "large_auth_trend.json"
+            source_bucket_trend = root / "source_bucket_trend.json"
             out = root / "summary.json"
             family.write_text(json.dumps({"status": "PASS", "family_entropy": 1.8}), encoding="utf-8")
             source.write_text(json.dumps({"status": "PASS", "max_source_bucket_share_pct": 35.0}), encoding="utf-8")
@@ -180,6 +183,18 @@ class DatasetJointMoatStrengthGateV1Tests(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
+            authentic_scale_trend.write_text(
+                json.dumps({"status": "NEEDS_REVIEW", "trend": {"alerts": ["authentic_scale_status_worsened"]}}),
+                encoding="utf-8",
+            )
+            large_auth_trend.write_text(
+                json.dumps({"status": "NEEDS_REVIEW", "trend": {"alerts": ["large_model_authenticity_score_decreasing"]}}),
+                encoding="utf-8",
+            )
+            source_bucket_trend.write_text(
+                json.dumps({"status": "NEEDS_REVIEW", "trend": {"alerts": ["source_bucket_concentration_increasing"]}}),
+                encoding="utf-8",
+            )
             proc = subprocess.run(
                 [
                     sys.executable,
@@ -211,6 +226,12 @@ class DatasetJointMoatStrengthGateV1Tests(unittest.TestCase):
                     str(large_auth),
                     "--mutation-source-bucket-effective-scale-summary",
                     str(source_bucket),
+                    "--mutation-authentic-scale-score-trend-summary",
+                    str(authentic_scale_trend),
+                    "--large-model-authenticity-trend-summary",
+                    str(large_auth_trend),
+                    "--mutation-source-bucket-effective-scale-trend-summary",
+                    str(source_bucket_trend),
                     "--out",
                     str(out),
                 ],
@@ -235,6 +256,9 @@ class DatasetJointMoatStrengthGateV1Tests(unittest.TestCase):
             self.assertIn("mutation_authentic_scale_score_not_pass", payload.get("warning_reasons") or [])
             self.assertIn("large_model_authenticity_not_pass", payload.get("warning_reasons") or [])
             self.assertIn("mutation_source_bucket_effective_scale_not_pass", payload.get("warning_reasons") or [])
+            self.assertIn("mutation_authentic_scale_trend_worsening", payload.get("warning_reasons") or [])
+            self.assertIn("large_model_authenticity_trend_worsening", payload.get("warning_reasons") or [])
+            self.assertIn("mutation_source_bucket_effective_scale_trend_worsening", payload.get("warning_reasons") or [])
 
 
 if __name__ == "__main__":
