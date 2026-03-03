@@ -51,6 +51,11 @@ if [ -f "$OUT_DIR/history_summary.json" ]; then
 else
   rm -f "$OUT_DIR/history_summary_previous.json"
 fi
+if [ -f "$OUT_DIR/freeze_summary.json" ]; then
+  cp "$OUT_DIR/freeze_summary.json" "$OUT_DIR/freeze_summary_previous.json"
+else
+  rm -f "$OUT_DIR/freeze_summary_previous.json"
+fi
 
 rm -f "$OUT_DIR"/weekly_summary.json "$OUT_DIR"/weekly_summary.md "$OUT_DIR"/history_summary.json "$OUT_DIR"/history_summary.md "$OUT_DIR"/history_trend.json "$OUT_DIR"/history_trend.md "$OUT_DIR"/summary.json "$OUT_DIR"/summary.md
 
@@ -123,6 +128,31 @@ python3 -m gateforge.dataset_real_model_mutation_weekly_freeze_manifest_v1 \
   --out "$OUT_DIR/freeze_summary.json" \
   --report-out "$OUT_DIR/freeze_summary.md"
 
+if [ -f "$OUT_DIR/freeze_summary_previous.json" ]; then
+  python3 -m gateforge.dataset_real_model_mutation_weekly_freeze_diff_v1 \
+    --current-freeze-summary "$OUT_DIR/freeze_summary.json" \
+    --previous-freeze-summary "$OUT_DIR/freeze_summary_previous.json" \
+    --out "$OUT_DIR/freeze_trend_summary.json" \
+    --report-out "$OUT_DIR/freeze_trend_summary.md"
+else
+  cat > "$OUT_DIR/freeze_trend_summary.json" <<'JSON'
+{
+  "status": "PASS",
+  "trend": {
+    "status_transition": "BOOTSTRAP->BOOTSTRAP",
+    "delta_accepted_models": 0,
+    "delta_generated_mutations": 0,
+    "delta_reproducible_mutations": 0,
+    "delta_canonical_net_growth_models": 0,
+    "delta_validation_type_match_rate_pct": 0.0,
+    "changed_sources_count": 0,
+    "changed_sources": []
+  },
+  "alerts": []
+}
+JSON
+fi
+
 python3 - <<'PY'
 import json
 import os
@@ -133,6 +163,7 @@ weekly = json.loads((out / "weekly_summary.json").read_text(encoding="utf-8"))
 history = json.loads((out / "history_summary.json").read_text(encoding="utf-8"))
 trend = json.loads((out / "history_trend.json").read_text(encoding="utf-8"))
 freeze = json.loads((out / "freeze_summary.json").read_text(encoding="utf-8"))
+freeze_trend = json.loads((out / "freeze_trend_summary.json").read_text(encoding="utf-8"))
 kpis = weekly.get("kpis") if isinstance(weekly.get("kpis"), dict) else {}
 
 payload = {
@@ -154,6 +185,10 @@ payload = {
     "validation_type_match_rate_pct": kpis.get("validation_type_match_rate_pct"),
     "freeze_status": freeze.get("status"),
     "freeze_id": freeze.get("freeze_id"),
+    "freeze_trend_status": freeze_trend.get("status"),
+    "freeze_status_transition": (freeze_trend.get("trend") or {}).get("status_transition"),
+    "freeze_delta_canonical_net_growth_models": (freeze_trend.get("trend") or {}).get("delta_canonical_net_growth_models"),
+    "freeze_delta_validation_type_match_rate_pct": (freeze_trend.get("trend") or {}).get("delta_validation_type_match_rate_pct"),
 }
 (out / "summary.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
 print(json.dumps(payload))
