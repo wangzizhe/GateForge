@@ -52,8 +52,10 @@ bash scripts/run_modelica_open_source_bootstrap_v1.sh >/dev/null
 
 PRIVATE_MODEL_ROOTS="$(python3 - <<'PY'
 import json
+import os
 from pathlib import Path
-p = Path("artifacts/modelica_open_source_growth_sprint_v1/bootstrap/summary.json")
+out = Path(os.environ.get("GATEFORGE_MODELICA_GROWTH_SPRINT_OUT_DIR", "artifacts/modelica_open_source_growth_sprint_v1"))
+p = out / "bootstrap" / "summary.json"
 if p.exists():
     payload = json.loads(p.read_text(encoding="utf-8"))
     print(str(payload.get("export_root") or "assets_private/modelica/open_source"))
