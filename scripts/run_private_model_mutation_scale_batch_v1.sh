@@ -64,6 +64,8 @@ MUTATION_SIGNATURE_HISTORY_LEDGER_PATH="${GATEFORGE_MUTATION_SIGNATURE_HISTORY_L
 MUTATION_SIGNATURE_HISTORY_LAST_SUMMARY_PATH="${GATEFORGE_MUTATION_SIGNATURE_HISTORY_LAST_SUMMARY_PATH:-$OUT_DIR/state/mutation_signature_uniqueness_last_summary.json}"
 MUTATION_EXECUTION_AUTH_HISTORY_LEDGER_PATH="${GATEFORGE_MUTATION_EXECUTION_AUTH_HISTORY_LEDGER_PATH:-$OUT_DIR/state/mutation_execution_authenticity_history.jsonl}"
 MUTATION_EXECUTION_AUTH_HISTORY_LAST_SUMMARY_PATH="${GATEFORGE_MUTATION_EXECUTION_AUTH_HISTORY_LAST_SUMMARY_PATH:-$OUT_DIR/state/mutation_execution_authenticity_last_summary.json}"
+MUTATION_FAILURE_SIGNAL_HISTORY_LEDGER_PATH="${GATEFORGE_MUTATION_FAILURE_SIGNAL_HISTORY_LEDGER_PATH:-$OUT_DIR/state/mutation_failure_signal_authenticity_history.jsonl}"
+MUTATION_FAILURE_SIGNAL_HISTORY_LAST_SUMMARY_PATH="${GATEFORGE_MUTATION_FAILURE_SIGNAL_HISTORY_LAST_SUMMARY_PATH:-$OUT_DIR/state/mutation_failure_signal_authenticity_last_summary.json}"
 HARD_MOAT_MIN_DISCOVERED_MODELS="${GATEFORGE_HARD_MOAT_MIN_DISCOVERED_MODELS:-2}"
 HARD_MOAT_MIN_ACCEPTED_MODELS="${GATEFORGE_HARD_MOAT_MIN_ACCEPTED_MODELS:-2}"
 HARD_MOAT_MIN_ACCEPTED_LARGE_MODELS="${GATEFORGE_HARD_MOAT_MIN_ACCEPTED_LARGE_MODELS:-1}"
@@ -110,6 +112,8 @@ export MUTATION_SIGNATURE_HISTORY_LEDGER_PATH
 export MUTATION_SIGNATURE_HISTORY_LAST_SUMMARY_PATH
 export MUTATION_EXECUTION_AUTH_HISTORY_LEDGER_PATH
 export MUTATION_EXECUTION_AUTH_HISTORY_LAST_SUMMARY_PATH
+export MUTATION_FAILURE_SIGNAL_HISTORY_LEDGER_PATH
+export MUTATION_FAILURE_SIGNAL_HISTORY_LAST_SUMMARY_PATH
 export HARD_MOAT_MIN_DISCOVERED_MODELS
 export HARD_MOAT_MIN_ACCEPTED_MODELS
 export HARD_MOAT_MIN_ACCEPTED_LARGE_MODELS
@@ -589,6 +593,47 @@ fi
 mkdir -p "$(dirname "$MUTATION_EXECUTION_AUTH_HISTORY_LAST_SUMMARY_PATH")"
 cp "$OUT_DIR/mutation_execution_authenticity_history_summary.json" "$MUTATION_EXECUTION_AUTH_HISTORY_LAST_SUMMARY_PATH"
 
+python3 -m gateforge.dataset_mutation_failure_signal_authenticity_guard_v1 \
+  --mutation-manifest "$OUT_DIR/mutation_manifest.json" \
+  --mutation-raw-observations "$OUT_DIR/mutation_raw_observations.json" \
+  --out "$OUT_DIR/mutation_failure_signal_authenticity_summary.json" \
+  --report-out "$OUT_DIR/mutation_failure_signal_authenticity_summary.md"
+
+if [ -f "$MUTATION_FAILURE_SIGNAL_HISTORY_LAST_SUMMARY_PATH" ]; then
+  cp "$MUTATION_FAILURE_SIGNAL_HISTORY_LAST_SUMMARY_PATH" "$OUT_DIR/mutation_failure_signal_authenticity_history_previous_summary.json"
+else
+  rm -f "$OUT_DIR/mutation_failure_signal_authenticity_history_previous_summary.json"
+fi
+
+python3 -m gateforge.dataset_mutation_failure_signal_authenticity_history_ledger_v1 \
+  --mutation-failure-signal-authenticity-summary "$OUT_DIR/mutation_failure_signal_authenticity_summary.json" \
+  --ledger "$MUTATION_FAILURE_SIGNAL_HISTORY_LEDGER_PATH" \
+  --out "$OUT_DIR/mutation_failure_signal_authenticity_history_summary.json" \
+  --report-out "$OUT_DIR/mutation_failure_signal_authenticity_history_summary.md"
+
+if [ -f "$OUT_DIR/mutation_failure_signal_authenticity_history_previous_summary.json" ]; then
+  python3 -m gateforge.dataset_mutation_failure_signal_authenticity_history_trend_v1 \
+    --previous "$OUT_DIR/mutation_failure_signal_authenticity_history_previous_summary.json" \
+    --current "$OUT_DIR/mutation_failure_signal_authenticity_history_summary.json" \
+    --out "$OUT_DIR/mutation_failure_signal_authenticity_history_trend_summary.json" \
+    --report-out "$OUT_DIR/mutation_failure_signal_authenticity_history_trend_summary.md"
+else
+  cat > "$OUT_DIR/mutation_failure_signal_authenticity_history_trend_summary.json" <<'JSON'
+{
+  "status": "PASS",
+  "trend": {
+    "status_transition": "BOOTSTRAP->BOOTSTRAP",
+    "delta_failure_signal_ratio_pct": 0.0,
+    "delta_expected_failure_type_signal_coverage_pct": 0.0,
+    "alerts": []
+  },
+  "alerts": []
+}
+JSON
+fi
+mkdir -p "$(dirname "$MUTATION_FAILURE_SIGNAL_HISTORY_LAST_SUMMARY_PATH")"
+cp "$OUT_DIR/mutation_failure_signal_authenticity_history_summary.json" "$MUTATION_FAILURE_SIGNAL_HISTORY_LAST_SUMMARY_PATH"
+
 python3 -m gateforge.dataset_mutation_repro_depth_guard_v1 \
   --mutation-manifest "$OUT_DIR/mutation_manifest.json" \
   --mutation-raw-observations "$OUT_DIR/mutation_raw_observations.json" \
@@ -780,6 +825,7 @@ python3 -m gateforge.dataset_joint_moat_strength_gate_v1 \
   --real-model-net-growth-authenticity-summary "$OUT_DIR/real_model_net_growth_authenticity_summary.json" \
   --hard-moat-gates-summary "$OUT_DIR/hard_moat_gates_summary.json" \
   --mutation-execution-authenticity-summary "$OUT_DIR/mutation_execution_authenticity_summary.json" \
+  --mutation-failure-signal-authenticity-summary "$OUT_DIR/mutation_failure_signal_authenticity_summary.json" \
   --out "$OUT_DIR/joint_moat_strength_summary.json" \
   --report-out "$OUT_DIR/joint_moat_strength_summary.md"
 
@@ -923,6 +969,9 @@ realrun = _load("mutation_real_runner_summary.json")
 mutation_exec_auth = _load("mutation_execution_authenticity_summary.json")
 mutation_exec_auth_history = _load("mutation_execution_authenticity_history_summary.json")
 mutation_exec_auth_history_trend = _load("mutation_execution_authenticity_history_trend_summary.json")
+mutation_failure_signal_auth = _load("mutation_failure_signal_authenticity_summary.json")
+mutation_failure_signal_auth_history = _load("mutation_failure_signal_authenticity_history_summary.json")
+mutation_failure_signal_auth_history_trend = _load("mutation_failure_signal_authenticity_history_trend_summary.json")
 large_model_truth = _load("large_model_executable_truth_summary.json")
 large_model_truth_history = _load("large_model_executable_truth_history_summary.json")
 large_model_truth_history_trend = _load("large_model_executable_truth_history_trend_summary.json")
@@ -977,6 +1026,9 @@ flags = {
     "mutation_execution_authenticity_exists": "PASS" if str(mutation_exec_auth.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "mutation_execution_authenticity_history_exists": "PASS" if str(mutation_exec_auth_history.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "mutation_execution_authenticity_history_trend_exists": "PASS" if str(mutation_exec_auth_history_trend.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
+    "mutation_failure_signal_authenticity_exists": "PASS" if str(mutation_failure_signal_auth.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
+    "mutation_failure_signal_authenticity_history_exists": "PASS" if str(mutation_failure_signal_auth_history.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
+    "mutation_failure_signal_authenticity_history_trend_exists": "PASS" if str(mutation_failure_signal_auth_history_trend.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "validation_exists": "PASS" if str(validation.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "validation_v2_exists": "PASS" if str(validation_v2.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "selection_balance_guard_exists": "PASS" if str(selection_guard.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
@@ -1159,6 +1211,17 @@ summary = {
     "mutation_execution_authenticity_history_trend_status": mutation_exec_auth_history_trend.get("status"),
     "mutation_execution_authenticity_history_trend_delta_solver_command_ratio_pct": (mutation_exec_auth_history_trend.get("trend") or {}).get("delta_solver_command_ratio_pct"),
     "mutation_execution_authenticity_history_trend_delta_probe_only_command_ratio_pct": (mutation_exec_auth_history_trend.get("trend") or {}).get("delta_probe_only_command_ratio_pct"),
+    "mutation_failure_signal_authenticity_status": mutation_failure_signal_auth.get("status"),
+    "mutation_failure_signal_authenticity_failure_signal_ratio_pct": mutation_failure_signal_auth.get("failure_signal_ratio_pct"),
+    "mutation_failure_signal_authenticity_expected_failure_type_signal_coverage_pct": mutation_failure_signal_auth.get("expected_failure_type_signal_coverage_pct"),
+    "mutation_failure_signal_authenticity_observed_coverage_ratio_pct": mutation_failure_signal_auth.get("observed_coverage_ratio_pct"),
+    "mutation_failure_signal_authenticity_history_status": mutation_failure_signal_auth_history.get("status"),
+    "mutation_failure_signal_authenticity_history_total_records": mutation_failure_signal_auth_history.get("total_records"),
+    "mutation_failure_signal_authenticity_history_latest_failure_signal_ratio_pct": mutation_failure_signal_auth_history.get("latest_failure_signal_ratio_pct"),
+    "mutation_failure_signal_authenticity_history_latest_expected_failure_type_signal_coverage_pct": mutation_failure_signal_auth_history.get("latest_expected_failure_type_signal_coverage_pct"),
+    "mutation_failure_signal_authenticity_history_trend_status": mutation_failure_signal_auth_history_trend.get("status"),
+    "mutation_failure_signal_authenticity_history_trend_delta_failure_signal_ratio_pct": (mutation_failure_signal_auth_history_trend.get("trend") or {}).get("delta_failure_signal_ratio_pct"),
+    "mutation_failure_signal_authenticity_history_trend_delta_expected_failure_type_signal_coverage_pct": (mutation_failure_signal_auth_history_trend.get("trend") or {}).get("delta_expected_failure_type_signal_coverage_pct"),
     "large_model_executable_truth_status": large_model_truth.get("status"),
     "large_model_executable_truth_large_model_count": large_model_truth.get("large_model_count"),
     "large_model_executable_truth_large_executable_real_count": large_model_truth.get("large_executable_real_count"),
@@ -1334,6 +1397,17 @@ summary = {
             f"- mutation_execution_authenticity_history_trend_status: `{summary['mutation_execution_authenticity_history_trend_status']}`",
             f"- mutation_execution_authenticity_history_trend_delta_solver_command_ratio_pct: `{summary['mutation_execution_authenticity_history_trend_delta_solver_command_ratio_pct']}`",
             f"- mutation_execution_authenticity_history_trend_delta_probe_only_command_ratio_pct: `{summary['mutation_execution_authenticity_history_trend_delta_probe_only_command_ratio_pct']}`",
+            f"- mutation_failure_signal_authenticity_status: `{summary['mutation_failure_signal_authenticity_status']}`",
+            f"- mutation_failure_signal_authenticity_failure_signal_ratio_pct: `{summary['mutation_failure_signal_authenticity_failure_signal_ratio_pct']}`",
+            f"- mutation_failure_signal_authenticity_expected_failure_type_signal_coverage_pct: `{summary['mutation_failure_signal_authenticity_expected_failure_type_signal_coverage_pct']}`",
+            f"- mutation_failure_signal_authenticity_observed_coverage_ratio_pct: `{summary['mutation_failure_signal_authenticity_observed_coverage_ratio_pct']}`",
+            f"- mutation_failure_signal_authenticity_history_status: `{summary['mutation_failure_signal_authenticity_history_status']}`",
+            f"- mutation_failure_signal_authenticity_history_total_records: `{summary['mutation_failure_signal_authenticity_history_total_records']}`",
+            f"- mutation_failure_signal_authenticity_history_latest_failure_signal_ratio_pct: `{summary['mutation_failure_signal_authenticity_history_latest_failure_signal_ratio_pct']}`",
+            f"- mutation_failure_signal_authenticity_history_latest_expected_failure_type_signal_coverage_pct: `{summary['mutation_failure_signal_authenticity_history_latest_expected_failure_type_signal_coverage_pct']}`",
+            f"- mutation_failure_signal_authenticity_history_trend_status: `{summary['mutation_failure_signal_authenticity_history_trend_status']}`",
+            f"- mutation_failure_signal_authenticity_history_trend_delta_failure_signal_ratio_pct: `{summary['mutation_failure_signal_authenticity_history_trend_delta_failure_signal_ratio_pct']}`",
+            f"- mutation_failure_signal_authenticity_history_trend_delta_expected_failure_type_signal_coverage_pct: `{summary['mutation_failure_signal_authenticity_history_trend_delta_expected_failure_type_signal_coverage_pct']}`",
             f"- large_model_executable_truth_status: `{summary['large_model_executable_truth_status']}`",
             f"- large_model_executable_truth_large_model_count: `{summary['large_model_executable_truth_large_model_count']}`",
             f"- large_model_executable_truth_large_executable_real_count: `{summary['large_model_executable_truth_large_executable_real_count']}`",

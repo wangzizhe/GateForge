@@ -94,6 +94,7 @@ class DatasetJointMoatStrengthGateV1Tests(unittest.TestCase):
             growth = root / "growth.json"
             hard = root / "hard.json"
             auth = root / "auth.json"
+            failure_auth = root / "failure_auth.json"
             out = root / "summary.json"
             family.write_text(json.dumps({"status": "PASS", "family_entropy": 1.8}), encoding="utf-8")
             source.write_text(json.dumps({"status": "PASS", "max_source_bucket_share_pct": 35.0}), encoding="utf-8")
@@ -108,6 +109,17 @@ class DatasetJointMoatStrengthGateV1Tests(unittest.TestCase):
                         "solver_command_ratio_pct": 0.0,
                         "probe_only_command_ratio_pct": 98.0,
                         "failure_signal_ratio_pct": 0.0,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            failure_auth.write_text(
+                json.dumps(
+                    {
+                        "status": "NEEDS_REVIEW",
+                        "failure_signal_ratio_pct": 0.0,
+                        "expected_failure_type_signal_coverage_pct": 0.0,
+                        "observed_coverage_ratio_pct": 100.0,
                     }
                 ),
                 encoding="utf-8",
@@ -131,6 +143,8 @@ class DatasetJointMoatStrengthGateV1Tests(unittest.TestCase):
                     str(hard),
                     "--mutation-execution-authenticity-summary",
                     str(auth),
+                    "--mutation-failure-signal-authenticity-summary",
+                    str(failure_auth),
                     "--out",
                     str(out),
                 ],
@@ -142,7 +156,9 @@ class DatasetJointMoatStrengthGateV1Tests(unittest.TestCase):
             payload = json.loads(out.read_text(encoding="utf-8"))
             scores = payload.get("component_scores") if isinstance(payload.get("component_scores"), dict) else {}
             self.assertIn("mutation_execution_authenticity_score", scores)
+            self.assertIn("mutation_failure_signal_authenticity_score", scores)
             self.assertIn("mutation_execution_authenticity_not_pass", payload.get("warning_reasons") or [])
+            self.assertIn("mutation_failure_signal_authenticity_not_pass", payload.get("warning_reasons") or [])
 
 
 if __name__ == "__main__":
