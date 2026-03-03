@@ -345,6 +345,12 @@ python3 -m gateforge.dataset_mutation_coverage_gap_backfill_v1 \
   --out "$OUT_DIR/mutation_coverage_backfill_summary.json" \
   --report-out "$OUT_DIR/mutation_coverage_backfill_summary.md"
 
+python3 -m gateforge.dataset_mutation_failure_type_balance_guard_v1 \
+  --mutation-manifest "$OUT_DIR/mutation_manifest.json" \
+  --mutation-validation-records "$OUT_DIR/mutation_validation_records.json" \
+  --out "$OUT_DIR/mutation_failure_type_balance_guard_summary.json" \
+  --report-out "$OUT_DIR/mutation_failure_type_balance_guard_summary.md"
+
 python3 -m gateforge.dataset_ingest_source_channel_planner_v1 \
   --asset-discovery-summary "$OUT_DIR/asset_discovery_summary.json" \
   --intake-runner-summary "$OUT_DIR/intake_runner_summary.json" \
@@ -447,6 +453,12 @@ python3 -m gateforge.dataset_real_model_pool_audit_v1 \
   --out "$OUT_DIR/real_model_pool_audit_summary.json" \
   --report-out "$OUT_DIR/real_model_pool_audit_summary.md"
 
+python3 -m gateforge.dataset_real_model_family_coverage_board_v1 \
+  --executable-registry "$OUT_DIR/executable_registry_rows.json" \
+  --mutation-manifest "$OUT_DIR/mutation_manifest.json" \
+  --out "$OUT_DIR/real_model_family_coverage_board_summary.json" \
+  --report-out "$OUT_DIR/real_model_family_coverage_board_summary.md"
+
 python3 -m gateforge.dataset_mutation_artifact_inventory_v1 \
   --mutation-manifest "$OUT_DIR/mutation_manifest.json" \
   --mutation-raw-observations "$OUT_DIR/mutation_raw_observations.json" \
@@ -497,12 +509,14 @@ validation_v2 = _load("mutation_validation_matrix_v2_summary.json")
 stability_guard = _load("failure_distribution_stability_guard_summary.json")
 mismatch_triage = _load("mutation_mismatch_triage_summary.json")
 coverage_backfill = _load("mutation_coverage_backfill_summary.json")
+failure_balance = _load("mutation_failure_type_balance_guard_summary.json")
 ingest_planner = _load("ingest_source_channel_planner_summary.json")
 hard_moat_target = _load("hard_moat_target_profile_summary.json")
 realrun = _load("mutation_real_runner_summary.json")
 gate = _load("scale_gate_summary.json")
 hard_moat = _load("hard_moat_gates_summary.json")
 pool_audit = _load("real_model_pool_audit_summary.json")
+family_board = _load("real_model_family_coverage_board_summary.json")
 mutation_inventory = _load("mutation_artifact_inventory_summary.json")
 asset_locator = _load("asset_locator_manifest_summary.json")
 repro_sample_pack = _load("reproducible_mutation_sample_pack_summary.json")
@@ -531,9 +545,11 @@ flags = {
     "stability_guard_exists": "PASS" if str(stability_guard.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "mismatch_triage_exists": "PASS" if str(mismatch_triage.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "coverage_backfill_exists": "PASS" if str(coverage_backfill.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
+    "failure_type_balance_exists": "PASS" if str(failure_balance.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "ingest_source_channel_planner_exists": "PASS" if str(ingest_planner.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "hard_moat_target_profile_exists": "PASS" if str(hard_moat_target.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "real_model_pool_audit_exists": "PASS" if str(pool_audit.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
+    "real_model_family_coverage_exists": "PASS" if str(family_board.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "mutation_artifact_inventory_exists": "PASS" if str(mutation_inventory.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "asset_locator_manifest_exists": "PASS" if str(asset_locator.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "reproducible_sample_pack_exists": "PASS" if str(repro_sample_pack.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
@@ -586,6 +602,9 @@ summary = {
     "coverage_backfill_status": coverage_backfill.get("status"),
     "coverage_backfill_total_tasks": coverage_backfill.get("total_tasks"),
     "coverage_backfill_p0_tasks": coverage_backfill.get("p0_tasks"),
+    "failure_type_balance_status": failure_balance.get("status"),
+    "failure_type_balance_expected_count": failure_balance.get("expected_failure_type_count"),
+    "failure_type_balance_expected_entropy": failure_balance.get("expected_entropy"),
     "ingest_source_channel_planner_status": ingest_planner.get("status"),
     "ingest_source_channel_planner_p0_channels": ingest_planner.get("p0_channels"),
     "ingest_source_channel_planner_planned_weekly_new_models": ingest_planner.get("planned_weekly_new_models"),
@@ -596,6 +615,9 @@ summary = {
     "real_model_pool_audit_status": pool_audit.get("status"),
     "real_model_pool_existing_file_ratio": pool_audit.get("existing_file_ratio"),
     "real_model_pool_nontrivial_model_ratio": pool_audit.get("nontrivial_model_ratio"),
+    "real_model_family_coverage_status": family_board.get("status"),
+    "real_model_family_coverage_count": family_board.get("covered_families"),
+    "real_model_family_entropy": family_board.get("family_entropy"),
     "mutation_artifact_inventory_status": mutation_inventory.get("status"),
     "mutation_artifact_existing_file_ratio": mutation_inventory.get("existing_file_ratio"),
     "mutation_artifact_execution_coverage_ratio": mutation_inventory.get("execution_coverage_ratio"),
@@ -662,6 +684,9 @@ summary = {
             f"- coverage_backfill_status: `{summary['coverage_backfill_status']}`",
             f"- coverage_backfill_total_tasks: `{summary['coverage_backfill_total_tasks']}`",
             f"- coverage_backfill_p0_tasks: `{summary['coverage_backfill_p0_tasks']}`",
+            f"- failure_type_balance_status: `{summary['failure_type_balance_status']}`",
+            f"- failure_type_balance_expected_count: `{summary['failure_type_balance_expected_count']}`",
+            f"- failure_type_balance_expected_entropy: `{summary['failure_type_balance_expected_entropy']}`",
             f"- ingest_source_channel_planner_status: `{summary['ingest_source_channel_planner_status']}`",
             f"- ingest_source_channel_planner_p0_channels: `{summary['ingest_source_channel_planner_p0_channels']}`",
             f"- ingest_source_channel_planner_planned_weekly_new_models: `{summary['ingest_source_channel_planner_planned_weekly_new_models']}`",
@@ -672,6 +697,9 @@ summary = {
             f"- real_model_pool_audit_status: `{summary['real_model_pool_audit_status']}`",
             f"- real_model_pool_existing_file_ratio: `{summary['real_model_pool_existing_file_ratio']}`",
             f"- real_model_pool_nontrivial_model_ratio: `{summary['real_model_pool_nontrivial_model_ratio']}`",
+            f"- real_model_family_coverage_status: `{summary['real_model_family_coverage_status']}`",
+            f"- real_model_family_coverage_count: `{summary['real_model_family_coverage_count']}`",
+            f"- real_model_family_entropy: `{summary['real_model_family_entropy']}`",
             f"- mutation_artifact_inventory_status: `{summary['mutation_artifact_inventory_status']}`",
             f"- mutation_artifact_existing_file_ratio: `{summary['mutation_artifact_existing_file_ratio']}`",
             f"- mutation_artifact_execution_coverage_ratio: `{summary['mutation_artifact_execution_coverage_ratio']}`",
@@ -727,6 +755,16 @@ python3 -m gateforge.dataset_scale_execution_priority_board_v1 \
   --out "$OUT_DIR/scale_execution_priority_board_summary.json" \
   --report-out "$OUT_DIR/scale_execution_priority_board_summary.md"
 
+python3 -m gateforge.dataset_weekly_scale_milestone_checkpoint_v1 \
+  --scale-batch-summary "$OUT_DIR/summary.json" \
+  --scale-target-gap-summary "$OUT_DIR/scale_target_gap_summary.json" \
+  --scale-evidence-stamp-summary "$OUT_DIR/scale_evidence_stamp_summary.json" \
+  --real-model-family-coverage-board-summary "$OUT_DIR/real_model_family_coverage_board_summary.json" \
+  --mutation-failure-type-balance-guard-summary "$OUT_DIR/mutation_failure_type_balance_guard_summary.json" \
+  --scale-execution-priority-board-summary "$OUT_DIR/scale_execution_priority_board_summary.json" \
+  --out "$OUT_DIR/weekly_scale_milestone_checkpoint_summary.json" \
+  --report-out "$OUT_DIR/weekly_scale_milestone_checkpoint_summary.md"
+
 python3 - <<'PY'
 import json
 import os
@@ -738,11 +776,13 @@ summary = json.loads(summary_path.read_text(encoding="utf-8"))
 history = json.loads((out / "scale_history_summary.json").read_text(encoding="utf-8"))
 gap = json.loads((out / "scale_target_gap_summary.json").read_text(encoding="utf-8"))
 board = json.loads((out / "scale_execution_priority_board_summary.json").read_text(encoding="utf-8"))
+checkpoint = json.loads((out / "weekly_scale_milestone_checkpoint_summary.json").read_text(encoding="utf-8"))
 
 flags = summary.get("result_flags") if isinstance(summary.get("result_flags"), dict) else {}
 flags["scale_history_exists"] = "PASS" if str(history.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL"
 flags["scale_target_gap_exists"] = "PASS" if str(gap.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL"
 flags["scale_execution_board_exists"] = "PASS" if str(board.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL"
+flags["weekly_scale_milestone_checkpoint_exists"] = "PASS" if str(checkpoint.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL"
 
 summary["result_flags"] = flags
 summary["scale_history_status"] = history.get("status")
@@ -757,6 +797,10 @@ summary["scale_execution_board_status"] = board.get("status")
 summary["scale_execution_board_task_count"] = board.get("task_count")
 summary["scale_execution_board_p0_tasks"] = board.get("p0_tasks")
 summary["scale_execution_board_projected_weeks"] = board.get("projected_weeks_to_close_key_gaps")
+summary["weekly_scale_milestone_checkpoint_status"] = checkpoint.get("status")
+summary["weekly_scale_milestone_checkpoint_score"] = checkpoint.get("milestone_score")
+summary["weekly_scale_milestone_checkpoint_grade"] = checkpoint.get("milestone_grade")
+summary["weekly_scale_milestone_checkpoint_top_actions_count"] = checkpoint.get("top_actions_count")
 
 summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
 md_path = out / "summary.md"
@@ -774,6 +818,10 @@ extra_lines = [
     f"- scale_execution_board_task_count: `{summary.get('scale_execution_board_task_count')}`",
     f"- scale_execution_board_p0_tasks: `{summary.get('scale_execution_board_p0_tasks')}`",
     f"- scale_execution_board_projected_weeks: `{summary.get('scale_execution_board_projected_weeks')}`",
+    f"- weekly_scale_milestone_checkpoint_status: `{summary.get('weekly_scale_milestone_checkpoint_status')}`",
+    f"- weekly_scale_milestone_checkpoint_score: `{summary.get('weekly_scale_milestone_checkpoint_score')}`",
+    f"- weekly_scale_milestone_checkpoint_grade: `{summary.get('weekly_scale_milestone_checkpoint_grade')}`",
+    f"- weekly_scale_milestone_checkpoint_top_actions_count: `{summary.get('weekly_scale_milestone_checkpoint_top_actions_count')}`",
 ]
 md_path.write_text(old + "\n" + "\n".join(extra_lines) + "\n", encoding="utf-8")
 print(json.dumps({"bundle_status": summary.get("bundle_status"), "scale_target_gap_status": summary.get("scale_target_gap_status")}))
