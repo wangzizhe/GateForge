@@ -36,6 +36,8 @@ MIN_ACCEPTED_LARGE_RATIO_PCT="${GATEFORGE_MIN_ACCEPTED_LARGE_RATIO_PCT:-$DEFAULT
 MAX_MUTATION_MODELS="${GATEFORGE_MAX_MUTATION_MODELS:-$DEFAULT_MAX_MUTATION_MODELS}"
 MUTANT_ROOT="${GATEFORGE_MUTANT_ROOT:-$OUT_DIR/mutants}"
 FAILURE_TYPES="${GATEFORGE_FAILURE_TYPES:-simulate_error,model_check_error,semantic_regression,numerical_instability,constraint_violation}"
+CANONICAL_REGISTRY_PATH="${GATEFORGE_CANONICAL_REGISTRY_PATH:-artifacts/private_model_canonical_registry_v2/registry.json}"
+CANONICAL_RUN_TAG="${GATEFORGE_CANONICAL_RUN_TAG:-$(date -u +%Y%m%dT%H%M%SZ)}"
 VALIDATION_BACKEND="${GATEFORGE_MUTATION_VALIDATION_BACKEND:-auto}"
 VALIDATION_TIMEOUT_SECONDS="${GATEFORGE_MUTATION_VALIDATION_TIMEOUT_SECONDS:-20}"
 VALIDATION_MAX_BASELINES="${GATEFORGE_MUTATION_VALIDATION_MAX_BASELINES:-200}"
@@ -50,6 +52,8 @@ export DISCOVERY_MIN_LARGE_COMPLEXITY_SCORE
 export MIN_ACCEPTED_LARGE_RATIO_PCT
 export MAX_MUTATION_MODELS
 export MUTANT_ROOT
+export CANONICAL_REGISTRY_PATH
+export CANONICAL_RUN_TAG
 export VALIDATION_BACKEND
 export VALIDATION_TIMEOUT_SECONDS
 export VALIDATION_MAX_BASELINES
@@ -172,6 +176,20 @@ python3 -m gateforge.dataset_real_model_executable_pool_v1 \
   --out "$OUT_DIR/executable_pool_summary.json" \
   --report-out "$OUT_DIR/executable_pool_summary.md"
 
+python3 -m gateforge.dataset_real_model_canonical_registry_v2 \
+  --current-executable-registry "$OUT_DIR/executable_registry_rows.json" \
+  --previous-canonical-registry "$CANONICAL_REGISTRY_PATH" \
+  --run-tag "$CANONICAL_RUN_TAG" \
+  --out-registry "$CANONICAL_REGISTRY_PATH" \
+  --out "$OUT_DIR/canonical_registry_summary.json" \
+  --report-out "$OUT_DIR/canonical_registry_summary.md"
+
+python3 -m gateforge.dataset_modelica_mutation_recipe_library_v2 \
+  --executable-pool-summary "$OUT_DIR/executable_pool_summary.json" \
+  --recipes-out "$OUT_DIR/mutation_recipe_library_v2_recipes.json" \
+  --out "$OUT_DIR/mutation_recipe_library_v2_summary.json" \
+  --report-out "$OUT_DIR/mutation_recipe_library_v2_summary.md"
+
 # Auto-scale mutation density based on accepted medium/large models and min-generated target.
 python3 - <<'PY'
 import json
@@ -249,6 +267,8 @@ python3 -m gateforge.dataset_mutation_model_materializer_v1 \
   --model-registry "$OUT_DIR/executable_registry_rows.json" \
   --target-scales "$TARGET_SCALES" \
   --failure-types "$FAILURE_TYPES" \
+  --recipe-library "$OUT_DIR/mutation_recipe_library_v2_recipes.json" \
+  --mutations-per-recipe "${AUTO_MUTATIONS_PER_FAILURE_TYPE}" \
   --mutations-per-failure-type "${AUTO_MUTATIONS_PER_FAILURE_TYPE}" \
   --max-models "${MAX_MUTATION_MODELS}" \
   --mutant-root "${MUTANT_ROOT}" \
@@ -305,6 +325,8 @@ discovery = _load("asset_discovery_summary.json")
 pipeline = _load("intake_pipeline_summary.json")
 runner = _load("intake_runner_summary.json")
 executable = _load("executable_pool_summary.json")
+canonical = _load("canonical_registry_summary.json")
+recipe = _load("mutation_recipe_library_v2_summary.json")
 pack = _load("mutation_pack_summary.json")
 validation = _load("mutation_validation_summary.json")
 realrun = _load("mutation_real_runner_summary.json")
@@ -326,6 +348,8 @@ flags = {
     "pack_exists": "PASS" if int(pack.get("total_mutations", 0)) >= 0 else "FAIL",
     "realrun_exists": "PASS" if int(realrun.get("total_mutations", 0)) >= 0 else "FAIL",
     "executable_pool_present": "PASS" if int(executable.get("executable_unique_models", 0)) >= 0 else "FAIL",
+    "canonical_registry_present": "PASS" if int(canonical.get("canonical_total_models", 0)) >= 0 else "FAIL",
+    "recipe_library_present": "PASS" if int(recipe.get("total_recipes", 0)) >= 0 else "FAIL",
     "validation_exists": "PASS" if str(validation.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "gate_status_present": "PASS" if str(gate.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "accepted_large_ratio_gate": "PASS"
@@ -347,6 +371,13 @@ summary = {
     "raw_models": executable.get("raw_models"),
     "executable_unique_models": executable.get("executable_unique_models"),
     "executable_large_models": executable.get("executable_large_models"),
+    "canonical_total_models": canonical.get("canonical_total_models"),
+    "canonical_new_models": canonical.get("canonical_new_models"),
+    "canonical_net_growth_models": canonical.get("canonical_net_growth_models"),
+    "canonical_new_large_models": canonical.get("canonical_new_large_models"),
+    "mutation_recipe_library_v2_status": recipe.get("status"),
+    "mutation_recipe_total_recipes": recipe.get("total_recipes"),
+    "mutation_recipe_operator_family_count": recipe.get("operator_family_count"),
     "generated_mutations": pack.get("total_mutations"),
     "materialized_mutations": pack.get("materialized_mutations"),
     "failed_materializations": pack.get("failed_materializations"),
@@ -381,6 +412,13 @@ summary = {
             f"- raw_models: `{summary['raw_models']}`",
             f"- executable_unique_models: `{summary['executable_unique_models']}`",
             f"- executable_large_models: `{summary['executable_large_models']}`",
+            f"- canonical_total_models: `{summary['canonical_total_models']}`",
+            f"- canonical_new_models: `{summary['canonical_new_models']}`",
+            f"- canonical_net_growth_models: `{summary['canonical_net_growth_models']}`",
+            f"- canonical_new_large_models: `{summary['canonical_new_large_models']}`",
+            f"- mutation_recipe_library_v2_status: `{summary['mutation_recipe_library_v2_status']}`",
+            f"- mutation_recipe_total_recipes: `{summary['mutation_recipe_total_recipes']}`",
+            f"- mutation_recipe_operator_family_count: `{summary['mutation_recipe_operator_family_count']}`",
             f"- generated_mutations: `{summary['generated_mutations']}`",
             f"- materialized_mutations: `{summary['materialized_mutations']}`",
             f"- mutation_validation_status: `{summary['mutation_validation_status']}`",
