@@ -85,6 +85,8 @@ class RunPrivateModelMutationScaleBatchV1Tests(unittest.TestCase):
             self.assertIn(summary.get("mutation_recipe_library_v2_status"), {"PASS", "NEEDS_REVIEW", "FAIL"})
             self.assertIn(summary.get("mutation_selection_plan_status"), {"PASS", "NEEDS_REVIEW", "FAIL"})
             self.assertIn(summary.get("mutation_selection_balance_guard_status"), {"PASS", "NEEDS_REVIEW", "FAIL"})
+            self.assertIn(summary.get("mutation_selection_history_status"), {"PASS", "NEEDS_REVIEW", "FAIL"})
+            self.assertIn(summary.get("mutation_selection_history_trend_status"), {"PASS", "NEEDS_REVIEW", "FAIL"})
             self.assertIn(summary.get("mutation_validation_status"), {"PASS", "NEEDS_REVIEW", "FAIL"})
             self.assertIn(summary.get("validation_v2_status"), {"PASS", "NEEDS_REVIEW", "FAIL"})
             self.assertIn(summary.get("failure_distribution_guard_status"), {"PASS", "NEEDS_REVIEW", "FAIL"})
