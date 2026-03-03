@@ -777,6 +777,20 @@ fi
 mkdir -p "$(dirname "$MUTATION_SOURCE_PROVENANCE_HISTORY_LAST_SUMMARY_PATH")"
 cp "$OUT_DIR/mutation_source_provenance_history_summary.json" "$MUTATION_SOURCE_PROVENANCE_HISTORY_LAST_SUMMARY_PATH"
 
+python3 -m gateforge.dataset_mutation_authentic_scale_score_v1 \
+  --mutation-execution-authenticity-summary "$OUT_DIR/mutation_execution_authenticity_summary.json" \
+  --mutation-failure-signal-authenticity-summary "$OUT_DIR/mutation_failure_signal_authenticity_summary.json" \
+  --mutation-effective-depth-summary "$OUT_DIR/mutation_effective_depth_summary.json" \
+  --mutation-source-provenance-summary "$OUT_DIR/mutation_source_provenance_summary.json" \
+  --out "$OUT_DIR/mutation_authentic_scale_score_summary.json" \
+  --report-out "$OUT_DIR/mutation_authentic_scale_score_summary.md"
+
+python3 -m gateforge.dataset_mutation_source_bucket_effective_scale_v1 \
+  --mutation-manifest "$OUT_DIR/mutation_manifest.json" \
+  --mutation-raw-observations "$OUT_DIR/mutation_raw_observations.json" \
+  --out "$OUT_DIR/mutation_source_bucket_effective_scale_summary.json" \
+  --report-out "$OUT_DIR/mutation_source_bucket_effective_scale_summary.md"
+
 python3 -m gateforge.dataset_large_model_executable_truth_gate_v1 \
   --executable-registry "$OUT_DIR/executable_registry_rows.json" \
   --mutation-validation-records "$OUT_DIR/mutation_validation_records.json" \
@@ -822,6 +836,15 @@ fi
 mkdir -p "$(dirname "$LARGE_MODEL_TRUTH_HISTORY_LAST_SUMMARY_PATH")"
 cp "$OUT_DIR/large_model_executable_truth_history_summary.json" "$LARGE_MODEL_TRUTH_HISTORY_LAST_SUMMARY_PATH"
 
+python3 -m gateforge.dataset_large_model_authenticity_gate_v1 \
+  --large-model-executable-truth-summary "$OUT_DIR/large_model_executable_truth_summary.json" \
+  --mutation-effective-depth-summary "$OUT_DIR/mutation_effective_depth_summary.json" \
+  --mutation-source-provenance-summary "$OUT_DIR/mutation_source_provenance_summary.json" \
+  --mutation-authentic-scale-score-summary "$OUT_DIR/mutation_authentic_scale_score_summary.json" \
+  --out "$OUT_DIR/large_model_authenticity_summary.json" \
+  --report-out "$OUT_DIR/large_model_authenticity_summary.md" \
+  || true
+
 python3 -m gateforge.dataset_real_model_mutation_scale_gate_v1 \
   --asset-discovery-summary "$OUT_DIR/asset_discovery_summary.json" \
   --intake-pipeline-summary "$OUT_DIR/intake_pipeline_summary.json" \
@@ -848,6 +871,9 @@ python3 -m gateforge.dataset_hard_moat_gates_v1 \
   --mutation-effective-scale-summary "$OUT_DIR/mutation_effective_scale_summary.json" \
   --mutation-effective-depth-summary "$OUT_DIR/mutation_effective_depth_summary.json" \
   --mutation-source-provenance-summary "$OUT_DIR/mutation_source_provenance_summary.json" \
+  --mutation-authentic-scale-score-summary "$OUT_DIR/mutation_authentic_scale_score_summary.json" \
+  --large-model-authenticity-gate-summary "$OUT_DIR/large_model_authenticity_summary.json" \
+  --mutation-source-bucket-effective-scale-summary "$OUT_DIR/mutation_source_bucket_effective_scale_summary.json" \
   --min-discovered-models "$HARD_MOAT_MIN_DISCOVERED_MODELS" \
   --min-accepted-models "$HARD_MOAT_MIN_ACCEPTED_MODELS" \
   --min-accepted-large-models "$HARD_MOAT_MIN_ACCEPTED_LARGE_MODELS" \
@@ -927,6 +953,9 @@ python3 -m gateforge.dataset_joint_moat_strength_gate_v1 \
   --mutation-failure-signal-authenticity-summary "$OUT_DIR/mutation_failure_signal_authenticity_summary.json" \
   --mutation-effective-depth-summary "$OUT_DIR/mutation_effective_depth_summary.json" \
   --mutation-source-provenance-summary "$OUT_DIR/mutation_source_provenance_summary.json" \
+  --mutation-authentic-scale-score-summary "$OUT_DIR/mutation_authentic_scale_score_summary.json" \
+  --large-model-authenticity-gate-summary "$OUT_DIR/large_model_authenticity_summary.json" \
+  --mutation-source-bucket-effective-scale-summary "$OUT_DIR/mutation_source_bucket_effective_scale_summary.json" \
   --out "$OUT_DIR/joint_moat_strength_summary.json" \
   --report-out "$OUT_DIR/joint_moat_strength_summary.md"
 
@@ -1142,6 +1171,9 @@ mutation_effective_depth_history_trend = _load("mutation_effective_depth_history
 mutation_source_provenance = _load("mutation_source_provenance_summary.json")
 mutation_source_provenance_history = _load("mutation_source_provenance_history_summary.json")
 mutation_source_provenance_history_trend = _load("mutation_source_provenance_history_trend_summary.json")
+mutation_authentic_scale_score = _load("mutation_authentic_scale_score_summary.json")
+mutation_source_bucket_effective_scale = _load("mutation_source_bucket_effective_scale_summary.json")
+large_model_authenticity = _load("large_model_authenticity_summary.json")
 mutation_inventory = _load("mutation_artifact_inventory_summary.json")
 asset_locator = _load("asset_locator_manifest_summary.json")
 repro_sample_pack = _load("reproducible_mutation_sample_pack_summary.json")
@@ -1212,6 +1244,9 @@ flags = {
     "mutation_source_provenance_exists": "PASS" if str(mutation_source_provenance.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "mutation_source_provenance_history_exists": "PASS" if str(mutation_source_provenance_history.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "mutation_source_provenance_history_trend_exists": "PASS" if str(mutation_source_provenance_history_trend.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
+    "mutation_authentic_scale_score_exists": "PASS" if str(mutation_authentic_scale_score.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
+    "mutation_source_bucket_effective_scale_exists": "PASS" if str(mutation_source_bucket_effective_scale.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
+    "large_model_authenticity_exists": "PASS" if str(large_model_authenticity.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "mutation_artifact_inventory_exists": "PASS" if str(mutation_inventory.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "asset_locator_manifest_exists": "PASS" if str(asset_locator.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "reproducible_sample_pack_exists": "PASS" if str(repro_sample_pack.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
@@ -1385,6 +1420,13 @@ summary = {
     "mutation_source_provenance_history_trend_status": mutation_source_provenance_history_trend.get("status"),
     "mutation_source_provenance_history_trend_delta_existing_source_path_ratio_pct": (mutation_source_provenance_history_trend.get("trend") or {}).get("delta_existing_source_path_ratio_pct"),
     "mutation_source_provenance_history_trend_delta_allowed_root_ratio_pct": (mutation_source_provenance_history_trend.get("trend") or {}).get("delta_allowed_root_ratio_pct"),
+    "mutation_authentic_scale_score_status": mutation_authentic_scale_score.get("status"),
+    "mutation_authentic_scale_score": mutation_authentic_scale_score.get("authentic_scale_score"),
+    "mutation_authentic_scale_grade": mutation_authentic_scale_score.get("authentic_scale_grade"),
+    "mutation_source_bucket_effective_scale_status": mutation_source_bucket_effective_scale.get("status"),
+    "mutation_source_bucket_effective_scale_bucket_count": mutation_source_bucket_effective_scale.get("source_bucket_count"),
+    "mutation_source_bucket_effective_scale_effective_mutations": mutation_source_bucket_effective_scale.get("effective_mutations"),
+    "mutation_source_bucket_effective_scale_max_bucket_share_pct": mutation_source_bucket_effective_scale.get("max_bucket_share_pct"),
     "mutation_artifact_inventory_status": mutation_inventory.get("status"),
     "mutation_artifact_existing_file_ratio": mutation_inventory.get("existing_file_ratio"),
     "mutation_artifact_execution_coverage_ratio": mutation_inventory.get("execution_coverage_ratio"),
@@ -1431,6 +1473,9 @@ summary = {
     "large_model_executable_truth_history_trend_status": large_model_truth_history_trend.get("status"),
     "large_model_executable_truth_history_trend_delta_large_executable_real_count": (large_model_truth_history_trend.get("trend") or {}).get("delta_large_executable_real_count"),
     "large_model_executable_truth_history_trend_delta_large_executable_real_rate_pct": (large_model_truth_history_trend.get("trend") or {}).get("delta_large_executable_real_rate_pct"),
+    "large_model_authenticity_status": large_model_authenticity.get("status"),
+    "large_model_authenticity_score": large_model_authenticity.get("large_model_authenticity_score"),
+    "large_model_authenticity_failed_gate_count": large_model_authenticity.get("failed_gate_count"),
     "hard_moat_gates_status": hard_moat.get("status"),
     "hard_moat_hardness_score": hard_moat.get("moat_hardness_score"),
     "hard_moat_failed_gate_count": hard_moat.get("failed_gate_count"),
