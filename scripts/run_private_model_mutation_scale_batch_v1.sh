@@ -453,6 +453,21 @@ python3 -m gateforge.dataset_mutation_artifact_inventory_v1 \
   --out "$OUT_DIR/mutation_artifact_inventory_summary.json" \
   --report-out "$OUT_DIR/mutation_artifact_inventory_summary.md"
 
+python3 -m gateforge.dataset_asset_locator_manifest_v1 \
+  --executable-registry "$OUT_DIR/executable_registry_rows.json" \
+  --mutation-manifest "$OUT_DIR/mutation_manifest.json" \
+  --out "$OUT_DIR/asset_locator_manifest_summary.json" \
+  --report-out "$OUT_DIR/asset_locator_manifest_summary.md"
+
+python3 -m gateforge.dataset_reproducible_mutation_sample_pack_v1 \
+  --mutation-manifest "$OUT_DIR/mutation_manifest.json" \
+  --mutation-raw-observations "$OUT_DIR/mutation_raw_observations.json" \
+  --sample-size "${GATEFORGE_REPRO_SAMPLE_SIZE:-40}" \
+  --sample-seed "${GATEFORGE_REPRO_SAMPLE_SEED:-gateforge-sample-v1}" \
+  --pack-out "$OUT_DIR/reproducible_mutation_sample_pack.json" \
+  --out "$OUT_DIR/reproducible_mutation_sample_pack_summary.json" \
+  --report-out "$OUT_DIR/reproducible_mutation_sample_pack_summary.md"
+
 python3 -m gateforge.dataset_scale_evidence_stamp_v1 \
   --real-model-pool-audit-summary "$OUT_DIR/real_model_pool_audit_summary.json" \
   --mutation-artifact-inventory-summary "$OUT_DIR/mutation_artifact_inventory_summary.json" \
@@ -489,6 +504,8 @@ gate = _load("scale_gate_summary.json")
 hard_moat = _load("hard_moat_gates_summary.json")
 pool_audit = _load("real_model_pool_audit_summary.json")
 mutation_inventory = _load("mutation_artifact_inventory_summary.json")
+asset_locator = _load("asset_locator_manifest_summary.json")
+repro_sample_pack = _load("reproducible_mutation_sample_pack_summary.json")
 evidence_stamp = _load("scale_evidence_stamp_summary.json")
 auto_scale = _load("auto_mutation_scale.json")
 profile = _load("profile_config.json")
@@ -518,6 +535,8 @@ flags = {
     "hard_moat_target_profile_exists": "PASS" if str(hard_moat_target.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "real_model_pool_audit_exists": "PASS" if str(pool_audit.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "mutation_artifact_inventory_exists": "PASS" if str(mutation_inventory.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
+    "asset_locator_manifest_exists": "PASS" if str(asset_locator.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
+    "reproducible_sample_pack_exists": "PASS" if str(repro_sample_pack.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "scale_evidence_stamp_exists": "PASS" if str(evidence_stamp.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "gate_status_present": "PASS" if str(gate.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "hard_moat_gates_not_fail": "PASS" if str(hard_moat.get("status") or "") in {"PASS", "NEEDS_REVIEW"} else "FAIL",
@@ -580,6 +599,11 @@ summary = {
     "mutation_artifact_inventory_status": mutation_inventory.get("status"),
     "mutation_artifact_existing_file_ratio": mutation_inventory.get("existing_file_ratio"),
     "mutation_artifact_execution_coverage_ratio": mutation_inventory.get("execution_coverage_ratio"),
+    "asset_locator_manifest_status": asset_locator.get("status"),
+    "asset_locator_model_root_count": asset_locator.get("model_root_count"),
+    "asset_locator_mutant_root_count": asset_locator.get("mutant_root_count"),
+    "reproducible_sample_pack_status": repro_sample_pack.get("status"),
+    "reproducible_sample_pack_sampled_mutations": repro_sample_pack.get("sampled_mutations"),
     "scale_evidence_stamp_status": evidence_stamp.get("status"),
     "scale_evidence_stamp_score": evidence_stamp.get("evidence_score"),
     "scale_evidence_stamp_grade": evidence_stamp.get("evidence_grade"),
@@ -651,6 +675,11 @@ summary = {
             f"- mutation_artifact_inventory_status: `{summary['mutation_artifact_inventory_status']}`",
             f"- mutation_artifact_existing_file_ratio: `{summary['mutation_artifact_existing_file_ratio']}`",
             f"- mutation_artifact_execution_coverage_ratio: `{summary['mutation_artifact_execution_coverage_ratio']}`",
+            f"- asset_locator_manifest_status: `{summary['asset_locator_manifest_status']}`",
+            f"- asset_locator_model_root_count: `{summary['asset_locator_model_root_count']}`",
+            f"- asset_locator_mutant_root_count: `{summary['asset_locator_mutant_root_count']}`",
+            f"- reproducible_sample_pack_status: `{summary['reproducible_sample_pack_status']}`",
+            f"- reproducible_sample_pack_sampled_mutations: `{summary['reproducible_sample_pack_sampled_mutations']}`",
             f"- scale_evidence_stamp_status: `{summary['scale_evidence_stamp_status']}`",
             f"- scale_evidence_stamp_score: `{summary['scale_evidence_stamp_score']}`",
             f"- scale_evidence_stamp_grade: `{summary['scale_evidence_stamp_grade']}`",
