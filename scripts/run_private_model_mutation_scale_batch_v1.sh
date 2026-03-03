@@ -70,6 +70,8 @@ MUTATION_EFFECTIVE_SCALE_HISTORY_LEDGER_PATH="${GATEFORGE_MUTATION_EFFECTIVE_SCA
 MUTATION_EFFECTIVE_SCALE_HISTORY_LAST_SUMMARY_PATH="${GATEFORGE_MUTATION_EFFECTIVE_SCALE_HISTORY_LAST_SUMMARY_PATH:-$OUT_DIR/state/mutation_effective_scale_last_summary.json}"
 MUTATION_EFFECTIVE_DEPTH_HISTORY_LEDGER_PATH="${GATEFORGE_MUTATION_EFFECTIVE_DEPTH_HISTORY_LEDGER_PATH:-$OUT_DIR/state/mutation_effective_depth_history.jsonl}"
 MUTATION_EFFECTIVE_DEPTH_HISTORY_LAST_SUMMARY_PATH="${GATEFORGE_MUTATION_EFFECTIVE_DEPTH_HISTORY_LAST_SUMMARY_PATH:-$OUT_DIR/state/mutation_effective_depth_last_summary.json}"
+MUTATION_SOURCE_PROVENANCE_HISTORY_LEDGER_PATH="${GATEFORGE_MUTATION_SOURCE_PROVENANCE_HISTORY_LEDGER_PATH:-$OUT_DIR/state/mutation_source_provenance_history.jsonl}"
+MUTATION_SOURCE_PROVENANCE_HISTORY_LAST_SUMMARY_PATH="${GATEFORGE_MUTATION_SOURCE_PROVENANCE_HISTORY_LAST_SUMMARY_PATH:-$OUT_DIR/state/mutation_source_provenance_last_summary.json}"
 HARD_MOAT_MIN_DISCOVERED_MODELS="${GATEFORGE_HARD_MOAT_MIN_DISCOVERED_MODELS:-2}"
 HARD_MOAT_MIN_ACCEPTED_MODELS="${GATEFORGE_HARD_MOAT_MIN_ACCEPTED_MODELS:-2}"
 HARD_MOAT_MIN_ACCEPTED_LARGE_MODELS="${GATEFORGE_HARD_MOAT_MIN_ACCEPTED_LARGE_MODELS:-1}"
@@ -122,6 +124,8 @@ export MUTATION_EFFECTIVE_SCALE_HISTORY_LEDGER_PATH
 export MUTATION_EFFECTIVE_SCALE_HISTORY_LAST_SUMMARY_PATH
 export MUTATION_EFFECTIVE_DEPTH_HISTORY_LEDGER_PATH
 export MUTATION_EFFECTIVE_DEPTH_HISTORY_LAST_SUMMARY_PATH
+export MUTATION_SOURCE_PROVENANCE_HISTORY_LEDGER_PATH
+export MUTATION_SOURCE_PROVENANCE_HISTORY_LAST_SUMMARY_PATH
 export HARD_MOAT_MIN_DISCOVERED_MODELS
 export HARD_MOAT_MIN_ACCEPTED_MODELS
 export HARD_MOAT_MIN_ACCEPTED_LARGE_MODELS
@@ -731,6 +735,48 @@ fi
 mkdir -p "$(dirname "$MUTATION_EFFECTIVE_DEPTH_HISTORY_LAST_SUMMARY_PATH")"
 cp "$OUT_DIR/mutation_effective_depth_history_summary.json" "$MUTATION_EFFECTIVE_DEPTH_HISTORY_LAST_SUMMARY_PATH"
 
+python3 -m gateforge.dataset_mutation_source_provenance_guard_v1 \
+  --mutation-manifest "$OUT_DIR/mutation_manifest.json" \
+  --executable-registry "$OUT_DIR/executable_registry_rows.json" \
+  --allowed-model-roots "$ROOTS_RAW" \
+  --out "$OUT_DIR/mutation_source_provenance_summary.json" \
+  --report-out "$OUT_DIR/mutation_source_provenance_summary.md"
+
+if [ -f "$MUTATION_SOURCE_PROVENANCE_HISTORY_LAST_SUMMARY_PATH" ]; then
+  cp "$MUTATION_SOURCE_PROVENANCE_HISTORY_LAST_SUMMARY_PATH" "$OUT_DIR/mutation_source_provenance_history_previous_summary.json"
+else
+  rm -f "$OUT_DIR/mutation_source_provenance_history_previous_summary.json"
+fi
+
+python3 -m gateforge.dataset_mutation_source_provenance_history_ledger_v1 \
+  --mutation-source-provenance-summary "$OUT_DIR/mutation_source_provenance_summary.json" \
+  --ledger "$MUTATION_SOURCE_PROVENANCE_HISTORY_LEDGER_PATH" \
+  --out "$OUT_DIR/mutation_source_provenance_history_summary.json" \
+  --report-out "$OUT_DIR/mutation_source_provenance_history_summary.md"
+
+if [ -f "$OUT_DIR/mutation_source_provenance_history_previous_summary.json" ]; then
+  python3 -m gateforge.dataset_mutation_source_provenance_history_trend_v1 \
+    --previous "$OUT_DIR/mutation_source_provenance_history_previous_summary.json" \
+    --current "$OUT_DIR/mutation_source_provenance_history_summary.json" \
+    --out "$OUT_DIR/mutation_source_provenance_history_trend_summary.json" \
+    --report-out "$OUT_DIR/mutation_source_provenance_history_trend_summary.md"
+else
+  cat > "$OUT_DIR/mutation_source_provenance_history_trend_summary.json" <<'JSON'
+{
+  "status": "PASS",
+  "trend": {
+    "status_transition": "BOOTSTRAP->BOOTSTRAP",
+    "delta_existing_source_path_ratio_pct": 0.0,
+    "delta_allowed_root_ratio_pct": 0.0,
+    "alerts": []
+  },
+  "alerts": []
+}
+JSON
+fi
+mkdir -p "$(dirname "$MUTATION_SOURCE_PROVENANCE_HISTORY_LAST_SUMMARY_PATH")"
+cp "$OUT_DIR/mutation_source_provenance_history_summary.json" "$MUTATION_SOURCE_PROVENANCE_HISTORY_LAST_SUMMARY_PATH"
+
 python3 -m gateforge.dataset_large_model_executable_truth_gate_v1 \
   --executable-registry "$OUT_DIR/executable_registry_rows.json" \
   --mutation-validation-records "$OUT_DIR/mutation_validation_records.json" \
@@ -1088,6 +1134,9 @@ mutation_effective_scale_history_trend = _load("mutation_effective_scale_history
 mutation_effective_depth = _load("mutation_effective_depth_summary.json")
 mutation_effective_depth_history = _load("mutation_effective_depth_history_summary.json")
 mutation_effective_depth_history_trend = _load("mutation_effective_depth_history_trend_summary.json")
+mutation_source_provenance = _load("mutation_source_provenance_summary.json")
+mutation_source_provenance_history = _load("mutation_source_provenance_history_summary.json")
+mutation_source_provenance_history_trend = _load("mutation_source_provenance_history_trend_summary.json")
 mutation_inventory = _load("mutation_artifact_inventory_summary.json")
 asset_locator = _load("asset_locator_manifest_summary.json")
 repro_sample_pack = _load("reproducible_mutation_sample_pack_summary.json")
@@ -1155,6 +1204,9 @@ flags = {
     "mutation_effective_depth_exists": "PASS" if str(mutation_effective_depth.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "mutation_effective_depth_history_exists": "PASS" if str(mutation_effective_depth_history.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "mutation_effective_depth_history_trend_exists": "PASS" if str(mutation_effective_depth_history_trend.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
+    "mutation_source_provenance_exists": "PASS" if str(mutation_source_provenance.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
+    "mutation_source_provenance_history_exists": "PASS" if str(mutation_source_provenance_history.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
+    "mutation_source_provenance_history_trend_exists": "PASS" if str(mutation_source_provenance_history_trend.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "mutation_artifact_inventory_exists": "PASS" if str(mutation_inventory.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "asset_locator_manifest_exists": "PASS" if str(asset_locator.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "reproducible_sample_pack_exists": "PASS" if str(repro_sample_pack.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
@@ -1316,6 +1368,18 @@ summary = {
     "mutation_effective_depth_history_trend_status": mutation_effective_depth_history_trend.get("status"),
     "mutation_effective_depth_history_trend_delta_total_effective_mutations": (mutation_effective_depth_history_trend.get("trend") or {}).get("delta_total_effective_mutations"),
     "mutation_effective_depth_history_trend_delta_p10_effective_mutations_per_model": (mutation_effective_depth_history_trend.get("trend") or {}).get("delta_p10_effective_mutations_per_model"),
+    "mutation_source_provenance_status": mutation_source_provenance.get("status"),
+    "mutation_source_provenance_with_source_path_count": mutation_source_provenance.get("with_source_path_count"),
+    "mutation_source_provenance_existing_source_path_ratio_pct": mutation_source_provenance.get("existing_source_path_ratio_pct"),
+    "mutation_source_provenance_allowed_root_ratio_pct": mutation_source_provenance.get("allowed_root_ratio_pct"),
+    "mutation_source_provenance_registry_match_ratio_pct": mutation_source_provenance.get("registry_match_ratio_pct"),
+    "mutation_source_provenance_history_status": mutation_source_provenance_history.get("status"),
+    "mutation_source_provenance_history_total_records": mutation_source_provenance_history.get("total_records"),
+    "mutation_source_provenance_history_latest_existing_source_path_ratio_pct": mutation_source_provenance_history.get("latest_existing_source_path_ratio_pct"),
+    "mutation_source_provenance_history_latest_allowed_root_ratio_pct": mutation_source_provenance_history.get("latest_allowed_root_ratio_pct"),
+    "mutation_source_provenance_history_trend_status": mutation_source_provenance_history_trend.get("status"),
+    "mutation_source_provenance_history_trend_delta_existing_source_path_ratio_pct": (mutation_source_provenance_history_trend.get("trend") or {}).get("delta_existing_source_path_ratio_pct"),
+    "mutation_source_provenance_history_trend_delta_allowed_root_ratio_pct": (mutation_source_provenance_history_trend.get("trend") or {}).get("delta_allowed_root_ratio_pct"),
     "mutation_artifact_inventory_status": mutation_inventory.get("status"),
     "mutation_artifact_existing_file_ratio": mutation_inventory.get("existing_file_ratio"),
     "mutation_artifact_execution_coverage_ratio": mutation_inventory.get("execution_coverage_ratio"),
@@ -1525,6 +1589,18 @@ summary = {
             f"- mutation_effective_depth_history_trend_status: `{summary['mutation_effective_depth_history_trend_status']}`",
             f"- mutation_effective_depth_history_trend_delta_total_effective_mutations: `{summary['mutation_effective_depth_history_trend_delta_total_effective_mutations']}`",
             f"- mutation_effective_depth_history_trend_delta_p10_effective_mutations_per_model: `{summary['mutation_effective_depth_history_trend_delta_p10_effective_mutations_per_model']}`",
+            f"- mutation_source_provenance_status: `{summary['mutation_source_provenance_status']}`",
+            f"- mutation_source_provenance_with_source_path_count: `{summary['mutation_source_provenance_with_source_path_count']}`",
+            f"- mutation_source_provenance_existing_source_path_ratio_pct: `{summary['mutation_source_provenance_existing_source_path_ratio_pct']}`",
+            f"- mutation_source_provenance_allowed_root_ratio_pct: `{summary['mutation_source_provenance_allowed_root_ratio_pct']}`",
+            f"- mutation_source_provenance_registry_match_ratio_pct: `{summary['mutation_source_provenance_registry_match_ratio_pct']}`",
+            f"- mutation_source_provenance_history_status: `{summary['mutation_source_provenance_history_status']}`",
+            f"- mutation_source_provenance_history_total_records: `{summary['mutation_source_provenance_history_total_records']}`",
+            f"- mutation_source_provenance_history_latest_existing_source_path_ratio_pct: `{summary['mutation_source_provenance_history_latest_existing_source_path_ratio_pct']}`",
+            f"- mutation_source_provenance_history_latest_allowed_root_ratio_pct: `{summary['mutation_source_provenance_history_latest_allowed_root_ratio_pct']}`",
+            f"- mutation_source_provenance_history_trend_status: `{summary['mutation_source_provenance_history_trend_status']}`",
+            f"- mutation_source_provenance_history_trend_delta_existing_source_path_ratio_pct: `{summary['mutation_source_provenance_history_trend_delta_existing_source_path_ratio_pct']}`",
+            f"- mutation_source_provenance_history_trend_delta_allowed_root_ratio_pct: `{summary['mutation_source_provenance_history_trend_delta_allowed_root_ratio_pct']}`",
             f"- mutation_artifact_inventory_status: `{summary['mutation_artifact_inventory_status']}`",
             f"- mutation_artifact_existing_file_ratio: `{summary['mutation_artifact_existing_file_ratio']}`",
             f"- mutation_artifact_execution_coverage_ratio: `{summary['mutation_artifact_execution_coverage_ratio']}`",
