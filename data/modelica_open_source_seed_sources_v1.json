@@ -1,0 +1,89 @@
+{
+  "schema_version": "modelica_open_source_seed_sources_v1",
+  "sources": [
+    {
+      "source_id": "modelica_standard_library",
+      "mode": "git",
+      "repo_url": "https://github.com/modelica/ModelicaStandardLibrary.git",
+      "ref": "v4.1.0",
+      "license": "BSD-3-Clause",
+      "scale_hint": "large",
+      "package_roots": [
+        "Modelica/Fluid",
+        "Modelica/Mechanics",
+        "Modelica/Electrical",
+        "Modelica/Thermal",
+        "Modelica/Magnetic"
+      ]
+    },
+    {
+      "source_id": "modelica_buildings",
+      "mode": "git",
+      "repo_url": "https://github.com/lbl-srg/modelica-buildings.git",
+      "ref": "master",
+      "license": "BSD-3-Clause",
+      "scale_hint": "large",
+      "package_roots": [
+        "Buildings/Fluid",
+        "Buildings/ThermalZones",
+        "Buildings/Electrical",
+        "Buildings/Controls"
+      ]
+    },
+    {
+      "source_id": "modelica_ibpsa",
+      "mode": "git",
+      "repo_url": "https://github.com/ibpsa/modelica-ibpsa.git",
+      "ref": "master",
+      "license": "BSD-3-Clause",
+      "scale_hint": "large",
+      "package_roots": [
+        "IBPSA/Fluid",
+        "IBPSA/ThermalZones",
+        "IBPSA/Controls",
+        "IBPSA/Electrical"
+      ]
+    },
+    {
+      "source_id": "aixlib",
+      "mode": "git",
+      "repo_url": "https://github.com/RWTH-EBC/AixLib.git",
+      "ref": "master",
+      "license": "BSD-3-Clause",
+      "scale_hint": "large",
+      "package_roots": [
+        "AixLib/Fluid",
+        "AixLib/ThermalZones",
+        "AixLib/Systems",
+        "AixLib/Controls"
+      ]
+    },
+    {
+      "source_id": "transform_library",
+      "mode": "git",
+      "repo_url": "https://github.com/ORNL-Modelica/TRANSFORM-Library.git",
+      "ref": "master",
+      "license": "BSD-3-Clause",
+      "scale_hint": "large",
+      "package_roots": [
+        "TRANSFORM/Fluid",
+        "TRANSFORM/HeatAndMassTransfer",
+        "TRANSFORM/Electrical",
+        "TRANSFORM/Controls"
+      ]
+    },
+    {
+      "source_id": "openipsl",
+      "mode": "git",
+      "repo_url": "https://github.com/OpenIPSL/OpenIPSL.git",
+      "ref": "master",
+      "license": "BSD-3-Clause",
+      "scale_hint": "large",
+      "package_roots": [
+        "OpenIPSL/Electrical",
+        "OpenIPSL/Controls",
+        "OpenIPSL/Examples"
+      ]
+    }
+  ]
+}
