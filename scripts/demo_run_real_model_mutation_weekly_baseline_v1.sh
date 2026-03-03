@@ -53,6 +53,40 @@ cat > "$OUT_DIR/intake_registry_rows.json" <<JSON
 }
 JSON
 
+cat > "$OUT_DIR/mutation_manifest.json" <<'JSON'
+{
+  "mutations": [
+    {"mutation_id":"x1","target_model_id":"m1","expected_failure_type":"simulate_error"},
+    {"mutation_id":"x2","target_model_id":"m1","expected_failure_type":"model_check_error"},
+    {"mutation_id":"x3","target_model_id":"m1","expected_failure_type":"semantic_regression"},
+    {"mutation_id":"x4","target_model_id":"m1","expected_failure_type":"numerical_instability"},
+    {"mutation_id":"x5","target_model_id":"m1","expected_failure_type":"constraint_violation"},
+    {"mutation_id":"y1","target_model_id":"m2","expected_failure_type":"simulate_error"},
+    {"mutation_id":"y2","target_model_id":"m2","expected_failure_type":"model_check_error"},
+    {"mutation_id":"y3","target_model_id":"m2","expected_failure_type":"semantic_regression"},
+    {"mutation_id":"y4","target_model_id":"m2","expected_failure_type":"numerical_instability"},
+    {"mutation_id":"y5","target_model_id":"m2","expected_failure_type":"constraint_violation"}
+  ]
+}
+JSON
+
+cat > "$OUT_DIR/mutation_raw_observations.json" <<'JSON'
+{
+  "observations": [
+    {"mutation_id":"x1","execution_status":"EXECUTED"},
+    {"mutation_id":"x2","execution_status":"EXECUTED"},
+    {"mutation_id":"x3","execution_status":"EXECUTED"},
+    {"mutation_id":"x4","execution_status":"EXECUTED"},
+    {"mutation_id":"x5","execution_status":"EXECUTED"},
+    {"mutation_id":"y1","execution_status":"EXECUTED"},
+    {"mutation_id":"y2","execution_status":"EXECUTED"},
+    {"mutation_id":"y3","execution_status":"EXECUTED"},
+    {"mutation_id":"y4","execution_status":"EXECUTED"},
+    {"mutation_id":"y5","execution_status":"EXECUTED"}
+  ]
+}
+JSON
+
 cat > "$OUT_DIR/m1.mo" <<'EOF'
 model M1
   Real x;

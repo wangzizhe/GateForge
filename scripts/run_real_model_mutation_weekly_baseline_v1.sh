@@ -9,7 +9,8 @@ WEEK_TAG="${GATEFORGE_WEEK_TAG:-$(date -u +%G-W%V)}"
 BOOTSTRAP_SUMMARY="${GATEFORGE_MODELICA_BOOTSTRAP_SUMMARY:-artifacts/modelica_open_source_bootstrap_v1/summary.json}"
 SCALE_SUMMARY="${GATEFORGE_SCALE_BATCH_SUMMARY:-}"
 SCALE_GATE_SUMMARY="${GATEFORGE_SCALE_GATE_SUMMARY:-}"
-DEPTH_REPORT_SUMMARY="${GATEFORGE_DEPTH_UPGRADE_REPORT_SUMMARY:-artifacts/private_model_mutation_scale_depth4_sprint_v1/depth_upgrade_report.json}"
+DEPTH_REPORT_SUMMARY="${GATEFORGE_DEPTH_UPGRADE_REPORT_SUMMARY:-}"
+STABILITY_SUMMARY="${GATEFORGE_STABILITY_TRIPLET_SUMMARY:-artifacts/private_model_mutation_depth6_stability_triplet_v1/summary.json}"
 LEDGER_PATH="${GATEFORGE_WEEKLY_LEDGER_PATH:-$OUT_DIR/history.jsonl}"
 
 if [ -z "$SCALE_SUMMARY" ]; then
@@ -32,6 +33,16 @@ if [ -z "$SCALE_GATE_SUMMARY" ]; then
   fi
 fi
 
+if [ -z "$DEPTH_REPORT_SUMMARY" ]; then
+  if [ -f "artifacts/private_model_mutation_scale_depth6_sprint_v1/depth_upgrade_report.json" ]; then
+    DEPTH_REPORT_SUMMARY="artifacts/private_model_mutation_scale_depth6_sprint_v1/depth_upgrade_report.json"
+  elif [ -f "artifacts/private_model_mutation_scale_depth4_sprint_v1/depth_upgrade_report.json" ]; then
+    DEPTH_REPORT_SUMMARY="artifacts/private_model_mutation_scale_depth4_sprint_v1/depth_upgrade_report.json"
+  else
+    DEPTH_REPORT_SUMMARY=""
+  fi
+fi
+
 mkdir -p "$OUT_DIR"
 export OUT_DIR
 
@@ -50,15 +61,28 @@ python3 -m gateforge.dataset_real_model_uniqueness_guard_v1 \
   --out "$OUT_DIR/uniqueness_guard_summary.json" \
   --report-out "$OUT_DIR/uniqueness_guard_summary.md"
 
-python3 -m gateforge.dataset_real_model_mutation_weekly_summary_v1 \
-  --week-tag "$WEEK_TAG" \
-  --open-source-bootstrap-summary "$BOOTSTRAP_SUMMARY" \
-  --scale-batch-summary "$SCALE_SUMMARY" \
-  --scale-gate-summary "$SCALE_GATE_SUMMARY" \
-  --uniqueness-guard-summary "$OUT_DIR/uniqueness_guard_summary.json" \
-  --depth-upgrade-report-summary "$DEPTH_REPORT_SUMMARY" \
-  --out "$OUT_DIR/weekly_summary.json" \
+python3 -m gateforge.dataset_real_model_mutation_coverage_quality_gate_v1 \
+  --real-model-registry "$SCALE_DIR/intake_registry_rows.json" \
+  --validated-mutation-manifest "$SCALE_DIR/mutation_manifest.json" \
+  --mutation-raw-observations "$SCALE_DIR/mutation_raw_observations.json" \
+  --out "$OUT_DIR/coverage_quality_summary.json" \
+  --report-out "$OUT_DIR/coverage_quality_summary.md"
+
+WEEKLY_CMD=(python3 -m gateforge.dataset_real_model_mutation_weekly_summary_v1
+  --week-tag "$WEEK_TAG"
+  --open-source-bootstrap-summary "$BOOTSTRAP_SUMMARY"
+  --scale-batch-summary "$SCALE_SUMMARY"
+  --scale-gate-summary "$SCALE_GATE_SUMMARY"
+  --uniqueness-guard-summary "$OUT_DIR/uniqueness_guard_summary.json"
+  --coverage-quality-gate-summary "$OUT_DIR/coverage_quality_summary.json"
+  --depth-upgrade-report-summary "$DEPTH_REPORT_SUMMARY"
+  --out "$OUT_DIR/weekly_summary.json"
   --report-out "$OUT_DIR/weekly_summary.md"
+)
+if [ -f "$STABILITY_SUMMARY" ]; then
+  WEEKLY_CMD+=(--stability-triplet-summary "$STABILITY_SUMMARY")
+fi
+"${WEEKLY_CMD[@]}"
 
 python3 -m gateforge.dataset_moat_weekly_summary_history_v1 \
   --record "$OUT_DIR/weekly_summary.json" \
