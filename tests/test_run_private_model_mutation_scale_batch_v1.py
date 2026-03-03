@@ -81,12 +81,16 @@ class RunPrivateModelMutationScaleBatchV1Tests(unittest.TestCase):
             self.assertGreaterEqual(int(summary.get("mutations_per_failure_type", 0)), 2)
             self.assertGreaterEqual(int(summary.get("executable_unique_models", 0) or 0), 2)
             self.assertGreaterEqual(int(summary.get("materialized_mutations", 0) or 0), 20)
+            self.assertIn(summary.get("mutation_validation_status"), {"PASS", "NEEDS_REVIEW", "FAIL"})
+            self.assertIn(summary.get("validation_backend_used"), {"syntax", "omc"})
 
             manifest = json.loads((out_dir / "mutation_manifest.json").read_text(encoding="utf-8"))
             mutations = manifest.get("mutations") if isinstance(manifest.get("mutations"), list) else []
             self.assertTrue(mutations)
             sample_mut_path = Path(str(mutations[0].get("mutated_model_path") or ""))
             self.assertTrue(sample_mut_path.exists(), msg=str(sample_mut_path))
+            validation = json.loads((out_dir / "mutation_validation_summary.json").read_text(encoding="utf-8"))
+            self.assertIn(validation.get("status"), {"PASS", "NEEDS_REVIEW", "FAIL"})
 
     def test_run_private_batch_script_large_first_profile(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
