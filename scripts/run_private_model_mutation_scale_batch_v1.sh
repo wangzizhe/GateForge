@@ -45,6 +45,16 @@ VALIDATION_MAX_MUTATIONS="${GATEFORGE_MUTATION_VALIDATION_MAX_MUTATIONS:-1200}"
 VALIDATION_MIN_STAGE_MATCH_PCT="${GATEFORGE_MUTATION_VALIDATION_MIN_STAGE_MATCH_PCT:-0}"
 VALIDATION_MIN_TYPE_MATCH_PCT="${GATEFORGE_MUTATION_VALIDATION_MIN_TYPE_MATCH_PCT:-0}"
 MANIFEST_BASELINE_PATH="${GATEFORGE_MUTATION_MANIFEST_BASELINE_PATH:-$OUT_DIR/state/previous_mutation_manifest.json}"
+HARD_MOAT_MIN_DISCOVERED_MODELS="${GATEFORGE_HARD_MOAT_MIN_DISCOVERED_MODELS:-2}"
+HARD_MOAT_MIN_ACCEPTED_MODELS="${GATEFORGE_HARD_MOAT_MIN_ACCEPTED_MODELS:-2}"
+HARD_MOAT_MIN_ACCEPTED_LARGE_MODELS="${GATEFORGE_HARD_MOAT_MIN_ACCEPTED_LARGE_MODELS:-1}"
+HARD_MOAT_MIN_ACCEPTED_LARGE_RATIO_PCT="${GATEFORGE_HARD_MOAT_MIN_ACCEPTED_LARGE_RATIO_PCT:-25}"
+HARD_MOAT_MIN_GENERATED_MUTATIONS="${GATEFORGE_HARD_MOAT_MIN_GENERATED_MUTATIONS:-20}"
+HARD_MOAT_MIN_REPRODUCIBLE_MUTATIONS="${GATEFORGE_HARD_MOAT_MIN_REPRODUCIBLE_MUTATIONS:-10}"
+HARD_MOAT_MIN_CANONICAL_NET_GROWTH_MODELS="${GATEFORGE_HARD_MOAT_MIN_CANONICAL_NET_GROWTH_MODELS:-0}"
+HARD_MOAT_MIN_VALIDATION_TYPE_MATCH_RATE_PCT="${GATEFORGE_HARD_MOAT_MIN_VALIDATION_TYPE_MATCH_RATE_PCT:-30}"
+HARD_MOAT_MIN_FAILURE_TYPE_ENTROPY="${GATEFORGE_HARD_MOAT_MIN_FAILURE_TYPE_ENTROPY:-1.0}"
+HARD_MOAT_MAX_DISTRIBUTION_DRIFT_TVD="${GATEFORGE_HARD_MOAT_MAX_DISTRIBUTION_DRIFT_TVD:-0.4}"
 export TARGET_SCALES
 export FAILURE_TYPES
 export PROFILE
@@ -62,6 +72,16 @@ export VALIDATION_MAX_MUTATIONS
 export VALIDATION_MIN_STAGE_MATCH_PCT
 export VALIDATION_MIN_TYPE_MATCH_PCT
 export MANIFEST_BASELINE_PATH
+export HARD_MOAT_MIN_DISCOVERED_MODELS
+export HARD_MOAT_MIN_ACCEPTED_MODELS
+export HARD_MOAT_MIN_ACCEPTED_LARGE_MODELS
+export HARD_MOAT_MIN_ACCEPTED_LARGE_RATIO_PCT
+export HARD_MOAT_MIN_GENERATED_MUTATIONS
+export HARD_MOAT_MIN_REPRODUCIBLE_MUTATIONS
+export HARD_MOAT_MIN_CANONICAL_NET_GROWTH_MODELS
+export HARD_MOAT_MIN_VALIDATION_TYPE_MATCH_RATE_PCT
+export HARD_MOAT_MIN_FAILURE_TYPE_ENTROPY
+export HARD_MOAT_MAX_DISTRIBUTION_DRIFT_TVD
 
 python3 - <<'PY'
 import json
@@ -323,6 +343,16 @@ python3 -m gateforge.dataset_mutation_coverage_gap_backfill_v1 \
   --out "$OUT_DIR/mutation_coverage_backfill_summary.json" \
   --report-out "$OUT_DIR/mutation_coverage_backfill_summary.md"
 
+python3 -m gateforge.dataset_ingest_source_channel_planner_v1 \
+  --asset-discovery-summary "$OUT_DIR/asset_discovery_summary.json" \
+  --intake-runner-summary "$OUT_DIR/intake_runner_summary.json" \
+  --canonical-registry-summary "$OUT_DIR/canonical_registry_summary.json" \
+  --coverage-backfill-summary "$OUT_DIR/mutation_coverage_backfill_summary.json" \
+  --profile-config "$OUT_DIR/profile_config.json" \
+  --plan-out "$OUT_DIR/ingest_source_channel_plan.json" \
+  --out "$OUT_DIR/ingest_source_channel_planner_summary.json" \
+  --report-out "$OUT_DIR/ingest_source_channel_planner_summary.md"
+
 mkdir -p "$(dirname "$MANIFEST_BASELINE_PATH")"
 cp "$OUT_DIR/mutation_manifest.json" "$MANIFEST_BASELINE_PATH"
 
@@ -349,6 +379,27 @@ python3 -m gateforge.dataset_real_model_mutation_scale_gate_v1 \
   --out "$OUT_DIR/scale_gate_summary.json" \
   --report-out "$OUT_DIR/scale_gate_summary.md"
 
+python3 -m gateforge.dataset_hard_moat_gates_v1 \
+  --asset-discovery-summary "$OUT_DIR/asset_discovery_summary.json" \
+  --intake-runner-summary "$OUT_DIR/intake_runner_summary.json" \
+  --canonical-registry-summary "$OUT_DIR/canonical_registry_summary.json" \
+  --mutation-pack-summary "$OUT_DIR/mutation_pack_summary.json" \
+  --mutation-real-runner-summary "$OUT_DIR/mutation_real_runner_summary.json" \
+  --mutation-validation-matrix-v2-summary "$OUT_DIR/mutation_validation_matrix_v2_summary.json" \
+  --failure-distribution-stability-guard-summary "$OUT_DIR/failure_distribution_stability_guard_summary.json" \
+  --min-discovered-models "$HARD_MOAT_MIN_DISCOVERED_MODELS" \
+  --min-accepted-models "$HARD_MOAT_MIN_ACCEPTED_MODELS" \
+  --min-accepted-large-models "$HARD_MOAT_MIN_ACCEPTED_LARGE_MODELS" \
+  --min-accepted-large-ratio-pct "$HARD_MOAT_MIN_ACCEPTED_LARGE_RATIO_PCT" \
+  --min-generated-mutations "$HARD_MOAT_MIN_GENERATED_MUTATIONS" \
+  --min-reproducible-mutations "$HARD_MOAT_MIN_REPRODUCIBLE_MUTATIONS" \
+  --min-canonical-net-growth-models "$HARD_MOAT_MIN_CANONICAL_NET_GROWTH_MODELS" \
+  --min-validation-type-match-rate-pct "$HARD_MOAT_MIN_VALIDATION_TYPE_MATCH_RATE_PCT" \
+  --min-failure-type-entropy "$HARD_MOAT_MIN_FAILURE_TYPE_ENTROPY" \
+  --max-distribution-drift-tvd "$HARD_MOAT_MAX_DISTRIBUTION_DRIFT_TVD" \
+  --out "$OUT_DIR/hard_moat_gates_summary.json" \
+  --report-out "$OUT_DIR/hard_moat_gates_summary.md"
+
 python3 - <<'PY'
 import json
 import os
@@ -371,8 +422,10 @@ validation_v2 = _load("mutation_validation_matrix_v2_summary.json")
 stability_guard = _load("failure_distribution_stability_guard_summary.json")
 mismatch_triage = _load("mutation_mismatch_triage_summary.json")
 coverage_backfill = _load("mutation_coverage_backfill_summary.json")
+ingest_planner = _load("ingest_source_channel_planner_summary.json")
 realrun = _load("mutation_real_runner_summary.json")
 gate = _load("scale_gate_summary.json")
+hard_moat = _load("hard_moat_gates_summary.json")
 auto_scale = _load("auto_mutation_scale.json")
 profile = _load("profile_config.json")
 
@@ -397,7 +450,9 @@ flags = {
     "stability_guard_exists": "PASS" if str(stability_guard.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "mismatch_triage_exists": "PASS" if str(mismatch_triage.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "coverage_backfill_exists": "PASS" if str(coverage_backfill.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
+    "ingest_source_channel_planner_exists": "PASS" if str(ingest_planner.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
     "gate_status_present": "PASS" if str(gate.get("status") or "") in {"PASS", "NEEDS_REVIEW", "FAIL"} else "FAIL",
+    "hard_moat_gates_not_fail": "PASS" if str(hard_moat.get("status") or "") in {"PASS", "NEEDS_REVIEW"} else "FAIL",
     "accepted_large_ratio_gate": "PASS"
     if (not ratio_gate_enabled or accepted_large_ratio_pct >= min_accepted_large_ratio_pct)
     else "FAIL",
@@ -444,7 +499,14 @@ summary = {
     "coverage_backfill_status": coverage_backfill.get("status"),
     "coverage_backfill_total_tasks": coverage_backfill.get("total_tasks"),
     "coverage_backfill_p0_tasks": coverage_backfill.get("p0_tasks"),
+    "ingest_source_channel_planner_status": ingest_planner.get("status"),
+    "ingest_source_channel_planner_p0_channels": ingest_planner.get("p0_channels"),
+    "ingest_source_channel_planner_planned_weekly_new_models": ingest_planner.get("planned_weekly_new_models"),
     "reproducible_mutations": realrun.get("executed_count"),
+    "hard_moat_gates_status": hard_moat.get("status"),
+    "hard_moat_hardness_score": hard_moat.get("moat_hardness_score"),
+    "hard_moat_failed_gate_count": hard_moat.get("failed_gate_count"),
+    "hard_moat_critical_failed_gate_count": hard_moat.get("critical_failed_gate_count"),
     "target_scales": auto_scale.get("target_scales"),
     "selected_mutation_models": auto_scale.get("selected_mutation_models"),
     "selected_mutation_models_total": auto_scale.get("selected_mutation_models_total"),
@@ -495,7 +557,14 @@ summary = {
             f"- coverage_backfill_status: `{summary['coverage_backfill_status']}`",
             f"- coverage_backfill_total_tasks: `{summary['coverage_backfill_total_tasks']}`",
             f"- coverage_backfill_p0_tasks: `{summary['coverage_backfill_p0_tasks']}`",
+            f"- ingest_source_channel_planner_status: `{summary['ingest_source_channel_planner_status']}`",
+            f"- ingest_source_channel_planner_p0_channels: `{summary['ingest_source_channel_planner_p0_channels']}`",
+            f"- ingest_source_channel_planner_planned_weekly_new_models: `{summary['ingest_source_channel_planner_planned_weekly_new_models']}`",
             f"- reproducible_mutations: `{summary['reproducible_mutations']}`",
+            f"- hard_moat_gates_status: `{summary['hard_moat_gates_status']}`",
+            f"- hard_moat_hardness_score: `{summary['hard_moat_hardness_score']}`",
+            f"- hard_moat_failed_gate_count: `{summary['hard_moat_failed_gate_count']}`",
+            f"- hard_moat_critical_failed_gate_count: `{summary['hard_moat_critical_failed_gate_count']}`",
             f"- selected_mutation_models: `{summary['selected_mutation_models']}`",
             f"- selected_mutation_models_total: `{summary['selected_mutation_models_total']}`",
             f"- max_mutation_models: `{summary['max_mutation_models']}`",

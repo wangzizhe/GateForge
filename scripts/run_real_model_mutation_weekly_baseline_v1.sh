@@ -12,6 +12,7 @@ SCALE_GATE_SUMMARY="${GATEFORGE_SCALE_GATE_SUMMARY:-}"
 DEPTH_REPORT_SUMMARY="${GATEFORGE_DEPTH_UPGRADE_REPORT_SUMMARY:-}"
 STABILITY_SUMMARY="${GATEFORGE_STABILITY_TRIPLET_SUMMARY:-artifacts/private_model_mutation_depth6_stability_triplet_v1/summary.json}"
 LEDGER_PATH="${GATEFORGE_WEEKLY_LEDGER_PATH:-$OUT_DIR/history.jsonl}"
+FREEZE_HISTORY_LEDGER_PATH="${GATEFORGE_WEEKLY_FREEZE_HISTORY_LEDGER_PATH:-$OUT_DIR/freeze_history.jsonl}"
 
 if [ -z "$SCALE_SUMMARY" ]; then
   if [ -f "artifacts/private_model_mutation_scale_depth6_sprint_v1/summary.json" ]; then
@@ -56,8 +57,13 @@ if [ -f "$OUT_DIR/freeze_summary.json" ]; then
 else
   rm -f "$OUT_DIR/freeze_summary_previous.json"
 fi
+if [ -f "$OUT_DIR/freeze_history_summary.json" ]; then
+  cp "$OUT_DIR/freeze_history_summary.json" "$OUT_DIR/freeze_history_summary_previous.json"
+else
+  rm -f "$OUT_DIR/freeze_history_summary_previous.json"
+fi
 
-rm -f "$OUT_DIR"/weekly_summary.json "$OUT_DIR"/weekly_summary.md "$OUT_DIR"/history_summary.json "$OUT_DIR"/history_summary.md "$OUT_DIR"/history_trend.json "$OUT_DIR"/history_trend.md "$OUT_DIR"/summary.json "$OUT_DIR"/summary.md
+rm -f "$OUT_DIR"/weekly_summary.json "$OUT_DIR"/weekly_summary.md "$OUT_DIR"/history_summary.json "$OUT_DIR"/history_summary.md "$OUT_DIR"/history_trend.json "$OUT_DIR"/history_trend.md "$OUT_DIR"/freeze_history_summary.json "$OUT_DIR"/freeze_history_summary.md "$OUT_DIR"/freeze_history_trend.json "$OUT_DIR"/freeze_history_trend.md "$OUT_DIR"/summary.json "$OUT_DIR"/summary.md
 
 SCALE_DIR="$(cd "$(dirname "$SCALE_SUMMARY")" && pwd)"
 python3 -m gateforge.dataset_real_model_uniqueness_guard_v1 \
@@ -153,6 +159,38 @@ else
 JSON
 fi
 
+python3 -m gateforge.dataset_real_model_mutation_freeze_history_ledger_v1 \
+  --record "$OUT_DIR/freeze_summary.json" \
+  --ledger "$FREEZE_HISTORY_LEDGER_PATH" \
+  --out "$OUT_DIR/freeze_history_summary.json" \
+  --report-out "$OUT_DIR/freeze_history_summary.md"
+
+if [ -f "$OUT_DIR/freeze_history_summary_previous.json" ]; then
+  python3 -m gateforge.dataset_real_model_mutation_freeze_history_trend_v1 \
+    --previous "$OUT_DIR/freeze_history_summary_previous.json" \
+    --current "$OUT_DIR/freeze_history_summary.json" \
+    --out "$OUT_DIR/freeze_history_trend.json" \
+    --report-out "$OUT_DIR/freeze_history_trend.md"
+else
+  cat > "$OUT_DIR/freeze_history_trend.json" <<'JSON'
+{
+  "status": "PASS",
+  "trend": {
+    "status_transition": "BOOTSTRAP->BOOTSTRAP",
+    "latest_freeze_status_transition": "BOOTSTRAP->BOOTSTRAP",
+    "delta_avg_accepted_models": 0.0,
+    "delta_avg_generated_mutations": 0.0,
+    "delta_avg_reproducible_mutations": 0.0,
+    "delta_avg_canonical_net_growth_models": 0.0,
+    "delta_avg_validation_type_match_rate_pct": 0.0,
+    "delta_needs_review_rate": 0.0,
+    "alerts": []
+  },
+  "alerts": []
+}
+JSON
+fi
+
 python3 - <<'PY'
 import json
 import os
@@ -164,6 +202,8 @@ history = json.loads((out / "history_summary.json").read_text(encoding="utf-8"))
 trend = json.loads((out / "history_trend.json").read_text(encoding="utf-8"))
 freeze = json.loads((out / "freeze_summary.json").read_text(encoding="utf-8"))
 freeze_trend = json.loads((out / "freeze_trend_summary.json").read_text(encoding="utf-8"))
+freeze_history = json.loads((out / "freeze_history_summary.json").read_text(encoding="utf-8"))
+freeze_history_trend = json.loads((out / "freeze_history_trend.json").read_text(encoding="utf-8"))
 kpis = weekly.get("kpis") if isinstance(weekly.get("kpis"), dict) else {}
 
 payload = {
@@ -189,6 +229,15 @@ payload = {
     "freeze_status_transition": (freeze_trend.get("trend") or {}).get("status_transition"),
     "freeze_delta_canonical_net_growth_models": (freeze_trend.get("trend") or {}).get("delta_canonical_net_growth_models"),
     "freeze_delta_validation_type_match_rate_pct": (freeze_trend.get("trend") or {}).get("delta_validation_type_match_rate_pct"),
+    "freeze_history_status": freeze_history.get("status"),
+    "freeze_history_total_records": freeze_history.get("total_records"),
+    "freeze_history_avg_accepted_models": freeze_history.get("avg_accepted_models"),
+    "freeze_history_avg_generated_mutations": freeze_history.get("avg_generated_mutations"),
+    "freeze_history_avg_validation_type_match_rate_pct": freeze_history.get("avg_validation_type_match_rate_pct"),
+    "freeze_history_trend_status": freeze_history_trend.get("status"),
+    "freeze_history_status_transition": (freeze_history_trend.get("trend") or {}).get("status_transition"),
+    "freeze_history_delta_avg_generated_mutations": (freeze_history_trend.get("trend") or {}).get("delta_avg_generated_mutations"),
+    "freeze_history_delta_needs_review_rate": (freeze_history_trend.get("trend") or {}).get("delta_needs_review_rate"),
 }
 (out / "summary.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
 print(json.dumps(payload))

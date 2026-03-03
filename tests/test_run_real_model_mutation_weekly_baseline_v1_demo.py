@@ -30,6 +30,8 @@ class RunRealModelMutationWeeklyBaselineV1DemoTests(unittest.TestCase):
                 ).read_text(encoding="utf-8")
             )
             self.assertEqual(payload.get("bundle_status"), "PASS")
+            self.assertIn(payload.get("freeze_history_status"), {"PASS", "NEEDS_REVIEW", "FAIL"})
+            self.assertIn(payload.get("freeze_history_trend_status"), {"PASS", "NEEDS_REVIEW", "FAIL"})
 
 
 if __name__ == "__main__":
