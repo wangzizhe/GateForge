@@ -56,6 +56,16 @@ def _authenticity_score(auth: dict) -> float:
     return round(_clamp(score, 0.0, 100.0), 2)
 
 
+def _failure_signal_authenticity_score(failure_auth: dict) -> float:
+    if not failure_auth:
+        return 0.0
+    failure_ratio = _clamp(_to_float(failure_auth.get("failure_signal_ratio_pct", 0.0)), 0.0, 100.0)
+    type_cov = _clamp(_to_float(failure_auth.get("expected_failure_type_signal_coverage_pct", 0.0)), 0.0, 100.0)
+    observed_cov = _clamp(_to_float(failure_auth.get("observed_coverage_ratio_pct", 0.0)), 0.0, 100.0)
+    score = failure_ratio * 0.5 + type_cov * 0.4 + observed_cov * 0.1
+    return round(_clamp(score, 0.0, 100.0), 2)
+
+
 def _write_markdown(path: str, payload: dict) -> None:
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
@@ -93,6 +103,7 @@ def main() -> None:
     parser.add_argument("--real-model-net-growth-authenticity-summary", required=True)
     parser.add_argument("--hard-moat-gates-summary", required=True)
     parser.add_argument("--mutation-execution-authenticity-summary", default=None)
+    parser.add_argument("--mutation-failure-signal-authenticity-summary", default=None)
     parser.add_argument("--min-score-pass", type=float, default=78.0)
     parser.add_argument("--out", default="artifacts/dataset_joint_moat_strength_gate_v1/summary.json")
     parser.add_argument("--report-out", default=None)
@@ -105,6 +116,7 @@ def main() -> None:
     net_growth = _load_json(args.real_model_net_growth_authenticity_summary)
     hard_moat = _load_json(args.hard_moat_gates_summary)
     exec_auth = _load_json(args.mutation_execution_authenticity_summary)
+    failure_auth = _load_json(args.mutation_failure_signal_authenticity_summary)
 
     reasons: list[str] = []
     if not family:
@@ -127,6 +139,7 @@ def main() -> None:
     growth_auth_score = _clamp(_to_float(net_growth.get("true_growth_ratio_pct", 0.0)), 0.0, 100.0)
     hard_moat_score = _clamp(_to_float(hard_moat.get("moat_hardness_score", 0.0)), 0.0, 100.0)
     exec_auth_score = _authenticity_score(exec_auth)
+    failure_auth_score = _failure_signal_authenticity_score(failure_auth)
 
     base_weighted = (
         family_score * 0.12
@@ -137,8 +150,14 @@ def main() -> None:
         + hard_moat_score * 0.16
     )
     weighted = base_weighted
+    optional_scores: list[float] = []
     if exec_auth:
-        weighted = base_weighted * 0.88 + exec_auth_score * 0.12
+        optional_scores.append(exec_auth_score)
+    if failure_auth:
+        optional_scores.append(failure_auth_score)
+    if optional_scores:
+        optional_avg = sum(optional_scores) / max(1, len(optional_scores))
+        weighted = base_weighted * 0.85 + optional_avg * 0.15
     moat_strength_score = round(weighted, 2)
     moat_strength_grade = _grade(moat_strength_score)
 
@@ -166,6 +185,10 @@ def main() -> None:
         warning_reasons.append("mutation_execution_authenticity_not_pass")
     if exec_auth and exec_auth_score < 30.0:
         warning_reasons.append("mutation_execution_authenticity_score_low")
+    if failure_auth and str(failure_auth.get("status") or "") in {"NEEDS_REVIEW", "FAIL"}:
+        warning_reasons.append("mutation_failure_signal_authenticity_not_pass")
+    if failure_auth and failure_auth_score < 30.0:
+        warning_reasons.append("mutation_failure_signal_authenticity_score_low")
     if moat_strength_score < float(args.min_score_pass):
         warning_reasons.append("joint_moat_strength_score_below_threshold")
 
@@ -194,6 +217,7 @@ def main() -> None:
             "growth_auth_score": round(growth_auth_score, 2),
             "hard_moat_score": round(hard_moat_score, 2),
             "mutation_execution_authenticity_score": round(exec_auth_score, 2),
+            "mutation_failure_signal_authenticity_score": round(failure_auth_score, 2),
         },
         "alerts": warning_reasons,
         "reasons": sorted(set(reasons)),
@@ -205,6 +229,7 @@ def main() -> None:
             "real_model_net_growth_authenticity_summary": args.real_model_net_growth_authenticity_summary,
             "hard_moat_gates_summary": args.hard_moat_gates_summary,
             "mutation_execution_authenticity_summary": args.mutation_execution_authenticity_summary,
+            "mutation_failure_signal_authenticity_summary": args.mutation_failure_signal_authenticity_summary,
         },
     }
     _write_json(args.out, payload)
