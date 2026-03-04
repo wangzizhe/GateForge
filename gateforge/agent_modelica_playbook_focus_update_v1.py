@@ -82,6 +82,8 @@ def main() -> None:
     entries = playbook_payload.get("playbook") if isinstance(playbook_payload.get("playbook"), list) else []
     entries = [x for x in entries if isinstance(x, dict)]
     queue = queue_payload.get("queue") if isinstance(queue_payload.get("queue"), list) else []
+    if not queue:
+        queue = queue_payload.get("targets") if isinstance(queue_payload.get("targets"), list) else []
     queue = [x for x in queue if isinstance(x, dict)]
     focused_failures = [str(x.get("failure_type") or "") for x in queue if str(x.get("failure_type") or "")]
 

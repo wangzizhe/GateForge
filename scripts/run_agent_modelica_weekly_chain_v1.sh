@@ -52,6 +52,17 @@ else
   REPAIR_PLAYBOOK="${GATEFORGE_AGENT_REPAIR_PLAYBOOK}"
 fi
 
+FOCUS_TARGETS_PATH="${GATEFORGE_AGENT_FOCUS_TARGETS_PATH:-artifacts/agent_modelica_top2_focus_loop_v1/next_week_focus_targets.json}"
+if [ -f "$FOCUS_TARGETS_PATH" ]; then
+  FOCUSED_PLAYBOOK_PATH="$OUT_DIR/weekly/focused_playbook_from_targets.json"
+  python3 -m gateforge.agent_modelica_playbook_focus_update_v1 \
+    --playbook "$REPAIR_PLAYBOOK" \
+    --queue "$FOCUS_TARGETS_PATH" \
+    --out "$FOCUSED_PLAYBOOK_PATH" \
+    --report-out "$OUT_DIR/weekly/focused_playbook_from_targets.md"
+  REPAIR_PLAYBOOK="$FOCUSED_PLAYBOOK_PATH"
+fi
+
 python3 -m gateforge.agent_modelica_taskset_snapshot_v1 \
   --mutation-manifest "$CORE_MANIFEST" \
   --extra-mutation-manifest "$SMALL_MANIFEST" \

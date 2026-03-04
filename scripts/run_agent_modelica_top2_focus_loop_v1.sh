@@ -91,4 +91,9 @@ summary = {
 print(json.dumps(summary))
 PY
 
+python3 -m gateforge.agent_modelica_next_week_focus_targets_v1 \
+  --focus-summary "$OUT_DIR/summary.json" \
+  --out "$OUT_DIR/next_week_focus_targets.json" \
+  --report-out "$OUT_DIR/next_week_focus_targets.md"
+
 cat "$OUT_DIR/summary.json"
