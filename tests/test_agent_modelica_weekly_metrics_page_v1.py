@@ -44,6 +44,8 @@ class AgentModelicaWeeklyMetricsPageV1Tests(unittest.TestCase):
                         "regression_count": 1,
                         "physics_fail_count": 0,
                         "layered_pass_rate_pct_by_scale": {"small": 100.0, "medium": 50.0, "large": 50.0},
+                        "top_fail_reasons": {"regression_fail": 1},
+                        "top_fail_reasons_by_scale": {"medium": {"regression_fail": 1}},
                     }
                 ),
                 encoding="utf-8",
@@ -61,6 +63,8 @@ class AgentModelicaWeeklyMetricsPageV1Tests(unittest.TestCase):
                         "regression_count": 0,
                         "physics_fail_count": 0,
                         "layered_pass_rate_pct_by_scale": {"small": 100.0, "medium": 100.0, "large": 50.0},
+                        "top_fail_reasons": {},
+                        "top_fail_reasons_by_scale": {"medium": {}},
                     }
                 ),
                 encoding="utf-8",

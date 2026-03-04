@@ -11,6 +11,7 @@ from .physics_contract_v0 import (
     evaluate_physics_contract_v0,
     load_physics_contract_v0,
 )
+from .regression import compare_evidence, load_json as _load_evidence_json
 
 
 def _load_json(path: str) -> dict:
@@ -134,6 +135,7 @@ def _run_task_mock(task: dict, max_rounds: int, max_time_sec: int, physics_contr
                     task_invariants=task_invariants,
                     baseline_metrics=baseline_metrics,
                     candidate_metrics=candidate_metrics,
+                    scale=str(task.get("scale") or "unknown"),
                 )
             except Exception as exc:
                 physics_eval = {
@@ -190,12 +192,109 @@ def _run_task_mock(task: dict, max_rounds: int, max_time_sec: int, physics_contr
     }
 
 
+def _read_evidence_task(task: dict, key_inline: str, key_path: str) -> dict:
+    inline = task.get(key_inline)
+    if isinstance(inline, dict):
+        return inline
+    path = task.get(key_path)
+    if isinstance(path, str) and path.strip():
+        return _load_evidence_json(path.strip())
+    return {}
+
+
+def _run_task_evidence(task: dict, max_rounds: int, max_time_sec: int, physics_contract: dict, runtime_threshold: float) -> dict:
+    scale = str(task.get("scale") or "unknown")
+    failure_type = str(task.get("failure_type") or "unknown")
+    rounds_used = max(1, int(task.get("observed_repair_rounds", 1) or 1))
+    rounds_used = min(rounds_used, max_rounds)
+
+    baseline_evidence = _read_evidence_task(task, "baseline_evidence", "baseline_evidence_path")
+    candidate_evidence = _read_evidence_task(task, "candidate_evidence", "candidate_evidence_path")
+    task_invariants = task.get("physical_invariants") if isinstance(task.get("physical_invariants"), list) else []
+
+    base_metrics = baseline_evidence.get("metrics") if isinstance(baseline_evidence.get("metrics"), dict) else {}
+    cand_metrics = candidate_evidence.get("metrics") if isinstance(candidate_evidence.get("metrics"), dict) else {}
+    elapsed_sec = int(task.get("observed_elapsed_sec") or round(float(cand_metrics.get("runtime_seconds") or 0.0)))
+    elapsed_sec = max(1, elapsed_sec)
+
+    try:
+        physics_eval = evaluate_physics_contract_v0(
+            contract=physics_contract,
+            task_invariants=task_invariants,
+            baseline_metrics=base_metrics,
+            candidate_metrics=cand_metrics,
+            scale=scale,
+        )
+    except Exception as exc:
+        physics_eval = {
+            "pass": False,
+            "reasons": [f"physics_contract_eval_error:{exc}"],
+            "findings": [],
+            "invariant_count": len(task_invariants),
+        }
+
+    try:
+        regression = compare_evidence(
+            baseline=baseline_evidence,
+            candidate=candidate_evidence,
+            runtime_regression_threshold=runtime_threshold,
+            strict=False,
+            checker_names=None,
+            checker_config=task.get("checker_config") if isinstance(task.get("checker_config"), dict) else None,
+        )
+    except Exception as exc:
+        regression = {
+            "decision": "FAIL",
+            "reasons": [f"regression_eval_error:{exc}"],
+        }
+
+    check_ok = bool(candidate_evidence.get("check_ok"))
+    simulate_ok = bool(candidate_evidence.get("simulate_ok"))
+    physics_ok = bool(physics_eval.get("pass"))
+    regression_ok = str(regression.get("decision") or "FAIL") == "PASS"
+    time_budget_exceeded = elapsed_sec > max_time_sec
+    attempts = [
+        {
+            "round": rounds_used,
+            "time_budget_exceeded": time_budget_exceeded,
+            "check_model_pass": check_ok,
+            "simulate_pass": simulate_ok,
+            "physics_contract_pass": physics_ok,
+            "physics_contract_reasons": list(physics_eval.get("reasons") or []),
+            "physics_contract_invariant_count": int(physics_eval.get("invariant_count") or 0),
+            "regression_pass": regression_ok,
+            "regression_reasons": [str(x) for x in (regression.get("reasons") or []) if isinstance(x, str)],
+        }
+    ]
+    passed = check_ok and simulate_ok and physics_ok and regression_ok and not time_budget_exceeded
+
+    return {
+        "task_id": str(task.get("task_id") or ""),
+        "scale": scale,
+        "failure_type": failure_type,
+        "passed": passed,
+        "rounds_used": rounds_used,
+        "time_to_pass_sec": elapsed_sec if passed else None,
+        "elapsed_sec": elapsed_sec,
+        "hard_checks": {
+            "check_model_pass": check_ok,
+            "simulate_pass": simulate_ok,
+            "physics_contract_pass": physics_ok,
+            "regression_pass": regression_ok,
+        },
+        "physics_contract_reasons": [str(x) for x in (physics_eval.get("reasons") or []) if isinstance(x, str)],
+        "regression_reasons": [str(x) for x in (regression.get("reasons") or []) if isinstance(x, str)],
+        "attempts": attempts,
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Execute agent modelica run contract with bounded rounds/time")
     parser.add_argument("--taskset", required=True)
-    parser.add_argument("--mode", choices=["mock"], default="mock")
+    parser.add_argument("--mode", choices=["mock", "evidence"], default="mock")
     parser.add_argument("--max-rounds", type=int, default=5)
     parser.add_argument("--max-time-sec", type=int, default=300)
+    parser.add_argument("--runtime-threshold", type=float, default=0.2)
     parser.add_argument("--physics-contract", default=DEFAULT_PHYSICS_CONTRACT_PATH)
     parser.add_argument("--results-out", default="artifacts/agent_modelica_run_contract_v1/results.json")
     parser.add_argument("--out", default="artifacts/agent_modelica_run_contract_v1/summary.json")
@@ -215,14 +314,25 @@ def main() -> None:
 
     records: list[dict] = []
     for task in tasks:
-        records.append(
-            _run_task_mock(
-                task,
-                max_rounds=max_rounds,
-                max_time_sec=max_time_sec,
-                physics_contract=physics_contract,
+        if args.mode == "evidence":
+            records.append(
+                _run_task_evidence(
+                    task,
+                    max_rounds=max_rounds,
+                    max_time_sec=max_time_sec,
+                    physics_contract=physics_contract,
+                    runtime_threshold=float(args.runtime_threshold),
+                )
             )
-        )
+        else:
+            records.append(
+                _run_task_mock(
+                    task,
+                    max_rounds=max_rounds,
+                    max_time_sec=max_time_sec,
+                    physics_contract=physics_contract,
+                )
+            )
 
     success_rows = [x for x in records if bool(x.get("passed"))]
     success_count = len(success_rows)
@@ -244,6 +354,7 @@ def main() -> None:
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
         "physics_contract_schema_version": physics_contract.get("schema_version"),
         "physics_contract_source": physics_contract_source,
+        "mode": args.mode,
         "records": records,
     }
     _write_json(args.results_out, results_payload)
@@ -260,8 +371,10 @@ def main() -> None:
         "physics_fail_count": physics_fail_count,
         "physics_contract_schema_version": physics_contract.get("schema_version"),
         "physics_contract_source": physics_contract_source,
+        "mode": args.mode,
         "max_rounds": max_rounds,
         "max_time_sec": max_time_sec,
+        "runtime_threshold": float(args.runtime_threshold),
         "results_out": args.results_out,
         "reasons": reasons,
         "sources": {"taskset": args.taskset, "physics_contract": args.physics_contract},

@@ -98,6 +98,14 @@ def _write_markdown(path: str, payload: dict) -> None:
             lines.append(f"- delta_{key}: `{delta.get(key)}`")
     else:
         lines.append("- `none`")
+
+    lines.extend(["", "## Top Fail Reasons", ""])
+    top_fail = payload.get("top_fail_reasons", {})
+    if isinstance(top_fail, dict) and top_fail:
+        for key, count in sorted(top_fail.items(), key=lambda kv: (-int(kv[1]), kv[0]))[:8]:
+            lines.append(f"- {key}: `{count}`")
+    else:
+        lines.append("- `none`")
     lines.append("")
     p.write_text("\n".join(lines), encoding="utf-8")
 
@@ -121,6 +129,8 @@ def main() -> None:
         "regression_count",
         "physics_fail_count",
         "layered_pass_rate_pct_by_scale",
+        "top_fail_reasons",
+        "top_fail_reasons_by_scale",
     ]
     for key in required_fields:
         if key not in baseline:
@@ -137,6 +147,8 @@ def main() -> None:
         "regression_count": baseline.get("regression_count"),
         "physics_fail_count": baseline.get("physics_fail_count"),
         "layered_pass_rate_pct_by_scale": baseline.get("layered_pass_rate_pct_by_scale", {}),
+        "top_fail_reasons": baseline.get("top_fail_reasons", {}),
+        "top_fail_reasons_by_scale": baseline.get("top_fail_reasons_by_scale", {}),
         "source": args.baseline_summary,
     }
     _append_jsonl(args.ledger, record)
@@ -169,6 +181,8 @@ def main() -> None:
         "regression_count": record.get("regression_count"),
         "physics_fail_count": record.get("physics_fail_count"),
         "layered_pass_rate_pct_by_scale": record.get("layered_pass_rate_pct_by_scale"),
+        "top_fail_reasons": record.get("top_fail_reasons"),
+        "top_fail_reasons_by_scale": record.get("top_fail_reasons_by_scale"),
         "history_records": len(history),
         "delta_vs_previous": delta_payload,
         "reasons": reasons,

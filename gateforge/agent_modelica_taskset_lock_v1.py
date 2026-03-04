@@ -38,6 +38,18 @@ def _load_json(path: str) -> dict:
     return json.loads(p.read_text(encoding="utf-8"))
 
 
+def _collect_mutation_rows(paths: list[str]) -> tuple[list[dict], dict[str, int]]:
+    rows: list[dict] = []
+    counts: dict[str, int] = {}
+    for path in paths:
+        manifest = _load_json(path)
+        manifest_rows = manifest.get("mutations") if isinstance(manifest.get("mutations"), list) else []
+        filtered = [x for x in manifest_rows if isinstance(x, dict)]
+        rows.extend(filtered)
+        counts[path] = len(filtered)
+    return rows, counts
+
+
 def _write_json(path: str, payload: object) -> None:
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
@@ -69,6 +81,7 @@ def _write_markdown(path: str, payload: dict) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Lock a scale-layered taskset for Modelica agent workflow evaluation")
     parser.add_argument("--mutation-manifest", required=True)
+    parser.add_argument("--extra-mutation-manifest", action="append", default=[])
     parser.add_argument("--scales", default="small,medium,large")
     parser.add_argument("--failure-types", default=",".join(DEFAULT_FAILURE_TYPES))
     parser.add_argument("--max-per-scale", type=int, default=20)
@@ -78,9 +91,8 @@ def main() -> None:
     parser.add_argument("--report-out", default=None)
     args = parser.parse_args()
 
-    manifest = _load_json(args.mutation_manifest)
-    rows = manifest.get("mutations") if isinstance(manifest.get("mutations"), list) else []
-    rows = [x for x in rows if isinstance(x, dict)]
+    manifest_paths = [args.mutation_manifest, *[str(x) for x in (args.extra_mutation_manifest or []) if str(x).strip()]]
+    rows, counts_by_manifest = _collect_mutation_rows(manifest_paths)
 
     scales = [x.strip().lower() for x in str(args.scales).split(",") if x.strip()]
     if not scales:
@@ -166,9 +178,10 @@ def main() -> None:
         "counts_by_scale": counts_by_scale,
         "counts_by_failure_type": counts_by_failure,
         "counts_by_scale_failure_type": counts_by_scale_failure,
+        "counts_by_manifest": counts_by_manifest,
         "alerts": alerts,
         "taskset_out": args.taskset_out,
-        "sources": {"mutation_manifest": args.mutation_manifest},
+        "sources": {"mutation_manifest": manifest_paths},
     }
     _write_json(args.out, summary)
     _write_markdown(args.report_out or _default_md_path(args.out), summary)

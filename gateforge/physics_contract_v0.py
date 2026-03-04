@@ -20,6 +20,7 @@ _DEFAULT_CONTRACT = {
         }
     },
     "physical_invariants": [],
+    "profiles_by_scale": {},
 }
 
 
@@ -86,6 +87,21 @@ def validate_physics_contract_v0(contract: dict) -> dict:
             raise ValueError("physics contract physical_invariants must be a list")
         _validate_invariants(physical_invariants)
 
+    profiles_by_scale = contract.get("profiles_by_scale")
+    if profiles_by_scale is not None:
+        if not isinstance(profiles_by_scale, dict):
+            raise ValueError("physics contract profiles_by_scale must be an object")
+        for scale, cfg in profiles_by_scale.items():
+            if scale not in {"small", "medium", "large"}:
+                raise ValueError(f"physics contract profiles_by_scale has unsupported scale: {scale}")
+            if not isinstance(cfg, dict):
+                raise ValueError(f"physics contract profiles_by_scale[{scale}] must be an object")
+            invs = cfg.get("invariants", [])
+            if invs is not None:
+                if not isinstance(invs, list):
+                    raise ValueError(f"physics contract profiles_by_scale[{scale}].invariants must be a list")
+                _validate_invariants(invs)
+
     guard_cfg = (checker_config or {}).get("invariant_guard", {})
     if guard_cfg is not None and not isinstance(guard_cfg, dict):
         raise ValueError("physics contract checker_config.invariant_guard must be an object")
@@ -130,13 +146,25 @@ def _resolve_invariants(contract: dict, task_invariants: list[dict] | None) -> l
     return merged
 
 
+def _resolve_profile_invariants(contract: dict, scale: str | None) -> list[dict]:
+    if not isinstance(scale, str) or not scale.strip():
+        return []
+    key = scale.strip().lower()
+    profiles = contract.get("profiles_by_scale") if isinstance(contract.get("profiles_by_scale"), dict) else {}
+    profile = profiles.get(key) if isinstance(profiles.get(key), dict) else {}
+    invs = profile.get("invariants") if isinstance(profile.get("invariants"), list) else []
+    _validate_invariants(invs)
+    return invs
+
+
 def evaluate_physics_contract_v0(
     contract: dict,
     task_invariants: list[dict] | None,
     baseline_metrics: dict | None,
     candidate_metrics: dict | None,
+    scale: str | None = None,
 ) -> dict:
-    invariants = _resolve_invariants(contract, task_invariants)
+    invariants = [*_resolve_invariants(contract, task_invariants), *_resolve_profile_invariants(contract, scale)]
     if not invariants:
         return {
             "pass": True,
