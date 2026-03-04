@@ -1,0 +1,15 @@
+import unittest
+
+from gateforge.agent_modelica_patch_template_engine_v1 import build_patch_template
+
+
+class AgentModelicaPatchTemplateEngineV1Tests(unittest.TestCase):
+    def test_builds_template_for_simulate_error(self) -> None:
+        payload = build_patch_template(failure_type="simulate_error", expected_stage="simulate")
+        self.assertTrue(str(payload.get("template_id") or "").startswith("tpl_"))
+        actions = payload.get("actions") if isinstance(payload.get("actions"), list) else []
+        self.assertGreaterEqual(len(actions), 2)
+
+
+if __name__ == "__main__":
+    unittest.main()

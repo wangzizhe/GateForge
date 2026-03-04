@@ -210,6 +210,72 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
             self.assertTrue(bool(r["records"][0]["hard_checks"]["regression_pass"]))
             self.assertEqual((r["records"][0].get("repair_strategy") or {}).get("strategy_id"), "sem_invariant_first")
 
+    def test_run_contract_augments_strategy_with_templates_error_map_and_retrieval(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            taskset = root / "taskset.json"
+            history = root / "history.json"
+            results = root / "results.json"
+            summary = root / "summary.json"
+            history.write_text(
+                json.dumps(
+                    {
+                        "rows": [
+                            {
+                                "failure_type": "model_check_error",
+                                "model_id": "LargeGrid",
+                                "used_strategy": "mc_undefined_symbol_guard",
+                                "action_trace": ["declare missing symbol and align declaration scope"],
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            taskset.write_text(
+                json.dumps(
+                    {
+                        "tasks": [
+                            {
+                                "task_id": "t_aug",
+                                "scale": "large",
+                                "failure_type": "model_check_error",
+                                "source_model_path": "LargeGrid.mo",
+                                "error_message": "Error: undefined symbol X",
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.agent_modelica_run_contract_v1",
+                    "--taskset",
+                    str(taskset),
+                    "--repair-history",
+                    str(history),
+                    "--results-out",
+                    str(results),
+                    "--out",
+                    str(summary),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            r = json.loads(results.read_text(encoding="utf-8"))
+            rec = (r.get("records") or [])[0]
+            audit = rec.get("repair_audit") or {}
+            self.assertTrue(str(audit.get("patch_template_id") or "").startswith("tpl_"))
+            self.assertGreaterEqual(int(audit.get("error_action_count", 0)), 1)
+            self.assertGreaterEqual(int(audit.get("retrieved_example_count", 0)), 1)
+            actions = audit.get("actions_planned") if isinstance(audit.get("actions_planned"), list) else []
+            self.assertTrue(any("declare missing symbol" in str(x).lower() for x in actions))
+
 
 if __name__ == "__main__":
     unittest.main()
