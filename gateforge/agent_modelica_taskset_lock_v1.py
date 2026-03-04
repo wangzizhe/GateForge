@@ -51,6 +51,7 @@ def main() -> None:
     parser.add_argument("--scales", default="small,medium,large")
     parser.add_argument("--failure-types", default=",".join(DEFAULT_FAILURE_TYPES))
     parser.add_argument("--max-per-scale", type=int, default=20)
+    parser.add_argument("--max-per-scale-failure-type", type=int, default=0)
     parser.add_argument("--taskset-out", default="artifacts/agent_modelica_taskset_lock_v1/taskset.json")
     parser.add_argument("--out", default="artifacts/agent_modelica_taskset_lock_v1/summary.json")
     parser.add_argument("--report-out", default=None)
@@ -70,7 +71,9 @@ def main() -> None:
     selected: list[dict] = []
     counts_by_scale = {k: 0 for k in scales}
     counts_by_failure = {k: 0 for k in failure_types}
+    counts_by_scale_failure = {scale: {ftype: 0 for ftype in failure_types} for scale in scales}
     max_per_scale = max(1, int(args.max_per_scale))
+    max_per_scale_failure_type = max(0, int(args.max_per_scale_failure_type))
 
     sorted_rows = sorted(
         rows,
@@ -88,6 +91,8 @@ def main() -> None:
         if ftype not in counts_by_failure:
             continue
         if counts_by_scale[scale] >= max_per_scale:
+            continue
+        if max_per_scale_failure_type > 0 and counts_by_scale_failure[scale][ftype] >= max_per_scale_failure_type:
             continue
         mutation_id = str(row.get("mutation_id") or "").strip()
         if not mutation_id:
@@ -111,6 +116,7 @@ def main() -> None:
         )
         counts_by_scale[scale] += 1
         counts_by_failure[ftype] += 1
+        counts_by_scale_failure[scale][ftype] += 1
 
     alerts: list[str] = []
     if not selected:
@@ -135,6 +141,7 @@ def main() -> None:
         "failure_types": failure_types,
         "counts_by_scale": counts_by_scale,
         "counts_by_failure_type": counts_by_failure,
+        "counts_by_scale_failure_type": counts_by_scale_failure,
         "alerts": alerts,
         "taskset_out": args.taskset_out,
         "sources": {"mutation_manifest": args.mutation_manifest},
@@ -148,4 +155,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

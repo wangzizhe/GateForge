@@ -1,0 +1,11 @@
+{
+  "schema_version": "physics_contract_v0",
+  "name": "gateforge_physics_contract_v0",
+  "checker": "invariant_guard",
+  "checker_config": {
+    "invariant_guard": {
+      "invariants": []
+    }
+  },
+  "physical_invariants": []
+}
