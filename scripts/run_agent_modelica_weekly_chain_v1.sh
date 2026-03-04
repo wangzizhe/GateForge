@@ -141,6 +141,12 @@ python3 -m gateforge.agent_modelica_weekly_metrics_page_v1 \
   --out "$OUT_DIR/weekly/page.json" \
   --report-out "$OUT_DIR/weekly/page.md"
 
+python3 -m gateforge.agent_modelica_weekly_decision_v1 \
+  --current-page "$OUT_DIR/weekly/page.json" \
+  --ledger "$OUT_DIR/weekly/history.jsonl" \
+  --out "$OUT_DIR/weekly/decision.json" \
+  --report-out "$OUT_DIR/weekly/decision.md"
+
 python3 - <<'PY'
 import json
 import os
@@ -159,6 +165,11 @@ summary = {
     "regression_count": week_page.get("regression_count"),
     "physics_fail_count": week_page.get("physics_fail_count"),
     "layered_pass_rate_pct_by_scale": week_page.get("layered_pass_rate_pct_by_scale"),
+    "weekly_decision": (
+        json.loads((out_dir / "weekly" / "decision.json").read_text(encoding="utf-8")).get("decision")
+        if (out_dir / "weekly" / "decision.json").exists()
+        else None
+    ),
 }
 (out_dir / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
 print(json.dumps(summary))
