@@ -52,6 +52,13 @@ python3 -m gateforge.agent_modelica_weekly_decision_v1 \
   --out "$OUT_DIR/decision.json" \
   --report-out "$OUT_DIR/decision.md"
 
+python3 -m gateforge.agent_modelica_two_week_report_v1 \
+  --week1-summary "$OUT_DIR/week1/summary.json" \
+  --week2-summary "$OUT_DIR/week2/summary.json" \
+  --decision "$OUT_DIR/decision.json" \
+  --out "$OUT_DIR/report.json" \
+  --report-out "$OUT_DIR/report.md"
+
 python3 - <<'PY'
 import json
 import os
@@ -61,6 +68,7 @@ root = Path(os.environ["OUT_DIR"])
 w1 = json.loads((root / "week1" / "summary.json").read_text(encoding="utf-8"))
 w2 = json.loads((root / "week2" / "summary.json").read_text(encoding="utf-8"))
 d = json.loads((root / "decision.json").read_text(encoding="utf-8"))
+report = json.loads((root / "report.json").read_text(encoding="utf-8"))
 summary = {
     "status": "PASS",
     "week1_tag": w1.get("week_tag"),
@@ -76,6 +84,7 @@ summary = {
     "week1_physics_fail_count": w1.get("physics_fail_count"),
     "week2_physics_fail_count": w2.get("physics_fail_count"),
     "decision": d.get("decision"),
+    "delta": report.get("delta"),
 }
 (root / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
 print(json.dumps(summary))

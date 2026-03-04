@@ -36,6 +36,8 @@ def _write_markdown(path: str, payload: dict) -> None:
         f"- promoted_count: `{payload.get('promoted_count')}`",
         f"- decision: `{payload.get('decision')}`",
         f"- promotion_allowed: `{payload.get('promotion_allowed')}`",
+        f"- weekly_decision: `{payload.get('weekly_decision')}`",
+        f"- effective_top_k: `{payload.get('effective_top_k')}`",
         "",
     ]
     reasons = payload.get("gate_reasons") if isinstance(payload.get("gate_reasons"), list) else []
@@ -61,6 +63,7 @@ def main() -> None:
     parser.add_argument("--ab-summary", required=True)
     parser.add_argument("--treatment-playbook", required=True)
     parser.add_argument("--top-k", type=int, default=2)
+    parser.add_argument("--weekly-decision", default="")
     parser.add_argument("--enforce-safety-gate", action="store_true", default=True)
     parser.add_argument("--no-enforce-safety-gate", dest="enforce_safety_gate", action="store_false")
     parser.add_argument("--out", default="artifacts/agent_modelica_strategy_promote_v1/promoted_playbook.json")
@@ -72,6 +75,15 @@ def main() -> None:
     per_failure = ab.get("per_failure_type") if isinstance(ab.get("per_failure_type"), dict) else {}
     playbook = treatment.get("playbook") if isinstance(treatment.get("playbook"), list) else []
     playbook = [x for x in playbook if isinstance(x, dict)]
+
+    weekly_decision_payload = _load_json(args.weekly_decision) if str(args.weekly_decision).strip() else {}
+    weekly_decision = str(weekly_decision_payload.get("decision") or "").upper()
+    requested_top_k = max(1, int(args.top_k))
+    effective_top_k = requested_top_k
+    if weekly_decision == "HOLD":
+        effective_top_k = 1
+    elif weekly_decision == "ROLLBACK":
+        effective_top_k = 1
 
     ranked_failures = sorted(
         [
@@ -85,7 +97,7 @@ def main() -> None:
         ],
         key=lambda x: (-float(x.get("score", 0.0)), x.get("failure_type", "")),
     )
-    top_failures = [x.get("failure_type") for x in ranked_failures[: max(1, int(args.top_k))]]
+    top_failures = [x.get("failure_type") for x in ranked_failures[:effective_top_k]]
 
     promoted_entries: list[dict] = []
     for ftype in top_failures:
@@ -106,6 +118,8 @@ def main() -> None:
         gate_reasons.append("regression_count_increased")
     if delta_phy > 0.0:
         gate_reasons.append("physics_fail_count_increased")
+    if weekly_decision == "ROLLBACK":
+        gate_reasons.append("weekly_decision_rollback")
 
     promotion_allowed = True
     if bool(args.enforce_safety_gate) and gate_reasons:
@@ -122,6 +136,9 @@ def main() -> None:
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
         "status": "PASS",
         "decision": decision,
+        "weekly_decision": weekly_decision or None,
+        "requested_top_k": requested_top_k,
+        "effective_top_k": effective_top_k,
         "promotion_allowed": promotion_allowed,
         "gate_reasons": gate_reasons,
         "promoted_count": len(promoted_entries),
