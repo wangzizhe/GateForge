@@ -54,8 +54,15 @@ else
   REPAIR_PLAYBOOK="${GATEFORGE_AGENT_REPAIR_PLAYBOOK}"
 fi
 
-FOCUS_TARGETS_PATH="${GATEFORGE_AGENT_FOCUS_TARGETS_PATH:-artifacts/agent_modelica_top2_focus_loop_v1/next_week_focus_targets.json}"
-if [ -f "$FOCUS_TARGETS_PATH" ]; then
+FOCUS_QUEUE_FOR_RUN=""
+FOCUS_TARGETS_PATH="${GATEFORGE_AGENT_FOCUS_TARGETS_PATH:-}"
+if [ -z "$FOCUS_TARGETS_PATH" ] && [ -f "$OUT_DIR/weekly/focus_queue_from_failure.json" ]; then
+  FOCUS_TARGETS_PATH="$OUT_DIR/weekly/focus_queue_from_failure.json"
+elif [ -z "$FOCUS_TARGETS_PATH" ] && [ -f "artifacts/agent_modelica_top2_focus_loop_v1/next_week_focus_targets.json" ]; then
+  FOCUS_TARGETS_PATH="artifacts/agent_modelica_top2_focus_loop_v1/next_week_focus_targets.json"
+fi
+
+if [ -n "$FOCUS_TARGETS_PATH" ] && [ -f "$FOCUS_TARGETS_PATH" ]; then
   FOCUSED_PLAYBOOK_PATH="$OUT_DIR/weekly/focused_playbook_from_targets.json"
   python3 -m gateforge.agent_modelica_playbook_focus_update_v1 \
     --playbook "$REPAIR_PLAYBOOK" \
@@ -63,6 +70,7 @@ if [ -f "$FOCUS_TARGETS_PATH" ]; then
     --out "$FOCUSED_PLAYBOOK_PATH" \
     --report-out "$OUT_DIR/weekly/focused_playbook_from_targets.md"
   REPAIR_PLAYBOOK="$FOCUSED_PLAYBOOK_PATH"
+  FOCUS_QUEUE_FOR_RUN="$FOCUS_TARGETS_PATH"
 fi
 
 use_hardpack=0
@@ -123,19 +131,38 @@ if [ "${REPLAY_MAX}" -gt 0 ] && [ -f "$PREV_BASELINE_TASKSET" ] && [ -f "$PREV_B
   TASKSET_FOR_BASELINE="$REPLAY_TASKSET_PATH"
 fi
 
-python3 -m gateforge.agent_modelica_layered_baseline_v1 \
-  --taskset-in "$TASKSET_FOR_BASELINE" \
-  --run-mode "$RUN_MODE" \
-  --physics-contract "$PHYSICS_CONTRACT" \
-  --repair-playbook "$REPAIR_PLAYBOOK" \
-  --out-dir "$OUT_DIR/baseline" \
-  --out "$OUT_DIR/baseline/summary.json" \
+BASELINE_CMD=(
+  python3 -m gateforge.agent_modelica_layered_baseline_v1
+  --taskset-in "$TASKSET_FOR_BASELINE"
+  --run-mode "$RUN_MODE"
+  --physics-contract "$PHYSICS_CONTRACT"
+  --repair-playbook "$REPAIR_PLAYBOOK"
+  --out-dir "$OUT_DIR/baseline"
+  --out "$OUT_DIR/baseline/summary.json"
   --report-out "$OUT_DIR/baseline/summary.md"
+)
+if [ -n "$FOCUS_QUEUE_FOR_RUN" ] && [ -f "$FOCUS_QUEUE_FOR_RUN" ]; then
+  BASELINE_CMD+=(--focus-queue "$FOCUS_QUEUE_FOR_RUN")
+fi
+"${BASELINE_CMD[@]}"
 
 python3 -m gateforge.agent_modelica_failure_attribution_v1 \
   --run-results "$OUT_DIR/baseline/run_results.json" \
   --out "$OUT_DIR/weekly/failure_attribution.json" \
   --report-out "$OUT_DIR/weekly/failure_attribution.md"
+
+python3 -m gateforge.agent_modelica_focus_queue_from_attribution_v1 \
+  --failure-attribution "$OUT_DIR/weekly/failure_attribution.json" \
+  --run-results "$OUT_DIR/baseline/run_results.json" \
+  --top-k 2 \
+  --out "$OUT_DIR/weekly/focus_queue_from_failure.json" \
+  --report-out "$OUT_DIR/weekly/focus_queue_from_failure.md"
+
+python3 -m gateforge.agent_modelica_playbook_focus_update_v1 \
+  --playbook "$REPAIR_PLAYBOOK" \
+  --queue "$OUT_DIR/weekly/focus_queue_from_failure.json" \
+  --out "$OUT_DIR/weekly/focused_playbook_from_failure.json" \
+  --report-out "$OUT_DIR/weekly/focused_playbook_from_failure.md"
 
 python3 -m gateforge.agent_modelica_weekly_metrics_page_v1 \
   --baseline-summary "$OUT_DIR/baseline/summary.json" \
