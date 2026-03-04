@@ -82,17 +82,18 @@ def _evidence(task: dict, key: str, scale: str) -> dict:
 def _task_indices_round_robin(tasks: list[dict], limit: int, excluded: set[int]) -> list[int]:
     if limit <= 0:
         return []
-    buckets: dict[str, list[int]] = {}
+    buckets: dict[tuple[str, str], list[int]] = {}
     for idx, task in enumerate(tasks):
         if idx in excluded:
             continue
+        scale = str(task.get("scale") or "unknown")
         ftype = str(task.get("failure_type") or "unknown")
-        buckets.setdefault(ftype, []).append(idx)
+        buckets.setdefault((scale, ftype), []).append(idx)
     picked: list[int] = []
     while len(picked) < limit:
         progress = False
-        for ftype in sorted(buckets.keys()):
-            rows = buckets.get(ftype) or []
+        for key in sorted(buckets.keys()):
+            rows = buckets.get(key) or []
             if not rows:
                 continue
             picked.append(rows.pop(0))
