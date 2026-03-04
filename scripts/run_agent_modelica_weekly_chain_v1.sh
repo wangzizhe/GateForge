@@ -6,18 +6,116 @@ cd "$ROOT_DIR"
 
 OUT_DIR="${GATEFORGE_AGENT_WEEKLY_CHAIN_OUT_DIR:-artifacts/agent_modelica_weekly_chain_v1}"
 WEEK_TAG="${GATEFORGE_AGENT_WEEK_TAG:-$(date -u +%G-W%V)}"
-RUN_MODE="${GATEFORGE_AGENT_RUN_MODE:-evidence}"
+MVP_PROFILE_PATH="${GATEFORGE_AGENT_MVP_PROFILE_PATH:-benchmarks/agent_modelica_mvp_repair_v1.json}"
+MVP_PROFILE_ENABLE="${GATEFORGE_AGENT_MVP_PROFILE_ENABLE:-1}"
+
+PROFILE_RUN_MODE=""
+PROFILE_MAX_ROUNDS=""
+PROFILE_MAX_TIME_SEC=""
+PROFILE_RUNTIME_THRESHOLD=""
+PROFILE_SMALL_MAX_TIME_SEC=""
+PROFILE_MEDIUM_MAX_TIME_SEC=""
+PROFILE_LARGE_MAX_TIME_SEC=""
+PROFILE_SMALL_MAX_ROUNDS=""
+PROFILE_MEDIUM_MAX_ROUNDS=""
+PROFILE_LARGE_MAX_ROUNDS=""
+PROFILE_HARDPACK_PATH=""
+PROFILE_USE_HARDPACK=""
+PROFILE_PER_SCALE_TOTAL=""
+PROFILE_PER_SCALE_FAILURE_TARGETS=""
+PROFILE_FOCUS_TOP_K=""
+PROFILE_FOCUS_PERSISTENCE_WEIGHT=""
+PROFILE_REPAIR_HISTORY_PATH=""
+
+if [ "$MVP_PROFILE_ENABLE" = "1" ] && [ -f "$MVP_PROFILE_PATH" ]; then
+  # Load profile once and expose normalized key-values to shell.
+  eval "$(
+    python3 - "$MVP_PROFILE_PATH" <<'PY'
+import json
+import shlex
+import sys
+
+
+def get(obj, path, default=None):
+    cur = obj
+    for part in path.split("."):
+        if not isinstance(cur, dict) or part not in cur:
+            return default
+        cur = cur[part]
+    return cur
+
+
+def put(name, value):
+    if value is None:
+        return
+    if isinstance(value, list):
+        value = ",".join(str(x) for x in value)
+    if isinstance(value, dict):
+        value = json.dumps(value, ensure_ascii=True, sort_keys=True)
+    print(f"{name}={shlex.quote(str(value))}")
+
+
+with open(sys.argv[1], "r", encoding="utf-8") as f:
+    payload = json.load(f)
+
+per_ftype = get(payload, "taskset.per_scale_failure_targets", {})
+ordered_ftypes = ["model_check_error", "simulate_error", "semantic_regression"]
+csv_targets = None
+if isinstance(per_ftype, dict):
+    vals = []
+    for key in ordered_ftypes:
+        if key in per_ftype:
+            vals.append(str(per_ftype.get(key)))
+    if vals:
+        csv_targets = ",".join(vals)
+
+taskset_source = str(get(payload, "taskset.source", "") or "").strip().lower()
+profile_use_hardpack = "1" if taskset_source == "hardpack" else None
+
+put("PROFILE_RUN_MODE", get(payload, "run_contract.mode"))
+put("PROFILE_MAX_ROUNDS", get(payload, "run_contract.max_rounds"))
+put("PROFILE_MAX_TIME_SEC", get(payload, "run_contract.max_time_sec"))
+put("PROFILE_RUNTIME_THRESHOLD", get(payload, "run_contract.runtime_threshold"))
+put("PROFILE_SMALL_MAX_TIME_SEC", get(payload, "acceptance_budgets.small_max_time_sec"))
+put("PROFILE_MEDIUM_MAX_TIME_SEC", get(payload, "acceptance_budgets.medium_max_time_sec"))
+put("PROFILE_LARGE_MAX_TIME_SEC", get(payload, "acceptance_budgets.large_max_time_sec"))
+put("PROFILE_SMALL_MAX_ROUNDS", get(payload, "acceptance_budgets.small_max_rounds"))
+put("PROFILE_MEDIUM_MAX_ROUNDS", get(payload, "acceptance_budgets.medium_max_rounds"))
+put("PROFILE_LARGE_MAX_ROUNDS", get(payload, "acceptance_budgets.large_max_rounds"))
+put("PROFILE_HARDPACK_PATH", get(payload, "taskset.hardpack_path"))
+put("PROFILE_USE_HARDPACK", profile_use_hardpack)
+put("PROFILE_PER_SCALE_TOTAL", get(payload, "taskset.per_scale_total_target"))
+put("PROFILE_PER_SCALE_FAILURE_TARGETS", csv_targets)
+put("PROFILE_FOCUS_TOP_K", get(payload, "focus_queue.top_k"))
+put("PROFILE_FOCUS_PERSISTENCE_WEIGHT", get(payload, "focus_queue.persistence_weight"))
+put("PROFILE_REPAIR_HISTORY_PATH", get(payload, "privacy.repair_history_path"))
+PY
+  )"
+fi
+
+RUN_MODE="${GATEFORGE_AGENT_RUN_MODE:-${PROFILE_RUN_MODE:-evidence}}"
 PHYSICS_CONTRACT="${GATEFORGE_AGENT_PHYSICS_CONTRACT:-policies/physics_contract_v0.json}"
-PER_SCALE_TOTAL="${GATEFORGE_AGENT_PER_SCALE_TOTAL:-20}"
-PER_SCALE_FAILURE_TARGETS="${GATEFORGE_AGENT_PER_SCALE_FAILURE_TARGETS:-7,7,6}"
+PER_SCALE_TOTAL="${GATEFORGE_AGENT_PER_SCALE_TOTAL:-${PROFILE_PER_SCALE_TOTAL:-20}}"
+PER_SCALE_FAILURE_TARGETS="${GATEFORGE_AGENT_PER_SCALE_FAILURE_TARGETS:-${PROFILE_PER_SCALE_FAILURE_TARGETS:-7,7,6}}"
 REPLAY_MAX="${GATEFORGE_AGENT_REPLAY_MAX:-6}"
 REPLAY_MIN_PER_FAILURE_TYPE="${GATEFORGE_AGENT_REPLAY_MIN_PER_FAILURE_TYPE:-1}"
-HARDPACK_PATH="${GATEFORGE_AGENT_HARDPACK_PATH:-benchmarks/agent_modelica_hardpack_v1.json}"
-USE_HARDPACK="${GATEFORGE_AGENT_USE_HARDPACK:-auto}"
+HARDPACK_PATH="${GATEFORGE_AGENT_HARDPACK_PATH:-${PROFILE_HARDPACK_PATH:-benchmarks/agent_modelica_hardpack_v1.json}}"
+USE_HARDPACK="${GATEFORGE_AGENT_USE_HARDPACK:-${PROFILE_USE_HARDPACK:-auto}}"
+MAX_ROUNDS="${GATEFORGE_AGENT_MAX_ROUNDS:-${PROFILE_MAX_ROUNDS:-9}}"
+MAX_TIME_SEC="${GATEFORGE_AGENT_MAX_TIME_SEC:-${PROFILE_MAX_TIME_SEC:-1200}}"
+RUNTIME_THRESHOLD="${GATEFORGE_AGENT_RUNTIME_THRESHOLD:-${PROFILE_RUNTIME_THRESHOLD:-0.2}}"
+SMALL_MAX_TIME_SEC="${GATEFORGE_AGENT_SMALL_MAX_TIME_SEC:-${PROFILE_SMALL_MAX_TIME_SEC:-180}}"
+MEDIUM_MAX_TIME_SEC="${GATEFORGE_AGENT_MEDIUM_MAX_TIME_SEC:-${PROFILE_MEDIUM_MAX_TIME_SEC:-420}}"
+LARGE_MAX_TIME_SEC="${GATEFORGE_AGENT_LARGE_MAX_TIME_SEC:-${PROFILE_LARGE_MAX_TIME_SEC:-900}}"
+SMALL_MAX_ROUNDS="${GATEFORGE_AGENT_SMALL_MAX_ROUNDS:-${PROFILE_SMALL_MAX_ROUNDS:-3}}"
+MEDIUM_MAX_ROUNDS="${GATEFORGE_AGENT_MEDIUM_MAX_ROUNDS:-${PROFILE_MEDIUM_MAX_ROUNDS:-6}}"
+LARGE_MAX_ROUNDS="${GATEFORGE_AGENT_LARGE_MAX_ROUNDS:-${PROFILE_LARGE_MAX_ROUNDS:-9}}"
+FOCUS_TOP_K="${GATEFORGE_AGENT_FOCUS_TOP_K:-${PROFILE_FOCUS_TOP_K:-2}}"
+FOCUS_PERSISTENCE_WEIGHT="${GATEFORGE_AGENT_FOCUS_PERSISTENCE_WEIGHT:-${PROFILE_FOCUS_PERSISTENCE_WEIGHT:-3.0}}"
 DECISION_MIN_SUCCESS_DELTA="${GATEFORGE_AGENT_DECISION_MIN_SUCCESS_DELTA:-0.01}"
 DECISION_MIN_TIME_DELTA="${GATEFORGE_AGENT_DECISION_MIN_TIME_DELTA:--0.01}"
 DECISION_MIN_ROUNDS_DELTA="${GATEFORGE_AGENT_DECISION_MIN_ROUNDS_DELTA:--0.01}"
-REPAIR_HISTORY_PATH="${GATEFORGE_AGENT_REPAIR_HISTORY_PATH:-data/private_failure_corpus/agent_modelica_repair_memory_v1.json}"
+REPAIR_HISTORY_PATH="${GATEFORGE_AGENT_REPAIR_HISTORY_PATH:-${PROFILE_REPAIR_HISTORY_PATH:-data/private_failure_corpus/agent_modelica_repair_memory_v1.json}}"
 
 CORE_MANIFEST="${GATEFORGE_AGENT_CORE_MUTATION_MANIFEST:-}"
 SMALL_MANIFEST="${GATEFORGE_AGENT_SMALL_MUTATION_MANIFEST:-}"
@@ -137,6 +235,15 @@ BASELINE_CMD=(
   python3 -m gateforge.agent_modelica_layered_baseline_v1
   --taskset-in "$TASKSET_FOR_BASELINE"
   --run-mode "$RUN_MODE"
+  --max-rounds "$MAX_ROUNDS"
+  --max-time-sec "$MAX_TIME_SEC"
+  --runtime-threshold "$RUNTIME_THRESHOLD"
+  --small-max-time-sec "$SMALL_MAX_TIME_SEC"
+  --medium-max-time-sec "$MEDIUM_MAX_TIME_SEC"
+  --large-max-time-sec "$LARGE_MAX_TIME_SEC"
+  --small-max-rounds "$SMALL_MAX_ROUNDS"
+  --medium-max-rounds "$MEDIUM_MAX_ROUNDS"
+  --large-max-rounds "$LARGE_MAX_ROUNDS"
   --physics-contract "$PHYSICS_CONTRACT"
   --repair-playbook "$REPAIR_PLAYBOOK"
   --repair-history "$REPAIR_HISTORY_PATH"
@@ -165,8 +272,9 @@ python3 -m gateforge.agent_modelica_focus_queue_from_attribution_v1 \
   --failure-attribution "$OUT_DIR/weekly/failure_attribution.json" \
   --run-results "$OUT_DIR/baseline/run_results.json" \
   --history-jsonl "$FOCUS_QUEUE_HISTORY" \
+  --persistence-weight "$FOCUS_PERSISTENCE_WEIGHT" \
   --append-history \
-  --top-k 2 \
+  --top-k "$FOCUS_TOP_K" \
   --out "$OUT_DIR/weekly/focus_queue_from_failure.json" \
   --report-out "$OUT_DIR/weekly/focus_queue_from_failure.md"
 
