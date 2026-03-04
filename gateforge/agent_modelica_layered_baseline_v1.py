@@ -203,6 +203,8 @@ def main() -> None:
     parser.add_argument("--physics-contract", default=DEFAULT_PHYSICS_CONTRACT_PATH)
     parser.add_argument("--repair-playbook", default=None)
     parser.add_argument("--repair-history", default=None)
+    parser.add_argument("--inject-hard-fail-count", type=int, default=0)
+    parser.add_argument("--inject-slow-pass-count", type=int, default=0)
     parser.add_argument("--run-mode", choices=["mock", "evidence"], default="mock")
     parser.add_argument("--runtime-threshold", type=float, default=0.2)
     parser.add_argument("--out", default="artifacts/agent_modelica_layered_baseline_v1/summary.json")
@@ -221,6 +223,8 @@ def main() -> None:
 
     taskset_path = str(out_dir / "taskset.json")
     taskset_summary_path = str(out_dir / "taskset_summary.json")
+    injected_taskset_path = str(out_dir / "taskset_injected.json")
+    inject_summary_path = str(out_dir / "inject_summary.json")
     run_results_path = str(out_dir / "run_results.json")
     run_summary_path = str(out_dir / "run_summary.json")
     acceptance_path = str(out_dir / "acceptance_summary.json")
@@ -262,11 +266,35 @@ def main() -> None:
             taskset_argv.extend(["--extra-mutation-manifest", extra])
         taskset_cmd = _run_module("gateforge.agent_modelica_taskset_lock_v1", taskset_argv)
 
+    hard_fail_count = max(0, int(args.inject_hard_fail_count))
+    slow_pass_count = max(0, int(args.inject_slow_pass_count))
+    inject_enabled = hard_fail_count > 0 or slow_pass_count > 0
+    if inject_enabled:
+        inject_cmd = _run_module(
+            "gateforge.agent_modelica_evidence_stress_injector_v1",
+            [
+                "--taskset-in",
+                taskset_path,
+                "--hard-fail-count",
+                str(hard_fail_count),
+                "--slow-pass-count",
+                str(slow_pass_count),
+                "--out-taskset",
+                injected_taskset_path,
+                "--out",
+                inject_summary_path,
+            ],
+        )
+        run_taskset_path = injected_taskset_path
+    else:
+        inject_cmd = {"returncode": 0, "stderr": "", "stdout": "", "module": "inject_disabled", "argv": []}
+        run_taskset_path = taskset_path
+
     run_cmd = _run_module(
         "gateforge.agent_modelica_run_contract_v1",
         [
             "--taskset",
-            taskset_path,
+            run_taskset_path,
             "--max-rounds",
             str(max(1, int(args.max_rounds))),
             "--max-time-sec",
@@ -311,7 +339,8 @@ def main() -> None:
     )
 
     taskset_summary = _load_json(taskset_summary_path)
-    taskset = _load_json(taskset_path)
+    taskset = _load_json(run_taskset_path)
+    inject_summary = _load_json(inject_summary_path)
     run_summary = _load_json(run_summary_path)
     run_results_payload = _load_json(run_results_path)
     acceptance_summary = _load_json(acceptance_path)
@@ -331,6 +360,8 @@ def main() -> None:
     reasons: list[str] = []
     if taskset_cmd["returncode"] != 0:
         reasons.append("taskset_lock_command_failed")
+    if inject_enabled and inject_cmd["returncode"] != 0 and not Path(inject_summary_path).exists():
+        reasons.append("stress_injector_command_failed_without_summary")
     if not Path(taskset_path).exists() or not tasks:
         reasons.append("taskset_missing_or_empty")
     if run_cmd["returncode"] != 0 and not Path(run_summary_path).exists():
@@ -365,6 +396,9 @@ def main() -> None:
         "regression_count": int(run_summary.get("regression_count", 0) or 0),
         "physics_fail_count": int(run_summary.get("physics_fail_count", 0) or 0),
         "run_mode": args.run_mode,
+        "inject_hard_fail_count": hard_fail_count,
+        "inject_slow_pass_count": slow_pass_count,
+        "inject_summary": inject_summary if isinstance(inject_summary, dict) else {},
         "runtime_threshold": float(args.runtime_threshold),
         "layered_pass_rate_pct_by_scale": layered_pass,
         "task_count_by_scale": counts_by_scale,
@@ -388,6 +422,10 @@ def main() -> None:
                 "returncode": run_cmd["returncode"],
                 "stderr_tail": str(run_cmd.get("stderr") or "").strip().splitlines()[-3:],
             },
+            "stress_injector": {
+                "returncode": inject_cmd["returncode"],
+                "stderr_tail": str(inject_cmd.get("stderr") or "").strip().splitlines()[-3:],
+            },
             "acceptance_gate": {
                 "returncode": acceptance_cmd["returncode"],
                 "stderr_tail": str(acceptance_cmd.get("stderr") or "").strip().splitlines()[-3:],
@@ -396,7 +434,9 @@ def main() -> None:
         "reasons": reasons,
         "paths": {
             "taskset": taskset_path,
+            "taskset_for_run": run_taskset_path,
             "taskset_summary": taskset_summary_path,
+            "inject_summary": inject_summary_path if inject_enabled else None,
             "run_results": run_results_path,
             "run_summary": run_summary_path,
             "acceptance_summary": acceptance_path,
@@ -408,6 +448,8 @@ def main() -> None:
             "physics_contract": args.physics_contract,
             "repair_playbook": args.repair_playbook,
             "repair_history": args.repair_history,
+            "inject_hard_fail_count": hard_fail_count,
+            "inject_slow_pass_count": slow_pass_count,
         },
     }
 
