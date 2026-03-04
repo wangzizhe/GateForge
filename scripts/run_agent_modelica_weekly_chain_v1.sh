@@ -6,9 +6,8 @@ cd "$ROOT_DIR"
 
 OUT_DIR="${GATEFORGE_AGENT_WEEKLY_CHAIN_OUT_DIR:-artifacts/agent_modelica_weekly_chain_v1}"
 WEEK_TAG="${GATEFORGE_AGENT_WEEK_TAG:-$(date -u +%G-W%V)}"
-RUN_MODE="${GATEFORGE_AGENT_RUN_MODE:-mock}"
+RUN_MODE="${GATEFORGE_AGENT_RUN_MODE:-evidence}"
 PHYSICS_CONTRACT="${GATEFORGE_AGENT_PHYSICS_CONTRACT:-policies/physics_contract_v0.json}"
-REPAIR_PLAYBOOK="${GATEFORGE_AGENT_REPAIR_PLAYBOOK:-}"
 PER_SCALE_TOTAL="${GATEFORGE_AGENT_PER_SCALE_TOTAL:-20}"
 PER_SCALE_FAILURE_TARGETS="${GATEFORGE_AGENT_PER_SCALE_FAILURE_TARGETS:-7,7,6}"
 
@@ -41,6 +40,17 @@ export OUT_DIR
 
 TASKSET_PATH="$OUT_DIR/tasksets/taskset_${WEEK_TAG}.json"
 TASKSET_SUMMARY="$OUT_DIR/tasksets/taskset_${WEEK_TAG}_summary.json"
+EVIDENCE_TASKSET_PATH="$OUT_DIR/tasksets/evidence_taskset_${WEEK_TAG}.json"
+
+if [ -z "${GATEFORGE_AGENT_REPAIR_PLAYBOOK:-}" ]; then
+  if [ -f "artifacts/agent_modelica_strategy_ab_v1/promoted_playbook.json" ]; then
+    REPAIR_PLAYBOOK="artifacts/agent_modelica_strategy_ab_v1/promoted_playbook.json"
+  else
+    REPAIR_PLAYBOOK="artifacts/agent_modelica_repair_playbook_v1/playbook.json"
+  fi
+else
+  REPAIR_PLAYBOOK="${GATEFORGE_AGENT_REPAIR_PLAYBOOK}"
+fi
 
 python3 -m gateforge.agent_modelica_taskset_snapshot_v1 \
   --mutation-manifest "$CORE_MANIFEST" \
@@ -53,8 +63,20 @@ python3 -m gateforge.agent_modelica_taskset_snapshot_v1 \
   --out "$TASKSET_SUMMARY" \
   --report-out "${TASKSET_SUMMARY%.json}.md"
 
+TASKSET_FOR_BASELINE="$TASKSET_PATH"
+if [ "$RUN_MODE" = "evidence" ]; then
+  python3 -m gateforge.agent_modelica_evidence_taskset_builder_v1 \
+    --taskset "$TASKSET_PATH" \
+    --include-scales small,medium,large \
+    --per-scale-limit "$PER_SCALE_TOTAL" \
+    --taskset-out "$EVIDENCE_TASKSET_PATH" \
+    --out "$OUT_DIR/tasksets/evidence_taskset_${WEEK_TAG}_summary.json" \
+    --report-out "$OUT_DIR/tasksets/evidence_taskset_${WEEK_TAG}_summary.md"
+  TASKSET_FOR_BASELINE="$EVIDENCE_TASKSET_PATH"
+fi
+
 python3 -m gateforge.agent_modelica_layered_baseline_v1 \
-  --taskset-in "$TASKSET_PATH" \
+  --taskset-in "$TASKSET_FOR_BASELINE" \
   --run-mode "$RUN_MODE" \
   --physics-contract "$PHYSICS_CONTRACT" \
   --repair-playbook "$REPAIR_PLAYBOOK" \
