@@ -6,6 +6,7 @@ cd "$ROOT_DIR"
 
 OUT_DIR="${GATEFORGE_AGENT_LAYERED_BASELINE_OUT_DIR:-artifacts/agent_modelica_layered_baseline_v1}"
 MUTATION_MANIFEST="${GATEFORGE_AGENT_LAYERED_BASELINE_MANIFEST:-}"
+REPAIR_HISTORY="${GATEFORGE_AGENT_LAYERED_BASELINE_REPAIR_HISTORY:-}"
 
 if [ -z "$MUTATION_MANIFEST" ]; then
   for candidate in \
@@ -28,11 +29,19 @@ fi
 
 mkdir -p "$OUT_DIR"
 
-python3 -m gateforge.agent_modelica_layered_baseline_v1 \
-  --mutation-manifest "$MUTATION_MANIFEST" \
-  --max-per-scale-failure-type 1 \
-  --out-dir "$OUT_DIR" \
-  --out "$OUT_DIR/summary.json" \
+CMD=(
+  python3 -m gateforge.agent_modelica_layered_baseline_v1
+  --mutation-manifest "$MUTATION_MANIFEST"
+  --max-per-scale-failure-type 1
+  --out-dir "$OUT_DIR"
+  --out "$OUT_DIR/summary.json"
   --report-out "$OUT_DIR/summary.md"
+)
+
+if [ -n "$REPAIR_HISTORY" ]; then
+  CMD+=(--repair-history "$REPAIR_HISTORY")
+fi
+
+"${CMD[@]}"
 
 cat "$OUT_DIR/summary.json"

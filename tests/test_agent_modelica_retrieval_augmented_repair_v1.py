@@ -62,6 +62,33 @@ class AgentModelicaRetrievalAugmentedRepairV1Tests(unittest.TestCase):
         actions = payload.get("suggested_actions") if isinstance(payload.get("suggested_actions"), list) else []
         self.assertEqual(actions, ["stabilize start values"])
 
+    def test_supports_run_results_records_shape(self) -> None:
+        history = {
+            "records": [
+                {
+                    "task_id": "task_mdl_largegrid_simulate_error_1",
+                    "failure_type": "simulate_error",
+                    "passed": True,
+                    "repair_strategy": {
+                        "strategy_id": "sim_init_stability",
+                        "actions": ["stabilize start values and initial equations near t=0"],
+                    },
+                    "repair_audit": {
+                        "actions_planned": ["fallback action should be ignored if strategy actions exist"],
+                    },
+                }
+            ]
+        }
+        payload = retrieve_repair_examples(
+            history_payload=history,
+            failure_type="simulate_error",
+            model_hint="mdl_largegrid.mo",
+            top_k=2,
+        )
+        self.assertEqual(int(payload.get("retrieved_count", 0)), 1)
+        actions = payload.get("suggested_actions") if isinstance(payload.get("suggested_actions"), list) else []
+        self.assertIn("stabilize start values and initial equations near t=0", actions)
+
 
 if __name__ == "__main__":
     unittest.main()

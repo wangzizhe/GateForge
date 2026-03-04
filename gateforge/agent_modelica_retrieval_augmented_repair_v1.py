@@ -64,9 +64,26 @@ def retrieve_repair_examples(
     prepared_rows: list[dict] = []
     for row in rows:
         row_ftype = _norm_text(row.get("failure_type"))
-        row_model = _norm_text(row.get("model_id") or row.get("source_model_path") or row.get("target_model_id"))
-        strategy_id = str(row.get("used_strategy") or row.get("strategy_id") or "")
+        row_model = _norm_text(
+            row.get("model_id") or row.get("source_model_path") or row.get("target_model_id") or row.get("task_id")
+        )
+        strategy_id = str(
+            row.get("used_strategy")
+            or row.get("strategy_id")
+            or (row.get("repair_strategy") or {}).get("strategy_id")
+            or (row.get("repair_audit") or {}).get("strategy_id")
+            or ""
+        )
         actions = row.get("action_trace") if isinstance(row.get("action_trace"), list) else row.get("actions")
+        if not isinstance(actions, list):
+            nested_strategy = row.get("repair_strategy") if isinstance(row.get("repair_strategy"), dict) else {}
+            nested_audit = row.get("repair_audit") if isinstance(row.get("repair_audit"), dict) else {}
+            if isinstance(nested_strategy.get("actions"), list):
+                actions = nested_strategy.get("actions")
+            elif isinstance(nested_audit.get("actions_planned"), list):
+                actions = nested_audit.get("actions_planned")
+            else:
+                actions = []
         actions = [str(x) for x in (actions or []) if isinstance(x, str)]
         prepared_rows.append(
             {
