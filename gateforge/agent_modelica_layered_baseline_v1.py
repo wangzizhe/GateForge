@@ -203,6 +203,7 @@ def main() -> None:
     parser.add_argument("--physics-contract", default=DEFAULT_PHYSICS_CONTRACT_PATH)
     parser.add_argument("--repair-playbook", default=None)
     parser.add_argument("--repair-history", default=None)
+    parser.add_argument("--focus-queue", default=None)
     parser.add_argument("--inject-hard-fail-count", type=int, default=0)
     parser.add_argument("--inject-slow-pass-count", type=int, default=0)
     parser.add_argument("--run-mode", choices=["mock", "evidence"], default="mock")
@@ -309,6 +310,8 @@ def main() -> None:
             str(args.repair_playbook or ""),
             "--repair-history",
             str(args.repair_history or ""),
+            "--focus-queue",
+            str(args.focus_queue or ""),
             "--results-out",
             run_results_path,
             "--out",
@@ -448,6 +451,7 @@ def main() -> None:
             "physics_contract": args.physics_contract,
             "repair_playbook": args.repair_playbook,
             "repair_history": args.repair_history,
+            "focus_queue": args.focus_queue,
             "inject_hard_fail_count": hard_fail_count,
             "inject_slow_pass_count": slow_pass_count,
         },

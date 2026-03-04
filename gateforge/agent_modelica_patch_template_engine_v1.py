@@ -45,9 +45,52 @@ TEMPLATES: dict[str, dict] = {
 }
 
 
-def build_patch_template(failure_type: str, expected_stage: str | None = None) -> dict:
+FOCUS_GATE_ACTIONS: dict[str, list[str]] = {
+    "regression_fail": [
+        "enforce no-regression guard before accepting patch",
+        "bound runtime drift within configured threshold before final merge",
+        "prefer minimal localized edit over broad rewrite when regression risk rises",
+    ],
+    "physics_contract_fail": [
+        "enforce invariant-first correction until physics contract re-passes",
+        "reject edits that trade physical consistency for runtime speed",
+    ],
+    "simulate_fail": [
+        "repair initialization stability before any structural optimization edits",
+    ],
+    "check_model_fail": [
+        "restore compile/checkModel pass before touching simulation behavior",
+    ],
+}
+
+
+def _focus_actions(focus_queue_payload: dict, failure_type: str) -> list[str]:
+    queue = focus_queue_payload.get("queue") if isinstance(focus_queue_payload.get("queue"), list) else []
+    queue = [x for x in queue if isinstance(x, dict)]
+    ftype = str(failure_type or "").strip().lower()
+    out: list[str] = []
+    seen: set[str] = set()
+    for row in queue:
+        row_ftype = str(row.get("failure_type") or "").strip().lower()
+        if row_ftype != ftype:
+            continue
+        gate = str(row.get("gate_break_reason") or "").strip().lower()
+        for item in FOCUS_GATE_ACTIONS.get(gate, []):
+            text = str(item).strip()
+            if text and text not in seen:
+                out.append(text)
+                seen.add(text)
+    return out
+
+
+def build_patch_template(
+    failure_type: str,
+    expected_stage: str | None = None,
+    focus_queue_payload: dict | None = None,
+) -> dict:
     ftype = str(failure_type or "unknown").strip().lower()
     base = TEMPLATES.get(ftype)
+    focus_actions = _focus_actions(focus_queue_payload or {}, failure_type=ftype)
     if not base:
         return {
             "template_id": "tpl_generic_minimal_repair_v1",
@@ -56,15 +99,18 @@ def build_patch_template(failure_type: str, expected_stage: str | None = None) -
             "actions": [
                 "classify failure signal before editing",
                 "apply minimal deterministic fix and rerun hard gates",
+                *focus_actions,
             ],
             "edit_directives": [{"kind": "minimal_safe_fix", "priority": "medium"}],
+            "focus_actions_count": len(focus_actions),
         }
     return {
         "template_id": str(base.get("template_id") or "tpl_unknown"),
         "failure_type": ftype,
         "expected_stage": str(expected_stage or "unknown"),
-        "actions": [str(x) for x in (base.get("actions") or []) if isinstance(x, str)],
+        "actions": [str(x) for x in (base.get("actions") or []) if isinstance(x, str)] + focus_actions,
         "edit_directives": [x for x in (base.get("edit_directives") or []) if isinstance(x, dict)],
+        "focus_actions_count": len(focus_actions),
     }
 
 

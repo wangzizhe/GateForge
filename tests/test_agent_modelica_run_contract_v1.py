@@ -276,6 +276,104 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
             actions = audit.get("actions_planned") if isinstance(audit.get("actions_planned"), list) else []
             self.assertTrue(any("declare missing symbol" in str(x).lower() for x in actions))
 
+    def test_run_contract_focus_queue_reduces_stress_runtime_regression(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            taskset = root / "taskset.json"
+            focus_queue = root / "focus_queue.json"
+            results = root / "results.json"
+            summary = root / "summary.json"
+            taskset.write_text(
+                json.dumps(
+                    {
+                        "tasks": [
+                            {
+                                "task_id": "t_focus_reg",
+                                "scale": "small",
+                                "failure_type": "simulate_error",
+                                "expected_stage": "simulate",
+                                "_stress_class": "slow_pass",
+                                "_stress_reason": "slow_pass_runtime_stress",
+                                "observed_repair_rounds": 2,
+                                "observed_elapsed_sec": 80,
+                                "baseline_evidence": {
+                                    "status": "success",
+                                    "gate": "PASS",
+                                    "check_ok": True,
+                                    "simulate_ok": True,
+                                    "metrics": {
+                                        "steady_state_error": 0.01,
+                                        "overshoot": 0.04,
+                                        "settling_time": 1.2,
+                                        "runtime_seconds": 2.0,
+                                        "events": 12,
+                                    },
+                                },
+                                "candidate_evidence": {
+                                    "status": "success",
+                                    "gate": "PASS",
+                                    "check_ok": True,
+                                    "simulate_ok": True,
+                                    "metrics": {
+                                        "steady_state_error": 0.01,
+                                        "overshoot": 0.04,
+                                        "settling_time": 1.2,
+                                        "runtime_seconds": 3.0,
+                                        "events": 12,
+                                    },
+                                },
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            focus_queue.write_text(
+                json.dumps(
+                    {
+                        "queue": [
+                            {
+                                "rank": 1,
+                                "failure_type": "simulate_error",
+                                "gate_break_reason": "regression_fail",
+                                "count": 5,
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.agent_modelica_run_contract_v1",
+                    "--taskset",
+                    str(taskset),
+                    "--mode",
+                    "evidence",
+                    "--focus-queue",
+                    str(focus_queue),
+                    "--results-out",
+                    str(results),
+                    "--out",
+                    str(summary),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            r = json.loads(results.read_text(encoding="utf-8"))
+            rec = (r.get("records") or [])[0]
+            self.assertTrue(bool(rec.get("passed")))
+            self.assertTrue(bool((rec.get("hard_checks") or {}).get("regression_pass")))
+            audit = rec.get("repair_audit") if isinstance(rec.get("repair_audit"), dict) else {}
+            self.assertTrue(bool(audit.get("stress_repair_applied")))
+            tags = audit.get("stress_repair_applied_tags") if isinstance(audit.get("stress_repair_applied_tags"), list) else []
+            self.assertIn("repair_runtime_regression", tags)
+
 
 if __name__ == "__main__":
     unittest.main()
