@@ -1,0 +1,109 @@
+from __future__ import annotations
+
+import argparse
+import json
+from datetime import datetime, timezone
+from pathlib import Path
+
+
+def _load_json(path: str) -> dict:
+    p = Path(path)
+    if not p.exists():
+        return {}
+    return json.loads(p.read_text(encoding="utf-8"))
+
+
+def _write_json(path: str, payload: dict) -> None:
+    p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+
+def _default_md_path(out_json: str) -> str:
+    out = Path(out_json)
+    if out.suffix == ".json":
+        return str(out.with_suffix(".md"))
+    return f"{out_json}.md"
+
+
+def _write_markdown(path: str, payload: dict) -> None:
+    p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    lines = [
+        "# GateForge Agent Modelica Strategy Promote v1",
+        "",
+        f"- status: `{payload.get('status')}`",
+        f"- promoted_count: `{payload.get('promoted_count')}`",
+        f"- decision: `{payload.get('decision')}`",
+        "",
+    ]
+    p.write_text("\n".join(lines), encoding="utf-8")
+
+
+def _score(row: dict) -> float:
+    return (
+        float(row.get("delta_pass_rate_pct", 0.0) or 0.0) * 10.0
+        - float(row.get("delta_avg_elapsed_sec", 0.0) or 0.0)
+        + float(row.get("count", 0) or 0.0)
+    )
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Promote top repair strategies from A/B summary")
+    parser.add_argument("--ab-summary", required=True)
+    parser.add_argument("--treatment-playbook", required=True)
+    parser.add_argument("--top-k", type=int, default=2)
+    parser.add_argument("--out", default="artifacts/agent_modelica_strategy_promote_v1/promoted_playbook.json")
+    parser.add_argument("--report-out", default=None)
+    args = parser.parse_args()
+
+    ab = _load_json(args.ab_summary)
+    treatment = _load_json(args.treatment_playbook)
+    per_failure = ab.get("per_failure_type") if isinstance(ab.get("per_failure_type"), dict) else {}
+    playbook = treatment.get("playbook") if isinstance(treatment.get("playbook"), list) else []
+    playbook = [x for x in playbook if isinstance(x, dict)]
+
+    ranked_failures = sorted(
+        [
+            {
+                "failure_type": ftype,
+                **(row if isinstance(row, dict) else {}),
+                "score": _score(row if isinstance(row, dict) else {}),
+            }
+            for ftype, row in per_failure.items()
+            if isinstance(ftype, str)
+        ],
+        key=lambda x: (-float(x.get("score", 0.0)), x.get("failure_type", "")),
+    )
+    top_failures = [x.get("failure_type") for x in ranked_failures[: max(1, int(args.top_k))]]
+
+    promoted_entries: list[dict] = []
+    for ftype in top_failures:
+        candidates = [x for x in playbook if str(x.get("failure_type") or "") == ftype]
+        if not candidates:
+            continue
+        best = sorted(candidates, key=lambda x: (-int(x.get("priority", 0) or 0), str(x.get("strategy_id") or "")))[0]
+        promoted_entries.append(best)
+
+    if not promoted_entries:
+        promoted_entries = sorted(playbook, key=lambda x: (-int(x.get("priority", 0) or 0), str(x.get("strategy_id") or "")))[:2]
+
+    payload = {
+        "schema_version": "agent_modelica_repair_playbook_v1",
+        "generated_at_utc": datetime.now(timezone.utc).isoformat(),
+        "status": "PASS",
+        "decision": str(ab.get("decision") or "UNKNOWN"),
+        "promoted_count": len(promoted_entries),
+        "playbook": promoted_entries,
+        "sources": {
+            "ab_summary": args.ab_summary,
+            "treatment_playbook": args.treatment_playbook,
+        },
+    }
+    _write_json(args.out, payload)
+    _write_markdown(args.report_out or _default_md_path(args.out), payload)
+    print(json.dumps({"status": payload.get("status"), "promoted_count": payload.get("promoted_count")}))
+
+
+if __name__ == "__main__":
+    main()

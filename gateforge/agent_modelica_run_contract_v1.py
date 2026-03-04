@@ -79,9 +79,46 @@ def _default_candidate_metrics(failure_type: str, baseline_metrics: dict) -> dic
     return candidate
 
 
-def _run_task_mock(task: dict, max_rounds: int, max_time_sec: int, physics_contract: dict, repair_playbook: dict) -> dict:
+def _strategy_effect(task: dict, strategy: dict) -> tuple[int, float, dict]:
+    reason = str(strategy.get("reason") or "unknown")
+    priority = int(strategy.get("priority", 0) or 0)
+    confidence = float(strategy.get("confidence", 0.0) or 0.0)
+    base_success_round = int(task.get("mock_success_round", 2) or 2)
+    base_round_sec = float(int(task.get("mock_round_duration_sec", 30) or 30))
+    delta_round = 0
+    speedup_ratio = 0.0
+    if reason == "stage_matched" and priority >= 90 and confidence >= 0.8:
+        delta_round = -1
+        speedup_ratio = 0.2
+    elif reason in {"failure_type_matched"} and priority >= 85 and confidence >= 0.7:
+        delta_round = -1
+        speedup_ratio = 0.1
+
+    adjusted_success_round = max(1, base_success_round + delta_round)
+    adjusted_round_sec = max(1.0, base_round_sec * (1.0 - speedup_ratio))
+    audit = {
+        "base_success_round": base_success_round,
+        "base_round_duration_sec": base_round_sec,
+        "adjusted_success_round": adjusted_success_round,
+        "adjusted_round_duration_sec": round(adjusted_round_sec, 2),
+        "delta_round": delta_round,
+        "speedup_ratio": speedup_ratio,
+        "reason": reason,
+        "strategy_id": str(strategy.get("strategy_id") or ""),
+    }
+    return adjusted_success_round, adjusted_round_sec, audit
+
+
+def _run_task_mock(
+    task: dict,
+    max_rounds: int,
+    max_time_sec: int,
+    physics_contract: dict,
+    repair_playbook: dict,
+    strategy_effect_enabled: bool,
+) -> dict:
     success_round = int(task.get("mock_success_round", 2) or 2)
-    round_sec = int(task.get("mock_round_duration_sec", 30) or 30)
+    round_sec = float(int(task.get("mock_round_duration_sec", 30) or 30))
     forced_regression_fail = bool(task.get("mock_force_regression_fail", False))
     forced_physics_fail = bool(task.get("mock_force_physics_fail", False))
     failure_type = str(task.get("failure_type") or "unknown")
@@ -105,6 +142,27 @@ def _run_task_mock(task: dict, max_rounds: int, max_time_sec: int, physics_contr
         failure_type=failure_type,
         expected_stage=str(task.get("expected_stage") or "unknown"),
     )
+    strategy_audit = {
+        "strategy_effect_enabled": bool(strategy_effect_enabled),
+        "strategy_id": str(repair_strategy.get("strategy_id") or ""),
+        "strategy_reason": str(repair_strategy.get("reason") or ""),
+        "strategy_confidence": float(repair_strategy.get("confidence", 0.0) or 0.0),
+        "actions_planned": [str(x) for x in (repair_strategy.get("actions") or []) if isinstance(x, str)],
+    }
+    if strategy_effect_enabled:
+        success_round, round_sec, effect_audit = _strategy_effect(task=task, strategy=repair_strategy)
+        strategy_audit.update(effect_audit)
+    else:
+        strategy_audit.update(
+            {
+                "base_success_round": success_round,
+                "base_round_duration_sec": round_sec,
+                "adjusted_success_round": success_round,
+                "adjusted_round_duration_sec": round(round_sec, 2),
+                "delta_round": 0,
+                "speedup_ratio": 0.0,
+            }
+        )
     hard = {
         "check_model_pass": False,
         "simulate_pass": False,
@@ -162,6 +220,8 @@ def _run_task_mock(task: dict, max_rounds: int, max_time_sec: int, physics_contr
                 "physics_contract_reasons": list(physics_eval.get("reasons") or []),
                 "physics_contract_invariant_count": int(physics_eval.get("invariant_count") or 0),
                 "regression_pass": regression_ok,
+                "repair_actions_planned": [str(x) for x in (repair_strategy.get("actions") or []) if isinstance(x, str)],
+                "repair_strategy_id": str(repair_strategy.get("strategy_id") or ""),
             }
         )
         if check_ok and simulate_ok and physics_ok and regression_ok and total_time <= max_time_sec:
@@ -187,9 +247,15 @@ def _run_task_mock(task: dict, max_rounds: int, max_time_sec: int, physics_contr
         "passed": passed,
         "rounds_used": rounds_used,
         "time_to_pass_sec": total_time if passed else None,
-        "elapsed_sec": total_time,
+        "elapsed_sec": round(total_time, 2),
         "hard_checks": hard,
         "repair_strategy": repair_strategy,
+        "repair_audit": {
+            **strategy_audit,
+            "attempt_count": len(attempts),
+            "final_round_used": rounds_used,
+            "final_passed": passed,
+        },
         "physics_contract_reasons": [
             str(x)
             for x in (attempts[-1].get("physics_contract_reasons") if attempts else [])
@@ -226,6 +292,19 @@ def _run_task_evidence(
     )
     rounds_used = max(1, int(task.get("observed_repair_rounds", 1) or 1))
     rounds_used = min(rounds_used, max_rounds)
+    strategy_audit = {
+        "strategy_effect_enabled": False,
+        "strategy_id": str(repair_strategy.get("strategy_id") or ""),
+        "strategy_reason": str(repair_strategy.get("reason") or ""),
+        "strategy_confidence": float(repair_strategy.get("confidence", 0.0) or 0.0),
+        "actions_planned": [str(x) for x in (repair_strategy.get("actions") or []) if isinstance(x, str)],
+        "base_success_round": rounds_used,
+        "base_round_duration_sec": None,
+        "adjusted_success_round": rounds_used,
+        "adjusted_round_duration_sec": None,
+        "delta_round": 0,
+        "speedup_ratio": 0.0,
+    }
 
     baseline_evidence = _read_evidence_task(task, "baseline_evidence", "baseline_evidence_path")
     candidate_evidence = _read_evidence_task(task, "candidate_evidence", "candidate_evidence_path")
@@ -302,6 +381,12 @@ def _run_task_evidence(
             "regression_pass": regression_ok,
         },
         "repair_strategy": repair_strategy,
+        "repair_audit": {
+            **strategy_audit,
+            "attempt_count": 1,
+            "final_round_used": rounds_used,
+            "final_passed": passed,
+        },
         "physics_contract_reasons": [str(x) for x in (physics_eval.get("reasons") or []) if isinstance(x, str)],
         "regression_reasons": [str(x) for x in (regression.get("reasons") or []) if isinstance(x, str)],
         "attempts": attempts,
@@ -317,6 +402,7 @@ def main() -> None:
     parser.add_argument("--runtime-threshold", type=float, default=0.2)
     parser.add_argument("--physics-contract", default=DEFAULT_PHYSICS_CONTRACT_PATH)
     parser.add_argument("--repair-playbook", default=None)
+    parser.add_argument("--strategy-effect", choices=["on", "off"], default="on")
     parser.add_argument("--results-out", default="artifacts/agent_modelica_run_contract_v1/results.json")
     parser.add_argument("--out", default="artifacts/agent_modelica_run_contract_v1/summary.json")
     parser.add_argument("--report-out", default=None)
@@ -355,12 +441,17 @@ def main() -> None:
                     max_time_sec=max_time_sec,
                     physics_contract=physics_contract,
                     repair_playbook=repair_playbook,
+                    strategy_effect_enabled=(args.strategy_effect == "on"),
                 )
             )
 
     success_rows = [x for x in records if bool(x.get("passed"))]
     success_count = len(success_rows)
-    times = [int(x.get("time_to_pass_sec")) for x in success_rows if isinstance(x.get("time_to_pass_sec"), int)]
+    times = [
+        float(x.get("time_to_pass_sec"))
+        for x in success_rows
+        if isinstance(x.get("time_to_pass_sec"), (int, float))
+    ]
     rounds = [int(x.get("rounds_used")) for x in success_rows if isinstance(x.get("rounds_used"), int)]
     regression_count = len([x for x in records if not bool((x.get("hard_checks") or {}).get("regression_pass"))])
     physics_fail_count = len([x for x in records if not bool((x.get("hard_checks") or {}).get("physics_contract_pass"))])
@@ -380,6 +471,7 @@ def main() -> None:
         "physics_contract_source": physics_contract_source,
         "repair_playbook_source": repair_playbook.get("source") if isinstance(repair_playbook, dict) else None,
         "mode": args.mode,
+        "strategy_effect": args.strategy_effect,
         "records": records,
     }
     _write_json(args.results_out, results_payload)
@@ -398,6 +490,7 @@ def main() -> None:
         "physics_contract_source": physics_contract_source,
         "repair_playbook_source": repair_playbook.get("source") if isinstance(repair_playbook, dict) else None,
         "mode": args.mode,
+        "strategy_effect": args.strategy_effect,
         "max_rounds": max_rounds,
         "max_time_sec": max_time_sec,
         "runtime_threshold": float(args.runtime_threshold),
