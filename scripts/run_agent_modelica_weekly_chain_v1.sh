@@ -76,23 +76,17 @@ from pathlib import Path
 
 out_dir = Path(os.environ["OUT_DIR"])
 week_page = json.loads((out_dir / "weekly" / "page.json").read_text(encoding="utf-8"))
-baseline = json.loads((out_dir / "baseline" / "summary.json").read_text(encoding="utf-8"))
 taskset = json.loads((out_dir / "tasksets" / f"taskset_{week_page.get('week_tag')}_summary.json").read_text(encoding="utf-8"))
 
 summary = {
     "week_tag": week_page.get("week_tag"),
     "status": week_page.get("status"),
-    "taskset_status": taskset.get("status"),
-    "quota_mode": taskset.get("quota_mode"),
-    "coverage_gap": taskset.get("coverage_gap"),
-    "baseline_status": baseline.get("status"),
     "success_at_k_pct": week_page.get("success_at_k_pct"),
     "median_time_to_pass_sec": week_page.get("median_time_to_pass_sec"),
     "median_repair_rounds": week_page.get("median_repair_rounds"),
     "regression_count": week_page.get("regression_count"),
     "physics_fail_count": week_page.get("physics_fail_count"),
     "layered_pass_rate_pct_by_scale": week_page.get("layered_pass_rate_pct_by_scale"),
-    "top_fail_reasons": week_page.get("top_fail_reasons"),
 }
 (out_dir / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
 print(json.dumps(summary))
