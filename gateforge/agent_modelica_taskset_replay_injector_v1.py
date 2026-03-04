@@ -148,12 +148,52 @@ def _select_replay_tasks(ranked: list[dict], max_replay: int) -> list[dict]:
     return selected[:max_replay]
 
 
+def _apply_min_per_failure_type(
+    selected: list[dict],
+    ranked: list[dict],
+    *,
+    min_per_failure_type: int,
+    max_replay: int,
+) -> list[dict]:
+    if min_per_failure_type <= 0 or max_replay <= 0:
+        return selected[:max_replay]
+
+    by_failure_selected: dict[str, int] = {}
+    for row in selected:
+        ftype = str(row.get("failure_type") or "unknown")
+        by_failure_selected[ftype] = int(by_failure_selected.get(ftype, 0)) + 1
+
+    by_failure_ranked: dict[str, list[dict]] = {}
+    for row in ranked:
+        ftype = str(row.get("failure_type") or "unknown")
+        by_failure_ranked.setdefault(ftype, []).append(row)
+
+    selected_ids = {str(x.get("task_id") or "") for x in selected}
+    out = list(selected)
+    missing_failures = sorted([f for f in by_failure_ranked.keys() if int(by_failure_selected.get(f, 0)) < min_per_failure_type])
+    for ftype in missing_failures:
+        need = min_per_failure_type - int(by_failure_selected.get(ftype, 0))
+        if need <= 0:
+            continue
+        candidates = [x for x in by_failure_ranked.get(ftype, []) if str(x.get("task_id") or "") not in selected_ids]
+        for row in candidates[:need]:
+            out.append(row)
+            selected_ids.add(str(row.get("task_id") or ""))
+            by_failure_selected[ftype] = int(by_failure_selected.get(ftype, 0)) + 1
+
+    # Keep newest injected rows by replacing tail of initial selection when overflowing.
+    if len(out) > max_replay:
+        out = out[-max_replay:]
+    return out
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Inject previous hard cases into current weekly taskset")
     parser.add_argument("--current-taskset", required=True)
     parser.add_argument("--prev-taskset", required=True)
     parser.add_argument("--prev-run-results", required=True)
     parser.add_argument("--max-replay", type=int, default=6)
+    parser.add_argument("--min-per-failure-type", type=int, default=1)
     parser.add_argument("--out-taskset", required=True)
     parser.add_argument("--out", default="artifacts/agent_modelica_taskset_replay_injector_v1/summary.json")
     parser.add_argument("--report-out", default=None)
@@ -170,6 +210,12 @@ def main() -> None:
     ranked = _rank_replay_tasks(prev_taskset=prev_taskset, prev_run_results=prev_results)
     max_replay = max(0, int(args.max_replay))
     selected = _select_replay_tasks(ranked=ranked, max_replay=max_replay)
+    selected = _apply_min_per_failure_type(
+        selected=selected,
+        ranked=ranked,
+        min_per_failure_type=max(0, int(args.min_per_failure_type)),
+        max_replay=max_replay,
+    )
     selected_ids = {str(x.get("task_id") or "") for x in selected}
 
     merged: list[dict] = [dict(x) for x in selected]
@@ -211,6 +257,7 @@ def main() -> None:
         "injected_replay_count": len(injected),
         "injected_mix": injected_mix,
         "max_replay": max_replay,
+        "min_per_failure_type": max(0, int(args.min_per_failure_type)),
         "out_taskset": args.out_taskset,
     }
     _write_json(args.out, payload)

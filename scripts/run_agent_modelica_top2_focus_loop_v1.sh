@@ -8,6 +8,9 @@ OUT_DIR="${GATEFORGE_AGENT_TOP2_FOCUS_OUT_DIR:-artifacts/agent_modelica_top2_foc
 WEEK_TAG="${GATEFORGE_AGENT_WEEK_TAG:-$(date -u +%G-W%V)}"
 BASE_PLAYBOOK="${GATEFORGE_AGENT_BASE_PLAYBOOK:-artifacts/agent_modelica_repair_playbook_v1/playbook.json}"
 TASKSET="${GATEFORGE_AGENT_TOP2_TASKSET:-artifacts/agent_modelica_weekly_chain_v1/tasksets/evidence_taskset_${WEEK_TAG}.json}"
+OUTCOME_WEIGHT="${GATEFORGE_AGENT_TOP2_OUTCOME_WEIGHT:-0.7}"
+STRATEGY_WEIGHT="${GATEFORGE_AGENT_TOP2_STRATEGY_WEIGHT:-0.3}"
+STRATEGY_TARGET_SCORE="${GATEFORGE_AGENT_TOP2_STRATEGY_TARGET_SCORE:-0.8}"
 
 if [ ! -f "$TASKSET" ]; then
   echo "Evidence taskset not found: $TASKSET" >&2
@@ -19,7 +22,7 @@ if [ ! -f "$BASE_PLAYBOOK" ]; then
 fi
 
 mkdir -p "$OUT_DIR"
-export OUT_DIR WEEK_TAG
+export OUT_DIR WEEK_TAG OUTCOME_WEIGHT STRATEGY_WEIGHT STRATEGY_TARGET_SCORE
 
 python3 -m gateforge.agent_modelica_strategy_ab_test_v1 \
   --taskset "$TASKSET" \
@@ -32,6 +35,9 @@ python3 -m gateforge.agent_modelica_strategy_ab_test_v1 \
 python3 -m gateforge.agent_modelica_top_failure_queue_v1 \
   --ab-summary "$OUT_DIR/ab_before.json" \
   --top-k 2 \
+  --outcome-weight "$OUTCOME_WEIGHT" \
+  --strategy-weight "$STRATEGY_WEIGHT" \
+  --strategy-target-score "$STRATEGY_TARGET_SCORE" \
   --out "$OUT_DIR/top2_queue.json" \
   --report-out "$OUT_DIR/top2_queue.md"
 
@@ -70,6 +76,11 @@ summary = {
     "week_tag": os.environ["WEEK_TAG"],
     "status": "PASS",
     "queue": queue.get("queue", []),
+    "weight_config": {
+        "outcome_weight": float(os.environ.get("OUTCOME_WEIGHT", "0.7")),
+        "strategy_weight": float(os.environ.get("STRATEGY_WEIGHT", "0.3")),
+        "strategy_target_score": float(os.environ.get("STRATEGY_TARGET_SCORE", "0.8")),
+    },
     "before_decision": before.get("decision"),
     "after_decision": after.get("decision"),
     "before_delta": before_delta,

@@ -182,6 +182,76 @@ class AgentModelicaTasksetReplayInjectorV1Tests(unittest.TestCase):
             self.assertEqual(selected_ftypes, {"simulate_error", "semantic_regression"})
             self.assertTrue(all(str(x.get("_replay_class") or "") == "hard_fail" for x in selected))
 
+    def test_min_per_failure_type_enforced_when_candidates_exist(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            current_taskset = root / "current.json"
+            prev_taskset = root / "prev_taskset.json"
+            prev_results = root / "prev_results.json"
+            out_taskset = root / "out_taskset.json"
+            out_summary = root / "summary.json"
+
+            current_taskset.write_text(
+                json.dumps({"tasks": [{"task_id": f"task_{i}", "failure_type": "simulate_error"} for i in range(1, 7)]}),
+                encoding="utf-8",
+            )
+            prev_taskset.write_text(
+                json.dumps(
+                    {
+                        "tasks": [
+                            {"task_id": "s1", "failure_type": "simulate_error"},
+                            {"task_id": "s2", "failure_type": "simulate_error"},
+                            {"task_id": "m1", "failure_type": "model_check_error"},
+                            {"task_id": "r1", "failure_type": "semantic_regression"},
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            prev_results.write_text(
+                json.dumps(
+                    {
+                        "records": [
+                            {"task_id": "s1", "passed": False, "elapsed_sec": 100, "hard_checks": {"simulate_pass": False}},
+                            {"task_id": "s2", "passed": False, "elapsed_sec": 90, "hard_checks": {"simulate_pass": False}},
+                            {"task_id": "m1", "passed": False, "elapsed_sec": 5, "hard_checks": {"simulate_pass": False}},
+                            {"task_id": "r1", "passed": False, "elapsed_sec": 4, "hard_checks": {"simulate_pass": False}},
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.agent_modelica_taskset_replay_injector_v1",
+                    "--current-taskset",
+                    str(current_taskset),
+                    "--prev-taskset",
+                    str(prev_taskset),
+                    "--prev-run-results",
+                    str(prev_results),
+                    "--max-replay",
+                    "3",
+                    "--min-per-failure-type",
+                    "1",
+                    "--out-taskset",
+                    str(out_taskset),
+                    "--out",
+                    str(out_summary),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            out = json.loads(out_taskset.read_text(encoding="utf-8"))
+            selected = out.get("tasks", [])[:3]
+            selected_ftypes = {str(x.get("failure_type") or "") for x in selected}
+            self.assertEqual(selected_ftypes, {"simulate_error", "model_check_error", "semantic_regression"})
+
 
 if __name__ == "__main__":
     unittest.main()
