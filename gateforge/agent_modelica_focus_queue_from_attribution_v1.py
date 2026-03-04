@@ -60,6 +60,31 @@ def _write_markdown(path: str, payload: dict) -> None:
     p.write_text("\n".join(lines), encoding="utf-8")
 
 
+def _read_history(path: str) -> list[dict]:
+    p = Path(path)
+    if not p.exists():
+        return []
+    rows: list[dict] = []
+    for line in p.read_text(encoding="utf-8").splitlines():
+        text = line.strip()
+        if not text:
+            continue
+        try:
+            row = json.loads(text)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(row, dict):
+            rows.append(row)
+    return rows
+
+
+def _append_history(path: str, row: dict) -> None:
+    p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    with p.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(row, ensure_ascii=True) + "\n")
+
+
 def _gate_family(reason: str) -> str:
     text = str(reason or "").strip().lower()
     if not text:
@@ -87,6 +112,22 @@ def _objective(gate_reason: str) -> str:
     return "reduce_unknown_fail"
 
 
+def _pair_streak(previous_entries: list[dict], pair: tuple[str, str]) -> int:
+    streak = 0
+    for row in reversed(previous_entries):
+        queue = row.get("queue") if isinstance(row.get("queue"), list) else []
+        queue_pairs = {
+            (str(x.get("failure_type") or "unknown"), str(x.get("gate_break_reason") or "unknown_fail"))
+            for x in queue
+            if isinstance(x, dict)
+        }
+        if pair in queue_pairs:
+            streak += 1
+        else:
+            break
+    return streak
+
+
 def _regression_fail_map(run_results_payload: dict) -> dict[str, bool]:
     records = run_results_payload.get("records") if isinstance(run_results_payload.get("records"), list) else []
     records = [x for x in records if isinstance(x, dict)]
@@ -104,6 +145,8 @@ def build_focus_queue(
     attribution_payload: dict,
     top_k: int = 2,
     run_results_payload: dict | None = None,
+    previous_entries: list[dict] | None = None,
+    persistence_weight: float = 3.0,
 ) -> dict:
     rows = attribution_payload.get("rows") if isinstance(attribution_payload.get("rows"), list) else []
     rows = [x for x in rows if isinstance(x, dict)]
@@ -121,12 +164,16 @@ def build_focus_queue(
 
     ranked: list[dict] = []
     for (ftype, gate), count in pair_counts.items():
-        priority = round((float(count) * 10.0) + float(GATE_WEIGHT.get(gate, 1.0)), 4)
+        streak = _pair_streak(previous_entries or [], (ftype, gate))
+        persistence_bonus = round(float(streak) * float(persistence_weight), 4)
+        priority = round((float(count) * 10.0) + float(GATE_WEIGHT.get(gate, 1.0)) + persistence_bonus, 4)
         ranked.append(
             {
                 "failure_type": ftype,
                 "gate_break_reason": gate,
                 "count": count,
+                "streak_count": streak,
+                "persistence_bonus": persistence_bonus,
                 "priority_score": priority,
                 "objective": _objective(gate),
                 "action_hint": f"focus_{ftype}_{gate}",
@@ -147,6 +194,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Build top focus queue from failure attribution by gate+failure_type")
     parser.add_argument("--failure-attribution", required=True)
     parser.add_argument("--run-results", default=None)
+    parser.add_argument("--history-jsonl", default=None)
+    parser.add_argument("--persistence-weight", type=float, default=3.0)
+    parser.add_argument("--append-history", action="store_true")
     parser.add_argument("--top-k", type=int, default=2)
     parser.add_argument("--out", default="artifacts/agent_modelica_focus_queue_from_attribution_v1/queue.json")
     parser.add_argument("--report-out", default=None)
@@ -154,10 +204,13 @@ def main() -> None:
 
     attribution = _load_json(args.failure_attribution)
     run_results = _load_json(str(args.run_results)) if isinstance(args.run_results, str) and args.run_results.strip() else {}
+    previous_entries = _read_history(str(args.history_jsonl)) if isinstance(args.history_jsonl, str) and args.history_jsonl.strip() else []
     payload = build_focus_queue(
         attribution_payload=attribution,
         top_k=max(1, int(args.top_k)),
         run_results_payload=run_results,
+        previous_entries=previous_entries,
+        persistence_weight=float(args.persistence_weight),
     )
     out = {
         "schema_version": "agent_modelica_focus_queue_from_attribution_v1",
@@ -168,8 +221,21 @@ def main() -> None:
     }
     if isinstance(args.run_results, str) and args.run_results.strip():
         out["sources"]["run_results"] = args.run_results
+    if isinstance(args.history_jsonl, str) and args.history_jsonl.strip():
+        out["sources"]["history_jsonl"] = args.history_jsonl
     _write_json(args.out, out)
     _write_markdown(args.report_out or _default_md_path(args.out), out)
+    if args.append_history and isinstance(args.history_jsonl, str) and args.history_jsonl.strip():
+        _append_history(
+            str(args.history_jsonl),
+            {
+                "generated_at_utc": out.get("generated_at_utc"),
+                "queue": out.get("queue", []),
+                "queue_size": out.get("queue_size"),
+                "pair_count": out.get("pair_count"),
+                "source_failure_attribution": args.failure_attribution,
+            },
+        )
     print(json.dumps({"status": out.get("status"), "queue_size": out.get("queue_size")}))
 
 
