@@ -9,6 +9,9 @@ WEEK1_TAG="${GATEFORGE_AGENT_WEEK1_TAG:-replay_w1}"
 WEEK2_TAG="${GATEFORGE_AGENT_WEEK2_TAG:-replay_w2}"
 HARDPACK_PATH="${GATEFORGE_AGENT_HARDPACK_PATH:-benchmarks/agent_modelica_hardpack_v1.json}"
 BASE_PLAYBOOK="${GATEFORGE_AGENT_BASE_PLAYBOOK:-artifacts/agent_modelica_repair_playbook_v1/playbook.json}"
+DECISION_MIN_SUCCESS_DELTA="${GATEFORGE_AGENT_DECISION_MIN_SUCCESS_DELTA:-0.01}"
+DECISION_MIN_TIME_DELTA="${GATEFORGE_AGENT_DECISION_MIN_TIME_DELTA:--0.01}"
+DECISION_MIN_ROUNDS_DELTA="${GATEFORGE_AGENT_DECISION_MIN_ROUNDS_DELTA:--0.01}"
 
 if [ ! -f "$HARDPACK_PATH" ]; then
   echo "Hardpack not found: $HARDPACK_PATH" >&2
@@ -49,6 +52,9 @@ bash scripts/run_agent_modelica_weekly_chain_v1.sh
 python3 -m gateforge.agent_modelica_weekly_decision_v1 \
   --current-page "$OUT_DIR/week2/weekly/page.json" \
   --previous-page "$OUT_DIR/week1/weekly/page.json" \
+  --min-success-delta-promote "$DECISION_MIN_SUCCESS_DELTA" \
+  --min-time-delta-promote "$DECISION_MIN_TIME_DELTA" \
+  --min-rounds-delta-promote "$DECISION_MIN_ROUNDS_DELTA" \
   --out "$OUT_DIR/decision.json" \
   --report-out "$OUT_DIR/decision.md"
 
