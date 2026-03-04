@@ -35,8 +35,16 @@ def _write_markdown(path: str, payload: dict) -> None:
         f"- status: `{payload.get('status')}`",
         f"- promoted_count: `{payload.get('promoted_count')}`",
         f"- decision: `{payload.get('decision')}`",
+        f"- promotion_allowed: `{payload.get('promotion_allowed')}`",
         "",
     ]
+    reasons = payload.get("gate_reasons") if isinstance(payload.get("gate_reasons"), list) else []
+    lines.extend(["## Gate Reasons", ""])
+    if reasons:
+        lines.extend([f"- `{r}`" for r in reasons])
+    else:
+        lines.append("- `none`")
+    lines.append("")
     p.write_text("\n".join(lines), encoding="utf-8")
 
 
@@ -53,6 +61,8 @@ def main() -> None:
     parser.add_argument("--ab-summary", required=True)
     parser.add_argument("--treatment-playbook", required=True)
     parser.add_argument("--top-k", type=int, default=2)
+    parser.add_argument("--enforce-safety-gate", action="store_true", default=True)
+    parser.add_argument("--no-enforce-safety-gate", dest="enforce_safety_gate", action="store_false")
     parser.add_argument("--out", default="artifacts/agent_modelica_strategy_promote_v1/promoted_playbook.json")
     parser.add_argument("--report-out", default=None)
     args = parser.parse_args()
@@ -85,14 +95,35 @@ def main() -> None:
         best = sorted(candidates, key=lambda x: (-int(x.get("priority", 0) or 0), str(x.get("strategy_id") or "")))[0]
         promoted_entries.append(best)
 
-    if not promoted_entries:
+    gate_reasons: list[str] = []
+    decision = str(ab.get("decision") or "UNKNOWN")
+    delta = ab.get("delta") if isinstance(ab.get("delta"), dict) else {}
+    delta_reg = float(delta.get("regression_count", 0.0) or 0.0)
+    delta_phy = float(delta.get("physics_fail_count", 0.0) or 0.0)
+    if decision != "PROMOTE_TREATMENT":
+        gate_reasons.append(f"decision_not_promote:{decision}")
+    if delta_reg > 0.0:
+        gate_reasons.append("regression_count_increased")
+    if delta_phy > 0.0:
+        gate_reasons.append("physics_fail_count_increased")
+
+    promotion_allowed = True
+    if bool(args.enforce_safety_gate) and gate_reasons:
+        promotion_allowed = False
+
+    if not promotion_allowed:
+        # Keep full treatment playbook as stable fallback when gate is closed.
+        promoted_entries = list(playbook)
+    elif not promoted_entries:
         promoted_entries = sorted(playbook, key=lambda x: (-int(x.get("priority", 0) or 0), str(x.get("strategy_id") or "")))[:2]
 
     payload = {
         "schema_version": "agent_modelica_repair_playbook_v1",
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
         "status": "PASS",
-        "decision": str(ab.get("decision") or "UNKNOWN"),
+        "decision": decision,
+        "promotion_allowed": promotion_allowed,
+        "gate_reasons": gate_reasons,
         "promoted_count": len(promoted_entries),
         "playbook": promoted_entries,
         "sources": {
