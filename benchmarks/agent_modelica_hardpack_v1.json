@@ -1,0 +1,378 @@
+{
+  "schema_version": "agent_modelica_hardpack_v1",
+  "generated_at_utc": "2026-03-04T10:26:51.745348+00:00",
+  "status": "PASS",
+  "hardpack_version": "agent_modelica_hardpack_v1",
+  "scales": [
+    "small",
+    "medium",
+    "large"
+  ],
+  "failure_types": [
+    "model_check_error",
+    "simulate_error",
+    "semantic_regression"
+  ],
+  "per_scale_total_target": 12,
+  "per_scale_failure_targets": {
+    "model_check_error": 4,
+    "simulate_error": 4,
+    "semantic_regression": 4
+  },
+  "total_cases": 36,
+  "counts_by_scale": {
+    "small": 12,
+    "medium": 12,
+    "large": 12
+  },
+  "counts_by_scale_failure_type": {
+    "small": {
+      "model_check_error": 4,
+      "simulate_error": 4,
+      "semantic_regression": 4
+    },
+    "medium": {
+      "model_check_error": 4,
+      "simulate_error": 4,
+      "semantic_regression": 4
+    },
+    "large": {
+      "model_check_error": 4,
+      "simulate_error": 4,
+      "semantic_regression": 4
+    }
+  },
+  "missing_targets": [],
+  "cases": [
+    {
+      "mutation_id": "mat_mdl_a1_393f6bb7_model_check_error_301300",
+      "target_scale": "small",
+      "expected_failure_type": "model_check_error",
+      "expected_stage": "check",
+      "source_model_path": "artifacts/run_modelica_open_source_growth_sprint_v1_demo/exported/demo_repo_shard_base_a/Base/A/A1.mo",
+      "mutated_model_path": "artifacts/run_modelica_open_source_growth_sprint_v1_demo/growth/scale/mutants/model_check_error/mdl_a1_393f6bb7/mat_mdl_a1_393f6bb7_model_check_error_301300.mo",
+      "repro_command": "python3 -c 'from pathlib import Path; import sys; p = Path(\"artifacts/run_modelica_open_source_growth_sprint_v1_demo/growth/scale/mutants/model_check_error/mdl_a1_393f6bb7/mat_mdl_a1_393f6bb7_model_check_error_301300.mo\"); txt = p.read_text(encoding='\"'\"'utf-8'\"'\"', errors='\"'\"'ignore'\"'\"').lower(); sys.exit(0 if ('\"'\"'model '\"'\"' in txt and '\"'\"'end '\"'\"' in txt and p.exists()) else 2)'"
+    },
+    {
+      "mutation_id": "mat_mdl_a1_393f6bb7_model_check_error_301301",
+      "target_scale": "small",
+      "expected_failure_type": "model_check_error",
+      "expected_stage": "check",
+      "source_model_path": "artifacts/run_modelica_open_source_growth_sprint_v1_demo/exported/demo_repo_shard_base_a/Base/A/A1.mo",
+      "mutated_model_path": "artifacts/run_modelica_open_source_growth_sprint_v1_demo/growth/scale/mutants/model_check_error/mdl_a1_393f6bb7/mat_mdl_a1_393f6bb7_model_check_error_301301.mo",
+      "repro_command": "python3 -c 'from pathlib import Path; import sys; p = Path(\"artifacts/run_modelica_open_source_growth_sprint_v1_demo/growth/scale/mutants/model_check_error/mdl_a1_393f6bb7/mat_mdl_a1_393f6bb7_model_check_error_301301.mo\"); txt = p.read_text(encoding='\"'\"'utf-8'\"'\"', errors='\"'\"'ignore'\"'\"').lower(); sys.exit(0 if ('\"'\"'model '\"'\"' in txt and '\"'\"'end '\"'\"' in txt and p.exists()) else 2)'"
+    },
+    {
+      "mutation_id": "mat_mdl_a1_393f6bb7_model_check_error_301400",
+      "target_scale": "small",
+      "expected_failure_type": "model_check_error",
+      "expected_stage": "check",
+      "source_model_path": "artifacts/run_modelica_open_source_growth_sprint_v1_demo/exported/demo_repo_shard_base_a/Base/A/A1.mo",
+      "mutated_model_path": "artifacts/run_modelica_open_source_growth_sprint_v1_demo/growth/scale/mutants/model_check_error/mdl_a1_393f6bb7/mat_mdl_a1_393f6bb7_model_check_error_301400.mo",
+      "repro_command": "python3 -c 'from pathlib import Path; import sys; p = Path(\"artifacts/run_modelica_open_source_growth_sprint_v1_demo/growth/scale/mutants/model_check_error/mdl_a1_393f6bb7/mat_mdl_a1_393f6bb7_model_check_error_301400.mo\"); txt = p.read_text(encoding='\"'\"'utf-8'\"'\"', errors='\"'\"'ignore'\"'\"').lower(); sys.exit(0 if ('\"'\"'model '\"'\"' in txt and '\"'\"'end '\"'\"' in txt and p.exists()) else 2)'"
+    },
+    {
+      "mutation_id": "mat_mdl_a1_393f6bb7_model_check_error_301401",
+      "target_scale": "small",
+      "expected_failure_type": "model_check_error",
+      "expected_stage": "check",
+      "source_model_path": "artifacts/run_modelica_open_source_growth_sprint_v1_demo/exported/demo_repo_shard_base_a/Base/A/A1.mo",
+      "mutated_model_path": "artifacts/run_modelica_open_source_growth_sprint_v1_demo/growth/scale/mutants/model_check_error/mdl_a1_393f6bb7/mat_mdl_a1_393f6bb7_model_check_error_301401.mo",
+      "repro_command": "python3 -c 'from pathlib import Path; import sys; p = Path(\"artifacts/run_modelica_open_source_growth_sprint_v1_demo/growth/scale/mutants/model_check_error/mdl_a1_393f6bb7/mat_mdl_a1_393f6bb7_model_check_error_301401.mo\"); txt = p.read_text(encoding='\"'\"'utf-8'\"'\"', errors='\"'\"'ignore'\"'\"').lower(); sys.exit(0 if ('\"'\"'model '\"'\"' in txt and '\"'\"'end '\"'\"' in txt and p.exists()) else 2)'"
+    },
+    {
+      "mutation_id": "mat_mdl_a1_393f6bb7_simulate_error_301100",
+      "target_scale": "small",
+      "expected_failure_type": "simulate_error",
+      "expected_stage": "simulate",
+      "source_model_path": "artifacts/run_modelica_open_source_growth_sprint_v1_demo/exported/demo_repo_shard_base_a/Base/A/A1.mo",
+      "mutated_model_path": "artifacts/run_modelica_open_source_growth_sprint_v1_demo/growth/scale/mutants/simulate_error/mdl_a1_393f6bb7/mat_mdl_a1_393f6bb7_simulate_error_301100.mo",
+      "repro_command": "python3 -c 'from pathlib import Path; import sys; p = Path(\"artifacts/run_modelica_open_source_growth_sprint_v1_demo/growth/scale/mutants/simulate_error/mdl_a1_393f6bb7/mat_mdl_a1_393f6bb7_simulate_error_301100.mo\"); txt = p.read_text(encoding='\"'\"'utf-8'\"'\"', errors='\"'\"'ignore'\"'\"').lower(); sys.exit(0 if ('\"'\"'model '\"'\"' in txt and '\"'\"'end '\"'\"' in txt and p.exists()) else 2)'"
+    },
+    {
+      "mutation_id": "mat_mdl_a1_393f6bb7_simulate_error_301101",
+      "target_scale": "small",
+      "expected_failure_type": "simulate_error",
+      "expected_stage": "simulate",
+      "source_model_path": "artifacts/run_modelica_open_source_growth_sprint_v1_demo/exported/demo_repo_shard_base_a/Base/A/A1.mo",
+      "mutated_model_path": "artifacts/run_modelica_open_source_growth_sprint_v1_demo/growth/scale/mutants/simulate_error/mdl_a1_393f6bb7/mat_mdl_a1_393f6bb7_simulate_error_301101.mo",
+      "repro_command": "python3 -c 'from pathlib import Path; import sys; p = Path(\"artifacts/run_modelica_open_source_growth_sprint_v1_demo/growth/scale/mutants/simulate_error/mdl_a1_393f6bb7/mat_mdl_a1_393f6bb7_simulate_error_301101.mo\"); txt = p.read_text(encoding='\"'\"'utf-8'\"'\"', errors='\"'\"'ignore'\"'\"').lower(); sys.exit(0 if ('\"'\"'model '\"'\"' in txt and '\"'\"'end '\"'\"' in txt and p.exists()) else 2)'"
+    },
+    {
+      "mutation_id": "mat_mdl_a1_393f6bb7_simulate_error_301200",
+      "target_scale": "small",
+      "expected_failure_type": "simulate_error",
+      "expected_stage": "simulate",
+      "source_model_path": "artifacts/run_modelica_open_source_growth_sprint_v1_demo/exported/demo_repo_shard_base_a/Base/A/A1.mo",
+      "mutated_model_path": "artifacts/run_modelica_open_source_growth_sprint_v1_demo/growth/scale/mutants/simulate_error/mdl_a1_393f6bb7/mat_mdl_a1_393f6bb7_simulate_error_301200.mo",
+      "repro_command": "python3 -c 'from pathlib import Path; import sys; p = Path(\"artifacts/run_modelica_open_source_growth_sprint_v1_demo/growth/scale/mutants/simulate_error/mdl_a1_393f6bb7/mat_mdl_a1_393f6bb7_simulate_error_301200.mo\"); txt = p.read_text(encoding='\"'\"'utf-8'\"'\"', errors='\"'\"'ignore'\"'\"').lower(); sys.exit(0 if ('\"'\"'model '\"'\"' in txt and '\"'\"'end '\"'\"' in txt and p.exists()) else 2)'"
+    },
+    {
+      "mutation_id": "mat_mdl_a1_393f6bb7_simulate_error_301201",
+      "target_scale": "small",
+      "expected_failure_type": "simulate_error",
+      "expected_stage": "simulate",
+      "source_model_path": "artifacts/run_modelica_open_source_growth_sprint_v1_demo/exported/demo_repo_shard_base_a/Base/A/A1.mo",
+      "mutated_model_path": "artifacts/run_modelica_open_source_growth_sprint_v1_demo/growth/scale/mutants/simulate_error/mdl_a1_393f6bb7/mat_mdl_a1_393f6bb7_simulate_error_301201.mo",
+      "repro_command": "python3 -c 'from pathlib import Path; import sys; p = Path(\"artifacts/run_modelica_open_source_growth_sprint_v1_demo/growth/scale/mutants/simulate_error/mdl_a1_393f6bb7/mat_mdl_a1_393f6bb7_simulate_error_301201.mo\"); txt = p.read_text(encoding='\"'\"'utf-8'\"'\"', errors='\"'\"'ignore'\"'\"').lower(); sys.exit(0 if ('\"'\"'model '\"'\"' in txt and '\"'\"'end '\"'\"' in txt and p.exists()) else 2)'"
+    },
+    {
+      "mutation_id": "mat_mdl_a1_393f6bb7_semantic_regression_301500",
+      "target_scale": "small",
+      "expected_failure_type": "semantic_regression",
+      "expected_stage": "simulate",
+      "source_model_path": "artifacts/run_modelica_open_source_growth_sprint_v1_demo/exported/demo_repo_shard_base_a/Base/A/A1.mo",
+      "mutated_model_path": "artifacts/run_modelica_open_source_growth_sprint_v1_demo/growth/scale/mutants/semantic_regression/mdl_a1_393f6bb7/mat_mdl_a1_393f6bb7_semantic_regression_301500.mo",
+      "repro_command": "python3 -c 'from pathlib import Path; import sys; p = Path(\"artifacts/run_modelica_open_source_growth_sprint_v1_demo/growth/scale/mutants/semantic_regression/mdl_a1_393f6bb7/mat_mdl_a1_393f6bb7_semantic_regression_301500.mo\"); txt = p.read_text(encoding='\"'\"'utf-8'\"'\"', errors='\"'\"'ignore'\"'\"').lower(); sys.exit(0 if ('\"'\"'model '\"'\"' in txt and '\"'\"'end '\"'\"' in txt and p.exists()) else 2)'"
+    },
+    {
+      "mutation_id": "mat_mdl_a1_393f6bb7_semantic_regression_301501",
+      "target_scale": "small",
+      "expected_failure_type": "semantic_regression",
+      "expected_stage": "simulate",
+      "source_model_path": "artifacts/run_modelica_open_source_growth_sprint_v1_demo/exported/demo_repo_shard_base_a/Base/A/A1.mo",
+      "mutated_model_path": "artifacts/run_modelica_open_source_growth_sprint_v1_demo/growth/scale/mutants/semantic_regression/mdl_a1_393f6bb7/mat_mdl_a1_393f6bb7_semantic_regression_301501.mo",
+      "repro_command": "python3 -c 'from pathlib import Path; import sys; p = Path(\"artifacts/run_modelica_open_source_growth_sprint_v1_demo/growth/scale/mutants/semantic_regression/mdl_a1_393f6bb7/mat_mdl_a1_393f6bb7_semantic_regression_301501.mo\"); txt = p.read_text(encoding='\"'\"'utf-8'\"'\"', errors='\"'\"'ignore'\"'\"').lower(); sys.exit(0 if ('\"'\"'model '\"'\"' in txt and '\"'\"'end '\"'\"' in txt and p.exists()) else 2)'"
+    },
+    {
+      "mutation_id": "mat_mdl_a1_393f6bb7_semantic_regression_301600",
+      "target_scale": "small",
+      "expected_failure_type": "semantic_regression",
+      "expected_stage": "simulate",
+      "source_model_path": "artifacts/run_modelica_open_source_growth_sprint_v1_demo/exported/demo_repo_shard_base_a/Base/A/A1.mo",
+      "mutated_model_path": "artifacts/run_modelica_open_source_growth_sprint_v1_demo/growth/scale/mutants/semantic_regression/mdl_a1_393f6bb7/mat_mdl_a1_393f6bb7_semantic_regression_301600.mo",
+      "repro_command": "python3 -c 'from pathlib import Path; import sys; p = Path(\"artifacts/run_modelica_open_source_growth_sprint_v1_demo/growth/scale/mutants/semantic_regression/mdl_a1_393f6bb7/mat_mdl_a1_393f6bb7_semantic_regression_301600.mo\"); txt = p.read_text(encoding='\"'\"'utf-8'\"'\"', errors='\"'\"'ignore'\"'\"').lower(); sys.exit(0 if ('\"'\"'model '\"'\"' in txt and '\"'\"'end '\"'\"' in txt and p.exists()) else 2)'"
+    },
+    {
+      "mutation_id": "mat_mdl_a1_393f6bb7_semantic_regression_301601",
+      "target_scale": "small",
+      "expected_failure_type": "semantic_regression",
+      "expected_stage": "simulate",
+      "source_model_path": "artifacts/run_modelica_open_source_growth_sprint_v1_demo/exported/demo_repo_shard_base_a/Base/A/A1.mo",
+      "mutated_model_path": "artifacts/run_modelica_open_source_growth_sprint_v1_demo/growth/scale/mutants/semantic_regression/mdl_a1_393f6bb7/mat_mdl_a1_393f6bb7_semantic_regression_301601.mo",
+      "repro_command": "python3 -c 'from pathlib import Path; import sys; p = Path(\"artifacts/run_modelica_open_source_growth_sprint_v1_demo/growth/scale/mutants/semantic_regression/mdl_a1_393f6bb7/mat_mdl_a1_393f6bb7_semantic_regression_301601.mo\"); txt = p.read_text(encoding='\"'\"'utf-8'\"'\"', errors='\"'\"'ignore'\"'\"').lower(); sys.exit(0 if ('\"'\"'model '\"'\"' in txt and '\"'\"'end '\"'\"' in txt and p.exists()) else 2)'"
+    },
+    {
+      "mutation_id": "mat_mdl_mediumplant_d62d90c6_model_check_error_201300",
+      "target_scale": "medium",
+      "expected_failure_type": "model_check_error",
+      "expected_stage": "check",
+      "source_model_path": "artifacts/run_private_model_mutation_scale_batch_v1_demo/private_models/MediumPlant.mo",
+      "mutated_model_path": "artifacts/run_private_model_mutation_scale_batch_v1_demo/batch/mutants/model_check_error/mdl_mediumplant_d62d90c6/mat_mdl_mediumplant_d62d90c6_model_check_error_201300.mo",
+      "repro_command": "python3 -c 'from pathlib import Path; import sys; p = Path(\"artifacts/run_private_model_mutation_scale_batch_v1_demo/batch/mutants/model_check_error/mdl_mediumplant_d62d90c6/mat_mdl_mediumplant_d62d90c6_model_check_error_201300.mo\"); txt = p.read_text(encoding='\"'\"'utf-8'\"'\"', errors='\"'\"'ignore'\"'\"').lower(); sys.exit(0 if ('\"'\"'model '\"'\"' in txt and '\"'\"'end '\"'\"' in txt and p.exists()) else 2)'"
+    },
+    {
+      "mutation_id": "mat_mdl_mediumplant_d62d90c6_model_check_error_201301",
+      "target_scale": "medium",
+      "expected_failure_type": "model_check_error",
+      "expected_stage": "check",
+      "source_model_path": "artifacts/run_private_model_mutation_scale_batch_v1_demo/private_models/MediumPlant.mo",
+      "mutated_model_path": "artifacts/run_private_model_mutation_scale_batch_v1_demo/batch/mutants/model_check_error/mdl_mediumplant_d62d90c6/mat_mdl_mediumplant_d62d90c6_model_check_error_201301.mo",
+      "repro_command": "python3 -c 'from pathlib import Path; import sys; p = Path(\"artifacts/run_private_model_mutation_scale_batch_v1_demo/batch/mutants/model_check_error/mdl_mediumplant_d62d90c6/mat_mdl_mediumplant_d62d90c6_model_check_error_201301.mo\"); txt = p.read_text(encoding='\"'\"'utf-8'\"'\"', errors='\"'\"'ignore'\"'\"').lower(); sys.exit(0 if ('\"'\"'model '\"'\"' in txt and '\"'\"'end '\"'\"' in txt and p.exists()) else 2)'"
+    },
+    {
+      "mutation_id": "mat_mdl_mediumplant_d62d90c6_model_check_error_201400",
+      "target_scale": "medium",
+      "expected_failure_type": "model_check_error",
+      "expected_stage": "check",
+      "source_model_path": "artifacts/run_private_model_mutation_scale_batch_v1_demo/private_models/MediumPlant.mo",
+      "mutated_model_path": "artifacts/run_private_model_mutation_scale_batch_v1_demo/batch/mutants/model_check_error/mdl_mediumplant_d62d90c6/mat_mdl_mediumplant_d62d90c6_model_check_error_201400.mo",
+      "repro_command": "python3 -c 'from pathlib import Path; import sys; p = Path(\"artifacts/run_private_model_mutation_scale_batch_v1_demo/batch/mutants/model_check_error/mdl_mediumplant_d62d90c6/mat_mdl_mediumplant_d62d90c6_model_check_error_201400.mo\"); txt = p.read_text(encoding='\"'\"'utf-8'\"'\"', errors='\"'\"'ignore'\"'\"').lower(); sys.exit(0 if ('\"'\"'model '\"'\"' in txt and '\"'\"'end '\"'\"' in txt and p.exists()) else 2)'"
+    },
+    {
+      "mutation_id": "mat_mdl_mediumplant_d62d90c6_model_check_error_201401",
+      "target_scale": "medium",
+      "expected_failure_type": "model_check_error",
+      "expected_stage": "check",
+      "source_model_path": "artifacts/run_private_model_mutation_scale_batch_v1_demo/private_models/MediumPlant.mo",
+      "mutated_model_path": "artifacts/run_private_model_mutation_scale_batch_v1_demo/batch/mutants/model_check_error/mdl_mediumplant_d62d90c6/mat_mdl_mediumplant_d62d90c6_model_check_error_201401.mo",
+      "repro_command": "python3 -c 'from pathlib import Path; import sys; p = Path(\"artifacts/run_private_model_mutation_scale_batch_v1_demo/batch/mutants/model_check_error/mdl_mediumplant_d62d90c6/mat_mdl_mediumplant_d62d90c6_model_check_error_201401.mo\"); txt = p.read_text(encoding='\"'\"'utf-8'\"'\"', errors='\"'\"'ignore'\"'\"').lower(); sys.exit(0 if ('\"'\"'model '\"'\"' in txt and '\"'\"'end '\"'\"' in txt and p.exists()) else 2)'"
+    },
+    {
+      "mutation_id": "mat_mdl_mediumplant_d62d90c6_simulate_error_201100",
+      "target_scale": "medium",
+      "expected_failure_type": "simulate_error",
+      "expected_stage": "simulate",
+      "source_model_path": "artifacts/run_private_model_mutation_scale_batch_v1_demo/private_models/MediumPlant.mo",
+      "mutated_model_path": "artifacts/run_private_model_mutation_scale_batch_v1_demo/batch/mutants/simulate_error/mdl_mediumplant_d62d90c6/mat_mdl_mediumplant_d62d90c6_simulate_error_201100.mo",
+      "repro_command": "python3 -c 'from pathlib import Path; import sys; p = Path(\"artifacts/run_private_model_mutation_scale_batch_v1_demo/batch/mutants/simulate_error/mdl_mediumplant_d62d90c6/mat_mdl_mediumplant_d62d90c6_simulate_error_201100.mo\"); txt = p.read_text(encoding='\"'\"'utf-8'\"'\"', errors='\"'\"'ignore'\"'\"').lower(); sys.exit(0 if ('\"'\"'model '\"'\"' in txt and '\"'\"'end '\"'\"' in txt and p.exists()) else 2)'"
+    },
+    {
+      "mutation_id": "mat_mdl_mediumplant_d62d90c6_simulate_error_201101",
+      "target_scale": "medium",
+      "expected_failure_type": "simulate_error",
+      "expected_stage": "simulate",
+      "source_model_path": "artifacts/run_private_model_mutation_scale_batch_v1_demo/private_models/MediumPlant.mo",
+      "mutated_model_path": "artifacts/run_private_model_mutation_scale_batch_v1_demo/batch/mutants/simulate_error/mdl_mediumplant_d62d90c6/mat_mdl_mediumplant_d62d90c6_simulate_error_201101.mo",
+      "repro_command": "python3 -c 'from pathlib import Path; import sys; p = Path(\"artifacts/run_private_model_mutation_scale_batch_v1_demo/batch/mutants/simulate_error/mdl_mediumplant_d62d90c6/mat_mdl_mediumplant_d62d90c6_simulate_error_201101.mo\"); txt = p.read_text(encoding='\"'\"'utf-8'\"'\"', errors='\"'\"'ignore'\"'\"').lower(); sys.exit(0 if ('\"'\"'model '\"'\"' in txt and '\"'\"'end '\"'\"' in txt and p.exists()) else 2)'"
+    },
+    {
+      "mutation_id": "mat_mdl_mediumplant_d62d90c6_simulate_error_201200",
+      "target_scale": "medium",
+      "expected_failure_type": "simulate_error",
+      "expected_stage": "simulate",
+      "source_model_path": "artifacts/run_private_model_mutation_scale_batch_v1_demo/private_models/MediumPlant.mo",
+      "mutated_model_path": "artifacts/run_private_model_mutation_scale_batch_v1_demo/batch/mutants/simulate_error/mdl_mediumplant_d62d90c6/mat_mdl_mediumplant_d62d90c6_simulate_error_201200.mo",
+      "repro_command": "python3 -c 'from pathlib import Path; import sys; p = Path(\"artifacts/run_private_model_mutation_scale_batch_v1_demo/batch/mutants/simulate_error/mdl_mediumplant_d62d90c6/mat_mdl_mediumplant_d62d90c6_simulate_error_201200.mo\"); txt = p.read_text(encoding='\"'\"'utf-8'\"'\"', errors='\"'\"'ignore'\"'\"').lower(); sys.exit(0 if ('\"'\"'model '\"'\"' in txt and '\"'\"'end '\"'\"' in txt and p.exists()) else 2)'"
+    },
+    {
+      "mutation_id": "mat_mdl_mediumplant_d62d90c6_simulate_error_201201",
+      "target_scale": "medium",
+      "expected_failure_type": "simulate_error",
+      "expected_stage": "simulate",
+      "source_model_path": "artifacts/run_private_model_mutation_scale_batch_v1_demo/private_models/MediumPlant.mo",
+      "mutated_model_path": "artifacts/run_private_model_mutation_scale_batch_v1_demo/batch/mutants/simulate_error/mdl_mediumplant_d62d90c6/mat_mdl_mediumplant_d62d90c6_simulate_error_201201.mo",
+      "repro_command": "python3 -c 'from pathlib import Path; import sys; p = Path(\"artifacts/run_private_model_mutation_scale_batch_v1_demo/batch/mutants/simulate_error/mdl_mediumplant_d62d90c6/mat_mdl_mediumplant_d62d90c6_simulate_error_201201.mo\"); txt = p.read_text(encoding='\"'\"'utf-8'\"'\"', errors='\"'\"'ignore'\"'\"').lower(); sys.exit(0 if ('\"'\"'model '\"'\"' in txt and '\"'\"'end '\"'\"' in txt and p.exists()) else 2)'"
+    },
+    {
+      "mutation_id": "mat_mdl_mediumplant_d62d90c6_semantic_regression_201500",
+      "target_scale": "medium",
+      "expected_failure_type": "semantic_regression",
+      "expected_stage": "simulate",
+      "source_model_path": "artifacts/run_private_model_mutation_scale_batch_v1_demo/private_models/MediumPlant.mo",
+      "mutated_model_path": "artifacts/run_private_model_mutation_scale_batch_v1_demo/batch/mutants/semantic_regression/mdl_mediumplant_d62d90c6/mat_mdl_mediumplant_d62d90c6_semantic_regression_201500.mo",
+      "repro_command": "python3 -c 'from pathlib import Path; import sys; p = Path(\"artifacts/run_private_model_mutation_scale_batch_v1_demo/batch/mutants/semantic_regression/mdl_mediumplant_d62d90c6/mat_mdl_mediumplant_d62d90c6_semantic_regression_201500.mo\"); txt = p.read_text(encoding='\"'\"'utf-8'\"'\"', errors='\"'\"'ignore'\"'\"').lower(); sys.exit(0 if ('\"'\"'model '\"'\"' in txt and '\"'\"'end '\"'\"' in txt and p.exists()) else 2)'"
+    },
+    {
+      "mutation_id": "mat_mdl_mediumplant_d62d90c6_semantic_regression_201501",
+      "target_scale": "medium",
+      "expected_failure_type": "semantic_regression",
+      "expected_stage": "simulate",
+      "source_model_path": "artifacts/run_private_model_mutation_scale_batch_v1_demo/private_models/MediumPlant.mo",
+      "mutated_model_path": "artifacts/run_private_model_mutation_scale_batch_v1_demo/batch/mutants/semantic_regression/mdl_mediumplant_d62d90c6/mat_mdl_mediumplant_d62d90c6_semantic_regression_201501.mo",
+      "repro_command": "python3 -c 'from pathlib import Path; import sys; p = Path(\"artifacts/run_private_model_mutation_scale_batch_v1_demo/batch/mutants/semantic_regression/mdl_mediumplant_d62d90c6/mat_mdl_mediumplant_d62d90c6_semantic_regression_201501.mo\"); txt = p.read_text(encoding='\"'\"'utf-8'\"'\"', errors='\"'\"'ignore'\"'\"').lower(); sys.exit(0 if ('\"'\"'model '\"'\"' in txt and '\"'\"'end '\"'\"' in txt and p.exists()) else 2)'"
+    },
+    {
+      "mutation_id": "mat_mdl_mediumplant_d62d90c6_semantic_regression_201600",
+      "target_scale": "medium",
+      "expected_failure_type": "semantic_regression",
+      "expected_stage": "simulate",
+      "source_model_path": "artifacts/run_private_model_mutation_scale_batch_v1_demo/private_models/MediumPlant.mo",
+      "mutated_model_path": "artifacts/run_private_model_mutation_scale_batch_v1_demo/batch/mutants/semantic_regression/mdl_mediumplant_d62d90c6/mat_mdl_mediumplant_d62d90c6_semantic_regression_201600.mo",
+      "repro_command": "python3 -c 'from pathlib import Path; import sys; p = Path(\"artifacts/run_private_model_mutation_scale_batch_v1_demo/batch/mutants/semantic_regression/mdl_mediumplant_d62d90c6/mat_mdl_mediumplant_d62d90c6_semantic_regression_201600.mo\"); txt = p.read_text(encoding='\"'\"'utf-8'\"'\"', errors='\"'\"'ignore'\"'\"').lower(); sys.exit(0 if ('\"'\"'model '\"'\"' in txt and '\"'\"'end '\"'\"' in txt and p.exists()) else 2)'"
+    },
+    {
+      "mutation_id": "mat_mdl_mediumplant_d62d90c6_semantic_regression_201601",
+      "target_scale": "medium",
+      "expected_failure_type": "semantic_regression",
+      "expected_stage": "simulate",
+      "source_model_path": "artifacts/run_private_model_mutation_scale_batch_v1_demo/private_models/MediumPlant.mo",
+      "mutated_model_path": "artifacts/run_private_model_mutation_scale_batch_v1_demo/batch/mutants/semantic_regression/mdl_mediumplant_d62d90c6/mat_mdl_mediumplant_d62d90c6_semantic_regression_201601.mo",
+      "repro_command": "python3 -c 'from pathlib import Path; import sys; p = Path(\"artifacts/run_private_model_mutation_scale_batch_v1_demo/batch/mutants/semantic_regression/mdl_mediumplant_d62d90c6/mat_mdl_mediumplant_d62d90c6_semantic_regression_201601.mo\"); txt = p.read_text(encoding='\"'\"'utf-8'\"'\"', errors='\"'\"'ignore'\"'\"').lower(); sys.exit(0 if ('\"'\"'model '\"'\"' in txt and '\"'\"'end '\"'\"' in txt and p.exists()) else 2)'"
+    },
+    {
+      "mutation_id": "mat_mdl_largegrid_b8344eaf_model_check_error_102300",
+      "target_scale": "large",
+      "expected_failure_type": "model_check_error",
+      "expected_stage": "check",
+      "source_model_path": "artifacts/run_private_model_mutation_scale_batch_v1_demo/private_models/LargeGrid.mo",
+      "mutated_model_path": "artifacts/run_private_model_mutation_scale_batch_v1_demo/batch/mutants/model_check_error/mdl_largegrid_b8344eaf/mat_mdl_largegrid_b8344eaf_model_check_error_102300.mo",
+      "repro_command": "python3 -c 'from pathlib import Path; import sys; p = Path(\"artifacts/run_private_model_mutation_scale_batch_v1_demo/batch/mutants/model_check_error/mdl_largegrid_b8344eaf/mat_mdl_largegrid_b8344eaf_model_check_error_102300.mo\"); txt = p.read_text(encoding='\"'\"'utf-8'\"'\"', errors='\"'\"'ignore'\"'\"').lower(); sys.exit(0 if ('\"'\"'model '\"'\"' in txt and '\"'\"'end '\"'\"' in txt and p.exists()) else 2)'"
+    },
+    {
+      "mutation_id": "mat_mdl_largegrid_b8344eaf_model_check_error_102301",
+      "target_scale": "large",
+      "expected_failure_type": "model_check_error",
+      "expected_stage": "check",
+      "source_model_path": "artifacts/run_private_model_mutation_scale_batch_v1_demo/private_models/LargeGrid.mo",
+      "mutated_model_path": "artifacts/run_private_model_mutation_scale_batch_v1_demo/batch/mutants/model_check_error/mdl_largegrid_b8344eaf/mat_mdl_largegrid_b8344eaf_model_check_error_102301.mo",
+      "repro_command": "python3 -c 'from pathlib import Path; import sys; p = Path(\"artifacts/run_private_model_mutation_scale_batch_v1_demo/batch/mutants/model_check_error/mdl_largegrid_b8344eaf/mat_mdl_largegrid_b8344eaf_model_check_error_102301.mo\"); txt = p.read_text(encoding='\"'\"'utf-8'\"'\"', errors='\"'\"'ignore'\"'\"').lower(); sys.exit(0 if ('\"'\"'model '\"'\"' in txt and '\"'\"'end '\"'\"' in txt and p.exists()) else 2)'"
+    },
+    {
+      "mutation_id": "mat_mdl_largegrid_b8344eaf_model_check_error_102400",
+      "target_scale": "large",
+      "expected_failure_type": "model_check_error",
+      "expected_stage": "check",
+      "source_model_path": "artifacts/run_private_model_mutation_scale_batch_v1_demo/private_models/LargeGrid.mo",
+      "mutated_model_path": "artifacts/run_private_model_mutation_scale_batch_v1_demo/batch/mutants/model_check_error/mdl_largegrid_b8344eaf/mat_mdl_largegrid_b8344eaf_model_check_error_102400.mo",
+      "repro_command": "python3 -c 'from pathlib import Path; import sys; p = Path(\"artifacts/run_private_model_mutation_scale_batch_v1_demo/batch/mutants/model_check_error/mdl_largegrid_b8344eaf/mat_mdl_largegrid_b8344eaf_model_check_error_102400.mo\"); txt = p.read_text(encoding='\"'\"'utf-8'\"'\"', errors='\"'\"'ignore'\"'\"').lower(); sys.exit(0 if ('\"'\"'model '\"'\"' in txt and '\"'\"'end '\"'\"' in txt and p.exists()) else 2)'"
+    },
+    {
+      "mutation_id": "mat_mdl_largegrid_b8344eaf_model_check_error_102401",
+      "target_scale": "large",
+      "expected_failure_type": "model_check_error",
+      "expected_stage": "check",
+      "source_model_path": "artifacts/run_private_model_mutation_scale_batch_v1_demo/private_models/LargeGrid.mo",
+      "mutated_model_path": "artifacts/run_private_model_mutation_scale_batch_v1_demo/batch/mutants/model_check_error/mdl_largegrid_b8344eaf/mat_mdl_largegrid_b8344eaf_model_check_error_102401.mo",
+      "repro_command": "python3 -c 'from pathlib import Path; import sys; p = Path(\"artifacts/run_private_model_mutation_scale_batch_v1_demo/batch/mutants/model_check_error/mdl_largegrid_b8344eaf/mat_mdl_largegrid_b8344eaf_model_check_error_102401.mo\"); txt = p.read_text(encoding='\"'\"'utf-8'\"'\"', errors='\"'\"'ignore'\"'\"').lower(); sys.exit(0 if ('\"'\"'model '\"'\"' in txt and '\"'\"'end '\"'\"' in txt and p.exists()) else 2)'"
+    },
+    {
+      "mutation_id": "mat_mdl_largegrid_b8344eaf_simulate_error_102100",
+      "target_scale": "large",
+      "expected_failure_type": "simulate_error",
+      "expected_stage": "simulate",
+      "source_model_path": "artifacts/run_private_model_mutation_scale_batch_v1_demo/private_models/LargeGrid.mo",
+      "mutated_model_path": "artifacts/run_private_model_mutation_scale_batch_v1_demo/batch/mutants/simulate_error/mdl_largegrid_b8344eaf/mat_mdl_largegrid_b8344eaf_simulate_error_102100.mo",
+      "repro_command": "python3 -c 'from pathlib import Path; import sys; p = Path(\"artifacts/run_private_model_mutation_scale_batch_v1_demo/batch/mutants/simulate_error/mdl_largegrid_b8344eaf/mat_mdl_largegrid_b8344eaf_simulate_error_102100.mo\"); txt = p.read_text(encoding='\"'\"'utf-8'\"'\"', errors='\"'\"'ignore'\"'\"').lower(); sys.exit(0 if ('\"'\"'model '\"'\"' in txt and '\"'\"'end '\"'\"' in txt and p.exists()) else 2)'"
+    },
+    {
+      "mutation_id": "mat_mdl_largegrid_b8344eaf_simulate_error_102101",
+      "target_scale": "large",
+      "expected_failure_type": "simulate_error",
+      "expected_stage": "simulate",
+      "source_model_path": "artifacts/run_private_model_mutation_scale_batch_v1_demo/private_models/LargeGrid.mo",
+      "mutated_model_path": "artifacts/run_private_model_mutation_scale_batch_v1_demo/batch/mutants/simulate_error/mdl_largegrid_b8344eaf/mat_mdl_largegrid_b8344eaf_simulate_error_102101.mo",
+      "repro_command": "python3 -c 'from pathlib import Path; import sys; p = Path(\"artifacts/run_private_model_mutation_scale_batch_v1_demo/batch/mutants/simulate_error/mdl_largegrid_b8344eaf/mat_mdl_largegrid_b8344eaf_simulate_error_102101.mo\"); txt = p.read_text(encoding='\"'\"'utf-8'\"'\"', errors='\"'\"'ignore'\"'\"').lower(); sys.exit(0 if ('\"'\"'model '\"'\"' in txt and '\"'\"'end '\"'\"' in txt and p.exists()) else 2)'"
+    },
+    {
+      "mutation_id": "mat_mdl_largegrid_b8344eaf_simulate_error_102200",
+      "target_scale": "large",
+      "expected_failure_type": "simulate_error",
+      "expected_stage": "simulate",
+      "source_model_path": "artifacts/run_private_model_mutation_scale_batch_v1_demo/private_models/LargeGrid.mo",
+      "mutated_model_path": "artifacts/run_private_model_mutation_scale_batch_v1_demo/batch/mutants/simulate_error/mdl_largegrid_b8344eaf/mat_mdl_largegrid_b8344eaf_simulate_error_102200.mo",
+      "repro_command": "python3 -c 'from pathlib import Path; import sys; p = Path(\"artifacts/run_private_model_mutation_scale_batch_v1_demo/batch/mutants/simulate_error/mdl_largegrid_b8344eaf/mat_mdl_largegrid_b8344eaf_simulate_error_102200.mo\"); txt = p.read_text(encoding='\"'\"'utf-8'\"'\"', errors='\"'\"'ignore'\"'\"').lower(); sys.exit(0 if ('\"'\"'model '\"'\"' in txt and '\"'\"'end '\"'\"' in txt and p.exists()) else 2)'"
+    },
+    {
+      "mutation_id": "mat_mdl_largegrid_b8344eaf_simulate_error_102201",
+      "target_scale": "large",
+      "expected_failure_type": "simulate_error",
+      "expected_stage": "simulate",
+      "source_model_path": "artifacts/run_private_model_mutation_scale_batch_v1_demo/private_models/LargeGrid.mo",
+      "mutated_model_path": "artifacts/run_private_model_mutation_scale_batch_v1_demo/batch/mutants/simulate_error/mdl_largegrid_b8344eaf/mat_mdl_largegrid_b8344eaf_simulate_error_102201.mo",
+      "repro_command": "python3 -c 'from pathlib import Path; import sys; p = Path(\"artifacts/run_private_model_mutation_scale_batch_v1_demo/batch/mutants/simulate_error/mdl_largegrid_b8344eaf/mat_mdl_largegrid_b8344eaf_simulate_error_102201.mo\"); txt = p.read_text(encoding='\"'\"'utf-8'\"'\"', errors='\"'\"'ignore'\"'\"').lower(); sys.exit(0 if ('\"'\"'model '\"'\"' in txt and '\"'\"'end '\"'\"' in txt and p.exists()) else 2)'"
+    },
+    {
+      "mutation_id": "mat_mdl_largegrid_b8344eaf_semantic_regression_102500",
+      "target_scale": "large",
+      "expected_failure_type": "semantic_regression",
+      "expected_stage": "simulate",
+      "source_model_path": "artifacts/run_private_model_mutation_scale_batch_v1_demo/private_models/LargeGrid.mo",
+      "mutated_model_path": "artifacts/run_private_model_mutation_scale_batch_v1_demo/batch/mutants/semantic_regression/mdl_largegrid_b8344eaf/mat_mdl_largegrid_b8344eaf_semantic_regression_102500.mo",
+      "repro_command": "python3 -c 'from pathlib import Path; import sys; p = Path(\"artifacts/run_private_model_mutation_scale_batch_v1_demo/batch/mutants/semantic_regression/mdl_largegrid_b8344eaf/mat_mdl_largegrid_b8344eaf_semantic_regression_102500.mo\"); txt = p.read_text(encoding='\"'\"'utf-8'\"'\"', errors='\"'\"'ignore'\"'\"').lower(); sys.exit(0 if ('\"'\"'model '\"'\"' in txt and '\"'\"'end '\"'\"' in txt and p.exists()) else 2)'"
+    },
+    {
+      "mutation_id": "mat_mdl_largegrid_b8344eaf_semantic_regression_102501",
+      "target_scale": "large",
+      "expected_failure_type": "semantic_regression",
+      "expected_stage": "simulate",
+      "source_model_path": "artifacts/run_private_model_mutation_scale_batch_v1_demo/private_models/LargeGrid.mo",
+      "mutated_model_path": "artifacts/run_private_model_mutation_scale_batch_v1_demo/batch/mutants/semantic_regression/mdl_largegrid_b8344eaf/mat_mdl_largegrid_b8344eaf_semantic_regression_102501.mo",
+      "repro_command": "python3 -c 'from pathlib import Path; import sys; p = Path(\"artifacts/run_private_model_mutation_scale_batch_v1_demo/batch/mutants/semantic_regression/mdl_largegrid_b8344eaf/mat_mdl_largegrid_b8344eaf_semantic_regression_102501.mo\"); txt = p.read_text(encoding='\"'\"'utf-8'\"'\"', errors='\"'\"'ignore'\"'\"').lower(); sys.exit(0 if ('\"'\"'model '\"'\"' in txt and '\"'\"'end '\"'\"' in txt and p.exists()) else 2)'"
+    },
+    {
+      "mutation_id": "mat_mdl_largegrid_b8344eaf_semantic_regression_102600",
+      "target_scale": "large",
+      "expected_failure_type": "semantic_regression",
+      "expected_stage": "simulate",
+      "source_model_path": "artifacts/run_private_model_mutation_scale_batch_v1_demo/private_models/LargeGrid.mo",
+      "mutated_model_path": "artifacts/run_private_model_mutation_scale_batch_v1_demo/batch/mutants/semantic_regression/mdl_largegrid_b8344eaf/mat_mdl_largegrid_b8344eaf_semantic_regression_102600.mo",
+      "repro_command": "python3 -c 'from pathlib import Path; import sys; p = Path(\"artifacts/run_private_model_mutation_scale_batch_v1_demo/batch/mutants/semantic_regression/mdl_largegrid_b8344eaf/mat_mdl_largegrid_b8344eaf_semantic_regression_102600.mo\"); txt = p.read_text(encoding='\"'\"'utf-8'\"'\"', errors='\"'\"'ignore'\"'\"').lower(); sys.exit(0 if ('\"'\"'model '\"'\"' in txt and '\"'\"'end '\"'\"' in txt and p.exists()) else 2)'"
+    },
+    {
+      "mutation_id": "mat_mdl_largegrid_b8344eaf_semantic_regression_102601",
+      "target_scale": "large",
+      "expected_failure_type": "semantic_regression",
+      "expected_stage": "simulate",
+      "source_model_path": "artifacts/run_private_model_mutation_scale_batch_v1_demo/private_models/LargeGrid.mo",
+      "mutated_model_path": "artifacts/run_private_model_mutation_scale_batch_v1_demo/batch/mutants/semantic_regression/mdl_largegrid_b8344eaf/mat_mdl_largegrid_b8344eaf_semantic_regression_102601.mo",
+      "repro_command": "python3 -c 'from pathlib import Path; import sys; p = Path(\"artifacts/run_private_model_mutation_scale_batch_v1_demo/batch/mutants/semantic_regression/mdl_largegrid_b8344eaf/mat_mdl_largegrid_b8344eaf_semantic_regression_102601.mo\"); txt = p.read_text(encoding='\"'\"'utf-8'\"'\"', errors='\"'\"'ignore'\"'\"').lower(); sys.exit(0 if ('\"'\"'model '\"'\"' in txt and '\"'\"'end '\"'\"' in txt and p.exists()) else 2)'"
+    }
+  ],
+  "sources": {
+    "mutation_manifest": [
+      "artifacts/run_private_model_mutation_scale_batch_v1_demo/batch/mutation_manifest.json",
+      "artifacts/run_modelica_open_source_growth_sprint_v1_demo/growth/scale/mutation_manifest.json"
+    ]
+  }
+}

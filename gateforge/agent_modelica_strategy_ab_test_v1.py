@@ -44,6 +44,8 @@ def _write_markdown(path: str, payload: dict) -> None:
         f"- delta_physics_fail_count: `{(payload.get('delta') or {}).get('physics_fail_count')}`",
         f"- strategy_signal_delta_score: `{(payload.get('strategy_signal') or {}).get('delta_score')}`",
         f"- strategy_signal_triggered: `{(payload.get('strategy_signal') or {}).get('triggered')}`",
+        f"- core_improvement: `{(payload.get('decision_breakdown') or {}).get('core_improvement')}`",
+        f"- core_tie: `{(payload.get('decision_breakdown') or {}).get('core_tie')}`",
         "",
     ]
     p.write_text("\n".join(lines), encoding="utf-8")
@@ -262,23 +264,38 @@ def main() -> None:
         t = float((signal_treatment_by_failure.get(ftype) or {}).get("score", 0.0) or 0.0)
         signal_delta_by_failure[ftype] = round(t - c, 4)
 
-    success_ok = isinstance(delta.get("success_at_k_pct"), (int, float)) and delta.get("success_at_k_pct", 0.0) >= 0.0
+    success_delta = float(delta.get("success_at_k_pct", 0.0) or 0.0) if isinstance(delta.get("success_at_k_pct"), (int, float)) else 0.0
+    time_delta = (
+        float(delta.get("median_time_to_pass_sec", 0.0) or 0.0)
+        if isinstance(delta.get("median_time_to_pass_sec"), (int, float))
+        else 0.0
+    )
+    rounds_delta = (
+        float(delta.get("median_repair_rounds", 0.0) or 0.0)
+        if isinstance(delta.get("median_repair_rounds"), (int, float))
+        else 0.0
+    )
+    success_ok = isinstance(delta.get("success_at_k_pct"), (int, float)) and success_delta >= 0.0
     safety_ok = (
         isinstance(delta.get("physics_fail_count"), (int, float))
         and delta.get("physics_fail_count", 0.0) <= 0.0
         and isinstance(delta.get("regression_count"), (int, float))
         and delta.get("regression_count", 0.0) <= 0.0
     )
-    rounds_improved = isinstance(delta.get("median_repair_rounds"), (int, float)) and delta.get("median_repair_rounds", 0.0) < 0.0
-    time_improved = isinstance(delta.get("median_time_to_pass_sec"), (int, float)) and delta.get("median_time_to_pass_sec", 0.0) < 0.0
+    rounds_improved = isinstance(delta.get("median_repair_rounds"), (int, float)) and rounds_delta < 0.0
+    time_improved = isinstance(delta.get("median_time_to_pass_sec"), (int, float)) and time_delta < 0.0
+    success_improved = isinstance(delta.get("success_at_k_pct"), (int, float)) and success_delta > 0.0
+    core_improvement = bool(success_improved or time_improved or rounds_improved)
+    core_regressed = bool(success_delta < 0.0 or time_delta > 0.0 or rounds_delta > 0.0)
+    core_tie = bool(not core_improvement and not core_regressed)
     evidence_signal_promote = (
         args.mode == "evidence"
         and success_ok
         and safety_ok
-        and not (rounds_improved or time_improved)
+        and core_tie
         and signal_delta >= float(args.evidence_signal_threshold)
     )
-    decision = "PROMOTE_TREATMENT" if (success_ok and safety_ok and (rounds_improved or time_improved or evidence_signal_promote)) else "KEEP_CONTROL"
+    decision = "PROMOTE_TREATMENT" if (success_ok and safety_ok and (core_improvement or evidence_signal_promote)) else "KEEP_CONTROL"
 
     payload = {
         "schema_version": "agent_modelica_strategy_ab_test_v1",
@@ -293,6 +310,14 @@ def main() -> None:
             "delta_score": signal_delta,
             "threshold": float(args.evidence_signal_threshold),
             "triggered": bool(evidence_signal_promote),
+        },
+        "decision_breakdown": {
+            "success_delta": round(success_delta, 2),
+            "time_delta": round(time_delta, 2),
+            "rounds_delta": round(rounds_delta, 2),
+            "core_improvement": core_improvement,
+            "core_regressed": core_regressed,
+            "core_tie": core_tie,
         },
         "strategy_signal_by_failure_type": {
             "control": signal_control_by_failure,

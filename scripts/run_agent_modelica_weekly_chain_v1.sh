@@ -12,6 +12,8 @@ PER_SCALE_TOTAL="${GATEFORGE_AGENT_PER_SCALE_TOTAL:-20}"
 PER_SCALE_FAILURE_TARGETS="${GATEFORGE_AGENT_PER_SCALE_FAILURE_TARGETS:-7,7,6}"
 REPLAY_MAX="${GATEFORGE_AGENT_REPLAY_MAX:-6}"
 REPLAY_MIN_PER_FAILURE_TYPE="${GATEFORGE_AGENT_REPLAY_MIN_PER_FAILURE_TYPE:-1}"
+HARDPACK_PATH="${GATEFORGE_AGENT_HARDPACK_PATH:-benchmarks/agent_modelica_hardpack_v1.json}"
+USE_HARDPACK="${GATEFORGE_AGENT_USE_HARDPACK:-auto}"
 
 CORE_MANIFEST="${GATEFORGE_AGENT_CORE_MUTATION_MANIFEST:-}"
 SMALL_MANIFEST="${GATEFORGE_AGENT_SMALL_MUTATION_MANIFEST:-}"
@@ -30,11 +32,6 @@ if [ -z "$SMALL_MANIFEST" ]; then
   elif [ -f "artifacts/agent_modelica_taskset_lock_v1_demo/mutation_manifest.json" ]; then
     SMALL_MANIFEST="artifacts/agent_modelica_taskset_lock_v1_demo/mutation_manifest.json"
   fi
-fi
-
-if [ -z "$CORE_MANIFEST" ] || [ -z "$SMALL_MANIFEST" ]; then
-  echo "Missing manifests. Set GATEFORGE_AGENT_CORE_MUTATION_MANIFEST and GATEFORGE_AGENT_SMALL_MUTATION_MANIFEST." >&2
-  exit 1
 fi
 
 mkdir -p "$OUT_DIR/tasksets" "$OUT_DIR/baseline" "$OUT_DIR/weekly"
@@ -65,16 +62,35 @@ if [ -f "$FOCUS_TARGETS_PATH" ]; then
   REPAIR_PLAYBOOK="$FOCUSED_PLAYBOOK_PATH"
 fi
 
-python3 -m gateforge.agent_modelica_taskset_snapshot_v1 \
-  --mutation-manifest "$CORE_MANIFEST" \
-  --extra-mutation-manifest "$SMALL_MANIFEST" \
-  --per-scale-total "$PER_SCALE_TOTAL" \
-  --per-scale-failure-targets "$PER_SCALE_FAILURE_TARGETS" \
-  --adaptive-quota \
-  --snapshot-version "${WEEK_TAG}" \
-  --taskset-out "$TASKSET_PATH" \
-  --out "$TASKSET_SUMMARY" \
-  --report-out "${TASKSET_SUMMARY%.json}.md"
+use_hardpack=0
+if [ "$USE_HARDPACK" = "1" ]; then
+  use_hardpack=1
+elif [ "$USE_HARDPACK" = "auto" ] && [ -f "$HARDPACK_PATH" ]; then
+  use_hardpack=1
+fi
+
+if [ "$use_hardpack" -eq 1 ]; then
+  python3 -m gateforge.agent_modelica_hardpack_taskset_builder_v1 \
+    --hardpack "$HARDPACK_PATH" \
+    --taskset-out "$TASKSET_PATH" \
+    --out "$TASKSET_SUMMARY" \
+    --report-out "${TASKSET_SUMMARY%.json}.md"
+else
+  if [ -z "$CORE_MANIFEST" ] || [ -z "$SMALL_MANIFEST" ]; then
+    echo "Missing manifests. Set GATEFORGE_AGENT_CORE_MUTATION_MANIFEST and GATEFORGE_AGENT_SMALL_MUTATION_MANIFEST." >&2
+    exit 1
+  fi
+  python3 -m gateforge.agent_modelica_taskset_snapshot_v1 \
+    --mutation-manifest "$CORE_MANIFEST" \
+    --extra-mutation-manifest "$SMALL_MANIFEST" \
+    --per-scale-total "$PER_SCALE_TOTAL" \
+    --per-scale-failure-targets "$PER_SCALE_FAILURE_TARGETS" \
+    --adaptive-quota \
+    --snapshot-version "${WEEK_TAG}" \
+    --taskset-out "$TASKSET_PATH" \
+    --out "$TASKSET_SUMMARY" \
+    --report-out "${TASKSET_SUMMARY%.json}.md"
+fi
 
 TASKSET_FOR_BASELINE="$TASKSET_PATH"
 if [ "$RUN_MODE" = "evidence" ]; then
@@ -112,6 +128,11 @@ python3 -m gateforge.agent_modelica_layered_baseline_v1 \
   --out-dir "$OUT_DIR/baseline" \
   --out "$OUT_DIR/baseline/summary.json" \
   --report-out "$OUT_DIR/baseline/summary.md"
+
+python3 -m gateforge.agent_modelica_failure_attribution_v1 \
+  --run-results "$OUT_DIR/baseline/run_results.json" \
+  --out "$OUT_DIR/weekly/failure_attribution.json" \
+  --report-out "$OUT_DIR/weekly/failure_attribution.md"
 
 python3 -m gateforge.agent_modelica_weekly_metrics_page_v1 \
   --baseline-summary "$OUT_DIR/baseline/summary.json" \
