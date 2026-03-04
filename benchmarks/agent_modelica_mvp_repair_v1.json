@@ -1,0 +1,40 @@
+{
+  "schema_version": "agent_modelica_mvp_repair_v1",
+  "status": "ACTIVE",
+  "profile_id": "mvp_repair_first",
+  "goal": "repair-first capability improvement with reproducible baseline",
+  "taskset": {
+    "source": "hardpack",
+    "hardpack_path": "benchmarks/agent_modelica_hardpack_v1.json",
+    "scales": ["small", "medium", "large"],
+    "failure_types": ["model_check_error", "simulate_error", "semantic_regression"],
+    "per_scale_total_target": 12,
+    "per_scale_failure_targets": {
+      "model_check_error": 4,
+      "simulate_error": 4,
+      "semantic_regression": 4
+    }
+  },
+  "run_contract": {
+    "mode": "evidence",
+    "max_rounds": 9,
+    "max_time_sec": 1200,
+    "runtime_threshold": 0.2
+  },
+  "acceptance_budgets": {
+    "small_max_time_sec": 180,
+    "medium_max_time_sec": 420,
+    "large_max_time_sec": 900,
+    "small_max_rounds": 3,
+    "medium_max_rounds": 6,
+    "large_max_rounds": 9
+  },
+  "focus_queue": {
+    "top_k": 2,
+    "persistence_weight": 3.0
+  },
+  "privacy": {
+    "repair_history_path": "data/private_failure_corpus/agent_modelica_repair_memory_v1.json",
+    "policy": "private_only"
+  }
+}
