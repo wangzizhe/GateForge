@@ -8,6 +8,7 @@ OUT_DIR="${GATEFORGE_AGENT_WEEKLY_CHAIN_OUT_DIR:-artifacts/agent_modelica_weekly
 WEEK_TAG="${GATEFORGE_AGENT_WEEK_TAG:-$(date -u +%G-W%V)}"
 RUN_MODE="${GATEFORGE_AGENT_RUN_MODE:-mock}"
 PHYSICS_CONTRACT="${GATEFORGE_AGENT_PHYSICS_CONTRACT:-policies/physics_contract_v0.json}"
+REPAIR_PLAYBOOK="${GATEFORGE_AGENT_REPAIR_PLAYBOOK:-}"
 PER_SCALE_TOTAL="${GATEFORGE_AGENT_PER_SCALE_TOTAL:-20}"
 PER_SCALE_FAILURE_TARGETS="${GATEFORGE_AGENT_PER_SCALE_FAILURE_TARGETS:-7,7,6}"
 
@@ -56,6 +57,7 @@ python3 -m gateforge.agent_modelica_layered_baseline_v1 \
   --taskset-in "$TASKSET_PATH" \
   --run-mode "$RUN_MODE" \
   --physics-contract "$PHYSICS_CONTRACT" \
+  --repair-playbook "$REPAIR_PLAYBOOK" \
   --out-dir "$OUT_DIR/baseline" \
   --out "$OUT_DIR/baseline/summary.json" \
   --report-out "$OUT_DIR/baseline/summary.md"

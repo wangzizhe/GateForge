@@ -11,6 +11,7 @@ from .physics_contract_v0 import (
     evaluate_physics_contract_v0,
     load_physics_contract_v0,
 )
+from .agent_modelica_repair_playbook_v1 import load_repair_playbook, recommend_repair_strategy
 from .regression import compare_evidence, load_json as _load_evidence_json
 
 
@@ -78,7 +79,7 @@ def _default_candidate_metrics(failure_type: str, baseline_metrics: dict) -> dic
     return candidate
 
 
-def _run_task_mock(task: dict, max_rounds: int, max_time_sec: int, physics_contract: dict) -> dict:
+def _run_task_mock(task: dict, max_rounds: int, max_time_sec: int, physics_contract: dict, repair_playbook: dict) -> dict:
     success_round = int(task.get("mock_success_round", 2) or 2)
     round_sec = int(task.get("mock_round_duration_sec", 30) or 30)
     forced_regression_fail = bool(task.get("mock_force_regression_fail", False))
@@ -99,6 +100,11 @@ def _run_task_mock(task: dict, max_rounds: int, max_time_sec: int, physics_contr
     total_time = 0
     passed = False
     rounds_used = 0
+    repair_strategy = recommend_repair_strategy(
+        playbook_payload=repair_playbook,
+        failure_type=failure_type,
+        expected_stage=str(task.get("expected_stage") or "unknown"),
+    )
     hard = {
         "check_model_pass": False,
         "simulate_pass": False,
@@ -183,6 +189,7 @@ def _run_task_mock(task: dict, max_rounds: int, max_time_sec: int, physics_contr
         "time_to_pass_sec": total_time if passed else None,
         "elapsed_sec": total_time,
         "hard_checks": hard,
+        "repair_strategy": repair_strategy,
         "physics_contract_reasons": [
             str(x)
             for x in (attempts[-1].get("physics_contract_reasons") if attempts else [])
@@ -202,9 +209,21 @@ def _read_evidence_task(task: dict, key_inline: str, key_path: str) -> dict:
     return {}
 
 
-def _run_task_evidence(task: dict, max_rounds: int, max_time_sec: int, physics_contract: dict, runtime_threshold: float) -> dict:
+def _run_task_evidence(
+    task: dict,
+    max_rounds: int,
+    max_time_sec: int,
+    physics_contract: dict,
+    runtime_threshold: float,
+    repair_playbook: dict,
+) -> dict:
     scale = str(task.get("scale") or "unknown")
     failure_type = str(task.get("failure_type") or "unknown")
+    repair_strategy = recommend_repair_strategy(
+        playbook_payload=repair_playbook,
+        failure_type=failure_type,
+        expected_stage=str(task.get("expected_stage") or "unknown"),
+    )
     rounds_used = max(1, int(task.get("observed_repair_rounds", 1) or 1))
     rounds_used = min(rounds_used, max_rounds)
 
@@ -282,6 +301,7 @@ def _run_task_evidence(task: dict, max_rounds: int, max_time_sec: int, physics_c
             "physics_contract_pass": physics_ok,
             "regression_pass": regression_ok,
         },
+        "repair_strategy": repair_strategy,
         "physics_contract_reasons": [str(x) for x in (physics_eval.get("reasons") or []) if isinstance(x, str)],
         "regression_reasons": [str(x) for x in (regression.get("reasons") or []) if isinstance(x, str)],
         "attempts": attempts,
@@ -296,6 +316,7 @@ def main() -> None:
     parser.add_argument("--max-time-sec", type=int, default=300)
     parser.add_argument("--runtime-threshold", type=float, default=0.2)
     parser.add_argument("--physics-contract", default=DEFAULT_PHYSICS_CONTRACT_PATH)
+    parser.add_argument("--repair-playbook", default=None)
     parser.add_argument("--results-out", default="artifacts/agent_modelica_run_contract_v1/results.json")
     parser.add_argument("--out", default="artifacts/agent_modelica_run_contract_v1/summary.json")
     parser.add_argument("--report-out", default=None)
@@ -311,6 +332,7 @@ def main() -> None:
     max_rounds = max(1, int(args.max_rounds))
     max_time_sec = max(1, int(args.max_time_sec))
     physics_contract, physics_contract_source = load_physics_contract_v0(args.physics_contract)
+    repair_playbook = load_repair_playbook(args.repair_playbook)
 
     records: list[dict] = []
     for task in tasks:
@@ -322,6 +344,7 @@ def main() -> None:
                     max_time_sec=max_time_sec,
                     physics_contract=physics_contract,
                     runtime_threshold=float(args.runtime_threshold),
+                    repair_playbook=repair_playbook,
                 )
             )
         else:
@@ -331,6 +354,7 @@ def main() -> None:
                     max_rounds=max_rounds,
                     max_time_sec=max_time_sec,
                     physics_contract=physics_contract,
+                    repair_playbook=repair_playbook,
                 )
             )
 
@@ -354,6 +378,7 @@ def main() -> None:
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
         "physics_contract_schema_version": physics_contract.get("schema_version"),
         "physics_contract_source": physics_contract_source,
+        "repair_playbook_source": repair_playbook.get("source") if isinstance(repair_playbook, dict) else None,
         "mode": args.mode,
         "records": records,
     }
@@ -371,13 +396,14 @@ def main() -> None:
         "physics_fail_count": physics_fail_count,
         "physics_contract_schema_version": physics_contract.get("schema_version"),
         "physics_contract_source": physics_contract_source,
+        "repair_playbook_source": repair_playbook.get("source") if isinstance(repair_playbook, dict) else None,
         "mode": args.mode,
         "max_rounds": max_rounds,
         "max_time_sec": max_time_sec,
         "runtime_threshold": float(args.runtime_threshold),
         "results_out": args.results_out,
         "reasons": reasons,
-        "sources": {"taskset": args.taskset, "physics_contract": args.physics_contract},
+        "sources": {"taskset": args.taskset, "physics_contract": args.physics_contract, "repair_playbook": args.repair_playbook},
     }
     _write_json(args.out, summary)
     _write_markdown(args.report_out or _default_md_path(args.out), summary)

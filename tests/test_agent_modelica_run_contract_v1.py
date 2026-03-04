@@ -51,6 +51,8 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
             self.assertEqual(int(s.get("total_tasks", 0)), 2)
             self.assertEqual(len(r.get("records", [])), 2)
             self.assertIsNotNone(s.get("median_repair_rounds"))
+            self.assertIn("repair_strategy", r["records"][0])
+            self.assertTrue(str((r["records"][0].get("repair_strategy") or {}).get("strategy_id") or ""))
 
     def test_run_contract_applies_physics_contract_v0_invariants(self) -> None:
         with tempfile.TemporaryDirectory() as d:
@@ -113,6 +115,7 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
             self.assertFalse(bool(r["records"][0]["hard_checks"]["physics_contract_pass"]))
             reasons = r["records"][0].get("physics_contract_reasons") or []
             self.assertTrue(any(str(x).startswith("physical_invariant_") for x in reasons))
+            self.assertEqual((r["records"][0].get("repair_strategy") or {}).get("strategy_id"), "sem_invariant_first")
 
     def test_run_contract_evidence_mode_uses_real_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as d:
@@ -205,6 +208,7 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
             self.assertEqual(int(s.get("success_count", 0)), 1)
             self.assertEqual(int(s.get("physics_fail_count", 0)), 0)
             self.assertTrue(bool(r["records"][0]["hard_checks"]["regression_pass"]))
+            self.assertEqual((r["records"][0].get("repair_strategy") or {}).get("strategy_id"), "sem_invariant_first")
 
 
 if __name__ == "__main__":
