@@ -27,6 +27,22 @@ class AgentModelicaPatchTemplateEngineV1Tests(unittest.TestCase):
         actions = payload.get("actions") if isinstance(payload.get("actions"), list) else []
         self.assertTrue(any("no-regression guard" in str(x) for x in actions))
 
+    def test_adds_global_regression_focus_actions_across_failure_types(self) -> None:
+        payload = build_patch_template(
+            failure_type="model_check_error",
+            expected_stage="check",
+            focus_queue_payload={
+                "queue": [
+                    {
+                        "failure_type": "simulate_error",
+                        "gate_break_reason": "regression_fail",
+                    }
+                ]
+            },
+        )
+        actions = payload.get("actions") if isinstance(payload.get("actions"), list) else []
+        self.assertTrue(any("runtime drift" in str(x).lower() for x in actions))
+
 
 if __name__ == "__main__":
     unittest.main()

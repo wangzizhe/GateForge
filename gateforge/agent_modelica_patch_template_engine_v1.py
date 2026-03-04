@@ -70,6 +70,13 @@ def _focus_actions(focus_queue_payload: dict, failure_type: str) -> list[str]:
     ftype = str(failure_type or "").strip().lower()
     out: list[str] = []
     seen: set[str] = set()
+    has_global_regression_focus = any(str(x.get("gate_break_reason") or "").strip().lower() == "regression_fail" for x in queue)
+    if has_global_regression_focus:
+        for item in FOCUS_GATE_ACTIONS.get("regression_fail", []):
+            text = str(item).strip()
+            if text and text not in seen:
+                out.append(text)
+                seen.add(text)
     for row in queue:
         row_ftype = str(row.get("failure_type") or "").strip().lower()
         if row_ftype != ftype:
