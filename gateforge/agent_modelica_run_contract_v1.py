@@ -56,14 +56,43 @@ def _ratio(part: int, total: int) -> float:
     return round((part / total) * 100.0, 2)
 
 
+def _default_baseline_metrics() -> dict:
+    return {
+        "steady_state_error": 0.01,
+        "overshoot": 0.05,
+        "settling_time": 1.0,
+        "runtime_seconds": 1.0,
+        "events": 10,
+    }
+
+
+def _default_candidate_metrics(failure_type: str, baseline_metrics: dict) -> dict:
+    candidate = dict(baseline_metrics)
+    if failure_type == "semantic_regression":
+        candidate["steady_state_error"] = 0.03
+    elif failure_type == "simulate_error":
+        candidate["events"] = 8
+    elif failure_type == "model_check_error":
+        candidate["runtime_seconds"] = 1.2
+    return candidate
+
+
 def _run_task_mock(task: dict, max_rounds: int, max_time_sec: int, physics_contract: dict) -> dict:
     success_round = int(task.get("mock_success_round", 2) or 2)
     round_sec = int(task.get("mock_round_duration_sec", 30) or 30)
     forced_regression_fail = bool(task.get("mock_force_regression_fail", False))
     forced_physics_fail = bool(task.get("mock_force_physics_fail", False))
+    failure_type = str(task.get("failure_type") or "unknown")
     task_invariants = task.get("physical_invariants") if isinstance(task.get("physical_invariants"), list) else []
-    baseline_metrics = task.get("baseline_metrics") if isinstance(task.get("baseline_metrics"), dict) else {}
-    candidate_metrics = task.get("candidate_metrics") if isinstance(task.get("candidate_metrics"), dict) else baseline_metrics
+    provided_baseline_metrics = task.get("baseline_metrics") if isinstance(task.get("baseline_metrics"), dict) else None
+    baseline_metrics = dict(provided_baseline_metrics) if provided_baseline_metrics is not None else _default_baseline_metrics()
+    provided_candidate_metrics = task.get("candidate_metrics") if isinstance(task.get("candidate_metrics"), dict) else None
+    if provided_candidate_metrics is not None:
+        candidate_metrics = dict(provided_candidate_metrics)
+    elif provided_baseline_metrics is not None:
+        candidate_metrics = dict(baseline_metrics)
+    else:
+        candidate_metrics = _default_candidate_metrics(failure_type=failure_type, baseline_metrics=baseline_metrics)
 
     attempts: list[dict] = []
     total_time = 0
@@ -146,7 +175,7 @@ def _run_task_mock(task: dict, max_rounds: int, max_time_sec: int, physics_contr
     return {
         "task_id": str(task.get("task_id") or ""),
         "scale": str(task.get("scale") or "unknown"),
-        "failure_type": str(task.get("failure_type") or "unknown"),
+        "failure_type": failure_type,
         "passed": passed,
         "rounds_used": rounds_used,
         "time_to_pass_sec": total_time if passed else None,
