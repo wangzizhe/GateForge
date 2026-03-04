@@ -10,6 +10,23 @@ class AgentModelicaPatchTemplateEngineV1Tests(unittest.TestCase):
         actions = payload.get("actions") if isinstance(payload.get("actions"), list) else []
         self.assertGreaterEqual(len(actions), 2)
 
+    def test_adds_focus_actions_for_matching_failure_type(self) -> None:
+        payload = build_patch_template(
+            failure_type="simulate_error",
+            expected_stage="simulate",
+            focus_queue_payload={
+                "queue": [
+                    {
+                        "failure_type": "simulate_error",
+                        "gate_break_reason": "regression_fail",
+                    }
+                ]
+            },
+        )
+        self.assertGreaterEqual(int(payload.get("focus_actions_count", 0)), 1)
+        actions = payload.get("actions") if isinstance(payload.get("actions"), list) else []
+        self.assertTrue(any("no-regression guard" in str(x) for x in actions))
+
 
 if __name__ == "__main__":
     unittest.main()
