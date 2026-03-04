@@ -195,6 +195,21 @@ def _strategy_signal(results: dict) -> dict[str, float]:
     }
 
 
+def _strategy_signal_by_failure(results: dict) -> dict[str, dict[str, float]]:
+    records = results.get("records") if isinstance(results.get("records"), list) else []
+    records = [x for x in records if isinstance(x, dict)]
+    buckets: dict[str, list[dict]] = {}
+    for rec in records:
+        ftype = str(rec.get("failure_type") or "unknown")
+        buckets.setdefault(ftype, []).append(rec)
+
+    out: dict[str, dict[str, float]] = {}
+    for ftype, rows in buckets.items():
+        wrapped = {"records": rows}
+        out[ftype] = _strategy_signal(wrapped)
+    return out
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="A/B test repair playbook on same taskset")
     parser.add_argument("--taskset", required=True)
@@ -238,6 +253,14 @@ def main() -> None:
     signal_control = _strategy_signal(control_results)
     signal_treatment = _strategy_signal(treatment_results)
     signal_delta = round(float(signal_treatment.get("score", 0.0)) - float(signal_control.get("score", 0.0)), 4)
+    signal_control_by_failure = _strategy_signal_by_failure(control_results)
+    signal_treatment_by_failure = _strategy_signal_by_failure(treatment_results)
+    signal_delta_by_failure: dict[str, float] = {}
+    all_failure_types = sorted(set(signal_control_by_failure.keys()) | set(signal_treatment_by_failure.keys()))
+    for ftype in all_failure_types:
+        c = float((signal_control_by_failure.get(ftype) or {}).get("score", 0.0) or 0.0)
+        t = float((signal_treatment_by_failure.get(ftype) or {}).get("score", 0.0) or 0.0)
+        signal_delta_by_failure[ftype] = round(t - c, 4)
 
     success_ok = isinstance(delta.get("success_at_k_pct"), (int, float)) and delta.get("success_at_k_pct", 0.0) >= 0.0
     safety_ok = (
@@ -270,6 +293,11 @@ def main() -> None:
             "delta_score": signal_delta,
             "threshold": float(args.evidence_signal_threshold),
             "triggered": bool(evidence_signal_promote),
+        },
+        "strategy_signal_by_failure_type": {
+            "control": signal_control_by_failure,
+            "treatment": signal_treatment_by_failure,
+            "delta_score": signal_delta_by_failure,
         },
         "per_failure_type": per_failure,
         "control": {
