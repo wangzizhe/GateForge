@@ -348,6 +348,8 @@ def main() -> None:
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
         "status": status,
         "taskset_status": taskset_status,
+        "taskset_quota_mode": taskset_summary.get("quota_mode"),
+        "taskset_coverage_gap": taskset_summary.get("coverage_gap", {}),
         "run_contract_status": run_status,
         "acceptance_status": acceptance_status,
         "total_tasks": int(run_summary.get("total_tasks", 0) or 0),
@@ -369,6 +371,8 @@ def main() -> None:
         "failure_types": failure_types,
         "top_fail_reasons": top_fail_reasons,
         "top_fail_reasons_by_scale": top_fail_reasons_by_scale,
+        "quota_mode": taskset_summary.get("quota_mode"),
+        "coverage_gap": taskset_summary.get("coverage_gap", {}),
         "command_results": {
             "taskset_lock": {
                 "returncode": taskset_cmd["returncode"],

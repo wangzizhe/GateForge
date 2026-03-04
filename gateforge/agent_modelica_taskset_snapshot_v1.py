@@ -38,6 +38,7 @@ def _write_markdown(path: str, payload: dict) -> None:
         f"- status: `{payload.get('status')}`",
         f"- snapshot_version: `{payload.get('snapshot_version')}`",
         f"- total_tasks: `{payload.get('total_tasks')}`",
+        f"- quota_mode: `{payload.get('quota_mode')}`",
         f"- per_scale_target: `{payload.get('per_scale_total_target')}`",
         "",
         "## Counts By Scale",
@@ -54,6 +55,13 @@ def _write_markdown(path: str, payload: dict) -> None:
     missing = payload.get("missing_targets", [])
     if isinstance(missing, list) and missing:
         lines.extend([f"- `{x}`" for x in missing])
+    else:
+        lines.append("- `none`")
+    lines.extend(["", "## Coverage Gap", ""])
+    coverage_gap = payload.get("coverage_gap", {})
+    if isinstance(coverage_gap, dict) and coverage_gap:
+        for key in sorted(coverage_gap.keys()):
+            lines.append(f"- {key}: `{coverage_gap[key]}`")
     else:
         lines.append("- `none`")
     lines.append("")
@@ -118,6 +126,7 @@ def main() -> None:
     parser.add_argument("--failure-types", default=",".join(DEFAULT_FAILURE_TYPES))
     parser.add_argument("--per-scale-total", type=int, default=20)
     parser.add_argument("--per-scale-failure-targets", default="7,7,6")
+    parser.add_argument("--adaptive-quota", action="store_true")
     parser.add_argument("--snapshot-version", default=None)
     parser.add_argument("--taskset-out", default="artifacts/agent_modelica_taskset_snapshot_v1/taskset.json")
     parser.add_argument("--out", default="artifacts/agent_modelica_taskset_snapshot_v1/summary.json")
@@ -154,16 +163,29 @@ def main() -> None:
             if mid:
                 buckets[scale][ftype].append(row)
 
+    target_failure_by_type = {failure_types[idx]: max(0, int(targets[idx])) for idx in range(len(failure_types))}
+    effective_failure_by_type = dict(target_failure_by_type)
+    if args.adaptive_quota:
+        effective_failure_by_type = {}
+        for idx, ftype in enumerate(failure_types):
+            available_min = min(len(buckets[scale][ftype]) for scale in scales)
+            effective_failure_by_type[ftype] = min(max(0, int(targets[idx])), int(available_min))
+
     selected: list[dict] = []
     counts_by_scale = {s: 0 for s in scales}
     counts_by_scale_failure = {s: {f: 0 for f in failure_types} for s in scales}
     missing_targets: list[str] = []
     per_scale_total = max(1, int(args.per_scale_total))
+    effective_per_scale_total = min(per_scale_total, sum(int(effective_failure_by_type.get(f, 0)) for f in failure_types))
+    effective_per_scale_total = max(1, effective_per_scale_total)
+    quota_mode = "adaptive" if args.adaptive_quota and (
+        effective_per_scale_total != per_scale_total or effective_failure_by_type != target_failure_by_type
+    ) else "target"
 
     for scale in scales:
         scale_selected: list[dict] = []
         for idx, ftype in enumerate(failure_types):
-            target = max(0, int(targets[idx]))
+            target = int(effective_failure_by_type.get(ftype, 0))
             pool = buckets[scale][ftype]
             picked = pool[:target]
             for row in picked:
@@ -173,23 +195,23 @@ def main() -> None:
             if len(picked) < target:
                 missing_targets.append(f"{scale}:{ftype}:need_{target}_got_{len(picked)}")
 
-        if len(scale_selected) < per_scale_total:
+        if len(scale_selected) < effective_per_scale_total:
             used_ids = {str(x.get("mutation_id") or "") for x in scale_selected}
             topup_pool: list[dict] = []
             for ftype in failure_types:
                 topup_pool.extend([r for r in buckets[scale][ftype] if str(r.get("mutation_id") or "") not in used_ids])
-            need = per_scale_total - len(scale_selected)
+            need = effective_per_scale_total - len(scale_selected)
             for row in topup_pool[:need]:
                 task = _make_task(row)
                 scale_selected.append(task)
                 ftype = str(task.get("failure_type") or "")
                 counts_by_scale_failure[scale][ftype] = int(counts_by_scale_failure[scale].get(ftype, 0)) + 1
 
-        if len(scale_selected) < per_scale_total:
-            missing_targets.append(f"{scale}:total:need_{per_scale_total}_got_{len(scale_selected)}")
+        if len(scale_selected) < effective_per_scale_total:
+            missing_targets.append(f"{scale}:total:need_{effective_per_scale_total}_got_{len(scale_selected)}")
 
-        selected.extend(scale_selected[:per_scale_total])
-        counts_by_scale[scale] = len(scale_selected[:per_scale_total])
+        selected.extend(scale_selected[:effective_per_scale_total])
+        counts_by_scale[scale] = len(scale_selected[:effective_per_scale_total])
 
     snapshot_version = args.snapshot_version or datetime.now(timezone.utc).strftime("snapshot_%Y%m%dT%H%M%SZ")
     taskset_payload = {
@@ -201,14 +223,28 @@ def main() -> None:
     _write_json(args.taskset_out, taskset_payload)
 
     status = "PASS" if not missing_targets else "NEEDS_REVIEW"
+    coverage_gap = {
+        "per_scale_total_target": per_scale_total,
+        "per_scale_total_effective": effective_per_scale_total,
+        "total_tasks_target": per_scale_total * len(scales),
+        "total_tasks_effective": len(selected),
+        "shortfall_total_tasks": (per_scale_total * len(scales)) - len(selected),
+        "failure_targets": target_failure_by_type,
+        "failure_effective": effective_failure_by_type,
+    }
     summary = {
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
         "status": status,
         "snapshot_version": snapshot_version,
         "total_tasks": len(selected),
+        "quota_mode": quota_mode,
         "per_scale_total_target": per_scale_total,
+        "per_scale_total_effective": effective_per_scale_total,
         "failure_types": failure_types,
         "scales": scales,
+        "failure_targets_by_type": target_failure_by_type,
+        "failure_effective_by_type": effective_failure_by_type,
+        "coverage_gap": coverage_gap,
         "counts_by_scale": counts_by_scale,
         "counts_by_scale_failure_type": counts_by_scale_failure,
         "missing_targets": missing_targets,
@@ -219,7 +255,16 @@ def main() -> None:
     }
     _write_json(args.out, summary)
     _write_markdown(args.report_out or _default_md_path(args.out), summary)
-    print(json.dumps({"status": status, "snapshot_version": snapshot_version, "total_tasks": len(selected)}))
+    print(
+        json.dumps(
+            {
+                "status": status,
+                "snapshot_version": snapshot_version,
+                "total_tasks": len(selected),
+                "quota_mode": quota_mode,
+            }
+        )
+    )
 
 
 if __name__ == "__main__":
