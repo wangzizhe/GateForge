@@ -14,6 +14,9 @@ REPLAY_MAX="${GATEFORGE_AGENT_REPLAY_MAX:-6}"
 REPLAY_MIN_PER_FAILURE_TYPE="${GATEFORGE_AGENT_REPLAY_MIN_PER_FAILURE_TYPE:-1}"
 HARDPACK_PATH="${GATEFORGE_AGENT_HARDPACK_PATH:-benchmarks/agent_modelica_hardpack_v1.json}"
 USE_HARDPACK="${GATEFORGE_AGENT_USE_HARDPACK:-auto}"
+DECISION_MIN_SUCCESS_DELTA="${GATEFORGE_AGENT_DECISION_MIN_SUCCESS_DELTA:-0.01}"
+DECISION_MIN_TIME_DELTA="${GATEFORGE_AGENT_DECISION_MIN_TIME_DELTA:--0.01}"
+DECISION_MIN_ROUNDS_DELTA="${GATEFORGE_AGENT_DECISION_MIN_ROUNDS_DELTA:--0.01}"
 
 CORE_MANIFEST="${GATEFORGE_AGENT_CORE_MUTATION_MANIFEST:-}"
 SMALL_MANIFEST="${GATEFORGE_AGENT_SMALL_MUTATION_MANIFEST:-}"
@@ -144,6 +147,9 @@ python3 -m gateforge.agent_modelica_weekly_metrics_page_v1 \
 python3 -m gateforge.agent_modelica_weekly_decision_v1 \
   --current-page "$OUT_DIR/weekly/page.json" \
   --ledger "$OUT_DIR/weekly/history.jsonl" \
+  --min-success-delta-promote "$DECISION_MIN_SUCCESS_DELTA" \
+  --min-time-delta-promote "$DECISION_MIN_TIME_DELTA" \
+  --min-rounds-delta-promote "$DECISION_MIN_ROUNDS_DELTA" \
   --out "$OUT_DIR/weekly/decision.json" \
   --report-out "$OUT_DIR/weekly/decision.md"
 

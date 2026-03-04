@@ -85,6 +85,9 @@ def main() -> None:
     parser.add_argument("--current-page", required=True)
     parser.add_argument("--previous-page", default="")
     parser.add_argument("--ledger", default="")
+    parser.add_argument("--min-success-delta-promote", type=float, default=0.01)
+    parser.add_argument("--min-time-delta-promote", type=float, default=-0.01)
+    parser.add_argument("--min-rounds-delta-promote", type=float, default=-0.01)
     parser.add_argument("--out", default="artifacts/agent_modelica_weekly_decision_v1/decision.json")
     parser.add_argument("--report-out", default=None)
     args = parser.parse_args()
@@ -113,7 +116,11 @@ def main() -> None:
     success_delta = _f(d.get("success_at_k_pct"))
     time_delta = _f(d.get("median_time_to_pass_sec"))
     rounds_delta = _f(d.get("median_repair_rounds"))
-    core_improved = success_delta > 0 or time_delta < 0 or rounds_delta < 0
+    core_improved = (
+        success_delta >= float(args.min_success_delta_promote)
+        or time_delta <= float(args.min_time_delta_promote)
+        or rounds_delta <= float(args.min_rounds_delta_promote)
+    )
     core_regressed = success_delta < 0 or time_delta > 0 or rounds_delta > 0
     if core_improved:
         reasons.append("core_metric_improved")
@@ -141,6 +148,9 @@ def main() -> None:
             "success_delta": round(success_delta, 2),
             "time_delta": round(time_delta, 2),
             "rounds_delta": round(rounds_delta, 2),
+            "min_success_delta_promote": float(args.min_success_delta_promote),
+            "min_time_delta_promote": float(args.min_time_delta_promote),
+            "min_rounds_delta_promote": float(args.min_rounds_delta_promote),
             "core_improved": core_improved,
             "core_regressed": core_regressed,
             "regression_count": regression_count,
