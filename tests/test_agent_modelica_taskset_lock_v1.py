@@ -65,6 +65,9 @@ class AgentModelicaTasksetLockV1Tests(unittest.TestCase):
             self.assertEqual(s.get("status"), "PASS")
             self.assertEqual(int(s.get("total_tasks", 0)), 3)
             self.assertEqual(len(t.get("tasks", [])), 3)
+            first = t.get("tasks", [])[0]
+            self.assertIn("baseline_metrics", first)
+            self.assertIn("candidate_metrics", first)
 
     def test_lock_taskset_respects_per_scale_failure_cap(self) -> None:
         with tempfile.TemporaryDirectory() as d:

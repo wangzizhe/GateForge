@@ -4,7 +4,36 @@
   "checker": "invariant_guard",
   "checker_config": {
     "invariant_guard": {
-      "invariants": []
+      "invariants": [
+        {
+          "type": "range",
+          "metric": "steady_state_error",
+          "min": 0.0,
+          "max": 0.05
+        },
+        {
+          "type": "range",
+          "metric": "overshoot",
+          "min": 0.0,
+          "max": 0.2
+        },
+        {
+          "type": "range",
+          "metric": "settling_time",
+          "min": 0.0,
+          "max": 5.0
+        },
+        {
+          "type": "bounded_delta",
+          "metric": "runtime_seconds",
+          "max_abs_delta": 2.0
+        },
+        {
+          "type": "monotonic",
+          "metric": "events",
+          "direction": "non_increasing"
+        }
+      ]
     }
   },
   "physical_invariants": []

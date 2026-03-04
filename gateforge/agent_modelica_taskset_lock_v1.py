@@ -10,6 +10,27 @@ DEFAULT_FAILURE_TYPES = ("model_check_error", "simulate_error", "semantic_regres
 DEFAULT_SCALES = ("small", "medium", "large")
 
 
+def _default_baseline_metrics() -> dict:
+    return {
+        "steady_state_error": 0.01,
+        "overshoot": 0.05,
+        "settling_time": 1.0,
+        "runtime_seconds": 1.0,
+        "events": 10,
+    }
+
+
+def _default_candidate_metrics(ftype: str, baseline: dict) -> dict:
+    candidate = dict(baseline)
+    if ftype == "semantic_regression":
+        candidate["steady_state_error"] = 0.03
+    elif ftype == "simulate_error":
+        candidate["events"] = 8
+    elif ftype == "model_check_error":
+        candidate["runtime_seconds"] = 1.2
+    return candidate
+
+
 def _load_json(path: str) -> dict:
     p = Path(path)
     if not p.exists():
@@ -99,6 +120,7 @@ def main() -> None:
             continue
 
         task_id = f"task_{mutation_id}"
+        default_baseline_metrics = _default_baseline_metrics()
         selected.append(
             {
                 "task_id": task_id,
@@ -112,6 +134,8 @@ def main() -> None:
                 # Lightweight default config for protocol runner.
                 "mock_success_round": 2,
                 "mock_round_duration_sec": 30,
+                "baseline_metrics": default_baseline_metrics,
+                "candidate_metrics": _default_candidate_metrics(ftype=ftype, baseline=default_baseline_metrics),
             }
         )
         counts_by_scale[scale] += 1
