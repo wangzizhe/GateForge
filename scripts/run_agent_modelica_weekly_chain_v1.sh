@@ -46,6 +46,7 @@ python3 -m gateforge.agent_modelica_taskset_snapshot_v1 \
   --extra-mutation-manifest "$SMALL_MANIFEST" \
   --per-scale-total "$PER_SCALE_TOTAL" \
   --per-scale-failure-targets "$PER_SCALE_FAILURE_TARGETS" \
+  --adaptive-quota \
   --snapshot-version "${WEEK_TAG}" \
   --taskset-out "$TASKSET_PATH" \
   --out "$TASKSET_SUMMARY" \
@@ -80,6 +81,8 @@ summary = {
     "week_tag": week_page.get("week_tag"),
     "status": week_page.get("status"),
     "taskset_status": taskset.get("status"),
+    "quota_mode": taskset.get("quota_mode"),
+    "coverage_gap": taskset.get("coverage_gap"),
     "baseline_status": baseline.get("status"),
     "success_at_k_pct": week_page.get("success_at_k_pct"),
     "median_time_to_pass_sec": week_page.get("median_time_to_pass_sec"),

@@ -46,6 +46,8 @@ class AgentModelicaWeeklyMetricsPageV1Tests(unittest.TestCase):
                         "layered_pass_rate_pct_by_scale": {"small": 100.0, "medium": 50.0, "large": 50.0},
                         "top_fail_reasons": {"regression_fail": 1},
                         "top_fail_reasons_by_scale": {"medium": {"regression_fail": 1}},
+                        "quota_mode": "target",
+                        "coverage_gap": {"shortfall_total_tasks": 0},
                     }
                 ),
                 encoding="utf-8",
@@ -65,6 +67,8 @@ class AgentModelicaWeeklyMetricsPageV1Tests(unittest.TestCase):
                         "layered_pass_rate_pct_by_scale": {"small": 100.0, "medium": 100.0, "large": 50.0},
                         "top_fail_reasons": {},
                         "top_fail_reasons_by_scale": {"medium": {}},
+                        "quota_mode": "adaptive",
+                        "coverage_gap": {"shortfall_total_tasks": 8},
                     }
                 ),
                 encoding="utf-8",
@@ -75,6 +79,8 @@ class AgentModelicaWeeklyMetricsPageV1Tests(unittest.TestCase):
             payload = json.loads(out.read_text(encoding="utf-8"))
             self.assertEqual(payload.get("status"), "PASS")
             self.assertEqual(payload.get("history_records"), 2)
+            self.assertEqual(payload.get("quota_mode"), "adaptive")
+            self.assertEqual(payload.get("coverage_gap_shortfall_total_tasks"), 8)
             delta = payload.get("delta_vs_previous") or {}
             self.assertEqual(delta.get("success_at_k_pct"), 13.33)
             self.assertEqual(delta.get("median_time_to_pass_sec"), -15.0)

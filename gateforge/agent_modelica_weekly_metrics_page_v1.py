@@ -74,6 +74,8 @@ def _write_markdown(path: str, payload: dict) -> None:
         f"- median_repair_rounds: `{payload.get('median_repair_rounds')}`",
         f"- regression_count: `{payload.get('regression_count')}`",
         f"- physics_fail_count: `{payload.get('physics_fail_count')}`",
+        f"- quota_mode: `{payload.get('quota_mode')}`",
+        f"- coverage_gap_shortfall_total_tasks: `{payload.get('coverage_gap_shortfall_total_tasks')}`",
         f"- history_records: `{payload.get('history_records')}`",
         "",
         "## Layered Pass Rate",
@@ -131,6 +133,8 @@ def main() -> None:
         "layered_pass_rate_pct_by_scale",
         "top_fail_reasons",
         "top_fail_reasons_by_scale",
+        "quota_mode",
+        "coverage_gap",
     ]
     for key in required_fields:
         if key not in baseline:
@@ -149,6 +153,8 @@ def main() -> None:
         "layered_pass_rate_pct_by_scale": baseline.get("layered_pass_rate_pct_by_scale", {}),
         "top_fail_reasons": baseline.get("top_fail_reasons", {}),
         "top_fail_reasons_by_scale": baseline.get("top_fail_reasons_by_scale", {}),
+        "quota_mode": baseline.get("quota_mode"),
+        "coverage_gap": baseline.get("coverage_gap", {}),
         "source": args.baseline_summary,
     }
     _append_jsonl(args.ledger, record)
@@ -183,6 +189,13 @@ def main() -> None:
         "layered_pass_rate_pct_by_scale": record.get("layered_pass_rate_pct_by_scale"),
         "top_fail_reasons": record.get("top_fail_reasons"),
         "top_fail_reasons_by_scale": record.get("top_fail_reasons_by_scale"),
+        "quota_mode": record.get("quota_mode"),
+        "coverage_gap": record.get("coverage_gap", {}),
+        "coverage_gap_shortfall_total_tasks": (
+            (record.get("coverage_gap") or {}).get("shortfall_total_tasks")
+            if isinstance(record.get("coverage_gap"), dict)
+            else None
+        ),
         "history_records": len(history),
         "delta_vs_previous": delta_payload,
         "reasons": reasons,
