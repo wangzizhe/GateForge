@@ -11,6 +11,7 @@ class AgentModelicaTasksetLockV1DemoTests(unittest.TestCase):
             capture_output=True,
             text=True,
             check=False,
+            timeout=120,
         )
         self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
         payload = json.loads(proc.stdout.strip().splitlines()[-1])
@@ -20,4 +21,3 @@ class AgentModelicaTasksetLockV1DemoTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
