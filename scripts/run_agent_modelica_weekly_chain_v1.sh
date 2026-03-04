@@ -39,6 +39,7 @@ fi
 
 mkdir -p "$OUT_DIR/tasksets" "$OUT_DIR/baseline" "$OUT_DIR/weekly"
 export OUT_DIR
+FOCUS_QUEUE_HISTORY="$OUT_DIR/weekly/focus_queue_history.jsonl"
 
 TASKSET_PATH="$OUT_DIR/tasksets/taskset_${WEEK_TAG}.json"
 TASKSET_SUMMARY="$OUT_DIR/tasksets/taskset_${WEEK_TAG}_summary.json"
@@ -154,6 +155,8 @@ python3 -m gateforge.agent_modelica_failure_attribution_v1 \
 python3 -m gateforge.agent_modelica_focus_queue_from_attribution_v1 \
   --failure-attribution "$OUT_DIR/weekly/failure_attribution.json" \
   --run-results "$OUT_DIR/baseline/run_results.json" \
+  --history-jsonl "$FOCUS_QUEUE_HISTORY" \
+  --append-history \
   --top-k 2 \
   --out "$OUT_DIR/weekly/focus_queue_from_failure.json" \
   --report-out "$OUT_DIR/weekly/focus_queue_from_failure.md"
