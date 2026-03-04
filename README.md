@@ -6,16 +6,9 @@
   <a href="LICENSE" style="text-decoration:none;"><img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="License" /></a>&nbsp;
   <a href="https://www.python.org/" style="text-decoration:none;"><img src="https://img.shields.io/badge/python-%3E%3D3.10-3776AB.svg" alt="Python >= 3.10" /></a>
 </p>
-
 <p align="center" style="margin: 0.75rem auto 1rem; max-width: 920px; padding: 0.75rem 1rem; border: 1px solid #d0d7de; border-radius: 8px; background: #f6f8fa;">
-  <strong>GateForge determines whether AI- or simulation-driven changes can be safely deployed to production for Physical AI systems.</strong>
+  <strong>GateForge builds workflow-embedded agents for Physical AI with reproducible capability benchmarks.</strong>
 </p>
-
-GateForge is a decision gate around model changes, not a modeling copilot.
-
-Flow: `proposal -> run -> evidence -> regress -> policy -> review`
-
-Current scope: Modelica workflows as the first Physical AI pressure-test domain.
 
 ## Quickstart (5 Minutes)
 
