@@ -63,6 +63,52 @@ class AgentModelicaPlaybookFocusUpdateV1Tests(unittest.TestCase):
             self.assertEqual(int(sim.get("priority", 0)), 90)
             self.assertEqual(sim.get("focus_tag"), "top_failure_focus")
 
+    def test_focus_update_accepts_targets_key(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            playbook = root / "playbook.json"
+            queue = root / "targets.json"
+            out = root / "focused.json"
+            playbook.write_text(
+                json.dumps(
+                    {
+                        "playbook": [
+                            {
+                                "failure_type": "semantic_regression",
+                                "strategy_id": "sem_a",
+                                "priority": 80,
+                                "actions": ["baseline action"],
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            queue.write_text(
+                json.dumps({"targets": [{"failure_type": "semantic_regression", "rank": 1}]}),
+                encoding="utf-8",
+            )
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.agent_modelica_playbook_focus_update_v1",
+                    "--playbook",
+                    str(playbook),
+                    "--queue",
+                    str(queue),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            payload = json.loads(out.read_text(encoding="utf-8"))
+            sem = (payload.get("playbook") or [])[0]
+            self.assertEqual(sem.get("focus_tag"), "top_failure_focus")
+
 
 if __name__ == "__main__":
     unittest.main()
