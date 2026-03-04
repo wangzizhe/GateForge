@@ -114,6 +114,98 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
             reasons = r["records"][0].get("physics_contract_reasons") or []
             self.assertTrue(any(str(x).startswith("physical_invariant_") for x in reasons))
 
+    def test_run_contract_evidence_mode_uses_real_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            taskset = root / "taskset.json"
+            baseline = root / "baseline.json"
+            candidate = root / "candidate.json"
+            results = root / "results.json"
+            summary = root / "summary.json"
+            baseline.write_text(
+                json.dumps(
+                    {
+                        "status": "success",
+                        "gate": "PASS",
+                        "check_ok": True,
+                        "simulate_ok": True,
+                        "metrics": {
+                            "steady_state_error": 0.01,
+                            "overshoot": 0.04,
+                            "settling_time": 1.2,
+                            "runtime_seconds": 2.0,
+                            "events": 12,
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            candidate.write_text(
+                json.dumps(
+                    {
+                        "status": "success",
+                        "gate": "PASS",
+                        "check_ok": True,
+                        "simulate_ok": True,
+                        "metrics": {
+                            "steady_state_error": 0.02,
+                            "overshoot": 0.05,
+                            "settling_time": 1.5,
+                            "runtime_seconds": 2.3,
+                            "events": 10,
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            taskset.write_text(
+                json.dumps(
+                    {
+                        "tasks": [
+                            {
+                                "task_id": "t_evidence",
+                                "scale": "medium",
+                                "failure_type": "semantic_regression",
+                                "baseline_evidence_path": str(baseline),
+                                "candidate_evidence_path": str(candidate),
+                                "observed_repair_rounds": 2,
+                                "observed_elapsed_sec": 40,
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.agent_modelica_run_contract_v1",
+                    "--taskset",
+                    str(taskset),
+                    "--mode",
+                    "evidence",
+                    "--max-rounds",
+                    "5",
+                    "--max-time-sec",
+                    "300",
+                    "--results-out",
+                    str(results),
+                    "--out",
+                    str(summary),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            s = json.loads(summary.read_text(encoding="utf-8"))
+            r = json.loads(results.read_text(encoding="utf-8"))
+            self.assertEqual(s.get("mode"), "evidence")
+            self.assertEqual(int(s.get("success_count", 0)), 1)
+            self.assertEqual(int(s.get("physics_fail_count", 0)), 0)
+            self.assertTrue(bool(r["records"][0]["hard_checks"]["regression_pass"]))
+
 
 if __name__ == "__main__":
     unittest.main()

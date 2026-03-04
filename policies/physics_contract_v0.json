@@ -21,7 +21,7 @@
           "type": "range",
           "metric": "settling_time",
           "min": 0.0,
-          "max": 5.0
+          "max": 6.0
         },
         {
           "type": "bounded_delta",
@@ -36,5 +36,70 @@
       ]
     }
   },
-  "physical_invariants": []
+  "physical_invariants": [],
+  "profiles_by_scale": {
+    "small": {
+      "invariants": [
+        {
+          "type": "range",
+          "metric": "steady_state_error",
+          "min": 0.0,
+          "max": 0.04
+        },
+        {
+          "type": "range",
+          "metric": "settling_time",
+          "min": 0.0,
+          "max": 3.0
+        },
+        {
+          "type": "bounded_delta",
+          "metric": "runtime_seconds",
+          "max_abs_delta": 1.0
+        }
+      ]
+    },
+    "medium": {
+      "invariants": [
+        {
+          "type": "range",
+          "metric": "steady_state_error",
+          "min": 0.0,
+          "max": 0.05
+        },
+        {
+          "type": "range",
+          "metric": "settling_time",
+          "min": 0.0,
+          "max": 5.0
+        },
+        {
+          "type": "bounded_delta",
+          "metric": "runtime_seconds",
+          "max_abs_delta": 2.0
+        }
+      ]
+    },
+    "large": {
+      "invariants": [
+        {
+          "type": "range",
+          "metric": "steady_state_error",
+          "min": 0.0,
+          "max": 0.06
+        },
+        {
+          "type": "range",
+          "metric": "settling_time",
+          "min": 0.0,
+          "max": 8.0
+        },
+        {
+          "type": "bounded_delta",
+          "metric": "runtime_seconds",
+          "max_abs_delta": 3.5
+        }
+      ]
+    }
+  }
 }

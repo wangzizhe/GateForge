@@ -78,6 +78,14 @@ def _write_markdown(path: str, payload: dict) -> None:
     else:
         lines.append("- `none`")
 
+    lines.extend(["", "## Top Fail Reasons", ""])
+    top_fail = payload.get("top_fail_reasons", {})
+    if isinstance(top_fail, dict) and top_fail:
+        for key, count in sorted(top_fail.items(), key=lambda kv: (-int(kv[1]), kv[0]))[:8]:
+            lines.append(f"- {key}: `{count}`")
+    else:
+        lines.append("- `none`")
+
     lines.append("")
     p.write_text("\n".join(lines), encoding="utf-8")
 
@@ -145,9 +153,40 @@ def _layered_pass_rates(counts_by_scale: dict, scales: list[str]) -> dict[str, f
     return out
 
 
+def _extract_fail_reasons(run_results: list[dict]) -> tuple[dict[str, int], dict[str, dict[str, int]]]:
+    global_counts: dict[str, int] = {}
+    by_scale: dict[str, dict[str, int]] = {}
+    for rec in run_results:
+        if not isinstance(rec, dict):
+            continue
+        scale = str(rec.get("scale") or "unknown").lower()
+        reasons: list[str] = []
+        hard = rec.get("hard_checks") if isinstance(rec.get("hard_checks"), dict) else {}
+        if not bool(hard.get("check_model_pass")):
+            reasons.append("check_model_fail")
+        if not bool(hard.get("simulate_pass")):
+            reasons.append("simulate_fail")
+        if not bool(hard.get("regression_pass")):
+            reasons.append("regression_fail")
+        reasons.extend([str(x) for x in (rec.get("physics_contract_reasons") or []) if isinstance(x, str)])
+        reasons.extend([str(x) for x in (rec.get("regression_reasons") or []) if isinstance(x, str)])
+        dedup = sorted(set(reasons))
+        for reason in dedup:
+            global_counts[reason] = int(global_counts.get(reason, 0)) + 1
+            bucket = by_scale.setdefault(scale, {})
+            bucket[reason] = int(bucket.get(reason, 0)) + 1
+    return global_counts, by_scale
+
+
+def _top_n(counter: dict[str, int], n: int = 3) -> dict[str, int]:
+    return dict(sorted(counter.items(), key=lambda kv: (-int(kv[1]), kv[0]))[:n])
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run first layered baseline for modelica agent chain")
-    parser.add_argument("--mutation-manifest", required=True)
+    parser.add_argument("--mutation-manifest", default="")
+    parser.add_argument("--extra-mutation-manifest", action="append", default=[])
+    parser.add_argument("--taskset-in", default=None)
     parser.add_argument("--out-dir", default="artifacts/agent_modelica_layered_baseline_v1")
     parser.add_argument("--scales", default=",".join(DEFAULT_SCALES))
     parser.add_argument("--failure-types", default=",".join(DEFAULT_FAILURE_TYPES))
@@ -162,6 +201,8 @@ def main() -> None:
     parser.add_argument("--medium-max-rounds", type=int, default=6)
     parser.add_argument("--large-max-rounds", type=int, default=9)
     parser.add_argument("--physics-contract", default=DEFAULT_PHYSICS_CONTRACT_PATH)
+    parser.add_argument("--run-mode", choices=["mock", "evidence"], default="mock")
+    parser.add_argument("--runtime-threshold", type=float, default=0.2)
     parser.add_argument("--out", default="artifacts/agent_modelica_layered_baseline_v1/summary.json")
     parser.add_argument("--report-out", default=None)
     args = parser.parse_args()
@@ -182,9 +223,24 @@ def main() -> None:
     run_summary_path = str(out_dir / "run_summary.json")
     acceptance_path = str(out_dir / "acceptance_summary.json")
 
-    taskset_cmd = _run_module(
-        "gateforge.agent_modelica_taskset_lock_v1",
-        [
+    taskset_cmd: dict
+    if isinstance(args.taskset_in, str) and args.taskset_in.strip():
+        source_taskset = Path(args.taskset_in.strip())
+        if not source_taskset.exists():
+            raise SystemExit(f"--taskset-in not found: {source_taskset}")
+        payload = _load_json(str(source_taskset))
+        _write_json(taskset_path, payload)
+        copied_summary = {
+            "status": "PASS",
+            "taskset_out": taskset_path,
+            "sources": {"taskset_in": str(source_taskset)},
+        }
+        _write_json(taskset_summary_path, copied_summary)
+        taskset_cmd = {"returncode": 0, "stderr": "", "stdout": "", "module": "taskset_in", "argv": []}
+    else:
+        if not str(args.mutation_manifest).strip():
+            raise SystemExit("--mutation-manifest is required when --taskset-in is not provided")
+        taskset_argv = [
             "--mutation-manifest",
             args.mutation_manifest,
             "--scales",
@@ -199,8 +255,10 @@ def main() -> None:
             taskset_path,
             "--out",
             taskset_summary_path,
-        ],
-    )
+        ]
+        for extra in [str(x) for x in (args.extra_mutation_manifest or []) if str(x).strip()]:
+            taskset_argv.extend(["--extra-mutation-manifest", extra])
+        taskset_cmd = _run_module("gateforge.agent_modelica_taskset_lock_v1", taskset_argv)
 
     run_cmd = _run_module(
         "gateforge.agent_modelica_run_contract_v1",
@@ -211,6 +269,10 @@ def main() -> None:
             str(max(1, int(args.max_rounds))),
             "--max-time-sec",
             str(max(1, int(args.max_time_sec))),
+            "--mode",
+            args.run_mode,
+            "--runtime-threshold",
+            str(float(args.runtime_threshold)),
             "--physics-contract",
             args.physics_contract,
             "--results-out",
@@ -245,6 +307,7 @@ def main() -> None:
     taskset_summary = _load_json(taskset_summary_path)
     taskset = _load_json(taskset_path)
     run_summary = _load_json(run_summary_path)
+    run_results_payload = _load_json(run_results_path)
     acceptance_summary = _load_json(acceptance_path)
 
     tasks = taskset.get("tasks") if isinstance(taskset.get("tasks"), list) else []
@@ -254,6 +317,10 @@ def main() -> None:
     missing_scales = [scale for scale, count in counts_by_scale.items() if int(count) <= 0]
     missing_failure_types = [ftype for ftype, count in counts_by_failure.items() if int(count) <= 0]
     layered_pass = _layered_pass_rates(acceptance_summary.get("counts_by_scale", {}), scales=scales)
+    run_results = run_results_payload.get("records") if isinstance(run_results_payload.get("records"), list) else []
+    run_results = [x for x in run_results if isinstance(x, dict)]
+    top_fail_reasons, top_fail_reasons_by_scale_all = _extract_fail_reasons(run_results)
+    top_fail_reasons_by_scale = {scale: _top_n(top_fail_reasons_by_scale_all.get(scale, {}), n=3) for scale in scales}
 
     reasons: list[str] = []
     if taskset_cmd["returncode"] != 0:
@@ -289,6 +356,8 @@ def main() -> None:
         "median_repair_rounds": run_summary.get("median_repair_rounds"),
         "regression_count": int(run_summary.get("regression_count", 0) or 0),
         "physics_fail_count": int(run_summary.get("physics_fail_count", 0) or 0),
+        "run_mode": args.run_mode,
+        "runtime_threshold": float(args.runtime_threshold),
         "layered_pass_rate_pct_by_scale": layered_pass,
         "task_count_by_scale": counts_by_scale,
         "task_count_by_failure_type": counts_by_failure,
@@ -298,6 +367,8 @@ def main() -> None:
         "missing_scale_failure_buckets": missing_buckets,
         "scales": scales,
         "failure_types": failure_types,
+        "top_fail_reasons": top_fail_reasons,
+        "top_fail_reasons_by_scale": top_fail_reasons_by_scale,
         "command_results": {
             "taskset_lock": {
                 "returncode": taskset_cmd["returncode"],
@@ -322,6 +393,8 @@ def main() -> None:
         },
         "sources": {
             "mutation_manifest": args.mutation_manifest,
+            "extra_mutation_manifest": [str(x) for x in (args.extra_mutation_manifest or []) if str(x).strip()],
+            "taskset_in": args.taskset_in,
             "physics_contract": args.physics_contract,
         },
     }
