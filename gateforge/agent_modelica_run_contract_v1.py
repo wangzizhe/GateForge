@@ -6,6 +6,12 @@ import statistics
 from datetime import datetime, timezone
 from pathlib import Path
 
+from .physics_contract_v0 import (
+    DEFAULT_PHYSICS_CONTRACT_PATH,
+    evaluate_physics_contract_v0,
+    load_physics_contract_v0,
+)
+
 
 def _load_json(path: str) -> dict:
     p = Path(path)
@@ -50,11 +56,14 @@ def _ratio(part: int, total: int) -> float:
     return round((part / total) * 100.0, 2)
 
 
-def _run_task_mock(task: dict, max_rounds: int, max_time_sec: int) -> dict:
+def _run_task_mock(task: dict, max_rounds: int, max_time_sec: int, physics_contract: dict) -> dict:
     success_round = int(task.get("mock_success_round", 2) or 2)
     round_sec = int(task.get("mock_round_duration_sec", 30) or 30)
     forced_regression_fail = bool(task.get("mock_force_regression_fail", False))
     forced_physics_fail = bool(task.get("mock_force_physics_fail", False))
+    task_invariants = task.get("physical_invariants") if isinstance(task.get("physical_invariants"), list) else []
+    baseline_metrics = task.get("baseline_metrics") if isinstance(task.get("baseline_metrics"), dict) else {}
+    candidate_metrics = task.get("candidate_metrics") if isinstance(task.get("candidate_metrics"), dict) else baseline_metrics
 
     attempts: list[dict] = []
     total_time = 0
@@ -73,7 +82,38 @@ def _run_task_mock(task: dict, max_rounds: int, max_time_sec: int) -> dict:
         hit = idx >= success_round
         check_ok = hit
         simulate_ok = hit
-        physics_ok = hit and not forced_physics_fail
+        if not hit:
+            physics_eval = {
+                "pass": False,
+                "reasons": ["physics_contract_not_evaluated_before_check_and_simulate_pass"],
+                "findings": [],
+                "invariant_count": 0,
+            }
+            physics_ok = False
+        elif forced_physics_fail:
+            physics_eval = {
+                "pass": False,
+                "reasons": ["physics_contract_forced_fail"],
+                "findings": [],
+                "invariant_count": len(task_invariants),
+            }
+            physics_ok = False
+        else:
+            try:
+                physics_eval = evaluate_physics_contract_v0(
+                    contract=physics_contract,
+                    task_invariants=task_invariants,
+                    baseline_metrics=baseline_metrics,
+                    candidate_metrics=candidate_metrics,
+                )
+            except Exception as exc:
+                physics_eval = {
+                    "pass": False,
+                    "reasons": [f"physics_contract_eval_error:{exc}"],
+                    "findings": [],
+                    "invariant_count": len(task_invariants),
+                }
+            physics_ok = bool(physics_eval.get("pass"))
         regression_ok = hit and not forced_regression_fail
         attempts.append(
             {
@@ -82,6 +122,8 @@ def _run_task_mock(task: dict, max_rounds: int, max_time_sec: int) -> dict:
                 "check_model_pass": check_ok,
                 "simulate_pass": simulate_ok,
                 "physics_contract_pass": physics_ok,
+                "physics_contract_reasons": list(physics_eval.get("reasons") or []),
+                "physics_contract_invariant_count": int(physics_eval.get("invariant_count") or 0),
                 "regression_pass": regression_ok,
             }
         )
@@ -110,6 +152,11 @@ def _run_task_mock(task: dict, max_rounds: int, max_time_sec: int) -> dict:
         "time_to_pass_sec": total_time if passed else None,
         "elapsed_sec": total_time,
         "hard_checks": hard,
+        "physics_contract_reasons": [
+            str(x)
+            for x in (attempts[-1].get("physics_contract_reasons") if attempts else [])
+            if isinstance(x, str)
+        ],
         "attempts": attempts,
     }
 
@@ -120,6 +167,7 @@ def main() -> None:
     parser.add_argument("--mode", choices=["mock"], default="mock")
     parser.add_argument("--max-rounds", type=int, default=5)
     parser.add_argument("--max-time-sec", type=int, default=300)
+    parser.add_argument("--physics-contract", default=DEFAULT_PHYSICS_CONTRACT_PATH)
     parser.add_argument("--results-out", default="artifacts/agent_modelica_run_contract_v1/results.json")
     parser.add_argument("--out", default="artifacts/agent_modelica_run_contract_v1/summary.json")
     parser.add_argument("--report-out", default=None)
@@ -134,10 +182,18 @@ def main() -> None:
 
     max_rounds = max(1, int(args.max_rounds))
     max_time_sec = max(1, int(args.max_time_sec))
+    physics_contract, physics_contract_source = load_physics_contract_v0(args.physics_contract)
 
     records: list[dict] = []
     for task in tasks:
-        records.append(_run_task_mock(task, max_rounds=max_rounds, max_time_sec=max_time_sec))
+        records.append(
+            _run_task_mock(
+                task,
+                max_rounds=max_rounds,
+                max_time_sec=max_time_sec,
+                physics_contract=physics_contract,
+            )
+        )
 
     success_rows = [x for x in records if bool(x.get("passed"))]
     success_count = len(success_rows)
@@ -157,6 +213,8 @@ def main() -> None:
     results_payload = {
         "schema_version": "agent_modelica_run_results_v1",
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
+        "physics_contract_schema_version": physics_contract.get("schema_version"),
+        "physics_contract_source": physics_contract_source,
         "records": records,
     }
     _write_json(args.results_out, results_payload)
@@ -171,11 +229,13 @@ def main() -> None:
         "median_repair_rounds": median_rounds,
         "regression_count": regression_count,
         "physics_fail_count": physics_fail_count,
+        "physics_contract_schema_version": physics_contract.get("schema_version"),
+        "physics_contract_source": physics_contract_source,
         "max_rounds": max_rounds,
         "max_time_sec": max_time_sec,
         "results_out": args.results_out,
         "reasons": reasons,
-        "sources": {"taskset": args.taskset},
+        "sources": {"taskset": args.taskset, "physics_contract": args.physics_contract},
     }
     _write_json(args.out, summary)
     _write_markdown(args.report_out or _default_md_path(args.out), summary)
@@ -186,4 +246,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

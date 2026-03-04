@@ -66,7 +66,72 @@ class AgentModelicaTasksetLockV1Tests(unittest.TestCase):
             self.assertEqual(int(s.get("total_tasks", 0)), 3)
             self.assertEqual(len(t.get("tasks", [])), 3)
 
+    def test_lock_taskset_respects_per_scale_failure_cap(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            manifest = root / "manifest.json"
+            taskset = root / "taskset.json"
+            summary = root / "summary.json"
+            manifest.write_text(
+                json.dumps(
+                    {
+                        "mutations": [
+                            {
+                                "mutation_id": "m1",
+                                "target_scale": "small",
+                                "expected_failure_type": "model_check_error",
+                            },
+                            {
+                                "mutation_id": "m2",
+                                "target_scale": "small",
+                                "expected_failure_type": "model_check_error",
+                            },
+                            {
+                                "mutation_id": "m3",
+                                "target_scale": "small",
+                                "expected_failure_type": "simulate_error",
+                            },
+                            {
+                                "mutation_id": "m4",
+                                "target_scale": "small",
+                                "expected_failure_type": "simulate_error",
+                            },
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.agent_modelica_taskset_lock_v1",
+                    "--mutation-manifest",
+                    str(manifest),
+                    "--scales",
+                    "small",
+                    "--failure-types",
+                    "model_check_error,simulate_error",
+                    "--max-per-scale",
+                    "10",
+                    "--max-per-scale-failure-type",
+                    "1",
+                    "--taskset-out",
+                    str(taskset),
+                    "--out",
+                    str(summary),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            s = json.loads(summary.read_text(encoding="utf-8"))
+            counts = (s.get("counts_by_scale_failure_type") or {}).get("small") or {}
+            self.assertEqual(int(counts.get("model_check_error", 0)), 1)
+            self.assertEqual(int(counts.get("simulate_error", 0)), 1)
+            self.assertEqual(int(s.get("total_tasks", 0)), 2)
+
 
 if __name__ == "__main__":
     unittest.main()
-
