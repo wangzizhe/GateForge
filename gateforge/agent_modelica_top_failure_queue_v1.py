@@ -41,7 +41,7 @@ def _write_markdown(path: str, payload: dict) -> None:
         lines.extend(["## Queue", ""])
         for row in queue:
             lines.append(
-                f"- `{row.get('rank')}` `{row.get('failure_type')}` count=`{row.get('count')}` delta_pass=`{row.get('delta_pass_rate_pct')}`"
+                f"- `{row.get('rank')}` `{row.get('failure_type')}` priority=`{row.get('priority_score')}` count=`{row.get('count')}` delta_pass=`{row.get('delta_pass_rate_pct')}` signal_delta=`{row.get('strategy_signal_delta_score')}`"
             )
     else:
         lines.extend(["## Queue", "", "- `none`"])
@@ -49,43 +49,81 @@ def _write_markdown(path: str, payload: dict) -> None:
     p.write_text("\n".join(lines), encoding="utf-8")
 
 
-def _priority_key(row: dict) -> tuple[float, int, str]:
-    # Prefer failures that are frequent and not improving.
+def _priority_score(
+    row: dict,
+    *,
+    outcome_weight: float,
+    strategy_weight: float,
+    strategy_target_score: float,
+) -> float:
     delta_pass = float(row.get("delta_pass_rate_pct", 0.0) or 0.0)
+    delta_time = float(row.get("delta_avg_elapsed_sec", 0.0) or 0.0)
     count = int(row.get("count", 0) or 0)
-    ftype = str(row.get("failure_type") or "")
-    penalty = 0.0 if delta_pass <= 0 else delta_pass
-    return (penalty, -count, ftype)
+    treatment_signal = float(row.get("strategy_signal_treatment_score", 0.0) or 0.0)
+    delta_signal = float(row.get("strategy_signal_delta_score", 0.0) or 0.0)
+
+    # Outcome weakness: treatment pass-rate drop, slower runtime, and high frequency.
+    outcome_weakness = (max(0.0, -delta_pass) * 1.0) + (max(0.0, delta_time) * 2.0) + (float(count) * 0.05)
+    # Strategy weakness: low treatment quality score and non-improving signal trend.
+    strategy_weakness = max(0.0, strategy_target_score - treatment_signal) + max(0.0, -delta_signal)
+    score = (outcome_weight * outcome_weakness) + (strategy_weight * strategy_weakness)
+    return round(score, 4)
+
+
+def _priority_key(row: dict) -> tuple[float, int, str]:
+    # Descending by priority_score, then descending count, then lexical by failure type.
+    return (-float(row.get("priority_score", 0.0) or 0.0), -int(row.get("count", 0) or 0), str(row.get("failure_type") or ""))
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Build top failure queue from strategy A/B summary")
     parser.add_argument("--ab-summary", required=True)
     parser.add_argument("--top-k", type=int, default=2)
+    parser.add_argument("--outcome-weight", type=float, default=0.7)
+    parser.add_argument("--strategy-weight", type=float, default=0.3)
+    parser.add_argument("--strategy-target-score", type=float, default=0.8)
     parser.add_argument("--out", default="artifacts/agent_modelica_top_failure_queue_v1/queue.json")
     parser.add_argument("--report-out", default=None)
     args = parser.parse_args()
 
     ab = _load_json(args.ab_summary)
     per_failure = ab.get("per_failure_type") if isinstance(ab.get("per_failure_type"), dict) else {}
+    sig_payload = (
+        ab.get("strategy_signal_by_failure_type")
+        if isinstance(ab.get("strategy_signal_by_failure_type"), dict)
+        else {}
+    )
+    sig_treatment = sig_payload.get("treatment") if isinstance(sig_payload.get("treatment"), dict) else {}
+    sig_delta = sig_payload.get("delta_score") if isinstance(sig_payload.get("delta_score"), dict) else {}
 
     candidates: list[dict] = []
     for ftype, row in per_failure.items():
         if not isinstance(row, dict):
             continue
+        treatment_score = float((sig_treatment.get(ftype) or {}).get("score", 0.0) or 0.0)
+        delta_score = float(sig_delta.get(ftype, 0.0) or 0.0)
+        candidate = {
+            "failure_type": str(ftype),
+            "count": int(row.get("count", 0) or 0),
+            "delta_pass_rate_pct": float(row.get("delta_pass_rate_pct", 0.0) or 0.0),
+            "delta_avg_elapsed_sec": (
+                float(row.get("delta_avg_elapsed_sec"))
+                if isinstance(row.get("delta_avg_elapsed_sec"), (int, float))
+                else None
+            ),
+            "control_pass_rate_pct": float(row.get("control_pass_rate_pct", 0.0) or 0.0),
+            "treatment_pass_rate_pct": float(row.get("treatment_pass_rate_pct", 0.0) or 0.0),
+            "strategy_signal_treatment_score": treatment_score,
+            "strategy_signal_delta_score": delta_score,
+        }
+        candidate["priority_score"] = _priority_score(
+            candidate,
+            outcome_weight=float(args.outcome_weight),
+            strategy_weight=float(args.strategy_weight),
+            strategy_target_score=float(args.strategy_target_score),
+        )
         candidates.append(
-            {
-                "failure_type": str(ftype),
-                "count": int(row.get("count", 0) or 0),
-                "delta_pass_rate_pct": float(row.get("delta_pass_rate_pct", 0.0) or 0.0),
-                "delta_avg_elapsed_sec": (
-                    float(row.get("delta_avg_elapsed_sec"))
-                    if isinstance(row.get("delta_avg_elapsed_sec"), (int, float))
-                    else None
-                ),
-                "control_pass_rate_pct": float(row.get("control_pass_rate_pct", 0.0) or 0.0),
-                "treatment_pass_rate_pct": float(row.get("treatment_pass_rate_pct", 0.0) or 0.0),
-            }
+            candidate
         )
 
     ranked = sorted(candidates, key=_priority_key)

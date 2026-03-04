@@ -73,6 +73,7 @@ class AgentModelicaStrategyABTestV1Tests(unittest.TestCase):
             self.assertIn(payload.get("decision"), {"PROMOTE_TREATMENT", "KEEP_CONTROL"})
             self.assertIn("delta", payload)
             self.assertIn("strategy_signal", payload)
+            self.assertIn("strategy_signal_by_failure_type", payload)
 
     def test_evidence_mode_uses_strategy_signal_tiebreak(self) -> None:
         with tempfile.TemporaryDirectory() as d:
