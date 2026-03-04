@@ -159,6 +159,51 @@ class AgentModelicaEvidenceStressInjectorV1Tests(unittest.TestCase):
             self.assertEqual(s.get("status"), "NEEDS_REVIEW")
             self.assertIn("hard_fail_injection_shortfall", s.get("reasons", []))
 
+    def test_balances_injection_across_scale_failure_pairs(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            taskset = root / "taskset.json"
+            out_taskset = root / "out_taskset.json"
+            summary = root / "summary.json"
+            tasks = []
+            idx = 0
+            for scale in ["small", "medium", "large"]:
+                for failure_type in ["model_check_error", "simulate_error", "semantic_regression"]:
+                    idx += 1
+                    tasks.append(
+                        {
+                            "task_id": f"t{idx}",
+                            "scale": scale,
+                            "failure_type": failure_type,
+                            "baseline_evidence": _ev({"runtime_seconds": 2.0}),
+                            "candidate_evidence": _ev({"runtime_seconds": 2.1}),
+                        }
+                    )
+            taskset.write_text(json.dumps({"tasks": tasks}), encoding="utf-8")
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.agent_modelica_evidence_stress_injector_v1",
+                    "--taskset-in",
+                    str(taskset),
+                    "--hard-fail-count",
+                    "9",
+                    "--out-taskset",
+                    str(out_taskset),
+                    "--out",
+                    str(summary),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            s = json.loads(summary.read_text(encoding="utf-8"))
+            by_scale = s.get("injected_by_scale") if isinstance(s.get("injected_by_scale"), dict) else {}
+            self.assertEqual(by_scale, {"small": 3, "medium": 3, "large": 3})
+
 
 if __name__ == "__main__":
     unittest.main()
