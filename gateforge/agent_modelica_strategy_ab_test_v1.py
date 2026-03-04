@@ -42,6 +42,8 @@ def _write_markdown(path: str, payload: dict) -> None:
         f"- delta_median_repair_rounds: `{(payload.get('delta') or {}).get('median_repair_rounds')}`",
         f"- delta_regression_count: `{(payload.get('delta') or {}).get('regression_count')}`",
         f"- delta_physics_fail_count: `{(payload.get('delta') or {}).get('physics_fail_count')}`",
+        f"- strategy_signal_delta_score: `{(payload.get('strategy_signal') or {}).get('delta_score')}`",
+        f"- strategy_signal_triggered: `{(payload.get('strategy_signal') or {}).get('triggered')}`",
         "",
     ]
     p.write_text("\n".join(lines), encoding="utf-8")
@@ -147,12 +149,59 @@ def _build_per_failure_delta(control_results: dict, treatment_results: dict) -> 
     return out
 
 
+def _strategy_signal(results: dict) -> dict[str, float]:
+    records = results.get("records") if isinstance(results.get("records"), list) else []
+    records = [x for x in records if isinstance(x, dict)]
+    total = len(records)
+    if total <= 0:
+        return {
+            "task_count": 0.0,
+            "stage_match_rate_pct": 0.0,
+            "failure_match_rate_pct": 0.0,
+            "avg_strategy_confidence": 0.0,
+            "avg_planned_actions": 0.0,
+            "score": 0.0,
+        }
+
+    stage_matched = 0
+    failure_matched = 0
+    confidence_sum = 0.0
+    action_count_sum = 0
+    for rec in records:
+        audit = rec.get("repair_audit") if isinstance(rec.get("repair_audit"), dict) else {}
+        reason = str(audit.get("strategy_reason") or "")
+        if reason == "stage_matched":
+            stage_matched += 1
+        if reason in {"stage_matched", "failure_type_matched"}:
+            failure_matched += 1
+        confidence_sum += float(audit.get("strategy_confidence", 0.0) or 0.0)
+        actions = audit.get("actions_planned") if isinstance(audit.get("actions_planned"), list) else []
+        action_count_sum += len([x for x in actions if isinstance(x, str)])
+
+    stage_match_rate = stage_matched / total
+    failure_match_rate = failure_matched / total
+    avg_conf = confidence_sum / total
+    avg_actions = action_count_sum / total
+
+    # Evidence-mode signal focuses on strategy-task fit quality when hard outcomes are tied.
+    score = (0.6 * stage_match_rate) + (0.2 * failure_match_rate) + (0.2 * min(1.0, max(0.0, avg_conf)))
+    return {
+        "task_count": float(total),
+        "stage_match_rate_pct": round(stage_match_rate * 100.0, 2),
+        "failure_match_rate_pct": round(failure_match_rate * 100.0, 2),
+        "avg_strategy_confidence": round(avg_conf, 4),
+        "avg_planned_actions": round(avg_actions, 2),
+        "score": round(score, 4),
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="A/B test repair playbook on same taskset")
     parser.add_argument("--taskset", required=True)
     parser.add_argument("--treatment-playbook", required=True)
     parser.add_argument("--mode", choices=["mock", "evidence"], default="mock")
     parser.add_argument("--runtime-threshold", type=float, default=0.2)
+    parser.add_argument("--evidence-signal-threshold", type=float, default=0.08)
     parser.add_argument("--out-dir", default="artifacts/agent_modelica_strategy_ab_test_v1")
     parser.add_argument("--out", default="artifacts/agent_modelica_strategy_ab_test_v1/summary.json")
     parser.add_argument("--report-out", default=None)
@@ -186,6 +235,9 @@ def main() -> None:
         "physics_fail_count": _delta(treatment_summary, control_summary, "physics_fail_count"),
     }
     per_failure = _build_per_failure_delta(control_results=control_results, treatment_results=treatment_results)
+    signal_control = _strategy_signal(control_results)
+    signal_treatment = _strategy_signal(treatment_results)
+    signal_delta = round(float(signal_treatment.get("score", 0.0)) - float(signal_control.get("score", 0.0)), 4)
 
     success_ok = isinstance(delta.get("success_at_k_pct"), (int, float)) and delta.get("success_at_k_pct", 0.0) >= 0.0
     safety_ok = (
@@ -196,7 +248,14 @@ def main() -> None:
     )
     rounds_improved = isinstance(delta.get("median_repair_rounds"), (int, float)) and delta.get("median_repair_rounds", 0.0) < 0.0
     time_improved = isinstance(delta.get("median_time_to_pass_sec"), (int, float)) and delta.get("median_time_to_pass_sec", 0.0) < 0.0
-    decision = "PROMOTE_TREATMENT" if success_ok and safety_ok and (rounds_improved or time_improved) else "KEEP_CONTROL"
+    evidence_signal_promote = (
+        args.mode == "evidence"
+        and success_ok
+        and safety_ok
+        and not (rounds_improved or time_improved)
+        and signal_delta >= float(args.evidence_signal_threshold)
+    )
+    decision = "PROMOTE_TREATMENT" if (success_ok and safety_ok and (rounds_improved or time_improved or evidence_signal_promote)) else "KEEP_CONTROL"
 
     payload = {
         "schema_version": "agent_modelica_strategy_ab_test_v1",
@@ -205,6 +264,13 @@ def main() -> None:
         "decision": decision,
         "mode": args.mode,
         "delta": delta,
+        "strategy_signal": {
+            "control": signal_control,
+            "treatment": signal_treatment,
+            "delta_score": signal_delta,
+            "threshold": float(args.evidence_signal_threshold),
+            "triggered": bool(evidence_signal_promote),
+        },
         "per_failure_type": per_failure,
         "control": {
             "summary": control_summary,
