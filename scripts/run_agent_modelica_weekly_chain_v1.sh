@@ -17,6 +17,7 @@ USE_HARDPACK="${GATEFORGE_AGENT_USE_HARDPACK:-auto}"
 DECISION_MIN_SUCCESS_DELTA="${GATEFORGE_AGENT_DECISION_MIN_SUCCESS_DELTA:-0.01}"
 DECISION_MIN_TIME_DELTA="${GATEFORGE_AGENT_DECISION_MIN_TIME_DELTA:--0.01}"
 DECISION_MIN_ROUNDS_DELTA="${GATEFORGE_AGENT_DECISION_MIN_ROUNDS_DELTA:--0.01}"
+REPAIR_HISTORY_PATH="${GATEFORGE_AGENT_REPAIR_HISTORY_PATH:-data/private_failure_corpus/agent_modelica_repair_memory_v1.json}"
 
 CORE_MANIFEST="${GATEFORGE_AGENT_CORE_MUTATION_MANIFEST:-}"
 SMALL_MANIFEST="${GATEFORGE_AGENT_SMALL_MUTATION_MANIFEST:-}"
@@ -138,6 +139,7 @@ BASELINE_CMD=(
   --run-mode "$RUN_MODE"
   --physics-contract "$PHYSICS_CONTRACT"
   --repair-playbook "$REPAIR_PLAYBOOK"
+  --repair-history "$REPAIR_HISTORY_PATH"
   --out-dir "$OUT_DIR/baseline"
   --out "$OUT_DIR/baseline/summary.json"
   --report-out "$OUT_DIR/baseline/summary.md"
@@ -146,6 +148,13 @@ if [ -n "$FOCUS_QUEUE_FOR_RUN" ] && [ -f "$FOCUS_QUEUE_FOR_RUN" ]; then
   BASELINE_CMD+=(--focus-queue "$FOCUS_QUEUE_FOR_RUN")
 fi
 "${BASELINE_CMD[@]}"
+
+python3 -m gateforge.agent_modelica_repair_memory_store_v1 \
+  --run-results "$OUT_DIR/baseline/run_results.json" \
+  --taskset "$TASKSET_FOR_BASELINE" \
+  --memory "$REPAIR_HISTORY_PATH" \
+  --out "$OUT_DIR/weekly/repair_memory_update.json" \
+  --report-out "$OUT_DIR/weekly/repair_memory_update.md"
 
 python3 -m gateforge.agent_modelica_failure_attribution_v1 \
   --run-results "$OUT_DIR/baseline/run_results.json" \
