@@ -202,6 +202,7 @@ def main() -> None:
     parser.add_argument("--large-max-rounds", type=int, default=9)
     parser.add_argument("--physics-contract", default=DEFAULT_PHYSICS_CONTRACT_PATH)
     parser.add_argument("--repair-playbook", default=None)
+    parser.add_argument("--repair-history", default=None)
     parser.add_argument("--run-mode", choices=["mock", "evidence"], default="mock")
     parser.add_argument("--runtime-threshold", type=float, default=0.2)
     parser.add_argument("--out", default="artifacts/agent_modelica_layered_baseline_v1/summary.json")
@@ -278,6 +279,8 @@ def main() -> None:
             args.physics_contract,
             "--repair-playbook",
             str(args.repair_playbook or ""),
+            "--repair-history",
+            str(args.repair_history or ""),
             "--results-out",
             run_results_path,
             "--out",
@@ -404,6 +407,7 @@ def main() -> None:
             "taskset_in": args.taskset_in,
             "physics_contract": args.physics_contract,
             "repair_playbook": args.repair_playbook,
+            "repair_history": args.repair_history,
         },
     }
 

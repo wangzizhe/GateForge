@@ -11,6 +11,7 @@ class AgentModelicaLayeredBaselineV1Tests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
             manifest = root / "mutation_manifest.json"
+            history = root / "history.json"
             out_dir = root / "out"
             summary = root / "summary.json"
 
@@ -30,6 +31,7 @@ class AgentModelicaLayeredBaselineV1Tests(unittest.TestCase):
                     )
 
             manifest.write_text(json.dumps({"mutations": rows}), encoding="utf-8")
+            history.write_text(json.dumps({"rows": []}), encoding="utf-8")
 
             proc = subprocess.run(
                 [
@@ -40,6 +42,8 @@ class AgentModelicaLayeredBaselineV1Tests(unittest.TestCase):
                     str(manifest),
                     "--out-dir",
                     str(out_dir),
+                    "--repair-history",
+                    str(history),
                     "--max-per-scale",
                     "3",
                     "--out",
@@ -58,6 +62,7 @@ class AgentModelicaLayeredBaselineV1Tests(unittest.TestCase):
             self.assertIn("median_repair_rounds", payload)
             self.assertIn("regression_count", payload)
             self.assertIn("physics_fail_count", payload)
+            self.assertEqual(str(((payload.get("sources") or {}).get("repair_history") or "")), str(history))
             layered = payload.get("layered_pass_rate_pct_by_scale") or {}
             self.assertEqual(set(layered.keys()), {"small", "medium", "large"})
 
