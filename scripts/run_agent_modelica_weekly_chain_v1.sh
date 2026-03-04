@@ -10,6 +10,7 @@ RUN_MODE="${GATEFORGE_AGENT_RUN_MODE:-evidence}"
 PHYSICS_CONTRACT="${GATEFORGE_AGENT_PHYSICS_CONTRACT:-policies/physics_contract_v0.json}"
 PER_SCALE_TOTAL="${GATEFORGE_AGENT_PER_SCALE_TOTAL:-20}"
 PER_SCALE_FAILURE_TARGETS="${GATEFORGE_AGENT_PER_SCALE_FAILURE_TARGETS:-7,7,6}"
+REPLAY_MAX="${GATEFORGE_AGENT_REPLAY_MAX:-6}"
 
 CORE_MANIFEST="${GATEFORGE_AGENT_CORE_MUTATION_MANIFEST:-}"
 SMALL_MANIFEST="${GATEFORGE_AGENT_SMALL_MUTATION_MANIFEST:-}"
@@ -84,6 +85,21 @@ if [ "$RUN_MODE" = "evidence" ]; then
     --out "$OUT_DIR/tasksets/evidence_taskset_${WEEK_TAG}_summary.json" \
     --report-out "$OUT_DIR/tasksets/evidence_taskset_${WEEK_TAG}_summary.md"
   TASKSET_FOR_BASELINE="$EVIDENCE_TASKSET_PATH"
+fi
+
+PREV_BASELINE_TASKSET="$OUT_DIR/baseline/taskset.json"
+PREV_BASELINE_RESULTS="$OUT_DIR/baseline/run_results.json"
+if [ "${REPLAY_MAX}" -gt 0 ] && [ -f "$PREV_BASELINE_TASKSET" ] && [ -f "$PREV_BASELINE_RESULTS" ]; then
+  REPLAY_TASKSET_PATH="$OUT_DIR/tasksets/replay_taskset_${WEEK_TAG}.json"
+  python3 -m gateforge.agent_modelica_taskset_replay_injector_v1 \
+    --current-taskset "$TASKSET_FOR_BASELINE" \
+    --prev-taskset "$PREV_BASELINE_TASKSET" \
+    --prev-run-results "$PREV_BASELINE_RESULTS" \
+    --max-replay "$REPLAY_MAX" \
+    --out-taskset "$REPLAY_TASKSET_PATH" \
+    --out "$OUT_DIR/tasksets/replay_taskset_${WEEK_TAG}_summary.json" \
+    --report-out "$OUT_DIR/tasksets/replay_taskset_${WEEK_TAG}_summary.md"
+  TASKSET_FOR_BASELINE="$REPLAY_TASKSET_PATH"
 fi
 
 python3 -m gateforge.agent_modelica_layered_baseline_v1 \
