@@ -12,6 +12,9 @@ from .physics_contract_v0 import (
     load_physics_contract_v0,
 )
 from .agent_modelica_repair_playbook_v1 import load_repair_playbook, recommend_repair_strategy
+from .agent_modelica_patch_template_engine_v1 import build_patch_template
+from .agent_modelica_error_action_mapper_v1 import map_error_to_actions
+from .agent_modelica_retrieval_augmented_repair_v1 import retrieve_repair_examples
 from .regression import compare_evidence, load_json as _load_evidence_json
 
 
@@ -79,6 +82,80 @@ def _default_candidate_metrics(failure_type: str, baseline_metrics: dict) -> dic
     return candidate
 
 
+def _merge_actions(*action_sets: list[str]) -> list[str]:
+    out: list[str] = []
+    seen: set[str] = set()
+    for action_set in action_sets:
+        for row in action_set:
+            item = str(row).strip()
+            if item and item not in seen:
+                out.append(item)
+                seen.add(item)
+    return out
+
+
+def _augment_repair_strategy(
+    task: dict,
+    repair_strategy: dict,
+    repair_history_payload: dict,
+) -> tuple[dict, dict]:
+    failure_type = str(task.get("failure_type") or "unknown")
+    expected_stage = str(task.get("expected_stage") or "unknown")
+    template = build_patch_template(failure_type=failure_type, expected_stage=expected_stage)
+
+    error_message = " | ".join(
+        [
+            str(task.get("error_message") or ""),
+            str(task.get("compile_error") or ""),
+            str(task.get("simulate_error_message") or ""),
+            str(task.get("stderr_snippet") or ""),
+        ]
+    ).strip(" |")
+    mapped = map_error_to_actions(error_message=error_message, failure_type=failure_type)
+    retrieval = retrieve_repair_examples(
+        history_payload=repair_history_payload if isinstance(repair_history_payload, dict) else {},
+        failure_type=failure_type,
+        model_hint=str(task.get("source_model_path") or ""),
+        top_k=2,
+    )
+
+    base_actions = [str(x) for x in (repair_strategy.get("actions") or []) if isinstance(x, str)]
+    template_actions = [str(x) for x in (template.get("actions") or []) if isinstance(x, str)]
+    mapped_actions = [str(x) for x in (mapped.get("actions") or []) if isinstance(x, str)]
+    retrieved_actions = [str(x) for x in (retrieval.get("suggested_actions") or []) if isinstance(x, str)]
+    merged_actions = _merge_actions(base_actions, template_actions, mapped_actions, retrieved_actions)
+
+    signal_count = 0
+    if template_actions:
+        signal_count += 1
+    if mapped_actions:
+        signal_count += 1
+    if retrieved_actions:
+        signal_count += 1
+    confidence_base = float(repair_strategy.get("confidence", 0.0) or 0.0)
+    confidence_boost = min(0.18, float(signal_count) * 0.05)
+    augmented_confidence = min(0.98, confidence_base + confidence_boost)
+
+    augmented = dict(repair_strategy)
+    augmented["actions"] = merged_actions
+    augmented["confidence"] = augmented_confidence
+    if str(augmented.get("reason") or "") == "no_failure_type_match" and int(retrieval.get("retrieved_count", 0) or 0) > 0:
+        augmented["reason"] = "retrieval_augmented"
+    if int(augmented.get("priority", 0) or 0) > 0 and signal_count >= 2:
+        augmented["priority"] = int(augmented.get("priority", 0) or 0) + 5
+
+    audit = {
+        "patch_template_id": str(template.get("template_id") or ""),
+        "patch_template_actions_count": len(template_actions),
+        "error_action_tags": [str(x) for x in (mapped.get("tags") or []) if isinstance(x, str)],
+        "error_action_count": len(mapped_actions),
+        "retrieved_example_count": int(retrieval.get("retrieved_count", 0) or 0),
+        "retrieved_suggested_action_count": len(retrieved_actions),
+        "confidence_boost": round(confidence_boost, 4),
+    }
+    return augmented, audit
+
+
 def _strategy_effect(task: dict, strategy: dict) -> tuple[int, float, dict]:
     reason = str(strategy.get("reason") or "unknown")
     priority = int(strategy.get("priority", 0) or 0)
@@ -115,6 +192,7 @@ def _run_task_mock(
     max_time_sec: int,
     physics_contract: dict,
     repair_playbook: dict,
+    repair_history_payload: dict,
     strategy_effect_enabled: bool,
 ) -> dict:
     success_round = int(task.get("mock_success_round", 2) or 2)
@@ -142,12 +220,18 @@ def _run_task_mock(
         failure_type=failure_type,
         expected_stage=str(task.get("expected_stage") or "unknown"),
     )
+    repair_strategy, capability_audit = _augment_repair_strategy(
+        task=task,
+        repair_strategy=repair_strategy,
+        repair_history_payload=repair_history_payload,
+    )
     strategy_audit = {
         "strategy_effect_enabled": bool(strategy_effect_enabled),
         "strategy_id": str(repair_strategy.get("strategy_id") or ""),
         "strategy_reason": str(repair_strategy.get("reason") or ""),
         "strategy_confidence": float(repair_strategy.get("confidence", 0.0) or 0.0),
         "actions_planned": [str(x) for x in (repair_strategy.get("actions") or []) if isinstance(x, str)],
+        **capability_audit,
     }
     if strategy_effect_enabled:
         success_round, round_sec, effect_audit = _strategy_effect(task=task, strategy=repair_strategy)
@@ -282,6 +366,7 @@ def _run_task_evidence(
     physics_contract: dict,
     runtime_threshold: float,
     repair_playbook: dict,
+    repair_history_payload: dict,
 ) -> dict:
     scale = str(task.get("scale") or "unknown")
     failure_type = str(task.get("failure_type") or "unknown")
@@ -289,6 +374,11 @@ def _run_task_evidence(
         playbook_payload=repair_playbook,
         failure_type=failure_type,
         expected_stage=str(task.get("expected_stage") or "unknown"),
+    )
+    repair_strategy, capability_audit = _augment_repair_strategy(
+        task=task,
+        repair_strategy=repair_strategy,
+        repair_history_payload=repair_history_payload,
     )
     rounds_used = max(1, int(task.get("observed_repair_rounds", 1) or 1))
     rounds_used = min(rounds_used, max_rounds)
@@ -298,6 +388,7 @@ def _run_task_evidence(
         "strategy_reason": str(repair_strategy.get("reason") or ""),
         "strategy_confidence": float(repair_strategy.get("confidence", 0.0) or 0.0),
         "actions_planned": [str(x) for x in (repair_strategy.get("actions") or []) if isinstance(x, str)],
+        **capability_audit,
         "base_success_round": rounds_used,
         "base_round_duration_sec": None,
         "adjusted_success_round": rounds_used,
@@ -402,6 +493,7 @@ def main() -> None:
     parser.add_argument("--runtime-threshold", type=float, default=0.2)
     parser.add_argument("--physics-contract", default=DEFAULT_PHYSICS_CONTRACT_PATH)
     parser.add_argument("--repair-playbook", default=None)
+    parser.add_argument("--repair-history", default=None)
     parser.add_argument("--strategy-effect", choices=["on", "off"], default="on")
     parser.add_argument("--results-out", default="artifacts/agent_modelica_run_contract_v1/results.json")
     parser.add_argument("--out", default="artifacts/agent_modelica_run_contract_v1/summary.json")
@@ -419,6 +511,7 @@ def main() -> None:
     max_time_sec = max(1, int(args.max_time_sec))
     physics_contract, physics_contract_source = load_physics_contract_v0(args.physics_contract)
     repair_playbook = load_repair_playbook(args.repair_playbook)
+    repair_history_payload = _load_json(str(args.repair_history)) if isinstance(args.repair_history, str) and args.repair_history.strip() else {}
 
     records: list[dict] = []
     for task in tasks:
@@ -431,6 +524,7 @@ def main() -> None:
                     physics_contract=physics_contract,
                     runtime_threshold=float(args.runtime_threshold),
                     repair_playbook=repair_playbook,
+                    repair_history_payload=repair_history_payload,
                 )
             )
         else:
@@ -441,6 +535,7 @@ def main() -> None:
                     max_time_sec=max_time_sec,
                     physics_contract=physics_contract,
                     repair_playbook=repair_playbook,
+                    repair_history_payload=repair_history_payload,
                     strategy_effect_enabled=(args.strategy_effect == "on"),
                 )
             )
@@ -470,6 +565,7 @@ def main() -> None:
         "physics_contract_schema_version": physics_contract.get("schema_version"),
         "physics_contract_source": physics_contract_source,
         "repair_playbook_source": repair_playbook.get("source") if isinstance(repair_playbook, dict) else None,
+        "repair_history_source": args.repair_history,
         "mode": args.mode,
         "strategy_effect": args.strategy_effect,
         "records": records,
@@ -489,6 +585,7 @@ def main() -> None:
         "physics_contract_schema_version": physics_contract.get("schema_version"),
         "physics_contract_source": physics_contract_source,
         "repair_playbook_source": repair_playbook.get("source") if isinstance(repair_playbook, dict) else None,
+        "repair_history_source": args.repair_history,
         "mode": args.mode,
         "strategy_effect": args.strategy_effect,
         "max_rounds": max_rounds,
@@ -496,7 +593,12 @@ def main() -> None:
         "runtime_threshold": float(args.runtime_threshold),
         "results_out": args.results_out,
         "reasons": reasons,
-        "sources": {"taskset": args.taskset, "physics_contract": args.physics_contract, "repair_playbook": args.repair_playbook},
+        "sources": {
+            "taskset": args.taskset,
+            "physics_contract": args.physics_contract,
+            "repair_playbook": args.repair_playbook,
+            "repair_history": args.repair_history,
+        },
     }
     _write_json(args.out, summary)
     _write_markdown(args.report_out or _default_md_path(args.out), summary)

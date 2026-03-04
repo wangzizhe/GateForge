@@ -1,0 +1,122 @@
+from __future__ import annotations
+
+import argparse
+import json
+from datetime import datetime, timezone
+from pathlib import Path
+
+TEMPLATES: dict[str, dict] = {
+    "model_check_error": {
+        "template_id": "tpl_model_check_symbol_and_connector_v1",
+        "actions": [
+            "declare missing parameters/variables before equation usage",
+            "align connector types and causality on each connect() pair",
+            "rerun checkModel after every single edit chunk",
+        ],
+        "edit_directives": [
+            {"kind": "declare_symbol", "priority": "high"},
+            {"kind": "fix_connector_mismatch", "priority": "high"},
+        ],
+    },
+    "simulate_error": {
+        "template_id": "tpl_simulate_initialization_and_solver_v1",
+        "actions": [
+            "stabilize start values and initial equations near t=0",
+            "bound unstable parameters before solver-facing equation edits",
+            "reduce event chattering and verify short-horizon simulation",
+        ],
+        "edit_directives": [
+            {"kind": "tune_initial_conditions", "priority": "high"},
+            {"kind": "bound_parameters", "priority": "medium"},
+        ],
+    },
+    "semantic_regression": {
+        "template_id": "tpl_semantic_invariant_guard_v1",
+        "actions": [
+            "repair unit/sign/constraint violations first",
+            "preserve invariant metrics before optimization edits",
+            "block patches that improve speed but break steady-state/overshoot bounds",
+        ],
+        "edit_directives": [
+            {"kind": "invariant_first_repair", "priority": "high"},
+            {"kind": "guard_behavior_regression", "priority": "high"},
+        ],
+    },
+}
+
+
+def build_patch_template(failure_type: str, expected_stage: str | None = None) -> dict:
+    ftype = str(failure_type or "unknown").strip().lower()
+    base = TEMPLATES.get(ftype)
+    if not base:
+        return {
+            "template_id": "tpl_generic_minimal_repair_v1",
+            "failure_type": ftype,
+            "expected_stage": str(expected_stage or "unknown"),
+            "actions": [
+                "classify failure signal before editing",
+                "apply minimal deterministic fix and rerun hard gates",
+            ],
+            "edit_directives": [{"kind": "minimal_safe_fix", "priority": "medium"}],
+        }
+    return {
+        "template_id": str(base.get("template_id") or "tpl_unknown"),
+        "failure_type": ftype,
+        "expected_stage": str(expected_stage or "unknown"),
+        "actions": [str(x) for x in (base.get("actions") or []) if isinstance(x, str)],
+        "edit_directives": [x for x in (base.get("edit_directives") or []) if isinstance(x, dict)],
+    }
+
+
+def _write_json(path: str, payload: dict) -> None:
+    p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+
+def _default_md_path(out_json: str) -> str:
+    out = Path(out_json)
+    if out.suffix == ".json":
+        return str(out.with_suffix(".md"))
+    return f"{out_json}.md"
+
+
+def _write_markdown(path: str, payload: dict) -> None:
+    p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    lines = [
+        "# GateForge Agent Modelica Patch Template Engine v1",
+        "",
+        f"- template_id: `{payload.get('template_id')}`",
+        f"- failure_type: `{payload.get('failure_type')}`",
+        f"- expected_stage: `{payload.get('expected_stage')}`",
+        "",
+    ]
+    actions = payload.get("actions") if isinstance(payload.get("actions"), list) else []
+    lines.extend(["## Actions", ""])
+    if actions:
+        lines.extend([f"- {str(x)}" for x in actions])
+    else:
+        lines.append("- none")
+    lines.append("")
+    p.write_text("\n".join(lines), encoding="utf-8")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Build failure_type patch template for modelica repair")
+    parser.add_argument("--failure-type", required=True)
+    parser.add_argument("--expected-stage", default="unknown")
+    parser.add_argument("--out", default="artifacts/agent_modelica_patch_template_engine_v1/template.json")
+    parser.add_argument("--report-out", default=None)
+    args = parser.parse_args()
+
+    payload = build_patch_template(failure_type=args.failure_type, expected_stage=args.expected_stage)
+    payload["generated_at_utc"] = datetime.now(timezone.utc).isoformat()
+    payload["schema_version"] = "agent_modelica_patch_template_engine_v1"
+    _write_json(args.out, payload)
+    _write_markdown(args.report_out or _default_md_path(args.out), payload)
+    print(json.dumps({"template_id": payload.get("template_id"), "failure_type": payload.get("failure_type")}))
+
+
+if __name__ == "__main__":
+    main()
