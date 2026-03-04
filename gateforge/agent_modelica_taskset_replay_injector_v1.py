@@ -109,6 +109,45 @@ def _rank_replay_tasks(prev_taskset: dict, prev_run_results: dict) -> list[dict]
     return ranked
 
 
+def _round_robin_pick(candidates: list[dict], limit: int) -> list[dict]:
+    if limit <= 0:
+        return []
+    by_failure: dict[str, list[dict]] = {}
+    for row in candidates:
+        ftype = str(row.get("failure_type") or "unknown")
+        by_failure.setdefault(ftype, []).append(row)
+
+    ordered_failures = sorted(by_failure.keys())
+    picked: list[dict] = []
+    while len(picked) < limit and ordered_failures:
+        progress = False
+        for ftype in ordered_failures:
+            bucket = by_failure.get(ftype) or []
+            if not bucket:
+                continue
+            picked.append(bucket.pop(0))
+            progress = True
+            if len(picked) >= limit:
+                break
+        if not progress:
+            break
+    return picked
+
+
+def _select_replay_tasks(ranked: list[dict], max_replay: int) -> list[dict]:
+    if max_replay <= 0:
+        return []
+    hard = [x for x in ranked if str(x.get("_replay_class") or "") == "hard_fail"]
+    slow = [x for x in ranked if str(x.get("_replay_class") or "") == "slow_pass"]
+
+    selected = _round_robin_pick(candidates=hard, limit=max_replay)
+    if len(selected) < max_replay:
+        selected_ids = {str(x.get("task_id") or "") for x in selected}
+        remaining_slow = [x for x in slow if str(x.get("task_id") or "") not in selected_ids]
+        selected.extend(_round_robin_pick(candidates=remaining_slow, limit=max_replay - len(selected)))
+    return selected[:max_replay]
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Inject previous hard cases into current weekly taskset")
     parser.add_argument("--current-taskset", required=True)
@@ -130,7 +169,7 @@ def main() -> None:
 
     ranked = _rank_replay_tasks(prev_taskset=prev_taskset, prev_run_results=prev_results)
     max_replay = max(0, int(args.max_replay))
-    selected = ranked[:max_replay]
+    selected = _select_replay_tasks(ranked=ranked, max_replay=max_replay)
     selected_ids = {str(x.get("task_id") or "") for x in selected}
 
     merged: list[dict] = [dict(x) for x in selected]
