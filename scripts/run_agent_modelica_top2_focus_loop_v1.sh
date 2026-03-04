@@ -8,9 +8,10 @@ OUT_DIR="${GATEFORGE_AGENT_TOP2_FOCUS_OUT_DIR:-artifacts/agent_modelica_top2_foc
 WEEK_TAG="${GATEFORGE_AGENT_WEEK_TAG:-$(date -u +%G-W%V)}"
 BASE_PLAYBOOK="${GATEFORGE_AGENT_BASE_PLAYBOOK:-artifacts/agent_modelica_repair_playbook_v1/playbook.json}"
 TASKSET="${GATEFORGE_AGENT_TOP2_TASKSET:-artifacts/agent_modelica_weekly_chain_v1/tasksets/evidence_taskset_${WEEK_TAG}.json}"
-OUTCOME_WEIGHT="${GATEFORGE_AGENT_TOP2_OUTCOME_WEIGHT:-0.7}"
-STRATEGY_WEIGHT="${GATEFORGE_AGENT_TOP2_STRATEGY_WEIGHT:-0.3}"
-STRATEGY_TARGET_SCORE="${GATEFORGE_AGENT_TOP2_STRATEGY_TARGET_SCORE:-0.8}"
+SWEEP_SUMMARY="${GATEFORGE_AGENT_TOP2_SWEEP_SUMMARY:-artifacts/agent_modelica_top2_weight_sweep_v1/summary.json}"
+OUTCOME_WEIGHT="${GATEFORGE_AGENT_TOP2_OUTCOME_WEIGHT:-}"
+STRATEGY_WEIGHT="${GATEFORGE_AGENT_TOP2_STRATEGY_WEIGHT:-}"
+STRATEGY_TARGET_SCORE="${GATEFORGE_AGENT_TOP2_STRATEGY_TARGET_SCORE:-}"
 
 if [ ! -f "$TASKSET" ]; then
   echo "Evidence taskset not found: $TASKSET" >&2
@@ -20,6 +21,38 @@ if [ ! -f "$BASE_PLAYBOOK" ]; then
   echo "Base playbook not found: $BASE_PLAYBOOK" >&2
   exit 1
 fi
+
+if { [ -z "$OUTCOME_WEIGHT" ] || [ -z "$STRATEGY_WEIGHT" ] || [ -z "$STRATEGY_TARGET_SCORE" ]; } && [ -f "$SWEEP_SUMMARY" ]; then
+  read -r SWEEP_OUTCOME SWEEP_STRATEGY SWEEP_TARGET <<EOF
+$(python3 - <<'PY' "$SWEEP_SUMMARY"
+import json
+import sys
+from pathlib import Path
+
+p = Path(sys.argv[1])
+if not p.exists():
+    print("")
+    raise SystemExit(0)
+payload = json.loads(p.read_text(encoding="utf-8"))
+cfg = payload.get("best_config") if isinstance(payload.get("best_config"), dict) else {}
+print(f"{cfg.get('outcome_weight', '')} {cfg.get('strategy_weight', '')} {cfg.get('strategy_target_score', '')}")
+PY
+)
+EOF
+  if [ -z "$OUTCOME_WEIGHT" ] && [ -n "${SWEEP_OUTCOME:-}" ]; then
+    OUTCOME_WEIGHT="$SWEEP_OUTCOME"
+  fi
+  if [ -z "$STRATEGY_WEIGHT" ] && [ -n "${SWEEP_STRATEGY:-}" ]; then
+    STRATEGY_WEIGHT="$SWEEP_STRATEGY"
+  fi
+  if [ -z "$STRATEGY_TARGET_SCORE" ] && [ -n "${SWEEP_TARGET:-}" ]; then
+    STRATEGY_TARGET_SCORE="$SWEEP_TARGET"
+  fi
+fi
+
+OUTCOME_WEIGHT="${OUTCOME_WEIGHT:-0.7}"
+STRATEGY_WEIGHT="${STRATEGY_WEIGHT:-0.3}"
+STRATEGY_TARGET_SCORE="${STRATEGY_TARGET_SCORE:-0.8}"
 
 mkdir -p "$OUT_DIR"
 export OUT_DIR WEEK_TAG OUTCOME_WEIGHT STRATEGY_WEIGHT STRATEGY_TARGET_SCORE
