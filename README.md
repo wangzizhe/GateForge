@@ -9,8 +9,6 @@
 <p align="center" style="margin: 0.75rem auto 1rem; max-width: 920px; padding: 0.75rem 1rem; border: 1px solid #d0d7de; border-radius: 8px; background: #f6f8fa;">
   <strong>AI Agents for Physical Systems with Reproducible Benchmarks</strong>
 </p>
-
-
 ## Quickstart (5 Minutes)
 
 ### 1. Install
