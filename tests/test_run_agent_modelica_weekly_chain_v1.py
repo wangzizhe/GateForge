@@ -3,12 +3,21 @@ from pathlib import Path
 
 
 class RunAgentModelicaWeeklyChainV1Tests(unittest.TestCase):
+    def test_weekly_chain_supports_mvp_profile_mapping(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        script = repo_root / "scripts" / "run_agent_modelica_weekly_chain_v1.sh"
+        content = script.read_text(encoding="utf-8")
+        self.assertIn('MVP_PROFILE_PATH="${GATEFORGE_AGENT_MVP_PROFILE_PATH:-benchmarks/agent_modelica_mvp_repair_v1.json}"', content)
+        self.assertIn("--max-rounds \"$MAX_ROUNDS\"", content)
+        self.assertIn("--runtime-threshold \"$RUNTIME_THRESHOLD\"", content)
+        self.assertIn("--persistence-weight \"$FOCUS_PERSISTENCE_WEIGHT\"", content)
+
     def test_weekly_chain_uses_private_repair_history_default(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
         script = repo_root / "scripts" / "run_agent_modelica_weekly_chain_v1.sh"
         content = script.read_text(encoding="utf-8")
         self.assertIn(
-            'REPAIR_HISTORY_PATH="${GATEFORGE_AGENT_REPAIR_HISTORY_PATH:-data/private_failure_corpus/agent_modelica_repair_memory_v1.json}"',
+            'REPAIR_HISTORY_PATH="${GATEFORGE_AGENT_REPAIR_HISTORY_PATH:-${PROFILE_REPAIR_HISTORY_PATH:-data/private_failure_corpus/agent_modelica_repair_memory_v1.json}}"',
             content,
         )
         self.assertIn("python3 -m gateforge.agent_modelica_repair_memory_store_v1", content)
