@@ -48,8 +48,10 @@ def _write_markdown(path: str, payload: dict) -> None:
         "# GateForge Agent Modelica Playbook Focus Update v1",
         "",
         f"- status: `{payload.get('status')}`",
+        f"- queue_kind: `{payload.get('queue_kind')}`",
         f"- focused_failure_count: `{payload.get('focused_failure_count')}`",
         f"- promoted_entries: `{payload.get('promoted_entries')}`",
+        f"- template_action_injections: `{payload.get('template_action_injections')}`",
         "",
     ]
     p.write_text("\n".join(lines), encoding="utf-8")
@@ -67,6 +69,34 @@ def _merge_actions(existing: list[str], extras: list[str]) -> list[str]:
     return out
 
 
+def _focus_rows(queue_payload: dict) -> tuple[list[dict], str]:
+    queue = queue_payload.get("queue") if isinstance(queue_payload.get("queue"), list) else []
+    if queue:
+        return [x for x in queue if isinstance(x, dict)], "queue"
+    targets = queue_payload.get("targets") if isinstance(queue_payload.get("targets"), list) else []
+    if targets:
+        return [x for x in targets if isinstance(x, dict)], "targets"
+    templates = queue_payload.get("templates") if isinstance(queue_payload.get("templates"), list) else []
+    if templates:
+        return [x for x in templates if isinstance(x, dict)], "templates"
+    return [], "none"
+
+
+def _template_actions_by_failure(rows: list[dict]) -> dict[str, list[str]]:
+    out: dict[str, list[str]] = {}
+    for row in rows:
+        ftype = str(row.get("failure_type") or "").strip()
+        if not ftype:
+            continue
+        actions = row.get("actions") if isinstance(row.get("actions"), list) else []
+        action_text = [str(x) for x in actions if isinstance(x, str)]
+        if not action_text:
+            continue
+        current = out.get(ftype, [])
+        out[ftype] = _merge_actions(current, action_text)
+    return out
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Apply top-failure focus update to repair playbook")
     parser.add_argument("--playbook", required=True)
@@ -81,14 +111,13 @@ def main() -> None:
 
     entries = playbook_payload.get("playbook") if isinstance(playbook_payload.get("playbook"), list) else []
     entries = [x for x in entries if isinstance(x, dict)]
-    queue = queue_payload.get("queue") if isinstance(queue_payload.get("queue"), list) else []
-    if not queue:
-        queue = queue_payload.get("targets") if isinstance(queue_payload.get("targets"), list) else []
-    queue = [x for x in queue if isinstance(x, dict)]
+    queue, queue_kind = _focus_rows(queue_payload)
     focused_failures = [str(x.get("failure_type") or "") for x in queue if str(x.get("failure_type") or "")]
+    template_actions = _template_actions_by_failure(queue)
 
     boost = int(args.priority_boost)
     promoted = 0
+    template_action_injections = 0
     updated_entries: list[dict] = []
     for entry in entries:
         ftype = str(entry.get("failure_type") or "")
@@ -97,7 +126,11 @@ def main() -> None:
             promoted += 1
             updated["priority"] = int(updated.get("priority", 0) or 0) + boost
             existing_actions = [str(x) for x in (updated.get("actions") or []) if isinstance(x, str)]
+            injected = [str(x) for x in (template_actions.get(ftype) or []) if isinstance(x, str)]
+            if injected:
+                template_action_injections += 1
             updated["actions"] = _merge_actions(existing_actions, FOCUS_ACTIONS.get(ftype, []))
+            updated["actions"] = _merge_actions(updated["actions"], injected)
             updated["focus_tag"] = "top_failure_focus"
         updated_entries.append(updated)
 
@@ -107,6 +140,8 @@ def main() -> None:
         "status": "PASS",
         "focused_failure_count": len(focused_failures),
         "promoted_entries": promoted,
+        "queue_kind": queue_kind,
+        "template_action_injections": template_action_injections,
         "playbook": updated_entries,
         "sources": {
             "playbook": args.playbook,
