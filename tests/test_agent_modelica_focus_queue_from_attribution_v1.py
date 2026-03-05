@@ -58,6 +58,30 @@ class AgentModelicaFocusQueueFromAttributionV1Tests(unittest.TestCase):
         self.assertEqual(int(queue[0].get("streak_count", 0)), 2)
         self.assertEqual(float(queue[0].get("persistence_bonus", 0.0)), 5.0)
 
+    def test_strategy_signal_bonus_can_change_top_rank(self) -> None:
+        attribution = {
+            "rows": [
+                {"task_id": "t1", "failure_type": "simulate_error", "gate_break_reason": "simulate_fail"},
+                {"task_id": "t2", "failure_type": "simulate_error", "gate_break_reason": "simulate_fail"},
+                {"task_id": "t3", "failure_type": "semantic_regression", "gate_break_reason": "simulate_fail"},
+                {"task_id": "t4", "failure_type": "semantic_regression", "gate_break_reason": "simulate_fail"},
+            ]
+        }
+        strategy_treatment = {"simulate_error": 0.95, "semantic_regression": 0.1}
+        strategy_delta = {"simulate_error": 0.2, "semantic_regression": -0.3}
+        payload = build_focus_queue(
+            attribution_payload=attribution,
+            top_k=1,
+            strategy_signal_treatment_by_failure=strategy_treatment,
+            strategy_signal_delta_by_failure=strategy_delta,
+            strategy_signal_weight=10.0,
+            strategy_signal_target_score=0.8,
+        )
+        queue = payload.get("queue") if isinstance(payload.get("queue"), list) else []
+        self.assertEqual(len(queue), 1)
+        self.assertEqual(str(queue[0].get("failure_type") or ""), "semantic_regression")
+        self.assertGreater(float(queue[0].get("strategy_signal_bonus", 0.0)), 0.0)
+
 
 if __name__ == "__main__":
     unittest.main()

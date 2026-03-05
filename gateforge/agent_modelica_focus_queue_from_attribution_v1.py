@@ -14,6 +14,12 @@ GATE_WEIGHT = {
 }
 
 
+def _safe_float(value: object, default: float = 0.0) -> float:
+    if isinstance(value, (int, float)):
+        return float(value)
+    return default
+
+
 def _load_json(path: str) -> dict:
     p = Path(path)
     if not p.exists():
@@ -128,6 +134,32 @@ def _pair_streak(previous_entries: list[dict], pair: tuple[str, str]) -> int:
     return streak
 
 
+def _strategy_signal_maps(strategy_ab_summary_payload: dict) -> tuple[dict[str, float], dict[str, float]]:
+    root = (
+        strategy_ab_summary_payload.get("strategy_signal_by_failure_type")
+        if isinstance(strategy_ab_summary_payload.get("strategy_signal_by_failure_type"), dict)
+        else {}
+    )
+    treatment = root.get("treatment") if isinstance(root.get("treatment"), dict) else {}
+    delta = root.get("delta_score") if isinstance(root.get("delta_score"), dict) else {}
+
+    treatment_score_by_failure: dict[str, float] = {}
+    delta_score_by_failure: dict[str, float] = {}
+    for key, value in treatment.items():
+        if not isinstance(value, dict):
+            continue
+        ftype = str(key or "").strip()
+        if not ftype:
+            continue
+        treatment_score_by_failure[ftype] = _safe_float(value.get("score"), 0.0)
+    for key, value in delta.items():
+        ftype = str(key or "").strip()
+        if not ftype:
+            continue
+        delta_score_by_failure[ftype] = _safe_float(value, 0.0)
+    return treatment_score_by_failure, delta_score_by_failure
+
+
 def _regression_fail_map(run_results_payload: dict) -> dict[str, bool]:
     records = run_results_payload.get("records") if isinstance(run_results_payload.get("records"), list) else []
     records = [x for x in records if isinstance(x, dict)]
@@ -147,6 +179,10 @@ def build_focus_queue(
     run_results_payload: dict | None = None,
     previous_entries: list[dict] | None = None,
     persistence_weight: float = 3.0,
+    strategy_signal_treatment_by_failure: dict[str, float] | None = None,
+    strategy_signal_delta_by_failure: dict[str, float] | None = None,
+    strategy_signal_weight: float = 3.0,
+    strategy_signal_target_score: float = 0.8,
 ) -> dict:
     rows = attribution_payload.get("rows") if isinstance(attribution_payload.get("rows"), list) else []
     rows = [x for x in rows if isinstance(x, dict)]
@@ -162,11 +198,18 @@ def build_focus_queue(
         key = (ftype, gate)
         pair_counts[key] = int(pair_counts.get(key, 0)) + 1
 
+    treatment_by_failure = strategy_signal_treatment_by_failure or {}
+    delta_by_failure = strategy_signal_delta_by_failure or {}
     ranked: list[dict] = []
     for (ftype, gate), count in pair_counts.items():
         streak = _pair_streak(previous_entries or [], (ftype, gate))
         persistence_bonus = round(float(streak) * float(persistence_weight), 4)
-        priority = round((float(count) * 10.0) + float(GATE_WEIGHT.get(gate, 1.0)) + persistence_bonus, 4)
+        treatment_score = _safe_float(treatment_by_failure.get(ftype), 0.0)
+        delta_score = _safe_float(delta_by_failure.get(ftype), 0.0)
+        signal_weakness = max(0.0, float(strategy_signal_target_score) - treatment_score) + max(0.0, -delta_score)
+        signal_bonus = round(float(signal_weakness) * float(strategy_signal_weight), 4)
+        priority_base = round((float(count) * 10.0) + float(GATE_WEIGHT.get(gate, 1.0)) + persistence_bonus, 4)
+        priority = round(priority_base + signal_bonus, 4)
         ranked.append(
             {
                 "failure_type": ftype,
@@ -174,6 +217,10 @@ def build_focus_queue(
                 "count": count,
                 "streak_count": streak,
                 "persistence_bonus": persistence_bonus,
+                "strategy_signal_treatment_score": round(treatment_score, 4),
+                "strategy_signal_delta_score": round(delta_score, 4),
+                "strategy_signal_bonus": signal_bonus,
+                "priority_score_base": priority_base,
                 "priority_score": priority,
                 "objective": _objective(gate),
                 "action_hint": f"focus_{ftype}_{gate}",
@@ -196,6 +243,9 @@ def main() -> None:
     parser.add_argument("--run-results", default=None)
     parser.add_argument("--history-jsonl", default=None)
     parser.add_argument("--persistence-weight", type=float, default=3.0)
+    parser.add_argument("--strategy-ab-summary", default=None)
+    parser.add_argument("--strategy-signal-weight", type=float, default=3.0)
+    parser.add_argument("--strategy-signal-target-score", type=float, default=0.8)
     parser.add_argument("--append-history", action="store_true")
     parser.add_argument("--top-k", type=int, default=2)
     parser.add_argument("--out", default="artifacts/agent_modelica_focus_queue_from_attribution_v1/queue.json")
@@ -204,13 +254,19 @@ def main() -> None:
 
     attribution = _load_json(args.failure_attribution)
     run_results = _load_json(str(args.run_results)) if isinstance(args.run_results, str) and args.run_results.strip() else {}
+    strategy_ab = _load_json(str(args.strategy_ab_summary)) if isinstance(args.strategy_ab_summary, str) and args.strategy_ab_summary.strip() else {}
     previous_entries = _read_history(str(args.history_jsonl)) if isinstance(args.history_jsonl, str) and args.history_jsonl.strip() else []
+    strategy_treatment_map, strategy_delta_map = _strategy_signal_maps(strategy_ab)
     payload = build_focus_queue(
         attribution_payload=attribution,
         top_k=max(1, int(args.top_k)),
         run_results_payload=run_results,
         previous_entries=previous_entries,
         persistence_weight=float(args.persistence_weight),
+        strategy_signal_treatment_by_failure=strategy_treatment_map,
+        strategy_signal_delta_by_failure=strategy_delta_map,
+        strategy_signal_weight=float(args.strategy_signal_weight),
+        strategy_signal_target_score=float(args.strategy_signal_target_score),
     )
     out = {
         "schema_version": "agent_modelica_focus_queue_from_attribution_v1",
@@ -221,8 +277,15 @@ def main() -> None:
     }
     if isinstance(args.run_results, str) and args.run_results.strip():
         out["sources"]["run_results"] = args.run_results
+    if isinstance(args.strategy_ab_summary, str) and args.strategy_ab_summary.strip():
+        out["sources"]["strategy_ab_summary"] = args.strategy_ab_summary
     if isinstance(args.history_jsonl, str) and args.history_jsonl.strip():
         out["sources"]["history_jsonl"] = args.history_jsonl
+    out["config"] = {
+        "persistence_weight": float(args.persistence_weight),
+        "strategy_signal_weight": float(args.strategy_signal_weight),
+        "strategy_signal_target_score": float(args.strategy_signal_target_score),
+    }
     _write_json(args.out, out)
     _write_markdown(args.report_out or _default_md_path(args.out), out)
     if args.append_history and isinstance(args.history_jsonl, str) and args.history_jsonl.strip():

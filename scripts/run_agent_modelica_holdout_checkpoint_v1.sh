@@ -42,6 +42,10 @@ PROFILE_LARGE_MAX_ROUNDS=""
 PROFILE_PER_SCALE_TOTAL=""
 PROFILE_PER_SCALE_FAILURE_TARGETS=""
 PROFILE_REPAIR_HISTORY_PATH=""
+PROFILE_FOCUS_TOP_K=""
+PROFILE_FOCUS_PERSISTENCE_WEIGHT=""
+PROFILE_FOCUS_SIGNAL_WEIGHT=""
+PROFILE_FOCUS_SIGNAL_TARGET_SCORE=""
 
 if [ -f "$PROFILE_PATH" ]; then
   eval "$(
@@ -97,6 +101,10 @@ put("PROFILE_LARGE_MAX_ROUNDS", get(payload, "acceptance_budgets.large_max_round
 put("PROFILE_PER_SCALE_TOTAL", get(payload, "taskset.per_scale_total_target"))
 put("PROFILE_PER_SCALE_FAILURE_TARGETS", pair_limit)
 put("PROFILE_REPAIR_HISTORY_PATH", get(payload, "privacy.repair_history_path"))
+put("PROFILE_FOCUS_TOP_K", get(payload, "focus_queue.top_k"))
+put("PROFILE_FOCUS_PERSISTENCE_WEIGHT", get(payload, "focus_queue.persistence_weight"))
+put("PROFILE_FOCUS_SIGNAL_WEIGHT", get(payload, "focus_queue.signal_weight"))
+put("PROFILE_FOCUS_SIGNAL_TARGET_SCORE", get(payload, "focus_queue.signal_target_score"))
 PY
   )"
 fi
@@ -113,12 +121,21 @@ LARGE_MAX_ROUNDS="${GATEFORGE_AGENT_LARGE_MAX_ROUNDS:-${PROFILE_LARGE_MAX_ROUNDS
 MAX_PER_SCALE="${GATEFORGE_AGENT_HOLDOUT_MAX_PER_SCALE:-${PROFILE_PER_SCALE_TOTAL:-12}}"
 MAX_PER_SCALE_FAILURE="${GATEFORGE_AGENT_HOLDOUT_MAX_PER_SCALE_FAILURE_TYPE:-${PROFILE_PER_SCALE_FAILURE_TARGETS:-4}}"
 REPAIR_HISTORY_PATH="${GATEFORGE_AGENT_REPAIR_HISTORY_PATH:-${PROFILE_REPAIR_HISTORY_PATH:-data/private_failure_corpus/agent_modelica_repair_memory_v1.json}}"
+FOCUS_TOP_K="${GATEFORGE_AGENT_FOCUS_TOP_K:-${PROFILE_FOCUS_TOP_K:-2}}"
+FOCUS_PERSISTENCE_WEIGHT="${GATEFORGE_AGENT_FOCUS_PERSISTENCE_WEIGHT:-${PROFILE_FOCUS_PERSISTENCE_WEIGHT:-3.0}}"
+FOCUS_SIGNAL_WEIGHT="${GATEFORGE_AGENT_FOCUS_SIGNAL_WEIGHT:-${PROFILE_FOCUS_SIGNAL_WEIGHT:-3.0}}"
+FOCUS_SIGNAL_TARGET_SCORE="${GATEFORGE_AGENT_FOCUS_SIGNAL_TARGET_SCORE:-${PROFILE_FOCUS_SIGNAL_TARGET_SCORE:-0.8}}"
+STRATEGY_AB_SUMMARY="${GATEFORGE_AGENT_STRATEGY_AB_SUMMARY:-}"
 
 mkdir -p "$OUT_DIR"
 HOLDOUT_TASKSET="$OUT_DIR/holdout_taskset.json"
 HOLDOUT_TASKSET_SUMMARY="$OUT_DIR/holdout_taskset_summary.json"
 HOLDOUT_BASELINE_OUT_DIR="$OUT_DIR/baseline"
 HOLDOUT_SUMMARY="$OUT_DIR/summary.json"
+HOLDOUT_FAILURE_ATTRIBUTION="$OUT_DIR/failure_attribution.json"
+HOLDOUT_FOCUS_QUEUE="$OUT_DIR/focus_queue.json"
+HOLDOUT_FOCUS_QUEUE_HISTORY="$OUT_DIR/focus_queue_history.jsonl"
+HOLDOUT_FOCUS_TEMPLATES="$OUT_DIR/focus_templates.json"
 
 HOLDOUT_BUILDER_CMD=(
   python3 -m gateforge.agent_modelica_holdout_taskset_builder_v1
@@ -135,6 +152,7 @@ if [ -n "$EXCLUDE_TASKSET" ] && [ -f "$EXCLUDE_TASKSET" ]; then
 fi
 "${HOLDOUT_BUILDER_CMD[@]}"
 
+set +e
 python3 -m gateforge.agent_modelica_layered_baseline_v1 \
   --taskset-in "$HOLDOUT_TASKSET" \
   --run-mode evidence \
@@ -151,5 +169,53 @@ python3 -m gateforge.agent_modelica_layered_baseline_v1 \
   --out-dir "$HOLDOUT_BASELINE_OUT_DIR" \
   --out "$HOLDOUT_SUMMARY" \
   --report-out "$OUT_DIR/summary.md"
+BASELINE_RC=$?
+set -e
+
+if [ ! -f "$HOLDOUT_SUMMARY" ]; then
+  echo "missing holdout summary: $HOLDOUT_SUMMARY (rc=$BASELINE_RC)" >&2
+  exit "${BASELINE_RC:-1}"
+fi
+
+if [ ! -f "$HOLDOUT_BASELINE_OUT_DIR/run_results.json" ]; then
+  cat "$HOLDOUT_SUMMARY"
+  exit "${BASELINE_RC:-1}"
+fi
+
+python3 -m gateforge.agent_modelica_failure_attribution_v1 \
+  --run-results "$HOLDOUT_BASELINE_OUT_DIR/run_results.json" \
+  --out "$HOLDOUT_FAILURE_ATTRIBUTION" \
+  --report-out "$OUT_DIR/failure_attribution.md"
+
+FOCUS_QUEUE_CMD=(
+  python3 -m gateforge.agent_modelica_focus_queue_from_attribution_v1
+  --failure-attribution "$HOLDOUT_FAILURE_ATTRIBUTION"
+  --run-results "$HOLDOUT_BASELINE_OUT_DIR/run_results.json"
+  --history-jsonl "$HOLDOUT_FOCUS_QUEUE_HISTORY"
+  --persistence-weight "$FOCUS_PERSISTENCE_WEIGHT"
+  --strategy-signal-weight "$FOCUS_SIGNAL_WEIGHT"
+  --strategy-signal-target-score "$FOCUS_SIGNAL_TARGET_SCORE"
+  --append-history
+  --top-k "$FOCUS_TOP_K"
+  --out "$HOLDOUT_FOCUS_QUEUE"
+  --report-out "$OUT_DIR/focus_queue.md"
+)
+if [ -n "$STRATEGY_AB_SUMMARY" ] && [ -f "$STRATEGY_AB_SUMMARY" ]; then
+  FOCUS_QUEUE_CMD+=(--strategy-ab-summary "$STRATEGY_AB_SUMMARY")
+fi
+"${FOCUS_QUEUE_CMD[@]}"
+
+FOCUS_TEMPLATE_CMD=(
+  python3 -m gateforge.agent_modelica_focus_template_bundle_v1
+  --focus-queue "$HOLDOUT_FOCUS_QUEUE"
+  --top-k "$FOCUS_TOP_K"
+  --out "$HOLDOUT_FOCUS_TEMPLATES"
+  --report-out "$OUT_DIR/focus_templates.md"
+)
+if [ -n "$STRATEGY_AB_SUMMARY" ] && [ -f "$STRATEGY_AB_SUMMARY" ]; then
+  FOCUS_TEMPLATE_CMD+=(--strategy-ab-summary "$STRATEGY_AB_SUMMARY")
+fi
+"${FOCUS_TEMPLATE_CMD[@]}"
 
 cat "$HOLDOUT_SUMMARY"
+exit "$BASELINE_RC"
