@@ -25,6 +25,8 @@ PROFILE_PER_SCALE_TOTAL=""
 PROFILE_PER_SCALE_FAILURE_TARGETS=""
 PROFILE_FOCUS_TOP_K=""
 PROFILE_FOCUS_PERSISTENCE_WEIGHT=""
+PROFILE_FOCUS_SIGNAL_WEIGHT=""
+PROFILE_FOCUS_SIGNAL_TARGET_SCORE=""
 PROFILE_REPAIR_HISTORY_PATH=""
 PROFILE_INJECT_HARD_FAIL_COUNT=""
 PROFILE_INJECT_SLOW_PASS_COUNT=""
@@ -90,6 +92,8 @@ put("PROFILE_PER_SCALE_TOTAL", get(payload, "taskset.per_scale_total_target"))
 put("PROFILE_PER_SCALE_FAILURE_TARGETS", csv_targets)
 put("PROFILE_FOCUS_TOP_K", get(payload, "focus_queue.top_k"))
 put("PROFILE_FOCUS_PERSISTENCE_WEIGHT", get(payload, "focus_queue.persistence_weight"))
+put("PROFILE_FOCUS_SIGNAL_WEIGHT", get(payload, "focus_queue.signal_weight"))
+put("PROFILE_FOCUS_SIGNAL_TARGET_SCORE", get(payload, "focus_queue.signal_target_score"))
 put("PROFILE_REPAIR_HISTORY_PATH", get(payload, "privacy.repair_history_path"))
 put("PROFILE_INJECT_HARD_FAIL_COUNT", get(payload, "stress_injection.hard_fail_count"))
 put("PROFILE_INJECT_SLOW_PASS_COUNT", get(payload, "stress_injection.slow_pass_count"))
@@ -116,6 +120,8 @@ MEDIUM_MAX_ROUNDS="${GATEFORGE_AGENT_MEDIUM_MAX_ROUNDS:-${PROFILE_MEDIUM_MAX_ROU
 LARGE_MAX_ROUNDS="${GATEFORGE_AGENT_LARGE_MAX_ROUNDS:-${PROFILE_LARGE_MAX_ROUNDS:-9}}"
 FOCUS_TOP_K="${GATEFORGE_AGENT_FOCUS_TOP_K:-${PROFILE_FOCUS_TOP_K:-2}}"
 FOCUS_PERSISTENCE_WEIGHT="${GATEFORGE_AGENT_FOCUS_PERSISTENCE_WEIGHT:-${PROFILE_FOCUS_PERSISTENCE_WEIGHT:-3.0}}"
+FOCUS_SIGNAL_WEIGHT="${GATEFORGE_AGENT_FOCUS_SIGNAL_WEIGHT:-${PROFILE_FOCUS_SIGNAL_WEIGHT:-3.0}}"
+FOCUS_SIGNAL_TARGET_SCORE="${GATEFORGE_AGENT_FOCUS_SIGNAL_TARGET_SCORE:-${PROFILE_FOCUS_SIGNAL_TARGET_SCORE:-0.8}}"
 INJECT_HARD_FAIL_COUNT="${GATEFORGE_AGENT_INJECT_HARD_FAIL_COUNT:-${PROFILE_INJECT_HARD_FAIL_COUNT:-0}}"
 INJECT_SLOW_PASS_COUNT="${GATEFORGE_AGENT_INJECT_SLOW_PASS_COUNT:-${PROFILE_INJECT_SLOW_PASS_COUNT:-0}}"
 ALLOW_BASELINE_FAIL="${GATEFORGE_AGENT_ALLOW_BASELINE_FAIL:-0}"
@@ -123,6 +129,7 @@ DECISION_MIN_SUCCESS_DELTA="${GATEFORGE_AGENT_DECISION_MIN_SUCCESS_DELTA:-0.01}"
 DECISION_MIN_TIME_DELTA="${GATEFORGE_AGENT_DECISION_MIN_TIME_DELTA:--0.01}"
 DECISION_MIN_ROUNDS_DELTA="${GATEFORGE_AGENT_DECISION_MIN_ROUNDS_DELTA:--0.01}"
 REPAIR_HISTORY_PATH="${GATEFORGE_AGENT_REPAIR_HISTORY_PATH:-${PROFILE_REPAIR_HISTORY_PATH:-data/private_failure_corpus/agent_modelica_repair_memory_v1.json}}"
+STRATEGY_AB_SUMMARY="${GATEFORGE_AGENT_STRATEGY_AB_SUMMARY:-}"
 
 CORE_MANIFEST="${GATEFORGE_AGENT_CORE_MUTATION_MANIFEST:-}"
 SMALL_MANIFEST="${GATEFORGE_AGENT_SMALL_MUTATION_MANIFEST:-}"
@@ -178,6 +185,10 @@ if [ -n "$FOCUS_TARGETS_PATH" ] && [ -f "$FOCUS_TARGETS_PATH" ]; then
     --report-out "$OUT_DIR/weekly/focused_playbook_from_targets.md"
   REPAIR_PLAYBOOK="$FOCUSED_PLAYBOOK_PATH"
   FOCUS_QUEUE_FOR_RUN="$FOCUS_TARGETS_PATH"
+fi
+
+if [ -z "$STRATEGY_AB_SUMMARY" ] && [ -f "$OUT_DIR/ab_checkpoint/$WEEK_TAG/ab_summary.json" ]; then
+  STRATEGY_AB_SUMMARY="$OUT_DIR/ab_checkpoint/$WEEK_TAG/ab_summary.json"
 fi
 
 use_hardpack=0
@@ -288,21 +299,41 @@ python3 -m gateforge.agent_modelica_failure_attribution_v1 \
   --out "$OUT_DIR/weekly/failure_attribution.json" \
   --report-out "$OUT_DIR/weekly/failure_attribution.md"
 
-python3 -m gateforge.agent_modelica_focus_queue_from_attribution_v1 \
-  --failure-attribution "$OUT_DIR/weekly/failure_attribution.json" \
-  --run-results "$OUT_DIR/baseline/run_results.json" \
-  --history-jsonl "$FOCUS_QUEUE_HISTORY" \
-  --persistence-weight "$FOCUS_PERSISTENCE_WEIGHT" \
-  --append-history \
-  --top-k "$FOCUS_TOP_K" \
-  --out "$OUT_DIR/weekly/focus_queue_from_failure.json" \
+FOCUS_QUEUE_CMD=(
+  python3 -m gateforge.agent_modelica_focus_queue_from_attribution_v1
+  --failure-attribution "$OUT_DIR/weekly/failure_attribution.json"
+  --run-results "$OUT_DIR/baseline/run_results.json"
+  --history-jsonl "$FOCUS_QUEUE_HISTORY"
+  --persistence-weight "$FOCUS_PERSISTENCE_WEIGHT"
+  --strategy-signal-weight "$FOCUS_SIGNAL_WEIGHT"
+  --strategy-signal-target-score "$FOCUS_SIGNAL_TARGET_SCORE"
+  --append-history
+  --top-k "$FOCUS_TOP_K"
+  --out "$OUT_DIR/weekly/focus_queue_from_failure.json"
   --report-out "$OUT_DIR/weekly/focus_queue_from_failure.md"
+)
+if [ -n "$STRATEGY_AB_SUMMARY" ] && [ -f "$STRATEGY_AB_SUMMARY" ]; then
+  FOCUS_QUEUE_CMD+=(--strategy-ab-summary "$STRATEGY_AB_SUMMARY")
+fi
+"${FOCUS_QUEUE_CMD[@]}"
 
 python3 -m gateforge.agent_modelica_playbook_focus_update_v1 \
   --playbook "$REPAIR_PLAYBOOK" \
   --queue "$OUT_DIR/weekly/focus_queue_from_failure.json" \
   --out "$OUT_DIR/weekly/focused_playbook_from_failure.json" \
   --report-out "$OUT_DIR/weekly/focused_playbook_from_failure.md"
+
+FOCUS_TEMPLATES_CMD=(
+  python3 -m gateforge.agent_modelica_focus_template_bundle_v1
+  --focus-queue "$OUT_DIR/weekly/focus_queue_from_failure.json"
+  --top-k "$FOCUS_TOP_K"
+  --out "$OUT_DIR/weekly/top_focus_templates.json"
+  --report-out "$OUT_DIR/weekly/top_focus_templates.md"
+)
+if [ -n "$STRATEGY_AB_SUMMARY" ] && [ -f "$STRATEGY_AB_SUMMARY" ]; then
+  FOCUS_TEMPLATES_CMD+=(--strategy-ab-summary "$STRATEGY_AB_SUMMARY")
+fi
+"${FOCUS_TEMPLATES_CMD[@]}"
 
 if [ "$ALLOW_BASELINE_FAIL" = "1" ]; then
   set +e
