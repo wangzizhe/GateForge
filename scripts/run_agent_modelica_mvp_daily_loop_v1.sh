@@ -13,6 +13,11 @@ RUN_DIR="$OUT_DIR/runs/$RUN_TAG"
 LEDGER_PATH="$OUT_DIR/history.jsonl"
 SUMMARY_PATH="$OUT_DIR/summary.json"
 REPORT_PATH="$OUT_DIR/summary.md"
+ROLLING_FOCUS_TARGETS_PATH="${GATEFORGE_AGENT_MVP_DAILY_ROLLING_FOCUS_TARGETS_PATH:-$OUT_DIR/rolling_focus_targets.json}"
+PREV_FOCUS_TARGETS_PATH=""
+if [ -f "$ROLLING_FOCUS_TARGETS_PATH" ]; then
+  PREV_FOCUS_TARGETS_PATH="$ROLLING_FOCUS_TARGETS_PATH"
+fi
 
 mkdir -p "$OUT_DIR/runs"
 
@@ -20,6 +25,7 @@ set +e
 GATEFORGE_AGENT_MVP_PROFILE_PATH="$PROFILE_PATH" \
 GATEFORGE_AGENT_WEEKLY_CHAIN_OUT_DIR="$RUN_DIR" \
 GATEFORGE_AGENT_WEEK_TAG="daily_${RUN_TAG}" \
+GATEFORGE_AGENT_FOCUS_TARGETS_PATH="$PREV_FOCUS_TARGETS_PATH" \
 GATEFORGE_AGENT_ALLOW_BASELINE_FAIL="1" \
 bash scripts/run_agent_modelica_weekly_chain_v1.sh >/tmp/gf_mvp_daily.log 2>&1
 RUN_RC=$?
@@ -125,7 +131,17 @@ if [ -f "$CHECKPOINT_OUT_DIR/decision.json" ]; then
   CHECKPOINT_DECISION_PATH="$CHECKPOINT_OUT_DIR/decision.json"
 fi
 
-python3 - "$RUN_DIR/summary.json" "$SUMMARY_PATH" "$REPORT_PATH" "$RUN_TAG" "$RUN_COUNT" "$AB_RAN" "$AB_SUMMARY_PATH" "$AB_RC" "$RUN_RC" "$HOLDOUT_RAN" "$HOLDOUT_SUMMARY_PATH" "$HOLDOUT_RC" "$CHECKPOINT_DECISION_PATH" "$CHECKPOINT_RC" <<'PY'
+NEXT_FOCUS_TARGETS_PATH=""
+if [ "$HOLDOUT_RAN" = "1" ] && [ -f "$OUT_DIR/holdout_checkpoint/$RUN_TAG/focus_templates.json" ]; then
+  NEXT_FOCUS_TARGETS_PATH="$OUT_DIR/holdout_checkpoint/$RUN_TAG/focus_templates.json"
+elif [ -f "$RUN_DIR/weekly/top_focus_templates.json" ]; then
+  NEXT_FOCUS_TARGETS_PATH="$RUN_DIR/weekly/top_focus_templates.json"
+fi
+if [ -n "$NEXT_FOCUS_TARGETS_PATH" ]; then
+  cp "$NEXT_FOCUS_TARGETS_PATH" "$ROLLING_FOCUS_TARGETS_PATH"
+fi
+
+python3 - "$RUN_DIR/summary.json" "$SUMMARY_PATH" "$REPORT_PATH" "$RUN_TAG" "$RUN_COUNT" "$AB_RAN" "$AB_SUMMARY_PATH" "$AB_RC" "$RUN_RC" "$HOLDOUT_RAN" "$HOLDOUT_SUMMARY_PATH" "$HOLDOUT_RC" "$CHECKPOINT_DECISION_PATH" "$CHECKPOINT_RC" "$PREV_FOCUS_TARGETS_PATH" "$NEXT_FOCUS_TARGETS_PATH" <<'PY'
 from __future__ import annotations
 
 import json
@@ -147,6 +163,8 @@ holdout_summary = sys.argv[11]
 holdout_rc = int(sys.argv[12])
 checkpoint_decision = sys.argv[13]
 checkpoint_rc = int(sys.argv[14])
+focus_targets_in_path = sys.argv[15]
+focus_targets_out_path = sys.argv[16]
 
 holdout = {}
 if holdout_summary:
@@ -173,6 +191,8 @@ payload = {
     "run_tag": run_tag,
     "run_count": run_count,
     "execution_rc": run_rc,
+    "focus_targets_in_path": focus_targets_in_path or None,
+    "focus_targets_out_path": focus_targets_out_path or None,
     "ab_checkpoint_ran": ab_ran,
     "ab_summary_path": ab_summary or None,
     "ab_execution_rc": ab_rc if ab_ran else None,
@@ -209,6 +229,8 @@ lines = [
     f"- run_tag: `{payload.get('run_tag')}`",
     f"- run_count: `{payload.get('run_count')}`",
     f"- execution_rc: `{payload.get('execution_rc')}`",
+    f"- focus_targets_in_path: `{payload.get('focus_targets_in_path')}`",
+    f"- focus_targets_out_path: `{payload.get('focus_targets_out_path')}`",
     f"- success_at_k_pct: `{(payload.get('daily') or {}).get('success_at_k_pct')}`",
     f"- regression_count: `{(payload.get('daily') or {}).get('regression_count')}`",
     f"- physics_fail_count: `{(payload.get('daily') or {}).get('physics_fail_count')}`",
