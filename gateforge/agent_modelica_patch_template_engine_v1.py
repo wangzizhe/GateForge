@@ -63,6 +63,21 @@ FOCUS_GATE_ACTIONS: dict[str, list[str]] = {
     ],
 }
 
+REGRESSION_FAILURE_TYPE_ACTIONS: dict[str, list[str]] = {
+    "model_check_error": [
+        "after compile fixes, re-check runtime and steady-state deltas against baseline",
+        "avoid declaration/connector fixes that silently alter physical parameter defaults",
+    ],
+    "simulate_error": [
+        "after stability fixes, enforce no-regression checks on runtime and event count",
+        "prefer parameter-bound edits over structural rewrites when runtime regression persists",
+    ],
+    "semantic_regression": [
+        "restore steady-state/overshoot/settling metrics before any speed optimization",
+        "re-run regression checkers after each invariant repair step",
+    ],
+}
+
 
 def _focus_actions(focus_queue_payload: dict, failure_type: str) -> list[str]:
     queue = focus_queue_payload.get("queue") if isinstance(focus_queue_payload.get("queue"), list) else []
@@ -87,6 +102,12 @@ def _focus_actions(focus_queue_payload: dict, failure_type: str) -> list[str]:
             if text and text not in seen:
                 out.append(text)
                 seen.add(text)
+        if gate == "regression_fail":
+            for item in REGRESSION_FAILURE_TYPE_ACTIONS.get(ftype, []):
+                text = str(item).strip()
+                if text and text not in seen:
+                    out.append(text)
+                    seen.add(text)
     return out
 
 

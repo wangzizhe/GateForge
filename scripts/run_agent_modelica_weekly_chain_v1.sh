@@ -26,6 +26,8 @@ PROFILE_PER_SCALE_FAILURE_TARGETS=""
 PROFILE_FOCUS_TOP_K=""
 PROFILE_FOCUS_PERSISTENCE_WEIGHT=""
 PROFILE_REPAIR_HISTORY_PATH=""
+PROFILE_INJECT_HARD_FAIL_COUNT=""
+PROFILE_INJECT_SLOW_PASS_COUNT=""
 
 if [ "$MVP_PROFILE_ENABLE" = "1" ] && [ -f "$MVP_PROFILE_PATH" ]; then
   # Load profile once and expose normalized key-values to shell.
@@ -89,6 +91,8 @@ put("PROFILE_PER_SCALE_FAILURE_TARGETS", csv_targets)
 put("PROFILE_FOCUS_TOP_K", get(payload, "focus_queue.top_k"))
 put("PROFILE_FOCUS_PERSISTENCE_WEIGHT", get(payload, "focus_queue.persistence_weight"))
 put("PROFILE_REPAIR_HISTORY_PATH", get(payload, "privacy.repair_history_path"))
+put("PROFILE_INJECT_HARD_FAIL_COUNT", get(payload, "stress_injection.hard_fail_count"))
+put("PROFILE_INJECT_SLOW_PASS_COUNT", get(payload, "stress_injection.slow_pass_count"))
 PY
   )"
 fi
@@ -112,6 +116,9 @@ MEDIUM_MAX_ROUNDS="${GATEFORGE_AGENT_MEDIUM_MAX_ROUNDS:-${PROFILE_MEDIUM_MAX_ROU
 LARGE_MAX_ROUNDS="${GATEFORGE_AGENT_LARGE_MAX_ROUNDS:-${PROFILE_LARGE_MAX_ROUNDS:-9}}"
 FOCUS_TOP_K="${GATEFORGE_AGENT_FOCUS_TOP_K:-${PROFILE_FOCUS_TOP_K:-2}}"
 FOCUS_PERSISTENCE_WEIGHT="${GATEFORGE_AGENT_FOCUS_PERSISTENCE_WEIGHT:-${PROFILE_FOCUS_PERSISTENCE_WEIGHT:-3.0}}"
+INJECT_HARD_FAIL_COUNT="${GATEFORGE_AGENT_INJECT_HARD_FAIL_COUNT:-${PROFILE_INJECT_HARD_FAIL_COUNT:-0}}"
+INJECT_SLOW_PASS_COUNT="${GATEFORGE_AGENT_INJECT_SLOW_PASS_COUNT:-${PROFILE_INJECT_SLOW_PASS_COUNT:-0}}"
+ALLOW_BASELINE_FAIL="${GATEFORGE_AGENT_ALLOW_BASELINE_FAIL:-0}"
 DECISION_MIN_SUCCESS_DELTA="${GATEFORGE_AGENT_DECISION_MIN_SUCCESS_DELTA:-0.01}"
 DECISION_MIN_TIME_DELTA="${GATEFORGE_AGENT_DECISION_MIN_TIME_DELTA:--0.01}"
 DECISION_MIN_ROUNDS_DELTA="${GATEFORGE_AGENT_DECISION_MIN_ROUNDS_DELTA:--0.01}"
@@ -247,6 +254,8 @@ BASELINE_CMD=(
   --physics-contract "$PHYSICS_CONTRACT"
   --repair-playbook "$REPAIR_PLAYBOOK"
   --repair-history "$REPAIR_HISTORY_PATH"
+  --inject-hard-fail-count "$INJECT_HARD_FAIL_COUNT"
+  --inject-slow-pass-count "$INJECT_SLOW_PASS_COUNT"
   --out-dir "$OUT_DIR/baseline"
   --out "$OUT_DIR/baseline/summary.json"
   --report-out "$OUT_DIR/baseline/summary.md"
@@ -254,7 +263,18 @@ BASELINE_CMD=(
 if [ -n "$FOCUS_QUEUE_FOR_RUN" ] && [ -f "$FOCUS_QUEUE_FOR_RUN" ]; then
   BASELINE_CMD+=(--focus-queue "$FOCUS_QUEUE_FOR_RUN")
 fi
-"${BASELINE_CMD[@]}"
+if [ "$ALLOW_BASELINE_FAIL" = "1" ]; then
+  set +e
+  "${BASELINE_CMD[@]}"
+  BASELINE_RC=$?
+  set -e
+  if [ "$BASELINE_RC" -ne 0 ] && [ ! -f "$OUT_DIR/baseline/summary.json" ]; then
+    echo "baseline failed without summary artifact (rc=$BASELINE_RC)" >&2
+    exit "$BASELINE_RC"
+  fi
+else
+  "${BASELINE_CMD[@]}"
+fi
 
 python3 -m gateforge.agent_modelica_repair_memory_store_v1 \
   --run-results "$OUT_DIR/baseline/run_results.json" \
@@ -284,12 +304,28 @@ python3 -m gateforge.agent_modelica_playbook_focus_update_v1 \
   --out "$OUT_DIR/weekly/focused_playbook_from_failure.json" \
   --report-out "$OUT_DIR/weekly/focused_playbook_from_failure.md"
 
-python3 -m gateforge.agent_modelica_weekly_metrics_page_v1 \
-  --baseline-summary "$OUT_DIR/baseline/summary.json" \
-  --week-tag "$WEEK_TAG" \
-  --ledger "$OUT_DIR/weekly/history.jsonl" \
-  --out "$OUT_DIR/weekly/page.json" \
-  --report-out "$OUT_DIR/weekly/page.md"
+if [ "$ALLOW_BASELINE_FAIL" = "1" ]; then
+  set +e
+  python3 -m gateforge.agent_modelica_weekly_metrics_page_v1 \
+    --baseline-summary "$OUT_DIR/baseline/summary.json" \
+    --week-tag "$WEEK_TAG" \
+    --ledger "$OUT_DIR/weekly/history.jsonl" \
+    --out "$OUT_DIR/weekly/page.json" \
+    --report-out "$OUT_DIR/weekly/page.md"
+  WEEKLY_PAGE_RC=$?
+  set -e
+  if [ "$WEEKLY_PAGE_RC" -ne 0 ] && [ ! -f "$OUT_DIR/weekly/page.json" ]; then
+    echo "weekly metrics page failed without artifact (rc=$WEEKLY_PAGE_RC)" >&2
+    exit "$WEEKLY_PAGE_RC"
+  fi
+else
+  python3 -m gateforge.agent_modelica_weekly_metrics_page_v1 \
+    --baseline-summary "$OUT_DIR/baseline/summary.json" \
+    --week-tag "$WEEK_TAG" \
+    --ledger "$OUT_DIR/weekly/history.jsonl" \
+    --out "$OUT_DIR/weekly/page.json" \
+    --report-out "$OUT_DIR/weekly/page.md"
+fi
 
 python3 -m gateforge.agent_modelica_weekly_decision_v1 \
   --current-page "$OUT_DIR/weekly/page.json" \

@@ -9,9 +9,17 @@ from pathlib import Path
 PATTERNS: list[tuple[str, str, str]] = [
     (r"undefined\s+symbol|undeclared", "declare_missing_symbol", "declare missing symbol and align declaration scope"),
     (r"connect(or)?\s+mismatch|incompatible\s+connector", "fix_connector_mismatch", "fix connector type/causality mismatch"),
+    (r"type\s+mismatch|incompatible\s+type|cannot\s+convert\s+type", "fix_type_mismatch", "align variable/connector types and unit-compatible assignments"),
+    (r"too\s+few\s+equations|too\s+many\s+equations|under.?determined|over.?determined", "fix_equation_balance", "rebalance equation/variable counts before simulation"),
     (r"initial(ization)?\s+failed|cannot\s+initialize", "fix_initialization", "stabilize initial equations and start values"),
+    (r"solver\s+failed|failed\s+to\s+solve|non.?convergen|convergence\s+failed", "improve_solver_convergence", "tighten parameter bounds and improve solver convergence path"),
     (r"singular|division\s+by\s+zero|nan|inf", "numerical_stability_guard", "add numerical guards and bounded parameters"),
     (r"too\s+many\s+events|event\s+chatter", "reduce_event_chatter", "reduce event triggering oscillations"),
+    (r"runtime_regression:|runtime\s+regression", "guard_runtime_regression", "enforce no-regression runtime budget and minimal localized edits"),
+    (r"overshoot_regression_detected|overshoot\s+regression", "repair_overshoot_regression", "retune gains and limit logic to restore overshoot bounds"),
+    (r"settling_time_regression_detected|settling\s*time\s+regression", "repair_settling_time_regression", "restore damping/time constants to recover settling-time envelope"),
+    (r"steady_state_regression_detected|steady[_\s]?state\s+regression", "repair_steady_state_regression", "restore steady-state offset and unit/sign consistency"),
+    (r"physical_invariant_|physics\s+contract\s+fail", "repair_physics_invariant", "apply invariant-first repair before any optimization edits"),
 ]
 
 
@@ -37,6 +45,7 @@ def map_error_to_actions(error_message: str, failure_type: str | None = None) ->
     elif not actions and ftype == "semantic_regression":
         tags.append("generic_semantic_repair")
         actions.append("repair invariant and behavioral regression before performance tuning")
+        actions.append("enforce no-regression runtime and behavior checker gates before merge")
 
     return {
         "tags": tags,

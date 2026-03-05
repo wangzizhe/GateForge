@@ -14,13 +14,23 @@ COMPARE_JSON="$OUT_DIR/compare.json"
 COMPARE_MD="$OUT_DIR/compare.md"
 
 mkdir -p "$OUT_DIR"
+rm -rf "$BEFORE_DIR" "$AFTER_DIR"
 
 echo "[mvp_before_after] profile=$PROFILE_PATH"
 echo "[mvp_before_after] running BEFORE"
+set +e
 GATEFORGE_AGENT_MVP_PROFILE_PATH="$PROFILE_PATH" \
 GATEFORGE_AGENT_WEEKLY_CHAIN_OUT_DIR="$BEFORE_DIR" \
 GATEFORGE_AGENT_WEEK_TAG="${RUN_TAG_BASE}-before" \
+GATEFORGE_AGENT_ALLOW_BASELINE_FAIL="1" \
 bash scripts/run_agent_modelica_weekly_chain_v1.sh
+BEFORE_RC=$?
+set -e
+
+if [ ! -f "$BEFORE_DIR/summary.json" ]; then
+  echo "missing before summary: $BEFORE_DIR/summary.json (rc=$BEFORE_RC)" >&2
+  exit 1
+fi
 
 FOCUS_QUEUE_PATH="$BEFORE_DIR/weekly/focus_queue_from_failure.json"
 if [ ! -f "$FOCUS_QUEUE_PATH" ]; then
@@ -29,13 +39,22 @@ if [ ! -f "$FOCUS_QUEUE_PATH" ]; then
 fi
 
 echo "[mvp_before_after] running AFTER"
+set +e
 GATEFORGE_AGENT_MVP_PROFILE_PATH="$PROFILE_PATH" \
 GATEFORGE_AGENT_WEEKLY_CHAIN_OUT_DIR="$AFTER_DIR" \
 GATEFORGE_AGENT_WEEK_TAG="${RUN_TAG_BASE}-after" \
 GATEFORGE_AGENT_FOCUS_TARGETS_PATH="$FOCUS_QUEUE_PATH" \
+GATEFORGE_AGENT_ALLOW_BASELINE_FAIL="1" \
 bash scripts/run_agent_modelica_weekly_chain_v1.sh
+AFTER_RC=$?
+set -e
 
-python3 - "$BEFORE_DIR/summary.json" "$AFTER_DIR/summary.json" "$COMPARE_JSON" "$COMPARE_MD" <<'PY'
+if [ ! -f "$AFTER_DIR/summary.json" ]; then
+  echo "missing after summary: $AFTER_DIR/summary.json (rc=$AFTER_RC)" >&2
+  exit 1
+fi
+
+python3 - "$BEFORE_DIR/summary.json" "$AFTER_DIR/summary.json" "$COMPARE_JSON" "$COMPARE_MD" "$BEFORE_RC" "$AFTER_RC" <<'PY'
 from __future__ import annotations
 
 import json
@@ -48,6 +67,8 @@ before = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
 after = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
 out_json = Path(sys.argv[3])
 out_md = Path(sys.argv[4])
+before_rc = int(sys.argv[5])
+after_rc = int(sys.argv[6])
 
 def _to_float(value: object) -> float | None:
     if isinstance(value, (int, float)):
@@ -64,7 +85,8 @@ after_phy = _to_float(after.get("physics_fail_count"))
 compare = {
     "schema_version": "agent_modelica_mvp_before_after_v1",
     "generated_at_utc": datetime.now(timezone.utc).isoformat(),
-    "status": "PASS",
+    "status": "PASS" if before_rc == 0 and after_rc == 0 else "NEEDS_REVIEW",
+    "execution_rc": {"before": before_rc, "after": after_rc},
     "before": {
         "path": str(Path(sys.argv[1])),
         "status": before.get("status"),
