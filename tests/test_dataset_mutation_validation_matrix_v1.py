@@ -10,6 +10,14 @@ from gateforge import dataset_mutation_validation_matrix_v1 as mtx_v1
 
 
 class DatasetMutationValidationMatrixV1Tests(unittest.TestCase):
+    def test_resolve_model_name_uses_within_namespace(self) -> None:
+        text = "within A.B;\nmodel C\n  Real x;\nequation\n  der(x)=-x;\nend C;\n"
+        self.assertEqual(mtx_v1._resolve_model_name(text), "A.B.C")
+
+    def test_resolve_model_name_without_within(self) -> None:
+        text = "model D\n  Real x;\nequation\n  der(x)=-x;\nend D;\n"
+        self.assertEqual(mtx_v1._resolve_model_name(text), "D")
+
     def test_classify_failure_maps_assert_in_check_log_to_constraint_violation(self) -> None:
         stage, ftype = mtx_v1._classify_failure(
             check_ok=False,
