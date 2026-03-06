@@ -96,12 +96,86 @@ def _fingerprint(row: dict) -> str:
         "failure_type": _norm(row.get("failure_type")).lower(),
         "scale": _norm(row.get("scale")).lower(),
         "model_hint": _norm(row.get("source_model_path") or row.get("mutated_model_path") or row.get("model_id")).lower(),
+        "error_signature": _norm(row.get("error_signature")).lower(),
         "strategy_id": _norm(row.get("used_strategy")).lower(),
         "actions": [str(x).strip().lower() for x in (row.get("action_trace") or []) if isinstance(x, str)],
+        "gate_break_reason": _norm(row.get("gate_break_reason")).lower(),
         "pass": bool(row.get("success", False)),
     }
     raw = json.dumps(basis, ensure_ascii=True, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+def _norm_space(text: str) -> str:
+    return " ".join(str(text or "").strip().lower().split())
+
+
+def _gate_break_reason(rec: dict) -> str:
+    hard = rec.get("hard_checks") if isinstance(rec.get("hard_checks"), dict) else {}
+    if bool(rec.get("passed")):
+        return "none"
+    if not bool(hard.get("check_model_pass", True)):
+        return "check_model_fail"
+    if not bool(hard.get("simulate_pass", True)):
+        return "simulate_fail"
+    if not bool(hard.get("physics_contract_pass", True)):
+        reasons = rec.get("physics_contract_reasons") if isinstance(rec.get("physics_contract_reasons"), list) else []
+        if reasons:
+            return str(reasons[0])
+        return "physics_contract_fail"
+    if not bool(hard.get("regression_pass", True)):
+        reasons = rec.get("regression_reasons") if isinstance(rec.get("regression_reasons"), list) else []
+        if reasons:
+            return str(reasons[0])
+        return "regression_fail"
+    return "unknown_fail"
+
+
+def _collect_error_tokens(rec: dict, task: dict) -> list[str]:
+    out: list[str] = []
+    for key in (
+        "error_message",
+        "compile_error",
+        "simulate_error_message",
+        "stderr_snippet",
+    ):
+        for src in (rec, task):
+            if not isinstance(src, dict):
+                continue
+            value = src.get(key)
+            if isinstance(value, str) and value.strip():
+                out.append(value.strip())
+    if not out:
+        for key in ("regression_reasons", "physics_contract_reasons"):
+            value = rec.get(key) if isinstance(rec, dict) else None
+            if isinstance(value, list):
+                for row in value:
+                    if isinstance(row, str) and row.strip():
+                        out.append(row.strip())
+    return out
+
+
+def _error_signature(rec: dict, task: dict, failure_type: str) -> tuple[str, str]:
+    tokens = _collect_error_tokens(rec=rec, task=task)
+    text = " | ".join(tokens) if tokens else _gate_break_reason(rec)
+    normalized = _norm_space(text) or "none"
+    digest = hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:16]
+    signature = f"{_norm(failure_type).lower()}:{digest}"
+    return signature, text[:500]
+
+
+def _patch_diff_summary(strategy: dict, rec: dict) -> str:
+    actions = strategy.get("actions") if isinstance(strategy.get("actions"), list) else []
+    actions = [str(x).strip() for x in actions if isinstance(x, str) and str(x).strip()]
+    if not actions:
+        repair_audit = rec.get("repair_audit") if isinstance(rec.get("repair_audit"), dict) else {}
+        actions = [str(x).strip() for x in (repair_audit.get("actions_planned") or []) if isinstance(x, str) and str(x).strip()]
+    if not actions:
+        return ""
+    top = actions[:3]
+    more = max(0, len(actions) - len(top))
+    suffix = f" (+{more} more)" if more > 0 else ""
+    return "; ".join(top) + suffix
 
 
 def build_repair_memory_update(
@@ -150,13 +224,21 @@ def build_repair_memory_update(
         task_id = _norm(rec.get("task_id"))
         task = task_by_id.get(task_id, {})
         strategy = rec.get("repair_strategy") if isinstance(rec.get("repair_strategy"), dict) else {}
+        repair_audit = rec.get("repair_audit") if isinstance(rec.get("repair_audit"), dict) else {}
         actions = strategy.get("actions") if isinstance(strategy.get("actions"), list) else []
+        if not actions and isinstance(repair_audit.get("actions_planned"), list):
+            actions = repair_audit.get("actions_planned")
         actions = [str(x) for x in actions if isinstance(x, str)]
         failure_type = _norm(rec.get("failure_type") or task.get("failure_type") or "unknown").lower()
         scale = _norm(rec.get("scale") or task.get("scale") or "unknown").lower()
         source_model_path = _norm(task.get("source_model_path"))
         mutated_model_path = _norm(task.get("mutated_model_path"))
         model_hint = source_model_path or mutated_model_path or task_id
+        gate_break_reason = _gate_break_reason(rec)
+        error_signature, error_excerpt = _error_signature(rec=rec, task=task, failure_type=failure_type)
+        rounds_used = int(rec.get("rounds_used", 0) or 0)
+        elapsed_sec = float(rec.get("elapsed_sec", 0.0) or 0.0)
+        time_to_pass_sec = float(rec.get("time_to_pass_sec", 0.0) or 0.0) if passed else None
 
         row = {
             "fingerprint": "",
@@ -168,10 +250,18 @@ def build_repair_memory_update(
             "source_model_path": source_model_path,
             "mutated_model_path": mutated_model_path,
             "model_id": Path(model_hint).stem if model_hint else "",
-            "used_strategy": _norm(strategy.get("strategy_id")),
+            "expected_stage": _norm(task.get("expected_stage")),
+            "used_strategy": _norm(repair_audit.get("strategy_id") or strategy.get("strategy_id")),
             "action_trace": actions,
+            "gate_break_reason": gate_break_reason,
+            "error_signature": error_signature,
+            "error_excerpt": error_excerpt,
+            "patch_diff_summary": _patch_diff_summary(strategy=strategy, rec=rec),
             "success": passed,
             "status": "PASS" if passed else "FAIL",
+            "repair_rounds": rounds_used if rounds_used > 0 else None,
+            "elapsed_sec": round(elapsed_sec, 4) if elapsed_sec > 0 else None,
+            "time_to_pass_sec": round(time_to_pass_sec, 4) if isinstance(time_to_pass_sec, float) and time_to_pass_sec > 0 else None,
             "hard_checks": rec.get("hard_checks") if isinstance(rec.get("hard_checks"), dict) else {},
             "source_run_results": _norm(run_results_payload.get("source_run_results") or ""),
         }
