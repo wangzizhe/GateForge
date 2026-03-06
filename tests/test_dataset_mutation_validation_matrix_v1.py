@@ -10,6 +10,12 @@ from gateforge import dataset_mutation_validation_matrix_v1 as mtx_v1
 
 
 class DatasetMutationValidationMatrixV1Tests(unittest.TestCase):
+    def test_to_modelica_str_renders_absolute_path(self) -> None:
+        rel = Path("artifacts/run_private_model_mutation_scale_batch_v1_demo/private_models/MediumPlant.mo")
+        rendered = mtx_v1._to_modelica_str(rel)
+        self.assertTrue(rendered.startswith("/"))
+        self.assertTrue(rendered.endswith("MediumPlant.mo"))
+
     def test_resolve_model_name_uses_within_namespace(self) -> None:
         text = "within A.B;\nmodel C\n  Real x;\nequation\n  der(x)=-x;\nend C;\n"
         self.assertEqual(mtx_v1._resolve_model_name(text), "A.B.C")
