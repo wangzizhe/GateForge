@@ -33,6 +33,28 @@ This file explains what each top-level folder is for, so you can quickly tell:
 - Policy behavior: `policies/`
 - Data/source seed configuration: `data/`
 
+## Current Lane (Use This First)
+
+If `v1/v2` naming is noisy, use this short lane for current work:
+
+- Single entrypoint:
+  - `scripts/run_agent_modelica_now_v1.sh`
+
+- Three commands you usually need:
+  - `bash scripts/run_agent_modelica_now_v1.sh calib`
+  - `bash scripts/run_agent_modelica_now_v1.sh loop-mini-live`
+  - `bash scripts/run_agent_modelica_now_v1.sh preflight`
+
+- Core artifacts to inspect after each run:
+  - calibration summary:
+    - `artifacts/agent_modelica_problem_plan_execution_v1_now/summary.json`
+  - live learning loop summary:
+    - `artifacts/agent_modelica_mvp_mutant_repair_learning_loop_v1_now/summary.json`
+  - release preflight summary:
+    - `artifacts/release_v0_1_1/release_preflight_summary.json`
+
+Everything else can be treated as historical modules unless you are debugging a specific regression.
+
 ## Moat-Critical Paths (Current Focus)
 
 - Real model pool (private): `assets_private/modelica/open_source`
