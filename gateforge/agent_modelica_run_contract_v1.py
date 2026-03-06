@@ -32,6 +32,35 @@ def _write_json(path: str, payload: object) -> None:
     p.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
+def _load_records_jsonl(path: str) -> dict[str, dict]:
+    p = Path(path)
+    if not p.exists():
+        return {}
+    out: dict[str, dict] = {}
+    for line in p.read_text(encoding="utf-8").splitlines():
+        text = str(line or "").strip()
+        if not text:
+            continue
+        try:
+            row = json.loads(text)
+        except Exception:
+            continue
+        if not isinstance(row, dict):
+            continue
+        task_id = str(row.get("task_id") or "").strip()
+        if not task_id:
+            continue
+        out.setdefault(task_id, row)
+    return out
+
+
+def _append_record_jsonl(path: str, row: dict) -> None:
+    p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    with p.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(row, ensure_ascii=True) + "\n")
+
+
 def _default_md_path(out_json: str) -> str:
     out = Path(out_json)
     if out.suffix == ".json":
@@ -997,6 +1026,8 @@ def main() -> None:
     parser.add_argument("--live-executor-cmd", default=None)
     parser.add_argument("--live-timeout-sec", type=int, default=180)
     parser.add_argument("--live-max-output-chars", type=int, default=1200)
+    parser.add_argument("--records-jsonl", default="")
+    parser.add_argument("--resume-from-records", action="store_true")
     parser.add_argument("--strategy-effect", choices=["on", "off"], default="on")
     parser.add_argument("--results-out", default="artifacts/agent_modelica_run_contract_v1/results.json")
     parser.add_argument("--out", default="artifacts/agent_modelica_run_contract_v1/summary.json")
@@ -1027,56 +1058,66 @@ def main() -> None:
         else {}
     )
 
+    records_jsonl_path = str(args.records_jsonl or "").strip()
+    resume_records: dict[str, dict] = {}
+    resumed_count = 0
+    if bool(args.resume_from_records) and records_jsonl_path:
+        resume_records = _load_records_jsonl(records_jsonl_path)
+
     records: list[dict] = []
     for task in tasks:
+        task_id = str(task.get("task_id") or "").strip()
+        if task_id and task_id in resume_records:
+            records.append(resume_records[task_id])
+            resumed_count += 1
+            continue
+
+        record: dict
         if args.mode == "evidence":
-            records.append(
-                _run_task_evidence(
-                    task,
-                    max_rounds=max_rounds,
-                    max_time_sec=max_time_sec,
-                    physics_contract=physics_contract,
-                    runtime_threshold=float(args.runtime_threshold),
-                    repair_playbook=repair_playbook,
-                    repair_history_payload=repair_history_payload,
-                    focus_queue_payload=focus_queue_payload,
-                    patch_template_adaptations_payload=patch_template_adaptations_payload,
-                    retrieval_policy_payload=retrieval_policy_payload,
-                )
+            record = _run_task_evidence(
+                task,
+                max_rounds=max_rounds,
+                max_time_sec=max_time_sec,
+                physics_contract=physics_contract,
+                runtime_threshold=float(args.runtime_threshold),
+                repair_playbook=repair_playbook,
+                repair_history_payload=repair_history_payload,
+                focus_queue_payload=focus_queue_payload,
+                patch_template_adaptations_payload=patch_template_adaptations_payload,
+                retrieval_policy_payload=retrieval_policy_payload,
             )
         elif args.mode == "live":
-            records.append(
-                _run_task_live(
-                    task,
-                    max_rounds=max_rounds,
-                    max_time_sec=max_time_sec,
-                    physics_contract=physics_contract,
-                    runtime_threshold=float(args.runtime_threshold),
-                    repair_playbook=repair_playbook,
-                    repair_history_payload=repair_history_payload,
-                    focus_queue_payload=focus_queue_payload,
-                    patch_template_adaptations_payload=patch_template_adaptations_payload,
-                    retrieval_policy_payload=retrieval_policy_payload,
-                    live_executor_cmd=str(args.live_executor_cmd or ""),
-                    live_timeout_sec=max(1, int(args.live_timeout_sec)),
-                    live_max_output_chars=max(200, int(args.live_max_output_chars)),
-                )
+            record = _run_task_live(
+                task,
+                max_rounds=max_rounds,
+                max_time_sec=max_time_sec,
+                physics_contract=physics_contract,
+                runtime_threshold=float(args.runtime_threshold),
+                repair_playbook=repair_playbook,
+                repair_history_payload=repair_history_payload,
+                focus_queue_payload=focus_queue_payload,
+                patch_template_adaptations_payload=patch_template_adaptations_payload,
+                retrieval_policy_payload=retrieval_policy_payload,
+                live_executor_cmd=str(args.live_executor_cmd or ""),
+                live_timeout_sec=max(1, int(args.live_timeout_sec)),
+                live_max_output_chars=max(200, int(args.live_max_output_chars)),
             )
         else:
-            records.append(
-                _run_task_mock(
-                    task,
-                    max_rounds=max_rounds,
-                    max_time_sec=max_time_sec,
-                    physics_contract=physics_contract,
-                    repair_playbook=repair_playbook,
-                    repair_history_payload=repair_history_payload,
-                    focus_queue_payload=focus_queue_payload,
-                    patch_template_adaptations_payload=patch_template_adaptations_payload,
-                    retrieval_policy_payload=retrieval_policy_payload,
-                    strategy_effect_enabled=(args.strategy_effect == "on"),
-                )
+            record = _run_task_mock(
+                task,
+                max_rounds=max_rounds,
+                max_time_sec=max_time_sec,
+                physics_contract=physics_contract,
+                repair_playbook=repair_playbook,
+                repair_history_payload=repair_history_payload,
+                focus_queue_payload=focus_queue_payload,
+                patch_template_adaptations_payload=patch_template_adaptations_payload,
+                retrieval_policy_payload=retrieval_policy_payload,
+                strategy_effect_enabled=(args.strategy_effect == "on"),
             )
+        records.append(record)
+        if records_jsonl_path:
+            _append_record_jsonl(records_jsonl_path, record)
 
     success_rows = [x for x in records if bool(x.get("passed"))]
     success_count = len(success_rows)
@@ -1110,6 +1151,9 @@ def main() -> None:
         "live_executor_cmd": args.live_executor_cmd,
         "live_timeout_sec": int(args.live_timeout_sec),
         "live_max_output_chars": int(args.live_max_output_chars),
+        "records_jsonl": records_jsonl_path,
+        "resume_from_records": bool(args.resume_from_records),
+        "resumed_count": resumed_count,
         "mode": args.mode,
         "strategy_effect": args.strategy_effect,
         "records": records,
@@ -1136,6 +1180,9 @@ def main() -> None:
         "live_executor_cmd": args.live_executor_cmd,
         "live_timeout_sec": int(args.live_timeout_sec),
         "live_max_output_chars": int(args.live_max_output_chars),
+        "records_jsonl": records_jsonl_path,
+        "resume_from_records": bool(args.resume_from_records),
+        "resumed_count": resumed_count,
         "mode": args.mode,
         "strategy_effect": args.strategy_effect,
         "max_rounds": max_rounds,
@@ -1154,6 +1201,8 @@ def main() -> None:
             "live_executor_cmd": args.live_executor_cmd,
             "live_timeout_sec": int(args.live_timeout_sec),
             "live_max_output_chars": int(args.live_max_output_chars),
+            "records_jsonl": records_jsonl_path,
+            "resume_from_records": bool(args.resume_from_records),
         },
     }
     _write_json(args.out, summary)

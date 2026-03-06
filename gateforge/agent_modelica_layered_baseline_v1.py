@@ -213,6 +213,8 @@ def main() -> None:
     parser.add_argument("--live-executor-cmd", default=None)
     parser.add_argument("--live-timeout-sec", type=int, default=180)
     parser.add_argument("--live-max-output-chars", type=int, default=1200)
+    parser.add_argument("--run-records-jsonl", default=None)
+    parser.add_argument("--resume-run-contract", action="store_true")
     parser.add_argument("--out", default="artifacts/agent_modelica_layered_baseline_v1/summary.json")
     parser.add_argument("--report-out", default=None)
     args = parser.parse_args()
@@ -296,43 +298,45 @@ def main() -> None:
         inject_cmd = {"returncode": 0, "stderr": "", "stdout": "", "module": "inject_disabled", "argv": []}
         run_taskset_path = taskset_path
 
-    run_cmd = _run_module(
-        "gateforge.agent_modelica_run_contract_v1",
-        [
-            "--taskset",
-            run_taskset_path,
-            "--max-rounds",
-            str(max(1, int(args.max_rounds))),
-            "--max-time-sec",
-            str(max(1, int(args.max_time_sec))),
-            "--mode",
-            args.run_mode,
-            "--runtime-threshold",
-            str(float(args.runtime_threshold)),
-            "--physics-contract",
-            args.physics_contract,
-            "--repair-playbook",
-            str(args.repair_playbook or ""),
-            "--repair-history",
-            str(args.repair_history or ""),
-            "--focus-queue",
-            str(args.focus_queue or ""),
-            "--patch-template-adaptations",
-            str(args.patch_template_adaptations or ""),
-            "--retrieval-policy",
-            str(args.retrieval_policy or ""),
-            "--live-executor-cmd",
-            str(args.live_executor_cmd or ""),
-            "--live-timeout-sec",
-            str(max(1, int(args.live_timeout_sec))),
-            "--live-max-output-chars",
-            str(max(200, int(args.live_max_output_chars))),
-            "--results-out",
-            run_results_path,
-            "--out",
-            run_summary_path,
-        ],
-    )
+    run_contract_argv = [
+        "--taskset",
+        run_taskset_path,
+        "--max-rounds",
+        str(max(1, int(args.max_rounds))),
+        "--max-time-sec",
+        str(max(1, int(args.max_time_sec))),
+        "--mode",
+        args.run_mode,
+        "--runtime-threshold",
+        str(float(args.runtime_threshold)),
+        "--physics-contract",
+        args.physics_contract,
+        "--repair-playbook",
+        str(args.repair_playbook or ""),
+        "--repair-history",
+        str(args.repair_history or ""),
+        "--focus-queue",
+        str(args.focus_queue or ""),
+        "--patch-template-adaptations",
+        str(args.patch_template_adaptations or ""),
+        "--retrieval-policy",
+        str(args.retrieval_policy or ""),
+        "--live-executor-cmd",
+        str(args.live_executor_cmd or ""),
+        "--live-timeout-sec",
+        str(max(1, int(args.live_timeout_sec))),
+        "--live-max-output-chars",
+        str(max(200, int(args.live_max_output_chars))),
+        "--results-out",
+        run_results_path,
+        "--out",
+        run_summary_path,
+        "--records-jsonl",
+        str(args.run_records_jsonl or ""),
+    ]
+    if bool(args.resume_run_contract):
+        run_contract_argv.append("--resume-from-records")
+    run_cmd = _run_module("gateforge.agent_modelica_run_contract_v1", run_contract_argv)
 
     acceptance_cmd = _run_module(
         "gateforge.agent_modelica_acceptance_gate_v1",
@@ -472,6 +476,8 @@ def main() -> None:
             "live_executor_cmd": args.live_executor_cmd,
             "live_timeout_sec": int(args.live_timeout_sec),
             "live_max_output_chars": int(args.live_max_output_chars),
+            "run_records_jsonl": args.run_records_jsonl,
+            "resume_run_contract": bool(args.resume_run_contract),
             "inject_hard_fail_count": hard_fail_count,
             "inject_slow_pass_count": slow_pass_count,
         },

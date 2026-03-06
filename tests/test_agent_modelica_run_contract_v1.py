@@ -525,6 +525,78 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
             self.assertTrue(bool((rec.get("hard_checks") or {}).get("regression_pass")))
             self.assertEqual(float(rec.get("elapsed_sec") or 0.0), 5.5)
 
+    def test_run_contract_resume_from_records_jsonl_skips_completed_tasks(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            taskset = root / "taskset.json"
+            records_jsonl = root / "records.jsonl"
+            results_a = root / "results_a.json"
+            summary_a = root / "summary_a.json"
+            results_b = root / "results_b.json"
+            summary_b = root / "summary_b.json"
+
+            taskset.write_text(
+                json.dumps(
+                    {
+                        "tasks": [
+                            {"task_id": "t1", "scale": "small", "failure_type": "model_check_error"},
+                            {"task_id": "t2", "scale": "small", "failure_type": "simulate_error"},
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            proc_a = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.agent_modelica_run_contract_v1",
+                    "--taskset",
+                    str(taskset),
+                    "--records-jsonl",
+                    str(records_jsonl),
+                    "--results-out",
+                    str(results_a),
+                    "--out",
+                    str(summary_a),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=30,
+            )
+            self.assertEqual(proc_a.returncode, 0, msg=proc_a.stderr or proc_a.stdout)
+            lines_a = [x for x in records_jsonl.read_text(encoding="utf-8").splitlines() if x.strip()]
+            self.assertEqual(len(lines_a), 2)
+
+            proc_b = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.agent_modelica_run_contract_v1",
+                    "--taskset",
+                    str(taskset),
+                    "--records-jsonl",
+                    str(records_jsonl),
+                    "--resume-from-records",
+                    "--results-out",
+                    str(results_b),
+                    "--out",
+                    str(summary_b),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=30,
+            )
+            self.assertEqual(proc_b.returncode, 0, msg=proc_b.stderr or proc_b.stdout)
+            lines_b = [x for x in records_jsonl.read_text(encoding="utf-8").splitlines() if x.strip()]
+            self.assertEqual(len(lines_b), 2)
+
+            summary = json.loads(summary_b.read_text(encoding="utf-8"))
+            self.assertEqual(int(summary.get("resumed_count", 0)), 2)
+
 
 if __name__ == "__main__":
     unittest.main()

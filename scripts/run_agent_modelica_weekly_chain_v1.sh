@@ -142,6 +142,12 @@ CAPABILITY_LEARN_MIN_SUCCESS_COUNT="${GATEFORGE_AGENT_CAPABILITY_LEARN_MIN_SUCCE
 CAPABILITY_LEARN_TOP_ACTIONS="${GATEFORGE_AGENT_CAPABILITY_LEARN_TOP_ACTIONS:-4}"
 CAPABILITY_LEARN_TOP_STRATEGIES="${GATEFORGE_AGENT_CAPABILITY_LEARN_TOP_STRATEGIES:-2}"
 STRATEGY_AB_SUMMARY="${GATEFORGE_AGENT_STRATEGY_AB_SUMMARY:-}"
+PREFLIGHT_ENABLE="${GATEFORGE_AGENT_PREFLIGHT_ENABLE:-1}"
+HOLDOUT_RATIO="${GATEFORGE_AGENT_HOLDOUT_RATIO:-0.15}"
+SPLIT_FREEZE_SEED="${GATEFORGE_AGENT_SPLIT_FREEZE_SEED:-agent_modelica_split_v1}"
+RUN_RECORDS_JSONL="${GATEFORGE_AGENT_RUN_RECORDS_JSONL:-$OUT_DIR/baseline/run_records.jsonl}"
+RESUME_RUN_CONTRACT="${GATEFORGE_AGENT_RESUME_RUN_CONTRACT:-1}"
+RUN_SNAPSHOT_ENABLE="${GATEFORGE_AGENT_RUN_SNAPSHOT_ENABLE:-1}"
 
 CORE_MANIFEST="${GATEFORGE_AGENT_CORE_MUTATION_MANIFEST:-}"
 SMALL_MANIFEST="${GATEFORGE_AGENT_SMALL_MUTATION_MANIFEST:-}"
@@ -166,6 +172,15 @@ mkdir -p "$OUT_DIR/tasksets" "$OUT_DIR/baseline" "$OUT_DIR/weekly"
 export OUT_DIR
 export REPAIR_HISTORY_PATH PATCH_TEMPLATE_ADAPTATIONS_PATH RETRIEVAL_POLICY_PATH
 FOCUS_QUEUE_HISTORY="$OUT_DIR/weekly/focus_queue_history.jsonl"
+
+if [ "$PREFLIGHT_ENABLE" = "1" ]; then
+  python3 -m gateforge.agent_modelica_learning_preflight_v1 \
+    --profile "$MVP_PROFILE_PATH" \
+    --core-manifest "$CORE_MANIFEST" \
+    --small-manifest "$SMALL_MANIFEST" \
+    --out "$OUT_DIR/weekly/preflight.json" \
+    --report-out "$OUT_DIR/weekly/preflight.md"
+fi
 
 TASKSET_PATH="$OUT_DIR/tasksets/taskset_${WEEK_TAG}.json"
 TASKSET_SUMMARY="$OUT_DIR/tasksets/taskset_${WEEK_TAG}_summary.json"
@@ -262,6 +277,41 @@ if [ "${REPLAY_MAX}" -gt 0 ] && [ -f "$PREV_BASELINE_TASKSET" ] && [ -f "$PREV_B
   TASKSET_FOR_BASELINE="$REPLAY_TASKSET_PATH"
 fi
 
+SPLIT_TASKSET_PATH="$OUT_DIR/tasksets/split_taskset_${WEEK_TAG}.json"
+python3 -m gateforge.agent_modelica_taskset_split_freeze_v1 \
+  --taskset-in "$TASKSET_FOR_BASELINE" \
+  --holdout-ratio "$HOLDOUT_RATIO" \
+  --seed "$SPLIT_FREEZE_SEED" \
+  --out-taskset "$SPLIT_TASKSET_PATH" \
+  --out "$OUT_DIR/tasksets/split_taskset_${WEEK_TAG}_summary.json" \
+  --report-out "$OUT_DIR/tasksets/split_taskset_${WEEK_TAG}_summary.md"
+TASKSET_FOR_BASELINE="$SPLIT_TASKSET_PATH"
+
+if [ "$RUN_SNAPSHOT_ENABLE" = "1" ]; then
+  RUN_SNAPSHOT_CMD=(
+    python3 -m gateforge.agent_modelica_run_snapshot_v1
+    --run-id "$WEEK_TAG"
+    --repo-root "$ROOT_DIR"
+    --profile-path "$MVP_PROFILE_PATH"
+    --hardpack-path "$HARDPACK_PATH"
+    --physics-contract-path "$PHYSICS_CONTRACT"
+    --repair-playbook-path "$REPAIR_PLAYBOOK"
+    --repair-history-path "$REPAIR_HISTORY_PATH"
+    --patch-template-adaptations-path "$PATCH_TEMPLATE_ADAPTATIONS_PATH"
+    --retrieval-policy-path "$RETRIEVAL_POLICY_PATH"
+    --taskset-path "$TASKSET_FOR_BASELINE"
+    --out "$OUT_DIR/weekly/run_snapshot.json"
+    --report-out "$OUT_DIR/weekly/run_snapshot.md"
+  )
+  if [ -n "$CORE_MANIFEST" ] && [ -f "$CORE_MANIFEST" ]; then
+    RUN_SNAPSHOT_CMD+=(--extra-file "$CORE_MANIFEST")
+  fi
+  if [ -n "$SMALL_MANIFEST" ] && [ -f "$SMALL_MANIFEST" ]; then
+    RUN_SNAPSHOT_CMD+=(--extra-file "$SMALL_MANIFEST")
+  fi
+  "${RUN_SNAPSHOT_CMD[@]}"
+fi
+
 BASELINE_CMD=(
   python3 -m gateforge.agent_modelica_layered_baseline_v1
   --taskset-in "$TASKSET_FOR_BASELINE"
@@ -284,10 +334,14 @@ BASELINE_CMD=(
   --live-max-output-chars "$LIVE_MAX_OUTPUT_CHARS"
   --inject-hard-fail-count "$INJECT_HARD_FAIL_COUNT"
   --inject-slow-pass-count "$INJECT_SLOW_PASS_COUNT"
+  --run-records-jsonl "$RUN_RECORDS_JSONL"
   --out-dir "$OUT_DIR/baseline"
   --out "$OUT_DIR/baseline/summary.json"
   --report-out "$OUT_DIR/baseline/summary.md"
 )
+if [ "$RESUME_RUN_CONTRACT" = "1" ]; then
+  BASELINE_CMD+=(--resume-run-contract)
+fi
 if [ -n "$FOCUS_QUEUE_FOR_RUN" ] && [ -f "$FOCUS_QUEUE_FOR_RUN" ]; then
   BASELINE_CMD+=(--focus-queue "$FOCUS_QUEUE_FOR_RUN")
 fi
