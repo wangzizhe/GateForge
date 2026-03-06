@@ -116,6 +116,10 @@ fi
 MAX_ROUNDS="${GATEFORGE_AGENT_MAX_ROUNDS:-${PROFILE_MAX_ROUNDS:-9}}"
 MAX_TIME_SEC="${GATEFORGE_AGENT_MAX_TIME_SEC:-${PROFILE_MAX_TIME_SEC:-1200}}"
 RUNTIME_THRESHOLD="${GATEFORGE_AGENT_RUNTIME_THRESHOLD:-${PROFILE_RUNTIME_THRESHOLD:-0.2}}"
+RUN_MODE="${GATEFORGE_AGENT_RUN_MODE:-evidence}"
+LIVE_EXECUTOR_CMD="${GATEFORGE_AGENT_LIVE_EXECUTOR_CMD:-}"
+LIVE_TIMEOUT_SEC="${GATEFORGE_AGENT_LIVE_TIMEOUT_SEC:-180}"
+LIVE_MAX_OUTPUT_CHARS="${GATEFORGE_AGENT_LIVE_MAX_OUTPUT_CHARS:-1200}"
 SMALL_MAX_TIME_SEC="${GATEFORGE_AGENT_SMALL_MAX_TIME_SEC:-${PROFILE_SMALL_MAX_TIME_SEC:-180}}"
 MEDIUM_MAX_TIME_SEC="${GATEFORGE_AGENT_MEDIUM_MAX_TIME_SEC:-${PROFILE_MEDIUM_MAX_TIME_SEC:-420}}"
 LARGE_MAX_TIME_SEC="${GATEFORGE_AGENT_LARGE_MAX_TIME_SEC:-${PROFILE_LARGE_MAX_TIME_SEC:-900}}"
@@ -158,25 +162,33 @@ if [ -n "$EXCLUDE_TASKSET" ] && [ -f "$EXCLUDE_TASKSET" ]; then
 fi
 "${HOLDOUT_BUILDER_CMD[@]}"
 
-set +e
-python3 -m gateforge.agent_modelica_layered_baseline_v1 \
-  --taskset-in "$HOLDOUT_TASKSET" \
-  --run-mode evidence \
-  --max-rounds "$MAX_ROUNDS" \
-  --max-time-sec "$MAX_TIME_SEC" \
-  --runtime-threshold "$RUNTIME_THRESHOLD" \
-  --small-max-time-sec "$SMALL_MAX_TIME_SEC" \
-  --medium-max-time-sec "$MEDIUM_MAX_TIME_SEC" \
-  --large-max-time-sec "$LARGE_MAX_TIME_SEC" \
-  --small-max-rounds "$SMALL_MAX_ROUNDS" \
-  --medium-max-rounds "$MEDIUM_MAX_ROUNDS" \
-  --large-max-rounds "$LARGE_MAX_ROUNDS" \
-  --repair-history "$REPAIR_HISTORY_PATH" \
-  --patch-template-adaptations "$PATCH_TEMPLATE_ADAPTATIONS_PATH" \
-  --retrieval-policy "$RETRIEVAL_POLICY_PATH" \
-  --out-dir "$HOLDOUT_BASELINE_OUT_DIR" \
-  --out "$HOLDOUT_SUMMARY" \
+BASELINE_CMD=(
+  python3 -m gateforge.agent_modelica_layered_baseline_v1
+  --taskset-in "$HOLDOUT_TASKSET"
+  --run-mode "$RUN_MODE"
+  --max-rounds "$MAX_ROUNDS"
+  --max-time-sec "$MAX_TIME_SEC"
+  --runtime-threshold "$RUNTIME_THRESHOLD"
+  --small-max-time-sec "$SMALL_MAX_TIME_SEC"
+  --medium-max-time-sec "$MEDIUM_MAX_TIME_SEC"
+  --large-max-time-sec "$LARGE_MAX_TIME_SEC"
+  --small-max-rounds "$SMALL_MAX_ROUNDS"
+  --medium-max-rounds "$MEDIUM_MAX_ROUNDS"
+  --large-max-rounds "$LARGE_MAX_ROUNDS"
+  --repair-history "$REPAIR_HISTORY_PATH"
+  --patch-template-adaptations "$PATCH_TEMPLATE_ADAPTATIONS_PATH"
+  --retrieval-policy "$RETRIEVAL_POLICY_PATH"
+  --live-timeout-sec "$LIVE_TIMEOUT_SEC"
+  --live-max-output-chars "$LIVE_MAX_OUTPUT_CHARS"
+  --out-dir "$HOLDOUT_BASELINE_OUT_DIR"
+  --out "$HOLDOUT_SUMMARY"
   --report-out "$OUT_DIR/summary.md"
+)
+if [ -n "$LIVE_EXECUTOR_CMD" ]; then
+  BASELINE_CMD+=(--live-executor-cmd "$LIVE_EXECUTOR_CMD")
+fi
+set +e
+"${BASELINE_CMD[@]}"
 BASELINE_RC=$?
 set -e
 

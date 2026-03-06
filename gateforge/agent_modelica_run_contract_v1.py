@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import statistics
+import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -205,6 +206,87 @@ def _safe_float(value: object, default: float = 0.0) -> float:
         return float(value)  # type: ignore[arg-type]
     except (TypeError, ValueError):
         return default
+
+
+def _as_bool(value: object) -> bool | None:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    text = str(value or "").strip().lower()
+    if text in {"true", "1", "yes", "pass", "passed", "ok", "success"}:
+        return True
+    if text in {"false", "0", "no", "fail", "failed", "error"}:
+        return False
+    return None
+
+
+def _as_str_list(value: object) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [str(x) for x in value if isinstance(x, str)]
+
+
+def _last_nonempty_line(text: str) -> str:
+    lines = [x.strip() for x in str(text or "").splitlines() if str(x).strip()]
+    if not lines:
+        return ""
+    return lines[-1]
+
+
+def _build_live_template_context(task: dict, strategy: dict, round_idx: int, max_rounds: int, max_time_sec: int) -> dict[str, str]:
+    actions = [str(x) for x in (strategy.get("actions") or []) if isinstance(x, str)]
+    mapping = {
+        "task_id": str(task.get("task_id") or ""),
+        "scale": str(task.get("scale") or ""),
+        "failure_type": str(task.get("failure_type") or ""),
+        "expected_stage": str(task.get("expected_stage") or ""),
+        "source_model_path": str(task.get("source_model_path") or ""),
+        "mutated_model_path": str(task.get("mutated_model_path") or ""),
+        "repro_command": str(task.get("repro_command") or ""),
+        "mutation_id": str(task.get("mutation_id") or ""),
+        "round": str(round_idx),
+        "max_rounds": str(max_rounds),
+        "max_time_sec": str(max_time_sec),
+        "strategy_id": str(strategy.get("strategy_id") or ""),
+        "strategy_reason": str(strategy.get("reason") or ""),
+        "strategy_confidence": str(strategy.get("confidence") if strategy.get("confidence") is not None else ""),
+        "repair_actions_pipe": " | ".join(actions),
+        "repair_actions_json": json.dumps(actions, ensure_ascii=True),
+    }
+    return mapping
+
+
+def _render_live_command(template: str, context: dict[str, str]) -> str:
+    command = str(template or "")
+    for key, value in context.items():
+        command = command.replace(f"__{key.upper()}__", str(value))
+    return command
+
+
+def _run_live_executor_once(command: str, timeout_sec: int) -> tuple[dict, str, str]:
+    proc = subprocess.run(
+        ["bash", "-lc", command],
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=max(1, int(timeout_sec)),
+    )
+    stdout = str(proc.stdout or "")
+    stderr = str(proc.stderr or "")
+    payload: dict = {}
+    if stdout.strip():
+        last = _last_nonempty_line(stdout)
+        try:
+            candidate = json.loads(last)
+            if isinstance(candidate, dict):
+                payload = candidate
+        except Exception:
+            payload = {}
+    payload.setdefault("_executor_return_code", int(proc.returncode))
+    payload.setdefault("_executor_stdout_tail", _last_nonempty_line(stdout))
+    payload.setdefault("_executor_stderr_tail", _last_nonempty_line(stderr))
+    return payload, stdout, stderr
 
 
 def _action_text(strategy: dict) -> str:
@@ -608,10 +690,301 @@ def _run_task_evidence(
     }
 
 
+def _run_task_live(
+    task: dict,
+    max_rounds: int,
+    max_time_sec: int,
+    physics_contract: dict,
+    runtime_threshold: float,
+    repair_playbook: dict,
+    repair_history_payload: dict,
+    focus_queue_payload: dict,
+    patch_template_adaptations_payload: dict,
+    retrieval_policy_payload: dict,
+    live_executor_cmd: str,
+    live_timeout_sec: int,
+    live_max_output_chars: int,
+) -> dict:
+    scale = str(task.get("scale") or "unknown")
+    failure_type = str(task.get("failure_type") or "unknown")
+    task_invariants = task.get("physical_invariants") if isinstance(task.get("physical_invariants"), list) else []
+    repair_strategy = recommend_repair_strategy(
+        playbook_payload=repair_playbook,
+        failure_type=failure_type,
+        expected_stage=str(task.get("expected_stage") or "unknown"),
+    )
+    repair_strategy, capability_audit = _augment_repair_strategy(
+        task=task,
+        repair_strategy=repair_strategy,
+        repair_history_payload=repair_history_payload,
+        focus_queue_payload=focus_queue_payload,
+        patch_template_adaptations_payload=patch_template_adaptations_payload,
+        retrieval_policy_payload=retrieval_policy_payload,
+    )
+    strategy_audit = {
+        "strategy_effect_enabled": False,
+        "strategy_id": str(repair_strategy.get("strategy_id") or ""),
+        "strategy_reason": str(repair_strategy.get("reason") or ""),
+        "strategy_confidence": float(repair_strategy.get("confidence", 0.0) or 0.0),
+        "actions_planned": [str(x) for x in (repair_strategy.get("actions") or []) if isinstance(x, str)],
+        **capability_audit,
+        "live_executor_configured": bool(str(task.get("live_executor_command") or "").strip() or str(live_executor_cmd).strip()),
+        "live_timeout_sec": int(max(1, live_timeout_sec)),
+        "base_success_round": None,
+        "base_round_duration_sec": None,
+        "adjusted_success_round": None,
+        "adjusted_round_duration_sec": None,
+        "delta_round": 0,
+        "speedup_ratio": 0.0,
+    }
+    command_template = str(task.get("live_executor_command") or live_executor_cmd or "").strip()
+    if not command_template:
+        return {
+            "task_id": str(task.get("task_id") or ""),
+            "scale": scale,
+            "failure_type": failure_type,
+            "passed": False,
+            "rounds_used": 0,
+            "time_to_pass_sec": None,
+            "elapsed_sec": 0.0,
+            "hard_checks": {
+                "check_model_pass": False,
+                "simulate_pass": False,
+                "physics_contract_pass": False,
+                "regression_pass": False,
+            },
+            "repair_strategy": repair_strategy,
+            "repair_audit": {
+                **strategy_audit,
+                "attempt_count": 0,
+                "final_round_used": 0,
+                "final_passed": False,
+                "live_executor_missing": True,
+            },
+            "physics_contract_reasons": ["live_executor_command_missing"],
+            "regression_reasons": ["live_executor_command_missing"],
+            "attempts": [],
+            "error_message": "live_executor_command_missing",
+            "compile_error": "",
+            "simulate_error_message": "",
+            "stderr_snippet": "",
+        }
+
+    attempts: list[dict] = []
+    total_time_sec = 0.0
+    passed = False
+    rounds_used = 0
+    hard = {
+        "check_model_pass": False,
+        "simulate_pass": False,
+        "physics_contract_pass": False,
+        "regression_pass": False,
+    }
+    physics_contract_reasons: list[str] = []
+    regression_reasons: list[str] = []
+    error_message = ""
+    compile_error = ""
+    simulate_error_message = ""
+    stderr_snippet = ""
+
+    for idx in range(1, max_rounds + 1):
+        rounds_used = idx
+        context = _build_live_template_context(
+            task=task,
+            strategy=repair_strategy,
+            round_idx=idx,
+            max_rounds=max_rounds,
+            max_time_sec=max_time_sec,
+        )
+        command = _render_live_command(command_template, context=context)
+        timeout_for_round = min(max(1, int(live_timeout_sec)), max(1, int(max_time_sec)))
+        try:
+            live_payload, raw_stdout, raw_stderr = _run_live_executor_once(command=command, timeout_sec=timeout_for_round)
+        except subprocess.TimeoutExpired:
+            live_payload = {
+                "_executor_return_code": None,
+                "_executor_stdout_tail": "",
+                "_executor_stderr_tail": "TimeoutExpired",
+                "error_message": "live_executor_timeout",
+            }
+            raw_stdout, raw_stderr = "", "TimeoutExpired"
+
+        elapsed_sec = _safe_float(live_payload.get("elapsed_sec"), _safe_float(live_payload.get("duration_sec"), 0.0))
+        if elapsed_sec <= 0:
+            elapsed_sec = 1.0
+        total_time_sec += elapsed_sec
+        time_budget_exceeded = total_time_sec > float(max_time_sec)
+
+        check_ok = _as_bool(live_payload.get("check_model_pass"))
+        if check_ok is None:
+            check_ok = _as_bool(live_payload.get("check_ok"))
+        check_ok = bool(check_ok) if check_ok is not None else False
+
+        simulate_ok = _as_bool(live_payload.get("simulate_pass"))
+        if simulate_ok is None:
+            simulate_ok = _as_bool(live_payload.get("simulate_ok"))
+        simulate_ok = bool(simulate_ok) if simulate_ok is not None else False
+
+        provided_physics = _as_bool(live_payload.get("physics_contract_pass"))
+        physics_eval = {"pass": False, "reasons": [], "invariant_count": len(task_invariants)}
+        if provided_physics is not None:
+            physics_ok = bool(provided_physics)
+            physics_reasons_local = _as_str_list(live_payload.get("physics_contract_reasons"))
+            if not physics_ok and not physics_reasons_local:
+                physics_reasons_local = ["physics_contract_fail"]
+            physics_eval = {
+                "pass": physics_ok,
+                "reasons": physics_reasons_local,
+                "invariant_count": len(task_invariants),
+            }
+        else:
+            baseline_metrics_eval = (
+                live_payload.get("baseline_metrics") if isinstance(live_payload.get("baseline_metrics"), dict) else {}
+            )
+            candidate_metrics_eval = (
+                live_payload.get("candidate_metrics") if isinstance(live_payload.get("candidate_metrics"), dict) else {}
+            )
+            if baseline_metrics_eval and candidate_metrics_eval:
+                try:
+                    physics_eval = evaluate_physics_contract_v0(
+                        contract=physics_contract,
+                        task_invariants=task_invariants,
+                        baseline_metrics=baseline_metrics_eval,
+                        candidate_metrics=candidate_metrics_eval,
+                        scale=scale,
+                    )
+                except Exception as exc:
+                    physics_eval = {
+                        "pass": False,
+                        "reasons": [f"physics_contract_eval_error:{exc}"],
+                        "invariant_count": len(task_invariants),
+                    }
+            else:
+                physics_eval = {
+                    "pass": False,
+                    "reasons": ["physics_contract_not_provided"],
+                    "invariant_count": len(task_invariants),
+                }
+            physics_ok = bool(physics_eval.get("pass"))
+
+        provided_regression = _as_bool(live_payload.get("regression_pass"))
+        regression_eval = {"decision": "FAIL", "reasons": []}
+        if provided_regression is not None:
+            regression_ok = bool(provided_regression)
+            regression_reasons_local = _as_str_list(live_payload.get("regression_reasons"))
+            if not regression_ok and not regression_reasons_local:
+                regression_reasons_local = ["regression_fail"]
+            regression_eval = {"decision": "PASS" if regression_ok else "FAIL", "reasons": regression_reasons_local}
+        else:
+            baseline_evidence = live_payload.get("baseline_evidence") if isinstance(live_payload.get("baseline_evidence"), dict) else {}
+            candidate_evidence = live_payload.get("candidate_evidence") if isinstance(live_payload.get("candidate_evidence"), dict) else {}
+            if not baseline_evidence or not candidate_evidence:
+                base_metrics = live_payload.get("baseline_metrics") if isinstance(live_payload.get("baseline_metrics"), dict) else {}
+                cand_metrics = live_payload.get("candidate_metrics") if isinstance(live_payload.get("candidate_metrics"), dict) else {}
+                if base_metrics and cand_metrics:
+                    baseline_evidence = {
+                        "status": "success",
+                        "gate": "PASS",
+                        "check_ok": True,
+                        "simulate_ok": True,
+                        "metrics": base_metrics,
+                    }
+                    candidate_evidence = {
+                        "status": "success" if check_ok and simulate_ok else "failed",
+                        "gate": "PASS" if check_ok and simulate_ok else "FAIL",
+                        "check_ok": check_ok,
+                        "simulate_ok": simulate_ok,
+                        "metrics": cand_metrics,
+                    }
+            if baseline_evidence and candidate_evidence:
+                try:
+                    regression_eval = compare_evidence(
+                        baseline=baseline_evidence,
+                        candidate=candidate_evidence,
+                        runtime_regression_threshold=float(runtime_threshold),
+                        strict=False,
+                        checker_names=None,
+                        checker_config=task.get("checker_config") if isinstance(task.get("checker_config"), dict) else None,
+                    )
+                except Exception as exc:
+                    regression_eval = {"decision": "FAIL", "reasons": [f"regression_eval_error:{exc}"]}
+            else:
+                regression_eval = {"decision": "FAIL", "reasons": ["regression_not_provided"]}
+            regression_ok = str(regression_eval.get("decision") or "FAIL") == "PASS"
+
+        physics_contract_reasons = _as_str_list(physics_eval.get("reasons"))
+        regression_reasons = _as_str_list(regression_eval.get("reasons"))
+        error_message = str(live_payload.get("error_message") or "")
+        compile_error = str(live_payload.get("compile_error") or "")
+        simulate_error_message = str(live_payload.get("simulate_error_message") or "")
+        stderr_snippet = str(
+            live_payload.get("stderr_snippet")
+            or live_payload.get("_executor_stderr_tail")
+            or _last_nonempty_line(raw_stderr)
+            or _last_nonempty_line(raw_stdout)
+            or ""
+        )
+
+        attempts.append(
+            {
+                "round": idx,
+                "time_budget_exceeded": bool(time_budget_exceeded),
+                "check_model_pass": bool(check_ok),
+                "simulate_pass": bool(simulate_ok),
+                "physics_contract_pass": bool(physics_ok),
+                "physics_contract_reasons": physics_contract_reasons,
+                "physics_contract_invariant_count": int(physics_eval.get("invariant_count") or 0),
+                "regression_pass": bool(regression_ok),
+                "regression_reasons": regression_reasons,
+                "executor_return_code": live_payload.get("_executor_return_code"),
+                "executor_stdout_tail": str(live_payload.get("_executor_stdout_tail") or "")[: max(0, int(live_max_output_chars))],
+                "executor_stderr_tail": str(live_payload.get("_executor_stderr_tail") or "")[: max(0, int(live_max_output_chars))],
+                "elapsed_sec": round(elapsed_sec, 4),
+                "repair_actions_planned": [str(x) for x in (repair_strategy.get("actions") or []) if isinstance(x, str)],
+                "repair_strategy_id": str(repair_strategy.get("strategy_id") or ""),
+            }
+        )
+        hard = {
+            "check_model_pass": bool(check_ok),
+            "simulate_pass": bool(simulate_ok),
+            "physics_contract_pass": bool(physics_ok),
+            "regression_pass": bool(regression_ok),
+        }
+        if all(hard.values()) and not time_budget_exceeded:
+            passed = True
+            break
+
+    return {
+        "task_id": str(task.get("task_id") or ""),
+        "scale": scale,
+        "failure_type": failure_type,
+        "passed": passed,
+        "rounds_used": rounds_used,
+        "time_to_pass_sec": round(total_time_sec, 4) if passed else None,
+        "elapsed_sec": round(total_time_sec, 4),
+        "hard_checks": hard,
+        "repair_strategy": repair_strategy,
+        "repair_audit": {
+            **strategy_audit,
+            "attempt_count": len(attempts),
+            "final_round_used": rounds_used,
+            "final_passed": passed,
+            "live_executor_command_from_task": bool(str(task.get("live_executor_command") or "").strip()),
+        },
+        "physics_contract_reasons": physics_contract_reasons,
+        "regression_reasons": regression_reasons,
+        "attempts": attempts,
+        "error_message": error_message,
+        "compile_error": compile_error,
+        "simulate_error_message": simulate_error_message,
+        "stderr_snippet": stderr_snippet[: max(0, int(live_max_output_chars))],
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Execute agent modelica run contract with bounded rounds/time")
     parser.add_argument("--taskset", required=True)
-    parser.add_argument("--mode", choices=["mock", "evidence"], default="mock")
+    parser.add_argument("--mode", choices=["mock", "evidence", "live"], default="mock")
     parser.add_argument("--max-rounds", type=int, default=5)
     parser.add_argument("--max-time-sec", type=int, default=300)
     parser.add_argument("--runtime-threshold", type=float, default=0.2)
@@ -621,6 +994,9 @@ def main() -> None:
     parser.add_argument("--focus-queue", default=None)
     parser.add_argument("--patch-template-adaptations", default=None)
     parser.add_argument("--retrieval-policy", default=None)
+    parser.add_argument("--live-executor-cmd", default=None)
+    parser.add_argument("--live-timeout-sec", type=int, default=180)
+    parser.add_argument("--live-max-output-chars", type=int, default=1200)
     parser.add_argument("--strategy-effect", choices=["on", "off"], default="on")
     parser.add_argument("--results-out", default="artifacts/agent_modelica_run_contract_v1/results.json")
     parser.add_argument("--out", default="artifacts/agent_modelica_run_contract_v1/summary.json")
@@ -668,6 +1044,24 @@ def main() -> None:
                     retrieval_policy_payload=retrieval_policy_payload,
                 )
             )
+        elif args.mode == "live":
+            records.append(
+                _run_task_live(
+                    task,
+                    max_rounds=max_rounds,
+                    max_time_sec=max_time_sec,
+                    physics_contract=physics_contract,
+                    runtime_threshold=float(args.runtime_threshold),
+                    repair_playbook=repair_playbook,
+                    repair_history_payload=repair_history_payload,
+                    focus_queue_payload=focus_queue_payload,
+                    patch_template_adaptations_payload=patch_template_adaptations_payload,
+                    retrieval_policy_payload=retrieval_policy_payload,
+                    live_executor_cmd=str(args.live_executor_cmd or ""),
+                    live_timeout_sec=max(1, int(args.live_timeout_sec)),
+                    live_max_output_chars=max(200, int(args.live_max_output_chars)),
+                )
+            )
         else:
             records.append(
                 _run_task_mock(
@@ -713,6 +1107,9 @@ def main() -> None:
         "focus_queue_source": args.focus_queue,
         "patch_template_adaptations_source": args.patch_template_adaptations,
         "retrieval_policy_source": args.retrieval_policy,
+        "live_executor_cmd": args.live_executor_cmd,
+        "live_timeout_sec": int(args.live_timeout_sec),
+        "live_max_output_chars": int(args.live_max_output_chars),
         "mode": args.mode,
         "strategy_effect": args.strategy_effect,
         "records": records,
@@ -736,6 +1133,9 @@ def main() -> None:
         "focus_queue_source": args.focus_queue,
         "patch_template_adaptations_source": args.patch_template_adaptations,
         "retrieval_policy_source": args.retrieval_policy,
+        "live_executor_cmd": args.live_executor_cmd,
+        "live_timeout_sec": int(args.live_timeout_sec),
+        "live_max_output_chars": int(args.live_max_output_chars),
         "mode": args.mode,
         "strategy_effect": args.strategy_effect,
         "max_rounds": max_rounds,
@@ -751,6 +1151,9 @@ def main() -> None:
             "focus_queue": args.focus_queue,
             "patch_template_adaptations": args.patch_template_adaptations,
             "retrieval_policy": args.retrieval_policy,
+            "live_executor_cmd": args.live_executor_cmd,
+            "live_timeout_sec": int(args.live_timeout_sec),
+            "live_max_output_chars": int(args.live_max_output_chars),
         },
     }
     _write_json(args.out, summary)

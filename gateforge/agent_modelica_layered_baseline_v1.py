@@ -208,8 +208,11 @@ def main() -> None:
     parser.add_argument("--retrieval-policy", default=None)
     parser.add_argument("--inject-hard-fail-count", type=int, default=0)
     parser.add_argument("--inject-slow-pass-count", type=int, default=0)
-    parser.add_argument("--run-mode", choices=["mock", "evidence"], default="mock")
+    parser.add_argument("--run-mode", choices=["mock", "evidence", "live"], default="mock")
     parser.add_argument("--runtime-threshold", type=float, default=0.2)
+    parser.add_argument("--live-executor-cmd", default=None)
+    parser.add_argument("--live-timeout-sec", type=int, default=180)
+    parser.add_argument("--live-max-output-chars", type=int, default=1200)
     parser.add_argument("--out", default="artifacts/agent_modelica_layered_baseline_v1/summary.json")
     parser.add_argument("--report-out", default=None)
     args = parser.parse_args()
@@ -318,6 +321,12 @@ def main() -> None:
             str(args.patch_template_adaptations or ""),
             "--retrieval-policy",
             str(args.retrieval_policy or ""),
+            "--live-executor-cmd",
+            str(args.live_executor_cmd or ""),
+            "--live-timeout-sec",
+            str(max(1, int(args.live_timeout_sec))),
+            "--live-max-output-chars",
+            str(max(200, int(args.live_max_output_chars))),
             "--results-out",
             run_results_path,
             "--out",
@@ -460,6 +469,9 @@ def main() -> None:
             "focus_queue": args.focus_queue,
             "patch_template_adaptations": args.patch_template_adaptations,
             "retrieval_policy": args.retrieval_policy,
+            "live_executor_cmd": args.live_executor_cmd,
+            "live_timeout_sec": int(args.live_timeout_sec),
+            "live_max_output_chars": int(args.live_max_output_chars),
             "inject_hard_fail_count": hard_fail_count,
             "inject_slow_pass_count": slow_pass_count,
         },
