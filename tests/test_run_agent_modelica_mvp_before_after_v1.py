@@ -9,7 +9,8 @@ class RunAgentModelicaMvpBeforeAfterV1Tests(unittest.TestCase):
         content = script.read_text(encoding="utf-8")
         self.assertIn("scripts/run_agent_modelica_weekly_chain_v1.sh", content)
         self.assertIn("GATEFORGE_AGENT_FOCUS_TARGETS_PATH", content)
-        self.assertIn("FOCUS_QUEUE_PATH", content)
+        self.assertIn("FOCUS_TARGETS_PATH", content)
+        self.assertIn("top_focus_templates.json", content)
         self.assertIn("compare.json", content)
         self.assertIn("delta_success_at_k_pct", content)
 

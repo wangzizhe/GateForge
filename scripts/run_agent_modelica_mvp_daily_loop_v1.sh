@@ -9,13 +9,17 @@ PROFILE_PATH="${GATEFORGE_AGENT_MVP_PROFILE_PATH:-benchmarks/agent_modelica_mvp_
 RUN_TAG="${GATEFORGE_AGENT_MVP_DAILY_TAG:-$(date -u +%Y%m%dT%H%M%SZ)}"
 AB_INTERVAL="${GATEFORGE_AGENT_RETRIEVAL_AB_INTERVAL:-5}"
 HOLDOUT_INTERVAL="${GATEFORGE_AGENT_HOLDOUT_CHECKPOINT_INTERVAL:-10}"
+ROLLING_FOCUS_ENABLE="${GATEFORGE_AGENT_MVP_DAILY_ROLLING_FOCUS_ENABLE:-1}"
+ROLLING_FOCUS_MAX_AGE_RUNS="${GATEFORGE_AGENT_MVP_DAILY_FOCUS_MAX_AGE_RUNS:-3}"
+ROLLING_FOCUS_DECAY="${GATEFORGE_AGENT_MVP_DAILY_FOCUS_DECAY:-0.7}"
+ROLLING_FOCUS_MAX_ENTRIES="${GATEFORGE_AGENT_MVP_DAILY_FOCUS_MAX_ENTRIES:-2}"
 RUN_DIR="$OUT_DIR/runs/$RUN_TAG"
 LEDGER_PATH="$OUT_DIR/history.jsonl"
 SUMMARY_PATH="$OUT_DIR/summary.json"
 REPORT_PATH="$OUT_DIR/summary.md"
 ROLLING_FOCUS_TARGETS_PATH="${GATEFORGE_AGENT_MVP_DAILY_ROLLING_FOCUS_TARGETS_PATH:-$OUT_DIR/rolling_focus_targets.json}"
 PREV_FOCUS_TARGETS_PATH=""
-if [ -f "$ROLLING_FOCUS_TARGETS_PATH" ]; then
+if [ "$ROLLING_FOCUS_ENABLE" = "1" ] && [ -f "$ROLLING_FOCUS_TARGETS_PATH" ]; then
   PREV_FOCUS_TARGETS_PATH="$ROLLING_FOCUS_TARGETS_PATH"
 fi
 
@@ -138,10 +142,104 @@ elif [ -f "$RUN_DIR/weekly/top_focus_templates.json" ]; then
   NEXT_FOCUS_TARGETS_PATH="$RUN_DIR/weekly/top_focus_templates.json"
 fi
 if [ -n "$NEXT_FOCUS_TARGETS_PATH" ]; then
-  cp "$NEXT_FOCUS_TARGETS_PATH" "$ROLLING_FOCUS_TARGETS_PATH"
+  if [ "$ROLLING_FOCUS_ENABLE" = "1" ]; then
+    python3 - "$NEXT_FOCUS_TARGETS_PATH" "$PREV_FOCUS_TARGETS_PATH" "$ROLLING_FOCUS_TARGETS_PATH" "$RUN_COUNT" "$ROLLING_FOCUS_MAX_AGE_RUNS" "$ROLLING_FOCUS_DECAY" "$ROLLING_FOCUS_MAX_ENTRIES" <<'PY'
+from __future__ import annotations
+
+import json
+import math
+import sys
+from pathlib import Path
+
+
+def _load(path: str) -> dict:
+    p = Path(path)
+    if not p.exists():
+        return {}
+    return json.loads(p.read_text(encoding="utf-8"))
+
+
+def _safe_float(value: object, default: float = 0.0) -> float:
+    if isinstance(value, (int, float)):
+        return float(value)
+    return default
+
+
+def _rows(payload: dict) -> list[dict]:
+    for key in ("templates", "queue", "targets"):
+        rows = payload.get(key) if isinstance(payload.get(key), list) else []
+        if rows:
+            return [x for x in rows if isinstance(x, dict)]
+    return []
+
+
+new_payload = _load(sys.argv[1])
+prev_payload = _load(sys.argv[2]) if str(sys.argv[2]).strip() else {}
+out = Path(sys.argv[3])
+run_count = int(sys.argv[4])
+max_age = max(0, int(sys.argv[5]))
+decay = min(1.0, max(0.0, float(sys.argv[6])))
+max_entries = max(1, int(sys.argv[7]))
+
+merged: dict[tuple[str, str], dict] = {}
+for source_name, payload in (("prev", prev_payload), ("new", new_payload)):
+    rows = _rows(payload)
+    for row in rows:
+        ftype = str(row.get("failure_type") or "").strip().lower()
+        gate = str(row.get("gate_break_reason") or "unknown_fail").strip().lower()
+        if not ftype:
+            continue
+        key = (ftype, gate)
+        base = _safe_float(row.get("priority_score"), 0.0)
+        if source_name == "prev":
+            prev_seen = int(row.get("last_seen_run_count", 0) or 0)
+            age = max(0, run_count - prev_seen)
+            if max_age > 0 and age > max_age:
+                continue
+            weighted = base * (math.pow(decay, age) if age > 0 else 1.0)
+        else:
+            weighted = base
+        old = merged.get(key)
+        if old is None or _safe_float(old.get("weighted_priority_score"), -1.0) < weighted:
+            next_row = dict(row)
+            next_row["weighted_priority_score"] = round(weighted, 4)
+            next_row["last_seen_run_count"] = run_count
+            merged[key] = next_row
+
+ranked = sorted(
+    merged.values(),
+    key=lambda x: (
+        -_safe_float(x.get("weighted_priority_score"), 0.0),
+        -_safe_float(x.get("priority_score"), 0.0),
+        str(x.get("failure_type") or ""),
+    ),
+)[:max_entries]
+for idx, row in enumerate(ranked, start=1):
+    row["rank"] = idx
+
+payload = {
+    "schema_version": "agent_modelica_mvp_daily_rolling_focus_v1",
+    "status": "PASS" if ranked else "NEEDS_REVIEW",
+    "generated_for_run_count": run_count,
+    "config": {
+        "max_age_runs": max_age,
+        "decay": decay,
+        "max_entries": max_entries,
+    },
+    "templates": ranked,
+    "sources": {
+        "new_focus_source": sys.argv[1],
+        "previous_focus_source": sys.argv[2] if str(sys.argv[2]).strip() else None,
+    },
+}
+out.parent.mkdir(parents=True, exist_ok=True)
+out.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+print(json.dumps({"status": payload.get("status"), "template_count": len(ranked)}))
+PY
+  fi
 fi
 
-python3 - "$RUN_DIR/summary.json" "$SUMMARY_PATH" "$REPORT_PATH" "$RUN_TAG" "$RUN_COUNT" "$AB_RAN" "$AB_SUMMARY_PATH" "$AB_RC" "$RUN_RC" "$HOLDOUT_RAN" "$HOLDOUT_SUMMARY_PATH" "$HOLDOUT_RC" "$CHECKPOINT_DECISION_PATH" "$CHECKPOINT_RC" "$PREV_FOCUS_TARGETS_PATH" "$NEXT_FOCUS_TARGETS_PATH" <<'PY'
+python3 - "$RUN_DIR/summary.json" "$SUMMARY_PATH" "$REPORT_PATH" "$RUN_TAG" "$RUN_COUNT" "$AB_RAN" "$AB_SUMMARY_PATH" "$AB_RC" "$RUN_RC" "$HOLDOUT_RAN" "$HOLDOUT_SUMMARY_PATH" "$HOLDOUT_RC" "$CHECKPOINT_DECISION_PATH" "$CHECKPOINT_RC" "$PREV_FOCUS_TARGETS_PATH" "$NEXT_FOCUS_TARGETS_PATH" "$RUN_DIR/baseline/run_results.json" "$ROLLING_FOCUS_ENABLE" "$ROLLING_FOCUS_MAX_AGE_RUNS" "$ROLLING_FOCUS_DECAY" "$ROLLING_FOCUS_MAX_ENTRIES" <<'PY'
 from __future__ import annotations
 
 import json
@@ -165,6 +263,11 @@ checkpoint_decision = sys.argv[13]
 checkpoint_rc = int(sys.argv[14])
 focus_targets_in_path = sys.argv[15]
 focus_targets_out_path = sys.argv[16]
+run_results_path = sys.argv[17]
+rolling_focus_enable = bool(int(sys.argv[18]))
+rolling_focus_max_age_runs = int(sys.argv[19])
+rolling_focus_decay = float(sys.argv[20])
+rolling_focus_max_entries = int(sys.argv[21])
 
 holdout = {}
 if holdout_summary:
@@ -177,6 +280,42 @@ if checkpoint_decision:
     p = Path(checkpoint_decision)
     if p.exists():
         decision = json.loads(p.read_text(encoding="utf-8"))
+
+
+def _focus_rows(payload: dict) -> list[dict]:
+    for key in ("templates", "queue", "targets"):
+        rows = payload.get(key) if isinstance(payload.get(key), list) else []
+        if rows:
+            return [x for x in rows if isinstance(x, dict)]
+    return []
+
+
+focus_target_failure_types: set[str] = set()
+if focus_targets_in_path:
+    p = Path(focus_targets_in_path)
+    if p.exists():
+        focus_payload = json.loads(p.read_text(encoding="utf-8"))
+        for row in _focus_rows(focus_payload):
+            ftype = str(row.get("failure_type") or "").strip().lower()
+            if ftype:
+                focus_target_failure_types.add(ftype)
+
+failed_total = 0
+failed_focus_hit = 0
+run_results_file = Path(run_results_path)
+if run_results_file.exists():
+    rr = json.loads(run_results_file.read_text(encoding="utf-8"))
+    records = rr.get("records") if isinstance(rr.get("records"), list) else []
+    records = [x for x in records if isinstance(x, dict)]
+    for rec in records:
+        if bool(rec.get("passed")):
+            continue
+        failed_total += 1
+        ftype = str(rec.get("failure_type") or "").strip().lower()
+        if ftype and ftype in focus_target_failure_types:
+            failed_focus_hit += 1
+
+focus_hit_rate_pct = round((failed_focus_hit / failed_total) * 100.0, 2) if failed_total > 0 else None
 
 payload = {
     "schema_version": "agent_modelica_mvp_daily_loop_v1",
@@ -191,8 +330,18 @@ payload = {
     "run_tag": run_tag,
     "run_count": run_count,
     "execution_rc": run_rc,
+    "rolling_focus_enabled": rolling_focus_enable,
+    "rolling_focus_config": {
+        "max_age_runs": rolling_focus_max_age_runs,
+        "decay": rolling_focus_decay,
+        "max_entries": rolling_focus_max_entries,
+    } if rolling_focus_enable else None,
     "focus_targets_in_path": focus_targets_in_path or None,
     "focus_targets_out_path": focus_targets_out_path or None,
+    "focus_target_failure_types": sorted(focus_target_failure_types) if focus_target_failure_types else [],
+    "focus_hit_rate_pct": focus_hit_rate_pct,
+    "failed_task_count": failed_total,
+    "focus_hit_failed_task_count": failed_focus_hit,
     "ab_checkpoint_ran": ab_ran,
     "ab_summary_path": ab_summary or None,
     "ab_execution_rc": ab_rc if ab_ran else None,
@@ -229,8 +378,12 @@ lines = [
     f"- run_tag: `{payload.get('run_tag')}`",
     f"- run_count: `{payload.get('run_count')}`",
     f"- execution_rc: `{payload.get('execution_rc')}`",
+    f"- rolling_focus_enabled: `{payload.get('rolling_focus_enabled')}`",
     f"- focus_targets_in_path: `{payload.get('focus_targets_in_path')}`",
     f"- focus_targets_out_path: `{payload.get('focus_targets_out_path')}`",
+    f"- focus_hit_rate_pct: `{payload.get('focus_hit_rate_pct')}`",
+    f"- failed_task_count: `{payload.get('failed_task_count')}`",
+    f"- focus_hit_failed_task_count: `{payload.get('focus_hit_failed_task_count')}`",
     f"- success_at_k_pct: `{(payload.get('daily') or {}).get('success_at_k_pct')}`",
     f"- regression_count: `{(payload.get('daily') or {}).get('regression_count')}`",
     f"- physics_fail_count: `{(payload.get('daily') or {}).get('physics_fail_count')}`",
