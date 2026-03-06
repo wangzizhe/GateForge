@@ -62,6 +62,27 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
         self.assertEqual(patched, model_text)
         self.assertFalse(bool(audit.get("applied")))
 
+    def test_apply_parse_error_pre_repair_fallback_removes_gateforge_symbol_block(self) -> None:
+        model_text = (
+            "model A1\n"
+            "  Real x;\n"
+            "equation\n"
+            "  der(x) = -x;\n"
+            "\n"
+            "  // GateForge mutation: zero time constant\n"
+            "  parameter Real __gf_tau_201200 = 0.0;\n"
+            "  Real __gf_state_201200(start=0.0);\n"
+            "equation\n"
+            "  der(__gf_state_201200) = (1.0 - __gf_state_201200) / __gf_tau_201200;\n"
+            "end A1;\n"
+        )
+        output = "Error: No viable alternative near token: parameter"
+        patched, audit = _apply_parse_error_pre_repair(model_text, output, "script_parse_error")
+        self.assertTrue(bool(audit.get("applied")))
+        self.assertEqual(str(audit.get("reason") or ""), "removed_gateforge_injected_symbol_block")
+        self.assertNotIn("__gf_tau_201200", patched)
+        self.assertNotIn("__gf_state_201200", patched)
+
     def test_apply_parse_error_pre_repair_removes_model_check_undef_token_lines(self) -> None:
         model_text = (
             "model A1\n"
