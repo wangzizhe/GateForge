@@ -270,16 +270,34 @@ def _extract_state_tokens_from_output(output: str) -> list[str]:
     return tokens
 
 
-def _apply_parse_error_pre_repair(model_text: str, output: str, failure_type: str) -> tuple[str, dict]:
-    if str(failure_type) != "script_parse_error":
-        return model_text, {"applied": False, "reason": "failure_type_not_script_parse_error"}
-    lower = str(output or "").lower()
-    if "no viable alternative near token" not in lower:
-        return model_text, {"applied": False, "reason": "parse_error_without_expected_marker"}
+def _extract_undef_tokens_from_output(output: str) -> list[str]:
+    tokens = sorted(set(re.findall(r"__gf_undef_\d+", str(output or ""))))
+    return tokens
 
-    tokens = _extract_state_tokens_from_output(output)
-    if not tokens:
-        return model_text, {"applied": False, "reason": "state_token_not_detected"}
+
+def _apply_parse_error_pre_repair(model_text: str, output: str, failure_type: str) -> tuple[str, dict]:
+    failure = str(failure_type or "").strip().lower()
+    lower = str(output or "").lower()
+
+    tokens: list[str] = []
+    reason_prefix = ""
+    if failure == "script_parse_error":
+        if "no viable alternative near token" not in lower:
+            return model_text, {"applied": False, "reason": "parse_error_without_expected_marker"}
+        tokens = _extract_state_tokens_from_output(output)
+        reason_prefix = "injected_state_tokens"
+        if not tokens:
+            return model_text, {"applied": False, "reason": "state_token_not_detected"}
+    elif failure == "model_check_error":
+        # Common mutant pattern: undefined synthetic symbol `__gf_undef_<id>`.
+        tokens = _extract_undef_tokens_from_output(output)
+        if not tokens and "__gf_undef_" in str(model_text or ""):
+            tokens = sorted(set(re.findall(r"__gf_undef_\d+", str(model_text or ""))))
+        reason_prefix = "injected_undef_tokens"
+        if not tokens:
+            return model_text, {"applied": False, "reason": "undef_token_not_detected"}
+    else:
+        return model_text, {"applied": False, "reason": "failure_type_not_supported_for_pre_repair"}
 
     patched = str(model_text or "")
     # Prefer dropping full lines carrying injected state token to avoid
@@ -295,7 +313,7 @@ def _apply_parse_error_pre_repair(model_text: str, output: str, failure_type: st
     if removed_line_count > 0:
         return "".join(kept_lines), {
             "applied": True,
-            "reason": "removed_lines_with_injected_state_tokens",
+            "reason": f"removed_lines_with_{reason_prefix}",
             "detected_tokens": tokens,
             "removed_line_count": int(removed_line_count),
         }
@@ -308,13 +326,13 @@ def _apply_parse_error_pre_repair(model_text: str, output: str, failure_type: st
     if removed_count <= 0:
         return model_text, {
             "applied": False,
-            "reason": "state_token_not_found_in_model_text",
+            "reason": "detected_token_not_found_in_model_text",
             "detected_tokens": tokens,
         }
 
     return patched, {
         "applied": True,
-        "reason": "removed_injected_state_tokens_inline",
+        "reason": f"removed_{reason_prefix}_inline",
         "detected_tokens": tokens,
         "removed_count": int(removed_count),
     }
