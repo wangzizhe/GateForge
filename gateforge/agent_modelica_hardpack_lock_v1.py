@@ -32,7 +32,7 @@ def _default_md_path(out_json: str) -> str:
 
 
 def _default_hardpack_out_path() -> str:
-    return DEFAULT_PRIVATE_HARDPACK_OUT if Path("benchmarks/private").exists() else DEFAULT_PUBLIC_HARDPACK_OUT
+    return DEFAULT_PRIVATE_HARDPACK_OUT
 
 
 def _write_markdown(path: str, payload: dict) -> None:
