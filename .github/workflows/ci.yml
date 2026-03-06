@@ -4,6 +4,7 @@ env:
   CI_TIMEOUT_CORE: "20m"
   CI_TIMEOUT_DATASET: "25m"
   CI_TIMEOUT_DEMO_FULL: "45m"
+  CI_FAIL_ON_EMPTY_PATTERN: "1"
 
 on:
   push:
@@ -235,6 +236,39 @@ jobs:
           path: artifacts/ci_logs
           if-no-files-found: ignore
 
+  release-preflight:
+    name: "Release Preflight"
+    runs-on: ubuntu-latest
+    env:
+      GATEFORGE_DEMO_FAST: "1"
+      GATEFORGE_AGENT_RELEASE_RUN_LIVE_SMOKE: "0"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Run release preflight
+        run: |
+          bash scripts/run_agent_modelica_release_preflight_v0_1_1.sh
+
+      - name: Upload release preflight artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-preflight-logs
+          path: artifacts/release_v0_1_1
+          if-no-files-found: ignore
+
   smoke-gate:
     name: "Smoke"
     needs:
@@ -296,6 +330,7 @@ jobs:
       - test-core-b
       - test-dataset
       - smoke-gate
+      - release-preflight
     runs-on: ubuntu-latest
     steps:
       - name: Enforce upstream success
@@ -314,6 +349,10 @@ jobs:
           fi
           if [ "${{ needs.smoke-gate.result }}" != "success" ]; then
             echo "smoke-gate result: ${{ needs.smoke-gate.result }}"
+            exit 1
+          fi
+          if [ "${{ needs.release-preflight.result }}" != "success" ]; then
+            echo "release-preflight result: ${{ needs.release-preflight.result }}"
             exit 1
           fi
           echo "test-and-smoke gate passed"
