@@ -74,6 +74,23 @@ def _find_primary_model_name(text: str) -> str:
     return str(m.group(1))
 
 
+def _find_within_namespace(text: str) -> str:
+    m = re.search(r"(?im)^\s*within\s+([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)\s*;", text)
+    if not m:
+        return ""
+    return str(m.group(1))
+
+
+def _resolve_model_name(text: str) -> str:
+    model_name = _find_primary_model_name(text)
+    if not model_name:
+        return ""
+    within = _find_within_namespace(text)
+    if not within:
+        return model_name
+    return f"{within}.{model_name}"
+
+
 def _to_modelica_str(path: Path) -> str:
     return str(path).replace("\\", "/").replace('"', '\\"')
 
@@ -309,7 +326,7 @@ def main() -> None:
     for p in baseline_paths:
         model_path = Path(p)
         text = _load_text(model_path) if model_path.exists() else ""
-        model_name = _find_primary_model_name(text)
+        model_name = _resolve_model_name(text)
         check_ok = False
         check_log = ""
         check_rc: int | None = None
@@ -349,7 +366,7 @@ def main() -> None:
         expected_stage = _slug(row.get("expected_stage"), default="unknown")
         mutated_model_path = Path(str(row.get("mutated_model_path") or row.get("model_path") or ""))
         text = _load_text(mutated_model_path) if mutated_model_path.exists() else ""
-        model_name = _find_primary_model_name(text)
+        model_name = _resolve_model_name(text)
 
         check_ok = False
         simulate_ok = False
