@@ -52,7 +52,7 @@ def _write_markdown(path: str, payload: dict) -> None:
     p.write_text("\n".join(lines), encoding="utf-8")
 
 def _default_hardpack_path() -> str:
-    return DEFAULT_PRIVATE_HARDPACK_PATH if Path(DEFAULT_PRIVATE_HARDPACK_PATH).exists() else DEFAULT_PUBLIC_HARDPACK_PATH
+    return DEFAULT_PRIVATE_HARDPACK_PATH
 
 
 def main() -> None:

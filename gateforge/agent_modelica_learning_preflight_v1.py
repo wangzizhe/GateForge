@@ -59,7 +59,7 @@ def _hardpack_has_cases(hardpack_payload: dict) -> bool:
 
 
 def _default_profile_path() -> str:
-    return DEFAULT_PRIVATE_PROFILE_PATH if Path(DEFAULT_PRIVATE_PROFILE_PATH).exists() else DEFAULT_PUBLIC_PROFILE_PATH
+    return DEFAULT_PRIVATE_PROFILE_PATH
 
 
 def main() -> None:
