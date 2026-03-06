@@ -7,7 +7,15 @@ class RunAgentModelicaWeeklyChainV1Tests(unittest.TestCase):
         repo_root = Path(__file__).resolve().parents[1]
         script = repo_root / "scripts" / "run_agent_modelica_weekly_chain_v1.sh"
         content = script.read_text(encoding="utf-8")
-        self.assertIn('MVP_PROFILE_PATH="${GATEFORGE_AGENT_MVP_PROFILE_PATH:-benchmarks/agent_modelica_mvp_repair_v1.json}"', content)
+        self.assertIn('DEFAULT_MVP_PROFILE_PATH="benchmarks/agent_modelica_mvp_repair_v1.json"', content)
+        self.assertIn('if [ -f "benchmarks/private/agent_modelica_mvp_repair_v1.json" ]; then', content)
+        self.assertIn('MVP_PROFILE_PATH="${GATEFORGE_AGENT_MVP_PROFILE_PATH:-$DEFAULT_MVP_PROFILE_PATH}"', content)
+        self.assertIn('DEFAULT_PHYSICS_CONTRACT_PATH="policies/physics_contract_v0.json"', content)
+        self.assertIn('if [ -f "policies/private/physics_contract_v0.json" ]; then', content)
+        self.assertIn('PHYSICS_CONTRACT="${GATEFORGE_AGENT_PHYSICS_CONTRACT:-$DEFAULT_PHYSICS_CONTRACT_PATH}"', content)
+        self.assertIn('DEFAULT_HARDPACK_PATH="benchmarks/agent_modelica_hardpack_v1.json"', content)
+        self.assertIn('if [ -f "benchmarks/private/agent_modelica_hardpack_v1.json" ]; then', content)
+        self.assertIn('HARDPACK_PATH="${GATEFORGE_AGENT_HARDPACK_PATH:-${PROFILE_HARDPACK_PATH:-$DEFAULT_HARDPACK_PATH}}"', content)
         self.assertIn("--max-rounds \"$MAX_ROUNDS\"", content)
         self.assertIn("--runtime-threshold \"$RUNTIME_THRESHOLD\"", content)
         self.assertIn("--persistence-weight \"$FOCUS_PERSISTENCE_WEIGHT\"", content)
