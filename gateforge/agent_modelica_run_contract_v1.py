@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shlex
 import statistics
 import subprocess
 from datetime import datetime, timezone
@@ -282,6 +283,7 @@ def _build_live_template_context(task: dict, strategy: dict, round_idx: int, max
         "strategy_confidence": str(strategy.get("confidence") if strategy.get("confidence") is not None else ""),
         "repair_actions_pipe": " | ".join(actions),
         "repair_actions_json": json.dumps(actions, ensure_ascii=True),
+        "repair_actions_shq": shlex.quote(json.dumps(actions, ensure_ascii=True)),
     }
     return mapping
 
