@@ -120,6 +120,37 @@ class AgentModelicaMvpCheckpointGateV1Tests(unittest.TestCase):
             self.assertEqual(payload.get("status"), "NEEDS_REVIEW")
             self.assertIn("holdout_regression_above_threshold", payload.get("reasons", []))
 
+    def test_hold_when_focus_hit_rate_below_threshold(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            daily = root / "daily.json"
+            out = root / "decision.json"
+            daily.write_text(json.dumps({"status": "PASS", "success_at_k_pct": 100.0, "regression_count": 0}), encoding="utf-8")
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.agent_modelica_mvp_checkpoint_gate_v1",
+                    "--daily-summary",
+                    str(daily),
+                    "--daily-focus-hit-rate-pct",
+                    "10.0",
+                    "--min-daily-focus-hit-rate-pct",
+                    "40.0",
+                    "--max-daily-focus-miss-rate-pct",
+                    "60.0",
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            payload = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(payload.get("decision"), "HOLD")
+            self.assertIn("daily_focus_hit_below_threshold", payload.get("reasons", []))
+
 
 if __name__ == "__main__":
     unittest.main()
