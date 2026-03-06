@@ -101,27 +101,17 @@ def _collect_package_preload_files(model_path: Path, model_name: str) -> list[Pa
     top_pkg = str(model_name).split(".", 1)[0]
     if not top_pkg:
         return []
-    target_dir: Path | None = None
+    top_pkg_dir: Path | None = None
     for parent in [model_path.parent, *model_path.parents]:
         if parent.name == top_pkg:
-            target_dir = parent
+            top_pkg_dir = parent
             break
-    if target_dir is None:
+    if top_pkg_dir is None:
         return []
-    files: list[Path] = []
-    cur = target_dir
-    model_parent = model_path.parent.resolve()
-    while True:
-        pkg_mo = cur / "package.mo"
-        if pkg_mo.exists():
-            files.append(pkg_mo.resolve())
-        if cur.resolve() == model_parent:
-            break
-        try:
-            cur = next(x for x in cur.iterdir() if x.is_dir() and model_parent.is_relative_to(x.resolve()))
-        except Exception:
-            break
-    return files
+    pkg_mo = top_pkg_dir / "package.mo"
+    if pkg_mo.exists():
+        return [pkg_mo.resolve()]
+    return []
 
 
 def _run_omc_script(

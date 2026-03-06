@@ -35,8 +35,7 @@ class DatasetMutationValidationMatrixV1Tests(unittest.TestCase):
             files = mtx_v1._collect_package_preload_files(model_path, "AixLib.Airflow.Multizone.Examples.ZonalFlow")
             rendered = [str(x) for x in files]
             self.assertIn(str((root / "AixLib" / "package.mo").resolve()), rendered)
-            self.assertIn(str((root / "AixLib" / "Airflow" / "package.mo").resolve()), rendered)
-            self.assertIn(str((root / "AixLib" / "Airflow" / "Multizone" / "package.mo").resolve()), rendered)
+            self.assertEqual(len(rendered), 1)
 
     def test_classify_failure_maps_assert_in_check_log_to_constraint_violation(self) -> None:
         stage, ftype = mtx_v1._classify_failure(
