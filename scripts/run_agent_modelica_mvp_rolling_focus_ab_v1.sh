@@ -4,7 +4,11 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
-PROFILE_PATH="${GATEFORGE_AGENT_MVP_PROFILE_PATH:-benchmarks/agent_modelica_mvp_repair_v1.json}"
+DEFAULT_PROFILE_PATH="benchmarks/agent_modelica_mvp_repair_v1.json"
+if [ -f "benchmarks/private/agent_modelica_mvp_repair_v1.json" ]; then
+  DEFAULT_PROFILE_PATH="benchmarks/private/agent_modelica_mvp_repair_v1.json"
+fi
+PROFILE_PATH="${GATEFORGE_AGENT_MVP_PROFILE_PATH:-$DEFAULT_PROFILE_PATH}"
 OUT_DIR="${GATEFORGE_AGENT_MVP_ROLLING_FOCUS_AB_OUT_DIR:-artifacts/agent_modelica_mvp_rolling_focus_ab_v1}"
 RUNS_PER_ARM="${GATEFORGE_AGENT_MVP_ROLLING_FOCUS_AB_RUNS_PER_ARM:-2}"
 RUN_TAG_BASE="${GATEFORGE_AGENT_MVP_ROLLING_FOCUS_AB_TAG:-$(date -u +%Y%m%dT%H%M%SZ)}"

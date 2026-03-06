@@ -5,7 +5,11 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
 OUT_DIR="${GATEFORGE_AGENT_HOLDOUT_CHECKPOINT_OUT_DIR:-artifacts/agent_modelica_holdout_checkpoint_v1}"
-PROFILE_PATH="${GATEFORGE_AGENT_MVP_PROFILE_PATH:-benchmarks/agent_modelica_mvp_repair_v1.json}"
+DEFAULT_PROFILE_PATH="benchmarks/agent_modelica_mvp_repair_v1.json"
+if [ -f "benchmarks/private/agent_modelica_mvp_repair_v1.json" ]; then
+  DEFAULT_PROFILE_PATH="benchmarks/private/agent_modelica_mvp_repair_v1.json"
+fi
+PROFILE_PATH="${GATEFORGE_AGENT_MVP_PROFILE_PATH:-$DEFAULT_PROFILE_PATH}"
 EXCLUDE_TASKSET="${GATEFORGE_AGENT_HOLDOUT_EXCLUDE_TASKSET:-}"
 CORE_MANIFEST="${GATEFORGE_AGENT_CORE_MUTATION_MANIFEST:-}"
 SMALL_MANIFEST="${GATEFORGE_AGENT_SMALL_MUTATION_MANIFEST:-}"

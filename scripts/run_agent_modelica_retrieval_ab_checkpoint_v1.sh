@@ -5,7 +5,11 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
 OUT_DIR="${GATEFORGE_AGENT_RETRIEVAL_AB_OUT_DIR:-artifacts/agent_modelica_retrieval_ab_v1}"
-PROFILE_PATH="${GATEFORGE_AGENT_MVP_PROFILE_PATH:-benchmarks/agent_modelica_mvp_repair_v1.json}"
+DEFAULT_PROFILE_PATH="benchmarks/agent_modelica_mvp_repair_v1.json"
+if [ -f "benchmarks/private/agent_modelica_mvp_repair_v1.json" ]; then
+  DEFAULT_PROFILE_PATH="benchmarks/private/agent_modelica_mvp_repair_v1.json"
+fi
+PROFILE_PATH="${GATEFORGE_AGENT_MVP_PROFILE_PATH:-$DEFAULT_PROFILE_PATH}"
 RUN_TAG="${GATEFORGE_AGENT_RETRIEVAL_AB_TAG:-$(date -u +%Y%m%dT%H%M%SZ)}"
 OFF_MEM="${GATEFORGE_AGENT_RETRIEVAL_AB_OFF_MEMORY:-data/private_failure_corpus/agent_modelica_repair_memory_ab_off_v1.json}"
 
