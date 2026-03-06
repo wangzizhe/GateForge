@@ -33,6 +33,8 @@ class CIShardConfigContractTests(unittest.TestCase):
         self.assertIn("needs:\n      - test-core-a\n      - test-core-b\n      - test-dataset", workflow)
         self.assertIn("needs:\n      - test-core-a\n      - test-core-b\n      - test-dataset\n      - smoke-gate", workflow)
         self.assertIn("bash scripts/run_agent_modelica_release_preflight_v0_1_1.sh", workflow)
+        self.assertIn("Publish release preflight status", workflow)
+        self.assertIn("artifacts/release_v0_1_1/release_preflight_summary.json", workflow)
         self.assertIn(
             "if: ${{ (github.event_name == 'workflow_dispatch' && inputs.run_demo_bundle) || github.event_name == 'schedule' }}",
             workflow,
