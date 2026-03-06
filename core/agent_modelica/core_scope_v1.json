@@ -1,0 +1,43 @@
+{
+  "scope_version": "agent_modelica_core_scope_v1",
+  "scope_name": "Agent Modelica Core-Only View",
+  "core_paths": [
+    "scripts/run_agent_modelica_live_round_v1.sh",
+    "scripts/run_agent_modelica_weekly_chain_v1.sh",
+    "scripts/run_agent_modelica_holdout_checkpoint_v1.sh",
+    "gateforge/agent_modelica_live_executor_gemini_v1.py",
+    "gateforge/agent_modelica_layered_baseline_v1.py",
+    "gateforge/agent_modelica_run_contract_v1.py",
+    "gateforge/agent_modelica_acceptance_gate_v1.py",
+    "gateforge/agent_modelica_taskset_snapshot_v1.py",
+    "gateforge/agent_modelica_taskset_split_freeze_v1.py",
+    "gateforge/agent_modelica_taskset_replay_injector_v1.py",
+    "gateforge/agent_modelica_hardpack_taskset_builder_v1.py",
+    "gateforge/agent_modelica_evidence_taskset_builder_v1.py",
+    "gateforge/agent_modelica_learning_preflight_v1.py",
+    "gateforge/agent_modelica_run_snapshot_v1.py",
+    "gateforge/agent_modelica_repair_memory_store_v1.py",
+    "gateforge/agent_modelica_repair_capability_learner_v1.py",
+    "gateforge/agent_modelica_failure_attribution_v1.py",
+    "gateforge/agent_modelica_first_failure_attribution_v1.py",
+    "gateforge/agent_modelica_script_parse_focus_taskset_v1.py",
+    "gateforge/agent_modelica_focus_queue_from_attribution_v1.py",
+    "gateforge/agent_modelica_playbook_focus_update_v1.py",
+    "gateforge/agent_modelica_focus_template_bundle_v1.py",
+    "gateforge/agent_modelica_weekly_metrics_page_v1.py",
+    "gateforge/agent_modelica_weekly_decision_v1.py",
+    "gateforge/agent_modelica_repair_playbook_v1.py",
+    "gateforge/agent_modelica_patch_template_engine_v1.py",
+    "gateforge/agent_modelica_error_action_mapper_v1.py",
+    "gateforge/agent_modelica_retrieval_augmented_repair_v1.py",
+    "gateforge/physics_contract_v0.py"
+  ],
+  "optional_private_paths": [
+    "benchmarks/private/agent_modelica_mvp_repair_v1.json",
+    "benchmarks/private/agent_modelica_hardpack_v1.json",
+    "policies/private/physics_contract_v0.json",
+    "data/private_failure_corpus/agent_modelica_repair_memory_v1.json",
+    "data/private_failure_corpus/agent_modelica_patch_template_adaptations_v1.json",
+    "data/private_failure_corpus/agent_modelica_retrieval_policy_v1.json"
+  ]
+}

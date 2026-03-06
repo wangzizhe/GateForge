@@ -1,0 +1,46 @@
+name: core-view
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  core-view:
+    name: "Agent Modelica Core View"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Run core scope snapshot
+        run: bash scripts/run_agent_modelica_core_view_v1.sh
+
+      - name: Run core-focused tests
+        run: |
+          python -m unittest \
+            tests.test_agent_modelica_core_scope_snapshot_v1 \
+            tests.test_run_agent_modelica_core_view_v1 \
+            tests.test_run_agent_modelica_live_round_v1 \
+            tests.test_run_agent_modelica_weekly_chain_v1 \
+            tests.test_agent_modelica_run_contract_v1 \
+            tests.test_private_asset_governance_guard_v1
+
+      - name: Upload core view artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-modelica-core-view
+          path: artifacts/agent_modelica_core_view_v1
+          if-no-files-found: ignore
