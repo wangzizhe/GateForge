@@ -84,8 +84,11 @@ def _task_id_set_from_run_results(payload: dict, target_failure_type: str) -> se
 
 
 def _contains_injected_state_token(task: dict) -> bool:
-    model_path = Path(str(task.get("mutated_model_path") or "").strip())
-    if not model_path.exists():
+    raw_path = str(task.get("mutated_model_path") or "").strip()
+    if not raw_path:
+        return False
+    model_path = Path(raw_path)
+    if not model_path.exists() or not model_path.is_file():
         return False
     try:
         text = model_path.read_text(encoding="utf-8")

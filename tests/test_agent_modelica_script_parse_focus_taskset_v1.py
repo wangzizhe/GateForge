@@ -7,6 +7,47 @@ from pathlib import Path
 
 
 class AgentModelicaScriptParseFocusTasksetV1Tests(unittest.TestCase):
+    def test_empty_mutated_model_path_does_not_crash(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            taskset = root / "taskset.json"
+            out_taskset = root / "focus_taskset.json"
+            out = root / "summary.json"
+            taskset.write_text(
+                json.dumps(
+                    {
+                        "tasks": [
+                            {"task_id": "t1", "failure_type": "model_check_error", "mutated_model_path": ""},
+                            {"task_id": "t2", "failure_type": "model_check_error"},
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.agent_modelica_script_parse_focus_taskset_v1",
+                    "--taskset-in",
+                    str(taskset),
+                    "--min-tasks",
+                    "1",
+                    "--max-tasks",
+                    "3",
+                    "--out-taskset",
+                    str(out_taskset),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            summary = json.loads(out.read_text(encoding="utf-8"))
+            self.assertIn(summary.get("status"), {"PASS", "NEEDS_REVIEW"})
+
     def test_selects_tasks_from_first_attribution(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
