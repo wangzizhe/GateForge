@@ -95,12 +95,41 @@ def _to_modelica_str(path: Path) -> str:
     return str(path).replace("\\", "/").replace('"', '\\"')
 
 
+def _collect_package_preload_files(model_path: Path, model_name: str) -> list[Path]:
+    if not model_name or "." not in model_name:
+        return []
+    top_pkg = str(model_name).split(".", 1)[0]
+    if not top_pkg:
+        return []
+    target_dir: Path | None = None
+    for parent in [model_path.parent, *model_path.parents]:
+        if parent.name == top_pkg:
+            target_dir = parent
+            break
+    if target_dir is None:
+        return []
+    files: list[Path] = []
+    cur = target_dir
+    model_parent = model_path.parent.resolve()
+    while True:
+        pkg_mo = cur / "package.mo"
+        if pkg_mo.exists():
+            files.append(pkg_mo.resolve())
+        if cur.resolve() == model_parent:
+            break
+        try:
+            cur = next(x for x in cur.iterdir() if x.is_dir() and model_parent.is_relative_to(x.resolve()))
+        except Exception:
+            break
+    return files
+
+
 def _run_omc_script(
     script_text: str,
     timeout_seconds: int,
     *,
     backend: str,
-    model_path: Path,
+    model_paths: list[Path],
     docker_image: str,
 ) -> tuple[int, str]:
     with tempfile.NamedTemporaryFile(mode="w", suffix=".mos", encoding="utf-8", delete=False) as f:
@@ -114,9 +143,12 @@ def _run_omc_script(
                 "-v",
                 f"{str(script_path.parent)}:/workspace",
             ]
-            model_parent = model_path.parent.resolve()
-            if model_parent != script_path.parent.resolve():
-                mounts.extend(["-v", f"{str(model_parent)}:{str(model_parent)}"])
+            mounted: set[Path] = {script_path.parent.resolve()}
+            for model_path in model_paths:
+                model_parent = model_path.parent.resolve()
+                if model_parent not in mounted:
+                    mounts.extend(["-v", f"{str(model_parent)}:{str(model_parent)}"])
+                    mounted.add(model_parent)
             cmd = [
                 "docker",
                 "run",
@@ -148,17 +180,21 @@ def _check_model_with_omc(
     *,
     backend: str,
     docker_image: str,
+    preload_files: list[Path] | None = None,
 ) -> tuple[bool, str, int]:
-    script = (
+    preload = preload_files or []
+    preload_lines = "".join([f'loadFile("{_to_modelica_str(p)}");\n' for p in preload])
+    script = preload_lines + (
         f'loadFile("{_to_modelica_str(model_path)}");\n'
         f"checkModel({model_name});\n"
         "getErrorString();\n"
     )
+    model_paths = [model_path, *preload]
     rc, output = _run_omc_script(
         script,
         timeout_seconds=timeout_seconds,
         backend=backend,
-        model_path=model_path,
+        model_paths=model_paths,
         docker_image=docker_image,
     )
     lower = output.lower()
@@ -178,18 +214,22 @@ def _simulate_model_with_omc(
     *,
     backend: str,
     docker_image: str,
+    preload_files: list[Path] | None = None,
 ) -> tuple[bool, str, int]:
-    script = (
+    preload = preload_files or []
+    preload_lines = "".join([f'loadFile("{_to_modelica_str(p)}");\n' for p in preload])
+    script = preload_lines + (
         f'loadFile("{_to_modelica_str(model_path)}");\n'
         f"checkModel({model_name});\n"
         f"simulate({model_name}, stopTime=0.2, numberOfIntervals=20);\n"
         "getErrorString();\n"
     )
+    model_paths = [model_path, *preload]
     rc, output = _run_omc_script(
         script,
         timeout_seconds=timeout_seconds,
         backend=backend,
-        model_path=model_path,
+        model_paths=model_paths,
         docker_image=docker_image,
     )
     lower = output.lower()
@@ -327,6 +367,7 @@ def main() -> None:
         model_path = Path(p)
         text = _load_text(model_path) if model_path.exists() else ""
         model_name = _resolve_model_name(text)
+        preload_files = _collect_package_preload_files(model_path, model_name)
         check_ok = False
         check_log = ""
         check_rc: int | None = None
@@ -337,6 +378,7 @@ def main() -> None:
                 int(args.timeout_seconds),
                 backend=backend_used,
                 docker_image=str(args.docker_image),
+                preload_files=preload_files,
             )
         else:
             check_ok, msg = _syntax_probe_model(model_path)
@@ -367,6 +409,9 @@ def main() -> None:
         mutated_model_path = Path(str(row.get("mutated_model_path") or row.get("model_path") or ""))
         text = _load_text(mutated_model_path) if mutated_model_path.exists() else ""
         model_name = _resolve_model_name(text)
+        source_model_path = Path(str(row.get("source_model_path") or ""))
+        preload_base = source_model_path if source_model_path.exists() else mutated_model_path
+        preload_files = _collect_package_preload_files(preload_base, model_name)
 
         check_ok = False
         simulate_ok = False
@@ -382,6 +427,7 @@ def main() -> None:
                 int(args.timeout_seconds),
                 backend=backend_used,
                 docker_image=str(args.docker_image),
+                preload_files=preload_files,
             )
             if check_ok and expected_stage == "simulate":
                 simulate_ok, simulate_log, simulate_rc = _simulate_model_with_omc(
@@ -390,6 +436,7 @@ def main() -> None:
                     int(args.timeout_seconds),
                     backend=backend_used,
                     docker_image=str(args.docker_image),
+                    preload_files=preload_files,
                 )
             elif check_ok:
                 simulate_ok = True
