@@ -141,6 +141,8 @@ FOCUS_TOP_K="${GATEFORGE_AGENT_FOCUS_TOP_K:-${PROFILE_FOCUS_TOP_K:-2}}"
 FOCUS_PERSISTENCE_WEIGHT="${GATEFORGE_AGENT_FOCUS_PERSISTENCE_WEIGHT:-${PROFILE_FOCUS_PERSISTENCE_WEIGHT:-3.0}}"
 FOCUS_SIGNAL_WEIGHT="${GATEFORGE_AGENT_FOCUS_SIGNAL_WEIGHT:-${PROFILE_FOCUS_SIGNAL_WEIGHT:-3.0}}"
 FOCUS_SIGNAL_TARGET_SCORE="${GATEFORGE_AGENT_FOCUS_SIGNAL_TARGET_SCORE:-${PROFILE_FOCUS_SIGNAL_TARGET_SCORE:-0.8}}"
+SCRIPT_PARSE_FOCUS_MIN_TASKS="${GATEFORGE_AGENT_SCRIPT_PARSE_FOCUS_MIN_TASKS:-3}"
+SCRIPT_PARSE_FOCUS_MAX_TASKS="${GATEFORGE_AGENT_SCRIPT_PARSE_FOCUS_MAX_TASKS:-6}"
 INJECT_HARD_FAIL_COUNT="${GATEFORGE_AGENT_INJECT_HARD_FAIL_COUNT:-${PROFILE_INJECT_HARD_FAIL_COUNT:-0}}"
 INJECT_SLOW_PASS_COUNT="${GATEFORGE_AGENT_INJECT_SLOW_PASS_COUNT:-${PROFILE_INJECT_SLOW_PASS_COUNT:-0}}"
 ALLOW_BASELINE_FAIL="${GATEFORGE_AGENT_ALLOW_BASELINE_FAIL:-0}"
@@ -394,6 +396,22 @@ python3 -m gateforge.agent_modelica_failure_attribution_v1 \
   --run-results "$OUT_DIR/baseline/run_results.json" \
   --out "$OUT_DIR/weekly/failure_attribution.json" \
   --report-out "$OUT_DIR/weekly/failure_attribution.md"
+
+python3 -m gateforge.agent_modelica_first_failure_attribution_v1 \
+  --run-results "$OUT_DIR/baseline/run_results.json" \
+  --out "$OUT_DIR/weekly/first_failure_attribution.json" \
+  --report-out "$OUT_DIR/weekly/first_failure_attribution.md"
+
+python3 -m gateforge.agent_modelica_script_parse_focus_taskset_v1 \
+  --taskset-in "$TASKSET_FOR_BASELINE" \
+  --run-results "$OUT_DIR/baseline/run_results.json" \
+  --first-failure-attribution "$OUT_DIR/weekly/first_failure_attribution.json" \
+  --target-failure-type script_parse_error \
+  --min-tasks "$SCRIPT_PARSE_FOCUS_MIN_TASKS" \
+  --max-tasks "$SCRIPT_PARSE_FOCUS_MAX_TASKS" \
+  --out-taskset "$OUT_DIR/tasksets/script_parse_focus_taskset_${WEEK_TAG}.json" \
+  --out "$OUT_DIR/weekly/script_parse_focus_taskset_summary.json" \
+  --report-out "$OUT_DIR/weekly/script_parse_focus_taskset_summary.md"
 
 FOCUS_QUEUE_CMD=(
   python3 -m gateforge.agent_modelica_focus_queue_from_attribution_v1
