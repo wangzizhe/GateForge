@@ -282,6 +282,24 @@ def _apply_parse_error_pre_repair(model_text: str, output: str, failure_type: st
         return model_text, {"applied": False, "reason": "state_token_not_detected"}
 
     patched = str(model_text or "")
+    # Prefer dropping full lines carrying injected state token to avoid
+    # leaving broken fragments like `der() = ...;` after direct token removal.
+    lines = patched.splitlines(keepends=True)
+    kept_lines: list[str] = []
+    removed_line_count = 0
+    for line in lines:
+        if any(tok in line for tok in tokens):
+            removed_line_count += 1
+            continue
+        kept_lines.append(line)
+    if removed_line_count > 0:
+        return "".join(kept_lines), {
+            "applied": True,
+            "reason": "removed_lines_with_injected_state_tokens",
+            "detected_tokens": tokens,
+            "removed_line_count": int(removed_line_count),
+        }
+
     removed_count = 0
     for token in tokens:
         patched, replaced = re.subn(rf"\b{re.escape(token)}\b", "", patched)
@@ -296,7 +314,7 @@ def _apply_parse_error_pre_repair(model_text: str, output: str, failure_type: st
 
     return patched, {
         "applied": True,
-        "reason": "removed_injected_state_tokens",
+        "reason": "removed_injected_state_tokens_inline",
         "detected_tokens": tokens,
         "removed_count": int(removed_count),
     }
