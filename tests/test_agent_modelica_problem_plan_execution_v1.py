@@ -130,6 +130,7 @@ echo "${{GATEFORGE_PRIVATE_MODEL_ROOTS:-}}" > "$OUT/private_model_roots.txt"
                     "GATEFORGE_AGENT_PROBLEM_PLAN_PATH": str(plan),
                     "GATEFORGE_AGENT_PROBLEM_PLAN_EXEC_OUT_DIR": str(root / "out"),
                     "GATEFORGE_AGENT_MUTATION_BATCH_RUNNER": str(runner),
+                    "GATEFORGE_AGENT_PROBLEM_PLAN_SKIP_OMC_PREFLIGHT": "1",
                 },
                 timeout=60,
             )
@@ -160,6 +161,7 @@ echo "${{GATEFORGE_PRIVATE_MODEL_ROOTS:-}}" > "$OUT/private_model_roots.txt"
                     "GATEFORGE_AGENT_PROBLEM_PLAN_EXEC_OUT_DIR": str(root / "out"),
                     "GATEFORGE_AGENT_MUTATION_BATCH_RUNNER": str(runner),
                     "GATEFORGE_AGENT_PROBLEM_PLAN_STRICT_OMC": "0",
+                    "GATEFORGE_AGENT_PROBLEM_PLAN_SKIP_OMC_PREFLIGHT": "1",
                 },
                 timeout=60,
             )
@@ -187,6 +189,7 @@ echo "${{GATEFORGE_PRIVATE_MODEL_ROOTS:-}}" > "$OUT/private_model_roots.txt"
                     "GATEFORGE_AGENT_PROBLEM_PLAN_PATH": str(plan),
                     "GATEFORGE_AGENT_PROBLEM_PLAN_EXEC_OUT_DIR": str(root / "out"),
                     "GATEFORGE_AGENT_MUTATION_BATCH_RUNNER": str(runner),
+                    "GATEFORGE_AGENT_PROBLEM_PLAN_SKIP_OMC_PREFLIGHT": "1",
                 },
                 timeout=60,
             )
@@ -216,6 +219,7 @@ echo "${{GATEFORGE_PRIVATE_MODEL_ROOTS:-}}" > "$OUT/private_model_roots.txt"
                     "GATEFORGE_AGENT_PROBLEM_PLAN_PATH": str(plan),
                     "GATEFORGE_AGENT_PROBLEM_PLAN_EXEC_OUT_DIR": str(root / "out"),
                     "GATEFORGE_AGENT_MUTATION_BATCH_RUNNER": str(runner),
+                    "GATEFORGE_AGENT_PROBLEM_PLAN_SKIP_OMC_PREFLIGHT": "1",
                 },
                 timeout=60,
             )
@@ -246,6 +250,7 @@ echo "${{GATEFORGE_PRIVATE_MODEL_ROOTS:-}}" > "$OUT/private_model_roots.txt"
                     "GATEFORGE_AGENT_MUTATION_BATCH_RUNNER": str(runner),
                     "GATEFORGE_AGENT_PROBLEM_PLAN_STRICT_OMC": "1",
                     "GATEFORGE_AGENT_PROBLEM_PLAN_EXEC_PROFILE": "quick",
+                    "GATEFORGE_AGENT_PROBLEM_PLAN_SKIP_OMC_PREFLIGHT": "1",
                 },
                 timeout=60,
             )
