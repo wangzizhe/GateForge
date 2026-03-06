@@ -8,6 +8,7 @@ PLAN_PATH="${GATEFORGE_AGENT_PROBLEM_PLAN_PATH:-artifacts/agent_modelica_mutatio
 OUT_ROOT="${GATEFORGE_AGENT_PROBLEM_PLAN_EXEC_OUT_DIR:-artifacts/agent_modelica_problem_plan_execution_v1}"
 RUNNER_SCRIPT="${GATEFORGE_AGENT_MUTATION_BATCH_RUNNER:-scripts/run_private_model_mutation_scale_batch_v1.sh}"
 EXECUTION_PROFILE="${GATEFORGE_AGENT_PROBLEM_PLAN_EXEC_PROFILE:-quick}"
+STRICT_OMC="${GATEFORGE_AGENT_PROBLEM_PLAN_STRICT_OMC:-1}"
 
 mkdir -p "$OUT_ROOT"
 
@@ -33,9 +34,19 @@ fi
 MUTATIONS_PER_FAILURE_TYPE="${GATEFORGE_MUTATIONS_PER_FAILURE_TYPE:-$DEFAULT_MUTATIONS_PER_FAILURE_TYPE}"
 MIN_GENERATED_MUTATIONS="${GATEFORGE_MIN_GENERATED_MUTATIONS:-$DEFAULT_MIN_GENERATED_MUTATIONS}"
 MAX_MUTATION_MODELS="${GATEFORGE_MAX_MUTATION_MODELS:-$DEFAULT_MAX_MUTATION_MODELS}"
-TARGET_SCALES="${GATEFORGE_TARGET_SCALES:-small,medium,large}"
+if [ -n "${GATEFORGE_TARGET_SCALES:-}" ]; then
+  TARGET_SCALES="${GATEFORGE_TARGET_SCALES}"
+elif [ "$STRICT_OMC" = "1" ]; then
+  TARGET_SCALES="small"
+else
+  TARGET_SCALES="small,medium,large"
+fi
 VALIDATION_MAX_MUTATIONS="${GATEFORGE_MUTATION_VALIDATION_MAX_MUTATIONS:-300}"
 VALIDATION_MAX_BASELINES="${GATEFORGE_MUTATION_VALIDATION_MAX_BASELINES:-120}"
+VALIDATION_BACKEND="${GATEFORGE_MUTATION_VALIDATION_BACKEND:-auto}"
+if [ "$STRICT_OMC" = "1" ]; then
+  VALIDATION_BACKEND="omc"
+fi
 
 export GATEFORGE_MUTATIONS_PER_FAILURE_TYPE="$MUTATIONS_PER_FAILURE_TYPE"
 export GATEFORGE_MIN_GENERATED_MUTATIONS="$MIN_GENERATED_MUTATIONS"
@@ -43,6 +54,7 @@ export GATEFORGE_MAX_MUTATION_MODELS="$MAX_MUTATION_MODELS"
 export GATEFORGE_TARGET_SCALES="$TARGET_SCALES"
 export GATEFORGE_MUTATION_VALIDATION_MAX_MUTATIONS="$VALIDATION_MAX_MUTATIONS"
 export GATEFORGE_MUTATION_VALIDATION_MAX_BASELINES="$VALIDATION_MAX_BASELINES"
+export GATEFORGE_MUTATION_VALIDATION_BACKEND="$VALIDATION_BACKEND"
 export GATEFORGE_MIN_ACCEPTED_MODELS="${GATEFORGE_MIN_ACCEPTED_MODELS:-1}"
 export GATEFORGE_MIN_ACCEPTED_LARGE_MODELS="${GATEFORGE_MIN_ACCEPTED_LARGE_MODELS:-0}"
 export GATEFORGE_MIN_ACCEPTED_LARGE_RATIO_PCT="${GATEFORGE_MIN_ACCEPTED_LARGE_RATIO_PCT:-0}"
@@ -167,6 +179,9 @@ row = {
     "failure_types_count": int(summary.get("failure_types_count", 0) or 0),
     "validation_type_match_rate_pct": validation.get("type_match_rate_pct"),
     "validation_stage_match_rate_pct": validation.get("stage_match_rate_pct"),
+    "validation_status": str(validation.get("status") or ""),
+    "validation_backend_used": str(validation.get("validation_backend_used") or ""),
+    "validation_backend_fallback_to_syntax": bool(validation.get("backend_fallback_to_syntax")),
     "paths": {
         "summary": str(summary_path),
         "mutation_pack_summary": str(pack_path),
@@ -181,7 +196,7 @@ print(json.dumps({"phase": phase, "exit_code": rc, "bundle_status": row["bundle_
 PY
 done
 
-python3 - "$phase_rows_json" "$OUT_ROOT/problem_type_mapping_summary.json" "$OUT_ROOT/summary.json" "$OUT_ROOT/summary.md" "$phase_rc_any" <<'PY'
+python3 - "$phase_rows_json" "$OUT_ROOT/problem_type_mapping_summary.json" "$OUT_ROOT/summary.json" "$OUT_ROOT/summary.md" "$phase_rc_any" "$STRICT_OMC" <<'PY'
 import json
 import statistics
 import sys
@@ -192,6 +207,7 @@ mapping_path = Path(sys.argv[2])
 out_json = Path(sys.argv[3])
 out_md = Path(sys.argv[4])
 phase_rc_any = int(sys.argv[5])
+strict_omc = str(sys.argv[6]).strip() == "1"
 
 rows = []
 if rows_path.exists():
@@ -208,6 +224,12 @@ generated = sum(int(r.get("generated_mutations", 0) or 0) for r in rows)
 repro = sum(int(r.get("reproducible_mutations", 0) or 0) for r in rows)
 bundle_pass = sum(1 for r in rows if str(r.get("bundle_status") or "") == "PASS")
 type_rates = [float(r.get("validation_type_match_rate_pct")) for r in rows if isinstance(r.get("validation_type_match_rate_pct"), (int, float))]
+validation_backend_mismatch = [
+    r for r in rows if str(r.get("validation_backend_used") or "").strip().lower() != "omc"
+]
+validation_backend_fallback_rows = [
+    r for r in rows if bool(r.get("validation_backend_fallback_to_syntax"))
+]
 
 status = "PASS"
 reasons = []
@@ -220,6 +242,12 @@ if bundle_pass < len(rows):
 if generated <= 0:
     status = "FAIL"
     reasons.append("generated_mutations_zero")
+if strict_omc and validation_backend_mismatch:
+    status = "FAIL"
+    reasons.append("validation_backend_not_omc")
+if strict_omc and validation_backend_fallback_rows:
+    status = "FAIL"
+    reasons.append("validation_backend_fallback_to_syntax")
 
 payload = {
     "status": status,
@@ -229,6 +257,9 @@ payload = {
     "reproducible_mutations_total": repro,
     "median_validation_type_match_rate_pct": round(statistics.median(type_rates), 4) if type_rates else None,
     "problem_type_mapping_summary": mapping,
+    "strict_omc": strict_omc,
+    "validation_backend_not_omc_phase_count": len(validation_backend_mismatch),
+    "validation_backend_fallback_phase_count": len(validation_backend_fallback_rows),
     "reasons": reasons,
 }
 out_json.parent.mkdir(parents=True, exist_ok=True)
