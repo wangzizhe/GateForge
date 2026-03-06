@@ -12,6 +12,10 @@ RETRIEVAL_POLICY="${GATEFORGE_AGENT_RETRIEVAL_POLICY_PATH:-data/private_failure_
 FOCUS_QUEUE="${GATEFORGE_AGENT_LAYERED_BASELINE_FOCUS_QUEUE:-}"
 INJECT_HARD_FAIL_COUNT="${GATEFORGE_AGENT_LAYERED_BASELINE_INJECT_HARD_FAIL_COUNT:-0}"
 INJECT_SLOW_PASS_COUNT="${GATEFORGE_AGENT_LAYERED_BASELINE_INJECT_SLOW_PASS_COUNT:-0}"
+RUN_MODE="${GATEFORGE_AGENT_LAYERED_BASELINE_RUN_MODE:-mock}"
+LIVE_EXECUTOR_CMD="${GATEFORGE_AGENT_LIVE_EXECUTOR_CMD:-}"
+LIVE_TIMEOUT_SEC="${GATEFORGE_AGENT_LIVE_TIMEOUT_SEC:-180}"
+LIVE_MAX_OUTPUT_CHARS="${GATEFORGE_AGENT_LIVE_MAX_OUTPUT_CHARS:-1200}"
 
 if [ -z "$MUTATION_MANIFEST" ]; then
   for candidate in \
@@ -38,6 +42,7 @@ CMD=(
   python3 -m gateforge.agent_modelica_layered_baseline_v1
   --mutation-manifest "$MUTATION_MANIFEST"
   --max-per-scale-failure-type 1
+  --run-mode "$RUN_MODE"
   --out-dir "$OUT_DIR"
   --out "$OUT_DIR/summary.json"
   --report-out "$OUT_DIR/summary.md"
@@ -50,6 +55,11 @@ CMD+=(--retrieval-policy "$RETRIEVAL_POLICY")
 if [ -n "$FOCUS_QUEUE" ]; then
   CMD+=(--focus-queue "$FOCUS_QUEUE")
 fi
+
+if [ -n "$LIVE_EXECUTOR_CMD" ]; then
+  CMD+=(--live-executor-cmd "$LIVE_EXECUTOR_CMD")
+fi
+CMD+=(--live-timeout-sec "$LIVE_TIMEOUT_SEC" --live-max-output-chars "$LIVE_MAX_OUTPUT_CHARS")
 
 if [ "${INJECT_HARD_FAIL_COUNT}" -gt 0 ]; then
   CMD+=(--inject-hard-fail-count "$INJECT_HARD_FAIL_COUNT")
