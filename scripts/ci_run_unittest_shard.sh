@@ -33,9 +33,19 @@ rc=0
 failed_pattern=""
 
 for PATTERN in "${PATTERNS[@]}"; do
-  pattern_file_count="$(find tests -maxdepth 1 -type f -name "$PATTERN" | wc -l | tr -d ' ')"
+  pattern_matches="$(find tests -maxdepth 1 -type f -name "$PATTERN" | sort || true)"
+  pattern_file_count="$(printf '%s\n' "$pattern_matches" | sed '/^$/d' | wc -l | tr -d ' ')"
   total_files=$((total_files + pattern_file_count))
   echo "[ci] running pattern=$PATTERN test_files=$pattern_file_count timeout=$SHARD_TIMEOUT" | tee -a "$LOG_FILE"
+  if [ "$pattern_file_count" -gt 0 ]; then
+    printf '%s\n' "$pattern_matches" | sed 's|^|[ci] matched_file=|' | tee -a "$LOG_FILE"
+  fi
+  if [ "$pattern_file_count" -eq 0 ] && [ "$CI_FAIL_ON_EMPTY_PATTERN" = "1" ]; then
+    echo "[ci] empty-test-pattern detected pattern=$PATTERN before execution; failing to prevent silent shard drift" | tee -a "$LOG_FILE"
+    rc=86
+    failed_pattern="$PATTERN"
+    break
+  fi
   pattern_start="$(date +%s)"
   pattern_tmp_log="$(mktemp)"
   if [ -n "$TIMEOUT_BIN" ]; then

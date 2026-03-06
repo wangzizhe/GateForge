@@ -17,6 +17,8 @@ class CIShardRunnerContractTests(unittest.TestCase):
             'PYTHON_BIN="python3"',
             'warning: timeout command not found; running shard without enforced timeout',
             '-X faulthandler -m unittest discover -s tests -p "$PATTERN" -v',
+            'matched_file=',
+            'empty-test-pattern detected pattern=$PATTERN before execution; failing to prevent silent shard drift',
             'empty-test-pattern detected pattern=$PATTERN; failing to prevent silent shard drift',
             '[ci] shard summary patterns=$PATTERNS_CSV',
             'echo "[ci] shard failed: pattern=$failed_pattern exit_code=$rc"',

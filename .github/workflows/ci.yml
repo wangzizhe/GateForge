@@ -261,6 +261,34 @@ jobs:
         run: |
           bash scripts/run_agent_modelica_release_preflight_v0_1_1.sh
 
+      - name: Publish release preflight status
+        if: always()
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          summary_path = Path("artifacts/release_v0_1_1/release_preflight_summary.json")
+          status = "MISSING"
+          details = {}
+          if summary_path.exists():
+            details = json.loads(summary_path.read_text(encoding="utf-8"))
+            status = str(details.get("status") or "UNKNOWN")
+          summary_file = os.getenv("GITHUB_STEP_SUMMARY")
+          if summary_file:
+            with open(summary_file, "a", encoding="utf-8") as f:
+              f.write("## Release Preflight Status\n\n")
+              f.write(f"- status: `{status}`\n")
+              if details:
+                f.write(f"- learning_preflight_status: `{details.get('learning_preflight_status', '')}`\n")
+                f.write(f"- private_asset_guard_status: `{details.get('private_asset_guard_status', '')}`\n")
+                f.write(f"- live_smoke_status: `{details.get('live_smoke_status', '')}`\n")
+              f.write("\n")
+          if status == "FAIL":
+            raise SystemExit(1)
+          PY
+
       - name: Upload release preflight artifact
         if: always()
         uses: actions/upload-artifact@v4
