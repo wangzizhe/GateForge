@@ -538,6 +538,65 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
             pre_repair = first_attempt.get("pre_repair") if isinstance(first_attempt.get("pre_repair"), dict) else {}
             self.assertTrue(bool(pre_repair.get("applied")))
 
+    def test_run_contract_live_mode_parses_multiline_json_payload(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            taskset = root / "taskset.json"
+            results = root / "results.json"
+            summary = root / "summary.json"
+            taskset.write_text(
+                json.dumps(
+                    {
+                        "tasks": [
+                            {
+                                "task_id": "t_live_multiline",
+                                "scale": "small",
+                                "failure_type": "model_check_error",
+                                "source_model_path": "assets_private/modelica/Minimal.mo",
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            live_cmd = (
+                "python3 -c 'import json; "
+                "print(json.dumps({"
+                "\"check_model_pass\": True, "
+                "\"simulate_pass\": True, "
+                "\"physics_contract_pass\": True, "
+                "\"regression_pass\": True, "
+                "\"elapsed_sec\": 1.2, "
+                "\"attempts\": [{\"observed_failure_type\": \"script_parse_error\", \"reason\": \"compile/syntax error\"}]"
+                "}, indent=2))'"
+            )
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.agent_modelica_run_contract_v1",
+                    "--taskset",
+                    str(taskset),
+                    "--mode",
+                    "live",
+                    "--live-executor-cmd",
+                    live_cmd,
+                    "--results-out",
+                    str(results),
+                    "--out",
+                    str(summary),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            rec = (json.loads(results.read_text(encoding="utf-8")).get("records") or [])[0]
+            attempts = rec.get("attempts") if isinstance(rec.get("attempts"), list) else []
+            self.assertTrue(attempts)
+            first_attempt = attempts[0] if isinstance(attempts[0], dict) else {}
+            self.assertEqual(str(first_attempt.get("observed_failure_type") or ""), "script_parse_error")
+
     def test_run_contract_resume_from_records_jsonl_skips_completed_tasks(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
