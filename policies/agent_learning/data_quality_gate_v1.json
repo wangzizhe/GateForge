@@ -1,0 +1,32 @@
+{
+  "schema_version": "agent_learning_data_quality_gate_v1",
+  "status": "ACTIVE",
+  "required_row_fields": [
+    "fingerprint",
+    "task_id",
+    "failure_type",
+    "scale",
+    "used_strategy",
+    "action_trace",
+    "error_signature",
+    "gate_break_reason",
+    "success"
+  ],
+  "target_failure_types": [
+    "model_check_error",
+    "simulate_error",
+    "semantic_regression"
+  ],
+  "min_total_rows": 60,
+  "max_missing_required_ratio": 0.05,
+  "max_duplicate_fingerprint_ratio": 0.1,
+  "min_success_rows_per_failure_type": 5,
+  "require_non_overlap_holdout": true,
+  "split_field": "split",
+  "train_values": [
+    "train"
+  ],
+  "holdout_values": [
+    "holdout"
+  ]
+}

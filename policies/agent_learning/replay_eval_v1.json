@@ -1,0 +1,24 @@
+{
+  "schema_version": "agent_learning_replay_eval_v1",
+  "status": "ACTIVE",
+  "frozen_pack_path": "benchmarks/agent_modelica_mvp_repair_v1.json",
+  "holdout_pack_path": "benchmarks/agent_modelica_mvp_challenge_v1.json",
+  "mode": "live",
+  "non_overlap_required": true,
+  "primary_metrics": [
+    "success_at_k_pct",
+    "median_time_to_pass_sec",
+    "median_repair_rounds",
+    "regression_count",
+    "physics_fail_count"
+  ],
+  "hard_regression_caps": {
+    "max_regression_count_increase": 0,
+    "max_physics_fail_count_increase": 0
+  },
+  "minimum_improvement_to_promote": {
+    "min_success_at_k_gain_pct": 0.5,
+    "min_median_time_delta_sec": -1.0,
+    "min_median_round_delta": -0.1
+  }
+}

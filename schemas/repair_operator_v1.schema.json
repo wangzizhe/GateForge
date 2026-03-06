@@ -1,0 +1,146 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "gateforge/repair_operator_v1.schema.json",
+  "title": "GateForge Repair Operator v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "operator_id",
+    "failure_type",
+    "stage",
+    "preconditions",
+    "edit_plan",
+    "safety_checks",
+    "expected_effect",
+    "risk_tag",
+    "rollback_rule",
+    "owner"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "repair_operator_v1"
+    },
+    "operator_id": {
+      "type": "string",
+      "minLength": 3
+    },
+    "failure_type": {
+      "type": "string",
+      "minLength": 1
+    },
+    "stage": {
+      "type": "string",
+      "enum": [
+        "compile",
+        "model_check",
+        "simulate",
+        "physics",
+        "regression",
+        "unknown"
+      ]
+    },
+    "preconditions": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "signature_patterns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "must_have_tokens": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "must_not_have_tokens": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "edit_plan": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "step_id",
+          "kind",
+          "match_pattern",
+          "replace_template"
+        ],
+        "properties": {
+          "step_id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "delete_line",
+              "replace_text",
+              "insert_line",
+              "rewrite_block",
+              "set_parameter"
+            ]
+          },
+          "match_pattern": {
+            "type": "string"
+          },
+          "replace_template": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "safety_checks": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "expected_effect": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "check_model_pass": {
+          "type": "boolean"
+        },
+        "simulate_pass": {
+          "type": "boolean"
+        },
+        "physics_contract_pass": {
+          "type": "boolean"
+        },
+        "regression_pass": {
+          "type": "boolean"
+        }
+      }
+    },
+    "risk_tag": {
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high"
+      ]
+    },
+    "rollback_rule": {
+      "type": "string",
+      "minLength": 1
+    },
+    "owner": {
+      "type": "string",
+      "minLength": 1
+    },
+    "version": {
+      "type": "string"
+    }
+  }
+}

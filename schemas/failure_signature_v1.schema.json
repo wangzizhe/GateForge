@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "gateforge/failure_signature_v1.schema.json",
+  "title": "GateForge Failure Signature v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "signature_id",
+    "failure_type",
+    "stage",
+    "class_hint",
+    "error_code",
+    "token",
+    "scope",
+    "normalized_message",
+    "parser_version",
+    "hash16"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "failure_signature_v1"
+    },
+    "signature_id": {
+      "type": "string",
+      "minLength": 3
+    },
+    "failure_type": {
+      "type": "string",
+      "minLength": 1
+    },
+    "stage": {
+      "type": "string",
+      "enum": [
+        "compile",
+        "model_check",
+        "simulate",
+        "physics",
+        "regression",
+        "unknown"
+      ]
+    },
+    "class_hint": {
+      "type": "string"
+    },
+    "error_code": {
+      "type": "string"
+    },
+    "token": {
+      "type": "string"
+    },
+    "scope": {
+      "type": "string"
+    },
+    "normalized_message": {
+      "type": "string",
+      "minLength": 1
+    },
+    "parser_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "hash16": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{16}$"
+    },
+    "raw_excerpt": {
+      "type": "string"
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "task_id": {
+          "type": "string"
+        },
+        "model_id": {
+          "type": "string"
+        },
+        "failure_log_path": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}
