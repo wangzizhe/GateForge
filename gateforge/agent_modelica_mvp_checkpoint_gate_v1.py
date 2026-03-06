@@ -36,6 +36,8 @@ def _write_markdown(path: str, payload: dict) -> None:
         f"- decision: `{payload.get('decision')}`",
         f"- daily_success_at_k_pct: `{(payload.get('daily') or {}).get('success_at_k_pct')}`",
         f"- daily_regression_count: `{(payload.get('daily') or {}).get('regression_count')}`",
+        f"- daily_focus_hit_rate_pct: `{(payload.get('daily') or {}).get('focus_hit_rate_pct')}`",
+        f"- daily_focus_miss_rate_pct: `{(payload.get('daily') or {}).get('focus_miss_rate_pct')}`",
         f"- holdout_success_at_k_pct: `{(payload.get('holdout') or {}).get('success_at_k_pct')}`",
         f"- holdout_regression_count: `{(payload.get('holdout') or {}).get('regression_count')}`",
         f"- ab_delta_success_at_k_pct: `{(payload.get('retrieval_ab') or {}).get('delta_success_at_k_pct')}`",
@@ -66,6 +68,9 @@ def main() -> None:
     parser.add_argument("--holdout-summary", default="")
     parser.add_argument("--min-daily-success-at-k-pct", type=float, default=90.0)
     parser.add_argument("--max-daily-regression-count", type=float, default=0.0)
+    parser.add_argument("--daily-focus-hit-rate-pct", type=float, default=None)
+    parser.add_argument("--min-daily-focus-hit-rate-pct", type=float, default=40.0)
+    parser.add_argument("--max-daily-focus-miss-rate-pct", type=float, default=60.0)
     parser.add_argument("--min-holdout-success-at-k-pct", type=float, default=85.0)
     parser.add_argument("--max-holdout-regression-count", type=float, default=1.0)
     parser.add_argument("--max-holdout-physics-fail-count", type=float, default=0.0)
@@ -83,12 +88,25 @@ def main() -> None:
     daily_status = str((daily.get("daily") or {}).get("status") or daily.get("status") or "")
     daily_success = _num((daily.get("daily") or {}).get("success_at_k_pct"), _num(daily.get("success_at_k_pct")))
     daily_reg = _num((daily.get("daily") or {}).get("regression_count"), _num(daily.get("regression_count")))
+    daily_focus_hit_input = args.daily_focus_hit_rate_pct
+    daily_focus_hit = (
+        float(daily_focus_hit_input)
+        if isinstance(daily_focus_hit_input, (int, float))
+        else _num((daily.get("daily") or {}).get("focus_hit_rate_pct"), _num(daily.get("focus_hit_rate_pct"), default=-1.0))
+    )
+    daily_focus_present = daily_focus_hit >= 0.0
+    daily_focus_miss = round(max(0.0, 100.0 - daily_focus_hit), 2) if daily_focus_present else None
     if daily_status == "FAIL":
         reasons.append("daily_fail")
     if daily_success < float(args.min_daily_success_at_k_pct):
         reasons.append("daily_success_below_threshold")
     if daily_reg > float(args.max_daily_regression_count):
         reasons.append("daily_regression_above_threshold")
+    if daily_focus_present:
+        if daily_focus_hit < float(args.min_daily_focus_hit_rate_pct):
+            reasons.append("daily_focus_hit_below_threshold")
+        if (100.0 - daily_focus_hit) > float(args.max_daily_focus_miss_rate_pct):
+            reasons.append("daily_focus_miss_above_threshold")
 
     holdout_present = bool(holdout)
     holdout_status = str(holdout.get("status") or "")
@@ -133,6 +151,8 @@ def main() -> None:
             "status": daily_status,
             "success_at_k_pct": round(daily_success, 2),
             "regression_count": round(daily_reg, 2),
+            "focus_hit_rate_pct": round(daily_focus_hit, 2) if daily_focus_present else None,
+            "focus_miss_rate_pct": daily_focus_miss,
         },
         "holdout": {
             "present": holdout_present,
@@ -149,6 +169,8 @@ def main() -> None:
         "thresholds": {
             "min_daily_success_at_k_pct": float(args.min_daily_success_at_k_pct),
             "max_daily_regression_count": float(args.max_daily_regression_count),
+            "min_daily_focus_hit_rate_pct": float(args.min_daily_focus_hit_rate_pct),
+            "max_daily_focus_miss_rate_pct": float(args.max_daily_focus_miss_rate_pct),
             "min_holdout_success_at_k_pct": float(args.min_holdout_success_at_k_pct),
             "max_holdout_regression_count": float(args.max_holdout_regression_count),
             "max_holdout_physics_fail_count": float(args.max_holdout_physics_fail_count),

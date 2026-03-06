@@ -13,6 +13,8 @@ ROLLING_FOCUS_ENABLE="${GATEFORGE_AGENT_MVP_DAILY_ROLLING_FOCUS_ENABLE:-1}"
 ROLLING_FOCUS_MAX_AGE_RUNS="${GATEFORGE_AGENT_MVP_DAILY_FOCUS_MAX_AGE_RUNS:-3}"
 ROLLING_FOCUS_DECAY="${GATEFORGE_AGENT_MVP_DAILY_FOCUS_DECAY:-0.7}"
 ROLLING_FOCUS_MAX_ENTRIES="${GATEFORGE_AGENT_MVP_DAILY_FOCUS_MAX_ENTRIES:-2}"
+CHECKPOINT_MIN_FOCUS_HIT_RATE_PCT="${GATEFORGE_AGENT_MVP_CHECKPOINT_MIN_FOCUS_HIT_RATE_PCT:-40.0}"
+CHECKPOINT_MAX_FOCUS_MISS_RATE_PCT="${GATEFORGE_AGENT_MVP_CHECKPOINT_MAX_FOCUS_MISS_RATE_PCT:-60.0}"
 RUN_DIR="$OUT_DIR/runs/$RUN_TAG"
 LEDGER_PATH="$OUT_DIR/history.jsonl"
 SUMMARY_PATH="$OUT_DIR/summary.json"
@@ -111,6 +113,57 @@ if [ "$HOLDOUT_INTERVAL" -gt 0 ] && [ $((RUN_COUNT % HOLDOUT_INTERVAL)) -eq 0 ];
   fi
 fi
 
+FOCUS_HIT_RATE_PCT=""
+FOCUS_FAILED_TASK_COUNT="0"
+FOCUS_HIT_FAILED_TASK_COUNT="0"
+if [ -f "$RUN_DIR/baseline/run_results.json" ] && [ -n "$PREV_FOCUS_TARGETS_PATH" ] && [ -f "$PREV_FOCUS_TARGETS_PATH" ]; then
+  eval "$(
+    python3 - "$RUN_DIR/baseline/run_results.json" "$PREV_FOCUS_TARGETS_PATH" <<'PY'
+import json
+import shlex
+import sys
+from pathlib import Path
+
+
+def rows(payload):
+    for key in ("templates", "queue", "targets"):
+        value = payload.get(key)
+        if isinstance(value, list) and value:
+            return [x for x in value if isinstance(x, dict)]
+    return []
+
+
+run_results = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+focus_payload = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
+
+ftypes = set()
+for row in rows(focus_payload):
+    ftype = str(row.get("failure_type") or "").strip().lower()
+    if ftype:
+        ftypes.add(ftype)
+
+failed_total = 0
+failed_hit = 0
+records = run_results.get("records") if isinstance(run_results.get("records"), list) else []
+for rec in records:
+    if not isinstance(rec, dict) or bool(rec.get("passed")):
+        continue
+    failed_total += 1
+    ftype = str(rec.get("failure_type") or "").strip().lower()
+    if ftype and ftype in ftypes:
+        failed_hit += 1
+
+focus_hit = round((failed_hit / failed_total) * 100.0, 2) if failed_total > 0 else None
+if focus_hit is None:
+    print("FOCUS_HIT_RATE_PCT=''")
+else:
+    print(f"FOCUS_HIT_RATE_PCT={shlex.quote(str(focus_hit))}")
+print(f"FOCUS_FAILED_TASK_COUNT={shlex.quote(str(failed_total))}")
+print(f"FOCUS_HIT_FAILED_TASK_COUNT={shlex.quote(str(failed_hit))}")
+PY
+  )"
+fi
+
 CHECKPOINT_DECISION_PATH=""
 CHECKPOINT_OUT_DIR="$OUT_DIR/checkpoint_gate/$RUN_TAG"
 CHECKPOINT_RC="-1"
@@ -118,9 +171,14 @@ mkdir -p "$CHECKPOINT_OUT_DIR"
 CHECKPOINT_CMD=(
   python3 -m gateforge.agent_modelica_mvp_checkpoint_gate_v1
   --daily-summary "$RUN_DIR/summary.json"
+  --min-daily-focus-hit-rate-pct "$CHECKPOINT_MIN_FOCUS_HIT_RATE_PCT"
+  --max-daily-focus-miss-rate-pct "$CHECKPOINT_MAX_FOCUS_MISS_RATE_PCT"
   --out "$CHECKPOINT_OUT_DIR/decision.json"
   --report-out "$CHECKPOINT_OUT_DIR/decision.md"
 )
+if [ -n "$FOCUS_HIT_RATE_PCT" ]; then
+  CHECKPOINT_CMD+=(--daily-focus-hit-rate-pct "$FOCUS_HIT_RATE_PCT")
+fi
 if [ -n "$AB_SUMMARY_PATH" ] && [ -f "$AB_SUMMARY_PATH" ]; then
   CHECKPOINT_CMD+=(--retrieval-ab-summary "$AB_SUMMARY_PATH")
 fi
@@ -239,7 +297,7 @@ PY
   fi
 fi
 
-python3 - "$RUN_DIR/summary.json" "$SUMMARY_PATH" "$REPORT_PATH" "$RUN_TAG" "$RUN_COUNT" "$AB_RAN" "$AB_SUMMARY_PATH" "$AB_RC" "$RUN_RC" "$HOLDOUT_RAN" "$HOLDOUT_SUMMARY_PATH" "$HOLDOUT_RC" "$CHECKPOINT_DECISION_PATH" "$CHECKPOINT_RC" "$PREV_FOCUS_TARGETS_PATH" "$NEXT_FOCUS_TARGETS_PATH" "$RUN_DIR/baseline/run_results.json" "$ROLLING_FOCUS_ENABLE" "$ROLLING_FOCUS_MAX_AGE_RUNS" "$ROLLING_FOCUS_DECAY" "$ROLLING_FOCUS_MAX_ENTRIES" <<'PY'
+python3 - "$RUN_DIR/summary.json" "$SUMMARY_PATH" "$REPORT_PATH" "$RUN_TAG" "$RUN_COUNT" "$AB_RAN" "$AB_SUMMARY_PATH" "$AB_RC" "$RUN_RC" "$HOLDOUT_RAN" "$HOLDOUT_SUMMARY_PATH" "$HOLDOUT_RC" "$CHECKPOINT_DECISION_PATH" "$CHECKPOINT_RC" "$PREV_FOCUS_TARGETS_PATH" "$NEXT_FOCUS_TARGETS_PATH" "$RUN_DIR/baseline/run_results.json" "$ROLLING_FOCUS_ENABLE" "$ROLLING_FOCUS_MAX_AGE_RUNS" "$ROLLING_FOCUS_DECAY" "$ROLLING_FOCUS_MAX_ENTRIES" "$FOCUS_HIT_RATE_PCT" "$FOCUS_FAILED_TASK_COUNT" "$FOCUS_HIT_FAILED_TASK_COUNT" <<'PY'
 from __future__ import annotations
 
 import json
@@ -268,6 +326,9 @@ rolling_focus_enable = bool(int(sys.argv[18]))
 rolling_focus_max_age_runs = int(sys.argv[19])
 rolling_focus_decay = float(sys.argv[20])
 rolling_focus_max_entries = int(sys.argv[21])
+pre_focus_hit_rate = sys.argv[22]
+pre_failed_total = int(sys.argv[23])
+pre_failed_hit = int(sys.argv[24])
 
 holdout = {}
 if holdout_summary:
@@ -316,6 +377,10 @@ if run_results_file.exists():
             failed_focus_hit += 1
 
 focus_hit_rate_pct = round((failed_focus_hit / failed_total) * 100.0, 2) if failed_total > 0 else None
+if pre_focus_hit_rate.strip():
+    focus_hit_rate_pct = float(pre_focus_hit_rate)
+    failed_total = pre_failed_total
+    failed_focus_hit = pre_failed_hit
 
 payload = {
     "schema_version": "agent_modelica_mvp_daily_loop_v1",
@@ -360,6 +425,7 @@ payload = {
         "regression_count": daily.get("regression_count"),
         "physics_fail_count": daily.get("physics_fail_count"),
         "median_time_to_pass_sec": daily.get("median_time_to_pass_sec"),
+        "median_repair_rounds": daily.get("median_repair_rounds"),
     },
     "holdout": {
         "status": holdout.get("status"),

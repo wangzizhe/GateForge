@@ -12,6 +12,8 @@ class RunAgentModelicaMvpRollingFocusAbV1Tests(unittest.TestCase):
         self.assertIn("compare.json", content)
         self.assertIn("delta_on_minus_off", content)
         self.assertIn("focus_hit_rate_pct", content)
+        self.assertIn("physics_fail_count", content)
+        self.assertIn("median_repair_rounds", content)
 
 
 if __name__ == "__main__":

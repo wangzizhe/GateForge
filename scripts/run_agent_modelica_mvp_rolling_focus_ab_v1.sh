@@ -67,6 +67,10 @@ on_success = _num((on.get("daily") or {}).get("success_at_k_pct"))
 off_success = _num((off.get("daily") or {}).get("success_at_k_pct"))
 on_reg = _num((on.get("daily") or {}).get("regression_count"))
 off_reg = _num((off.get("daily") or {}).get("regression_count"))
+on_phy = _num((on.get("daily") or {}).get("physics_fail_count"))
+off_phy = _num((off.get("daily") or {}).get("physics_fail_count"))
+on_rounds = _num((on.get("daily") or {}).get("median_repair_rounds"))
+off_rounds = _num((off.get("daily") or {}).get("median_repair_rounds"))
 on_focus_hit = _num(on.get("focus_hit_rate_pct"))
 off_focus_hit = _num(off.get("focus_hit_rate_pct"))
 
@@ -80,6 +84,8 @@ payload = {
         "status": on.get("status"),
         "success_at_k_pct": on_success,
         "regression_count": on_reg,
+        "physics_fail_count": on_phy,
+        "median_repair_rounds": on_rounds,
         "focus_hit_rate_pct": on_focus_hit,
     },
     "off": {
@@ -87,11 +93,15 @@ payload = {
         "status": off.get("status"),
         "success_at_k_pct": off_success,
         "regression_count": off_reg,
+        "physics_fail_count": off_phy,
+        "median_repair_rounds": off_rounds,
         "focus_hit_rate_pct": off_focus_hit,
     },
     "delta_on_minus_off": {
         "success_at_k_pct": round(on_success - off_success, 2) if on_success is not None and off_success is not None else None,
         "regression_count": round(on_reg - off_reg, 2) if on_reg is not None and off_reg is not None else None,
+        "physics_fail_count": round(on_phy - off_phy, 2) if on_phy is not None and off_phy is not None else None,
+        "median_repair_rounds": round(on_rounds - off_rounds, 2) if on_rounds is not None and off_rounds is not None else None,
         "focus_hit_rate_pct": round(on_focus_hit - off_focus_hit, 2) if on_focus_hit is not None and off_focus_hit is not None else None,
     },
 }
@@ -107,6 +117,12 @@ lines = [
     f"- on_regression_count: `{(payload.get('on') or {}).get('regression_count')}`",
     f"- off_regression_count: `{(payload.get('off') or {}).get('regression_count')}`",
     f"- delta_regression_count: `{(payload.get('delta_on_minus_off') or {}).get('regression_count')}`",
+    f"- on_physics_fail_count: `{(payload.get('on') or {}).get('physics_fail_count')}`",
+    f"- off_physics_fail_count: `{(payload.get('off') or {}).get('physics_fail_count')}`",
+    f"- delta_physics_fail_count: `{(payload.get('delta_on_minus_off') or {}).get('physics_fail_count')}`",
+    f"- on_median_repair_rounds: `{(payload.get('on') or {}).get('median_repair_rounds')}`",
+    f"- off_median_repair_rounds: `{(payload.get('off') or {}).get('median_repair_rounds')}`",
+    f"- delta_median_repair_rounds: `{(payload.get('delta_on_minus_off') or {}).get('median_repair_rounds')}`",
     f"- on_focus_hit_rate_pct: `{(payload.get('on') or {}).get('focus_hit_rate_pct')}`",
     f"- off_focus_hit_rate_pct: `{(payload.get('off') or {}).get('focus_hit_rate_pct')}`",
     f"- delta_focus_hit_rate_pct: `{(payload.get('delta_on_minus_off') or {}).get('focus_hit_rate_pct')}`",
