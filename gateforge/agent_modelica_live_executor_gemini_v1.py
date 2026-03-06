@@ -15,6 +15,7 @@ from pathlib import Path
 
 
 DEFAULT_DOCKER_IMAGE = "openmodelica/openmodelica:v1.26.1-minimal"
+ENV_KEY_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
 def _read_text(path: Path) -> str:
@@ -128,6 +129,59 @@ def _extract_json_object(text: str) -> dict:
     return payload if isinstance(payload, dict) else {}
 
 
+def _parse_env_assignment(line: str) -> tuple[str, str] | tuple[None, None]:
+    text = str(line or "").strip()
+    if not text or text.startswith("#"):
+        return None, None
+    if text.startswith("export "):
+        text = text[len("export ") :].strip()
+    if "=" not in text:
+        return None, None
+    key, raw_value = text.split("=", 1)
+    key = key.strip()
+    if not ENV_KEY_PATTERN.match(key):
+        return None, None
+    value = raw_value.strip()
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+        value = value[1:-1]
+    return key, value
+
+
+def _load_env_file(path: Path, allowed_keys: set[str] | None = None) -> int:
+    if not path.exists():
+        return 0
+    try:
+        content = path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        content = path.read_text(encoding="latin-1")
+    loaded = 0
+    for line in content.splitlines():
+        key, value = _parse_env_assignment(line)
+        if not key:
+            continue
+        if isinstance(allowed_keys, set) and key not in allowed_keys:
+            continue
+        if str(os.getenv(key) or "").strip():
+            continue
+        os.environ[key] = value
+        loaded += 1
+    return loaded
+
+
+def _bootstrap_env_from_repo(allowed_keys: set[str] | None = None) -> int:
+    repo_root = Path(__file__).resolve().parents[1]
+    candidates = [Path.cwd() / ".env", repo_root / ".env"]
+    loaded = 0
+    seen: set[str] = set()
+    for path in candidates:
+        key = str(path.resolve())
+        if key in seen:
+            continue
+        seen.add(key)
+        loaded += _load_env_file(path, allowed_keys=allowed_keys)
+    return loaded
+
+
 def _gemini_repair_model_text(
     *,
     original_text: str,
@@ -138,6 +192,9 @@ def _gemini_repair_model_text(
     model_name: str,
 ) -> tuple[str | None, str]:
     api_key = os.getenv("GOOGLE_API_KEY")
+    if not api_key:
+        _bootstrap_env_from_repo(allowed_keys={"GOOGLE_API_KEY", "GATEFORGE_GEMINI_MODEL"})
+        api_key = os.getenv("GOOGLE_API_KEY")
     if not api_key:
         return None, "GOOGLE_API_KEY missing"
     model = os.getenv("GATEFORGE_GEMINI_MODEL", "gemini-2.5-flash-lite")

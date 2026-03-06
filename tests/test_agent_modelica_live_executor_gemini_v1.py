@@ -1,14 +1,43 @@
 import json
+import os
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
 
-from gateforge.agent_modelica_live_executor_gemini_v1 import _extract_json_object, _parse_repair_actions
+from gateforge.agent_modelica_live_executor_gemini_v1 import (
+    _bootstrap_env_from_repo,
+    _extract_json_object,
+    _parse_env_assignment,
+    _parse_repair_actions,
+)
 
 
 class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
+    def test_parse_env_assignment_supports_export_and_quotes(self) -> None:
+        self.assertEqual(_parse_env_assignment("export GOOGLE_API_KEY=abc"), ("GOOGLE_API_KEY", "abc"))
+        self.assertEqual(_parse_env_assignment('GOOGLE_API_KEY="abc-123"'), ("GOOGLE_API_KEY", "abc-123"))
+        self.assertEqual(_parse_env_assignment("# comment"), (None, None))
+
+    def test_bootstrap_env_from_repo_loads_google_api_key_from_cwd_env(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="gf_env_bootstrap_") as td:
+            env_path = Path(td) / ".env"
+            env_path.write_text("GOOGLE_API_KEY=test-key\nIGNORED_KEY=1\n", encoding="utf-8")
+            prev = os.environ.pop("GOOGLE_API_KEY", None)
+            prev_cwd = os.getcwd()
+            try:
+                os.chdir(td)
+                loaded = _bootstrap_env_from_repo(allowed_keys={"GOOGLE_API_KEY"})
+                self.assertGreaterEqual(loaded, 1)
+                self.assertEqual(os.getenv("GOOGLE_API_KEY"), "test-key")
+            finally:
+                os.chdir(prev_cwd)
+                if prev is None:
+                    os.environ.pop("GOOGLE_API_KEY", None)
+                else:
+                    os.environ["GOOGLE_API_KEY"] = prev
+
     def test_parse_repair_actions_supports_json_and_pipe_formats(self) -> None:
         self.assertEqual(_parse_repair_actions('["a","b"]'), ["a", "b"])
         self.assertEqual(_parse_repair_actions("a | b | c"), ["a", "b", "c"])
