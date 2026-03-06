@@ -288,6 +288,28 @@ def _build_live_template_context(task: dict, strategy: dict, round_idx: int, max
     return mapping
 
 
+def _normalize_live_command_template(template: str) -> tuple[str, list[str]]:
+    command = str(template or "")
+    applied: list[str] = []
+
+    upgraded = command.replace("__REPAIR_ACTIONS_JSON__", "__REPAIR_ACTIONS_SHQ__")
+    if upgraded != command:
+        command = upgraded
+        applied.append("upgrade_repair_actions_json_to_shq")
+
+    unquoted_double = command.replace('"__REPAIR_ACTIONS_SHQ__"', "__REPAIR_ACTIONS_SHQ__")
+    if unquoted_double != command:
+        command = unquoted_double
+        applied.append("unquote_repair_actions_shq_double")
+
+    unquoted_single = command.replace("'__REPAIR_ACTIONS_SHQ__'", "__REPAIR_ACTIONS_SHQ__")
+    if unquoted_single != command:
+        command = unquoted_single
+        applied.append("unquote_repair_actions_shq_single")
+
+    return command, applied
+
+
 def _render_live_command(template: str, context: dict[str, str]) -> str:
     command = str(template or "")
     for key, value in context.items():
@@ -325,6 +347,51 @@ def _run_live_executor_once(command: str, timeout_sec: int) -> tuple[dict, str, 
     payload.setdefault("_executor_stdout_tail", _last_nonempty_line(stdout))
     payload.setdefault("_executor_stderr_tail", _last_nonempty_line(stderr))
     return payload, stdout, stderr
+
+
+def _infer_observed_failure_type(
+    *,
+    payload: dict,
+    raw_stdout: str,
+    raw_stderr: str,
+    check_ok: bool,
+    simulate_ok: bool,
+) -> str:
+    text = " | ".join(
+        [
+            str(payload.get("error_message") or ""),
+            str(payload.get("compile_error") or ""),
+            str(payload.get("simulate_error_message") or ""),
+            str(payload.get("stderr_snippet") or ""),
+            str(payload.get("_executor_stderr_tail") or ""),
+            _last_nonempty_line(raw_stderr),
+            _last_nonempty_line(raw_stdout),
+        ]
+    ).lower()
+    rc = payload.get("_executor_return_code")
+    has_nonzero_rc = isinstance(rc, int) and rc != 0
+
+    if has_nonzero_rc and (
+        "bash: -c:" in text
+        or "syntax error" in text
+        or "unexpected token" in text
+        or "unexpected eof" in text
+        or "unmatched" in text
+    ):
+        return "executor_invocation_error"
+    if has_nonzero_rc:
+        return "executor_runtime_error"
+    if (not check_ok) and (
+        "no viable alternative near token" in text
+        or "parse error" in text
+        or "syntax error" in text
+    ):
+        return "script_parse_error"
+    if not check_ok:
+        return "model_check_error"
+    if not simulate_ok:
+        return "simulate_error"
+    return "none"
 
 
 def _action_text(strategy: dict) -> str:
@@ -775,7 +842,10 @@ def _run_task_live(
         "delta_round": 0,
         "speedup_ratio": 0.0,
     }
-    command_template = str(task.get("live_executor_command") or live_executor_cmd or "").strip()
+    command_template_raw = str(task.get("live_executor_command") or live_executor_cmd or "").strip()
+    command_template, command_template_normalizations = _normalize_live_command_template(command_template_raw)
+    if command_template_normalizations:
+        strategy_audit["live_command_normalizations"] = command_template_normalizations
     if not command_template:
         return {
             "task_id": str(task.get("task_id") or ""),
@@ -968,14 +1038,26 @@ def _run_task_live(
             live_attempt.get("observed_failure_type")
             or live_payload.get("observed_failure_type")
             or ""
-        )
+        ).strip()
+        if not observed_failure_type:
+            observed_failure_type = _infer_observed_failure_type(
+                payload=live_payload,
+                raw_stdout=raw_stdout,
+                raw_stderr=raw_stderr,
+                check_ok=check_ok,
+                simulate_ok=simulate_ok,
+            )
         attempt_reason = str(
             live_attempt.get("reason")
             or live_payload.get("error_message")
             or live_payload.get("compile_error")
             or live_payload.get("simulate_error_message")
             or ""
-        )
+        ).strip()
+        if not attempt_reason and observed_failure_type == "executor_invocation_error":
+            attempt_reason = "executor_invocation_error"
+        elif not attempt_reason and observed_failure_type == "executor_runtime_error":
+            attempt_reason = "executor_runtime_error"
         attempt_log_excerpt = str(
             live_attempt.get("log_excerpt")
             or live_payload.get("stderr_snippet")
