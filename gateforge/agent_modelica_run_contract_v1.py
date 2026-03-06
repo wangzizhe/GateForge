@@ -99,6 +99,8 @@ def _augment_repair_strategy(
     repair_strategy: dict,
     repair_history_payload: dict,
     focus_queue_payload: dict,
+    patch_template_adaptations_payload: dict,
+    retrieval_policy_payload: dict,
 ) -> tuple[dict, dict]:
     failure_type = str(task.get("failure_type") or "unknown")
     expected_stage = str(task.get("expected_stage") or "unknown")
@@ -106,6 +108,7 @@ def _augment_repair_strategy(
         failure_type=failure_type,
         expected_stage=expected_stage,
         focus_queue_payload=focus_queue_payload if isinstance(focus_queue_payload, dict) else {},
+        adaptations_payload=patch_template_adaptations_payload if isinstance(patch_template_adaptations_payload, dict) else {},
     )
 
     error_message = " | ".join(
@@ -122,6 +125,7 @@ def _augment_repair_strategy(
         failure_type=failure_type,
         model_hint=str(task.get("source_model_path") or ""),
         top_k=2,
+        policy_payload=retrieval_policy_payload if isinstance(retrieval_policy_payload, dict) else {},
     )
 
     base_actions = [str(x) for x in (repair_strategy.get("actions") or []) if isinstance(x, str)]
@@ -153,9 +157,11 @@ def _augment_repair_strategy(
         "patch_template_id": str(template.get("template_id") or ""),
         "patch_template_actions_count": len(template_actions),
         "patch_template_focus_actions_count": int(template.get("focus_actions_count", 0) or 0),
+        "patch_template_adaptation_actions_count": int(template.get("adaptation_actions_count", 0) or 0),
         "error_action_tags": [str(x) for x in (mapped.get("tags") or []) if isinstance(x, str)],
         "error_action_count": len(mapped_actions),
         "retrieved_example_count": int(retrieval.get("retrieved_count", 0) or 0),
+        "retrieval_effective_top_k": int(retrieval.get("effective_top_k", 0) or 0),
         "retrieved_suggested_action_count": len(retrieved_actions),
         "confidence_boost": round(confidence_boost, 4),
     }
@@ -279,6 +285,8 @@ def _run_task_mock(
     repair_playbook: dict,
     repair_history_payload: dict,
     focus_queue_payload: dict,
+    patch_template_adaptations_payload: dict,
+    retrieval_policy_payload: dict,
     strategy_effect_enabled: bool,
 ) -> dict:
     success_round = int(task.get("mock_success_round", 2) or 2)
@@ -311,6 +319,8 @@ def _run_task_mock(
         repair_strategy=repair_strategy,
         repair_history_payload=repair_history_payload,
         focus_queue_payload=focus_queue_payload,
+        patch_template_adaptations_payload=patch_template_adaptations_payload,
+        retrieval_policy_payload=retrieval_policy_payload,
     )
     strategy_audit = {
         "strategy_effect_enabled": bool(strategy_effect_enabled),
@@ -455,6 +465,8 @@ def _run_task_evidence(
     repair_playbook: dict,
     repair_history_payload: dict,
     focus_queue_payload: dict,
+    patch_template_adaptations_payload: dict,
+    retrieval_policy_payload: dict,
 ) -> dict:
     scale = str(task.get("scale") or "unknown")
     failure_type = str(task.get("failure_type") or "unknown")
@@ -468,6 +480,8 @@ def _run_task_evidence(
         repair_strategy=repair_strategy,
         repair_history_payload=repair_history_payload,
         focus_queue_payload=focus_queue_payload,
+        patch_template_adaptations_payload=patch_template_adaptations_payload,
+        retrieval_policy_payload=retrieval_policy_payload,
     )
     rounds_used = max(1, int(task.get("observed_repair_rounds", 1) or 1))
     rounds_used = min(rounds_used, max_rounds)
@@ -605,6 +619,8 @@ def main() -> None:
     parser.add_argument("--repair-playbook", default=None)
     parser.add_argument("--repair-history", default=None)
     parser.add_argument("--focus-queue", default=None)
+    parser.add_argument("--patch-template-adaptations", default=None)
+    parser.add_argument("--retrieval-policy", default=None)
     parser.add_argument("--strategy-effect", choices=["on", "off"], default="on")
     parser.add_argument("--results-out", default="artifacts/agent_modelica_run_contract_v1/results.json")
     parser.add_argument("--out", default="artifacts/agent_modelica_run_contract_v1/summary.json")
@@ -624,6 +640,16 @@ def main() -> None:
     repair_playbook = load_repair_playbook(args.repair_playbook)
     repair_history_payload = _load_json(str(args.repair_history)) if isinstance(args.repair_history, str) and args.repair_history.strip() else {}
     focus_queue_payload = _load_json(str(args.focus_queue)) if isinstance(args.focus_queue, str) and args.focus_queue.strip() else {}
+    patch_template_adaptations_payload = (
+        _load_json(str(args.patch_template_adaptations))
+        if isinstance(args.patch_template_adaptations, str) and args.patch_template_adaptations.strip()
+        else {}
+    )
+    retrieval_policy_payload = (
+        _load_json(str(args.retrieval_policy))
+        if isinstance(args.retrieval_policy, str) and args.retrieval_policy.strip()
+        else {}
+    )
 
     records: list[dict] = []
     for task in tasks:
@@ -638,6 +664,8 @@ def main() -> None:
                     repair_playbook=repair_playbook,
                     repair_history_payload=repair_history_payload,
                     focus_queue_payload=focus_queue_payload,
+                    patch_template_adaptations_payload=patch_template_adaptations_payload,
+                    retrieval_policy_payload=retrieval_policy_payload,
                 )
             )
         else:
@@ -650,6 +678,8 @@ def main() -> None:
                     repair_playbook=repair_playbook,
                     repair_history_payload=repair_history_payload,
                     focus_queue_payload=focus_queue_payload,
+                    patch_template_adaptations_payload=patch_template_adaptations_payload,
+                    retrieval_policy_payload=retrieval_policy_payload,
                     strategy_effect_enabled=(args.strategy_effect == "on"),
                 )
             )
@@ -681,6 +711,8 @@ def main() -> None:
         "repair_playbook_source": repair_playbook.get("source") if isinstance(repair_playbook, dict) else None,
         "repair_history_source": args.repair_history,
         "focus_queue_source": args.focus_queue,
+        "patch_template_adaptations_source": args.patch_template_adaptations,
+        "retrieval_policy_source": args.retrieval_policy,
         "mode": args.mode,
         "strategy_effect": args.strategy_effect,
         "records": records,
@@ -702,6 +734,8 @@ def main() -> None:
         "repair_playbook_source": repair_playbook.get("source") if isinstance(repair_playbook, dict) else None,
         "repair_history_source": args.repair_history,
         "focus_queue_source": args.focus_queue,
+        "patch_template_adaptations_source": args.patch_template_adaptations,
+        "retrieval_policy_source": args.retrieval_policy,
         "mode": args.mode,
         "strategy_effect": args.strategy_effect,
         "max_rounds": max_rounds,
@@ -715,6 +749,8 @@ def main() -> None:
             "repair_playbook": args.repair_playbook,
             "repair_history": args.repair_history,
             "focus_queue": args.focus_queue,
+            "patch_template_adaptations": args.patch_template_adaptations,
+            "retrieval_policy": args.retrieval_policy,
         },
     }
     _write_json(args.out, summary)

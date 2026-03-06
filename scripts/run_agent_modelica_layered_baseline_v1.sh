@@ -7,6 +7,8 @@ cd "$ROOT_DIR"
 OUT_DIR="${GATEFORGE_AGENT_LAYERED_BASELINE_OUT_DIR:-artifacts/agent_modelica_layered_baseline_v1}"
 MUTATION_MANIFEST="${GATEFORGE_AGENT_LAYERED_BASELINE_MANIFEST:-}"
 REPAIR_HISTORY="${GATEFORGE_AGENT_LAYERED_BASELINE_REPAIR_HISTORY:-data/private_failure_corpus/agent_modelica_repair_memory_v1.json}"
+PATCH_TEMPLATE_ADAPTATIONS="${GATEFORGE_AGENT_PATCH_TEMPLATE_ADAPTATIONS_PATH:-data/private_failure_corpus/agent_modelica_patch_template_adaptations_v1.json}"
+RETRIEVAL_POLICY="${GATEFORGE_AGENT_RETRIEVAL_POLICY_PATH:-data/private_failure_corpus/agent_modelica_retrieval_policy_v1.json}"
 FOCUS_QUEUE="${GATEFORGE_AGENT_LAYERED_BASELINE_FOCUS_QUEUE:-}"
 INJECT_HARD_FAIL_COUNT="${GATEFORGE_AGENT_LAYERED_BASELINE_INJECT_HARD_FAIL_COUNT:-0}"
 INJECT_SLOW_PASS_COUNT="${GATEFORGE_AGENT_LAYERED_BASELINE_INJECT_SLOW_PASS_COUNT:-0}"
@@ -42,6 +44,8 @@ CMD=(
 )
 
 CMD+=(--repair-history "$REPAIR_HISTORY")
+CMD+=(--patch-template-adaptations "$PATCH_TEMPLATE_ADAPTATIONS")
+CMD+=(--retrieval-policy "$RETRIEVAL_POLICY")
 
 if [ -n "$FOCUS_QUEUE" ]; then
   CMD+=(--focus-queue "$FOCUS_QUEUE")

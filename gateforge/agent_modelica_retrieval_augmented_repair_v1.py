@@ -23,6 +23,12 @@ def _token_overlap(a: str, b: str) -> int:
     return len(sa & sb)
 
 
+def _safe_float(value: object, default: float = 0.0) -> float:
+    if isinstance(value, (int, float)):
+        return float(value)
+    return default
+
+
 def _success_state(row: dict) -> str:
     for key in ("passed", "pass", "success", "is_success", "success_flag"):
         if key in row:
@@ -52,6 +58,7 @@ def retrieve_repair_examples(
     failure_type: str,
     model_hint: str = "",
     top_k: int = 2,
+    policy_payload: dict | None = None,
 ) -> dict:
     rows = history_payload.get("rows") if isinstance(history_payload.get("rows"), list) else []
     if not rows:
@@ -60,6 +67,21 @@ def retrieve_repair_examples(
 
     ftype = _norm_text(failure_type)
     hint = _norm_text(model_hint)
+    policy = policy_payload if isinstance(policy_payload, dict) else {}
+    top_k_map = policy.get("top_k_by_failure_type") if isinstance(policy.get("top_k_by_failure_type"), dict) else {}
+    strategy_bonus_map_root = (
+        policy.get("strategy_id_bonus_by_failure_type")
+        if isinstance(policy.get("strategy_id_bonus_by_failure_type"), dict)
+        else {}
+    )
+    strategy_bonus_map = (
+        strategy_bonus_map_root.get(ftype)
+        if isinstance(strategy_bonus_map_root.get(ftype), dict)
+        else {}
+    )
+    failure_match_bonus = _safe_float(policy.get("failure_match_bonus"), 2.0)
+    model_overlap_weight = _safe_float(policy.get("model_overlap_weight"), 1.0)
+    effective_top_k = max(0, int(top_k_map.get(ftype, top_k)))
 
     prepared_rows: list[dict] = []
     for row in rows:
@@ -113,10 +135,11 @@ def retrieve_repair_examples(
         actions = [str(x) for x in (row.get("actions") or []) if isinstance(x, str)]
         score = 0
         if row_ftype and row_ftype == ftype:
-            score += 2
-        score += min(2, _token_overlap(hint, row_model))
+            score += failure_match_bonus
+        score += min(2, _token_overlap(hint, row_model)) * model_overlap_weight
         if strategy_id:
             score += 1
+            score += _safe_float(strategy_bonus_map.get(strategy_id), 0.0)
         if score <= 0:
             continue
         ranked.append(
@@ -130,8 +153,11 @@ def retrieve_repair_examples(
             }
         )
 
-    ranked = sorted(ranked, key=lambda x: (-int(x.get("score", 0)), x.get("strategy_id", ""), x.get("model", "")))
-    selected = ranked[: max(0, int(top_k))]
+    ranked = sorted(
+        ranked,
+        key=lambda x: (-_safe_float(x.get("score"), 0.0), x.get("strategy_id", ""), x.get("model", "")),
+    )
+    selected = ranked[: effective_top_k]
     suggested_actions: list[str] = []
     seen: set[str] = set()
     for row in selected:
@@ -143,6 +169,7 @@ def retrieve_repair_examples(
 
     return {
         "retrieved_count": len(selected),
+        "effective_top_k": effective_top_k,
         "examples": selected,
         "suggested_actions": suggested_actions,
     }
@@ -187,20 +214,23 @@ def main() -> None:
     parser.add_argument("--failure-type", required=True)
     parser.add_argument("--model-hint", default="")
     parser.add_argument("--top-k", type=int, default=2)
+    parser.add_argument("--policy", default="")
     parser.add_argument("--out", default="artifacts/agent_modelica_retrieval_augmented_repair_v1/retrieval.json")
     parser.add_argument("--report-out", default=None)
     args = parser.parse_args()
 
     history = _load_json(args.history)
+    policy = _load_json(args.policy) if str(args.policy).strip() else {}
     payload = retrieve_repair_examples(
         history_payload=history,
         failure_type=args.failure_type,
         model_hint=args.model_hint,
         top_k=max(0, int(args.top_k)),
+        policy_payload=policy,
     )
     payload["schema_version"] = "agent_modelica_retrieval_augmented_repair_v1"
     payload["generated_at_utc"] = datetime.now(timezone.utc).isoformat()
-    payload["sources"] = {"history": args.history}
+    payload["sources"] = {"history": args.history, "policy": args.policy if str(args.policy).strip() else None}
     _write_json(args.out, payload)
     _write_markdown(args.report_out or _default_md_path(args.out), payload)
     print(json.dumps({"retrieved_count": payload.get("retrieved_count")}))

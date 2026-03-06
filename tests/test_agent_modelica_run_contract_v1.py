@@ -374,6 +374,95 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
             tags = audit.get("stress_repair_applied_tags") if isinstance(audit.get("stress_repair_applied_tags"), list) else []
             self.assertIn("repair_runtime_regression", tags)
 
+    def test_run_contract_supports_learned_patch_and_retrieval_assets(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            taskset = root / "taskset.json"
+            history = root / "history.json"
+            patch_adapt = root / "patch_adapt.json"
+            retrieval_policy = root / "retrieval_policy.json"
+            results = root / "results.json"
+            summary = root / "summary.json"
+            taskset.write_text(
+                json.dumps(
+                    {
+                        "tasks": [
+                            {
+                                "task_id": "t_learned",
+                                "scale": "small",
+                                "failure_type": "simulate_error",
+                                "source_model_path": "LargeGrid.mo",
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            history.write_text(
+                json.dumps(
+                    {
+                        "rows": [
+                            {
+                                "failure_type": "simulate_error",
+                                "model_id": "LargeGrid",
+                                "used_strategy": "sim_mem_boost",
+                                "action_trace": ["memory-guided stabilize init"],
+                                "status": "PASS",
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            patch_adapt.write_text(
+                json.dumps(
+                    {
+                        "failure_types": {
+                            "simulate_error": {
+                                "actions": ["memory-guided stabilize init"],
+                            }
+                        }
+                    }
+                ),
+                encoding="utf-8",
+            )
+            retrieval_policy.write_text(
+                json.dumps(
+                    {
+                        "top_k_by_failure_type": {"simulate_error": 1},
+                        "strategy_id_bonus_by_failure_type": {"simulate_error": {"sim_mem_boost": 1.0}},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.agent_modelica_run_contract_v1",
+                    "--taskset",
+                    str(taskset),
+                    "--repair-history",
+                    str(history),
+                    "--patch-template-adaptations",
+                    str(patch_adapt),
+                    "--retrieval-policy",
+                    str(retrieval_policy),
+                    "--results-out",
+                    str(results),
+                    "--out",
+                    str(summary),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            rec = (json.loads(results.read_text(encoding="utf-8")).get("records") or [])[0]
+            audit = rec.get("repair_audit") if isinstance(rec.get("repair_audit"), dict) else {}
+            self.assertEqual(int(audit.get("patch_template_adaptation_actions_count", 0)), 1)
+            self.assertEqual(int(audit.get("retrieval_effective_top_k", 0)), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

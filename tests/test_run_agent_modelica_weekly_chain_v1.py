@@ -27,6 +27,15 @@ class RunAgentModelicaWeeklyChainV1Tests(unittest.TestCase):
             content,
         )
         self.assertIn("python3 -m gateforge.agent_modelica_repair_memory_store_v1", content)
+        self.assertIn(
+            'PATCH_TEMPLATE_ADAPTATIONS_PATH="${GATEFORGE_AGENT_PATCH_TEMPLATE_ADAPTATIONS_PATH:-${PROFILE_PATCH_TEMPLATE_ADAPTATIONS_PATH:-data/private_failure_corpus/agent_modelica_patch_template_adaptations_v1.json}}"',
+            content,
+        )
+        self.assertIn(
+            'RETRIEVAL_POLICY_PATH="${GATEFORGE_AGENT_RETRIEVAL_POLICY_PATH:-${PROFILE_RETRIEVAL_POLICY_PATH:-data/private_failure_corpus/agent_modelica_retrieval_policy_v1.json}}"',
+            content,
+        )
+        self.assertIn("python3 -m gateforge.agent_modelica_repair_capability_learner_v1", content)
 
     def test_layered_baseline_script_uses_private_repair_history_default(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
