@@ -320,6 +320,12 @@ def _apply_parse_error_pre_repair(model_text: str, output: str, failure_type: st
     }
 
 
+def _normalize_terminal_errors(executor_status: str, error_message: str, compile_error: str, simulate_error: str) -> tuple[str, str, str]:
+    if str(executor_status or "").upper() == "PASS":
+        return "", "", ""
+    return str(error_message or ""), str(compile_error or ""), str(simulate_error or "")
+
+
 def _run_check_and_simulate(
     *,
     workspace: Path,
@@ -492,6 +498,12 @@ def main() -> None:
                 break
 
     elapsed = round(time.monotonic() - started, 4)
+    final_error, final_compile_error, final_sim_error = _normalize_terminal_errors(
+        executor_status=executor_status,
+        error_message=final_error,
+        compile_error=final_compile_error,
+        simulate_error=final_sim_error,
+    )
     payload = {
         "task_id": str(args.task_id),
         "failure_type": str(args.failure_type),
