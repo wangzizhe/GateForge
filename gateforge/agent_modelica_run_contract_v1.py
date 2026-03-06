@@ -953,6 +953,27 @@ def _run_task_live(
             or _last_nonempty_line(raw_stdout)
             or ""
         )
+        live_attempts = live_payload.get("attempts") if isinstance(live_payload.get("attempts"), list) else []
+        live_attempt = live_attempts[-1] if live_attempts and isinstance(live_attempts[-1], dict) else {}
+        observed_failure_type = str(
+            live_attempt.get("observed_failure_type")
+            or live_payload.get("observed_failure_type")
+            or ""
+        )
+        attempt_reason = str(
+            live_attempt.get("reason")
+            or live_payload.get("error_message")
+            or live_payload.get("compile_error")
+            or live_payload.get("simulate_error_message")
+            or ""
+        )
+        attempt_log_excerpt = str(
+            live_attempt.get("log_excerpt")
+            or live_payload.get("stderr_snippet")
+            or live_payload.get("_executor_stderr_tail")
+            or ""
+        )
+        pre_repair = live_attempt.get("pre_repair") if isinstance(live_attempt.get("pre_repair"), dict) else {}
 
         attempts.append(
             {
@@ -971,6 +992,14 @@ def _run_task_live(
                 "elapsed_sec": round(elapsed_sec, 4),
                 "repair_actions_planned": [str(x) for x in (repair_strategy.get("actions") or []) if isinstance(x, str)],
                 "repair_strategy_id": str(repair_strategy.get("strategy_id") or ""),
+                "error_message": error_message,
+                "compile_error": compile_error,
+                "simulate_error_message": simulate_error_message,
+                "stderr_snippet": stderr_snippet[: max(0, int(live_max_output_chars))],
+                "observed_failure_type": observed_failure_type,
+                "reason": attempt_reason,
+                "log_excerpt": attempt_log_excerpt[: max(0, int(live_max_output_chars))],
+                "pre_repair": pre_repair,
             }
         )
         hard = {
