@@ -10,12 +10,21 @@ from gateforge.agent_modelica_live_executor_gemini_v1 import (
     _apply_parse_error_pre_repair,
     _bootstrap_env_from_repo,
     _extract_json_object,
+    _normalize_terminal_errors,
     _parse_env_assignment,
     _parse_repair_actions,
 )
 
 
 class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
+    def test_normalize_terminal_errors_clears_errors_for_pass(self) -> None:
+        err, comp, sim = _normalize_terminal_errors("PASS", "x", "y", "z")
+        self.assertEqual((err, comp, sim), ("", "", ""))
+
+    def test_normalize_terminal_errors_keeps_errors_for_failed(self) -> None:
+        err, comp, sim = _normalize_terminal_errors("FAILED", "x", "y", "z")
+        self.assertEqual((err, comp, sim), ("x", "y", "z"))
+
     def test_apply_parse_error_pre_repair_removes_injected_state_tokens(self) -> None:
         model_text = "model A1\n  Real x;\nequation\n  der(x) = -x + __gf_state_301500;\nend A1;\n"
         output = (
