@@ -302,6 +302,7 @@ def main() -> None:
 
     scales = {_slug(x, default="") for x in str(args.target_scales).split(",") if _slug(x, default="")}
     failure_types = [_slug(x, default="") for x in str(args.failure_types).split(",") if _slug(x, default="")]
+    allowed_failure_types = set(failure_types)
     per_type = max(1, int(args.mutations_per_failure_type))
     per_recipe = max(1, int(args.mutations_per_recipe))
     recipes = _extract_recipes(recipe_library)
@@ -356,6 +357,8 @@ def main() -> None:
                 expected_failure_type = _slug(recipe.get("expected_failure_type"), default="")
                 if not expected_failure_type:
                     expected_failure_type = OPERATOR_FAILURE_TYPE_MAP.get(operator, "simulate_error")
+                if allowed_failure_types and expected_failure_type not in allowed_failure_types:
+                    continue
                 expected_stage = _slug(recipe.get("expected_stage"), default=STAGE_MAP.get(expected_failure_type, "simulate"))
                 recipe_id = str(recipe.get("recipe_id") or f"recipe_{ridx}")
                 for r in range(per_recipe):

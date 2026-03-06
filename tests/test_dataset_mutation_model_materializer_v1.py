@@ -184,6 +184,87 @@ class MutationModelMaterializerV1Tests(unittest.TestCase):
             self.assertTrue(all(str(x.get("recipe_id") or "") for x in rows))
             self.assertTrue(all(str(x.get("operator_family") or "") for x in rows))
 
+    def test_recipe_materialization_respects_failure_type_filter(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            model = root / "Plant.mo"
+            model.write_text(
+                "model Plant\n  Real x;\nequation\n  der(x) = -x;\nend Plant;\n",
+                encoding="utf-8",
+            )
+            registry = root / "registry.json"
+            registry.write_text(
+                json.dumps(
+                    {
+                        "models": [
+                            {"model_id": "m1", "asset_type": "model_source", "source_path": str(model), "suggested_scale": "small"},
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            recipes = root / "recipes.json"
+            recipes.write_text(
+                json.dumps(
+                    {
+                        "schema_version": "modelica_mutation_recipe_library_v2",
+                        "recipes": [
+                            {
+                                "recipe_id": "r_sim",
+                                "target_scale": "small",
+                                "operator_family": "solver_failure",
+                                "operator": "inject_divide_by_zero_dynamics",
+                                "expected_failure_type": "simulate_error",
+                                "expected_stage": "simulate",
+                            },
+                            {
+                                "recipe_id": "r_check",
+                                "target_scale": "small",
+                                "operator_family": "model_integrity",
+                                "operator": "inject_undefined_symbol_equation",
+                                "expected_failure_type": "model_check_error",
+                                "expected_stage": "check",
+                            },
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            manifest = root / "mutation_manifest.json"
+            out = root / "summary.json"
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.dataset_mutation_model_materializer_v1",
+                    "--model-registry",
+                    str(registry),
+                    "--target-scales",
+                    "small",
+                    "--failure-types",
+                    "model_check_error",
+                    "--recipe-library",
+                    str(recipes),
+                    "--mutations-per-recipe",
+                    "1",
+                    "--mutant-root",
+                    str(root / "mutants"),
+                    "--manifest-out",
+                    str(manifest),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            payload = json.loads(manifest.read_text(encoding="utf-8"))
+            rows = payload.get("mutations") if isinstance(payload.get("mutations"), list) else []
+            self.assertEqual(len(rows), 1)
+            self.assertEqual(str(rows[0].get("expected_failure_type") or ""), "model_check_error")
+            self.assertEqual(str(rows[0].get("recipe_id") or ""), "r_check")
+
     def test_materialize_honors_selection_plan(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)

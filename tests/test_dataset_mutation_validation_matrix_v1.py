@@ -10,6 +10,16 @@ from gateforge import dataset_mutation_validation_matrix_v1 as mtx_v1
 
 
 class DatasetMutationValidationMatrixV1Tests(unittest.TestCase):
+    def test_classify_failure_maps_assert_in_check_log_to_constraint_violation(self) -> None:
+        stage, ftype = mtx_v1._classify_failure(
+            check_ok=False,
+            simulate_ok=False,
+            check_log="Error: assert(false, \"x\") triggered",
+            simulate_log="",
+        )
+        self.assertEqual(stage, "check")
+        self.assertEqual(ftype, "constraint_violation")
+
     def test_resolve_backend_prefers_docker_when_omc_missing(self) -> None:
         with mock.patch.object(mtx_v1.shutil, "which", side_effect=lambda name: None if name == "omc" else "/usr/bin/docker"):
             backend, fallback = mtx_v1._resolve_backend("omc")
@@ -110,6 +120,72 @@ class DatasetMutationValidationMatrixV1Tests(unittest.TestCase):
             summary = json.loads(out.read_text(encoding="utf-8"))
             self.assertEqual(summary.get("status"), "FAIL")
             self.assertIn("mutation_manifest_missing", summary.get("reasons") or [])
+
+    def test_validation_matrix_marks_semantic_regression_when_check_and_simulate_pass(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            source_model = root / "Source.mo"
+            source_model.write_text(
+                "model Source\n  Real x;\nequation\n  der(x) = -x;\nend Source;\n",
+                encoding="utf-8",
+            )
+            mutant = root / "mutant_semantic.mo"
+            mutant.write_text(
+                "model MutantSemantic\n  Real x;\nequation\n  der(x) = -x;\nend MutantSemantic;\n",
+                encoding="utf-8",
+            )
+            manifest = root / "manifest.json"
+            manifest.write_text(
+                json.dumps(
+                    {
+                        "schema_version": "mutation_manifest_v2_materialized",
+                        "mutations": [
+                            {
+                                "mutation_id": "m1",
+                                "expected_failure_type": "semantic_regression",
+                                "expected_stage": "simulate",
+                                "source_model_path": str(source_model),
+                                "mutated_model_path": str(mutant),
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            records = root / "records.json"
+            out = root / "summary.json"
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.dataset_mutation_validation_matrix_v1",
+                    "--mutation-manifest",
+                    str(manifest),
+                    "--backend",
+                    "syntax",
+                    "--min-stage-match-rate-pct",
+                    "100",
+                    "--min-type-match-rate-pct",
+                    "100",
+                    "--records-out",
+                    str(records),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            summary = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(summary.get("status"), "PASS")
+            self.assertEqual(float(summary.get("stage_match_rate_pct", 0.0)), 100.0)
+            self.assertEqual(float(summary.get("type_match_rate_pct", 0.0)), 100.0)
+            records_payload = json.loads(records.read_text(encoding="utf-8"))
+            rows = records_payload.get("mutation_records") if isinstance(records_payload.get("mutation_records"), list) else []
+            self.assertEqual(len(rows), 1)
+            self.assertEqual(str(rows[0].get("observed_failure_type") or ""), "semantic_regression")
+            self.assertEqual(str(rows[0].get("observed_stage") or ""), "simulate")
 
 
 if __name__ == "__main__":

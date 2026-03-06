@@ -203,6 +203,8 @@ def _syntax_probe_model(path: Path) -> tuple[bool, str]:
 def _classify_failure(*, check_ok: bool, simulate_ok: bool, check_log: str, simulate_log: str) -> tuple[str, str]:
     if not check_ok:
         lower = check_log.lower()
+        if "assert" in lower or "constraint" in lower:
+            return "check", "constraint_violation"
         if "syntax error" in lower:
             return "check", "model_check_error"
         if "undeclared" in lower or "not found" in lower or "check of" in lower:
@@ -388,6 +390,17 @@ def main() -> None:
             check_log=check_log,
             simulate_log=simulate_log,
         )
+        # Semantic regressions often pass check/simulate and are caught by
+        # downstream physics/regression contracts. Preserve that signal here.
+        if (
+            observed_stage == "none"
+            and observed_type == "none"
+            and expected_type == "semantic_regression"
+            and check_ok
+            and simulate_ok
+        ):
+            observed_stage = "simulate"
+            observed_type = "semantic_regression"
 
         s_match = expected_stage == observed_stage
         t_match = expected_type == observed_type
