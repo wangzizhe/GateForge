@@ -492,7 +492,13 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
                 "\"physics_contract_pass\": True, "
                 "\"regression_pass\": True, "
                 "\"elapsed_sec\": 5.5, "
-                "\"error_message\": \"\""
+                "\"error_message\": \"\", "
+                "\"attempts\": [{"
+                "\"observed_failure_type\": \"script_parse_error\", "
+                "\"reason\": \"compile/syntax error\", "
+                "\"log_excerpt\": \"No viable alternative\", "
+                "\"pre_repair\": {\"applied\": True, \"reason\": \"removed_lines_with_injected_state_tokens\"}"
+                "}]"
                 "}))'"
             )
             proc = subprocess.run(
@@ -524,6 +530,13 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
             self.assertTrue(bool(rec.get("passed")))
             self.assertTrue(bool((rec.get("hard_checks") or {}).get("regression_pass")))
             self.assertEqual(float(rec.get("elapsed_sec") or 0.0), 5.5)
+            attempts = rec.get("attempts") if isinstance(rec.get("attempts"), list) else []
+            self.assertTrue(attempts)
+            first_attempt = attempts[0] if isinstance(attempts[0], dict) else {}
+            self.assertEqual(str(first_attempt.get("observed_failure_type") or ""), "script_parse_error")
+            self.assertEqual(str(first_attempt.get("reason") or ""), "compile/syntax error")
+            pre_repair = first_attempt.get("pre_repair") if isinstance(first_attempt.get("pre_repair"), dict) else {}
+            self.assertTrue(bool(pre_repair.get("applied")))
 
     def test_run_contract_resume_from_records_jsonl_skips_completed_tasks(self) -> None:
         with tempfile.TemporaryDirectory() as d:
