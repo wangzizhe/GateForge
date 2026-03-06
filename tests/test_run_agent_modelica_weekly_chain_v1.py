@@ -32,6 +32,10 @@ class RunAgentModelicaWeeklyChainV1Tests(unittest.TestCase):
         self.assertIn("gateforge.agent_modelica_learning_preflight_v1", content)
         self.assertIn("gateforge.agent_modelica_taskset_split_freeze_v1", content)
         self.assertIn("gateforge.agent_modelica_run_snapshot_v1", content)
+        self.assertIn("gateforge.agent_modelica_first_failure_attribution_v1", content)
+        self.assertIn("gateforge.agent_modelica_script_parse_focus_taskset_v1", content)
+        self.assertIn('SCRIPT_PARSE_FOCUS_MIN_TASKS="${GATEFORGE_AGENT_SCRIPT_PARSE_FOCUS_MIN_TASKS:-3}"', content)
+        self.assertIn('SCRIPT_PARSE_FOCUS_MAX_TASKS="${GATEFORGE_AGENT_SCRIPT_PARSE_FOCUS_MAX_TASKS:-6}"', content)
         self.assertIn("--run-records-jsonl \"$RUN_RECORDS_JSONL\"", content)
         self.assertIn("--resume-run-contract", content)
 
