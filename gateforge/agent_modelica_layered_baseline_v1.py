@@ -334,6 +334,9 @@ def main() -> None:
         "--records-jsonl",
         str(args.run_records_jsonl or ""),
     ]
+    # For injected stress tasks, disable strategy-effect auto-repair to preserve fail distribution signal.
+    if inject_enabled:
+        run_contract_argv.extend(["--strategy-effect", "off"])
     if bool(args.resume_run_contract):
         run_contract_argv.append("--resume-from-records")
     run_cmd = _run_module("gateforge.agent_modelica_run_contract_v1", run_contract_argv)

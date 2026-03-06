@@ -654,6 +654,7 @@ def _run_task_evidence(
     focus_queue_payload: dict,
     patch_template_adaptations_payload: dict,
     retrieval_policy_payload: dict,
+    strategy_effect_enabled: bool,
 ) -> dict:
     scale = str(task.get("scale") or "unknown")
     failure_type = str(task.get("failure_type") or "unknown")
@@ -673,7 +674,7 @@ def _run_task_evidence(
     rounds_used = max(1, int(task.get("observed_repair_rounds", 1) or 1))
     rounds_used = min(rounds_used, max_rounds)
     strategy_audit = {
-        "strategy_effect_enabled": False,
+        "strategy_effect_enabled": bool(strategy_effect_enabled),
         "strategy_id": str(repair_strategy.get("strategy_id") or ""),
         "strategy_reason": str(repair_strategy.get("reason") or ""),
         "strategy_confidence": float(repair_strategy.get("confidence", 0.0) or 0.0),
@@ -732,7 +733,7 @@ def _run_task_evidence(
 
     physics_eval, regression, check_ok, simulate_ok, physics_ok, regression_ok = _evaluate(candidate_evidence)
     stress_repair_applied_tags: list[str] = []
-    if str(task.get("_stress_class") or "").strip():
+    if bool(strategy_effect_enabled) and str(task.get("_stress_class") or "").strip():
         candidate_repaired, stress_repair_applied_tags = _apply_stress_repair_effect(
             task=task,
             baseline_evidence=baseline_evidence,
@@ -1205,6 +1206,7 @@ def main() -> None:
                 focus_queue_payload=focus_queue_payload,
                 patch_template_adaptations_payload=patch_template_adaptations_payload,
                 retrieval_policy_payload=retrieval_policy_payload,
+                strategy_effect_enabled=(args.strategy_effect == "on"),
             )
         elif args.mode == "live":
             record = _run_task_live(
