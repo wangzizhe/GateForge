@@ -7,6 +7,9 @@ from pathlib import Path
 
 from .agent_modelica_learning_asset_readiness_v1 import build_readiness_summary
 
+DEFAULT_PUBLIC_PROFILE_PATH = "benchmarks/agent_modelica_mvp_repair_v1.json"
+DEFAULT_PRIVATE_PROFILE_PATH = "benchmarks/private/agent_modelica_mvp_repair_v1.json"
+
 
 def _load_json(path: str) -> dict:
     p = Path(path)
@@ -55,9 +58,13 @@ def _hardpack_has_cases(hardpack_payload: dict) -> bool:
     return len([x for x in cases if isinstance(x, dict)]) > 0
 
 
+def _default_profile_path() -> str:
+    return DEFAULT_PRIVATE_PROFILE_PATH if Path(DEFAULT_PRIVATE_PROFILE_PATH).exists() else DEFAULT_PUBLIC_PROFILE_PATH
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Preflight gate before large-scale learning run")
-    parser.add_argument("--profile", default="benchmarks/agent_modelica_mvp_repair_v1.json")
+    parser.add_argument("--profile", default=_default_profile_path())
     parser.add_argument("--core-manifest", default="")
     parser.add_argument("--small-manifest", default="")
     parser.add_argument("--failure-signature-schema", default="schemas/failure_signature_v1.schema.json")
