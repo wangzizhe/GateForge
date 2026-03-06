@@ -9,6 +9,7 @@ OUT_ROOT="${GATEFORGE_AGENT_PROBLEM_PLAN_EXEC_OUT_DIR:-artifacts/agent_modelica_
 RUNNER_SCRIPT="${GATEFORGE_AGENT_MUTATION_BATCH_RUNNER:-scripts/run_private_model_mutation_scale_batch_v1.sh}"
 EXECUTION_PROFILE="${GATEFORGE_AGENT_PROBLEM_PLAN_EXEC_PROFILE:-quick}"
 STRICT_OMC="${GATEFORGE_AGENT_PROBLEM_PLAN_STRICT_OMC:-1}"
+SKIP_OMC_PREFLIGHT="${GATEFORGE_AGENT_PROBLEM_PLAN_SKIP_OMC_PREFLIGHT:-0}"
 
 mkdir -p "$OUT_ROOT"
 
@@ -76,9 +77,93 @@ export GATEFORGE_HARD_MOAT_MIN_VALIDATION_TYPE_MATCH_RATE_PCT="${GATEFORGE_HARD_
 export GATEFORGE_HARD_MOAT_MIN_FAILURE_TYPE_ENTROPY="${GATEFORGE_HARD_MOAT_MIN_FAILURE_TYPE_ENTROPY:-0}"
 export GATEFORGE_HARD_MOAT_MAX_DISTRIBUTION_DRIFT_TVD="${GATEFORGE_HARD_MOAT_MAX_DISTRIBUTION_DRIFT_TVD:-1.0}"
 
+# Fail fast in strict mode when no executable OMC backend is actually available.
+if [ "$SKIP_OMC_PREFLIGHT" != "1" ]; then
+python3 - "$STRICT_OMC" "$VALIDATION_BACKEND" <<'PY'
+import json
+import shutil
+import subprocess
+import sys
+
+strict = str(sys.argv[1]).strip() == "1"
+backend_requested = str(sys.argv[2]).strip().lower() or "auto"
+
+if not strict:
+    print(json.dumps({"status": "PASS", "omc_preflight": "skipped_non_strict"}))
+    raise SystemExit(0)
+
+has_omc = shutil.which("omc") is not None
+has_docker = shutil.which("docker") is not None
+docker_ok = False
+docker_error = ""
+
+if has_docker:
+    try:
+        proc = subprocess.run(
+            ["docker", "version", "--format", "{{.Server.Version}}"],
+            capture_output=True,
+            text=True,
+            timeout=6,
+            check=False,
+        )
+        docker_ok = proc.returncode == 0 and bool((proc.stdout or "").strip())
+        if not docker_ok:
+            docker_error = ((proc.stderr or "") + "\n" + (proc.stdout or "")).strip()[:240]
+    except Exception as exc:  # pragma: no cover - defensive, shell preflight only
+        docker_error = str(exc)
+
+if backend_requested == "openmodelica_docker":
+    if not docker_ok:
+        print(
+            json.dumps(
+                {
+                    "status": "FAIL",
+                    "reason": "strict_omc_preflight_failed",
+                    "backend_requested": backend_requested,
+                    "has_omc": has_omc,
+                    "has_docker": has_docker,
+                    "docker_ok": docker_ok,
+                    "docker_error_excerpt": docker_error,
+                }
+            )
+        )
+        raise SystemExit(1)
+    print(json.dumps({"status": "PASS", "omc_preflight_backend": "openmodelica_docker"}))
+    raise SystemExit(0)
+
+# For strict mode with backend=omc/auto:
+# allow local omc first; otherwise require docker daemon to be reachable.
+if has_omc:
+    print(json.dumps({"status": "PASS", "omc_preflight_backend": "omc"}))
+    raise SystemExit(0)
+if docker_ok:
+    print(json.dumps({"status": "PASS", "omc_preflight_backend": "openmodelica_docker"}))
+    raise SystemExit(0)
+
+print(
+    json.dumps(
+        {
+            "status": "FAIL",
+            "reason": "strict_omc_preflight_failed",
+            "backend_requested": backend_requested,
+            "has_omc": has_omc,
+            "has_docker": has_docker,
+            "docker_ok": docker_ok,
+            "docker_error_excerpt": docker_error,
+        }
+    )
+)
+raise SystemExit(1)
+PY
+fi
+
 # Quick strict mode defaults to a curated low-dependency pool for fast iteration.
-if [ -z "${GATEFORGE_PRIVATE_MODEL_ROOTS:-}" ] && [ "$STRICT_OMC" = "1" ] && [ "$EXECUTION_PROFILE" != "full" ]; then
-  export GATEFORGE_PRIVATE_MODEL_ROOTS="artifacts/run_private_model_mutation_scale_batch_v1_demo/private_models:artifacts/run_modelica_open_source_growth_sprint_v1_demo/exported/demo_repo_shard_base_a"
+FORCE_CURATED_ROOTS="${GATEFORGE_AGENT_PROBLEM_PLAN_FORCE_CURATED_ROOTS:-1}"
+CURATED_ROOTS="${GATEFORGE_AGENT_PROBLEM_PLAN_CURATED_MODEL_ROOTS:-artifacts/run_private_model_mutation_scale_batch_v1_demo/private_models:artifacts/run_modelica_open_source_growth_sprint_v1_demo/exported/demo_repo_shard_base_a}"
+if [ "$STRICT_OMC" = "1" ] && [ "$EXECUTION_PROFILE" != "full" ] && [ "$FORCE_CURATED_ROOTS" = "1" ]; then
+  export GATEFORGE_PRIVATE_MODEL_ROOTS="$CURATED_ROOTS"
+elif [ -z "${GATEFORGE_PRIVATE_MODEL_ROOTS:-}" ] && [ "$STRICT_OMC" = "1" ] && [ "$EXECUTION_PROFILE" != "full" ]; then
+  export GATEFORGE_PRIVATE_MODEL_ROOTS="$CURATED_ROOTS"
 fi
 
 python3 - "$PLAN_PATH" "$OUT_ROOT/problem_type_mapping_summary.json" <<'PY'
@@ -449,7 +534,16 @@ for row in rows:
     )
 lines.append("")
 out_md.write_text("\n".join(lines), encoding="utf-8")
-print(json.dumps({"status": status, "phase_count": len(rows), "generated_mutations_total": generated}))
+print(
+    json.dumps(
+        {
+            "status": status,
+            "phase_count": len(rows),
+            "generated_mutations_total": generated,
+            "reasons": reasons,
+        }
+    )
+)
 if status == "FAIL":
     raise SystemExit(1)
 PY
