@@ -224,8 +224,9 @@ generated = sum(int(r.get("generated_mutations", 0) or 0) for r in rows)
 repro = sum(int(r.get("reproducible_mutations", 0) or 0) for r in rows)
 bundle_pass = sum(1 for r in rows if str(r.get("bundle_status") or "") == "PASS")
 type_rates = [float(r.get("validation_type_match_rate_pct")) for r in rows if isinstance(r.get("validation_type_match_rate_pct"), (int, float))]
+real_omc_backends = {"omc", "openmodelica_docker"}
 validation_backend_mismatch = [
-    r for r in rows if str(r.get("validation_backend_used") or "").strip().lower() != "omc"
+    r for r in rows if str(r.get("validation_backend_used") or "").strip().lower() not in real_omc_backends
 ]
 validation_backend_fallback_rows = [
     r for r in rows if bool(r.get("validation_backend_fallback_to_syntax"))
@@ -244,7 +245,7 @@ if generated <= 0:
     reasons.append("generated_mutations_zero")
 if strict_omc and validation_backend_mismatch:
     status = "FAIL"
-    reasons.append("validation_backend_not_omc")
+    reasons.append("validation_backend_not_real_omc")
 if strict_omc and validation_backend_fallback_rows:
     status = "FAIL"
     reasons.append("validation_backend_fallback_to_syntax")

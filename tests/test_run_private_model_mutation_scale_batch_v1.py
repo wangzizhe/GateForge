@@ -169,7 +169,7 @@ class RunPrivateModelMutationScaleBatchV1Tests(unittest.TestCase):
             self.assertIn(summary.get("checkpoint_feedback_gate_status"), {"PASS", "NEEDS_REVIEW", "FAIL"})
             self.assertIn(summary.get("scale_evidence_stamp_status"), {"PASS", "NEEDS_REVIEW", "FAIL"})
             self.assertGreaterEqual(float(summary.get("scale_evidence_stamp_score", 0.0) or 0.0), 0.0)
-            self.assertIn(summary.get("validation_backend_used"), {"syntax", "omc"})
+            self.assertIn(summary.get("validation_backend_used"), {"syntax", "omc", "openmodelica_docker"})
 
             manifest = json.loads((out_dir / "mutation_manifest.json").read_text(encoding="utf-8"))
             mutations = manifest.get("mutations") if isinstance(manifest.get("mutations"), list) else []

@@ -122,7 +122,7 @@ JSON
             self.assertNotEqual(proc.returncode, 0)
             summary = json.loads((root / "out" / "summary.json").read_text(encoding="utf-8"))
             self.assertEqual(summary.get("status"), "FAIL")
-            self.assertIn("validation_backend_not_omc", summary.get("reasons") or [])
+            self.assertIn("validation_backend_not_real_omc", summary.get("reasons") or [])
             self.assertIn("validation_backend_fallback_to_syntax", summary.get("reasons") or [])
 
     def test_plan_execution_non_strict_allows_non_omc_backend(self) -> None:
