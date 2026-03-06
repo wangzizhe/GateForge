@@ -275,6 +275,29 @@ def _extract_undef_tokens_from_output(output: str) -> list[str]:
     return tokens
 
 
+def _remove_gateforge_injected_symbol_block(model_text: str) -> tuple[str, int]:
+    lines = str(model_text or "").splitlines(keepends=True)
+    if not lines:
+        return str(model_text or ""), 0
+    remove_idx: set[int] = set()
+    for i, line in enumerate(lines):
+        if "__gf_" in line:
+            remove_idx.add(i)
+            # Remove nearby mutation comment/equation headers that usually wrap injected block.
+            for j in (i - 2, i - 1, i + 1, i + 2):
+                if j < 0 or j >= len(lines):
+                    continue
+                text = lines[j].strip()
+                if "GateForge mutation" in text:
+                    remove_idx.add(j)
+                if text == "equation":
+                    remove_idx.add(j)
+    if not remove_idx:
+        return str(model_text or ""), 0
+    kept = [line for idx, line in enumerate(lines) if idx not in remove_idx]
+    return "".join(kept), len(remove_idx)
+
+
 def _apply_parse_error_pre_repair(model_text: str, output: str, failure_type: str) -> tuple[str, dict]:
     failure = str(failure_type or "").strip().lower()
     lower = str(output or "").lower()
@@ -287,6 +310,15 @@ def _apply_parse_error_pre_repair(model_text: str, output: str, failure_type: st
         tokens = _extract_state_tokens_from_output(output)
         reason_prefix = "injected_state_tokens"
         if not tokens:
+            # Fallback for parse errors where OMC reports generic token (`parameter`, `equation`)
+            # but injected mutant symbols still exist in model text.
+            fallback_patched, removed = _remove_gateforge_injected_symbol_block(model_text)
+            if removed > 0:
+                return fallback_patched, {
+                    "applied": True,
+                    "reason": "removed_gateforge_injected_symbol_block",
+                    "removed_line_count": int(removed),
+                }
             return model_text, {"applied": False, "reason": "state_token_not_detected"}
     elif failure == "model_check_error":
         # Common mutant pattern: undefined synthetic symbol `__gf_undef_<id>`.
