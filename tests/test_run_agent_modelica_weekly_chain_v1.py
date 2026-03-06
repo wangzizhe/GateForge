@@ -20,6 +20,12 @@ class RunAgentModelicaWeeklyChainV1Tests(unittest.TestCase):
         self.assertIn('LIVE_EXECUTOR_CMD="${GATEFORGE_AGENT_LIVE_EXECUTOR_CMD:-}"', content)
         self.assertIn("--live-timeout-sec \"$LIVE_TIMEOUT_SEC\"", content)
         self.assertIn("--live-max-output-chars \"$LIVE_MAX_OUTPUT_CHARS\"", content)
+        self.assertIn('PREFLIGHT_ENABLE="${GATEFORGE_AGENT_PREFLIGHT_ENABLE:-1}"', content)
+        self.assertIn("gateforge.agent_modelica_learning_preflight_v1", content)
+        self.assertIn("gateforge.agent_modelica_taskset_split_freeze_v1", content)
+        self.assertIn("gateforge.agent_modelica_run_snapshot_v1", content)
+        self.assertIn("--run-records-jsonl \"$RUN_RECORDS_JSONL\"", content)
+        self.assertIn("--resume-run-contract", content)
 
     def test_weekly_chain_uses_private_repair_history_default(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
