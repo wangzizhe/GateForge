@@ -33,9 +33,22 @@ JSON
 cat > "$OUT/mutation_real_runner_summary.json" <<'JSON'
 {{"status":"PASS"}}
 JSON
+cat > "$OUT/mutation_manifest.json" <<'JSON'
+{{
+  "mutations": [
+    {{
+      "mutation_id": "m1",
+      "target_scale": "small",
+      "failure_type": "model_check_error",
+      "expected_failure_type": "model_check_error"
+    }}
+  ]
+}}
+JSON
 cat > "$OUT/mutation_validation_summary.json" <<'JSON'
 {{"status":"NEEDS_REVIEW","validation_backend_used":"{validation_backend_used}","backend_fallback_to_syntax": {str(fallback).lower()},"type_match_rate_pct":0.0,"stage_match_rate_pct":0.0}}
 JSON
+echo "${{GATEFORGE_TARGET_SCALES:-}}" > "$OUT/target_scales.txt"
 """
         path.write_text(script, encoding="utf-8")
         path.chmod(0o755)
@@ -152,6 +165,63 @@ JSON
             self.assertEqual(proc.returncode, 0)
             summary = json.loads((root / "out" / "summary.json").read_text(encoding="utf-8"))
             self.assertEqual(summary.get("status"), "PASS")
+
+    def test_plan_execution_strict_fails_when_validation_match_rate_is_below_threshold(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        script = repo_root / "scripts" / "run_agent_modelica_problem_plan_execution_v1.sh"
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            plan = root / "plan.json"
+            runner = root / "runner.sh"
+            self._write_stub_plan(plan)
+            self._write_stub_runner(runner, validation_backend_used="openmodelica_docker", fallback=False)
+            proc = subprocess.run(
+                ["bash", str(script)],
+                cwd=str(repo_root),
+                capture_output=True,
+                text=True,
+                check=False,
+                env={
+                    **os.environ,
+                    "GATEFORGE_AGENT_PROBLEM_PLAN_PATH": str(plan),
+                    "GATEFORGE_AGENT_PROBLEM_PLAN_EXEC_OUT_DIR": str(root / "out"),
+                    "GATEFORGE_AGENT_MUTATION_BATCH_RUNNER": str(runner),
+                },
+                timeout=60,
+            )
+            self.assertNotEqual(proc.returncode, 0)
+            summary = json.loads((root / "out" / "summary.json").read_text(encoding="utf-8"))
+            self.assertEqual(summary.get("status"), "FAIL")
+            self.assertIn("validation_type_match_rate_below_strict_threshold", summary.get("reasons") or [])
+            self.assertIn("validation_stage_match_rate_below_strict_threshold", summary.get("reasons") or [])
+
+    def test_plan_execution_strict_defaults_to_all_scales(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        script = repo_root / "scripts" / "run_agent_modelica_problem_plan_execution_v1.sh"
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            plan = root / "plan.json"
+            runner = root / "runner.sh"
+            self._write_stub_plan(plan)
+            self._write_stub_runner(runner, validation_backend_used="openmodelica_docker", fallback=False)
+            subprocess.run(
+                ["bash", str(script)],
+                cwd=str(repo_root),
+                capture_output=True,
+                text=True,
+                check=False,
+                env={
+                    **os.environ,
+                    "GATEFORGE_AGENT_PROBLEM_PLAN_PATH": str(plan),
+                    "GATEFORGE_AGENT_PROBLEM_PLAN_EXEC_OUT_DIR": str(root / "out"),
+                    "GATEFORGE_AGENT_MUTATION_BATCH_RUNNER": str(runner),
+                },
+                timeout=60,
+            )
+            for phase in ("phase_check", "phase_sim", "phase_semantic"):
+                target_scales_path = root / "out" / phase / "target_scales.txt"
+                self.assertTrue(target_scales_path.exists())
+                self.assertEqual(target_scales_path.read_text(encoding="utf-8").strip(), "small,medium,large")
 
 
 if __name__ == "__main__":
