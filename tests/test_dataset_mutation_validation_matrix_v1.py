@@ -3,10 +3,25 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
+
+from gateforge import dataset_mutation_validation_matrix_v1 as mtx_v1
 
 
 class DatasetMutationValidationMatrixV1Tests(unittest.TestCase):
+    def test_resolve_backend_prefers_docker_when_omc_missing(self) -> None:
+        with mock.patch.object(mtx_v1.shutil, "which", side_effect=lambda name: None if name == "omc" else "/usr/bin/docker"):
+            backend, fallback = mtx_v1._resolve_backend("omc")
+        self.assertEqual(backend, "openmodelica_docker")
+        self.assertFalse(fallback)
+
+    def test_resolve_backend_auto_uses_syntax_when_no_omc_or_docker(self) -> None:
+        with mock.patch.object(mtx_v1.shutil, "which", return_value=None):
+            backend, fallback = mtx_v1._resolve_backend("auto")
+        self.assertEqual(backend, "syntax")
+        self.assertTrue(fallback)
+
     def test_validation_matrix_pass_for_check_stage_match(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)

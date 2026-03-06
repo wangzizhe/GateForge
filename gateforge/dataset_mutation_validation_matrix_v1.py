@@ -9,6 +9,8 @@ import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
+DEFAULT_OM_DOCKER_IMAGE = "openmodelica/openmodelica:v1.26.1-minimal"
+
 
 def _load_json(path: str | None) -> dict:
     if not path:
@@ -76,32 +78,72 @@ def _to_modelica_str(path: Path) -> str:
     return str(path).replace("\\", "/").replace('"', '\\"')
 
 
-def _run_omc_script(script_text: str, timeout_seconds: int) -> tuple[int, str]:
+def _run_omc_script(
+    script_text: str,
+    timeout_seconds: int,
+    *,
+    backend: str,
+    model_path: Path,
+    docker_image: str,
+) -> tuple[int, str]:
     with tempfile.NamedTemporaryFile(mode="w", suffix=".mos", encoding="utf-8", delete=False) as f:
         f.write(script_text)
         f.flush()
-        script_path = f.name
+        script_path = Path(f.name)
     try:
-        proc = subprocess.run(
-            ["omc", script_path],
-            capture_output=True,
-            text=True,
-            timeout=max(1, int(timeout_seconds)),
-            check=False,
-        )
+        cmd: list[str]
+        if backend == "openmodelica_docker":
+            mounts = [
+                "-v",
+                f"{str(script_path.parent)}:/workspace",
+            ]
+            model_parent = model_path.parent.resolve()
+            if model_parent != script_path.parent.resolve():
+                mounts.extend(["-v", f"{str(model_parent)}:{str(model_parent)}"])
+            cmd = [
+                "docker",
+                "run",
+                "--rm",
+                *mounts,
+                "-w",
+                "/workspace",
+                docker_image,
+                "omc",
+                script_path.name,
+            ]
+        else:
+            cmd = ["omc", str(script_path)]
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=max(1, int(timeout_seconds)), check=False)
         merged = ((proc.stdout or "") + "\n" + (proc.stderr or "")).strip()
         return int(proc.returncode), merged
+    except FileNotFoundError as exc:
+        return 2, f"tool_missing:{exc}"
+    except subprocess.TimeoutExpired:
+        return 124, "TimeoutExpired"
     finally:
-        Path(script_path).unlink(missing_ok=True)
+        script_path.unlink(missing_ok=True)
 
 
-def _check_model_with_omc(model_path: Path, model_name: str, timeout_seconds: int) -> tuple[bool, str, int]:
+def _check_model_with_omc(
+    model_path: Path,
+    model_name: str,
+    timeout_seconds: int,
+    *,
+    backend: str,
+    docker_image: str,
+) -> tuple[bool, str, int]:
     script = (
         f'loadFile("{_to_modelica_str(model_path)}");\n'
         f"checkModel({model_name});\n"
         "getErrorString();\n"
     )
-    rc, output = _run_omc_script(script, timeout_seconds=timeout_seconds)
+    rc, output = _run_omc_script(
+        script,
+        timeout_seconds=timeout_seconds,
+        backend=backend,
+        model_path=model_path,
+        docker_image=docker_image,
+    )
     lower = output.lower()
     ok = (
         rc == 0
@@ -112,14 +154,27 @@ def _check_model_with_omc(model_path: Path, model_name: str, timeout_seconds: in
     return ok, output, rc
 
 
-def _simulate_model_with_omc(model_path: Path, model_name: str, timeout_seconds: int) -> tuple[bool, str, int]:
+def _simulate_model_with_omc(
+    model_path: Path,
+    model_name: str,
+    timeout_seconds: int,
+    *,
+    backend: str,
+    docker_image: str,
+) -> tuple[bool, str, int]:
     script = (
         f'loadFile("{_to_modelica_str(model_path)}");\n'
         f"checkModel({model_name});\n"
         f"simulate({model_name}, stopTime=0.2, numberOfIntervals=20);\n"
         "getErrorString();\n"
     )
-    rc, output = _run_omc_script(script, timeout_seconds=timeout_seconds)
+    rc, output = _run_omc_script(
+        script,
+        timeout_seconds=timeout_seconds,
+        backend=backend,
+        model_path=model_path,
+        docker_image=docker_image,
+    )
     lower = output.lower()
     has_sim_result = "record simulationresult" in lower
     empty_result = 'resultfile = ""' in lower
@@ -169,13 +224,24 @@ def _classify_failure(*, check_ok: bool, simulate_ok: bool, check_log: str, simu
 
 def _resolve_backend(requested: str) -> tuple[str, bool]:
     req = str(requested or "auto").strip().lower()
+    has_omc = shutil.which("omc") is not None
+    has_docker = shutil.which("docker") is not None
     if req == "syntax":
         return "syntax", False
+    if req == "openmodelica_docker":
+        if has_docker:
+            return "openmodelica_docker", False
+        return "syntax", True
     if req == "omc":
+        if has_omc:
+            return "omc", False
+        if has_docker:
+            return "openmodelica_docker", False
+        return "syntax", True
+    if has_omc:
         return "omc", False
-    omc_exists = shutil.which("omc") is not None
-    if omc_exists:
-        return "omc", False
+    if has_docker:
+        return "openmodelica_docker", False
     return "syntax", True
 
 
@@ -201,7 +267,8 @@ def _write_markdown(path: str, payload: dict) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Validate baseline and mutant behavior against expected failure taxonomy")
     parser.add_argument("--mutation-manifest", required=True)
-    parser.add_argument("--backend", choices=["auto", "omc", "syntax"], default="auto")
+    parser.add_argument("--backend", choices=["auto", "omc", "openmodelica_docker", "syntax"], default="auto")
+    parser.add_argument("--docker-image", default=DEFAULT_OM_DOCKER_IMAGE)
     parser.add_argument("--timeout-seconds", type=int, default=20)
     parser.add_argument("--max-baseline-models", type=int, default=200)
     parser.add_argument("--max-validated-mutations", type=int, default=1200)
@@ -221,7 +288,7 @@ def main() -> None:
         reasons.append("mutation_rows_missing")
 
     backend_used, backend_fallback = _resolve_backend(args.backend)
-    if str(args.backend) == "omc" and backend_used != "omc":
+    if str(args.backend) in {"omc", "openmodelica_docker"} and backend_used not in {"omc", "openmodelica_docker"}:
         reasons.append("omc_backend_unavailable")
 
     # Validate baselines from source model paths referenced by mutations.
@@ -244,8 +311,14 @@ def main() -> None:
         check_ok = False
         check_log = ""
         check_rc: int | None = None
-        if backend_used == "omc" and model_path.exists() and model_name:
-            check_ok, check_log, check_rc = _check_model_with_omc(model_path, model_name, int(args.timeout_seconds))
+        if backend_used in {"omc", "openmodelica_docker"} and model_path.exists() and model_name:
+            check_ok, check_log, check_rc = _check_model_with_omc(
+                model_path,
+                model_name,
+                int(args.timeout_seconds),
+                backend=backend_used,
+                docker_image=str(args.docker_image),
+            )
         else:
             check_ok, msg = _syntax_probe_model(model_path)
             check_log = msg
@@ -283,11 +356,21 @@ def main() -> None:
         check_rc: int | None = None
         simulate_rc: int | None = None
 
-        if backend_used == "omc" and mutated_model_path.exists() and model_name:
-            check_ok, check_log, check_rc = _check_model_with_omc(mutated_model_path, model_name, int(args.timeout_seconds))
+        if backend_used in {"omc", "openmodelica_docker"} and mutated_model_path.exists() and model_name:
+            check_ok, check_log, check_rc = _check_model_with_omc(
+                mutated_model_path,
+                model_name,
+                int(args.timeout_seconds),
+                backend=backend_used,
+                docker_image=str(args.docker_image),
+            )
             if check_ok and expected_stage == "simulate":
                 simulate_ok, simulate_log, simulate_rc = _simulate_model_with_omc(
-                    mutated_model_path, model_name, int(args.timeout_seconds)
+                    mutated_model_path,
+                    model_name,
+                    int(args.timeout_seconds),
+                    backend=backend_used,
+                    docker_image=str(args.docker_image),
                 )
             elif check_ok:
                 simulate_ok = True
