@@ -7,7 +7,11 @@ cd "$ROOT_DIR"
 OUT_DIR="${GATEFORGE_AGENT_LANDSCAPE_OUT_DIR:-artifacts/agent_modelica_landscape_snapshot_v1}"
 WEEKLY_DIR="${GATEFORGE_AGENT_WEEKLY_CHAIN_OUT_DIR:-artifacts/agent_modelica_weekly_chain_v1}"
 TWO_WEEK_DIR="${GATEFORGE_AGENT_TWO_WEEK_REPLAY_OUT_DIR:-artifacts/agent_modelica_two_week_replay_v1}"
-HARDPACK_PATH="${GATEFORGE_AGENT_HARDPACK_PATH:-benchmarks/agent_modelica_hardpack_v1.json}"
+DEFAULT_HARDPACK_PATH="benchmarks/agent_modelica_hardpack_v1.json"
+if [ -f "benchmarks/private/agent_modelica_hardpack_v1.json" ]; then
+  DEFAULT_HARDPACK_PATH="benchmarks/private/agent_modelica_hardpack_v1.json"
+fi
+HARDPACK_PATH="${GATEFORGE_AGENT_HARDPACK_PATH:-$DEFAULT_HARDPACK_PATH}"
 
 mkdir -p "$OUT_DIR"
 

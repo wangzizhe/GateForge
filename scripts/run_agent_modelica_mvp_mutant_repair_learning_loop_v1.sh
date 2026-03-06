@@ -4,7 +4,11 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
-PROFILE_PATH="${GATEFORGE_AGENT_MVP_PROFILE_PATH:-benchmarks/agent_modelica_mvp_repair_v1.json}"
+DEFAULT_PROFILE_PATH="benchmarks/agent_modelica_mvp_repair_v1.json"
+if [ -f "benchmarks/private/agent_modelica_mvp_repair_v1.json" ]; then
+  DEFAULT_PROFILE_PATH="benchmarks/private/agent_modelica_mvp_repair_v1.json"
+fi
+PROFILE_PATH="${GATEFORGE_AGENT_MVP_PROFILE_PATH:-$DEFAULT_PROFILE_PATH}"
 OUT_DIR="${GATEFORGE_AGENT_MVP_MUTANT_REPAIR_LOOP_OUT_DIR:-artifacts/agent_modelica_mvp_mutant_repair_learning_loop_v1}"
 RUN_TAG_BASE="${GATEFORGE_AGENT_MVP_MUTANT_REPAIR_LOOP_TAG:-$(date -u +%Y%m%dT%H%M%SZ)}"
 REPAIR_HISTORY_PATH="${GATEFORGE_AGENT_REPAIR_HISTORY_PATH:-data/private_failure_corpus/agent_modelica_repair_memory_v1.json}"

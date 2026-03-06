@@ -7,7 +7,11 @@ cd "$ROOT_DIR"
 OUT_DIR="${GATEFORGE_AGENT_TWO_WEEK_REPLAY_OUT_DIR:-artifacts/agent_modelica_two_week_replay_v1}"
 WEEK1_TAG="${GATEFORGE_AGENT_WEEK1_TAG:-replay_w1}"
 WEEK2_TAG="${GATEFORGE_AGENT_WEEK2_TAG:-replay_w2}"
-HARDPACK_PATH="${GATEFORGE_AGENT_HARDPACK_PATH:-benchmarks/agent_modelica_hardpack_v1.json}"
+DEFAULT_HARDPACK_PATH="benchmarks/agent_modelica_hardpack_v1.json"
+if [ -f "benchmarks/private/agent_modelica_hardpack_v1.json" ]; then
+  DEFAULT_HARDPACK_PATH="benchmarks/private/agent_modelica_hardpack_v1.json"
+fi
+HARDPACK_PATH="${GATEFORGE_AGENT_HARDPACK_PATH:-$DEFAULT_HARDPACK_PATH}"
 BASE_PLAYBOOK="${GATEFORGE_AGENT_BASE_PLAYBOOK:-artifacts/agent_modelica_repair_playbook_v1/playbook.json}"
 DECISION_MIN_SUCCESS_DELTA="${GATEFORGE_AGENT_DECISION_MIN_SUCCESS_DELTA:-0.01}"
 DECISION_MIN_TIME_DELTA="${GATEFORGE_AGENT_DECISION_MIN_TIME_DELTA:--0.01}"
