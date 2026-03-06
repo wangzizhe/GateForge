@@ -1,0 +1,56 @@
+{
+  "schema_version": "agent_modelica_mvp_repair_v1",
+  "status": "PUBLIC_TEMPLATE",
+  "profile_id": "mvp_repair_first",
+  "goal": "repair-first capability improvement with reproducible baseline",
+  "taskset": {
+    "source": "hardpack",
+    "hardpack_path": "benchmarks/private/agent_modelica_hardpack_v1.json",
+    "scales": [
+      "small",
+      "medium",
+      "large"
+    ],
+    "failure_types": [
+      "model_check_error",
+      "simulate_error",
+      "semantic_regression"
+    ],
+    "per_scale_total_target": 12,
+    "per_scale_failure_targets": {
+      "model_check_error": 4,
+      "simulate_error": 4,
+      "semantic_regression": 4
+    }
+  },
+  "run_contract": {
+    "mode": "evidence",
+    "max_rounds": 9,
+    "max_time_sec": 1200,
+    "runtime_threshold": 0.2
+  },
+  "acceptance_budgets": {
+    "small_max_time_sec": 180,
+    "medium_max_time_sec": 420,
+    "large_max_time_sec": 900,
+    "small_max_rounds": 3,
+    "medium_max_rounds": 6,
+    "large_max_rounds": 9
+  },
+  "focus_queue": {
+    "top_k": 2,
+    "persistence_weight": 3.0
+  },
+  "stress_injection": {
+    "hard_fail_count": 12,
+    "slow_pass_count": 12
+  },
+  "privacy": {
+    "repair_history_path": "data/private_failure_corpus/agent_modelica_repair_memory_v1.json",
+    "patch_template_adaptations_path": "data/private_failure_corpus/agent_modelica_patch_template_adaptations_v1.json",
+    "retrieval_policy_path": "data/private_failure_corpus/agent_modelica_retrieval_policy_v1.json",
+    "policy": "public_template_only"
+  },
+  "is_public_template": true,
+  "public_template_notice": "Core private values must stay in benchmarks/private."
+}

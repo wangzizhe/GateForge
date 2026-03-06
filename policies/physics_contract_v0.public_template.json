@@ -1,0 +1,14 @@
+{
+  "schema_version": "physics_contract_v0",
+  "name": "gateforge_physics_contract_v0_public_template",
+  "checker": "invariant_guard",
+  "checker_config": {
+    "invariant_guard": {
+      "invariants": []
+    }
+  },
+  "physical_invariants": [],
+  "profiles_by_scale": {},
+  "is_public_template": true,
+  "public_template_notice": "Strict/private thresholds stay in policies/private."
+}
