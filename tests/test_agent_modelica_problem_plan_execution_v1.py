@@ -49,6 +49,7 @@ cat > "$OUT/mutation_validation_summary.json" <<'JSON'
 {{"status":"NEEDS_REVIEW","validation_backend_used":"{validation_backend_used}","backend_fallback_to_syntax": {str(fallback).lower()},"type_match_rate_pct":0.0,"stage_match_rate_pct":0.0}}
 JSON
 echo "${{GATEFORGE_TARGET_SCALES:-}}" > "$OUT/target_scales.txt"
+echo "${{GATEFORGE_PRIVATE_MODEL_ROOTS:-}}" > "$OUT/private_model_roots.txt"
 """
         path.write_text(script, encoding="utf-8")
         path.chmod(0o755)
@@ -222,6 +223,40 @@ echo "${{GATEFORGE_TARGET_SCALES:-}}" > "$OUT/target_scales.txt"
                 target_scales_path = root / "out" / phase / "target_scales.txt"
                 self.assertTrue(target_scales_path.exists())
                 self.assertEqual(target_scales_path.read_text(encoding="utf-8").strip(), "small,medium,large")
+
+    def test_plan_execution_strict_quick_sets_curated_private_roots_by_default(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        script = repo_root / "scripts" / "run_agent_modelica_problem_plan_execution_v1.sh"
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            plan = root / "plan.json"
+            runner = root / "runner.sh"
+            self._write_stub_plan(plan)
+            self._write_stub_runner(runner, validation_backend_used="openmodelica_docker", fallback=False)
+            subprocess.run(
+                ["bash", str(script)],
+                cwd=str(repo_root),
+                capture_output=True,
+                text=True,
+                check=False,
+                env={
+                    **os.environ,
+                    "GATEFORGE_AGENT_PROBLEM_PLAN_PATH": str(plan),
+                    "GATEFORGE_AGENT_PROBLEM_PLAN_EXEC_OUT_DIR": str(root / "out"),
+                    "GATEFORGE_AGENT_MUTATION_BATCH_RUNNER": str(runner),
+                    "GATEFORGE_AGENT_PROBLEM_PLAN_STRICT_OMC": "1",
+                    "GATEFORGE_AGENT_PROBLEM_PLAN_EXEC_PROFILE": "quick",
+                },
+                timeout=60,
+            )
+            expected_roots = (
+                "artifacts/run_private_model_mutation_scale_batch_v1_demo/private_models:"
+                "artifacts/run_modelica_open_source_growth_sprint_v1_demo/exported/demo_repo_shard_base_a"
+            )
+            for phase in ("phase_check", "phase_sim", "phase_semantic"):
+                roots_path = root / "out" / phase / "private_model_roots.txt"
+                self.assertTrue(roots_path.exists())
+                self.assertEqual(roots_path.read_text(encoding="utf-8").strip(), expected_roots)
 
 
 if __name__ == "__main__":
