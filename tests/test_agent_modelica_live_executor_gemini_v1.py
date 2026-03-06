@@ -24,7 +24,27 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
         patched, audit = _apply_parse_error_pre_repair(model_text, output, "script_parse_error")
         self.assertTrue(bool(audit.get("applied")))
         self.assertNotIn("__gf_state_301500", patched)
-        self.assertGreaterEqual(int(audit.get("removed_count") or 0), 1)
+        self.assertIn(
+            str(audit.get("reason") or ""),
+            {"removed_lines_with_injected_state_tokens", "removed_injected_state_tokens_inline"},
+        )
+
+    def test_apply_parse_error_pre_repair_prefers_line_removal_for_injected_block(self) -> None:
+        model_text = (
+            "model A1\n"
+            "  Real x;\n"
+            "equation\n"
+            "  der(x) = -x;\n"
+            "  Real __gf_state_301500(start=1.0);\n"
+            "  der(__gf_state_301500) = -1.0 * __gf_state_301500;\n"
+            "end A1;\n"
+        )
+        output = "Error: No viable alternative near token: __gf_state_301500"
+        patched, audit = _apply_parse_error_pre_repair(model_text, output, "script_parse_error")
+        self.assertTrue(bool(audit.get("applied")))
+        self.assertEqual(str(audit.get("reason") or ""), "removed_lines_with_injected_state_tokens")
+        self.assertGreaterEqual(int(audit.get("removed_line_count") or 0), 1)
+        self.assertNotIn("__gf_state_301500", patched)
 
     def test_apply_parse_error_pre_repair_noop_for_non_parse_failure_type(self) -> None:
         model_text = "model A1\nend A1;\n"
