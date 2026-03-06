@@ -1,0 +1,130 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "gateforge/repair_memory_v1.schema.json",
+  "title": "GateForge Repair Memory v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "rows"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "enum": [
+        "repair_memory_v1",
+        "agent_modelica_repair_memory_v1"
+      ]
+    },
+    "generated_at_utc": {
+      "type": "string"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/row"
+      }
+    }
+  },
+  "$defs": {
+    "row": {
+      "type": "object",
+      "required": [
+        "fingerprint",
+        "task_id",
+        "failure_type",
+        "scale",
+        "used_strategy",
+        "action_trace",
+        "error_signature",
+        "gate_break_reason",
+        "success"
+      ],
+      "properties": {
+        "fingerprint": {
+          "type": "string",
+          "minLength": 8
+        },
+        "task_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "failure_type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "scale": {
+          "type": "string",
+          "minLength": 1
+        },
+        "expected_stage": {
+          "type": "string"
+        },
+        "used_strategy": {
+          "type": "string"
+        },
+        "action_trace": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "error_signature": {
+          "type": "string",
+          "minLength": 1
+        },
+        "error_excerpt": {
+          "type": "string"
+        },
+        "gate_break_reason": {
+          "type": "string"
+        },
+        "patch_diff_summary": {
+          "type": "string"
+        },
+        "success": {
+          "type": "boolean"
+        },
+        "rounds_used": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "elapsed_sec": {
+          "type": "number",
+          "minimum": 0
+        },
+        "time_to_pass_sec": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "recorded_at_utc": {
+          "type": "string"
+        },
+        "last_seen_at_utc": {
+          "type": "string"
+        },
+        "success_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "seen_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "split": {
+          "type": "string",
+          "enum": [
+            "train",
+            "holdout",
+            "eval",
+            ""
+          ]
+        }
+      },
+      "additionalProperties": true
+    }
+  }
+}

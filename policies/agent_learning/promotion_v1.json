@@ -1,0 +1,21 @@
+{
+  "schema_version": "agent_learning_promotion_v1",
+  "status": "ACTIVE",
+  "min_success_count_per_failure_type": 5,
+  "min_recent_success_rate": 0.6,
+  "min_success_rate_gain_pct": 1.0,
+  "max_regression_increase": 0,
+  "max_physics_fail_increase": 0,
+  "require_replay_pass": true,
+  "require_holdout_non_overlap": true,
+  "promotion_targets": [
+    "patch_template_adaptations",
+    "retrieval_policy",
+    "repair_playbook"
+  ],
+  "rollback_policy": {
+    "enabled": true,
+    "rollback_on_regression_spike": true,
+    "rollback_on_physics_fail_spike": true
+  }
+}
