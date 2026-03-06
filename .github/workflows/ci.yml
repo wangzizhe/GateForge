@@ -241,7 +241,9 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GATEFORGE_DEMO_FAST: "1"
-      GATEFORGE_AGENT_RELEASE_RUN_LIVE_SMOKE: "0"
+      GATEFORGE_AGENT_RELEASE_RUN_LIVE_SMOKE: "1"
+      GATEFORGE_AGENT_RELEASE_SMOKE_PLANNER_BACKEND: "rule"
+      GATEFORGE_AGENT_RELEASE_SMOKE_BACKEND: "openmodelica_docker"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
