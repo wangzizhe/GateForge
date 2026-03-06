@@ -18,6 +18,26 @@ class DatasetMutationValidationMatrixV1Tests(unittest.TestCase):
         text = "model D\n  Real x;\nequation\n  der(x)=-x;\nend D;\n"
         self.assertEqual(mtx_v1._resolve_model_name(text), "D")
 
+    def test_collect_package_preload_files(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            model_path = root / "AixLib" / "Airflow" / "Multizone" / "Examples" / "ZonalFlow.mo"
+            model_path.parent.mkdir(parents=True, exist_ok=True)
+            (root / "AixLib" / "package.mo").write_text("package AixLib\nend AixLib;\n", encoding="utf-8")
+            (root / "AixLib" / "Airflow" / "package.mo").write_text("within AixLib;\npackage Airflow\nend Airflow;\n", encoding="utf-8")
+            (root / "AixLib" / "Airflow" / "Multizone" / "package.mo").write_text(
+                "within AixLib.Airflow;\npackage Multizone\nend Multizone;\n", encoding="utf-8"
+            )
+            model_path.write_text(
+                "within AixLib.Airflow.Multizone.Examples;\nmodel ZonalFlow\n  Real x;\nequation\n  der(x)=-x;\nend ZonalFlow;\n",
+                encoding="utf-8",
+            )
+            files = mtx_v1._collect_package_preload_files(model_path, "AixLib.Airflow.Multizone.Examples.ZonalFlow")
+            rendered = [str(x) for x in files]
+            self.assertIn(str((root / "AixLib" / "package.mo").resolve()), rendered)
+            self.assertIn(str((root / "AixLib" / "Airflow" / "package.mo").resolve()), rendered)
+            self.assertIn(str((root / "AixLib" / "Airflow" / "Multizone" / "package.mo").resolve()), rendered)
+
     def test_classify_failure_maps_assert_in_check_log_to_constraint_violation(self) -> None:
         stage, ftype = mtx_v1._classify_failure(
             check_ok=False,
