@@ -292,6 +292,7 @@ row = {
     "validation_status": str(validation.get("status") or ""),
     "validation_backend_used": str(validation.get("validation_backend_used") or ""),
     "validation_backend_fallback_to_syntax": bool(validation.get("backend_fallback_to_syntax")),
+    "baseline_check_pass_rate_pct": validation.get("baseline_check_pass_rate_pct"),
     "problem_type_annotation_status": str(problem_annotation.get("status") or ""),
     "problem_type_annotated_rows": int(problem_annotation.get("annotated_rows", 0) or 0),
     "paths": {
@@ -347,6 +348,12 @@ validation_backend_mismatch = [
 validation_backend_fallback_rows = [
     r for r in rows if bool(r.get("validation_backend_fallback_to_syntax"))
 ]
+baseline_zero_rows = [
+    r
+    for r in rows
+    if not isinstance(r.get("baseline_check_pass_rate_pct"), (int, float))
+    or float(r.get("baseline_check_pass_rate_pct")) <= 0.0
+]
 validation_low_type_rows = [
     r
     for r in rows
@@ -380,6 +387,9 @@ if strict_omc and validation_backend_mismatch:
 if strict_omc and validation_backend_fallback_rows:
     status = "FAIL"
     reasons.append("validation_backend_fallback_to_syntax")
+if strict_omc and baseline_zero_rows and len(baseline_zero_rows) == len(rows):
+    status = "FAIL"
+    reasons.append("validation_baseline_check_pass_rate_zero_all_phases")
 if strict_omc and validation_low_type_rows:
     status = "FAIL"
     reasons.append("validation_type_match_rate_below_strict_threshold")
@@ -404,6 +414,7 @@ payload = {
     "strict_min_stage_match_rate_pct": strict_min_stage_match,
     "validation_backend_not_omc_phase_count": len(validation_backend_mismatch),
     "validation_backend_fallback_phase_count": len(validation_backend_fallback_rows),
+    "baseline_zero_phase_count": len(baseline_zero_rows),
     "validation_low_type_match_phase_count": len(validation_low_type_rows),
     "validation_low_stage_match_phase_count": len(validation_low_stage_rows),
     "problem_type_annotation_missing_phase_count": len(problem_type_annotation_missing_rows),
