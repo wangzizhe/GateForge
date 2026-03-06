@@ -1,0 +1,45 @@
+{
+  "schema_version": "agent_modelica_problem_quota_v1",
+  "default_target_per_scale_failure_type": {
+    "small": 20,
+    "medium": 24,
+    "large": 28
+  },
+  "failure_type_overrides": {
+    "underconstrained_system": {
+      "small": 24,
+      "medium": 28,
+      "large": 32
+    },
+    "overconstrained_system": {
+      "small": 24,
+      "medium": 28,
+      "large": 32
+    },
+    "undefined_symbol": {
+      "small": 24,
+      "medium": 28,
+      "large": 32
+    },
+    "connector_mismatch": {
+      "small": 22,
+      "medium": 26,
+      "large": 30
+    },
+    "initialization_infeasible": {
+      "small": 18,
+      "medium": 24,
+      "large": 28
+    },
+    "numerical_instability": {
+      "small": 18,
+      "medium": 24,
+      "large": 30
+    },
+    "semantic_regression": {
+      "small": 20,
+      "medium": 26,
+      "large": 32
+    }
+  }
+}

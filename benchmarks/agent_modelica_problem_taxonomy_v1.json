@@ -1,0 +1,210 @@
+{
+  "schema_version": "agent_modelica_problem_taxonomy_v1",
+  "domain": "modelica_physical_system_modeling",
+  "problem_types": [
+    {
+      "failure_type": "underconstrained_system",
+      "expected_stage": "check",
+      "category": "equation_balance",
+      "severity": "high",
+      "common_scenarios": [
+        "variable_count_greater_than_equation_count",
+        "state_without_dynamics_equation",
+        "dangling_connector_flow_balance"
+      ],
+      "patch_objective": "add_missing_governing_equations_or_connector_balance",
+      "mutation_operators": [
+        "drop_state_equation",
+        "remove_connector_balance_equation",
+        "remove_conservation_constraint"
+      ]
+    },
+    {
+      "failure_type": "overconstrained_system",
+      "expected_stage": "check",
+      "category": "equation_balance",
+      "severity": "high",
+      "common_scenarios": [
+        "equation_count_greater_than_variable_count",
+        "duplicate_constraint_on_same_state",
+        "conflicting_algebraic_equations"
+      ],
+      "patch_objective": "remove_or_relax_redundant_conflicting_equations",
+      "mutation_operators": [
+        "inject_duplicate_state_constraint",
+        "inject_conflicting_algebraic_equation",
+        "force_fixed_value_alongside_dynamic_equation"
+      ]
+    },
+    {
+      "failure_type": "undefined_symbol",
+      "expected_stage": "check",
+      "category": "symbol_integrity",
+      "severity": "high",
+      "common_scenarios": [
+        "undeclared_variable_reference",
+        "parameter_used_before_declaration",
+        "wrong_scope_symbol_reference"
+      ],
+      "patch_objective": "declare_or_rebind_symbols_with_correct_scope_and_type",
+      "mutation_operators": [
+        "rename_declared_symbol_in_equation_only",
+        "remove_parameter_declaration",
+        "replace_component_reference_with_missing_alias"
+      ]
+    },
+    {
+      "failure_type": "connector_mismatch",
+      "expected_stage": "check",
+      "category": "connectivity",
+      "severity": "high",
+      "common_scenarios": [
+        "connect_incompatible_connector_types",
+        "wrong_causality_between_ports",
+        "missing_flow_potential_consistency"
+      ],
+      "patch_objective": "align_connector_types_and_causality_in_connect_statements",
+      "mutation_operators": [
+        "swap_connector_type_on_one_side",
+        "flip_connector_direction_metadata",
+        "connect_non_matching_port_pair"
+      ]
+    },
+    {
+      "failure_type": "array_dimension_mismatch",
+      "expected_stage": "check",
+      "category": "shape_integrity",
+      "severity": "medium",
+      "common_scenarios": [
+        "index_out_of_bounds",
+        "matrix_vector_shape_mismatch",
+        "wrong_array_dimension_in_assignment"
+      ],
+      "patch_objective": "restore_dimension_and_index_consistency",
+      "mutation_operators": [
+        "change_array_size_parameter",
+        "mutate_loop_bound_off_by_one",
+        "replace_vector_with_scalar_in_assignment"
+      ]
+    },
+    {
+      "failure_type": "unit_inconsistency",
+      "expected_stage": "check",
+      "category": "physical_consistency",
+      "severity": "medium",
+      "common_scenarios": [
+        "incompatible_units_in_energy_balance",
+        "incorrect_unit_parameter_binding",
+        "mixed_unit_operations_without_conversion"
+      ],
+      "patch_objective": "restore_dimensionally_consistent_equations",
+      "mutation_operators": [
+        "swap_unit_scaled_parameter",
+        "remove_unit_conversion_factor",
+        "inject_wrong_base_unit_constant"
+      ]
+    },
+    {
+      "failure_type": "initialization_infeasible",
+      "expected_stage": "simulate",
+      "category": "initialization",
+      "severity": "high",
+      "common_scenarios": [
+        "conflicting_start_and_fixed_constraints",
+        "invalid_initial_state_for_algebraic_loop",
+        "initial_equation_set_inconsistent"
+      ],
+      "patch_objective": "make_initial_conditions_consistent_and_solvable",
+      "mutation_operators": [
+        "set_conflicting_fixed_starts",
+        "inject_bad_initial_equation",
+        "bias_initial_parameter_out_of_range"
+      ]
+    },
+    {
+      "failure_type": "event_logic_error",
+      "expected_stage": "simulate",
+      "category": "hybrid_event",
+      "severity": "medium",
+      "common_scenarios": [
+        "chattering_when_condition",
+        "incorrect_pre_usage",
+        "event_condition_sign_flip"
+      ],
+      "patch_objective": "stabilize_event_trigger_logic_and_state_updates",
+      "mutation_operators": [
+        "perturb_when_threshold_near_zero",
+        "replace_pre_with_current_state",
+        "invert_event_condition_sign"
+      ]
+    },
+    {
+      "failure_type": "numerical_instability",
+      "expected_stage": "simulate",
+      "category": "numerics",
+      "severity": "high",
+      "common_scenarios": [
+        "stiff_gain_blowup",
+        "divide_by_near_zero_state",
+        "unstable_feedback_parameterization"
+      ],
+      "patch_objective": "recover_solver_stability_with_physically_valid_parameters",
+      "mutation_operators": [
+        "inject_stiff_gain_blowup",
+        "inject_divide_by_small_state",
+        "remove_damping_term"
+      ]
+    },
+    {
+      "failure_type": "parameter_binding_error",
+      "expected_stage": "check",
+      "category": "parameterization",
+      "severity": "medium",
+      "common_scenarios": [
+        "missing_parameter_modification",
+        "wrong_redeclare_target",
+        "incompatible_parameter_type_binding"
+      ],
+      "patch_objective": "rebind_parameters_and_redeclare_targets_correctly",
+      "mutation_operators": [
+        "drop_required_parameter_modification",
+        "mutate_redeclare_class_name",
+        "replace_real_parameter_with_boolean_binding"
+      ]
+    },
+    {
+      "failure_type": "sign_direction_error",
+      "expected_stage": "simulate",
+      "category": "physical_semantics",
+      "severity": "medium",
+      "common_scenarios": [
+        "energy_flow_direction_inverted",
+        "control_feedback_sign_flip",
+        "actuator_command_polarity_error"
+      ],
+      "patch_objective": "restore_correct_physical_direction_and_feedback_sign",
+      "mutation_operators": [
+        "flip_derivative_sign",
+        "invert_feedback_gain_sign",
+        "reverse_flow_term_sign"
+      ]
+    },
+    {
+      "failure_type": "semantic_regression",
+      "expected_stage": "simulate",
+      "category": "regression",
+      "severity": "high",
+      "common_scenarios": [
+        "passes_check_and_simulate_but_breaks_physics_contract",
+        "runtime_or_steady_state_drift",
+        "behavioral_regression_against_baseline"
+      ],
+      "patch_objective": "keep_behavior_within_physics_and_regression_contract",
+      "mutation_operators": [
+        "inject_parameter_bias_drift",
+        "inject_sign_flip_dynamics",
+        "inject_runtime_slowdown_without_compile_failure"
+      ]
+    }
+  ]
+}
