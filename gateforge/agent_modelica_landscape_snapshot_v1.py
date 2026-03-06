@@ -5,6 +5,9 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
+DEFAULT_PUBLIC_HARDPACK_PATH = "benchmarks/agent_modelica_hardpack_v1.json"
+DEFAULT_PRIVATE_HARDPACK_PATH = "benchmarks/private/agent_modelica_hardpack_v1.json"
+
 
 def _load_json(path: str) -> dict:
     p = Path(path)
@@ -48,13 +51,16 @@ def _write_markdown(path: str, payload: dict) -> None:
     lines.append("")
     p.write_text("\n".join(lines), encoding="utf-8")
 
+def _default_hardpack_path() -> str:
+    return DEFAULT_PRIVATE_HARDPACK_PATH if Path(DEFAULT_PRIVATE_HARDPACK_PATH).exists() else DEFAULT_PUBLIC_HARDPACK_PATH
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Summarize current modelica agent landscape and next actions")
     parser.add_argument("--weekly-summary", required=True)
     parser.add_argument("--weekly-decision", required=True)
     parser.add_argument("--two-week-summary", default="")
-    parser.add_argument("--hardpack", default="benchmarks/agent_modelica_hardpack_v1.json")
+    parser.add_argument("--hardpack", default=_default_hardpack_path())
     parser.add_argument("--out", default="artifacts/agent_modelica_landscape_snapshot_v1/snapshot.json")
     parser.add_argument("--report-out", default=None)
     args = parser.parse_args()

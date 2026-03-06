@@ -7,6 +7,8 @@ from pathlib import Path
 
 DEFAULT_FAILURE_TYPES = ("model_check_error", "simulate_error", "semantic_regression")
 DEFAULT_SCALES = ("small", "medium", "large")
+DEFAULT_PUBLIC_HARDPACK_OUT = "benchmarks/agent_modelica_hardpack_v1.json"
+DEFAULT_PRIVATE_HARDPACK_OUT = "benchmarks/private/agent_modelica_hardpack_v1.json"
 
 
 def _load_json(path: str) -> dict:
@@ -27,6 +29,10 @@ def _default_md_path(out_json: str) -> str:
     if out.suffix == ".json":
         return str(out.with_suffix(".md"))
     return f"{out_json}.md"
+
+
+def _default_hardpack_out_path() -> str:
+    return DEFAULT_PRIVATE_HARDPACK_OUT if Path("benchmarks/private").exists() else DEFAULT_PUBLIC_HARDPACK_OUT
 
 
 def _write_markdown(path: str, payload: dict) -> None:
@@ -88,7 +94,7 @@ def main() -> None:
     parser.add_argument("--failure-types", default=",".join(DEFAULT_FAILURE_TYPES))
     parser.add_argument("--per-scale-total", type=int, default=12)
     parser.add_argument("--per-scale-failure-targets", default="4,4,4")
-    parser.add_argument("--out", default="benchmarks/agent_modelica_hardpack_v1.json")
+    parser.add_argument("--out", default=_default_hardpack_out_path())
     parser.add_argument("--report-out", default=None)
     args = parser.parse_args()
 
