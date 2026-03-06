@@ -305,13 +305,20 @@ def _run_live_executor_once(command: str, timeout_sec: int) -> tuple[dict, str, 
     stderr = str(proc.stderr or "")
     payload: dict = {}
     if stdout.strip():
-        last = _last_nonempty_line(stdout)
         try:
-            candidate = json.loads(last)
+            candidate = json.loads(stdout.strip())
             if isinstance(candidate, dict):
                 payload = candidate
         except Exception:
             payload = {}
+        if not payload:
+            last = _last_nonempty_line(stdout)
+            try:
+                candidate = json.loads(last)
+                if isinstance(candidate, dict):
+                    payload = candidate
+            except Exception:
+                payload = {}
     payload.setdefault("_executor_return_code", int(proc.returncode))
     payload.setdefault("_executor_stdout_tail", _last_nonempty_line(stdout))
     payload.setdefault("_executor_stderr_tail", _last_nonempty_line(stderr))
