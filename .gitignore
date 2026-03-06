@@ -15,3 +15,5 @@ data/private_modelica/
 data/private_mutations/
 data/private_failure_corpus/
 data/private_ledger/
+benchmarks/private/
+policies/private/
