@@ -64,4 +64,10 @@ bash scripts/demo_agent_change_loop.sh
 
 - [ ] `README.md` and `DEMO.md` are consistent with actual commands/artifact paths.
 - [ ] `.env` is not committed; `.env.example` is up to date.
+- [ ] Agent Modelica release preflight passes:
+
+```bash
+bash scripts/run_agent_modelica_release_preflight_v0_1_1.sh
+```
+
 - [ ] Create release tag only after all above checks are done.

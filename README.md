@@ -83,6 +83,12 @@ bash scripts/demo_medium_pack_v1_dashboard.sh
 bash scripts/demo_policy_autotune_full_chain.sh
 ```
 
+### 7) v0.1.1 release preflight
+
+```bash
+bash scripts/run_agent_modelica_release_preflight_v0_1_1.sh
+```
+
 ## Documentation Map
 
 - Daily demo cookbook: `DEMO.md`

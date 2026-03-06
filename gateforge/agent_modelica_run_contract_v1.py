@@ -307,6 +307,16 @@ def _normalize_live_command_template(template: str) -> tuple[str, list[str]]:
         command = unquoted_single
         applied.append("unquote_repair_actions_shq_single")
 
+    unquoted_escaped_double = command.replace('\\"__REPAIR_ACTIONS_SHQ__\\"', "__REPAIR_ACTIONS_SHQ__")
+    if unquoted_escaped_double != command:
+        command = unquoted_escaped_double
+        applied.append("unquote_repair_actions_shq_escaped_double")
+
+    unquoted_escaped_single = command.replace("\\'__REPAIR_ACTIONS_SHQ__\\'", "__REPAIR_ACTIONS_SHQ__")
+    if unquoted_escaped_single != command:
+        command = unquoted_escaped_single
+        applied.append("unquote_repair_actions_shq_escaped_single")
+
     return command, applied
 
 
@@ -317,14 +327,29 @@ def _render_live_command(template: str, context: dict[str, str]) -> str:
     return command
 
 
+def _split_live_command_argv(command: str) -> list[str] | None:
+    text = str(command or "").strip()
+    if not text:
+        return None
+    try:
+        argv = shlex.split(text)
+    except ValueError:
+        return None
+    if not argv:
+        return None
+    shell_control_tokens = {"|", "||", "&&", ";", ";;", "&", ">", ">>", "<", "<<"}
+    if any(token in shell_control_tokens for token in argv):
+        return None
+    return argv
+
+
 def _run_live_executor_once(command: str, timeout_sec: int) -> tuple[dict, str, str]:
-    proc = subprocess.run(
-        ["bash", "-lc", command],
-        capture_output=True,
-        text=True,
-        check=False,
-        timeout=max(1, int(timeout_sec)),
-    )
+    argv = _split_live_command_argv(command)
+    if argv is None:
+        cmd = ["bash", "-lc", command]
+    else:
+        cmd = argv
+    proc = subprocess.run(cmd, capture_output=True, text=True, check=False, timeout=max(1, int(timeout_sec)))
     stdout = str(proc.stdout or "")
     stderr = str(proc.stderr or "")
     payload: dict = {}
