@@ -1,0 +1,28 @@
+{
+  "schema_version": "agent_modelica_mutant_recipe_lock_v1",
+  "status": "ACTIVE",
+  "recipe_id": "mvp_repair_lock_v1",
+  "source_profile": "benchmarks/agent_modelica_mvp_repair_v1.json",
+  "taskset": {
+    "source": "hardpack",
+    "hardpack_path": "benchmarks/agent_modelica_hardpack_v1.json",
+    "scales": ["small", "medium", "large"],
+    "failure_types": ["model_check_error", "simulate_error", "semantic_regression"],
+    "per_scale_total_target": 12,
+    "per_scale_failure_targets": {
+      "model_check_error": 4,
+      "simulate_error": 4,
+      "semantic_regression": 4
+    }
+  },
+  "selection_policy": {
+    "ordering": "deterministic_sorted_take_first",
+    "allow_replay_injection": false,
+    "adaptive_quota": false
+  },
+  "privacy": {
+    "repair_history_path": "data/private_failure_corpus/agent_modelica_repair_memory_v1.json",
+    "patch_template_adaptations_path": "data/private_failure_corpus/agent_modelica_patch_template_adaptations_v1.json",
+    "retrieval_policy_path": "data/private_failure_corpus/agent_modelica_retrieval_policy_v1.json"
+  }
+}
