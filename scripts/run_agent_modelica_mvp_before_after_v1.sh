@@ -32,9 +32,14 @@ if [ ! -f "$BEFORE_DIR/summary.json" ]; then
   exit 1
 fi
 
-FOCUS_QUEUE_PATH="$BEFORE_DIR/weekly/focus_queue_from_failure.json"
-if [ ! -f "$FOCUS_QUEUE_PATH" ]; then
-  echo "missing focus queue from before run: $FOCUS_QUEUE_PATH" >&2
+FOCUS_TARGETS_PATH=""
+if [ -f "$BEFORE_DIR/weekly/top_focus_templates.json" ]; then
+  FOCUS_TARGETS_PATH="$BEFORE_DIR/weekly/top_focus_templates.json"
+elif [ -f "$BEFORE_DIR/weekly/focus_queue_from_failure.json" ]; then
+  FOCUS_TARGETS_PATH="$BEFORE_DIR/weekly/focus_queue_from_failure.json"
+fi
+if [ -z "$FOCUS_TARGETS_PATH" ]; then
+  echo "missing focus targets from before run: $BEFORE_DIR/weekly/top_focus_templates.json or focus_queue_from_failure.json" >&2
   exit 1
 fi
 
@@ -43,7 +48,7 @@ set +e
 GATEFORGE_AGENT_MVP_PROFILE_PATH="$PROFILE_PATH" \
 GATEFORGE_AGENT_WEEKLY_CHAIN_OUT_DIR="$AFTER_DIR" \
 GATEFORGE_AGENT_WEEK_TAG="${RUN_TAG_BASE}-after" \
-GATEFORGE_AGENT_FOCUS_TARGETS_PATH="$FOCUS_QUEUE_PATH" \
+GATEFORGE_AGENT_FOCUS_TARGETS_PATH="$FOCUS_TARGETS_PATH" \
 GATEFORGE_AGENT_ALLOW_BASELINE_FAIL="1" \
 bash scripts/run_agent_modelica_weekly_chain_v1.sh
 AFTER_RC=$?
