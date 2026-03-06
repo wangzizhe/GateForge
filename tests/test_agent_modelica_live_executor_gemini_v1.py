@@ -7,6 +7,7 @@ import unittest
 from pathlib import Path
 
 from gateforge.agent_modelica_live_executor_gemini_v1 import (
+    _apply_parse_error_pre_repair,
     _bootstrap_env_from_repo,
     _extract_json_object,
     _parse_env_assignment,
@@ -15,6 +16,23 @@ from gateforge.agent_modelica_live_executor_gemini_v1 import (
 
 
 class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
+    def test_apply_parse_error_pre_repair_removes_injected_state_tokens(self) -> None:
+        model_text = "model A1\n  Real x;\nequation\n  der(x) = -x + __gf_state_301500;\nend A1;\n"
+        output = (
+            '[/workspace/A1.mo:6:8-6:24:writable] Error: No viable alternative near token: __gf_state_301500'
+        )
+        patched, audit = _apply_parse_error_pre_repair(model_text, output, "script_parse_error")
+        self.assertTrue(bool(audit.get("applied")))
+        self.assertNotIn("__gf_state_301500", patched)
+        self.assertGreaterEqual(int(audit.get("removed_count") or 0), 1)
+
+    def test_apply_parse_error_pre_repair_noop_for_non_parse_failure_type(self) -> None:
+        model_text = "model A1\nend A1;\n"
+        output = "Error: Something else"
+        patched, audit = _apply_parse_error_pre_repair(model_text, output, "simulate_error")
+        self.assertEqual(patched, model_text)
+        self.assertFalse(bool(audit.get("applied")))
+
     def test_parse_env_assignment_supports_export_and_quotes(self) -> None:
         self.assertEqual(_parse_env_assignment("export GOOGLE_API_KEY=abc"), ("GOOGLE_API_KEY", "abc"))
         self.assertEqual(_parse_env_assignment('GOOGLE_API_KEY="abc-123"'), ("GOOGLE_API_KEY", "abc-123"))

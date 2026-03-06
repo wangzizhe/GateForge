@@ -265,6 +265,43 @@ def _parse_repair_actions(raw: str) -> list[str]:
     return [x.strip() for x in text.split("|") if x.strip()]
 
 
+def _extract_state_tokens_from_output(output: str) -> list[str]:
+    tokens = sorted(set(re.findall(r"__gf_state_\d+", str(output or ""))))
+    return tokens
+
+
+def _apply_parse_error_pre_repair(model_text: str, output: str, failure_type: str) -> tuple[str, dict]:
+    if str(failure_type) != "script_parse_error":
+        return model_text, {"applied": False, "reason": "failure_type_not_script_parse_error"}
+    lower = str(output or "").lower()
+    if "no viable alternative near token" not in lower:
+        return model_text, {"applied": False, "reason": "parse_error_without_expected_marker"}
+
+    tokens = _extract_state_tokens_from_output(output)
+    if not tokens:
+        return model_text, {"applied": False, "reason": "state_token_not_detected"}
+
+    patched = str(model_text or "")
+    removed_count = 0
+    for token in tokens:
+        patched, replaced = re.subn(rf"\b{re.escape(token)}\b", "", patched)
+        removed_count += int(replaced)
+
+    if removed_count <= 0:
+        return model_text, {
+            "applied": False,
+            "reason": "state_token_not_found_in_model_text",
+            "detected_tokens": tokens,
+        }
+
+    return patched, {
+        "applied": True,
+        "reason": "removed_injected_state_tokens",
+        "detected_tokens": tokens,
+        "removed_count": int(removed_count),
+    }
+
+
 def _run_check_and_simulate(
     *,
     workspace: Path,
@@ -406,6 +443,17 @@ def main() -> None:
 
             if round_idx >= max(1, int(args.max_rounds)):
                 break
+
+            pre_repaired_text, pre_repair = _apply_parse_error_pre_repair(
+                model_text=current_text,
+                output=str(output or ""),
+                failure_type=ftype,
+            )
+            attempts[-1]["pre_repair"] = pre_repair
+            if bool(pre_repair.get("applied")):
+                current_text = pre_repaired_text
+                final_error = "pre_repair_applied_retry_pending"
+                continue
 
             if str(args.planner_backend) == "gemini":
                 patched, gemini_err = _gemini_repair_model_text(
