@@ -14,6 +14,8 @@ class RunAgentModelicaHoldoutCheckpointV1Tests(unittest.TestCase):
         self.assertIn("gateforge.agent_modelica_focus_template_bundle_v1", content)
         self.assertIn("GATEFORGE_AGENT_HOLDOUT_EXCLUDE_TASKSET", content)
         self.assertIn("holdout_taskset.json", content)
+        self.assertIn("--patch-template-adaptations \"$PATCH_TEMPLATE_ADAPTATIONS_PATH\"", content)
+        self.assertIn("--retrieval-policy \"$RETRIEVAL_POLICY_PATH\"", content)
 
 
 if __name__ == "__main__":

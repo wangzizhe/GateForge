@@ -60,6 +60,26 @@ class AgentModelicaPatchTemplateEngineV1Tests(unittest.TestCase):
         actions = payload.get("actions") if isinstance(payload.get("actions"), list) else []
         self.assertTrue(any("overshoot" in str(x).lower() for x in actions))
 
+    def test_merges_adaptation_actions(self) -> None:
+        payload = build_patch_template(
+            failure_type="simulate_error",
+            expected_stage="simulate",
+            adaptations_payload={
+                "failure_types": {
+                    "simulate_error": {
+                        "actions": [
+                            "reuse successful initialization seed from memory",
+                            "stabilize start values and initial equations near t=0",
+                        ]
+                    }
+                }
+            },
+        )
+        actions = payload.get("actions") if isinstance(payload.get("actions"), list) else []
+        self.assertIn("reuse successful initialization seed from memory", actions)
+        self.assertEqual(actions.count("stabilize start values and initial equations near t=0"), 1)
+        self.assertEqual(int(payload.get("adaptation_actions_count", 0)), 2)
+
 
 if __name__ == "__main__":
     unittest.main()

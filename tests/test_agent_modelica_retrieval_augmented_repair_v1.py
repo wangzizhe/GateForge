@@ -89,6 +89,42 @@ class AgentModelicaRetrievalAugmentedRepairV1Tests(unittest.TestCase):
         actions = payload.get("suggested_actions") if isinstance(payload.get("suggested_actions"), list) else []
         self.assertIn("stabilize start values and initial equations near t=0", actions)
 
+    def test_policy_can_override_top_k_and_strategy_bonus(self) -> None:
+        history = {
+            "rows": [
+                {
+                    "failure_type": "simulate_error",
+                    "model_id": "LargeGrid",
+                    "used_strategy": "s1",
+                    "action_trace": ["action-a"],
+                    "status": "PASS",
+                },
+                {
+                    "failure_type": "simulate_error",
+                    "model_id": "LargeGrid",
+                    "used_strategy": "s2",
+                    "action_trace": ["action-b"],
+                    "status": "PASS",
+                },
+            ]
+        }
+        payload = retrieve_repair_examples(
+            history_payload=history,
+            failure_type="simulate_error",
+            model_hint="LargeGrid.mo",
+            top_k=1,
+            policy_payload={
+                "top_k_by_failure_type": {"simulate_error": 2},
+                "strategy_id_bonus_by_failure_type": {"simulate_error": {"s2": 1.0}},
+                "failure_match_bonus": 2.0,
+                "model_overlap_weight": 1.0,
+            },
+        )
+        self.assertEqual(int(payload.get("effective_top_k", 0)), 2)
+        self.assertEqual(int(payload.get("retrieved_count", 0)), 2)
+        examples = payload.get("examples") if isinstance(payload.get("examples"), list) else []
+        self.assertEqual(str(examples[0].get("strategy_id") or ""), "s2")
+
 
 if __name__ == "__main__":
     unittest.main()

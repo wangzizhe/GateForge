@@ -28,6 +28,8 @@ PROFILE_FOCUS_PERSISTENCE_WEIGHT=""
 PROFILE_FOCUS_SIGNAL_WEIGHT=""
 PROFILE_FOCUS_SIGNAL_TARGET_SCORE=""
 PROFILE_REPAIR_HISTORY_PATH=""
+PROFILE_PATCH_TEMPLATE_ADAPTATIONS_PATH=""
+PROFILE_RETRIEVAL_POLICY_PATH=""
 PROFILE_INJECT_HARD_FAIL_COUNT=""
 PROFILE_INJECT_SLOW_PASS_COUNT=""
 
@@ -95,6 +97,8 @@ put("PROFILE_FOCUS_PERSISTENCE_WEIGHT", get(payload, "focus_queue.persistence_we
 put("PROFILE_FOCUS_SIGNAL_WEIGHT", get(payload, "focus_queue.signal_weight"))
 put("PROFILE_FOCUS_SIGNAL_TARGET_SCORE", get(payload, "focus_queue.signal_target_score"))
 put("PROFILE_REPAIR_HISTORY_PATH", get(payload, "privacy.repair_history_path"))
+put("PROFILE_PATCH_TEMPLATE_ADAPTATIONS_PATH", get(payload, "privacy.patch_template_adaptations_path"))
+put("PROFILE_RETRIEVAL_POLICY_PATH", get(payload, "privacy.retrieval_policy_path"))
 put("PROFILE_INJECT_HARD_FAIL_COUNT", get(payload, "stress_injection.hard_fail_count"))
 put("PROFILE_INJECT_SLOW_PASS_COUNT", get(payload, "stress_injection.slow_pass_count"))
 PY
@@ -129,6 +133,11 @@ DECISION_MIN_SUCCESS_DELTA="${GATEFORGE_AGENT_DECISION_MIN_SUCCESS_DELTA:-0.01}"
 DECISION_MIN_TIME_DELTA="${GATEFORGE_AGENT_DECISION_MIN_TIME_DELTA:--0.01}"
 DECISION_MIN_ROUNDS_DELTA="${GATEFORGE_AGENT_DECISION_MIN_ROUNDS_DELTA:--0.01}"
 REPAIR_HISTORY_PATH="${GATEFORGE_AGENT_REPAIR_HISTORY_PATH:-${PROFILE_REPAIR_HISTORY_PATH:-data/private_failure_corpus/agent_modelica_repair_memory_v1.json}}"
+PATCH_TEMPLATE_ADAPTATIONS_PATH="${GATEFORGE_AGENT_PATCH_TEMPLATE_ADAPTATIONS_PATH:-${PROFILE_PATCH_TEMPLATE_ADAPTATIONS_PATH:-data/private_failure_corpus/agent_modelica_patch_template_adaptations_v1.json}}"
+RETRIEVAL_POLICY_PATH="${GATEFORGE_AGENT_RETRIEVAL_POLICY_PATH:-${PROFILE_RETRIEVAL_POLICY_PATH:-data/private_failure_corpus/agent_modelica_retrieval_policy_v1.json}}"
+CAPABILITY_LEARN_MIN_SUCCESS_COUNT="${GATEFORGE_AGENT_CAPABILITY_LEARN_MIN_SUCCESS_COUNT:-3}"
+CAPABILITY_LEARN_TOP_ACTIONS="${GATEFORGE_AGENT_CAPABILITY_LEARN_TOP_ACTIONS:-4}"
+CAPABILITY_LEARN_TOP_STRATEGIES="${GATEFORGE_AGENT_CAPABILITY_LEARN_TOP_STRATEGIES:-2}"
 STRATEGY_AB_SUMMARY="${GATEFORGE_AGENT_STRATEGY_AB_SUMMARY:-}"
 
 CORE_MANIFEST="${GATEFORGE_AGENT_CORE_MUTATION_MANIFEST:-}"
@@ -152,6 +161,7 @@ fi
 
 mkdir -p "$OUT_DIR/tasksets" "$OUT_DIR/baseline" "$OUT_DIR/weekly"
 export OUT_DIR
+export REPAIR_HISTORY_PATH PATCH_TEMPLATE_ADAPTATIONS_PATH RETRIEVAL_POLICY_PATH
 FOCUS_QUEUE_HISTORY="$OUT_DIR/weekly/focus_queue_history.jsonl"
 
 TASKSET_PATH="$OUT_DIR/tasksets/taskset_${WEEK_TAG}.json"
@@ -265,6 +275,8 @@ BASELINE_CMD=(
   --physics-contract "$PHYSICS_CONTRACT"
   --repair-playbook "$REPAIR_PLAYBOOK"
   --repair-history "$REPAIR_HISTORY_PATH"
+  --patch-template-adaptations "$PATCH_TEMPLATE_ADAPTATIONS_PATH"
+  --retrieval-policy "$RETRIEVAL_POLICY_PATH"
   --inject-hard-fail-count "$INJECT_HARD_FAIL_COUNT"
   --inject-slow-pass-count "$INJECT_SLOW_PASS_COUNT"
   --out-dir "$OUT_DIR/baseline"
@@ -293,6 +305,16 @@ python3 -m gateforge.agent_modelica_repair_memory_store_v1 \
   --memory "$REPAIR_HISTORY_PATH" \
   --out "$OUT_DIR/weekly/repair_memory_update.json" \
   --report-out "$OUT_DIR/weekly/repair_memory_update.md"
+
+python3 -m gateforge.agent_modelica_repair_capability_learner_v1 \
+  --repair-memory "$REPAIR_HISTORY_PATH" \
+  --min-success-count-per-failure-type "$CAPABILITY_LEARN_MIN_SUCCESS_COUNT" \
+  --top-actions-per-failure-type "$CAPABILITY_LEARN_TOP_ACTIONS" \
+  --top-strategies-per-failure-type "$CAPABILITY_LEARN_TOP_STRATEGIES" \
+  --out-patch-template-adaptations "$PATCH_TEMPLATE_ADAPTATIONS_PATH" \
+  --out-retrieval-policy "$RETRIEVAL_POLICY_PATH" \
+  --out "$OUT_DIR/weekly/repair_capability_learn.json" \
+  --report-out "$OUT_DIR/weekly/repair_capability_learn.md"
 
 python3 -m gateforge.agent_modelica_failure_attribution_v1 \
   --run-results "$OUT_DIR/baseline/run_results.json" \
@@ -390,6 +412,9 @@ summary = {
         if (out_dir / "weekly" / "decision.json").exists()
         else None
     ),
+    "repair_history_path": os.environ.get("REPAIR_HISTORY_PATH"),
+    "patch_template_adaptations_path": os.environ.get("PATCH_TEMPLATE_ADAPTATIONS_PATH"),
+    "retrieval_policy_path": os.environ.get("RETRIEVAL_POLICY_PATH"),
 }
 (out_dir / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
 print(json.dumps(summary))

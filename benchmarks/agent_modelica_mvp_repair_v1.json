@@ -39,6 +39,8 @@
   },
   "privacy": {
     "repair_history_path": "data/private_failure_corpus/agent_modelica_repair_memory_v1.json",
+    "patch_template_adaptations_path": "data/private_failure_corpus/agent_modelica_patch_template_adaptations_v1.json",
+    "retrieval_policy_path": "data/private_failure_corpus/agent_modelica_retrieval_policy_v1.json",
     "policy": "private_only"
   }
 }

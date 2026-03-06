@@ -204,6 +204,8 @@ def main() -> None:
     parser.add_argument("--repair-playbook", default=None)
     parser.add_argument("--repair-history", default=None)
     parser.add_argument("--focus-queue", default=None)
+    parser.add_argument("--patch-template-adaptations", default=None)
+    parser.add_argument("--retrieval-policy", default=None)
     parser.add_argument("--inject-hard-fail-count", type=int, default=0)
     parser.add_argument("--inject-slow-pass-count", type=int, default=0)
     parser.add_argument("--run-mode", choices=["mock", "evidence"], default="mock")
@@ -312,6 +314,10 @@ def main() -> None:
             str(args.repair_history or ""),
             "--focus-queue",
             str(args.focus_queue or ""),
+            "--patch-template-adaptations",
+            str(args.patch_template_adaptations or ""),
+            "--retrieval-policy",
+            str(args.retrieval_policy or ""),
             "--results-out",
             run_results_path,
             "--out",
@@ -452,6 +458,8 @@ def main() -> None:
             "repair_playbook": args.repair_playbook,
             "repair_history": args.repair_history,
             "focus_queue": args.focus_queue,
+            "patch_template_adaptations": args.patch_template_adaptations,
+            "retrieval_policy": args.retrieval_policy,
             "inject_hard_fail_count": hard_fail_count,
             "inject_slow_pass_count": slow_pass_count,
         },

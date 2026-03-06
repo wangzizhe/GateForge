@@ -42,6 +42,8 @@ PROFILE_LARGE_MAX_ROUNDS=""
 PROFILE_PER_SCALE_TOTAL=""
 PROFILE_PER_SCALE_FAILURE_TARGETS=""
 PROFILE_REPAIR_HISTORY_PATH=""
+PROFILE_PATCH_TEMPLATE_ADAPTATIONS_PATH=""
+PROFILE_RETRIEVAL_POLICY_PATH=""
 PROFILE_FOCUS_TOP_K=""
 PROFILE_FOCUS_PERSISTENCE_WEIGHT=""
 PROFILE_FOCUS_SIGNAL_WEIGHT=""
@@ -101,6 +103,8 @@ put("PROFILE_LARGE_MAX_ROUNDS", get(payload, "acceptance_budgets.large_max_round
 put("PROFILE_PER_SCALE_TOTAL", get(payload, "taskset.per_scale_total_target"))
 put("PROFILE_PER_SCALE_FAILURE_TARGETS", pair_limit)
 put("PROFILE_REPAIR_HISTORY_PATH", get(payload, "privacy.repair_history_path"))
+put("PROFILE_PATCH_TEMPLATE_ADAPTATIONS_PATH", get(payload, "privacy.patch_template_adaptations_path"))
+put("PROFILE_RETRIEVAL_POLICY_PATH", get(payload, "privacy.retrieval_policy_path"))
 put("PROFILE_FOCUS_TOP_K", get(payload, "focus_queue.top_k"))
 put("PROFILE_FOCUS_PERSISTENCE_WEIGHT", get(payload, "focus_queue.persistence_weight"))
 put("PROFILE_FOCUS_SIGNAL_WEIGHT", get(payload, "focus_queue.signal_weight"))
@@ -121,6 +125,8 @@ LARGE_MAX_ROUNDS="${GATEFORGE_AGENT_LARGE_MAX_ROUNDS:-${PROFILE_LARGE_MAX_ROUNDS
 MAX_PER_SCALE="${GATEFORGE_AGENT_HOLDOUT_MAX_PER_SCALE:-${PROFILE_PER_SCALE_TOTAL:-12}}"
 MAX_PER_SCALE_FAILURE="${GATEFORGE_AGENT_HOLDOUT_MAX_PER_SCALE_FAILURE_TYPE:-${PROFILE_PER_SCALE_FAILURE_TARGETS:-4}}"
 REPAIR_HISTORY_PATH="${GATEFORGE_AGENT_REPAIR_HISTORY_PATH:-${PROFILE_REPAIR_HISTORY_PATH:-data/private_failure_corpus/agent_modelica_repair_memory_v1.json}}"
+PATCH_TEMPLATE_ADAPTATIONS_PATH="${GATEFORGE_AGENT_PATCH_TEMPLATE_ADAPTATIONS_PATH:-${PROFILE_PATCH_TEMPLATE_ADAPTATIONS_PATH:-data/private_failure_corpus/agent_modelica_patch_template_adaptations_v1.json}}"
+RETRIEVAL_POLICY_PATH="${GATEFORGE_AGENT_RETRIEVAL_POLICY_PATH:-${PROFILE_RETRIEVAL_POLICY_PATH:-data/private_failure_corpus/agent_modelica_retrieval_policy_v1.json}}"
 FOCUS_TOP_K="${GATEFORGE_AGENT_FOCUS_TOP_K:-${PROFILE_FOCUS_TOP_K:-2}}"
 FOCUS_PERSISTENCE_WEIGHT="${GATEFORGE_AGENT_FOCUS_PERSISTENCE_WEIGHT:-${PROFILE_FOCUS_PERSISTENCE_WEIGHT:-3.0}}"
 FOCUS_SIGNAL_WEIGHT="${GATEFORGE_AGENT_FOCUS_SIGNAL_WEIGHT:-${PROFILE_FOCUS_SIGNAL_WEIGHT:-3.0}}"
@@ -166,6 +172,8 @@ python3 -m gateforge.agent_modelica_layered_baseline_v1 \
   --medium-max-rounds "$MEDIUM_MAX_ROUNDS" \
   --large-max-rounds "$LARGE_MAX_ROUNDS" \
   --repair-history "$REPAIR_HISTORY_PATH" \
+  --patch-template-adaptations "$PATCH_TEMPLATE_ADAPTATIONS_PATH" \
+  --retrieval-policy "$RETRIEVAL_POLICY_PATH" \
   --out-dir "$HOLDOUT_BASELINE_OUT_DIR" \
   --out "$HOLDOUT_SUMMARY" \
   --report-out "$OUT_DIR/summary.md"

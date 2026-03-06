@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -79,6 +80,26 @@ REGRESSION_FAILURE_TYPE_ACTIONS: dict[str, list[str]] = {
 }
 
 
+def _load_adaptations_from_path(path: str) -> dict:
+    p = Path(path)
+    if not p.exists():
+        return {}
+    payload = json.loads(p.read_text(encoding="utf-8"))
+    return payload if isinstance(payload, dict) else {}
+
+
+def _merge_actions(*groups: list[str]) -> list[str]:
+    out: list[str] = []
+    seen: set[str] = set()
+    for group in groups:
+        for row in group:
+            text = str(row).strip()
+            if text and text not in seen:
+                out.append(text)
+                seen.add(text)
+    return out
+
+
 def _focus_actions(focus_queue_payload: dict, failure_type: str) -> list[str]:
     queue = focus_queue_payload.get("queue") if isinstance(focus_queue_payload.get("queue"), list) else []
     queue = [x for x in queue if isinstance(x, dict)]
@@ -115,30 +136,47 @@ def build_patch_template(
     failure_type: str,
     expected_stage: str | None = None,
     focus_queue_payload: dict | None = None,
+    adaptations_payload: dict | None = None,
 ) -> dict:
     ftype = str(failure_type or "unknown").strip().lower()
     base = TEMPLATES.get(ftype)
     focus_actions = _focus_actions(focus_queue_payload or {}, failure_type=ftype)
+    loaded_adaptations = adaptations_payload
+    if not isinstance(loaded_adaptations, dict):
+        adapt_path = str(os.environ.get("GATEFORGE_AGENT_PATCH_TEMPLATE_ADAPTATIONS_PATH") or "").strip()
+        if adapt_path:
+            loaded_adaptations = _load_adaptations_from_path(adapt_path)
+        else:
+            loaded_adaptations = {}
+    adapt_root = loaded_adaptations.get("failure_types") if isinstance(loaded_adaptations.get("failure_types"), dict) else loaded_adaptations
+    adapt_row = adapt_root.get(ftype) if isinstance(adapt_root, dict) and isinstance(adapt_root.get(ftype), dict) else {}
+    adapt_actions = [str(x) for x in (adapt_row.get("actions") or []) if isinstance(x, str)]
+    adapt_directives = [x for x in (adapt_row.get("edit_directives") or []) if isinstance(x, dict)]
     if not base:
         return {
             "template_id": "tpl_generic_minimal_repair_v1",
             "failure_type": ftype,
             "expected_stage": str(expected_stage or "unknown"),
-            "actions": [
+            "actions": _merge_actions([
                 "classify failure signal before editing",
                 "apply minimal deterministic fix and rerun hard gates",
-                *focus_actions,
-            ],
-            "edit_directives": [{"kind": "minimal_safe_fix", "priority": "medium"}],
+            ], focus_actions, adapt_actions),
+            "edit_directives": [{"kind": "minimal_safe_fix", "priority": "medium"}, *adapt_directives],
             "focus_actions_count": len(focus_actions),
+            "adaptation_actions_count": len(adapt_actions),
         }
     return {
         "template_id": str(base.get("template_id") or "tpl_unknown"),
         "failure_type": ftype,
         "expected_stage": str(expected_stage or "unknown"),
-        "actions": [str(x) for x in (base.get("actions") or []) if isinstance(x, str)] + focus_actions,
-        "edit_directives": [x for x in (base.get("edit_directives") or []) if isinstance(x, dict)],
+        "actions": _merge_actions(
+            [str(x) for x in (base.get("actions") or []) if isinstance(x, str)],
+            focus_actions,
+            adapt_actions,
+        ),
+        "edit_directives": [x for x in (base.get("edit_directives") or []) if isinstance(x, dict)] + adapt_directives,
         "focus_actions_count": len(focus_actions),
+        "adaptation_actions_count": len(adapt_actions),
     }
 
 
@@ -180,11 +218,17 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Build failure_type patch template for modelica repair")
     parser.add_argument("--failure-type", required=True)
     parser.add_argument("--expected-stage", default="unknown")
+    parser.add_argument("--adaptations", default="")
     parser.add_argument("--out", default="artifacts/agent_modelica_patch_template_engine_v1/template.json")
     parser.add_argument("--report-out", default=None)
     args = parser.parse_args()
 
-    payload = build_patch_template(failure_type=args.failure_type, expected_stage=args.expected_stage)
+    adaptations_payload = _load_adaptations_from_path(args.adaptations) if str(args.adaptations).strip() else {}
+    payload = build_patch_template(
+        failure_type=args.failure_type,
+        expected_stage=args.expected_stage,
+        adaptations_payload=adaptations_payload,
+    )
     payload["generated_at_utc"] = datetime.now(timezone.utc).isoformat()
     payload["schema_version"] = "agent_modelica_patch_template_engine_v1"
     _write_json(args.out, payload)
