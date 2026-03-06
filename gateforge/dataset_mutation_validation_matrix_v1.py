@@ -92,7 +92,9 @@ def _resolve_model_name(text: str) -> str:
 
 
 def _to_modelica_str(path: Path) -> str:
-    return str(path).replace("\\", "/").replace('"', '\\"')
+    # Use absolute paths so docker-backed OMC can always locate files regardless
+    # of temporary script working directory.
+    return str(path.resolve()).replace("\\", "/").replace('"', '\\"')
 
 
 def _collect_package_preload_files(model_path: Path, model_name: str) -> list[Path]:
