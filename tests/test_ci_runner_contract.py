@@ -9,6 +9,7 @@ class CIShardRunnerContractTests(unittest.TestCase):
 
         required_fragments = [
             'PATTERNS_CSV="${1:-test_*.py}"',
+            'CI_FAIL_ON_EMPTY_PATTERN="${CI_FAIL_ON_EMPTY_PATTERN:-1}"',
             'IFS=\',\' read -r -a PATTERNS <<< "$PATTERNS_CSV"',
             'command -v timeout',
             'command -v gtimeout',
@@ -16,6 +17,7 @@ class CIShardRunnerContractTests(unittest.TestCase):
             'PYTHON_BIN="python3"',
             'warning: timeout command not found; running shard without enforced timeout',
             '-X faulthandler -m unittest discover -s tests -p "$PATTERN" -v',
+            'empty-test-pattern detected pattern=$PATTERN; failing to prevent silent shard drift',
             '[ci] shard summary patterns=$PATTERNS_CSV',
             'echo "[ci] shard failed: pattern=$failed_pattern exit_code=$rc"',
             'last running test before failure',

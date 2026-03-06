@@ -11,9 +11,11 @@ class CIShardConfigContractTests(unittest.TestCase):
         self.assertIn('  test-core-a:\n    name: "Test Core A"', workflow)
         self.assertIn('  test-core-b:\n    name: "Test Core B"', workflow)
         self.assertIn('  test-dataset:\n    name: "Test Dataset"', workflow)
+        self.assertIn('  release-preflight:\n    name: "Release Preflight"', workflow)
         self.assertIn('  smoke-gate:\n    name: "Smoke"', workflow)
         self.assertIn('  test-and-smoke:\n    name: "Test and Smoke"', workflow)
         self.assertIn('  demo-full:\n    name: "Demo Full"', workflow)
+        self.assertIn('CI_FAIL_ON_EMPTY_PATTERN: "1"', workflow)
 
         self.assertIn(
             'scripts/ci_run_unittest_shard.sh "test_[a-c]*.py,test_[e-i]*.py"',
@@ -30,6 +32,7 @@ class CIShardConfigContractTests(unittest.TestCase):
         self.assertIn('scripts/ci_run_unittest_shard.sh "test_demo_scripts.py"', workflow)
         self.assertIn("needs:\n      - test-core-a\n      - test-core-b\n      - test-dataset", workflow)
         self.assertIn("needs:\n      - test-core-a\n      - test-core-b\n      - test-dataset\n      - smoke-gate", workflow)
+        self.assertIn("bash scripts/run_agent_modelica_release_preflight_v0_1_1.sh", workflow)
         self.assertIn(
             "if: ${{ (github.event_name == 'workflow_dispatch' && inputs.run_demo_bundle) || github.event_name == 'schedule' }}",
             workflow,

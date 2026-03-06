@@ -3,6 +3,7 @@ set -euo pipefail
 
 PATTERNS_CSV="${1:-test_*.py}"
 SHARD_TIMEOUT="${SHARD_TIMEOUT:-25m}"
+CI_FAIL_ON_EMPTY_PATTERN="${CI_FAIL_ON_EMPTY_PATTERN:-1}"
 LOG_DIR="${CI_LOG_DIR:-artifacts/ci_logs}"
 mkdir -p "$LOG_DIR"
 
@@ -36,14 +37,23 @@ for PATTERN in "${PATTERNS[@]}"; do
   total_files=$((total_files + pattern_file_count))
   echo "[ci] running pattern=$PATTERN test_files=$pattern_file_count timeout=$SHARD_TIMEOUT" | tee -a "$LOG_FILE"
   pattern_start="$(date +%s)"
+  pattern_tmp_log="$(mktemp)"
   if [ -n "$TIMEOUT_BIN" ]; then
     ("$TIMEOUT_BIN" "$SHARD_TIMEOUT" "$PYTHON_BIN" -X faulthandler -m unittest discover -s tests -p "$PATTERN" -v) \
-      >>"$LOG_FILE" 2>&1
+      >"$pattern_tmp_log" 2>&1
   else
     echo "[ci] warning: timeout command not found; running shard without enforced timeout" | tee -a "$LOG_FILE"
-    ("$PYTHON_BIN" -X faulthandler -m unittest discover -s tests -p "$PATTERN" -v) >>"$LOG_FILE" 2>&1
+    ("$PYTHON_BIN" -X faulthandler -m unittest discover -s tests -p "$PATTERN" -v) >"$pattern_tmp_log" 2>&1
   fi
   pattern_rc=$?
+  cat "$pattern_tmp_log" >>"$LOG_FILE"
+  if [ "$pattern_rc" -eq 0 ] && [ "$CI_FAIL_ON_EMPTY_PATTERN" = "1" ]; then
+    if grep -Eq "^Ran 0 tests" "$pattern_tmp_log"; then
+      echo "[ci] empty-test-pattern detected pattern=$PATTERN; failing to prevent silent shard drift" | tee -a "$LOG_FILE"
+      pattern_rc=86
+    fi
+  fi
+  rm -f "$pattern_tmp_log"
   pattern_elapsed=$(( $(date +%s) - pattern_start ))
   echo "[ci] completed pattern=$PATTERN exit_code=$pattern_rc elapsed_s=$pattern_elapsed" | tee -a "$LOG_FILE"
   if [ "$pattern_rc" -ne 0 ]; then
