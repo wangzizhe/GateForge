@@ -5,8 +5,18 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from gateforge import dataset_mutation_model_materializer_v1 as materializer_v1
+
 
 class MutationModelMaterializerV1Tests(unittest.TestCase):
+    def test_materialize_places_declarations_before_equation_section(self) -> None:
+        source = "model A1\n  Real x;\nequation\n  der(x) = -x;\nend A1;\n"
+        mutated, _ = materializer_v1._materialize_text(source, failure_type="simulate_error", token="123")
+        self.assertIn("Real __gf_state_123", mutated)
+        self.assertIn("der(__gf_state_123)", mutated)
+        self.assertLess(mutated.find("Real __gf_state_123"), mutated.find("equation"))
+        self.assertEqual(mutated.count("\nequation\n"), 1)
+
     def test_materialize_mutants_as_real_files(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)

@@ -240,11 +240,46 @@ def _materialize_text(source_text: str, *, failure_type: str, token: str, operat
     end_match = re.search(rf"(?im)^\s*end\s+{re.escape(model_name)}\s*;", source_text)
     if not end_match:
         raise ValueError("model_end_missing")
-
-    insert_at = int(end_match.start())
     block, operator = _build_mutation_block(failure_type=failure_type, token=token, operator_hint=operator_hint)
-    injection = "\n" + "\n".join(block) + "\n"
-    mutated = source_text[:insert_at] + injection + source_text[insert_at:]
+
+    # Keep Modelica structure valid: declaration lines must stay before equation,
+    # while mutation equations must be inserted under (or creating) an equation section.
+    decl_lines: list[str] = []
+    eq_lines: list[str] = []
+    in_equation = False
+    for raw in block:
+        line = str(raw)
+        if re.match(r"(?im)^\s*equation\s*$", line):
+            in_equation = True
+            continue
+        if in_equation:
+            eq_lines.append(line)
+        else:
+            decl_lines.append(line)
+
+    body = source_text[: int(end_match.start())]
+    tail = source_text[int(end_match.start()) :]
+
+    if decl_lines:
+        section_match = re.search(r"(?im)^\s*(?:initial\s+equation|equation|initial\s+algorithm|algorithm)\b", body)
+        insert_decl_at = int(section_match.start()) if section_match else len(body)
+        decl_block = "\n".join(decl_lines).rstrip() + "\n"
+        prefix = "" if insert_decl_at == 0 or body[:insert_decl_at].endswith("\n") else "\n"
+        body = body[:insert_decl_at] + prefix + decl_block + body[insert_decl_at:]
+
+    if eq_lines:
+        eq_match = re.search(r"(?im)^\s*equation\b", body)
+        eq_block = "\n".join(eq_lines).rstrip() + "\n"
+        if eq_match:
+            eq_line_end = body.find("\n", int(eq_match.start()))
+            insert_eq_at = len(body) if eq_line_end < 0 else eq_line_end + 1
+            body = body[:insert_eq_at] + eq_block + body[insert_eq_at:]
+        else:
+            if body and not body.endswith("\n"):
+                body += "\n"
+            body += "equation\n" + eq_block
+
+    mutated = body + tail
     return mutated, operator
 
 
