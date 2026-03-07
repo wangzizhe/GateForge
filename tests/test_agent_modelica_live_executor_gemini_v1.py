@@ -5,6 +5,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from gateforge.agent_modelica_live_executor_gemini_v1 import (
     _apply_parse_error_pre_repair,
@@ -13,10 +14,55 @@ from gateforge.agent_modelica_live_executor_gemini_v1 import (
     _normalize_terminal_errors,
     _parse_env_assignment,
     _parse_repair_actions,
+    _run_check_and_simulate,
 )
 
 
 class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
+    def test_run_check_and_simulate_loads_modelica_library(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="gf_live_exec_modelica_") as td:
+            workspace = Path(td)
+            with patch(
+                "gateforge.agent_modelica_live_executor_gemini_v1._run_omc_script_local",
+                return_value=(0, "Check of A1 completed successfully.\nrecord SimulationResult\nresultFile = \"/tmp/a.mat\""),
+            ) as mocked:
+                _run_check_and_simulate(
+                    workspace=workspace,
+                    model_file_name="A1.mo",
+                    model_name="A1",
+                    timeout_sec=30,
+                    backend="omc",
+                    docker_image="unused",
+                    stop_time=0.2,
+                    intervals=20,
+                )
+                self.assertEqual(mocked.call_count, 1)
+                script_text = str(mocked.call_args.kwargs.get("script_text") or mocked.call_args.args[0])
+                self.assertIn("loadModel(Modelica);", script_text)
+                self.assertIn('loadFile("A1.mo");', script_text)
+
+    def test_run_check_and_simulate_bootstraps_modelica_in_docker(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="gf_live_exec_modelica_docker_") as td:
+            workspace = Path(td)
+            with patch(
+                "gateforge.agent_modelica_live_executor_gemini_v1._run_omc_script_docker",
+                return_value=(0, "Check of A1 completed successfully.\nrecord SimulationResult\nresultFile = \"/tmp/a.mat\""),
+            ) as mocked:
+                _run_check_and_simulate(
+                    workspace=workspace,
+                    model_file_name="A1.mo",
+                    model_name="A1",
+                    timeout_sec=30,
+                    backend="openmodelica_docker",
+                    docker_image="img",
+                    stop_time=0.2,
+                    intervals=20,
+                )
+                self.assertEqual(mocked.call_count, 1)
+                script_text = str(mocked.call_args.kwargs.get("script_text") or mocked.call_args.args[0])
+                self.assertIn("installPackage(Modelica);", script_text)
+                self.assertIn("loadModel(Modelica);", script_text)
+
     def test_normalize_terminal_errors_clears_errors_for_pass(self) -> None:
         err, comp, sim = _normalize_terminal_errors("PASS", "x", "y", "z")
         self.assertEqual((err, comp, sim), ("", "", ""))

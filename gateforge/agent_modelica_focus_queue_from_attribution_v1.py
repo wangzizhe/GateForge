@@ -169,7 +169,14 @@ def _regression_fail_map(run_results_payload: dict) -> dict[str, bool]:
         if not task_id:
             continue
         hard = rec.get("hard_checks") if isinstance(rec.get("hard_checks"), dict) else {}
-        out[task_id] = not bool(hard.get("regression_pass", True))
+        regression_failed = not bool(hard.get("regression_pass", True))
+        # Only mark regression gate when preceding hard gates are explicitly passing.
+        out[task_id] = bool(
+            regression_failed
+            and bool(hard.get("check_model_pass", False))
+            and bool(hard.get("simulate_pass", False))
+            and bool(hard.get("physics_contract_pass", False))
+        )
     return out
 
 
@@ -191,10 +198,11 @@ def build_focus_queue(
     for row in rows:
         task_id = str(row.get("task_id") or "")
         ftype = str(row.get("failure_type") or "unknown")
-        if bool(regression_fail_by_task.get(task_id)):
+        gate_from_row = _gate_family(str(row.get("gate_break_reason") or "unknown_fail"))
+        if gate_from_row in {"unknown_fail", ""} and bool(regression_fail_by_task.get(task_id)):
             gate = "regression_fail"
         else:
-            gate = _gate_family(str(row.get("gate_break_reason") or "unknown_fail"))
+            gate = gate_from_row
         key = (ftype, gate)
         pair_counts[key] = int(pair_counts.get(key, 0)) + 1
 
