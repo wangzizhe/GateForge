@@ -408,13 +408,21 @@ def _run_check_and_simulate(
 
 @contextmanager
 def _temporary_workspace(prefix: str):
+    # Docker may write root-owned files into the mounted workspace/cache, and
+    # TemporaryDirectory cleanup can raise PermissionError on CI. Use mkdtemp
+    # with best-effort cleanup that never propagates teardown failures.
+    td = tempfile.mkdtemp(prefix=prefix)
     try:
-        with tempfile.TemporaryDirectory(prefix=prefix, ignore_cleanup_errors=True) as td:
-            yield td
-    except TypeError:
-        # Python versions without ignore_cleanup_errors.
-        with tempfile.TemporaryDirectory(prefix=prefix) as td:
-            yield td
+        yield td
+    finally:
+        _cleanup_workspace_best_effort(td)
+
+
+def _cleanup_workspace_best_effort(path: str) -> None:
+    try:
+        shutil.rmtree(path, ignore_errors=True)
+    except Exception:
+        return
 
 
 def main() -> None:
