@@ -93,6 +93,54 @@ python3 -m gateforge.agent_modelica_private_asset_guard_v1 \
 if [ "$RUN_LIVE_SMOKE" = "1" ]; then
   SOURCE_MODEL_PATH="${GATEFORGE_AGENT_RELEASE_SMOKE_SOURCE_MODEL_PATH:-artifacts/run_modelica_open_source_growth_sprint_v1_demo/exported/demo_repo_shard_base_a/Base/A/A1.mo}"
   MUTATED_MODEL_PATH="${GATEFORGE_AGENT_RELEASE_SMOKE_MUTATED_MODEL_PATH:-artifacts/run_modelica_open_source_growth_sprint_v1_demo/growth/scale/mutants/semantic_regression/mdl_a1_393f6bb7/mat_mdl_a1_393f6bb7_semantic_regression_301500.mo}"
+  SMOKE_PATH_ENV="$OUT_DIR/live_smoke_paths.env"
+  python3 - "$SOURCE_MODEL_PATH" "$MUTATED_MODEL_PATH" "$OUT_DIR" > "$SMOKE_PATH_ENV" <<'PY'
+import re
+import shlex
+import sys
+from pathlib import Path
+
+source_path = Path(sys.argv[1])
+mutated_path = Path(sys.argv[2])
+out_dir = Path(sys.argv[3])
+
+smoke_dir = out_dir / "live_smoke_inputs"
+smoke_dir.mkdir(parents=True, exist_ok=True)
+
+if not source_path.exists():
+    source_path = smoke_dir / "A1.mo"
+    source_path.write_text(
+        "model A1\n"
+        "  Real x;\n"
+        "equation\n"
+        "  der(x) = -x;\n"
+        "end A1;\n",
+        encoding="utf-8",
+    )
+
+if not mutated_path.exists():
+    source_text = source_path.read_text(encoding="utf-8")
+    model_name_match = re.search(r"(?im)^\\s*model\\s+([A-Za-z_]\\w*)\\b", source_text)
+    model_name = model_name_match.group(1) if model_name_match else "A1"
+    injection = "  Real __gf_state_301500(start=1.0);"
+    if re.search(r"(?im)^\\s*equation\\b", source_text):
+        mutated_text = re.sub(r"(?im)^\\s*equation\\b", "equation\\n" + injection, source_text, count=1)
+    else:
+        end_pat = re.compile(rf"(?im)^\\s*end\\s+{re.escape(model_name)}\\s*;")
+        end_match = end_pat.search(source_text)
+        if end_match:
+            insert = "equation\\n" + injection + "\\n"
+            mutated_text = source_text[: end_match.start()] + insert + source_text[end_match.start() :]
+        else:
+            mutated_text = source_text + "\\nequation\\n" + injection + "\\n"
+    mutated_path = smoke_dir / f"{source_path.stem}_smoke_mutant.mo"
+    mutated_path.write_text(mutated_text, encoding="utf-8")
+
+print(f"SOURCE_MODEL_PATH={shlex.quote(str(source_path))}")
+print(f"MUTATED_MODEL_PATH={shlex.quote(str(mutated_path))}")
+PY
+  # shellcheck disable=SC1090
+  source "$SMOKE_PATH_ENV"
   python3 -m gateforge.agent_modelica_live_executor_gemini_v1 \
     --task-id "${GATEFORGE_AGENT_RELEASE_SMOKE_TASK_ID:-release-smoke-1}" \
     --failure-type "${GATEFORGE_AGENT_RELEASE_SMOKE_FAILURE_TYPE:-semantic_regression}" \
@@ -137,20 +185,26 @@ if str(learning.get("status") or "") != "PASS":
 if str(private_guard.get("status") or "") != "PASS":
     status = "FAIL"
     reasons.append("private_asset_guard_not_pass")
-live_status = str(live_smoke.get("executor_status") or live_smoke.get("status") or "")
-if status != "FAIL" and live_status in {"", "SKIPPED", "NEEDS_REVIEW"}:
-    status = "NEEDS_REVIEW"
-if live_status and live_status not in {"PASS", "NEEDS_REVIEW", "SKIPPED"}:
-    status = "FAIL"
-    reasons.append("live_smoke_not_pass")
+live_status = str(live_smoke.get("executor_status") or live_smoke.get("status") or "").strip()
+if run_live_smoke and not live_status:
+    hard_keys = ("check_model_pass", "simulate_pass", "physics_contract_pass", "regression_pass")
+    if all(k in live_smoke for k in hard_keys):
+        live_status = "PASS" if all(bool(live_smoke.get(k)) for k in hard_keys) else "FAILED"
+if run_live_smoke:
+    if live_status != "PASS":
+        status = "FAIL"
+        reasons.append("live_smoke_not_pass")
+else:
+    if status != "FAIL" and live_status in {"", "SKIPPED", "NEEDS_REVIEW"}:
+        status = "NEEDS_REVIEW"
 
 live_backend = str(live_smoke.get("backend_used") or "").strip().lower()
-if run_live_smoke and require_real_omc and live_backend not in {"omc", "openmodelica_docker"}:
+if run_live_smoke and require_real_omc and live_status == "PASS" and live_backend not in {"omc", "openmodelica_docker"}:
     status = "FAIL"
     reasons.append("live_smoke_backend_not_real_omc")
 
 live_fallback = bool(live_smoke.get("backend_fallback_to_syntax"))
-if run_live_smoke and require_real_omc and live_fallback:
+if run_live_smoke and require_real_omc and live_status == "PASS" and live_fallback:
     status = "FAIL"
     reasons.append("live_smoke_backend_fallback_to_syntax")
 
