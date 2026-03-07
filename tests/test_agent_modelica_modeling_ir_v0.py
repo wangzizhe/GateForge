@@ -28,6 +28,7 @@ def _sample_ir() -> dict:
             {"from": "VS1.p", "to": "C1.p"},
             {"from": "VS1.n", "to": "G.p"},
         ],
+        "structural_balance": {"variable_count": 5, "equation_count": 5},
         "simulation": {"start_time": 0.0, "stop_time": 1.0, "number_of_intervals": 500, "tolerance": 1e-6, "method": "dassl"},
         "validation_targets": ["VS1.v"],
     }
@@ -46,6 +47,13 @@ class AgentModelicaModelingIRV0Tests(unittest.TestCase):
         ok, errors = validate_ir(ir)
         self.assertFalse(ok)
         self.assertTrue(any("connection_to_component_missing" in str(x) for x in errors))
+
+    def test_validate_ir_rejects_unbalanced_variable_equation_counts(self) -> None:
+        ir = _sample_ir()
+        ir["structural_balance"] = {"variable_count": 6, "equation_count": 5}
+        ok, errors = validate_ir(ir)
+        self.assertFalse(ok)
+        self.assertIn("structural_balance_not_square", errors)
 
     def test_ir_to_modelica_roundtrip_matches(self) -> None:
         ir = _sample_ir()

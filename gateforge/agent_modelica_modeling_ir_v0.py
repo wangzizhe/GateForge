@@ -81,6 +81,17 @@ def _normalize_param_value(value: Any) -> Any:
     return str(value)
 
 
+def _default_structural_balance(payload: dict) -> dict:
+    components = payload.get("components") if isinstance(payload.get("components"), list) else []
+    count = max(1, len([x for x in components if isinstance(x, dict)]))
+    return {"variable_count": count, "equation_count": count}
+
+
+def _extract_structural_balance(payload: dict) -> tuple[int | None, int | None]:
+    structural = payload.get("structural_balance") if isinstance(payload.get("structural_balance"), dict) else {}
+    return _to_int(structural.get("variable_count")), _to_int(structural.get("equation_count"))
+
+
 def validate_ir(
     ir: dict,
     *,
@@ -151,6 +162,14 @@ def validate_ir(
         if dst_ep and dst_ep[0] not in ids:
             errors.append(f"connection_to_component_missing:{dst_ep[0]}")
 
+    var_count, eq_count = _extract_structural_balance(payload)
+    if var_count is None or var_count <= 0:
+        errors.append("structural_balance_variable_count_invalid")
+    if eq_count is None or eq_count <= 0:
+        errors.append("structural_balance_equation_count_invalid")
+    if isinstance(var_count, int) and isinstance(eq_count, int) and var_count != eq_count:
+        errors.append("structural_balance_not_square")
+
     simulation = payload.get("simulation")
     if not isinstance(simulation, dict):
         errors.append("simulation_missing")
@@ -216,8 +235,13 @@ def ir_to_modelica(
     connections = ir.get("connections") or []
     sim = ir.get("simulation") or {}
     targets = [str(x) for x in (ir.get("validation_targets") or []) if str(x).strip()]
+    structural = ir.get("structural_balance") if isinstance(ir.get("structural_balance"), dict) else _default_structural_balance(ir)
+    var_count = _to_int(structural.get("variable_count"))
+    eq_count = _to_int(structural.get("equation_count"))
 
     lines = [f"model {model_name}"]
+    if isinstance(var_count, int) and isinstance(eq_count, int):
+        lines.append(f"  // gateforge_structural_balance: variables={var_count}, equations={eq_count}")
     if targets:
         lines.append(f"  // gateforge_validation_targets: {', '.join(targets)}")
     for component in components:
@@ -297,6 +321,20 @@ def _extract_validation_targets(text: str) -> list[str]:
     return rows
 
 
+def _extract_structural_balance_comment(text: str) -> dict:
+    m = re.search(
+        r"(?im)^\s*//\s*gateforge_structural_balance\s*:\s*variables\s*=\s*([0-9]+)\s*,\s*equations\s*=\s*([0-9]+)\s*$",
+        text,
+    )
+    if not m:
+        return {}
+    var_count = _to_int(m.group(1))
+    eq_count = _to_int(m.group(2))
+    if var_count is None or eq_count is None:
+        return {}
+    return {"variable_count": var_count, "equation_count": eq_count}
+
+
 def _extract_parenthesized_argument(text: str, keyword: str) -> str:
     pattern = re.compile(rf"{re.escape(keyword)}\s*\(", flags=re.IGNORECASE)
     m = pattern.search(text)
@@ -372,12 +410,18 @@ def modelica_to_ir(text: str) -> dict:
     for match in connect_re.finditer(eq_text):
         connections.append({"from": str(match.group(1)), "to": str(match.group(2))})
 
+    structural_balance = _extract_structural_balance_comment(text)
+    if not structural_balance:
+        inferred = max(1, len(components))
+        structural_balance = {"variable_count": inferred, "equation_count": inferred}
+
     payload = {
         "schema_version": SCHEMA_VERSION,
         "model_name": model_name,
         "source_meta": {},
         "components": components,
         "connections": connections,
+        "structural_balance": structural_balance,
         "simulation": _extract_simulation(text),
         "validation_targets": _extract_validation_targets(text),
     }
@@ -420,12 +464,15 @@ def normalize_ir(ir: dict, *, ignore_source_meta: bool = True) -> dict:
         "tolerance": _to_float(simulation.get("tolerance")),
         "method": str(simulation.get("method") or ""),
     }
+    var_count, eq_count = _extract_structural_balance(payload)
+    normalized_structural = {"variable_count": var_count, "equation_count": eq_count}
 
     out = {
         "schema_version": SCHEMA_VERSION,
         "model_name": str(payload.get("model_name") or ""),
         "components": normalized_components,
         "connections": normalized_connections,
+        "structural_balance": normalized_structural,
         "simulation": normalized_sim,
         "validation_targets": normalized_targets,
     }

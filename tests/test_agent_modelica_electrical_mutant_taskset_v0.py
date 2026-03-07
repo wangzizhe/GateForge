@@ -25,6 +25,7 @@ def _benchmark_fixture() -> dict:
             {"from": "VS1.p", "to": "C1.p"},
             {"from": "VS1.n", "to": "G.p"},
         ],
+        "structural_balance": {"variable_count": 5, "equation_count": 5},
         "simulation": {"start_time": 0.0, "stop_time": 1.0, "number_of_intervals": 200, "tolerance": 1e-6, "method": "dassl"},
         "validation_targets": ["VS1.v"],
     }
