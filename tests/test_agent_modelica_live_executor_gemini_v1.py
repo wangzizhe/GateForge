@@ -16,10 +16,15 @@ from gateforge.agent_modelica_live_executor_gemini_v1 import (
     _parse_repair_actions,
     _run_omc_script_docker,
     _run_check_and_simulate,
+    _temporary_workspace,
 )
 
 
 class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
+    def test_temporary_workspace_supports_ignore_cleanup_errors(self) -> None:
+        with _temporary_workspace(prefix="gf_live_exec_test_tmp_") as td:
+            self.assertTrue(Path(td).exists())
+
     def test_run_check_and_simulate_loads_modelica_library(self) -> None:
         with tempfile.TemporaryDirectory(prefix="gf_live_exec_modelica_") as td:
             workspace = Path(td)
