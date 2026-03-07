@@ -17,6 +17,8 @@ from .agent_modelica_repair_playbook_v1 import load_repair_playbook, recommend_r
 from .agent_modelica_patch_template_engine_v1 import build_patch_template
 from .agent_modelica_error_action_mapper_v1 import map_error_to_actions
 from .agent_modelica_retrieval_augmented_repair_v1 import retrieve_repair_examples
+from .agent_modelica_diagnostic_ir_v0 import build_diagnostic_ir_v0
+from .agent_modelica_repair_action_policy_v0 import recommend_repair_actions_v0
 from .regression import compare_evidence, load_json as _load_evidence_json
 
 
@@ -151,6 +153,13 @@ def _augment_repair_strategy(
         ]
     ).strip(" |")
     mapped = map_error_to_actions(error_message=error_message, failure_type=failure_type)
+    diagnostic = build_diagnostic_ir_v0(
+        output=error_message,
+        check_model_pass=expected_stage == "simulate",
+        simulate_pass=False,
+        expected_stage=expected_stage,
+        declared_failure_type=failure_type,
+    )
     retrieval = retrieve_repair_examples(
         history_payload=repair_history_payload if isinstance(repair_history_payload, dict) else {},
         failure_type=failure_type,
@@ -160,13 +169,22 @@ def _augment_repair_strategy(
     )
 
     base_actions = [str(x) for x in (repair_strategy.get("actions") or []) if isinstance(x, str)]
+    policy = recommend_repair_actions_v0(
+        failure_type=failure_type,
+        expected_stage=expected_stage,
+        diagnostic_payload=diagnostic,
+        fallback_actions=base_actions,
+    )
+    policy_actions = [str(x) for x in (policy.get("actions") or []) if isinstance(x, str)]
     template_actions = [str(x) for x in (template.get("actions") or []) if isinstance(x, str)]
     mapped_actions = [str(x) for x in (mapped.get("actions") or []) if isinstance(x, str)]
     retrieved_actions = [str(x) for x in (retrieval.get("suggested_actions") or []) if isinstance(x, str)]
-    merged_actions = _merge_actions(base_actions, template_actions, mapped_actions, retrieved_actions)
+    merged_actions = _merge_actions(policy_actions, template_actions, mapped_actions, retrieved_actions)
 
     signal_count = 0
     if template_actions:
+        signal_count += 1
+    if policy_actions:
         signal_count += 1
     if mapped_actions:
         signal_count += 1
@@ -186,6 +204,12 @@ def _augment_repair_strategy(
 
     audit = {
         "patch_template_id": str(template.get("template_id") or ""),
+        "action_policy_channel": str(policy.get("channel") or ""),
+        "action_policy_fallback_used": bool(policy.get("fallback_used")),
+        "action_policy_deterministic_action_count": int(policy.get("deterministic_action_count", 0) or 0),
+        "action_policy_fallback_action_count": int(policy.get("fallback_action_count", 0) or 0),
+        "diagnostic_error_type": str(diagnostic.get("error_type") or ""),
+        "diagnostic_stage": str(diagnostic.get("stage") or ""),
         "patch_template_actions_count": len(template_actions),
         "patch_template_focus_actions_count": int(template.get("focus_actions_count", 0) or 0),
         "patch_template_adaptation_actions_count": int(template.get("adaptation_actions_count", 0) or 0),

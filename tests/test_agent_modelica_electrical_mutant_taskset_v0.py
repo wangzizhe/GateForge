@@ -89,6 +89,48 @@ class AgentModelicaElectricalMutantTasksetV0Tests(unittest.TestCase):
                 self.assertTrue(Path(str(task.get("source_model_path"))).exists())
                 self.assertTrue(Path(str(task.get("mutated_model_path"))).exists())
 
+    def test_builder_expand_failure_types_produces_cross_product(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            benchmark = root / "benchmark.json"
+            taskset = root / "taskset.json"
+            summary = root / "summary.json"
+            benchmark.write_text(json.dumps(_benchmark_fixture()), encoding="utf-8")
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.agent_modelica_electrical_mutant_taskset_v0",
+                    "--benchmark",
+                    str(benchmark),
+                    "--expand-failure-types",
+                    "--source-models-dir",
+                    str(root / "source"),
+                    "--mutants-dir",
+                    str(root / "mutants"),
+                    "--taskset-out",
+                    str(taskset),
+                    "--out",
+                    str(summary),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            taskset_payload = json.loads(taskset.read_text(encoding="utf-8"))
+            tasks = taskset_payload.get("tasks") or []
+            self.assertEqual(len(tasks), 9)
+            by_origin: dict[str, set[str]] = {}
+            for row in tasks:
+                origin = str(row.get("origin_task_id") or "")
+                by_origin.setdefault(origin, set()).add(str(row.get("failure_type") or ""))
+            self.assertEqual(
+                by_origin.get("t_small"),
+                {"model_check_error", "simulate_error", "semantic_regression"},
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

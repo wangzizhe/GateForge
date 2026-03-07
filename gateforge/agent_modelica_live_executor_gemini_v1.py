@@ -13,6 +13,7 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
+from .agent_modelica_diagnostic_ir_v0 import build_diagnostic_ir_v0
 
 DEFAULT_DOCKER_IMAGE = "openmodelica/openmodelica:v1.26.1-minimal"
 ENV_KEY_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
@@ -91,20 +92,14 @@ def _extract_om_success_flags(output: str) -> tuple[bool, bool]:
 
 
 def _classify_failure(output: str, check_ok: bool, simulate_ok: bool) -> tuple[str, str]:
-    lower = str(output or "").lower()
-    if not check_ok:
-        if "syntax error" in lower or "no viable alternative near token" in lower:
-            return "script_parse_error", "compile/syntax error"
-        if "undeclared" in lower or "not found" in lower or "check of" in lower:
-            return "model_check_error", "model check failed"
-        return "model_check_error", "model check failed"
-    if not simulate_ok:
-        if "assert" in lower:
-            return "simulate_error", "assertion triggered"
-        if "integrator failed" in lower or "step size" in lower:
-            return "simulate_error", "numerical instability"
-        return "simulate_error", "simulation failed"
-    return "none", ""
+    diag = build_diagnostic_ir_v0(
+        output=output,
+        check_model_pass=bool(check_ok),
+        simulate_pass=bool(simulate_ok),
+        expected_stage="",
+        declared_failure_type="",
+    )
+    return str(diag.get("error_type") or "none"), str(diag.get("reason") or "")
 
 
 def _extract_json_object(text: str) -> dict:
@@ -489,7 +484,15 @@ def main() -> None:
                 stop_time=float(args.simulate_stop_time),
                 intervals=max(1, int(args.simulate_intervals)),
             )
-            ftype, reason = _classify_failure(output=output, check_ok=check_ok, simulate_ok=simulate_ok)
+            diagnostic = build_diagnostic_ir_v0(
+                output=output,
+                check_model_pass=bool(check_ok),
+                simulate_pass=bool(simulate_ok),
+                expected_stage=str(args.expected_stage or ""),
+                declared_failure_type=str(args.failure_type or ""),
+            )
+            ftype = str(diagnostic.get("error_type") or "none")
+            reason = str(diagnostic.get("reason") or "")
             attempts.append(
                 {
                     "round": round_idx,
@@ -498,6 +501,7 @@ def main() -> None:
                     "simulate_pass": simulate_ok,
                     "observed_failure_type": ftype,
                     "reason": reason,
+                    "diagnostic_ir": diagnostic,
                     "log_excerpt": str(output or "")[:1200],
                 }
             )

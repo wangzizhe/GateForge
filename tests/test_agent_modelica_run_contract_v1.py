@@ -271,6 +271,7 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
             rec = (r.get("records") or [])[0]
             audit = rec.get("repair_audit") or {}
             self.assertTrue(str(audit.get("patch_template_id") or "").startswith("tpl_"))
+            self.assertTrue(str(audit.get("action_policy_channel") or ""))
             self.assertGreaterEqual(int(audit.get("error_action_count", 0)), 1)
             self.assertGreaterEqual(int(audit.get("retrieved_example_count", 0)), 1)
             actions = audit.get("actions_planned") if isinstance(audit.get("actions_planned"), list) else []
