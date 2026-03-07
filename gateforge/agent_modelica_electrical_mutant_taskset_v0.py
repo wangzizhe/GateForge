@@ -168,6 +168,7 @@ def main() -> None:
     parser.add_argument("--benchmark", default="benchmarks/agent_modelica_electrical_tasks_v0.json")
     parser.add_argument("--scales", default="small,medium,large")
     parser.add_argument("--failure-cycle", default="model_check_error,simulate_error,semantic_regression")
+    parser.add_argument("--expand-failure-types", action="store_true")
     parser.add_argument("--max-tasks", type=int, default=0)
     parser.add_argument("--source-models-dir", default="artifacts/agent_modelica_electrical_mutant_taskset_v0/source_models")
     parser.add_argument("--mutants-dir", default="artifacts/agent_modelica_electrical_mutant_taskset_v0/mutants")
@@ -210,39 +211,44 @@ def main() -> None:
         source_model_path = Path(args.source_models_dir) / f"{task_id}.mo"
         _write_text(str(source_model_path), model_text)
 
-        failure_type = failure_cycle[idx % len(failure_cycle)]
-        token = _token_for(task_id=task_id, failure_type=failure_type)
-        mutated_text = _inject_failure(model_text=model_text, failure_type=failure_type, token=token)
-        mutated_model_path = Path(args.mutants_dir) / failure_type / f"{task_id}_{failure_type}.mo"
-        _write_text(str(mutated_model_path), mutated_text)
+        if bool(args.expand_failure_types):
+            failure_types_for_task = list(failure_cycle)
+        else:
+            failure_types_for_task = [failure_cycle[idx % len(failure_cycle)]]
 
-        run_task_id = f"electrical_{task_id}_{failure_type}"
-        expected_stage = EXPECTED_STAGE_BY_FAILURE.get(failure_type, "simulate")
-        taskset_tasks.append(
-            {
-                "task_id": run_task_id,
-                "scale": scale,
-                "failure_type": failure_type,
-                "expected_stage": expected_stage,
-                "source_model_path": str(source_model_path.resolve()),
-                "mutated_model_path": str(mutated_model_path.resolve()),
-                "origin_task_id": task_id,
-            }
-        )
-        counts_by_failure[failure_type] = int(counts_by_failure.get(failure_type, 0)) + 1
-        counts_by_scale[str(scale)] = int(counts_by_scale.get(str(scale), 0)) + 1
-        records.append(
-            {
-                "task_id": run_task_id,
-                "origin_task_id": task_id,
-                "scale": scale,
-                "failure_type": failure_type,
-                "expected_stage": expected_stage,
-                "status": "PASS",
-                "source_model_path": str(source_model_path.resolve()),
-                "mutated_model_path": str(mutated_model_path.resolve()),
-            }
-        )
+        for failure_type in failure_types_for_task:
+            token = _token_for(task_id=task_id, failure_type=failure_type)
+            mutated_text = _inject_failure(model_text=model_text, failure_type=failure_type, token=token)
+            mutated_model_path = Path(args.mutants_dir) / failure_type / f"{task_id}_{failure_type}.mo"
+            _write_text(str(mutated_model_path), mutated_text)
+
+            run_task_id = f"electrical_{task_id}_{failure_type}"
+            expected_stage = EXPECTED_STAGE_BY_FAILURE.get(failure_type, "simulate")
+            taskset_tasks.append(
+                {
+                    "task_id": run_task_id,
+                    "scale": scale,
+                    "failure_type": failure_type,
+                    "expected_stage": expected_stage,
+                    "source_model_path": str(source_model_path.resolve()),
+                    "mutated_model_path": str(mutated_model_path.resolve()),
+                    "origin_task_id": task_id,
+                }
+            )
+            counts_by_failure[failure_type] = int(counts_by_failure.get(failure_type, 0)) + 1
+            counts_by_scale[str(scale)] = int(counts_by_scale.get(str(scale), 0)) + 1
+            records.append(
+                {
+                    "task_id": run_task_id,
+                    "origin_task_id": task_id,
+                    "scale": scale,
+                    "failure_type": failure_type,
+                    "expected_stage": expected_stage,
+                    "status": "PASS",
+                    "source_model_path": str(source_model_path.resolve()),
+                    "mutated_model_path": str(mutated_model_path.resolve()),
+                }
+            )
 
     status = "PASS" if taskset_tasks else "FAIL"
     taskset = {
