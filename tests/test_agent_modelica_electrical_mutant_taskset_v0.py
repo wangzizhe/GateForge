@@ -89,6 +89,7 @@ class AgentModelicaElectricalMutantTasksetV0Tests(unittest.TestCase):
             for task in taskset_payload.get("tasks") or []:
                 self.assertTrue(Path(str(task.get("source_model_path"))).exists())
                 self.assertTrue(Path(str(task.get("mutated_model_path"))).exists())
+                self.assertTrue(str(task.get("mutation_operator") or ""))
 
     def test_builder_expand_failure_types_produces_cross_product(self) -> None:
         with tempfile.TemporaryDirectory() as d:
@@ -131,6 +132,45 @@ class AgentModelicaElectricalMutantTasksetV0Tests(unittest.TestCase):
                 by_origin.get("t_small"),
                 {"model_check_error", "simulate_error", "semantic_regression"},
             )
+
+    def test_builder_topology_style_emits_mutated_objects(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            benchmark = root / "benchmark.json"
+            taskset = root / "taskset.json"
+            summary = root / "summary.json"
+            benchmark.write_text(json.dumps(_benchmark_fixture()), encoding="utf-8")
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.agent_modelica_electrical_mutant_taskset_v0",
+                    "--benchmark",
+                    str(benchmark),
+                    "--mutation-style",
+                    "topology",
+                    "--expand-failure-types",
+                    "--source-models-dir",
+                    str(root / "source"),
+                    "--mutants-dir",
+                    str(root / "mutants"),
+                    "--taskset-out",
+                    str(taskset),
+                    "--out",
+                    str(summary),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            payload = json.loads(taskset.read_text(encoding="utf-8"))
+            rows = payload.get("tasks") if isinstance(payload.get("tasks"), list) else []
+            self.assertTrue(rows)
+            self.assertTrue(all(str(x.get("mutation_style") or "") == "topology" for x in rows))
+            # At least one task should carry explicit mutated objects from connection edits.
+            self.assertTrue(any(isinstance(x.get("mutated_objects"), list) and x.get("mutated_objects") for x in rows))
 
 
 if __name__ == "__main__":

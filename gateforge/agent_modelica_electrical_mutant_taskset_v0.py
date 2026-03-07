@@ -16,6 +16,11 @@ EXPECTED_STAGE_BY_FAILURE = {
     "simulate_error": "simulate",
     "semantic_regression": "simulate",
 }
+TOPOLOGY_MUTATION_OPERATOR_BY_FAILURE = {
+    "model_check_error": "connector_port_typo",
+    "simulate_error": "connection_drop_with_runtime_assert",
+    "semantic_regression": "connection_polarity_flip",
+}
 
 
 def _load_json(path: str) -> dict:
@@ -127,15 +132,113 @@ def _inject_semantic_regression(model_text: str, token: str) -> str:
     return _insert_equation_line(model_text, f"  0 = 0; // gateforge_semantic_regression_{token}")
 
 
-def _inject_failure(model_text: str, failure_type: str, token: str) -> str:
+def _replace_connection_endpoint(model_text: str, source: str, target: str) -> tuple[str, bool]:
+    line_re = re.compile(rf"connect\(\s*{re.escape(source)}\s*,\s*{re.escape(target)}\s*\)\s*;")
+    m = line_re.search(model_text)
+    if not m:
+        return model_text, False
+    before = model_text[: m.start()]
+    after = model_text[m.end() :]
+    replacement = f"connect({source}, {target});"
+    return before + replacement + after, True
+
+
+def _mutate_connector_port_typo(model_text: str, ir: dict) -> tuple[str, list[dict]]:
+    connections = ir.get("connections") if isinstance(ir.get("connections"), list) else []
+    if not connections:
+        return model_text, []
+    row = connections[0] if isinstance(connections[0], dict) else {}
+    src = str(row.get("from") or "")
+    dst = str(row.get("to") or "")
+    if "." not in dst:
+        return model_text, []
+    comp, _port = dst.split(".", 1)
+    new_dst = f"{comp}.badPort"
+    # Replace text conservatively using exact old connect line.
+    line_re = re.compile(rf"connect\(\s*{re.escape(src)}\s*,\s*{re.escape(dst)}\s*\)\s*;")
+    m = line_re.search(model_text)
+    if not m:
+        return model_text, []
+    replacement = f"connect({src}, {new_dst});"
+    patched = model_text[: m.start()] + replacement + model_text[m.end() :]
+    objects = [
+        {
+            "kind": "connection_endpoint",
+            "from": src,
+            "to_before": dst,
+            "to_after": new_dst,
+        }
+    ]
+    return patched, objects
+
+
+def _mutate_connection_polarity_flip(model_text: str, ir: dict) -> tuple[str, list[dict]]:
+    connections = ir.get("connections") if isinstance(ir.get("connections"), list) else []
+    for row in connections:
+        if not isinstance(row, dict):
+            continue
+        src = str(row.get("from") or "")
+        dst = str(row.get("to") or "")
+        if src.endswith(".p"):
+            new_src = src[:-2] + ".n"
+            line_re = re.compile(rf"connect\(\s*{re.escape(src)}\s*,\s*{re.escape(dst)}\s*\)\s*;")
+            m = line_re.search(model_text)
+            if not m:
+                continue
+            replacement = f"connect({new_src}, {dst});"
+            patched = model_text[: m.start()] + replacement + model_text[m.end() :]
+            objects = [
+                {
+                    "kind": "connection_endpoint",
+                    "from_before": src,
+                    "from_after": new_src,
+                    "to": dst,
+                }
+            ]
+            return patched, objects
+    return model_text, []
+
+
+def _mutate_connection_drop(model_text: str, ir: dict) -> tuple[str, list[dict]]:
+    connections = ir.get("connections") if isinstance(ir.get("connections"), list) else []
+    if not connections:
+        return model_text, []
+    row = connections[0] if isinstance(connections[0], dict) else {}
+    src = str(row.get("from") or "")
+    dst = str(row.get("to") or "")
+    line_re = re.compile(rf"^\s*connect\(\s*{re.escape(src)}\s*,\s*{re.escape(dst)}\s*\)\s*;\s*$", flags=re.MULTILINE)
+    m = line_re.search(model_text)
+    if not m:
+        return model_text, []
+    patched = model_text[: m.start()] + model_text[m.end() :]
+    objects = [{"kind": "connection_edge", "removed_from": src, "removed_to": dst}]
+    return patched, objects
+
+
+def _inject_failure(model_text: str, ir: dict, failure_type: str, token: str, mutation_style: str) -> tuple[str, str, list[dict]]:
     ftype = str(failure_type or "").strip().lower()
+    style = str(mutation_style or "hybrid").strip().lower()
+    if style == "topology" and ftype in TOPOLOGY_MUTATION_OPERATOR_BY_FAILURE:
+        op = TOPOLOGY_MUTATION_OPERATOR_BY_FAILURE.get(ftype) or ""
+        if op == "connector_port_typo":
+            patched, objects = _mutate_connector_port_typo(model_text=model_text, ir=ir)
+            if objects:
+                return patched, op, objects
+        elif op == "connection_polarity_flip":
+            patched, objects = _mutate_connection_polarity_flip(model_text=model_text, ir=ir)
+            if objects:
+                return patched, op, objects
+        elif op == "connection_drop_with_runtime_assert":
+            patched, objects = _mutate_connection_drop(model_text=model_text, ir=ir)
+            patched = _insert_equation_line(patched, f'  assert(false, "gateforge_simulate_error_{token}");')
+            return patched, op, objects
     if ftype == "model_check_error":
-        return _inject_model_check_error(model_text, token)
+        return _inject_model_check_error(model_text, token), "undefined_symbol_injection", []
     if ftype == "simulate_error":
-        return _inject_simulate_error(model_text, token)
+        return _inject_simulate_error(model_text, token), "runtime_assert_injection", []
     if ftype == "semantic_regression":
-        return _inject_semantic_regression(model_text, token)
-    return model_text
+        return _inject_semantic_regression(model_text, token), "parameter_sign_flip", []
+    return model_text, "none", []
 
 
 def _task_selection(all_tasks: list[dict], scales: list[str], max_tasks: int) -> list[dict]:
@@ -168,6 +271,7 @@ def main() -> None:
     parser.add_argument("--benchmark", default="benchmarks/agent_modelica_electrical_tasks_v0.json")
     parser.add_argument("--scales", default="small,medium,large")
     parser.add_argument("--failure-cycle", default="model_check_error,simulate_error,semantic_regression")
+    parser.add_argument("--mutation-style", choices=["hybrid", "topology"], default="hybrid")
     parser.add_argument("--expand-failure-types", action="store_true")
     parser.add_argument("--max-tasks", type=int, default=0)
     parser.add_argument("--source-models-dir", default="artifacts/agent_modelica_electrical_mutant_taskset_v0/source_models")
@@ -218,7 +322,13 @@ def main() -> None:
 
         for failure_type in failure_types_for_task:
             token = _token_for(task_id=task_id, failure_type=failure_type)
-            mutated_text = _inject_failure(model_text=model_text, failure_type=failure_type, token=token)
+            mutated_text, mutation_operator, mutated_objects = _inject_failure(
+                model_text=model_text,
+                ir=ir,
+                failure_type=failure_type,
+                token=token,
+                mutation_style=str(args.mutation_style),
+            )
             mutated_model_path = Path(args.mutants_dir) / failure_type / f"{task_id}_{failure_type}.mo"
             _write_text(str(mutated_model_path), mutated_text)
 
@@ -233,6 +343,9 @@ def main() -> None:
                     "source_model_path": str(source_model_path.resolve()),
                     "mutated_model_path": str(mutated_model_path.resolve()),
                     "origin_task_id": task_id,
+                    "mutation_operator": mutation_operator,
+                    "mutated_objects": mutated_objects,
+                    "mutation_style": str(args.mutation_style),
                 }
             )
             counts_by_failure[failure_type] = int(counts_by_failure.get(failure_type, 0)) + 1
@@ -247,6 +360,9 @@ def main() -> None:
                     "status": "PASS",
                     "source_model_path": str(source_model_path.resolve()),
                     "mutated_model_path": str(mutated_model_path.resolve()),
+                    "mutation_operator": mutation_operator,
+                    "mutated_objects": mutated_objects,
+                    "mutation_style": str(args.mutation_style),
                 }
             )
 

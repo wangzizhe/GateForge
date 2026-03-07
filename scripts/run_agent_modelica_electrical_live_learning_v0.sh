@@ -9,6 +9,7 @@ BENCHMARK_PATH="${GATEFORGE_AGENT_ELECTRICAL_TASKS_PATH:-benchmarks/agent_modeli
 SCALES="${GATEFORGE_AGENT_ELECTRICAL_SCALES:-small,medium,large}"
 MAX_TASKS="${GATEFORGE_AGENT_ELECTRICAL_MAX_TASKS:-0}"
 FAILURE_CYCLE="${GATEFORGE_AGENT_ELECTRICAL_FAILURE_CYCLE:-model_check_error,simulate_error,semantic_regression}"
+MUTATION_STYLE="${GATEFORGE_AGENT_ELECTRICAL_MUTATION_STYLE:-topology}"
 
 MAX_ROUNDS="${GATEFORGE_AGENT_ELECTRICAL_MAX_ROUNDS:-2}"
 MAX_TIME_SEC="${GATEFORGE_AGENT_ELECTRICAL_MAX_TIME_SEC:-180}"
@@ -29,6 +30,7 @@ python3 -m gateforge.agent_modelica_electrical_mutant_taskset_v0 \
   --scales "$SCALES" \
   --max-tasks "$MAX_TASKS" \
   --failure-cycle "$FAILURE_CYCLE" \
+  --mutation-style "$MUTATION_STYLE" \
   --source-models-dir "$OUT_DIR/source_models" \
   --mutants-dir "$OUT_DIR/mutants" \
   --taskset-out "$OUT_DIR/taskset.json" \
@@ -61,6 +63,11 @@ python3 -m gateforge.agent_modelica_repair_capability_learner_v1 \
   --out-retrieval-policy "$RETRIEVAL_POLICY_PATH" \
   --out "$OUT_DIR/capability_learner_summary.json"
 
+python3 -m gateforge.agent_modelica_diagnostic_quality_v0 \
+  --run-results "$OUT_DIR/run_results.json" \
+  --taskset "$OUT_DIR/taskset.json" \
+  --out "$OUT_DIR/diagnostic_quality_summary.json"
+
 export GATEFORGE_AGENT_ELECTRICAL_LIVE_LEARN_OUT_DIR="$OUT_DIR"
 python3 - <<'PY'
 import json
@@ -71,10 +78,12 @@ out_dir = Path(str(os.getenv("GATEFORGE_AGENT_ELECTRICAL_LIVE_LEARN_OUT_DIR") or
 run_summary = {}
 mem_summary = {}
 learn_summary = {}
+diag_summary = {}
 for name, target in (
     ("run_summary", out_dir / "run_summary.json"),
     ("repair_memory_summary", out_dir / "repair_memory_summary.json"),
     ("capability_learner_summary", out_dir / "capability_learner_summary.json"),
+    ("diagnostic_quality_summary", out_dir / "diagnostic_quality_summary.json"),
 ):
     if target.exists():
         payload = json.loads(target.read_text(encoding="utf-8"))
@@ -82,13 +91,18 @@ for name, target in (
             run_summary = payload
         elif name == "repair_memory_summary":
             mem_summary = payload
-        else:
+        elif name == "capability_learner_summary":
             learn_summary = payload
+        else:
+            diag_summary = payload
 print(json.dumps({
     "status": "PASS",
     "run_status": run_summary.get("status"),
     "success_at_k_pct": run_summary.get("success_at_k_pct"),
     "repair_memory_total_rows": mem_summary.get("total_rows"),
     "learned_failure_type_count": learn_summary.get("learned_failure_type_count"),
+    "diagnostic_parse_coverage_pct": diag_summary.get("parse_coverage_pct"),
+    "diagnostic_type_match_rate_pct": diag_summary.get("type_match_rate_pct"),
+    "diagnostic_stage_match_rate_pct": diag_summary.get("stage_match_rate_pct"),
 }))
 PY

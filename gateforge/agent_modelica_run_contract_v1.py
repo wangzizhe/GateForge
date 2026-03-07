@@ -19,6 +19,7 @@ from .agent_modelica_error_action_mapper_v1 import map_error_to_actions
 from .agent_modelica_retrieval_augmented_repair_v1 import retrieve_repair_examples
 from .agent_modelica_diagnostic_ir_v0 import build_diagnostic_ir_v0
 from .agent_modelica_repair_action_policy_v0 import recommend_repair_actions_v0
+from .agent_modelica_orchestrator_guard_v0 import detect_no_progress_v0, prioritize_repair_actions_v0
 from .regression import compare_evidence, load_json as _load_evidence_json
 
 
@@ -180,6 +181,7 @@ def _augment_repair_strategy(
     mapped_actions = [str(x) for x in (mapped.get("actions") or []) if isinstance(x, str)]
     retrieved_actions = [str(x) for x in (retrieval.get("suggested_actions") or []) if isinstance(x, str)]
     merged_actions = _merge_actions(policy_actions, template_actions, mapped_actions, retrieved_actions)
+    prioritized_actions = prioritize_repair_actions_v0(merged_actions, expected_stage=expected_stage)
 
     signal_count = 0
     if template_actions:
@@ -195,7 +197,7 @@ def _augment_repair_strategy(
     augmented_confidence = min(0.98, confidence_base + confidence_boost)
 
     augmented = dict(repair_strategy)
-    augmented["actions"] = merged_actions
+    augmented["actions"] = prioritized_actions
     augmented["confidence"] = augmented_confidence
     if str(augmented.get("reason") or "") == "no_failure_type_match" and int(retrieval.get("retrieved_count", 0) or 0) > 0:
         augmented["reason"] = "retrieval_augmented"
@@ -210,6 +212,7 @@ def _augment_repair_strategy(
         "action_policy_fallback_action_count": int(policy.get("fallback_action_count", 0) or 0),
         "diagnostic_error_type": str(diagnostic.get("error_type") or ""),
         "diagnostic_stage": str(diagnostic.get("stage") or ""),
+        "orchestrator_action_ordering": "expected_stage_priority",
         "patch_template_actions_count": len(template_actions),
         "patch_template_focus_actions_count": int(template.get("focus_actions_count", 0) or 0),
         "patch_template_adaptation_actions_count": int(template.get("adaptation_actions_count", 0) or 0),
@@ -1115,6 +1118,15 @@ def _run_task_live(
             or ""
         )
         pre_repair = live_attempt.get("pre_repair") if isinstance(live_attempt.get("pre_repair"), dict) else {}
+        diagnostic_ir = live_attempt.get("diagnostic_ir") if isinstance(live_attempt.get("diagnostic_ir"), dict) else {}
+        if not diagnostic_ir:
+            diagnostic_ir = build_diagnostic_ir_v0(
+                output=attempt_log_excerpt or stderr_snippet or error_message or compile_error or simulate_error_message,
+                check_model_pass=bool(check_ok),
+                simulate_pass=bool(simulate_ok),
+                expected_stage=str(task.get("expected_stage") or ""),
+                declared_failure_type=failure_type,
+            )
 
         attempts.append(
             {
@@ -1140,6 +1152,7 @@ def _run_task_live(
                 "observed_failure_type": observed_failure_type,
                 "reason": attempt_reason,
                 "log_excerpt": attempt_log_excerpt[: max(0, int(live_max_output_chars))],
+                "diagnostic_ir": diagnostic_ir,
                 "pre_repair": pre_repair,
             }
         )
@@ -1151,6 +1164,11 @@ def _run_task_live(
         }
         if all(hard.values()) and not time_budget_exceeded:
             passed = True
+            break
+        if detect_no_progress_v0(attempts, window=2):
+            error_message = "no_progress_stop"
+            if not compile_error and not simulate_error_message:
+                compile_error = "no_progress_stop"
             break
 
     return {

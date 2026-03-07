@@ -12,6 +12,8 @@ class RunAgentModelicaElectricalLiveLearningV0Tests(unittest.TestCase):
         self.assertIn("agent_modelica_run_contract_v1", content)
         self.assertIn("agent_modelica_repair_memory_store_v1", content)
         self.assertIn("agent_modelica_repair_capability_learner_v1", content)
+        self.assertIn("agent_modelica_diagnostic_quality_v0", content)
+        self.assertIn("--mutation-style \"$MUTATION_STYLE\"", content)
         self.assertIn("--repair-actions __REPAIR_ACTIONS_SHQ__", content)
         self.assertIn("GATEFORGE_AGENT_LIVE_PLANNER_BACKEND:-gemini", content)
 
