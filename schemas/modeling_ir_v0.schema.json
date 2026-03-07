@@ -8,6 +8,7 @@
     "model_name",
     "components",
     "connections",
+    "structural_balance",
     "simulation",
     "validation_targets"
   ],
@@ -57,6 +58,15 @@
         },
         "additionalProperties": false
       }
+    },
+    "structural_balance": {
+      "type": "object",
+      "required": ["variable_count", "equation_count"],
+      "properties": {
+        "variable_count": {"type": "integer", "minimum": 1},
+        "equation_count": {"type": "integer", "minimum": 1}
+      },
+      "additionalProperties": false
     },
     "simulation": {
       "type": "object",

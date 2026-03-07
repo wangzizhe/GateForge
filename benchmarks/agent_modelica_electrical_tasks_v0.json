@@ -19,24 +19,84 @@
       "ir": {
         "schema_version": "modeling_ir_v0",
         "model_name": "SmallRCConstantV0",
-        "source_meta": {"domain": "electrical_analog", "task_id": "small_rc_constant_v0", "scale": "small"},
+        "source_meta": {
+          "domain": "electrical_analog",
+          "task_id": "small_rc_constant_v0",
+          "scale": "small"
+        },
         "components": [
-          {"id": "V1", "type": "Modelica.Electrical.Analog.Sources.ConstantVoltage", "params": {"V": 10.0}},
-          {"id": "R1", "type": "Modelica.Electrical.Analog.Basic.Resistor", "params": {"R": 100.0}},
-          {"id": "C1", "type": "Modelica.Electrical.Analog.Basic.Capacitor", "params": {"C": 0.01}},
-          {"id": "VS1", "type": "Modelica.Electrical.Analog.Sensors.VoltageSensor", "params": {}},
-          {"id": "G", "type": "Modelica.Electrical.Analog.Basic.Ground", "params": {}}
+          {
+            "id": "V1",
+            "type": "Modelica.Electrical.Analog.Sources.ConstantVoltage",
+            "params": {
+              "V": 10.0
+            }
+          },
+          {
+            "id": "R1",
+            "type": "Modelica.Electrical.Analog.Basic.Resistor",
+            "params": {
+              "R": 100.0
+            }
+          },
+          {
+            "id": "C1",
+            "type": "Modelica.Electrical.Analog.Basic.Capacitor",
+            "params": {
+              "C": 0.01
+            }
+          },
+          {
+            "id": "VS1",
+            "type": "Modelica.Electrical.Analog.Sensors.VoltageSensor",
+            "params": {}
+          },
+          {
+            "id": "G",
+            "type": "Modelica.Electrical.Analog.Basic.Ground",
+            "params": {}
+          }
         ],
         "connections": [
-          {"from": "V1.p", "to": "R1.p"},
-          {"from": "R1.n", "to": "C1.p"},
-          {"from": "C1.n", "to": "V1.n"},
-          {"from": "V1.n", "to": "G.p"},
-          {"from": "VS1.p", "to": "C1.p"},
-          {"from": "VS1.n", "to": "G.p"}
+          {
+            "from": "V1.p",
+            "to": "R1.p"
+          },
+          {
+            "from": "R1.n",
+            "to": "C1.p"
+          },
+          {
+            "from": "C1.n",
+            "to": "V1.n"
+          },
+          {
+            "from": "V1.n",
+            "to": "G.p"
+          },
+          {
+            "from": "VS1.p",
+            "to": "C1.p"
+          },
+          {
+            "from": "VS1.n",
+            "to": "G.p"
+          }
         ],
-        "simulation": {"start_time": 0.0, "stop_time": 1.0, "number_of_intervals": 500, "tolerance": 1e-6, "method": "dassl"},
-        "validation_targets": ["VS1.v"]
+        "simulation": {
+          "start_time": 0.0,
+          "stop_time": 1.0,
+          "number_of_intervals": 500,
+          "tolerance": 1e-06,
+          "method": "dassl"
+        },
+        "validation_targets": [
+          "VS1.v"
+        ],
+        "structural_balance": {
+          "variable_count": 5,
+          "equation_count": 5
+        }
       }
     },
     {
@@ -45,23 +105,81 @@
       "ir": {
         "schema_version": "modeling_ir_v0",
         "model_name": "SmallRLStepV0",
-        "source_meta": {"domain": "electrical_analog", "task_id": "small_rl_step_v0", "scale": "small"},
+        "source_meta": {
+          "domain": "electrical_analog",
+          "task_id": "small_rl_step_v0",
+          "scale": "small"
+        },
         "components": [
-          {"id": "V1", "type": "Modelica.Electrical.Analog.Sources.StepVoltage", "params": {"V": 5.0, "startTime": 0.1}},
-          {"id": "L1", "type": "Modelica.Electrical.Analog.Basic.Inductor", "params": {"L": 0.1}},
-          {"id": "R1", "type": "Modelica.Electrical.Analog.Basic.Resistor", "params": {"R": 10.0}},
-          {"id": "CS1", "type": "Modelica.Electrical.Analog.Sensors.CurrentSensor", "params": {}},
-          {"id": "G", "type": "Modelica.Electrical.Analog.Basic.Ground", "params": {}}
+          {
+            "id": "V1",
+            "type": "Modelica.Electrical.Analog.Sources.StepVoltage",
+            "params": {
+              "V": 5.0,
+              "startTime": 0.1
+            }
+          },
+          {
+            "id": "L1",
+            "type": "Modelica.Electrical.Analog.Basic.Inductor",
+            "params": {
+              "L": 0.1
+            }
+          },
+          {
+            "id": "R1",
+            "type": "Modelica.Electrical.Analog.Basic.Resistor",
+            "params": {
+              "R": 10.0
+            }
+          },
+          {
+            "id": "CS1",
+            "type": "Modelica.Electrical.Analog.Sensors.CurrentSensor",
+            "params": {}
+          },
+          {
+            "id": "G",
+            "type": "Modelica.Electrical.Analog.Basic.Ground",
+            "params": {}
+          }
         ],
         "connections": [
-          {"from": "V1.p", "to": "CS1.p"},
-          {"from": "CS1.n", "to": "L1.p"},
-          {"from": "L1.n", "to": "R1.p"},
-          {"from": "R1.n", "to": "V1.n"},
-          {"from": "V1.n", "to": "G.p"}
+          {
+            "from": "V1.p",
+            "to": "CS1.p"
+          },
+          {
+            "from": "CS1.n",
+            "to": "L1.p"
+          },
+          {
+            "from": "L1.n",
+            "to": "R1.p"
+          },
+          {
+            "from": "R1.n",
+            "to": "V1.n"
+          },
+          {
+            "from": "V1.n",
+            "to": "G.p"
+          }
         ],
-        "simulation": {"start_time": 0.0, "stop_time": 0.6, "number_of_intervals": 400, "tolerance": 1e-6, "method": "dassl"},
-        "validation_targets": ["CS1.i"]
+        "simulation": {
+          "start_time": 0.0,
+          "stop_time": 0.6,
+          "number_of_intervals": 400,
+          "tolerance": 1e-06,
+          "method": "dassl"
+        },
+        "validation_targets": [
+          "CS1.i"
+        ],
+        "structural_balance": {
+          "variable_count": 5,
+          "equation_count": 5
+        }
       }
     },
     {
@@ -70,24 +188,84 @@
       "ir": {
         "schema_version": "modeling_ir_v0",
         "model_name": "SmallRDividerV0",
-        "source_meta": {"domain": "electrical_analog", "task_id": "small_r_divider_v0", "scale": "small"},
+        "source_meta": {
+          "domain": "electrical_analog",
+          "task_id": "small_r_divider_v0",
+          "scale": "small"
+        },
         "components": [
-          {"id": "V1", "type": "Modelica.Electrical.Analog.Sources.ConstantVoltage", "params": {"V": 12.0}},
-          {"id": "R1", "type": "Modelica.Electrical.Analog.Basic.Resistor", "params": {"R": 1000.0}},
-          {"id": "R2", "type": "Modelica.Electrical.Analog.Basic.Resistor", "params": {"R": 1000.0}},
-          {"id": "VS1", "type": "Modelica.Electrical.Analog.Sensors.VoltageSensor", "params": {}},
-          {"id": "G", "type": "Modelica.Electrical.Analog.Basic.Ground", "params": {}}
+          {
+            "id": "V1",
+            "type": "Modelica.Electrical.Analog.Sources.ConstantVoltage",
+            "params": {
+              "V": 12.0
+            }
+          },
+          {
+            "id": "R1",
+            "type": "Modelica.Electrical.Analog.Basic.Resistor",
+            "params": {
+              "R": 1000.0
+            }
+          },
+          {
+            "id": "R2",
+            "type": "Modelica.Electrical.Analog.Basic.Resistor",
+            "params": {
+              "R": 1000.0
+            }
+          },
+          {
+            "id": "VS1",
+            "type": "Modelica.Electrical.Analog.Sensors.VoltageSensor",
+            "params": {}
+          },
+          {
+            "id": "G",
+            "type": "Modelica.Electrical.Analog.Basic.Ground",
+            "params": {}
+          }
         ],
         "connections": [
-          {"from": "V1.p", "to": "R1.p"},
-          {"from": "R1.n", "to": "R2.p"},
-          {"from": "R2.n", "to": "V1.n"},
-          {"from": "V1.n", "to": "G.p"},
-          {"from": "VS1.p", "to": "R1.n"},
-          {"from": "VS1.n", "to": "G.p"}
+          {
+            "from": "V1.p",
+            "to": "R1.p"
+          },
+          {
+            "from": "R1.n",
+            "to": "R2.p"
+          },
+          {
+            "from": "R2.n",
+            "to": "V1.n"
+          },
+          {
+            "from": "V1.n",
+            "to": "G.p"
+          },
+          {
+            "from": "VS1.p",
+            "to": "R1.n"
+          },
+          {
+            "from": "VS1.n",
+            "to": "G.p"
+          }
         ],
-        "simulation": {"start_time": 0.0, "stop_time": 0.2, "number_of_intervals": 200, "tolerance": 1e-6, "method": "dassl"},
-        "validation_targets": ["VS1.v"]
+        "simulation": {
+          "start_time": 0.0,
+          "stop_time": 0.2,
+          "number_of_intervals": 200,
+          "tolerance": 1e-06,
+          "method": "dassl"
+        },
+        "validation_targets": [
+          "VS1.v"
+        ],
+        "structural_balance": {
+          "variable_count": 5,
+          "equation_count": 5
+        }
       }
     },
     {
@@ -96,24 +274,85 @@
       "ir": {
         "schema_version": "modeling_ir_v0",
         "model_name": "SmallRCSineV0",
-        "source_meta": {"domain": "electrical_analog", "task_id": "small_rc_sine_v0", "scale": "small"},
+        "source_meta": {
+          "domain": "electrical_analog",
+          "task_id": "small_rc_sine_v0",
+          "scale": "small"
+        },
         "components": [
-          {"id": "V1", "type": "Modelica.Electrical.Analog.Sources.SineVoltage", "params": {"V": 3.0, "freqHz": 50.0}},
-          {"id": "R1", "type": "Modelica.Electrical.Analog.Basic.Resistor", "params": {"R": 50.0}},
-          {"id": "C1", "type": "Modelica.Electrical.Analog.Basic.Capacitor", "params": {"C": 0.002}},
-          {"id": "VS1", "type": "Modelica.Electrical.Analog.Sensors.VoltageSensor", "params": {}},
-          {"id": "G", "type": "Modelica.Electrical.Analog.Basic.Ground", "params": {}}
+          {
+            "id": "V1",
+            "type": "Modelica.Electrical.Analog.Sources.SineVoltage",
+            "params": {
+              "V": 3.0,
+              "freqHz": 50.0
+            }
+          },
+          {
+            "id": "R1",
+            "type": "Modelica.Electrical.Analog.Basic.Resistor",
+            "params": {
+              "R": 50.0
+            }
+          },
+          {
+            "id": "C1",
+            "type": "Modelica.Electrical.Analog.Basic.Capacitor",
+            "params": {
+              "C": 0.002
+            }
+          },
+          {
+            "id": "VS1",
+            "type": "Modelica.Electrical.Analog.Sensors.VoltageSensor",
+            "params": {}
+          },
+          {
+            "id": "G",
+            "type": "Modelica.Electrical.Analog.Basic.Ground",
+            "params": {}
+          }
         ],
         "connections": [
-          {"from": "V1.p", "to": "R1.p"},
-          {"from": "R1.n", "to": "C1.p"},
-          {"from": "C1.n", "to": "V1.n"},
-          {"from": "V1.n", "to": "G.p"},
-          {"from": "VS1.p", "to": "C1.p"},
-          {"from": "VS1.n", "to": "G.p"}
+          {
+            "from": "V1.p",
+            "to": "R1.p"
+          },
+          {
+            "from": "R1.n",
+            "to": "C1.p"
+          },
+          {
+            "from": "C1.n",
+            "to": "V1.n"
+          },
+          {
+            "from": "V1.n",
+            "to": "G.p"
+          },
+          {
+            "from": "VS1.p",
+            "to": "C1.p"
+          },
+          {
+            "from": "VS1.n",
+            "to": "G.p"
+          }
         ],
-        "simulation": {"start_time": 0.0, "stop_time": 0.2, "number_of_intervals": 300, "tolerance": 1e-6, "method": "dassl"},
-        "validation_targets": ["VS1.v"]
+        "simulation": {
+          "start_time": 0.0,
+          "stop_time": 0.2,
+          "number_of_intervals": 300,
+          "tolerance": 1e-06,
+          "method": "dassl"
+        },
+        "validation_targets": [
+          "VS1.v"
+        ],
+        "structural_balance": {
+          "variable_count": 5,
+          "equation_count": 5
+        }
       }
     },
     {
@@ -122,28 +361,106 @@
       "ir": {
         "schema_version": "modeling_ir_v0",
         "model_name": "MediumRLCSeriesV0",
-        "source_meta": {"domain": "electrical_analog", "task_id": "medium_rlc_series_v0", "scale": "medium"},
+        "source_meta": {
+          "domain": "electrical_analog",
+          "task_id": "medium_rlc_series_v0",
+          "scale": "medium"
+        },
         "components": [
-          {"id": "V1", "type": "Modelica.Electrical.Analog.Sources.StepVoltage", "params": {"V": 15.0, "startTime": 0.05}},
-          {"id": "R1", "type": "Modelica.Electrical.Analog.Basic.Resistor", "params": {"R": 40.0}},
-          {"id": "L1", "type": "Modelica.Electrical.Analog.Basic.Inductor", "params": {"L": 0.05}},
-          {"id": "C1", "type": "Modelica.Electrical.Analog.Basic.Capacitor", "params": {"C": 0.001}},
-          {"id": "CS1", "type": "Modelica.Electrical.Analog.Sensors.CurrentSensor", "params": {}},
-          {"id": "VS1", "type": "Modelica.Electrical.Analog.Sensors.VoltageSensor", "params": {}},
-          {"id": "G", "type": "Modelica.Electrical.Analog.Basic.Ground", "params": {}}
+          {
+            "id": "V1",
+            "type": "Modelica.Electrical.Analog.Sources.StepVoltage",
+            "params": {
+              "V": 15.0,
+              "startTime": 0.05
+            }
+          },
+          {
+            "id": "R1",
+            "type": "Modelica.Electrical.Analog.Basic.Resistor",
+            "params": {
+              "R": 40.0
+            }
+          },
+          {
+            "id": "L1",
+            "type": "Modelica.Electrical.Analog.Basic.Inductor",
+            "params": {
+              "L": 0.05
+            }
+          },
+          {
+            "id": "C1",
+            "type": "Modelica.Electrical.Analog.Basic.Capacitor",
+            "params": {
+              "C": 0.001
+            }
+          },
+          {
+            "id": "CS1",
+            "type": "Modelica.Electrical.Analog.Sensors.CurrentSensor",
+            "params": {}
+          },
+          {
+            "id": "VS1",
+            "type": "Modelica.Electrical.Analog.Sensors.VoltageSensor",
+            "params": {}
+          },
+          {
+            "id": "G",
+            "type": "Modelica.Electrical.Analog.Basic.Ground",
+            "params": {}
+          }
         ],
         "connections": [
-          {"from": "V1.p", "to": "CS1.p"},
-          {"from": "CS1.n", "to": "R1.p"},
-          {"from": "R1.n", "to": "L1.p"},
-          {"from": "L1.n", "to": "C1.p"},
-          {"from": "C1.n", "to": "V1.n"},
-          {"from": "V1.n", "to": "G.p"},
-          {"from": "VS1.p", "to": "C1.p"},
-          {"from": "VS1.n", "to": "G.p"}
+          {
+            "from": "V1.p",
+            "to": "CS1.p"
+          },
+          {
+            "from": "CS1.n",
+            "to": "R1.p"
+          },
+          {
+            "from": "R1.n",
+            "to": "L1.p"
+          },
+          {
+            "from": "L1.n",
+            "to": "C1.p"
+          },
+          {
+            "from": "C1.n",
+            "to": "V1.n"
+          },
+          {
+            "from": "V1.n",
+            "to": "G.p"
+          },
+          {
+            "from": "VS1.p",
+            "to": "C1.p"
+          },
+          {
+            "from": "VS1.n",
+            "to": "G.p"
+          }
         ],
-        "simulation": {"start_time": 0.0, "stop_time": 1.5, "number_of_intervals": 800, "tolerance": 1e-6, "method": "dassl"},
-        "validation_targets": ["CS1.i", "VS1.v"]
+        "simulation": {
+          "start_time": 0.0,
+          "stop_time": 1.5,
+          "number_of_intervals": 800,
+          "tolerance": 1e-06,
+          "method": "dassl"
+        },
+        "validation_targets": [
+          "CS1.i",
+          "VS1.v"
+        ],
+        "structural_balance": {
+          "variable_count": 7,
+          "equation_count": 7
+        }
       }
     },
     {
@@ -152,29 +469,110 @@
       "ir": {
         "schema_version": "modeling_ir_v0",
         "model_name": "MediumParallelRCV0",
-        "source_meta": {"domain": "electrical_analog", "task_id": "medium_parallel_rc_v0", "scale": "medium"},
+        "source_meta": {
+          "domain": "electrical_analog",
+          "task_id": "medium_parallel_rc_v0",
+          "scale": "medium"
+        },
         "components": [
-          {"id": "V1", "type": "Modelica.Electrical.Analog.Sources.ConstantVoltage", "params": {"V": 9.0}},
-          {"id": "R1", "type": "Modelica.Electrical.Analog.Basic.Resistor", "params": {"R": 100.0}},
-          {"id": "C1", "type": "Modelica.Electrical.Analog.Basic.Capacitor", "params": {"C": 0.004}},
-          {"id": "R2", "type": "Modelica.Electrical.Analog.Basic.Resistor", "params": {"R": 220.0}},
-          {"id": "C2", "type": "Modelica.Electrical.Analog.Basic.Capacitor", "params": {"C": 0.002}},
-          {"id": "VS1", "type": "Modelica.Electrical.Analog.Sensors.VoltageSensor", "params": {}},
-          {"id": "G", "type": "Modelica.Electrical.Analog.Basic.Ground", "params": {}}
+          {
+            "id": "V1",
+            "type": "Modelica.Electrical.Analog.Sources.ConstantVoltage",
+            "params": {
+              "V": 9.0
+            }
+          },
+          {
+            "id": "R1",
+            "type": "Modelica.Electrical.Analog.Basic.Resistor",
+            "params": {
+              "R": 100.0
+            }
+          },
+          {
+            "id": "C1",
+            "type": "Modelica.Electrical.Analog.Basic.Capacitor",
+            "params": {
+              "C": 0.004
+            }
+          },
+          {
+            "id": "R2",
+            "type": "Modelica.Electrical.Analog.Basic.Resistor",
+            "params": {
+              "R": 220.0
+            }
+          },
+          {
+            "id": "C2",
+            "type": "Modelica.Electrical.Analog.Basic.Capacitor",
+            "params": {
+              "C": 0.002
+            }
+          },
+          {
+            "id": "VS1",
+            "type": "Modelica.Electrical.Analog.Sensors.VoltageSensor",
+            "params": {}
+          },
+          {
+            "id": "G",
+            "type": "Modelica.Electrical.Analog.Basic.Ground",
+            "params": {}
+          }
         ],
         "connections": [
-          {"from": "V1.p", "to": "R1.p"},
-          {"from": "V1.p", "to": "R2.p"},
-          {"from": "R1.n", "to": "C1.p"},
-          {"from": "R2.n", "to": "C2.p"},
-          {"from": "C1.n", "to": "V1.n"},
-          {"from": "C2.n", "to": "V1.n"},
-          {"from": "V1.n", "to": "G.p"},
-          {"from": "VS1.p", "to": "V1.p"},
-          {"from": "VS1.n", "to": "V1.n"}
+          {
+            "from": "V1.p",
+            "to": "R1.p"
+          },
+          {
+            "from": "V1.p",
+            "to": "R2.p"
+          },
+          {
+            "from": "R1.n",
+            "to": "C1.p"
+          },
+          {
+            "from": "R2.n",
+            "to": "C2.p"
+          },
+          {
+            "from": "C1.n",
+            "to": "V1.n"
+          },
+          {
+            "from": "C2.n",
+            "to": "V1.n"
+          },
+          {
+            "from": "V1.n",
+            "to": "G.p"
+          },
+          {
+            "from": "VS1.p",
+            "to": "V1.p"
+          },
+          {
+            "from": "VS1.n",
+            "to": "V1.n"
+          }
         ],
-        "simulation": {"start_time": 0.0, "stop_time": 1.0, "number_of_intervals": 700, "tolerance": 1e-6, "method": "dassl"},
-        "validation_targets": ["VS1.v"]
+        "simulation": {
+          "start_time": 0.0,
+          "stop_time": 1.0,
+          "number_of_intervals": 700,
+          "tolerance": 1e-06,
+          "method": "dassl"
+        },
+        "validation_targets": [
+          "VS1.v"
+        ],
+        "structural_balance": {
+          "variable_count": 7,
+          "equation_count": 7
+        }
       }
     },
     {
@@ -183,29 +581,111 @@
       "ir": {
         "schema_version": "modeling_ir_v0",
         "model_name": "MediumLadderRCV0",
-        "source_meta": {"domain": "electrical_analog", "task_id": "medium_ladder_rc_v0", "scale": "medium"},
+        "source_meta": {
+          "domain": "electrical_analog",
+          "task_id": "medium_ladder_rc_v0",
+          "scale": "medium"
+        },
         "components": [
-          {"id": "V1", "type": "Modelica.Electrical.Analog.Sources.StepVoltage", "params": {"V": 8.0, "startTime": 0.02}},
-          {"id": "R1", "type": "Modelica.Electrical.Analog.Basic.Resistor", "params": {"R": 20.0}},
-          {"id": "R2", "type": "Modelica.Electrical.Analog.Basic.Resistor", "params": {"R": 30.0}},
-          {"id": "C1", "type": "Modelica.Electrical.Analog.Basic.Capacitor", "params": {"C": 0.003}},
-          {"id": "C2", "type": "Modelica.Electrical.Analog.Basic.Capacitor", "params": {"C": 0.0015}},
-          {"id": "VS1", "type": "Modelica.Electrical.Analog.Sensors.VoltageSensor", "params": {}},
-          {"id": "G", "type": "Modelica.Electrical.Analog.Basic.Ground", "params": {}}
+          {
+            "id": "V1",
+            "type": "Modelica.Electrical.Analog.Sources.StepVoltage",
+            "params": {
+              "V": 8.0,
+              "startTime": 0.02
+            }
+          },
+          {
+            "id": "R1",
+            "type": "Modelica.Electrical.Analog.Basic.Resistor",
+            "params": {
+              "R": 20.0
+            }
+          },
+          {
+            "id": "R2",
+            "type": "Modelica.Electrical.Analog.Basic.Resistor",
+            "params": {
+              "R": 30.0
+            }
+          },
+          {
+            "id": "C1",
+            "type": "Modelica.Electrical.Analog.Basic.Capacitor",
+            "params": {
+              "C": 0.003
+            }
+          },
+          {
+            "id": "C2",
+            "type": "Modelica.Electrical.Analog.Basic.Capacitor",
+            "params": {
+              "C": 0.0015
+            }
+          },
+          {
+            "id": "VS1",
+            "type": "Modelica.Electrical.Analog.Sensors.VoltageSensor",
+            "params": {}
+          },
+          {
+            "id": "G",
+            "type": "Modelica.Electrical.Analog.Basic.Ground",
+            "params": {}
+          }
         ],
         "connections": [
-          {"from": "V1.p", "to": "R1.p"},
-          {"from": "R1.n", "to": "R2.p"},
-          {"from": "R1.n", "to": "C1.p"},
-          {"from": "R2.n", "to": "C2.p"},
-          {"from": "C1.n", "to": "V1.n"},
-          {"from": "C2.n", "to": "V1.n"},
-          {"from": "V1.n", "to": "G.p"},
-          {"from": "VS1.p", "to": "R2.n"},
-          {"from": "VS1.n", "to": "G.p"}
+          {
+            "from": "V1.p",
+            "to": "R1.p"
+          },
+          {
+            "from": "R1.n",
+            "to": "R2.p"
+          },
+          {
+            "from": "R1.n",
+            "to": "C1.p"
+          },
+          {
+            "from": "R2.n",
+            "to": "C2.p"
+          },
+          {
+            "from": "C1.n",
+            "to": "V1.n"
+          },
+          {
+            "from": "C2.n",
+            "to": "V1.n"
+          },
+          {
+            "from": "V1.n",
+            "to": "G.p"
+          },
+          {
+            "from": "VS1.p",
+            "to": "R2.n"
+          },
+          {
+            "from": "VS1.n",
+            "to": "G.p"
+          }
         ],
-        "simulation": {"start_time": 0.0, "stop_time": 1.2, "number_of_intervals": 900, "tolerance": 1e-6, "method": "dassl"},
-        "validation_targets": ["VS1.v"]
+        "simulation": {
+          "start_time": 0.0,
+          "stop_time": 1.2,
+          "number_of_intervals": 900,
+          "tolerance": 1e-06,
+          "method": "dassl"
+        },
+        "validation_targets": [
+          "VS1.v"
+        ],
+        "structural_balance": {
+          "variable_count": 7,
+          "equation_count": 7
+        }
       }
     },
     {
@@ -214,29 +694,111 @@
       "ir": {
         "schema_version": "modeling_ir_v0",
         "model_name": "MediumDualSourceV0",
-        "source_meta": {"domain": "electrical_analog", "task_id": "medium_dual_source_v0", "scale": "medium"},
+        "source_meta": {
+          "domain": "electrical_analog",
+          "task_id": "medium_dual_source_v0",
+          "scale": "medium"
+        },
         "components": [
-          {"id": "V1", "type": "Modelica.Electrical.Analog.Sources.ConstantVoltage", "params": {"V": 5.0}},
-          {"id": "V2", "type": "Modelica.Electrical.Analog.Sources.SineVoltage", "params": {"V": 2.0, "freqHz": 25.0}},
-          {"id": "R1", "type": "Modelica.Electrical.Analog.Basic.Resistor", "params": {"R": 60.0}},
-          {"id": "R2", "type": "Modelica.Electrical.Analog.Basic.Resistor", "params": {"R": 80.0}},
-          {"id": "C1", "type": "Modelica.Electrical.Analog.Basic.Capacitor", "params": {"C": 0.0025}},
-          {"id": "VS1", "type": "Modelica.Electrical.Analog.Sensors.VoltageSensor", "params": {}},
-          {"id": "G", "type": "Modelica.Electrical.Analog.Basic.Ground", "params": {}}
+          {
+            "id": "V1",
+            "type": "Modelica.Electrical.Analog.Sources.ConstantVoltage",
+            "params": {
+              "V": 5.0
+            }
+          },
+          {
+            "id": "V2",
+            "type": "Modelica.Electrical.Analog.Sources.SineVoltage",
+            "params": {
+              "V": 2.0,
+              "freqHz": 25.0
+            }
+          },
+          {
+            "id": "R1",
+            "type": "Modelica.Electrical.Analog.Basic.Resistor",
+            "params": {
+              "R": 60.0
+            }
+          },
+          {
+            "id": "R2",
+            "type": "Modelica.Electrical.Analog.Basic.Resistor",
+            "params": {
+              "R": 80.0
+            }
+          },
+          {
+            "id": "C1",
+            "type": "Modelica.Electrical.Analog.Basic.Capacitor",
+            "params": {
+              "C": 0.0025
+            }
+          },
+          {
+            "id": "VS1",
+            "type": "Modelica.Electrical.Analog.Sensors.VoltageSensor",
+            "params": {}
+          },
+          {
+            "id": "G",
+            "type": "Modelica.Electrical.Analog.Basic.Ground",
+            "params": {}
+          }
         ],
         "connections": [
-          {"from": "V1.p", "to": "R1.p"},
-          {"from": "V2.p", "to": "R2.p"},
-          {"from": "R1.n", "to": "C1.p"},
-          {"from": "R2.n", "to": "C1.p"},
-          {"from": "C1.n", "to": "V1.n"},
-          {"from": "V2.n", "to": "V1.n"},
-          {"from": "V1.n", "to": "G.p"},
-          {"from": "VS1.p", "to": "C1.p"},
-          {"from": "VS1.n", "to": "G.p"}
+          {
+            "from": "V1.p",
+            "to": "R1.p"
+          },
+          {
+            "from": "V2.p",
+            "to": "R2.p"
+          },
+          {
+            "from": "R1.n",
+            "to": "C1.p"
+          },
+          {
+            "from": "R2.n",
+            "to": "C1.p"
+          },
+          {
+            "from": "C1.n",
+            "to": "V1.n"
+          },
+          {
+            "from": "V2.n",
+            "to": "V1.n"
+          },
+          {
+            "from": "V1.n",
+            "to": "G.p"
+          },
+          {
+            "from": "VS1.p",
+            "to": "C1.p"
+          },
+          {
+            "from": "VS1.n",
+            "to": "G.p"
+          }
         ],
-        "simulation": {"start_time": 0.0, "stop_time": 1.0, "number_of_intervals": 700, "tolerance": 1e-6, "method": "dassl"},
-        "validation_targets": ["VS1.v"]
+        "simulation": {
+          "start_time": 0.0,
+          "stop_time": 1.0,
+          "number_of_intervals": 700,
+          "tolerance": 1e-06,
+          "method": "dassl"
+        },
+        "validation_targets": [
+          "VS1.v"
+        ],
+        "structural_balance": {
+          "variable_count": 7,
+          "equation_count": 7
+        }
       }
     },
     {
@@ -245,39 +807,163 @@
       "ir": {
         "schema_version": "modeling_ir_v0",
         "model_name": "LargeRCLadder4V0",
-        "source_meta": {"domain": "electrical_analog", "task_id": "large_rc_ladder4_v0", "scale": "large"},
+        "source_meta": {
+          "domain": "electrical_analog",
+          "task_id": "large_rc_ladder4_v0",
+          "scale": "large"
+        },
         "components": [
-          {"id": "V1", "type": "Modelica.Electrical.Analog.Sources.StepVoltage", "params": {"V": 12.0, "startTime": 0.01}},
-          {"id": "R1", "type": "Modelica.Electrical.Analog.Basic.Resistor", "params": {"R": 10.0}},
-          {"id": "R2", "type": "Modelica.Electrical.Analog.Basic.Resistor", "params": {"R": 15.0}},
-          {"id": "R3", "type": "Modelica.Electrical.Analog.Basic.Resistor", "params": {"R": 20.0}},
-          {"id": "R4", "type": "Modelica.Electrical.Analog.Basic.Resistor", "params": {"R": 25.0}},
-          {"id": "C1", "type": "Modelica.Electrical.Analog.Basic.Capacitor", "params": {"C": 0.004}},
-          {"id": "C2", "type": "Modelica.Electrical.Analog.Basic.Capacitor", "params": {"C": 0.003}},
-          {"id": "C3", "type": "Modelica.Electrical.Analog.Basic.Capacitor", "params": {"C": 0.002}},
-          {"id": "C4", "type": "Modelica.Electrical.Analog.Basic.Capacitor", "params": {"C": 0.001}},
-          {"id": "VS1", "type": "Modelica.Electrical.Analog.Sensors.VoltageSensor", "params": {}},
-          {"id": "G", "type": "Modelica.Electrical.Analog.Basic.Ground", "params": {}}
+          {
+            "id": "V1",
+            "type": "Modelica.Electrical.Analog.Sources.StepVoltage",
+            "params": {
+              "V": 12.0,
+              "startTime": 0.01
+            }
+          },
+          {
+            "id": "R1",
+            "type": "Modelica.Electrical.Analog.Basic.Resistor",
+            "params": {
+              "R": 10.0
+            }
+          },
+          {
+            "id": "R2",
+            "type": "Modelica.Electrical.Analog.Basic.Resistor",
+            "params": {
+              "R": 15.0
+            }
+          },
+          {
+            "id": "R3",
+            "type": "Modelica.Electrical.Analog.Basic.Resistor",
+            "params": {
+              "R": 20.0
+            }
+          },
+          {
+            "id": "R4",
+            "type": "Modelica.Electrical.Analog.Basic.Resistor",
+            "params": {
+              "R": 25.0
+            }
+          },
+          {
+            "id": "C1",
+            "type": "Modelica.Electrical.Analog.Basic.Capacitor",
+            "params": {
+              "C": 0.004
+            }
+          },
+          {
+            "id": "C2",
+            "type": "Modelica.Electrical.Analog.Basic.Capacitor",
+            "params": {
+              "C": 0.003
+            }
+          },
+          {
+            "id": "C3",
+            "type": "Modelica.Electrical.Analog.Basic.Capacitor",
+            "params": {
+              "C": 0.002
+            }
+          },
+          {
+            "id": "C4",
+            "type": "Modelica.Electrical.Analog.Basic.Capacitor",
+            "params": {
+              "C": 0.001
+            }
+          },
+          {
+            "id": "VS1",
+            "type": "Modelica.Electrical.Analog.Sensors.VoltageSensor",
+            "params": {}
+          },
+          {
+            "id": "G",
+            "type": "Modelica.Electrical.Analog.Basic.Ground",
+            "params": {}
+          }
         ],
         "connections": [
-          {"from": "V1.p", "to": "R1.p"},
-          {"from": "R1.n", "to": "R2.p"},
-          {"from": "R2.n", "to": "R3.p"},
-          {"from": "R3.n", "to": "R4.p"},
-          {"from": "R1.n", "to": "C1.p"},
-          {"from": "R2.n", "to": "C2.p"},
-          {"from": "R3.n", "to": "C3.p"},
-          {"from": "R4.n", "to": "C4.p"},
-          {"from": "C1.n", "to": "V1.n"},
-          {"from": "C2.n", "to": "V1.n"},
-          {"from": "C3.n", "to": "V1.n"},
-          {"from": "C4.n", "to": "V1.n"},
-          {"from": "V1.n", "to": "G.p"},
-          {"from": "VS1.p", "to": "R4.n"},
-          {"from": "VS1.n", "to": "G.p"}
+          {
+            "from": "V1.p",
+            "to": "R1.p"
+          },
+          {
+            "from": "R1.n",
+            "to": "R2.p"
+          },
+          {
+            "from": "R2.n",
+            "to": "R3.p"
+          },
+          {
+            "from": "R3.n",
+            "to": "R4.p"
+          },
+          {
+            "from": "R1.n",
+            "to": "C1.p"
+          },
+          {
+            "from": "R2.n",
+            "to": "C2.p"
+          },
+          {
+            "from": "R3.n",
+            "to": "C3.p"
+          },
+          {
+            "from": "R4.n",
+            "to": "C4.p"
+          },
+          {
+            "from": "C1.n",
+            "to": "V1.n"
+          },
+          {
+            "from": "C2.n",
+            "to": "V1.n"
+          },
+          {
+            "from": "C3.n",
+            "to": "V1.n"
+          },
+          {
+            "from": "C4.n",
+            "to": "V1.n"
+          },
+          {
+            "from": "V1.n",
+            "to": "G.p"
+          },
+          {
+            "from": "VS1.p",
+            "to": "R4.n"
+          },
+          {
+            "from": "VS1.n",
+            "to": "G.p"
+          }
         ],
-        "simulation": {"start_time": 0.0, "stop_time": 2.0, "number_of_intervals": 1200, "tolerance": 1e-6, "method": "dassl"},
-        "validation_targets": ["VS1.v"]
+        "simulation": {
+          "start_time": 0.0,
+          "stop_time": 2.0,
+          "number_of_intervals": 1200,
+          "tolerance": 1e-06,
+          "method": "dassl"
+        },
+        "validation_targets": [
+          "VS1.v"
+        ],
+        "structural_balance": {
+          "variable_count": 11,
+          "equation_count": 11
+        }
       }
     },
     {
@@ -286,35 +972,143 @@
       "ir": {
         "schema_version": "modeling_ir_v0",
         "model_name": "LargeRLCBranchesV0",
-        "source_meta": {"domain": "electrical_analog", "task_id": "large_rlc_branches_v0", "scale": "large"},
+        "source_meta": {
+          "domain": "electrical_analog",
+          "task_id": "large_rlc_branches_v0",
+          "scale": "large"
+        },
         "components": [
-          {"id": "V1", "type": "Modelica.Electrical.Analog.Sources.SineVoltage", "params": {"V": 6.0, "freqHz": 60.0}},
-          {"id": "R1", "type": "Modelica.Electrical.Analog.Basic.Resistor", "params": {"R": 30.0}},
-          {"id": "L1", "type": "Modelica.Electrical.Analog.Basic.Inductor", "params": {"L": 0.03}},
-          {"id": "C1", "type": "Modelica.Electrical.Analog.Basic.Capacitor", "params": {"C": 0.002}},
-          {"id": "R2", "type": "Modelica.Electrical.Analog.Basic.Resistor", "params": {"R": 55.0}},
-          {"id": "L2", "type": "Modelica.Electrical.Analog.Basic.Inductor", "params": {"L": 0.02}},
-          {"id": "C2", "type": "Modelica.Electrical.Analog.Basic.Capacitor", "params": {"C": 0.0015}},
-          {"id": "CS1", "type": "Modelica.Electrical.Analog.Sensors.CurrentSensor", "params": {}},
-          {"id": "VS1", "type": "Modelica.Electrical.Analog.Sensors.VoltageSensor", "params": {}},
-          {"id": "G", "type": "Modelica.Electrical.Analog.Basic.Ground", "params": {}}
+          {
+            "id": "V1",
+            "type": "Modelica.Electrical.Analog.Sources.SineVoltage",
+            "params": {
+              "V": 6.0,
+              "freqHz": 60.0
+            }
+          },
+          {
+            "id": "R1",
+            "type": "Modelica.Electrical.Analog.Basic.Resistor",
+            "params": {
+              "R": 30.0
+            }
+          },
+          {
+            "id": "L1",
+            "type": "Modelica.Electrical.Analog.Basic.Inductor",
+            "params": {
+              "L": 0.03
+            }
+          },
+          {
+            "id": "C1",
+            "type": "Modelica.Electrical.Analog.Basic.Capacitor",
+            "params": {
+              "C": 0.002
+            }
+          },
+          {
+            "id": "R2",
+            "type": "Modelica.Electrical.Analog.Basic.Resistor",
+            "params": {
+              "R": 55.0
+            }
+          },
+          {
+            "id": "L2",
+            "type": "Modelica.Electrical.Analog.Basic.Inductor",
+            "params": {
+              "L": 0.02
+            }
+          },
+          {
+            "id": "C2",
+            "type": "Modelica.Electrical.Analog.Basic.Capacitor",
+            "params": {
+              "C": 0.0015
+            }
+          },
+          {
+            "id": "CS1",
+            "type": "Modelica.Electrical.Analog.Sensors.CurrentSensor",
+            "params": {}
+          },
+          {
+            "id": "VS1",
+            "type": "Modelica.Electrical.Analog.Sensors.VoltageSensor",
+            "params": {}
+          },
+          {
+            "id": "G",
+            "type": "Modelica.Electrical.Analog.Basic.Ground",
+            "params": {}
+          }
         ],
         "connections": [
-          {"from": "V1.p", "to": "CS1.p"},
-          {"from": "CS1.n", "to": "R1.p"},
-          {"from": "R1.n", "to": "L1.p"},
-          {"from": "L1.n", "to": "C1.p"},
-          {"from": "R1.n", "to": "R2.p"},
-          {"from": "R2.n", "to": "L2.p"},
-          {"from": "L2.n", "to": "C2.p"},
-          {"from": "C1.n", "to": "V1.n"},
-          {"from": "C2.n", "to": "V1.n"},
-          {"from": "V1.n", "to": "G.p"},
-          {"from": "VS1.p", "to": "R1.n"},
-          {"from": "VS1.n", "to": "G.p"}
+          {
+            "from": "V1.p",
+            "to": "CS1.p"
+          },
+          {
+            "from": "CS1.n",
+            "to": "R1.p"
+          },
+          {
+            "from": "R1.n",
+            "to": "L1.p"
+          },
+          {
+            "from": "L1.n",
+            "to": "C1.p"
+          },
+          {
+            "from": "R1.n",
+            "to": "R2.p"
+          },
+          {
+            "from": "R2.n",
+            "to": "L2.p"
+          },
+          {
+            "from": "L2.n",
+            "to": "C2.p"
+          },
+          {
+            "from": "C1.n",
+            "to": "V1.n"
+          },
+          {
+            "from": "C2.n",
+            "to": "V1.n"
+          },
+          {
+            "from": "V1.n",
+            "to": "G.p"
+          },
+          {
+            "from": "VS1.p",
+            "to": "R1.n"
+          },
+          {
+            "from": "VS1.n",
+            "to": "G.p"
+          }
         ],
-        "simulation": {"start_time": 0.0, "stop_time": 1.8, "number_of_intervals": 1300, "tolerance": 1e-6, "method": "dassl"},
-        "validation_targets": ["CS1.i", "VS1.v"]
+        "simulation": {
+          "start_time": 0.0,
+          "stop_time": 1.8,
+          "number_of_intervals": 1300,
+          "tolerance": 1e-06,
+          "method": "dassl"
+        },
+        "validation_targets": [
+          "CS1.i",
+          "VS1.v"
+        ],
+        "structural_balance": {
+          "variable_count": 10,
+          "equation_count": 10
+        }
       }
     },
     {
@@ -323,38 +1117,159 @@
       "ir": {
         "schema_version": "modeling_ir_v0",
         "model_name": "LargeDualSourceLadderV0",
-        "source_meta": {"domain": "electrical_analog", "task_id": "large_dual_source_ladder_v0", "scale": "large"},
+        "source_meta": {
+          "domain": "electrical_analog",
+          "task_id": "large_dual_source_ladder_v0",
+          "scale": "large"
+        },
         "components": [
-          {"id": "V1", "type": "Modelica.Electrical.Analog.Sources.ConstantVoltage", "params": {"V": 4.0}},
-          {"id": "V2", "type": "Modelica.Electrical.Analog.Sources.StepVoltage", "params": {"V": 7.0, "startTime": 0.2}},
-          {"id": "R1", "type": "Modelica.Electrical.Analog.Basic.Resistor", "params": {"R": 22.0}},
-          {"id": "R2", "type": "Modelica.Electrical.Analog.Basic.Resistor", "params": {"R": 24.0}},
-          {"id": "R3", "type": "Modelica.Electrical.Analog.Basic.Resistor", "params": {"R": 26.0}},
-          {"id": "L1", "type": "Modelica.Electrical.Analog.Basic.Inductor", "params": {"L": 0.015}},
-          {"id": "L2", "type": "Modelica.Electrical.Analog.Basic.Inductor", "params": {"L": 0.02}},
-          {"id": "C1", "type": "Modelica.Electrical.Analog.Basic.Capacitor", "params": {"C": 0.0018}},
-          {"id": "C2", "type": "Modelica.Electrical.Analog.Basic.Capacitor", "params": {"C": 0.0012}},
-          {"id": "VS1", "type": "Modelica.Electrical.Analog.Sensors.VoltageSensor", "params": {}},
-          {"id": "G", "type": "Modelica.Electrical.Analog.Basic.Ground", "params": {}}
+          {
+            "id": "V1",
+            "type": "Modelica.Electrical.Analog.Sources.ConstantVoltage",
+            "params": {
+              "V": 4.0
+            }
+          },
+          {
+            "id": "V2",
+            "type": "Modelica.Electrical.Analog.Sources.StepVoltage",
+            "params": {
+              "V": 7.0,
+              "startTime": 0.2
+            }
+          },
+          {
+            "id": "R1",
+            "type": "Modelica.Electrical.Analog.Basic.Resistor",
+            "params": {
+              "R": 22.0
+            }
+          },
+          {
+            "id": "R2",
+            "type": "Modelica.Electrical.Analog.Basic.Resistor",
+            "params": {
+              "R": 24.0
+            }
+          },
+          {
+            "id": "R3",
+            "type": "Modelica.Electrical.Analog.Basic.Resistor",
+            "params": {
+              "R": 26.0
+            }
+          },
+          {
+            "id": "L1",
+            "type": "Modelica.Electrical.Analog.Basic.Inductor",
+            "params": {
+              "L": 0.015
+            }
+          },
+          {
+            "id": "L2",
+            "type": "Modelica.Electrical.Analog.Basic.Inductor",
+            "params": {
+              "L": 0.02
+            }
+          },
+          {
+            "id": "C1",
+            "type": "Modelica.Electrical.Analog.Basic.Capacitor",
+            "params": {
+              "C": 0.0018
+            }
+          },
+          {
+            "id": "C2",
+            "type": "Modelica.Electrical.Analog.Basic.Capacitor",
+            "params": {
+              "C": 0.0012
+            }
+          },
+          {
+            "id": "VS1",
+            "type": "Modelica.Electrical.Analog.Sensors.VoltageSensor",
+            "params": {}
+          },
+          {
+            "id": "G",
+            "type": "Modelica.Electrical.Analog.Basic.Ground",
+            "params": {}
+          }
         ],
         "connections": [
-          {"from": "V1.p", "to": "R1.p"},
-          {"from": "V2.p", "to": "R2.p"},
-          {"from": "R1.n", "to": "L1.p"},
-          {"from": "R2.n", "to": "L2.p"},
-          {"from": "L1.n", "to": "R3.p"},
-          {"from": "L2.n", "to": "R3.p"},
-          {"from": "R3.n", "to": "C1.p"},
-          {"from": "R3.n", "to": "C2.p"},
-          {"from": "C1.n", "to": "V1.n"},
-          {"from": "C2.n", "to": "V1.n"},
-          {"from": "V2.n", "to": "V1.n"},
-          {"from": "V1.n", "to": "G.p"},
-          {"from": "VS1.p", "to": "R3.n"},
-          {"from": "VS1.n", "to": "G.p"}
+          {
+            "from": "V1.p",
+            "to": "R1.p"
+          },
+          {
+            "from": "V2.p",
+            "to": "R2.p"
+          },
+          {
+            "from": "R1.n",
+            "to": "L1.p"
+          },
+          {
+            "from": "R2.n",
+            "to": "L2.p"
+          },
+          {
+            "from": "L1.n",
+            "to": "R3.p"
+          },
+          {
+            "from": "L2.n",
+            "to": "R3.p"
+          },
+          {
+            "from": "R3.n",
+            "to": "C1.p"
+          },
+          {
+            "from": "R3.n",
+            "to": "C2.p"
+          },
+          {
+            "from": "C1.n",
+            "to": "V1.n"
+          },
+          {
+            "from": "C2.n",
+            "to": "V1.n"
+          },
+          {
+            "from": "V2.n",
+            "to": "V1.n"
+          },
+          {
+            "from": "V1.n",
+            "to": "G.p"
+          },
+          {
+            "from": "VS1.p",
+            "to": "R3.n"
+          },
+          {
+            "from": "VS1.n",
+            "to": "G.p"
+          }
         ],
-        "simulation": {"start_time": 0.0, "stop_time": 2.0, "number_of_intervals": 1400, "tolerance": 1e-6, "method": "dassl"},
-        "validation_targets": ["VS1.v"]
+        "simulation": {
+          "start_time": 0.0,
+          "stop_time": 2.0,
+          "number_of_intervals": 1400,
+          "tolerance": 1e-06,
+          "method": "dassl"
+        },
+        "validation_targets": [
+          "VS1.v"
+        ],
+        "structural_balance": {
+          "variable_count": 11,
+          "equation_count": 11
+        }
       }
     },
     {
@@ -363,40 +1278,168 @@
       "ir": {
         "schema_version": "modeling_ir_v0",
         "model_name": "LargeSensorizedGridV0",
-        "source_meta": {"domain": "electrical_analog", "task_id": "large_sensorized_grid_v0", "scale": "large"},
+        "source_meta": {
+          "domain": "electrical_analog",
+          "task_id": "large_sensorized_grid_v0",
+          "scale": "large"
+        },
         "components": [
-          {"id": "V1", "type": "Modelica.Electrical.Analog.Sources.SineVoltage", "params": {"V": 8.0, "freqHz": 40.0}},
-          {"id": "R1", "type": "Modelica.Electrical.Analog.Basic.Resistor", "params": {"R": 18.0}},
-          {"id": "R2", "type": "Modelica.Electrical.Analog.Basic.Resistor", "params": {"R": 21.0}},
-          {"id": "R3", "type": "Modelica.Electrical.Analog.Basic.Resistor", "params": {"R": 24.0}},
-          {"id": "C1", "type": "Modelica.Electrical.Analog.Basic.Capacitor", "params": {"C": 0.0022}},
-          {"id": "C2", "type": "Modelica.Electrical.Analog.Basic.Capacitor", "params": {"C": 0.0017}},
-          {"id": "L1", "type": "Modelica.Electrical.Analog.Basic.Inductor", "params": {"L": 0.025}},
-          {"id": "L2", "type": "Modelica.Electrical.Analog.Basic.Inductor", "params": {"L": 0.018}},
-          {"id": "CS1", "type": "Modelica.Electrical.Analog.Sensors.CurrentSensor", "params": {}},
-          {"id": "VS1", "type": "Modelica.Electrical.Analog.Sensors.VoltageSensor", "params": {}},
-          {"id": "VS2", "type": "Modelica.Electrical.Analog.Sensors.VoltageSensor", "params": {}},
-          {"id": "G", "type": "Modelica.Electrical.Analog.Basic.Ground", "params": {}}
+          {
+            "id": "V1",
+            "type": "Modelica.Electrical.Analog.Sources.SineVoltage",
+            "params": {
+              "V": 8.0,
+              "freqHz": 40.0
+            }
+          },
+          {
+            "id": "R1",
+            "type": "Modelica.Electrical.Analog.Basic.Resistor",
+            "params": {
+              "R": 18.0
+            }
+          },
+          {
+            "id": "R2",
+            "type": "Modelica.Electrical.Analog.Basic.Resistor",
+            "params": {
+              "R": 21.0
+            }
+          },
+          {
+            "id": "R3",
+            "type": "Modelica.Electrical.Analog.Basic.Resistor",
+            "params": {
+              "R": 24.0
+            }
+          },
+          {
+            "id": "C1",
+            "type": "Modelica.Electrical.Analog.Basic.Capacitor",
+            "params": {
+              "C": 0.0022
+            }
+          },
+          {
+            "id": "C2",
+            "type": "Modelica.Electrical.Analog.Basic.Capacitor",
+            "params": {
+              "C": 0.0017
+            }
+          },
+          {
+            "id": "L1",
+            "type": "Modelica.Electrical.Analog.Basic.Inductor",
+            "params": {
+              "L": 0.025
+            }
+          },
+          {
+            "id": "L2",
+            "type": "Modelica.Electrical.Analog.Basic.Inductor",
+            "params": {
+              "L": 0.018
+            }
+          },
+          {
+            "id": "CS1",
+            "type": "Modelica.Electrical.Analog.Sensors.CurrentSensor",
+            "params": {}
+          },
+          {
+            "id": "VS1",
+            "type": "Modelica.Electrical.Analog.Sensors.VoltageSensor",
+            "params": {}
+          },
+          {
+            "id": "VS2",
+            "type": "Modelica.Electrical.Analog.Sensors.VoltageSensor",
+            "params": {}
+          },
+          {
+            "id": "G",
+            "type": "Modelica.Electrical.Analog.Basic.Ground",
+            "params": {}
+          }
         ],
         "connections": [
-          {"from": "V1.p", "to": "CS1.p"},
-          {"from": "CS1.n", "to": "R1.p"},
-          {"from": "R1.n", "to": "R2.p"},
-          {"from": "R2.n", "to": "R3.p"},
-          {"from": "R2.n", "to": "L1.p"},
-          {"from": "L1.n", "to": "C1.p"},
-          {"from": "R3.n", "to": "L2.p"},
-          {"from": "L2.n", "to": "C2.p"},
-          {"from": "C1.n", "to": "V1.n"},
-          {"from": "C2.n", "to": "V1.n"},
-          {"from": "V1.n", "to": "G.p"},
-          {"from": "VS1.p", "to": "R2.n"},
-          {"from": "VS1.n", "to": "G.p"},
-          {"from": "VS2.p", "to": "R3.n"},
-          {"from": "VS2.n", "to": "G.p"}
+          {
+            "from": "V1.p",
+            "to": "CS1.p"
+          },
+          {
+            "from": "CS1.n",
+            "to": "R1.p"
+          },
+          {
+            "from": "R1.n",
+            "to": "R2.p"
+          },
+          {
+            "from": "R2.n",
+            "to": "R3.p"
+          },
+          {
+            "from": "R2.n",
+            "to": "L1.p"
+          },
+          {
+            "from": "L1.n",
+            "to": "C1.p"
+          },
+          {
+            "from": "R3.n",
+            "to": "L2.p"
+          },
+          {
+            "from": "L2.n",
+            "to": "C2.p"
+          },
+          {
+            "from": "C1.n",
+            "to": "V1.n"
+          },
+          {
+            "from": "C2.n",
+            "to": "V1.n"
+          },
+          {
+            "from": "V1.n",
+            "to": "G.p"
+          },
+          {
+            "from": "VS1.p",
+            "to": "R2.n"
+          },
+          {
+            "from": "VS1.n",
+            "to": "G.p"
+          },
+          {
+            "from": "VS2.p",
+            "to": "R3.n"
+          },
+          {
+            "from": "VS2.n",
+            "to": "G.p"
+          }
         ],
-        "simulation": {"start_time": 0.0, "stop_time": 2.2, "number_of_intervals": 1500, "tolerance": 1e-6, "method": "dassl"},
-        "validation_targets": ["CS1.i", "VS1.v", "VS2.v"]
+        "simulation": {
+          "start_time": 0.0,
+          "stop_time": 2.2,
+          "number_of_intervals": 1500,
+          "tolerance": 1e-06,
+          "method": "dassl"
+        },
+        "validation_targets": [
+          "CS1.i",
+          "VS1.v",
+          "VS2.v"
+        ],
+        "structural_balance": {
+          "variable_count": 12,
+          "equation_count": 12
+        }
       }
     }
   ]
