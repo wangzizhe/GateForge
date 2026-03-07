@@ -7,6 +7,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from .agent_modelica_electrical_msl_semantics_v0 import (
+    allowed_ir_param_names,
+    is_valid_port,
+    normalize_ir_params_for_modelica_emit,
+    normalize_ir_params_for_validation,
+    normalize_modelica_params_for_ir,
+)
+
 
 SCHEMA_VERSION = "modeling_ir_v0"
 MODEL_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
@@ -24,7 +32,6 @@ DEFAULT_COMPONENT_WHITELIST = (
     "Modelica.Electrical.Analog.Sensors.VoltageSensor",
     "Modelica.Electrical.Analog.Sensors.CurrentSensor",
 )
-SINE_VOLTAGE_TYPE = "Modelica.Electrical.Analog.Sources.SineVoltage"
 
 
 def _load_json(path: str) -> dict:
@@ -114,6 +121,7 @@ def validate_ir(
 
     allowed = {str(x) for x in (allowed_component_types or []) if str(x).strip()}
     ids: set[str] = set()
+    component_type_by_id: dict[str, str] = {}
     for idx, component in enumerate(components):
         if not isinstance(component, dict):
             errors.append(f"component_not_object:{idx}")
@@ -127,6 +135,7 @@ def validate_ir(
         if cid in ids:
             errors.append(f"component_id_duplicate:{cid}")
         ids.add(cid)
+        component_type_by_id[cid] = ctype
 
         if not ctype:
             errors.append(f"component_type_missing:{cid or idx}")
@@ -136,16 +145,26 @@ def validate_ir(
         if not isinstance(params, dict):
             errors.append(f"component_params_invalid:{cid or idx}")
             continue
+        normalized_params, normalize_errors = normalize_ir_params_for_validation(ctype, params)
+        for row in normalize_errors:
+            errors.append(f"{row}:{cid or idx}")
+        allowed_param_names = allowed_ir_param_names(ctype)
         for key, value in params.items():
             if not MODEL_NAME_RE.match(str(key or "")):
                 errors.append(f"param_key_invalid:{cid}:{key}")
+            elif allowed_param_names and str(key) not in allowed_param_names:
+                errors.append(f"param_key_not_allowed:{cid}:{key}")
             if not _json_scalar(value):
                 errors.append(f"param_value_invalid:{cid}:{key}")
+        for key in normalized_params.keys():
+            if not MODEL_NAME_RE.match(str(key or "")):
+                errors.append(f"param_key_invalid:{cid}:{key}")
 
     connections = payload.get("connections")
     if not isinstance(connections, list):
         errors.append("connections_missing")
         connections = []
+    normalized_edges: set[tuple[str, str]] = set()
     for idx, row in enumerate(connections):
         if not isinstance(row, dict):
             errors.append(f"connection_not_object:{idx}")
@@ -162,6 +181,17 @@ def validate_ir(
             errors.append(f"connection_from_component_missing:{src_ep[0]}")
         if dst_ep and dst_ep[0] not in ids:
             errors.append(f"connection_to_component_missing:{dst_ep[0]}")
+        if src_ep and src_ep[0] in component_type_by_id:
+            if not is_valid_port(component_type_by_id[src_ep[0]], src_ep[1]):
+                errors.append(f"connection_from_port_invalid:{src_ep[0]}.{src_ep[1]}")
+        if dst_ep and dst_ep[0] in component_type_by_id:
+            if not is_valid_port(component_type_by_id[dst_ep[0]], dst_ep[1]):
+                errors.append(f"connection_to_port_invalid:{dst_ep[0]}.{dst_ep[1]}")
+        if src_ep and dst_ep:
+            edge = tuple(sorted([f"{src_ep[0]}.{src_ep[1]}", f"{dst_ep[0]}.{dst_ep[1]}"]))
+            if edge in normalized_edges:
+                errors.append(f"connection_duplicate:{edge[0]}|{edge[1]}")
+            normalized_edges.add(edge)
 
     var_count, eq_count = _extract_structural_balance(payload)
     if var_count is None or var_count <= 0:
@@ -222,33 +252,6 @@ def _param_block(params: dict[str, Any]) -> str:
     return "(" + ", ".join(items) + ")"
 
 
-def _normalize_params_for_emit(component_type: str, params: dict[str, Any]) -> dict[str, Any]:
-    ctype = str(component_type or "")
-    if ctype != SINE_VOLTAGE_TYPE:
-        return dict(params)
-    out = dict(params)
-    if "f" not in out:
-        if "freqHz" in out:
-            out["f"] = out.pop("freqHz")
-        elif "frequency" in out:
-            out["f"] = out.pop("frequency")
-    else:
-        out.pop("freqHz", None)
-        out.pop("frequency", None)
-    return out
-
-
-def _normalize_params_from_modelica(component_type: str, params: dict[str, Any]) -> dict[str, Any]:
-    ctype = str(component_type or "")
-    if ctype != SINE_VOLTAGE_TYPE:
-        return dict(params)
-    out = dict(params)
-    if "freqHz" not in out and "f" in out:
-        out["freqHz"] = out.pop("f")
-    out.pop("frequency", None)
-    return out
-
-
 def ir_to_modelica(
     ir: dict,
     *,
@@ -276,7 +279,7 @@ def ir_to_modelica(
         ctype = str(component.get("type"))
         cid = str(component.get("id"))
         params = component.get("params") if isinstance(component.get("params"), dict) else {}
-        params = _normalize_params_for_emit(ctype, params)
+        params = normalize_ir_params_for_modelica_emit(ctype, params)
         lines.append(f"  {ctype} {cid}{_param_block(params)};")
     lines.append("equation")
     for row in connections:
@@ -429,7 +432,7 @@ def modelica_to_ir(text: str) -> dict:
         ctype = str(match.group(1))
         cid = str(match.group(2))
         params = _parse_params(str(match.group(3) or ""))
-        params = _normalize_params_from_modelica(ctype, params)
+        params = normalize_modelica_params_for_ir(ctype, params)
         components.append({"id": cid, "type": ctype, "params": params})
 
     connect_re = re.compile(
