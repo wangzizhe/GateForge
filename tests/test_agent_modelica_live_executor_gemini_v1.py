@@ -14,6 +14,7 @@ from gateforge.agent_modelica_live_executor_gemini_v1 import (
     _normalize_terminal_errors,
     _parse_env_assignment,
     _parse_repair_actions,
+    _run_omc_script_docker,
     _run_check_and_simulate,
 )
 
@@ -62,6 +63,32 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
                 script_text = str(mocked.call_args.kwargs.get("script_text") or mocked.call_args.args[0])
                 self.assertIn("installPackage(Modelica);", script_text)
                 self.assertIn("loadModel(Modelica);", script_text)
+
+    def test_run_omc_script_docker_mounts_cache_dir(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="gf_live_exec_docker_cache_") as td:
+            workspace = Path(td)
+            cache_dir = workspace / "cache"
+            prev = os.environ.get("GATEFORGE_OM_DOCKER_LIBRARY_CACHE")
+            os.environ["GATEFORGE_OM_DOCKER_LIBRARY_CACHE"] = str(cache_dir)
+            try:
+                with patch(
+                    "gateforge.agent_modelica_live_executor_gemini_v1._run_cmd",
+                    return_value=(0, "ok"),
+                ) as mocked:
+                    _run_omc_script_docker(
+                        script_text="getErrorString();\n",
+                        timeout_sec=30,
+                        cwd=str(workspace),
+                        image="img",
+                    )
+                    self.assertEqual(mocked.call_count, 1)
+                    cmd = mocked.call_args.args[0]
+                    self.assertIn(f"{str(cache_dir)}:/root/.openmodelica/libraries", cmd)
+            finally:
+                if prev is None:
+                    os.environ.pop("GATEFORGE_OM_DOCKER_LIBRARY_CACHE", None)
+                else:
+                    os.environ["GATEFORGE_OM_DOCKER_LIBRARY_CACHE"] = prev
 
     def test_normalize_terminal_errors_clears_errors_for_pass(self) -> None:
         err, comp, sim = _normalize_terminal_errors("PASS", "x", "y", "z")
