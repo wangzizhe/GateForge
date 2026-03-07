@@ -11,6 +11,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from contextlib import contextmanager
 from pathlib import Path
 
 from .agent_modelica_diagnostic_ir_v0 import build_diagnostic_ir_v0
@@ -405,6 +406,17 @@ def _run_check_and_simulate(
     return rc, output, check_ok, simulate_ok
 
 
+@contextmanager
+def _temporary_workspace(prefix: str):
+    try:
+        with tempfile.TemporaryDirectory(prefix=prefix, ignore_cleanup_errors=True) as td:
+            yield td
+    except TypeError:
+        # Python versions without ignore_cleanup_errors.
+        with tempfile.TemporaryDirectory(prefix=prefix) as td:
+            yield td
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Live Modelica executor with Gemini patching loop and OMC validation")
     parser.add_argument("--task-id", default="")
@@ -478,7 +490,7 @@ def main() -> None:
     final_stderr = ""
     executor_status = "FAILED"
 
-    with tempfile.TemporaryDirectory(prefix="gf_live_exec_") as td:
+    with _temporary_workspace(prefix="gf_live_exec_") as td:
         workspace = Path(td)
         model_file = workspace / model_path.name
         for round_idx in range(1, max(1, int(args.max_rounds)) + 1):
