@@ -22,7 +22,7 @@ class CIShardConfigContractTests(unittest.TestCase):
             workflow,
         )
         self.assertIn(
-            'scripts/ci_run_unittest_shard.sh "test_d[!ae]*.py,test_demo_bundle.py,test_demo_runtime_contract.py,test_[j-z]*.py"',
+            'scripts/ci_run_unittest_shard.sh "test_demo_bundle.py,test_demo_runtime_contract.py,test_[j-z]*.py"',
             workflow,
         )
         self.assertIn(

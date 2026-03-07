@@ -57,10 +57,14 @@ for PATTERN in "${PATTERNS[@]}"; do
   fi
   pattern_rc=$?
   cat "$pattern_tmp_log" >>"$LOG_FILE"
-  if [ "$pattern_rc" -eq 0 ] && [ "$CI_FAIL_ON_EMPTY_PATTERN" = "1" ]; then
+  if [ "$pattern_rc" -eq 0 ]; then
     if grep -Eq "^Ran 0 tests" "$pattern_tmp_log"; then
-      echo "[ci] empty-test-pattern detected pattern=$PATTERN; failing to prevent silent shard drift" | tee -a "$LOG_FILE"
-      pattern_rc=86
+      if [ "$CI_FAIL_ON_EMPTY_PATTERN" = "1" ]; then
+        echo "[ci] empty-test-pattern detected pattern=$PATTERN; failing to prevent silent shard drift" | tee -a "$LOG_FILE"
+        pattern_rc=86
+      else
+        echo "[ci] NO TESTS RAN pattern=$PATTERN (guard disabled)" | tee -a "$LOG_FILE"
+      fi
     fi
   fi
   rm -f "$pattern_tmp_log"
