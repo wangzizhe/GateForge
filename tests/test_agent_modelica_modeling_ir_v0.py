@@ -91,6 +91,27 @@ class AgentModelicaModelingIRV0Tests(unittest.TestCase):
         self.assertIn("freqHz", params)
         self.assertEqual(float(params.get("freqHz")), 50.0)
 
+    def test_validate_ir_rejects_unknown_param_key_for_component(self) -> None:
+        ir = _sample_ir()
+        ir["components"][0]["params"]["badKey"] = 1.0
+        ok, errors = validate_ir(ir)
+        self.assertFalse(ok)
+        self.assertTrue(any("param_key_not_allowed:V1:badKey" in str(x) for x in errors))
+
+    def test_validate_ir_rejects_invalid_connection_port(self) -> None:
+        ir = _sample_ir()
+        ir["connections"][0] = {"from": "V1.bad", "to": "R1.p"}
+        ok, errors = validate_ir(ir)
+        self.assertFalse(ok)
+        self.assertTrue(any("connection_from_port_invalid:V1.bad" in str(x) for x in errors))
+
+    def test_validate_ir_rejects_duplicate_connection_edge(self) -> None:
+        ir = _sample_ir()
+        ir["connections"].append({"from": "R1.p", "to": "V1.p"})
+        ok, errors = validate_ir(ir)
+        self.assertFalse(ok)
+        self.assertTrue(any("connection_duplicate:" in str(x) for x in errors))
+
 
 if __name__ == "__main__":
     unittest.main()
