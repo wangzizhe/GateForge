@@ -25,6 +25,14 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
         with _temporary_workspace(prefix="gf_live_exec_test_tmp_") as td:
             self.assertTrue(Path(td).exists())
 
+    def test_temporary_workspace_cleanup_swallows_permission_error(self) -> None:
+        with patch(
+            "gateforge.agent_modelica_live_executor_gemini_v1.shutil.rmtree",
+            side_effect=PermissionError("denied"),
+        ):
+            with _temporary_workspace(prefix="gf_live_exec_test_tmp_perm_") as td:
+                self.assertTrue(Path(td).exists())
+
     def test_run_check_and_simulate_loads_modelica_library(self) -> None:
         with tempfile.TemporaryDirectory(prefix="gf_live_exec_modelica_") as td:
             workspace = Path(td)
