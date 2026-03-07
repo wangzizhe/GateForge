@@ -246,6 +246,10 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GATEFORGE_DEMO_FAST: "1"
+      GATEFORGE_MUTATION_VALIDATION_BACKEND: "syntax"
+      GATEFORGE_MUTATION_VALIDATION_TIMEOUT_SECONDS: "3"
+      GATEFORGE_MUTATION_VALIDATION_MAX_MUTATIONS: "160"
+      GATEFORGE_MUTATION_TIMEOUT_SECONDS: "3"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
