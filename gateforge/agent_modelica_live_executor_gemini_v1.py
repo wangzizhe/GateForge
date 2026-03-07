@@ -60,12 +60,17 @@ def _run_omc_script_local(script_text: str, timeout_sec: int, cwd: str) -> tuple
 def _run_omc_script_docker(script_text: str, timeout_sec: int, cwd: str, image: str) -> tuple[int | None, str]:
     script_path = Path(cwd) / "run.mos"
     script_path.write_text(script_text, encoding="utf-8")
+    cache_root_raw = str(os.getenv("GATEFORGE_OM_DOCKER_LIBRARY_CACHE") or "").strip()
+    cache_root = Path(cache_root_raw) if cache_root_raw else (Path(cwd) / ".gf_omcache" / "libraries")
+    cache_root.mkdir(parents=True, exist_ok=True)
     cmd = [
         "docker",
         "run",
         "--rm",
         "-v",
         f"{cwd}:/workspace",
+        "-v",
+        f"{str(cache_root)}:/root/.openmodelica/libraries",
         "-w",
         "/workspace",
         image,
