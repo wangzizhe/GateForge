@@ -120,19 +120,24 @@ if not source_path.exists():
 
 if not mutated_path.exists():
     source_text = source_path.read_text(encoding="utf-8")
-    model_name_match = re.search(r"(?im)^\\s*model\\s+([A-Za-z_]\\w*)\\b", source_text)
+    model_name_match = re.search(r"(?im)^\s*model\s+([A-Za-z_]\w*)\b", source_text)
     model_name = model_name_match.group(1) if model_name_match else "A1"
     injection = "  Real __gf_state_301500(start=1.0);"
-    if re.search(r"(?im)^\\s*equation\\b", source_text):
-        mutated_text = re.sub(r"(?im)^\\s*equation\\b", "equation\\n" + injection, source_text, count=1)
+    if re.search(r"(?im)^\s*equation\b", source_text):
+        mutated_text = re.sub(
+            r"(?im)^\s*equation\b",
+            lambda _: "equation\n" + injection,
+            source_text,
+            count=1,
+        )
     else:
-        end_pat = re.compile(rf"(?im)^\\s*end\\s+{re.escape(model_name)}\\s*;")
+        end_pat = re.compile(rf"(?im)^\s*end\s+{re.escape(model_name)}\s*;")
         end_match = end_pat.search(source_text)
         if end_match:
-            insert = "equation\\n" + injection + "\\n"
+            insert = "equation\n" + injection + "\n"
             mutated_text = source_text[: end_match.start()] + insert + source_text[end_match.start() :]
         else:
-            mutated_text = source_text + "\\nequation\\n" + injection + "\\n"
+            mutated_text = source_text + "\nequation\n" + injection + "\n"
     mutated_path = smoke_dir / f"{source_path.stem}_smoke_mutant.mo"
     mutated_path.write_text(mutated_text, encoding="utf-8")
 
