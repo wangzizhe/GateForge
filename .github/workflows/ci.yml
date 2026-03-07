@@ -139,6 +139,10 @@ on:
         default: ""
         type: string
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test-core-a:
     name: "Test Core A"
@@ -293,7 +297,7 @@ jobs:
           pip install -e .
 
       - name: Enable live smoke for mainline/scheduled runs
-        if: ${{ github.event_name != 'pull_request' }}
+        if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
         run: |
           echo "GATEFORGE_AGENT_RELEASE_RUN_LIVE_SMOKE=1" >> "$GITHUB_ENV"
 
