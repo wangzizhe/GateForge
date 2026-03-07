@@ -262,12 +262,14 @@ def _classify_failure(*, check_ok: bool, simulate_ok: bool, check_log: str, simu
 
     if not simulate_ok:
         lower = simulate_log.lower()
+        if "timeoutexpired" in lower or "timeout expired" in lower:
+            return "simulate", "numerical_instability"
+        if "division by zero" in lower or "error occurred while solving" in lower:
+            return "simulate", "simulate_error"
         if "assert" in lower:
             return "simulate", "constraint_violation"
         if "stiff" in lower or "integrator failed" in lower or "step size" in lower:
             return "simulate", "numerical_instability"
-        if "division by zero" in lower or "error occurred while solving" in lower:
-            return "simulate", "simulate_error"
         return "simulate", "simulate_error"
 
     return "none", "none"
