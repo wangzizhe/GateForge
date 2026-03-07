@@ -53,6 +53,26 @@ class DatasetMutationValidationMatrixV1Tests(unittest.TestCase):
         self.assertEqual(stage, "check")
         self.assertEqual(ftype, "constraint_violation")
 
+    def test_classify_failure_prioritizes_division_by_zero_over_assert_in_simulate_log(self) -> None:
+        stage, ftype = mtx_v1._classify_failure(
+            check_ok=True,
+            simulate_ok=False,
+            check_log="",
+            simulate_log="LOG_ASSERT ... division by zero at time 0",
+        )
+        self.assertEqual(stage, "simulate")
+        self.assertEqual(ftype, "simulate_error")
+
+    def test_classify_failure_maps_timeout_to_numerical_instability(self) -> None:
+        stage, ftype = mtx_v1._classify_failure(
+            check_ok=True,
+            simulate_ok=False,
+            check_log="",
+            simulate_log="TimeoutExpired",
+        )
+        self.assertEqual(stage, "simulate")
+        self.assertEqual(ftype, "numerical_instability")
+
     def test_resolve_backend_prefers_docker_when_omc_missing(self) -> None:
         with mock.patch.object(mtx_v1.shutil, "which", side_effect=lambda name: None if name == "omc" else "/usr/bin/docker"):
             backend, fallback = mtx_v1._resolve_backend("omc")
