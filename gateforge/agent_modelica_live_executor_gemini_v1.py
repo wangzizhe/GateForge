@@ -322,13 +322,33 @@ def _apply_parse_error_pre_repair(model_text: str, output: str, failure_type: st
                 }
             return model_text, {"applied": False, "reason": "state_token_not_detected"}
     elif failure == "model_check_error":
+        # Some OMC parser errors can be mapped to model_check_error by the
+        # diagnostic classifier. Recover these the same way as parse errors.
+        parse_markers = ("no viable alternative near token", "lexer failed to recognize")
+        if any(marker in lower for marker in parse_markers):
+            state_tokens = _extract_state_tokens_from_output(output)
+            if not state_tokens and "__gf_state_" in str(model_text or ""):
+                state_tokens = sorted(set(re.findall(r"__gf_state_\d+", str(model_text or ""))))
+            if state_tokens:
+                tokens = state_tokens
+                reason_prefix = "injected_state_tokens"
+            else:
+                fallback_patched, removed = _remove_gateforge_injected_symbol_block(model_text)
+                if removed > 0:
+                    return fallback_patched, {
+                        "applied": True,
+                        "reason": "removed_gateforge_injected_symbol_block",
+                        "removed_line_count": int(removed),
+                    }
+                return model_text, {"applied": False, "reason": "state_token_not_detected"}
+        else:
         # Common mutant pattern: undefined synthetic symbol `__gf_undef_<id>`.
-        tokens = _extract_undef_tokens_from_output(output)
-        if not tokens and "__gf_undef_" in str(model_text or ""):
-            tokens = sorted(set(re.findall(r"__gf_undef_\d+", str(model_text or ""))))
-        reason_prefix = "injected_undef_tokens"
-        if not tokens:
-            return model_text, {"applied": False, "reason": "undef_token_not_detected"}
+            tokens = _extract_undef_tokens_from_output(output)
+            if not tokens and "__gf_undef_" in str(model_text or ""):
+                tokens = sorted(set(re.findall(r"__gf_undef_\d+", str(model_text or ""))))
+            reason_prefix = "injected_undef_tokens"
+            if not tokens:
+                return model_text, {"applied": False, "reason": "undef_token_not_detected"}
     else:
         return model_text, {"applied": False, "reason": "failure_type_not_supported_for_pre_repair"}
 

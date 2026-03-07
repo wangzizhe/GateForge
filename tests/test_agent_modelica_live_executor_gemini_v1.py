@@ -184,6 +184,21 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
         self.assertEqual(str(audit.get("reason") or ""), "removed_lines_with_injected_undef_tokens")
         self.assertNotIn("__gf_undef_301300", patched)
 
+    def test_apply_parse_error_pre_repair_handles_parse_like_model_check_error(self) -> None:
+        model_text = (
+            "model A1\n"
+            "  Real x;\n"
+            "equation\n"
+            "  Real __gf_state_301500(start=1.0);\n"
+            "  der(x) = -x;\n"
+            "end A1;\n"
+        )
+        output = "Error: Lexer failed to recognize '\\nequation\\' near token __gf_state_301500"
+        patched, audit = _apply_parse_error_pre_repair(model_text, output, "model_check_error")
+        self.assertTrue(bool(audit.get("applied")))
+        self.assertEqual(str(audit.get("reason") or ""), "removed_lines_with_injected_state_tokens")
+        self.assertNotIn("__gf_state_301500", patched)
+
     def test_parse_env_assignment_supports_export_and_quotes(self) -> None:
         self.assertEqual(_parse_env_assignment("export GOOGLE_API_KEY=abc"), ("GOOGLE_API_KEY", "abc"))
         self.assertEqual(_parse_env_assignment('GOOGLE_API_KEY="abc-123"'), ("GOOGLE_API_KEY", "abc-123"))
