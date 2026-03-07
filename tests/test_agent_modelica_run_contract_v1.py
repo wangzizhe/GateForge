@@ -773,6 +773,72 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
             self.assertEqual(str(first_attempt.get("observed_failure_type") or ""), "executor_invocation_error")
             self.assertEqual(str(first_attempt.get("reason") or ""), "executor_invocation_error")
 
+    def test_run_contract_live_mode_stops_on_no_progress_guard(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            taskset = root / "taskset.json"
+            results = root / "results.json"
+            summary = root / "summary.json"
+            taskset.write_text(
+                json.dumps(
+                    {
+                        "tasks": [
+                            {
+                                "task_id": "t_live_no_progress",
+                                "scale": "small",
+                                "failure_type": "model_check_error",
+                                "expected_stage": "check",
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            live_cmd = (
+                "python3 -c 'import json; "
+                "print(json.dumps({"
+                "\"check_model_pass\": False, "
+                "\"simulate_pass\": False, "
+                "\"physics_contract_pass\": False, "
+                "\"regression_pass\": False, "
+                "\"elapsed_sec\": 0.2, "
+                "\"observed_failure_type\": \"model_check_error\", "
+                "\"error_message\": \"model check failed\", "
+                "\"compile_error\": \"model check failed\""
+                "}))'"
+            )
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.agent_modelica_run_contract_v1",
+                    "--taskset",
+                    str(taskset),
+                    "--mode",
+                    "live",
+                    "--max-rounds",
+                    "5",
+                    "--max-time-sec",
+                    "120",
+                    "--live-timeout-sec",
+                    "30",
+                    "--live-executor-cmd",
+                    live_cmd,
+                    "--results-out",
+                    str(results),
+                    "--out",
+                    str(summary),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            rec = (json.loads(results.read_text(encoding="utf-8")).get("records") or [])[0]
+            self.assertFalse(bool(rec.get("passed")))
+            self.assertEqual(str(rec.get("error_message") or ""), "no_progress_stop")
+            self.assertLessEqual(int(rec.get("rounds_used") or 0), 2)
+
     def test_run_contract_resume_from_records_jsonl_skips_completed_tasks(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
