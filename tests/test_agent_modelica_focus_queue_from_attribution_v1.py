@@ -82,6 +82,30 @@ class AgentModelicaFocusQueueFromAttributionV1Tests(unittest.TestCase):
         self.assertEqual(str(queue[0].get("failure_type") or ""), "semantic_regression")
         self.assertGreater(float(queue[0].get("strategy_signal_bonus", 0.0)), 0.0)
 
+    def test_does_not_override_to_regression_when_earlier_gate_failed(self) -> None:
+        attribution = {
+            "rows": [
+                {"task_id": "t1", "failure_type": "model_check_error", "gate_break_reason": "check_model_fail"},
+            ]
+        }
+        run_results = {
+            "records": [
+                {
+                    "task_id": "t1",
+                    "hard_checks": {
+                        "check_model_pass": False,
+                        "simulate_pass": False,
+                        "physics_contract_pass": False,
+                        "regression_pass": False,
+                    },
+                }
+            ]
+        }
+        payload = build_focus_queue(attribution_payload=attribution, top_k=1, run_results_payload=run_results)
+        queue = payload.get("queue") if isinstance(payload.get("queue"), list) else []
+        self.assertEqual(len(queue), 1)
+        self.assertEqual(str(queue[0].get("gate_break_reason") or ""), "check_model_fail")
+
 
 if __name__ == "__main__":
     unittest.main()

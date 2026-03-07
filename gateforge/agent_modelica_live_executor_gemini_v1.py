@@ -382,11 +382,15 @@ def _run_check_and_simulate(
     stop_time: float,
     intervals: int,
 ) -> tuple[int | None, str, bool, bool]:
+    bootstrap = "loadModel(Modelica);\n"
+    if backend != "omc":
+        bootstrap = "installPackage(Modelica);\nloadModel(Modelica);\n"
     script = (
-        f'loadFile("{model_file_name}");\n'
-        f"checkModel({model_name});\n"
-        f"simulate({model_name}, stopTime={float(stop_time)}, numberOfIntervals={int(intervals)});\n"
-        "getErrorString();\n"
+        bootstrap
+        + f'loadFile("{model_file_name}");\n'
+        + f"checkModel({model_name});\n"
+        + f"simulate({model_name}, stopTime={float(stop_time)}, numberOfIntervals={int(intervals)});\n"
+        + "getErrorString();\n"
     )
     if backend == "omc":
         rc, output = _run_omc_script_local(script, timeout_sec=timeout_sec, cwd=str(workspace))

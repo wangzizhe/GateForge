@@ -62,6 +62,35 @@ class AgentModelicaModelingIRV0Tests(unittest.TestCase):
         cmp = compare_ir_roundtrip(ir, parsed, ignore_source_meta=True)
         self.assertTrue(bool(cmp.get("match")), msg=str(cmp.get("diff_keys")))
 
+    def test_ir_to_modelica_maps_sine_freqhz_to_f(self) -> None:
+        ir = _sample_ir()
+        ir["model_name"] = "SampleSine"
+        ir["components"][0] = {
+            "id": "V1",
+            "type": "Modelica.Electrical.Analog.Sources.SineVoltage",
+            "params": {"V": 3.0, "freqHz": 50.0},
+        }
+        mo = ir_to_modelica(ir)
+        self.assertIn("SineVoltage V1(V=3.0, f=50.0);", mo)
+        self.assertNotIn("freqHz=", mo)
+
+    def test_modelica_to_ir_maps_sine_f_to_freqhz(self) -> None:
+        mo = (
+            "model A\n"
+            "  Modelica.Electrical.Analog.Sources.SineVoltage V1(V=3.0, f=50.0);\n"
+            "  Modelica.Electrical.Analog.Basic.Resistor R1(R=10.0);\n"
+            "equation\n"
+            "  connect(V1.p, R1.p);\n"
+            "  connect(V1.n, R1.n);\n"
+            "  annotation(experiment(StartTime=0.0, StopTime=0.2, NumberOfIntervals=20, Tolerance=1e-6, __Dymola_Algorithm=\"dassl\"));\n"
+            "end A;\n"
+        )
+        parsed = modelica_to_ir(mo)
+        comp = [x for x in parsed.get("components", []) if isinstance(x, dict) and x.get("id") == "V1"][0]
+        params = comp.get("params") if isinstance(comp.get("params"), dict) else {}
+        self.assertIn("freqHz", params)
+        self.assertEqual(float(params.get("freqHz")), 50.0)
+
 
 if __name__ == "__main__":
     unittest.main()

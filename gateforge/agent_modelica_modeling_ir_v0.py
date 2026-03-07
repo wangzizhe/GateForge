@@ -24,6 +24,7 @@ DEFAULT_COMPONENT_WHITELIST = (
     "Modelica.Electrical.Analog.Sensors.VoltageSensor",
     "Modelica.Electrical.Analog.Sensors.CurrentSensor",
 )
+SINE_VOLTAGE_TYPE = "Modelica.Electrical.Analog.Sources.SineVoltage"
 
 
 def _load_json(path: str) -> dict:
@@ -221,6 +222,33 @@ def _param_block(params: dict[str, Any]) -> str:
     return "(" + ", ".join(items) + ")"
 
 
+def _normalize_params_for_emit(component_type: str, params: dict[str, Any]) -> dict[str, Any]:
+    ctype = str(component_type or "")
+    if ctype != SINE_VOLTAGE_TYPE:
+        return dict(params)
+    out = dict(params)
+    if "f" not in out:
+        if "freqHz" in out:
+            out["f"] = out.pop("freqHz")
+        elif "frequency" in out:
+            out["f"] = out.pop("frequency")
+    else:
+        out.pop("freqHz", None)
+        out.pop("frequency", None)
+    return out
+
+
+def _normalize_params_from_modelica(component_type: str, params: dict[str, Any]) -> dict[str, Any]:
+    ctype = str(component_type or "")
+    if ctype != SINE_VOLTAGE_TYPE:
+        return dict(params)
+    out = dict(params)
+    if "freqHz" not in out and "f" in out:
+        out["freqHz"] = out.pop("f")
+    out.pop("frequency", None)
+    return out
+
+
 def ir_to_modelica(
     ir: dict,
     *,
@@ -248,6 +276,7 @@ def ir_to_modelica(
         ctype = str(component.get("type"))
         cid = str(component.get("id"))
         params = component.get("params") if isinstance(component.get("params"), dict) else {}
+        params = _normalize_params_for_emit(ctype, params)
         lines.append(f"  {ctype} {cid}{_param_block(params)};")
     lines.append("equation")
     for row in connections:
@@ -400,6 +429,7 @@ def modelica_to_ir(text: str) -> dict:
         ctype = str(match.group(1))
         cid = str(match.group(2))
         params = _parse_params(str(match.group(3) or ""))
+        params = _normalize_params_from_modelica(ctype, params)
         components.append({"id": cid, "type": ctype, "params": params})
 
     connect_re = re.compile(
