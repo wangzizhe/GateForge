@@ -7,6 +7,13 @@ cd "$ROOT_DIR"
 OUT_DIR="${GATEFORGE_AGENT_RELEASE_OUT_DIR:-artifacts/release_v0_1_1}"
 RUN_LIVE_SMOKE="${GATEFORGE_AGENT_RELEASE_RUN_LIVE_SMOKE:-0}"
 REQUIRE_REAL_OMC_BACKEND="${GATEFORGE_AGENT_RELEASE_REQUIRE_REAL_OMC_BACKEND:-1}"
+ENABLE_L3_DIAGNOSTIC_GATE="${GATEFORGE_AGENT_RELEASE_ENABLE_L3_DIAGNOSTIC_GATE:-1}"
+ENFORCE_L3_DIAGNOSTIC_GATE="${GATEFORGE_AGENT_RELEASE_ENFORCE_L3_DIAGNOSTIC_GATE:-1}"
+L3_MIN_PARSE_COVERAGE_PCT="${GATEFORGE_AGENT_RELEASE_L3_MIN_PARSE_COVERAGE_PCT:-95}"
+L3_MIN_TYPE_MATCH_RATE_PCT="${GATEFORGE_AGENT_RELEASE_L3_MIN_TYPE_MATCH_RATE_PCT:-70}"
+L3_MIN_STAGE_MATCH_RATE_PCT="${GATEFORGE_AGENT_RELEASE_L3_MIN_STAGE_MATCH_RATE_PCT:-70}"
+L3_MAX_LOW_CONFIDENCE_RATE_PCT="${GATEFORGE_AGENT_RELEASE_L3_MAX_LOW_CONFIDENCE_RATE_PCT:-30}"
+L3_LOW_CONFIDENCE_THRESHOLD="${GATEFORGE_AGENT_RELEASE_L3_LOW_CONFIDENCE_THRESHOLD:-0.65}"
 
 PROFILE_PATH="${GATEFORGE_AGENT_MVP_PROFILE_PATH:-benchmarks/private/agent_modelica_mvp_repair_v1.json}"
 if [ ! -f "$PROFILE_PATH" ]; then
@@ -170,7 +177,113 @@ print(json.dumps({"status": "NEEDS_REVIEW", "executor_status": "SKIPPED"}))
 PY
 fi
 
-python3 - "$OUT_DIR" "$RUN_LIVE_SMOKE" "$REQUIRE_REAL_OMC_BACKEND" <<'PY'
+L3_RUN_RESULTS_PATH="$OUT_DIR/l3_diagnostic_gate_run_results.json"
+L3_TASKSET_PATH="$OUT_DIR/l3_diagnostic_gate_taskset.json"
+L3_QUALITY_PATH="$OUT_DIR/l3_diagnostic_quality_summary.json"
+L3_GATE_PATH="$OUT_DIR/l3_diagnostic_gate_summary.json"
+if [ "$ENABLE_L3_DIAGNOSTIC_GATE" = "1" ] && [ "$RUN_LIVE_SMOKE" = "1" ]; then
+  python3 - "$OUT_DIR/live_smoke_executor.json" "$L3_RUN_RESULTS_PATH" "$L3_TASKSET_PATH" "${GATEFORGE_AGENT_RELEASE_SMOKE_EXPECTED_STAGE:-simulate}" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+live_smoke_path = Path(sys.argv[1])
+run_results_path = Path(sys.argv[2])
+taskset_path = Path(sys.argv[3])
+expected_stage = str(sys.argv[4] or "").strip().lower() or "simulate"
+
+payload = json.loads(live_smoke_path.read_text(encoding="utf-8")) if live_smoke_path.exists() else {}
+task_id = str(payload.get("task_id") or "release-smoke-1")
+failure_type = str(payload.get("failure_type") or "unknown")
+attempts_in = payload.get("attempts") if isinstance(payload.get("attempts"), list) else []
+attempts = []
+for row in attempts_in:
+    if not isinstance(row, dict):
+        continue
+    attempts.append(
+        {
+            "round": row.get("round"),
+            "observed_failure_type": str(row.get("observed_failure_type") or ""),
+            "reason": str(row.get("reason") or ""),
+            "check_model_pass": bool(row.get("check_model_pass")),
+            "simulate_pass": bool(row.get("simulate_pass")),
+            "diagnostic_ir": row.get("diagnostic_ir") if isinstance(row.get("diagnostic_ir"), dict) else {},
+        }
+    )
+
+run_results = {"records": [{"task_id": task_id, "failure_type": failure_type, "expected_stage": expected_stage, "attempts": attempts}]}
+taskset = {"tasks": [{"task_id": task_id, "failure_type": failure_type, "expected_stage": expected_stage}]}
+run_results_path.parent.mkdir(parents=True, exist_ok=True)
+run_results_path.write_text(json.dumps(run_results, indent=2), encoding="utf-8")
+taskset_path.write_text(json.dumps(taskset, indent=2), encoding="utf-8")
+print(json.dumps({"status": "PASS", "l3_attempt_count": len(attempts)}))
+PY
+
+  python3 -m gateforge.agent_modelica_diagnostic_quality_v0 \
+    --run-results "$L3_RUN_RESULTS_PATH" \
+    --taskset "$L3_TASKSET_PATH" \
+    --low-confidence-threshold "$L3_LOW_CONFIDENCE_THRESHOLD" \
+    --out "$L3_QUALITY_PATH" \
+    --report-out "$OUT_DIR/l3_diagnostic_quality_summary.md"
+
+  python3 -m gateforge.agent_modelica_l3_diagnostic_gate_v0 \
+    --diagnostic-quality-summary "$L3_QUALITY_PATH" \
+    --min-parse-coverage-pct "$L3_MIN_PARSE_COVERAGE_PCT" \
+    --min-canonical-type-match-rate-pct "$L3_MIN_TYPE_MATCH_RATE_PCT" \
+    --min-stage-match-rate-pct "$L3_MIN_STAGE_MATCH_RATE_PCT" \
+    --max-low-confidence-rate-pct "$L3_MAX_LOW_CONFIDENCE_RATE_PCT" \
+    --out "$L3_GATE_PATH" \
+    --report-out "$OUT_DIR/l3_diagnostic_gate_summary.md"
+else
+  python3 - "$L3_QUALITY_PATH" "$L3_GATE_PATH" "$RUN_LIVE_SMOKE" "$ENABLE_L3_DIAGNOSTIC_GATE" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+quality_path = Path(sys.argv[1])
+gate_path = Path(sys.argv[2])
+run_live_smoke = str(sys.argv[3]).strip() == "1"
+enabled = str(sys.argv[4]).strip() == "1"
+
+if run_live_smoke and not enabled:
+    reason = "l3_gate_disabled"
+elif not run_live_smoke:
+    reason = "live_smoke_disabled"
+else:
+    reason = "l3_gate_not_run"
+
+quality = {
+    "schema_version": "agent_modelica_diagnostic_quality_v0",
+    "status": "NEEDS_REVIEW",
+    "total_attempts": 0,
+    "parsed_attempts": 0,
+    "parse_coverage_pct": 0.0,
+    "canonical_type_match_rate_pct": 0.0,
+    "type_match_rate_pct": 0.0,
+    "stage_match_rate_pct": 0.0,
+    "low_confidence_rate_pct": 0.0,
+    "reasons": [reason],
+}
+gate = {
+    "schema_version": "agent_modelica_l3_diagnostic_gate_v0",
+    "status": "NEEDS_REVIEW",
+    "gate_result": "SKIPPED",
+    "parse_coverage_pct": 0.0,
+    "canonical_type_match_rate_pct": 0.0,
+    "type_match_rate_pct": 0.0,
+    "stage_match_rate_pct": 0.0,
+    "low_confidence_rate_pct": 0.0,
+    "reasons": [reason],
+}
+
+quality_path.parent.mkdir(parents=True, exist_ok=True)
+quality_path.write_text(json.dumps(quality, indent=2), encoding="utf-8")
+gate_path.write_text(json.dumps(gate, indent=2), encoding="utf-8")
+print(json.dumps({"status": "NEEDS_REVIEW", "l3_gate_result": "SKIPPED", "reason": reason}))
+PY
+fi
+
+python3 - "$OUT_DIR" "$RUN_LIVE_SMOKE" "$REQUIRE_REAL_OMC_BACKEND" "$ENABLE_L3_DIAGNOSTIC_GATE" "$ENFORCE_L3_DIAGNOSTIC_GATE" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -178,9 +291,13 @@ from pathlib import Path
 out_dir = Path(sys.argv[1])
 run_live_smoke = str(sys.argv[2]).strip() == "1"
 require_real_omc = str(sys.argv[3]).strip() == "1"
+enable_l3_gate = str(sys.argv[4]).strip() == "1"
+enforce_l3_gate = str(sys.argv[5]).strip() == "1"
 learning = json.loads((out_dir / "learning_preflight.json").read_text(encoding="utf-8"))
 private_guard = json.loads((out_dir / "private_asset_guard.json").read_text(encoding="utf-8"))
 live_smoke = json.loads((out_dir / "live_smoke_executor.json").read_text(encoding="utf-8"))
+l3_gate = json.loads((out_dir / "l3_diagnostic_gate_summary.json").read_text(encoding="utf-8"))
+l3_quality = json.loads((out_dir / "l3_diagnostic_quality_summary.json").read_text(encoding="utf-8"))
 
 status = "PASS"
 reasons = []
@@ -213,6 +330,15 @@ if run_live_smoke and require_real_omc and live_status == "PASS" and live_fallba
     status = "FAIL"
     reasons.append("live_smoke_backend_fallback_to_syntax")
 
+l3_gate_status = str(l3_gate.get("status") or "").strip()
+if run_live_smoke and enable_l3_gate:
+    if l3_gate_status != "PASS":
+        if enforce_l3_gate:
+            status = "FAIL"
+            reasons.append("l3_diagnostic_gate_not_pass")
+        elif status != "FAIL":
+            status = "NEEDS_REVIEW"
+
 payload = {
     "status": status,
     "profile_path": str(((learning.get("inputs") or {}).get("profile")) or ""),
@@ -221,11 +347,22 @@ payload = {
     "live_smoke_status": live_status or "SKIPPED",
     "live_smoke_backend_used": live_backend,
     "require_real_omc_backend": require_real_omc,
+    "l3_diagnostic_gate_enabled": enable_l3_gate,
+    "l3_diagnostic_gate_enforced": enforce_l3_gate,
+    "l3_diagnostic_gate_status": l3_gate_status or "SKIPPED",
+    "l3_parse_coverage_pct": float(l3_quality.get("parse_coverage_pct") or 0.0),
+    "l3_type_match_rate_pct": float(
+        l3_quality.get("canonical_type_match_rate_pct") or l3_quality.get("type_match_rate_pct") or 0.0
+    ),
+    "l3_stage_match_rate_pct": float(l3_quality.get("stage_match_rate_pct") or 0.0),
+    "l3_low_confidence_rate_pct": float(l3_quality.get("low_confidence_rate_pct") or 0.0),
     "reasons": reasons,
     "paths": {
         "learning_preflight": str(out_dir / "learning_preflight.json"),
         "private_asset_guard": str(out_dir / "private_asset_guard.json"),
         "live_smoke_executor": str(out_dir / "live_smoke_executor.json"),
+        "l3_diagnostic_quality": str(out_dir / "l3_diagnostic_quality_summary.json"),
+        "l3_diagnostic_gate": str(out_dir / "l3_diagnostic_gate_summary.json"),
     },
 }
 (out_dir / "release_preflight_summary.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
