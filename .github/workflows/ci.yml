@@ -332,6 +332,10 @@ jobs:
                 f.write(f"- learning_preflight_status: `{details.get('learning_preflight_status', '')}`\n")
                 f.write(f"- private_asset_guard_status: `{details.get('private_asset_guard_status', '')}`\n")
                 f.write(f"- live_smoke_status: `{details.get('live_smoke_status', '')}`\n")
+                f.write(f"- l3_diagnostic_gate_status: `{details.get('l3_diagnostic_gate_status', '')}`\n")
+                f.write(f"- l3_parse_coverage_pct: `{details.get('l3_parse_coverage_pct', '')}`\n")
+                f.write(f"- l3_type_match_rate_pct: `{details.get('l3_type_match_rate_pct', '')}`\n")
+                f.write(f"- l3_stage_match_rate_pct: `{details.get('l3_stage_match_rate_pct', '')}`\n")
               f.write("\n")
           if status == "FAIL":
             raise SystemExit(1)
@@ -343,6 +347,48 @@ jobs:
         with:
           name: release-preflight-logs
           path: artifacts/release_v0_1_1
+          if-no-files-found: ignore
+
+  l3-diagnostic-gate:
+    name: "L3 Diagnostic Gate"
+    runs-on: ubuntu-latest
+    continue-on-error: ${{ github.event_name == 'pull_request' }}
+    env:
+      GATEFORGE_DEMO_FAST: "1"
+      GATEFORGE_AGENT_L3_STABILITY_TASKSET: "assets_private/agent_modelica_l2_freeze_pack_v0_smoke/taskset_frozen.json"
+      GATEFORGE_AGENT_L3_STABILITY_SCALES: "small,medium"
+      GATEFORGE_AGENT_L3_STABILITY_OUT_DIR: "artifacts/agent_modelica_l3_stability_regression_v0_ci"
+      GATEFORGE_AGENT_L3_STABILITY_PLANNER_BACKEND: "rule"
+      GATEFORGE_AGENT_L3_STABILITY_BACKEND: "openmodelica_docker"
+      GATEFORGE_AGENT_L3_STABILITY_MAX_ROUNDS: "1"
+      GATEFORGE_AGENT_L3_STABILITY_MAX_TIME_SEC: "120"
+      GATEFORGE_AGENT_L3_STABILITY_LIVE_TIMEOUT_SEC: "90"
+      GATEFORGE_AGENT_L3_STABILITY_LIVE_MAX_OUTPUT_CHARS: "1600"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Run L3 diagnostic stability regression
+        run: |
+          bash scripts/run_agent_modelica_l3_stability_regression_v0.sh
+
+      - name: Upload L3 diagnostic gate artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: l3-diagnostic-gate-logs
+          path: artifacts/agent_modelica_l3_stability_regression_v0_ci
           if-no-files-found: ignore
 
   smoke-gate:
@@ -407,6 +453,7 @@ jobs:
       - test-dataset
       - smoke-gate
       - release-preflight
+      - l3-diagnostic-gate
     runs-on: ubuntu-latest
     steps:
       - name: Enforce upstream success
@@ -429,6 +476,10 @@ jobs:
           fi
           if [ "${{ needs.release-preflight.result }}" != "success" ]; then
             echo "release-preflight result: ${{ needs.release-preflight.result }}"
+            exit 1
+          fi
+          if [ "${{ needs.l3-diagnostic-gate.result }}" != "success" ]; then
+            echo "l3-diagnostic-gate result: ${{ needs.l3-diagnostic-gate.result }}"
             exit 1
           fi
           echo "test-and-smoke gate passed"
