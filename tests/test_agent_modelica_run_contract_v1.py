@@ -1,4 +1,5 @@
 import json
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -838,6 +839,127 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
             self.assertFalse(bool(rec.get("passed")))
             self.assertEqual(str(rec.get("error_message") or ""), "no_progress_stop")
             self.assertLessEqual(int(rec.get("rounds_used") or 0), 2)
+
+    def test_run_contract_live_mode_supports_l4_closed_loop_flags(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            taskset = root / "taskset.json"
+            results = root / "results.json"
+            summary = root / "summary.json"
+            model_path = root / "A1.mo"
+            model_path.write_text(
+                "\n".join(
+                    [
+                        "model A1",
+                        "  Modelica.Electrical.Analog.Basic.Resistor R1(R=10);",
+                        "  Modelica.Electrical.Analog.Basic.Ground G1;",
+                        "equation",
+                        "  connect(R1.n, G1.p);",
+                        "end A1;",
+                        "",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            taskset.write_text(
+                json.dumps(
+                    {
+                        "tasks": [
+                            {
+                                "task_id": "t_live_l4",
+                                "scale": "small",
+                                "failure_type": "model_check_error",
+                                "expected_stage": "check",
+                                "source_model_path": str(model_path),
+                                "mutated_model_path": str(model_path),
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            code = """
+import json
+
+is_l4 = "__L4_ENABLED__" == "1"
+round_idx = int("__L4_ROUND__")
+ok = bool(is_l4 and round_idx >= 2)
+payload = {
+  "check_model_pass": ok,
+  "simulate_pass": ok,
+  "physics_contract_pass": ok,
+  "regression_pass": ok,
+  "elapsed_sec": 0.2
+}
+if not ok:
+  payload.update(
+    {
+      "error_message": "model check failed",
+      "compile_error": "model check failed",
+      "attempts": [
+        {
+          "observed_failure_type": "model_check_error",
+          "reason": "compile/syntax error",
+          "diagnostic_ir": {
+            "error_type": "model_check_error",
+            "error_subtype": "parse_lexer_error",
+            "stage": "check",
+            "confidence": 0.9
+          }
+        }
+      ]
+    }
+  )
+print(json.dumps(payload))
+""".strip()
+            live_cmd = f"python3 -c {shlex.quote(code)}"
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.agent_modelica_run_contract_v1",
+                    "--taskset",
+                    str(taskset),
+                    "--mode",
+                    "live",
+                    "--max-rounds",
+                    "3",
+                    "--max-time-sec",
+                    "60",
+                    "--live-timeout-sec",
+                    "20",
+                    "--l4-enabled",
+                    "on",
+                    "--l4-max-rounds",
+                    "3",
+                    "--l4-policy-backend",
+                    "rule",
+                    "--l4-max-actions-per-round",
+                    "2",
+                    "--live-executor-cmd",
+                    live_cmd,
+                    "--results-out",
+                    str(results),
+                    "--out",
+                    str(summary),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            s = json.loads(summary.read_text(encoding="utf-8"))
+            r = json.loads(results.read_text(encoding="utf-8"))
+            self.assertEqual(s.get("mode"), "live")
+            self.assertTrue(bool(s.get("l4_enabled")))
+            rec = (r.get("records") or [])[0]
+            self.assertTrue(bool(rec.get("passed")))
+            self.assertGreaterEqual(int(rec.get("rounds_used") or 0), 2)
+            l4 = rec.get("l4") if isinstance(rec.get("l4"), dict) else {}
+            self.assertTrue(bool(l4.get("enabled")))
+            self.assertGreaterEqual(len(l4.get("trajectory_rows") or []), 1)
+            mem = r.get("repair_memory_v2") if isinstance(r.get("repair_memory_v2"), dict) else {}
+            self.assertGreaterEqual(len(mem.get("trajectory_rows") or []), 1)
 
     def test_run_contract_resume_from_records_jsonl_skips_completed_tasks(self) -> None:
         with tempfile.TemporaryDirectory() as d:
