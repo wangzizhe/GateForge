@@ -409,7 +409,7 @@ jobs:
     continue-on-error: ${{ github.event_name == 'pull_request' }}
     env:
       GATEFORGE_DEMO_FAST: "1"
-      GATEFORGE_AGENT_L5_EVAL_TASKSET: "tests/fixtures/agent_modelica_l3_stability_ci_taskset_v0.json"
+      GATEFORGE_AGENT_L5_EVAL_TASKSET: "tests/fixtures/agent_modelica_l4_challenge_taskset_v0.json"
       GATEFORGE_AGENT_L5_EVAL_SCALES: "small,medium"
       GATEFORGE_AGENT_L5_EVAL_OUT_DIR: "artifacts/agent_modelica_l5_eval_v1_ci"
       GATEFORGE_AGENT_L5_LEDGER_PATH: "artifacts/private/l5_eval_ledger_v1.jsonl"
@@ -480,7 +480,7 @@ jobs:
     env:
       GATEFORGE_DEMO_FAST: "1"
       GATEFORGE_AGENT_L5_GATE_MODE: "observe"
-      GATEFORGE_AGENT_L5_EVAL_TASKSET: "tests/fixtures/agent_modelica_l3_stability_ci_taskset_v0.json"
+      GATEFORGE_AGENT_L5_EVAL_TASKSET: "tests/fixtures/agent_modelica_l4_challenge_taskset_v0.json"
       GATEFORGE_AGENT_L5_EVAL_SCALES: "small,medium"
       GATEFORGE_AGENT_L5_EVAL_OUT_DIR: "artifacts/agent_modelica_l5_eval_v1_nightly"
       GATEFORGE_AGENT_L5_LEDGER_PATH: "artifacts/private/l5_eval_ledger_v1.jsonl"
@@ -526,7 +526,7 @@ jobs:
     continue-on-error: true
     env:
       GATEFORGE_DEMO_FAST: "1"
-      GATEFORGE_AGENT_L4_CLOSED_LOOP_TASKSET: "tests/fixtures/agent_modelica_l3_stability_ci_taskset_v0.json"
+      GATEFORGE_AGENT_L4_CLOSED_LOOP_TASKSET: "tests/fixtures/agent_modelica_l4_challenge_taskset_v0.json"
       GATEFORGE_AGENT_L4_CLOSED_LOOP_SCALES: "small,medium"
       GATEFORGE_AGENT_L4_CLOSED_LOOP_OUT_DIR: "artifacts/agent_modelica_l4_closed_loop_v0_nightly"
       GATEFORGE_AGENT_L4_CLOSED_LOOP_PLANNER_BACKEND: "gemini"

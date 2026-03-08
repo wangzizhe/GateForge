@@ -57,6 +57,7 @@ class CIShardConfigContractTests(unittest.TestCase):
         self.assertIn("artifacts/agent_modelica_l5_eval_v1_ci", workflow)
         self.assertIn("artifacts/agent_modelica_l5_eval_v1_nightly", workflow)
         self.assertIn("artifacts/agent_modelica_l4_closed_loop_v0_nightly", workflow)
+        self.assertIn("tests/fixtures/agent_modelica_l4_challenge_taskset_v0.json", workflow)
         self.assertIn("artifacts/private/l5_eval_ledger_v1.jsonl", workflow)
         self.assertIn("tests/fixtures/agent_modelica_l3_stability_ci_taskset_v0.json", workflow)
         self.assertIn("python3 -m gateforge.agent_modelica_live_executor_mock_v0", workflow)

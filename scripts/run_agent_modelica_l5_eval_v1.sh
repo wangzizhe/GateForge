@@ -5,7 +5,11 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
 OUT_DIR="${GATEFORGE_AGENT_L5_EVAL_OUT_DIR:-artifacts/agent_modelica_l5_eval_v1}"
-BASE_TASKSET="${GATEFORGE_AGENT_L5_EVAL_TASKSET:-assets_private/agent_modelica_l2_freeze_pack_v0/taskset_frozen.json}"
+DEFAULT_BASE_TASKSET="assets_private/agent_modelica_l4_challenge_pack_v0/taskset_frozen.json"
+if [ ! -f "$DEFAULT_BASE_TASKSET" ]; then
+  DEFAULT_BASE_TASKSET="assets_private/agent_modelica_l2_freeze_pack_v0/taskset_frozen.json"
+fi
+BASE_TASKSET="${GATEFORGE_AGENT_L5_EVAL_TASKSET:-$DEFAULT_BASE_TASKSET}"
 SCALES_RAW="${GATEFORGE_AGENT_L5_EVAL_SCALES:-small,medium}"
 
 PLANNER_BACKEND="${GATEFORGE_AGENT_L5_EVAL_PLANNER_BACKEND:-rule}"
