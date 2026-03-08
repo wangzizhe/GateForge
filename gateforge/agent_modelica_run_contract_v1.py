@@ -307,6 +307,8 @@ def _build_live_template_context(
     repair_actions_override: list[str] | None = None,
     l4_enabled: bool = False,
     l4_policy_backend: str = "",
+    l4_policy_profile: str = "",
+    l4_llm_fallback_threshold: int = 2,
     l4_round: int = 0,
 ) -> dict[str, str]:
     actions = [str(x) for x in (repair_actions_override or strategy.get("actions") or []) if isinstance(x, str)]
@@ -332,6 +334,8 @@ def _build_live_template_context(
         "repair_actions_shq": shlex.quote(json.dumps(actions, ensure_ascii=True)),
         "l4_enabled": "1" if bool(l4_enabled) else "0",
         "l4_policy_backend": str(l4_policy_backend or ""),
+        "l4_policy_profile": str(l4_policy_profile or "score_v1"),
+        "l4_llm_fallback_threshold": str(max(1, int(l4_llm_fallback_threshold))),
         "l4_round": str(int(l4_round) if int(l4_round or 0) > 0 else int(round_idx)),
     }
     return mapping
@@ -887,6 +891,8 @@ def _run_task_live_l4(
     *,
     l4_max_rounds: int,
     l4_policy_backend: str,
+    l4_policy_profile: str,
+    l4_llm_fallback_threshold: int,
     l4_max_actions_per_round: int,
 ) -> dict:
     scale = str(task.get("scale") or "unknown")
@@ -914,6 +920,8 @@ def _run_task_live_l4(
         **capability_audit,
         "l4_enabled": True,
         "l4_policy_backend": str(l4_policy_backend or "rule"),
+        "l4_policy_profile": str(l4_policy_profile or "score_v1"),
+        "l4_llm_fallback_threshold": max(1, int(l4_llm_fallback_threshold)),
         "l4_max_actions_per_round": max(1, int(l4_max_actions_per_round)),
         "l4_max_rounds": max(1, int(l4_max_rounds)),
         "live_executor_configured": bool(str(task.get("live_executor_command") or "").strip() or str(live_executor_cmd).strip()),
@@ -957,9 +965,15 @@ def _run_task_live_l4(
             "l4": {
                 "enabled": True,
                 "policy_backend": str(l4_policy_backend or "rule"),
+                "policy_profile": str(l4_policy_profile or "score_v1"),
+                "llm_fallback_threshold": max(1, int(l4_llm_fallback_threshold)),
                 "trajectory_rows": [],
                 "action_effectiveness": [],
                 "stop_reason": "live_executor_command_missing",
+                "l4_primary_reason": "action_plan_failed",
+                "llm_fallback_used": False,
+                "action_rank_trace": [],
+                "banned_action_signatures": [],
             },
         }
 
@@ -996,9 +1010,15 @@ def _run_task_live_l4(
             "l4": {
                 "enabled": True,
                 "policy_backend": str(l4_policy_backend or "rule"),
+                "policy_profile": str(l4_policy_profile or "score_v1"),
+                "llm_fallback_threshold": max(1, int(l4_llm_fallback_threshold)),
                 "trajectory_rows": [],
                 "action_effectiveness": [],
                 "stop_reason": "model_path_missing",
+                "l4_primary_reason": "action_plan_failed",
+                "llm_fallback_used": False,
+                "action_rank_trace": [],
+                "banned_action_signatures": [],
             },
         }
 
@@ -1035,9 +1055,15 @@ def _run_task_live_l4(
             "l4": {
                 "enabled": True,
                 "policy_backend": str(l4_policy_backend or "rule"),
+                "policy_profile": str(l4_policy_profile or "score_v1"),
+                "llm_fallback_threshold": max(1, int(l4_llm_fallback_threshold)),
                 "trajectory_rows": [],
                 "action_effectiveness": [],
                 "stop_reason": "model_path_missing",
+                "l4_primary_reason": "action_plan_failed",
+                "llm_fallback_used": False,
+                "action_rank_trace": [],
+                "banned_action_signatures": [],
             },
         }
 
@@ -1077,9 +1103,15 @@ def _run_task_live_l4(
             "l4": {
                 "enabled": True,
                 "policy_backend": str(l4_policy_backend or "rule"),
+                "policy_profile": str(l4_policy_profile or "score_v1"),
+                "llm_fallback_threshold": max(1, int(l4_llm_fallback_threshold)),
                 "trajectory_rows": [],
                 "action_effectiveness": [],
                 "stop_reason": "model_path_read_error",
+                "l4_primary_reason": "action_plan_failed",
+                "llm_fallback_used": False,
+                "action_rank_trace": [],
+                "banned_action_signatures": [],
             },
         }
 
@@ -1103,6 +1135,8 @@ def _run_task_live_l4(
             repair_actions_override=[str(x) for x in (planned_actions or []) if isinstance(x, str)],
             l4_enabled=True,
             l4_policy_backend=str(l4_policy_backend or "rule"),
+            l4_policy_profile=str(l4_policy_profile or "score_v1"),
+            l4_llm_fallback_threshold=max(1, int(l4_llm_fallback_threshold)),
             l4_round=int(round_idx),
         )
         command = _render_live_command(command_template, context=context)
@@ -1233,6 +1267,8 @@ def _run_task_live_l4(
             max_actions_per_round=max(1, int(l4_max_actions_per_round)),
             no_progress_window=2,
             policy_backend=str(l4_policy_backend or "rule"),
+            policy_profile=str(l4_policy_profile or "score_v1"),
+            llm_fallback_threshold=max(1, int(l4_llm_fallback_threshold)),
             repair_history_payload=repair_history_payload if isinstance(repair_history_payload, dict) else {},
             retrieval_policy_payload=retrieval_policy_payload if isinstance(retrieval_policy_payload, dict) else {},
         )
@@ -1279,6 +1315,8 @@ def _run_task_live_l4(
             "final_round_used": int(orchestrator.get("rounds_used", 0) or 0),
             "final_passed": bool(orchestrator.get("passed")),
             "l4_stop_reason": str(orchestrator.get("stop_reason") or ""),
+            "l4_primary_reason": str(orchestrator.get("l4_primary_reason") or ""),
+            "l4_llm_fallback_used": bool(orchestrator.get("llm_fallback_used")),
             "l4_trajectory_rows": len(orchestrator.get("trajectory_rows") or []),
         },
         "physics_contract_reasons": physics_contract_reasons,
@@ -1291,11 +1329,22 @@ def _run_task_live_l4(
         "l4": {
             "enabled": True,
             "policy_backend": str(orchestrator.get("policy_backend") or l4_policy_backend or "rule"),
+            "policy_profile": str(orchestrator.get("policy_profile") or l4_policy_profile or "score_v1"),
+            "llm_fallback_threshold": int(orchestrator.get("llm_fallback_threshold") or max(1, int(l4_llm_fallback_threshold))),
             "stop_reason": str(orchestrator.get("stop_reason") or ""),
+            "l4_primary_reason": str(orchestrator.get("l4_primary_reason") or ""),
+            "llm_fallback_used": bool(orchestrator.get("llm_fallback_used")),
             "trajectory_rows": orchestrator.get("trajectory_rows") if isinstance(orchestrator.get("trajectory_rows"), list) else [],
             "action_effectiveness": orchestrator.get("action_effectiveness")
             if isinstance(orchestrator.get("action_effectiveness"), list)
             else [],
+            "action_rank_trace": orchestrator.get("action_rank_trace")
+            if isinstance(orchestrator.get("action_rank_trace"), list)
+            else [],
+            "banned_action_signatures": orchestrator.get("banned_action_signatures")
+            if isinstance(orchestrator.get("banned_action_signatures"), list)
+            else [],
+            "reason_enum": orchestrator.get("reason_enum") if isinstance(orchestrator.get("reason_enum"), list) else [],
         },
     }
 
@@ -1318,6 +1367,8 @@ def _run_task_live(
     l4_enabled: bool = False,
     l4_max_rounds: int = 3,
     l4_policy_backend: str = "rule",
+    l4_policy_profile: str = "score_v1",
+    l4_llm_fallback_threshold: int = 2,
     l4_max_actions_per_round: int = 3,
 ) -> dict:
     if bool(l4_enabled):
@@ -1337,6 +1388,8 @@ def _run_task_live(
             live_max_output_chars=live_max_output_chars,
             l4_max_rounds=l4_max_rounds,
             l4_policy_backend=l4_policy_backend,
+            l4_policy_profile=l4_policy_profile,
+            l4_llm_fallback_threshold=l4_llm_fallback_threshold,
             l4_max_actions_per_round=l4_max_actions_per_round,
         )
 
@@ -1694,6 +1747,8 @@ def main() -> None:
     parser.add_argument("--l4-enabled", choices=["on", "off"], default="off")
     parser.add_argument("--l4-max-rounds", type=int, default=3)
     parser.add_argument("--l4-policy-backend", choices=["rule", "llm"], default="rule")
+    parser.add_argument("--l4-policy-profile", default="score_v1")
+    parser.add_argument("--l4-llm-fallback-threshold", type=int, default=2)
     parser.add_argument("--l4-max-actions-per-round", type=int, default=3)
     parser.add_argument("--records-jsonl", default="")
     parser.add_argument("--resume-from-records", action="store_true")
@@ -1774,6 +1829,8 @@ def main() -> None:
                 l4_enabled=(str(args.l4_enabled) == "on"),
                 l4_max_rounds=max(1, int(args.l4_max_rounds)),
                 l4_policy_backend=str(args.l4_policy_backend or "rule"),
+                l4_policy_profile=str(args.l4_policy_profile or "score_v1"),
+                l4_llm_fallback_threshold=max(1, int(args.l4_llm_fallback_threshold)),
                 l4_max_actions_per_round=max(1, int(args.l4_max_actions_per_round)),
             )
         else:
@@ -1832,6 +1889,8 @@ def main() -> None:
         "l4_enabled": bool(str(args.l4_enabled) == "on"),
         "l4_max_rounds": int(args.l4_max_rounds),
         "l4_policy_backend": str(args.l4_policy_backend or "rule"),
+        "l4_policy_profile": str(args.l4_policy_profile or "score_v1"),
+        "l4_llm_fallback_threshold": int(args.l4_llm_fallback_threshold),
         "l4_max_actions_per_round": int(args.l4_max_actions_per_round),
         "records_jsonl": records_jsonl_path,
         "resume_from_records": bool(args.resume_from_records),
@@ -1866,6 +1925,8 @@ def main() -> None:
         "l4_enabled": bool(str(args.l4_enabled) == "on"),
         "l4_max_rounds": int(args.l4_max_rounds),
         "l4_policy_backend": str(args.l4_policy_backend or "rule"),
+        "l4_policy_profile": str(args.l4_policy_profile or "score_v1"),
+        "l4_llm_fallback_threshold": int(args.l4_llm_fallback_threshold),
         "l4_max_actions_per_round": int(args.l4_max_actions_per_round),
         "l4_trajectory_rows": len(repair_memory_v2_payload.get("trajectory_rows") or [])
         if isinstance(repair_memory_v2_payload, dict)
@@ -1897,6 +1958,8 @@ def main() -> None:
             "l4_enabled": bool(str(args.l4_enabled) == "on"),
             "l4_max_rounds": int(args.l4_max_rounds),
             "l4_policy_backend": str(args.l4_policy_backend or "rule"),
+            "l4_policy_profile": str(args.l4_policy_profile or "score_v1"),
+            "l4_llm_fallback_threshold": int(args.l4_llm_fallback_threshold),
             "l4_max_actions_per_round": int(args.l4_max_actions_per_round),
             "records_jsonl": records_jsonl_path,
             "resume_from_records": bool(args.resume_from_records),

@@ -934,6 +934,10 @@ print(json.dumps(payload))
                     "3",
                     "--l4-policy-backend",
                     "rule",
+                    "--l4-policy-profile",
+                    "score_v1",
+                    "--l4-llm-fallback-threshold",
+                    "2",
                     "--l4-max-actions-per-round",
                     "2",
                     "--live-executor-cmd",
@@ -952,11 +956,18 @@ print(json.dumps(payload))
             r = json.loads(results.read_text(encoding="utf-8"))
             self.assertEqual(s.get("mode"), "live")
             self.assertTrue(bool(s.get("l4_enabled")))
+            self.assertEqual(str(s.get("l4_policy_profile") or ""), "score_v1")
+            self.assertEqual(int(s.get("l4_llm_fallback_threshold") or 0), 2)
             rec = (r.get("records") or [])[0]
             self.assertTrue(bool(rec.get("passed")))
             self.assertGreaterEqual(int(rec.get("rounds_used") or 0), 2)
             l4 = rec.get("l4") if isinstance(rec.get("l4"), dict) else {}
             self.assertTrue(bool(l4.get("enabled")))
+            self.assertEqual(str(l4.get("policy_profile") or ""), "score_v1")
+            self.assertIn(str(l4.get("l4_primary_reason") or ""), {"hard_checks_pass", "none"})
+            self.assertIsInstance(l4.get("action_rank_trace"), list)
+            self.assertIsInstance(l4.get("banned_action_signatures"), list)
+            self.assertIn("llm_fallback_used", l4)
             self.assertGreaterEqual(len(l4.get("trajectory_rows") or []), 1)
             mem = r.get("repair_memory_v2") if isinstance(r.get("repair_memory_v2"), dict) else {}
             self.assertGreaterEqual(len(mem.get("trajectory_rows") or []), 1)
