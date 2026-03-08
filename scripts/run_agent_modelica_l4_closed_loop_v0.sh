@@ -16,6 +16,8 @@ LIVE_MAX_OUTPUT_CHARS="${GATEFORGE_AGENT_L4_CLOSED_LOOP_LIVE_MAX_OUTPUT_CHARS:-2
 
 L4_MAX_ROUNDS="${GATEFORGE_AGENT_L4_MAX_ROUNDS:-3}"
 L4_POLICY_BACKEND="${GATEFORGE_AGENT_L4_POLICY_BACKEND:-rule}"
+L4_POLICY_PROFILE="${GATEFORGE_AGENT_L4_POLICY_PROFILE:-score_v1}"
+L4_LLM_FALLBACK_THRESHOLD="${GATEFORGE_AGENT_L4_LLM_FALLBACK_THRESHOLD:-2}"
 L4_MAX_ACTIONS_PER_ROUND="${GATEFORGE_AGENT_L4_MAX_ACTIONS_PER_ROUND:-3}"
 
 MIN_SUCCESS_DELTA_PP="${GATEFORGE_AGENT_L4_MIN_SUCCESS_DELTA_PP:-5}"
@@ -86,6 +88,8 @@ run_once() {
       "--l4-enabled" "on"
       "--l4-max-rounds" "$L4_MAX_ROUNDS"
       "--l4-policy-backend" "$L4_POLICY_BACKEND"
+      "--l4-policy-profile" "$L4_POLICY_PROFILE"
+      "--l4-llm-fallback-threshold" "$L4_LLM_FALLBACK_THRESHOLD"
       "--l4-max-actions-per-round" "$L4_MAX_ACTIONS_PER_ROUND"
     )
   else
@@ -150,6 +154,17 @@ def _pct(num: int, den: int) -> float:
         return 0.0
     return round((num / den) * 100.0, 2)
 
+ALLOWED_L4_REASONS = {
+    "none",
+    "hard_checks_pass",
+    "max_rounds_reached",
+    "time_budget_exceeded",
+    "no_progress_window",
+    "action_plan_failed",
+    "apply_failed",
+    "llm_fallback_exhausted",
+}
+
 def _summarize_run(run_dir: Path) -> dict:
     run_summary = _load(run_dir / "run_summary.json")
     run_results = _load(run_dir / "run_results.json")
@@ -161,7 +176,21 @@ def _summarize_run(run_dir: Path) -> dict:
     attempts = 0
     infra_count = 0
     infra_by_reason: dict[str, int] = {}
+    reason_distribution: dict[str, int] = {}
+    llm_fallback_count = 0
+    no_progress_count = 0
+    unknown_reason_count = 0
     for rec in records:
+        l4 = rec.get("l4") if isinstance(rec.get("l4"), dict) else {}
+        l4_enabled = bool(l4.get("enabled"))
+        primary_reason = str(l4.get("l4_primary_reason") or l4.get("stop_reason") or "none")
+        reason_distribution[primary_reason] = int(reason_distribution.get(primary_reason, 0)) + 1
+        if l4_enabled and primary_reason not in ALLOWED_L4_REASONS:
+            unknown_reason_count += 1
+        if primary_reason == "no_progress_window":
+            no_progress_count += 1
+        if bool(l4.get("llm_fallback_used")):
+            llm_fallback_count += 1
         rows = rec.get("attempts") if isinstance(rec.get("attempts"), list) else []
         for row in rows:
             if not isinstance(row, dict):
@@ -184,6 +213,11 @@ def _summarize_run(run_dir: Path) -> dict:
         "physics_fail_rate_pct": _pct(physics_fail_count, record_count),
         "infra_failure_count": infra_count,
         "infra_failure_by_reason": {k: infra_by_reason[k] for k in sorted(infra_by_reason.keys())},
+        "reason_distribution": {k: reason_distribution[k] for k in sorted(reason_distribution.keys())},
+        "no_progress_rate_pct": _pct(no_progress_count, record_count),
+        "llm_fallback_rate_pct": _pct(llm_fallback_count, record_count),
+        "unknown_reason_count": unknown_reason_count,
+        "reason_enum": sorted(ALLOWED_L4_REASONS),
     }
 
 taskset_payload = _load(filtered_taskset)
@@ -207,6 +241,10 @@ if int(off["infra_failure_count"]) > 0:
     reasons.append("off_infra_failure_present")
 if int(on["infra_failure_count"]) > 0:
     reasons.append("on_infra_failure_present")
+if int(off.get("unknown_reason_count", 0) or 0) > 0:
+    reasons.append("off_l4_reason_enum_unknown")
+if int(on.get("unknown_reason_count", 0) or 0) > 0:
+    reasons.append("on_l4_reason_enum_unknown")
 if delta_success < float(min_success_delta_pp):
     reasons.append("success_delta_below_threshold")
 if delta_regression_fail_rate > float(max_regression_worsen_pp):
@@ -258,6 +296,10 @@ summary = {
             f"- delta physics_fail_rate_pp: `{delta_physics_fail_rate}`",
             f"- off infra_failure_count: `{off['infra_failure_count']}`",
             f"- on infra_failure_count: `{on['infra_failure_count']}`",
+            f"- off no_progress_rate_pct: `{off['no_progress_rate_pct']}`",
+            f"- on no_progress_rate_pct: `{on['no_progress_rate_pct']}`",
+            f"- off llm_fallback_rate_pct: `{off['llm_fallback_rate_pct']}`",
+            f"- on llm_fallback_rate_pct: `{on['llm_fallback_rate_pct']}`",
             f"- reasons: `{reasons}`",
             "",
         ]

@@ -53,6 +53,9 @@ class AgentModelicaL4OrchestratorV0Tests(unittest.TestCase):
         self.assertEqual(result.get("status"), "PASS")
         self.assertEqual(int(result.get("rounds_used") or 0), 2)
         self.assertEqual(result.get("stop_reason"), "hard_checks_pass")
+        self.assertEqual(str(result.get("l4_primary_reason") or ""), "hard_checks_pass")
+        self.assertIn("llm_fallback_used", result)
+        self.assertIsInstance(result.get("action_rank_trace"), list)
         self.assertGreaterEqual(len(result.get("trajectory_rows") or []), 1)
 
     def test_orchestrator_stops_on_no_progress_window(self) -> None:
@@ -79,6 +82,10 @@ class AgentModelicaL4OrchestratorV0Tests(unittest.TestCase):
         )
         self.assertEqual(result.get("status"), "FAIL")
         self.assertEqual(result.get("stop_reason"), "no_progress_window")
+        self.assertGreaterEqual(int(result.get("rounds_used") or 0), 3)
+        self.assertEqual(str(result.get("l4_primary_reason") or ""), "no_progress_window")
+        self.assertGreaterEqual(len(result.get("action_rank_trace") or []), 1)
+        self.assertGreaterEqual(len(result.get("banned_action_signatures") or []), 1)
 
     def test_orchestrator_stops_on_time_budget(self) -> None:
         def _runner(_round_idx: int, _model_text: str, _actions: list[str]) -> dict:
@@ -103,6 +110,7 @@ class AgentModelicaL4OrchestratorV0Tests(unittest.TestCase):
         )
         self.assertEqual(result.get("status"), "FAIL")
         self.assertEqual(result.get("stop_reason"), "time_budget_exceeded")
+        self.assertEqual(str(result.get("l4_primary_reason") or ""), "time_budget_exceeded")
 
 
 if __name__ == "__main__":

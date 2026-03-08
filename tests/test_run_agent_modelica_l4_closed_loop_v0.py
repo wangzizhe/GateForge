@@ -136,6 +136,10 @@ class RunAgentModelicaL4ClosedLoopV0Tests(unittest.TestCase):
             summary = json.loads((out_dir / "ab_compare_summary.json").read_text(encoding="utf-8"))
             self.assertEqual(summary.get("status"), "PASS")
             self.assertGreaterEqual(float((summary.get("delta") or {}).get("success_at_k_pp") or 0.0), 5.0)
+            on = summary.get("on") if isinstance(summary.get("on"), dict) else {}
+            self.assertIn("reason_distribution", on)
+            self.assertIn("no_progress_rate_pct", on)
+            self.assertIn("llm_fallback_rate_pct", on)
 
     def test_script_fails_when_success_delta_below_threshold(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
@@ -199,6 +203,8 @@ class RunAgentModelicaL4ClosedLoopV0Tests(unittest.TestCase):
             self.assertEqual(summary.get("status"), "FAIL")
             reasons = set(summary.get("reasons") or [])
             self.assertIn("success_delta_below_threshold", reasons)
+            off = summary.get("off") if isinstance(summary.get("off"), dict) else {}
+            self.assertIn("reason_distribution", off)
 
 
 if __name__ == "__main__":
