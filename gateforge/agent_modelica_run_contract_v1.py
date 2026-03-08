@@ -3,8 +3,10 @@ from __future__ import annotations
 import argparse
 import json
 import shlex
+import shutil
 import statistics
 import subprocess
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -20,6 +22,8 @@ from .agent_modelica_retrieval_augmented_repair_v1 import retrieve_repair_exampl
 from .agent_modelica_diagnostic_ir_v0 import build_diagnostic_ir_v0
 from .agent_modelica_repair_action_policy_v0 import recommend_repair_actions_v0
 from .agent_modelica_orchestrator_guard_v0 import detect_no_progress_v0, prioritize_repair_actions_v0
+from .agent_modelica_l4_orchestrator_v0 import run_l4_orchestrator_v0
+from .agent_modelica_repair_memory_v2 import build_repair_memory_v2_from_records
 from .regression import compare_evidence, load_json as _load_evidence_json
 
 
@@ -291,15 +295,30 @@ def _last_nonempty_line(text: str) -> str:
     return lines[-1]
 
 
-def _build_live_template_context(task: dict, strategy: dict, round_idx: int, max_rounds: int, max_time_sec: int) -> dict[str, str]:
-    actions = [str(x) for x in (strategy.get("actions") or []) if isinstance(x, str)]
+def _build_live_template_context(
+    task: dict,
+    strategy: dict,
+    round_idx: int,
+    max_rounds: int,
+    max_time_sec: int,
+    *,
+    source_model_path_override: str = "",
+    mutated_model_path_override: str = "",
+    repair_actions_override: list[str] | None = None,
+    l4_enabled: bool = False,
+    l4_policy_backend: str = "",
+    l4_round: int = 0,
+) -> dict[str, str]:
+    actions = [str(x) for x in (repair_actions_override or strategy.get("actions") or []) if isinstance(x, str)]
+    source_model_path = str(source_model_path_override or task.get("source_model_path") or "")
+    mutated_model_path = str(mutated_model_path_override or task.get("mutated_model_path") or "")
     mapping = {
         "task_id": str(task.get("task_id") or ""),
         "scale": str(task.get("scale") or ""),
         "failure_type": str(task.get("failure_type") or ""),
         "expected_stage": str(task.get("expected_stage") or ""),
-        "source_model_path": str(task.get("source_model_path") or ""),
-        "mutated_model_path": str(task.get("mutated_model_path") or ""),
+        "source_model_path": source_model_path,
+        "mutated_model_path": mutated_model_path,
         "repro_command": str(task.get("repro_command") or ""),
         "mutation_id": str(task.get("mutation_id") or ""),
         "round": str(round_idx),
@@ -311,6 +330,9 @@ def _build_live_template_context(task: dict, strategy: dict, round_idx: int, max
         "repair_actions_pipe": " | ".join(actions),
         "repair_actions_json": json.dumps(actions, ensure_ascii=True),
         "repair_actions_shq": shlex.quote(json.dumps(actions, ensure_ascii=True)),
+        "l4_enabled": "1" if bool(l4_enabled) else "0",
+        "l4_policy_backend": str(l4_policy_backend or ""),
+        "l4_round": str(int(l4_round) if int(l4_round or 0) > 0 else int(round_idx)),
     }
     return mapping
 
@@ -848,6 +870,436 @@ def _run_task_evidence(
     }
 
 
+def _run_task_live_l4(
+    task: dict,
+    max_rounds: int,
+    max_time_sec: int,
+    physics_contract: dict,
+    runtime_threshold: float,
+    repair_playbook: dict,
+    repair_history_payload: dict,
+    focus_queue_payload: dict,
+    patch_template_adaptations_payload: dict,
+    retrieval_policy_payload: dict,
+    live_executor_cmd: str,
+    live_timeout_sec: int,
+    live_max_output_chars: int,
+    *,
+    l4_max_rounds: int,
+    l4_policy_backend: str,
+    l4_max_actions_per_round: int,
+) -> dict:
+    scale = str(task.get("scale") or "unknown")
+    failure_type = str(task.get("failure_type") or "unknown")
+    task_invariants = task.get("physical_invariants") if isinstance(task.get("physical_invariants"), list) else []
+    repair_strategy = recommend_repair_strategy(
+        playbook_payload=repair_playbook,
+        failure_type=failure_type,
+        expected_stage=str(task.get("expected_stage") or "unknown"),
+    )
+    repair_strategy, capability_audit = _augment_repair_strategy(
+        task=task,
+        repair_strategy=repair_strategy,
+        repair_history_payload=repair_history_payload,
+        focus_queue_payload=focus_queue_payload,
+        patch_template_adaptations_payload=patch_template_adaptations_payload,
+        retrieval_policy_payload=retrieval_policy_payload,
+    )
+    strategy_audit = {
+        "strategy_effect_enabled": False,
+        "strategy_id": str(repair_strategy.get("strategy_id") or ""),
+        "strategy_reason": str(repair_strategy.get("reason") or ""),
+        "strategy_confidence": float(repair_strategy.get("confidence", 0.0) or 0.0),
+        "actions_planned": [str(x) for x in (repair_strategy.get("actions") or []) if isinstance(x, str)],
+        **capability_audit,
+        "l4_enabled": True,
+        "l4_policy_backend": str(l4_policy_backend or "rule"),
+        "l4_max_actions_per_round": max(1, int(l4_max_actions_per_round)),
+        "l4_max_rounds": max(1, int(l4_max_rounds)),
+        "live_executor_configured": bool(str(task.get("live_executor_command") or "").strip() or str(live_executor_cmd).strip()),
+        "live_timeout_sec": int(max(1, live_timeout_sec)),
+    }
+
+    command_template_raw = str(task.get("live_executor_command") or live_executor_cmd or "").strip()
+    command_template, command_template_normalizations = _normalize_live_command_template(command_template_raw)
+    if command_template_normalizations:
+        strategy_audit["live_command_normalizations"] = command_template_normalizations
+    if not command_template:
+        return {
+            "task_id": str(task.get("task_id") or ""),
+            "scale": scale,
+            "failure_type": failure_type,
+            "passed": False,
+            "rounds_used": 0,
+            "time_to_pass_sec": None,
+            "elapsed_sec": 0.0,
+            "hard_checks": {
+                "check_model_pass": False,
+                "simulate_pass": False,
+                "physics_contract_pass": False,
+                "regression_pass": False,
+            },
+            "repair_strategy": repair_strategy,
+            "repair_audit": {
+                **strategy_audit,
+                "attempt_count": 0,
+                "final_round_used": 0,
+                "final_passed": False,
+                "live_executor_missing": True,
+            },
+            "physics_contract_reasons": ["live_executor_command_missing"],
+            "regression_reasons": ["live_executor_command_missing"],
+            "attempts": [],
+            "error_message": "live_executor_command_missing",
+            "compile_error": "",
+            "simulate_error_message": "",
+            "stderr_snippet": "",
+            "l4": {
+                "enabled": True,
+                "policy_backend": str(l4_policy_backend or "rule"),
+                "trajectory_rows": [],
+                "action_effectiveness": [],
+                "stop_reason": "live_executor_command_missing",
+            },
+        }
+
+    model_path_raw = str(task.get("mutated_model_path") or "").strip() or str(task.get("source_model_path") or "").strip()
+    if not model_path_raw:
+        return {
+            "task_id": str(task.get("task_id") or ""),
+            "scale": scale,
+            "failure_type": failure_type,
+            "passed": False,
+            "rounds_used": 0,
+            "time_to_pass_sec": None,
+            "elapsed_sec": 0.0,
+            "hard_checks": {
+                "check_model_pass": False,
+                "simulate_pass": False,
+                "physics_contract_pass": False,
+                "regression_pass": False,
+            },
+            "repair_strategy": repair_strategy,
+            "repair_audit": {
+                **strategy_audit,
+                "attempt_count": 0,
+                "final_round_used": 0,
+                "final_passed": False,
+            },
+            "physics_contract_reasons": ["model_path_missing"],
+            "regression_reasons": ["model_path_missing"],
+            "attempts": [],
+            "error_message": "model_path_missing",
+            "compile_error": "model_path_missing",
+            "simulate_error_message": "",
+            "stderr_snippet": "",
+            "l4": {
+                "enabled": True,
+                "policy_backend": str(l4_policy_backend or "rule"),
+                "trajectory_rows": [],
+                "action_effectiveness": [],
+                "stop_reason": "model_path_missing",
+            },
+        }
+
+    model_path = Path(model_path_raw)
+    if not model_path.exists() or not model_path.is_file():
+        return {
+            "task_id": str(task.get("task_id") or ""),
+            "scale": scale,
+            "failure_type": failure_type,
+            "passed": False,
+            "rounds_used": 0,
+            "time_to_pass_sec": None,
+            "elapsed_sec": 0.0,
+            "hard_checks": {
+                "check_model_pass": False,
+                "simulate_pass": False,
+                "physics_contract_pass": False,
+                "regression_pass": False,
+            },
+            "repair_strategy": repair_strategy,
+            "repair_audit": {
+                **strategy_audit,
+                "attempt_count": 0,
+                "final_round_used": 0,
+                "final_passed": False,
+            },
+            "physics_contract_reasons": ["model_path_missing"],
+            "regression_reasons": ["model_path_missing"],
+            "attempts": [],
+            "error_message": "model_path_missing",
+            "compile_error": "model_path_missing",
+            "simulate_error_message": "",
+            "stderr_snippet": str(model_path),
+            "l4": {
+                "enabled": True,
+                "policy_backend": str(l4_policy_backend or "rule"),
+                "trajectory_rows": [],
+                "action_effectiveness": [],
+                "stop_reason": "model_path_missing",
+            },
+        }
+
+    try:
+        initial_model_text = model_path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        initial_model_text = model_path.read_text(encoding="latin-1")
+    except OSError:
+        return {
+            "task_id": str(task.get("task_id") or ""),
+            "scale": scale,
+            "failure_type": failure_type,
+            "passed": False,
+            "rounds_used": 0,
+            "time_to_pass_sec": None,
+            "elapsed_sec": 0.0,
+            "hard_checks": {
+                "check_model_pass": False,
+                "simulate_pass": False,
+                "physics_contract_pass": False,
+                "regression_pass": False,
+            },
+            "repair_strategy": repair_strategy,
+            "repair_audit": {
+                **strategy_audit,
+                "attempt_count": 0,
+                "final_round_used": 0,
+                "final_passed": False,
+            },
+            "physics_contract_reasons": ["model_path_read_error"],
+            "regression_reasons": ["model_path_read_error"],
+            "attempts": [],
+            "error_message": "model_path_read_error",
+            "compile_error": "model_path_read_error",
+            "simulate_error_message": "",
+            "stderr_snippet": str(model_path),
+            "l4": {
+                "enabled": True,
+                "policy_backend": str(l4_policy_backend or "rule"),
+                "trajectory_rows": [],
+                "action_effectiveness": [],
+                "stop_reason": "model_path_read_error",
+            },
+        }
+
+    l4_workspace = Path(tempfile.mkdtemp(prefix="gf_l4_orch_"))
+    l4_model_counter = {"value": 0}
+
+    def _run_attempt(round_idx: int, model_text: str, planned_actions: list[str]) -> dict:
+        l4_model_counter["value"] += 1
+        l4_model_path = l4_workspace / f"l4_round_{round_idx}_{l4_model_counter['value']}.mo"
+        l4_model_path.write_text(str(model_text or ""), encoding="utf-8")
+        strategy_for_round = dict(repair_strategy)
+        strategy_for_round["actions"] = [str(x) for x in (planned_actions or []) if isinstance(x, str)]
+        context = _build_live_template_context(
+            task=task,
+            strategy=strategy_for_round,
+            round_idx=int(round_idx),
+            max_rounds=max(1, int(max_rounds)),
+            max_time_sec=max(1, int(max_time_sec)),
+            source_model_path_override=str(task.get("source_model_path") or str(l4_model_path)),
+            mutated_model_path_override=str(l4_model_path),
+            repair_actions_override=[str(x) for x in (planned_actions or []) if isinstance(x, str)],
+            l4_enabled=True,
+            l4_policy_backend=str(l4_policy_backend or "rule"),
+            l4_round=int(round_idx),
+        )
+        command = _render_live_command(command_template, context=context)
+        timeout_for_round = min(max(1, int(live_timeout_sec)), max(1, int(max_time_sec)))
+        try:
+            live_payload, raw_stdout, raw_stderr = _run_live_executor_once(command=command, timeout_sec=timeout_for_round)
+        except subprocess.TimeoutExpired:
+            live_payload = {
+                "_executor_return_code": None,
+                "_executor_stdout_tail": "",
+                "_executor_stderr_tail": "TimeoutExpired",
+                "error_message": "live_executor_timeout",
+            }
+            raw_stdout, raw_stderr = "", "TimeoutExpired"
+
+        elapsed_sec = _safe_float(live_payload.get("elapsed_sec"), _safe_float(live_payload.get("duration_sec"), 0.0))
+        if elapsed_sec <= 0:
+            elapsed_sec = 1.0
+
+        check_ok = _as_bool(live_payload.get("check_model_pass"))
+        if check_ok is None:
+            check_ok = _as_bool(live_payload.get("check_ok"))
+        check_ok = bool(check_ok) if check_ok is not None else False
+
+        simulate_ok = _as_bool(live_payload.get("simulate_pass"))
+        if simulate_ok is None:
+            simulate_ok = _as_bool(live_payload.get("simulate_ok"))
+        simulate_ok = bool(simulate_ok) if simulate_ok is not None else False
+
+        provided_physics = _as_bool(live_payload.get("physics_contract_pass"))
+        physics_ok = bool(provided_physics) if provided_physics is not None else bool(check_ok and simulate_ok)
+        physics_reasons = _as_str_list(live_payload.get("physics_contract_reasons"))
+        if not physics_ok and not physics_reasons:
+            physics_reasons = ["physics_contract_fail"]
+
+        provided_regression = _as_bool(live_payload.get("regression_pass"))
+        regression_ok = bool(provided_regression) if provided_regression is not None else bool(check_ok and simulate_ok)
+        regression_reasons = _as_str_list(live_payload.get("regression_reasons"))
+        if not regression_ok and not regression_reasons:
+            regression_reasons = ["regression_fail"]
+
+        error_message = str(live_payload.get("error_message") or "")
+        compile_error = str(live_payload.get("compile_error") or "")
+        simulate_error_message = str(live_payload.get("simulate_error_message") or "")
+        stderr_snippet = str(
+            live_payload.get("stderr_snippet")
+            or live_payload.get("_executor_stderr_tail")
+            or _last_nonempty_line(raw_stderr)
+            or _last_nonempty_line(raw_stdout)
+            or ""
+        )
+        live_attempts = live_payload.get("attempts") if isinstance(live_payload.get("attempts"), list) else []
+        live_attempt = live_attempts[-1] if live_attempts and isinstance(live_attempts[-1], dict) else {}
+        observed_failure_type = str(
+            live_attempt.get("observed_failure_type")
+            or live_payload.get("observed_failure_type")
+            or ""
+        ).strip()
+        if not observed_failure_type:
+            observed_failure_type = _infer_observed_failure_type(
+                payload=live_payload,
+                raw_stdout=raw_stdout,
+                raw_stderr=raw_stderr,
+                check_ok=check_ok,
+                simulate_ok=simulate_ok,
+            )
+        attempt_reason = str(
+            live_attempt.get("reason")
+            or error_message
+            or compile_error
+            or simulate_error_message
+            or ""
+        ).strip()
+        if not attempt_reason and observed_failure_type == "executor_invocation_error":
+            attempt_reason = "executor_invocation_error"
+        elif not attempt_reason and observed_failure_type == "executor_runtime_error":
+            attempt_reason = "executor_runtime_error"
+        attempt_log_excerpt = str(
+            live_attempt.get("log_excerpt")
+            or live_payload.get("stderr_snippet")
+            or live_payload.get("_executor_stderr_tail")
+            or ""
+        )
+        pre_repair = live_attempt.get("pre_repair") if isinstance(live_attempt.get("pre_repair"), dict) else {}
+        diagnostic_ir = live_attempt.get("diagnostic_ir") if isinstance(live_attempt.get("diagnostic_ir"), dict) else {}
+        if not diagnostic_ir:
+            diagnostic_ir = build_diagnostic_ir_v0(
+                output=attempt_log_excerpt or stderr_snippet or error_message or compile_error or simulate_error_message,
+                check_model_pass=bool(check_ok),
+                simulate_pass=bool(simulate_ok),
+                expected_stage=str(task.get("expected_stage") or ""),
+                declared_failure_type=failure_type,
+            )
+        return {
+            "round": int(round_idx),
+            "check_model_pass": bool(check_ok),
+            "simulate_pass": bool(simulate_ok),
+            "physics_contract_pass": bool(physics_ok),
+            "physics_contract_reasons": physics_reasons,
+            "physics_contract_invariant_count": len(task_invariants),
+            "regression_pass": bool(regression_ok),
+            "regression_reasons": regression_reasons,
+            "executor_return_code": live_payload.get("_executor_return_code"),
+            "executor_stdout_tail": str(live_payload.get("_executor_stdout_tail") or "")[: max(0, int(live_max_output_chars))],
+            "executor_stderr_tail": str(live_payload.get("_executor_stderr_tail") or "")[: max(0, int(live_max_output_chars))],
+            "elapsed_sec": round(elapsed_sec, 4),
+            "repair_actions_planned": [str(x) for x in (planned_actions or []) if isinstance(x, str)],
+            "repair_strategy_id": str(repair_strategy.get("strategy_id") or ""),
+            "error_message": error_message,
+            "compile_error": compile_error,
+            "simulate_error_message": simulate_error_message,
+            "stderr_snippet": stderr_snippet[: max(0, int(live_max_output_chars))],
+            "observed_failure_type": observed_failure_type,
+            "reason": attempt_reason,
+            "log_excerpt": attempt_log_excerpt[: max(0, int(live_max_output_chars))],
+            "diagnostic_ir": diagnostic_ir,
+            "pre_repair": pre_repair,
+        }
+
+    try:
+        orchestrator = run_l4_orchestrator_v0(
+            task=task,
+            initial_model_text=initial_model_text,
+            initial_actions=[str(x) for x in (repair_strategy.get("actions") or []) if isinstance(x, str)],
+            run_attempt=_run_attempt,
+            max_rounds=max(1, int(l4_max_rounds)),
+            max_time_sec=max(1, int(max_time_sec)),
+            max_actions_per_round=max(1, int(l4_max_actions_per_round)),
+            no_progress_window=2,
+            policy_backend=str(l4_policy_backend or "rule"),
+            repair_history_payload=repair_history_payload if isinstance(repair_history_payload, dict) else {},
+            retrieval_policy_payload=retrieval_policy_payload if isinstance(retrieval_policy_payload, dict) else {},
+        )
+    finally:
+        shutil.rmtree(str(l4_workspace), ignore_errors=True)
+
+    attempts = orchestrator.get("attempts") if isinstance(orchestrator.get("attempts"), list) else []
+    attempts = [x for x in attempts if isinstance(x, dict)]
+    physics_contract_reasons = []
+    regression_reasons = []
+    error_message = ""
+    compile_error = ""
+    simulate_error_message = ""
+    stderr_snippet = ""
+    if attempts:
+        last = attempts[-1]
+        physics_contract_reasons = [str(x) for x in (last.get("physics_contract_reasons") or []) if isinstance(x, str)]
+        regression_reasons = [str(x) for x in (last.get("regression_reasons") or []) if isinstance(x, str)]
+        error_message = str(last.get("error_message") or "")
+        compile_error = str(last.get("compile_error") or "")
+        simulate_error_message = str(last.get("simulate_error_message") or "")
+        stderr_snippet = str(last.get("stderr_snippet") or "")
+    if not error_message and not bool(orchestrator.get("passed")):
+        error_message = str(orchestrator.get("stop_reason") or "l4_failed")
+
+    return {
+        "task_id": str(task.get("task_id") or ""),
+        "scale": scale,
+        "failure_type": failure_type,
+        "passed": bool(orchestrator.get("passed")),
+        "rounds_used": int(orchestrator.get("rounds_used", 0) or 0),
+        "time_to_pass_sec": float(orchestrator.get("elapsed_sec") or 0.0) if bool(orchestrator.get("passed")) else None,
+        "elapsed_sec": round(float(orchestrator.get("elapsed_sec") or 0.0), 4),
+        "hard_checks": orchestrator.get("hard_checks") if isinstance(orchestrator.get("hard_checks"), dict) else {
+            "check_model_pass": False,
+            "simulate_pass": False,
+            "physics_contract_pass": False,
+            "regression_pass": False,
+        },
+        "repair_strategy": repair_strategy,
+        "repair_audit": {
+            **strategy_audit,
+            "attempt_count": len(attempts),
+            "final_round_used": int(orchestrator.get("rounds_used", 0) or 0),
+            "final_passed": bool(orchestrator.get("passed")),
+            "l4_stop_reason": str(orchestrator.get("stop_reason") or ""),
+            "l4_trajectory_rows": len(orchestrator.get("trajectory_rows") or []),
+        },
+        "physics_contract_reasons": physics_contract_reasons,
+        "regression_reasons": regression_reasons,
+        "attempts": attempts,
+        "error_message": error_message,
+        "compile_error": compile_error,
+        "simulate_error_message": simulate_error_message,
+        "stderr_snippet": stderr_snippet[: max(0, int(live_max_output_chars))],
+        "l4": {
+            "enabled": True,
+            "policy_backend": str(orchestrator.get("policy_backend") or l4_policy_backend or "rule"),
+            "stop_reason": str(orchestrator.get("stop_reason") or ""),
+            "trajectory_rows": orchestrator.get("trajectory_rows") if isinstance(orchestrator.get("trajectory_rows"), list) else [],
+            "action_effectiveness": orchestrator.get("action_effectiveness")
+            if isinstance(orchestrator.get("action_effectiveness"), list)
+            else [],
+        },
+    }
+
+
 def _run_task_live(
     task: dict,
     max_rounds: int,
@@ -862,7 +1314,32 @@ def _run_task_live(
     live_executor_cmd: str,
     live_timeout_sec: int,
     live_max_output_chars: int,
+    *,
+    l4_enabled: bool = False,
+    l4_max_rounds: int = 3,
+    l4_policy_backend: str = "rule",
+    l4_max_actions_per_round: int = 3,
 ) -> dict:
+    if bool(l4_enabled):
+        return _run_task_live_l4(
+            task=task,
+            max_rounds=max_rounds,
+            max_time_sec=max_time_sec,
+            physics_contract=physics_contract,
+            runtime_threshold=runtime_threshold,
+            repair_playbook=repair_playbook,
+            repair_history_payload=repair_history_payload,
+            focus_queue_payload=focus_queue_payload,
+            patch_template_adaptations_payload=patch_template_adaptations_payload,
+            retrieval_policy_payload=retrieval_policy_payload,
+            live_executor_cmd=live_executor_cmd,
+            live_timeout_sec=live_timeout_sec,
+            live_max_output_chars=live_max_output_chars,
+            l4_max_rounds=l4_max_rounds,
+            l4_policy_backend=l4_policy_backend,
+            l4_max_actions_per_round=l4_max_actions_per_round,
+        )
+
     scale = str(task.get("scale") or "unknown")
     failure_type = str(task.get("failure_type") or "unknown")
     task_invariants = task.get("physical_invariants") if isinstance(task.get("physical_invariants"), list) else []
@@ -1214,6 +1691,10 @@ def main() -> None:
     parser.add_argument("--live-executor-cmd", default=None)
     parser.add_argument("--live-timeout-sec", type=int, default=180)
     parser.add_argument("--live-max-output-chars", type=int, default=1200)
+    parser.add_argument("--l4-enabled", choices=["on", "off"], default="off")
+    parser.add_argument("--l4-max-rounds", type=int, default=3)
+    parser.add_argument("--l4-policy-backend", choices=["rule", "llm"], default="rule")
+    parser.add_argument("--l4-max-actions-per-round", type=int, default=3)
     parser.add_argument("--records-jsonl", default="")
     parser.add_argument("--resume-from-records", action="store_true")
     parser.add_argument("--strategy-effect", choices=["on", "off"], default="on")
@@ -1290,6 +1771,10 @@ def main() -> None:
                 live_executor_cmd=str(args.live_executor_cmd or ""),
                 live_timeout_sec=max(1, int(args.live_timeout_sec)),
                 live_max_output_chars=max(200, int(args.live_max_output_chars)),
+                l4_enabled=(str(args.l4_enabled) == "on"),
+                l4_max_rounds=max(1, int(args.l4_max_rounds)),
+                l4_policy_backend=str(args.l4_policy_backend or "rule"),
+                l4_max_actions_per_round=max(1, int(args.l4_max_actions_per_round)),
             )
         else:
             record = _run_task_mock(
@@ -1327,6 +1812,10 @@ def main() -> None:
     elif success_count < len(records):
         status = "NEEDS_REVIEW"
 
+    repair_memory_v2_payload = {}
+    if args.mode == "live" and str(args.l4_enabled) == "on":
+        repair_memory_v2_payload = build_repair_memory_v2_from_records({"records": records})
+
     results_payload = {
         "schema_version": "agent_modelica_run_results_v1",
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
@@ -1340,11 +1829,16 @@ def main() -> None:
         "live_executor_cmd": args.live_executor_cmd,
         "live_timeout_sec": int(args.live_timeout_sec),
         "live_max_output_chars": int(args.live_max_output_chars),
+        "l4_enabled": bool(str(args.l4_enabled) == "on"),
+        "l4_max_rounds": int(args.l4_max_rounds),
+        "l4_policy_backend": str(args.l4_policy_backend or "rule"),
+        "l4_max_actions_per_round": int(args.l4_max_actions_per_round),
         "records_jsonl": records_jsonl_path,
         "resume_from_records": bool(args.resume_from_records),
         "resumed_count": resumed_count,
         "mode": args.mode,
         "strategy_effect": args.strategy_effect,
+        "repair_memory_v2": repair_memory_v2_payload if isinstance(repair_memory_v2_payload, dict) else {},
         "records": records,
     }
     _write_json(args.results_out, results_payload)
@@ -1369,6 +1863,16 @@ def main() -> None:
         "live_executor_cmd": args.live_executor_cmd,
         "live_timeout_sec": int(args.live_timeout_sec),
         "live_max_output_chars": int(args.live_max_output_chars),
+        "l4_enabled": bool(str(args.l4_enabled) == "on"),
+        "l4_max_rounds": int(args.l4_max_rounds),
+        "l4_policy_backend": str(args.l4_policy_backend or "rule"),
+        "l4_max_actions_per_round": int(args.l4_max_actions_per_round),
+        "l4_trajectory_rows": len(repair_memory_v2_payload.get("trajectory_rows") or [])
+        if isinstance(repair_memory_v2_payload, dict)
+        else 0,
+        "l4_action_effectiveness_rows": len(repair_memory_v2_payload.get("action_effectiveness") or [])
+        if isinstance(repair_memory_v2_payload, dict)
+        else 0,
         "records_jsonl": records_jsonl_path,
         "resume_from_records": bool(args.resume_from_records),
         "resumed_count": resumed_count,
@@ -1390,6 +1894,10 @@ def main() -> None:
             "live_executor_cmd": args.live_executor_cmd,
             "live_timeout_sec": int(args.live_timeout_sec),
             "live_max_output_chars": int(args.live_max_output_chars),
+            "l4_enabled": bool(str(args.l4_enabled) == "on"),
+            "l4_max_rounds": int(args.l4_max_rounds),
+            "l4_policy_backend": str(args.l4_policy_backend or "rule"),
+            "l4_max_actions_per_round": int(args.l4_max_actions_per_round),
             "records_jsonl": records_jsonl_path,
             "resume_from_records": bool(args.resume_from_records),
         },

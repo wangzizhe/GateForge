@@ -1,0 +1,109 @@
+import unittest
+
+from gateforge.agent_modelica_l4_orchestrator_v0 import run_l4_orchestrator_v0
+
+
+def _sample_modelica() -> str:
+    return "\n".join(
+        [
+            "model A1",
+            "  Modelica.Electrical.Analog.Basic.Resistor R1(R=10);",
+            "  Modelica.Electrical.Analog.Basic.Ground G1;",
+            "equation",
+            "  connect(R1.n, G1.p);",
+            "end A1;",
+            "",
+        ]
+    )
+
+
+class AgentModelicaL4OrchestratorV0Tests(unittest.TestCase):
+    def test_orchestrator_recovers_on_second_round(self) -> None:
+        def _runner(round_idx: int, _model_text: str, _actions: list[str]) -> dict:
+            if round_idx == 1:
+                return {
+                    "check_model_pass": False,
+                    "simulate_pass": False,
+                    "physics_contract_pass": False,
+                    "regression_pass": False,
+                    "elapsed_sec": 1.0,
+                    "observed_failure_type": "model_check_error",
+                    "reason": "compile/syntax error",
+                    "stderr_snippet": "Error: undefined symbol",
+                }
+            return {
+                "check_model_pass": True,
+                "simulate_pass": True,
+                "physics_contract_pass": True,
+                "regression_pass": True,
+                "elapsed_sec": 1.0,
+                "observed_failure_type": "none",
+                "reason": "",
+            }
+
+        result = run_l4_orchestrator_v0(
+            task={"task_id": "t1", "failure_type": "model_check_error", "expected_stage": "check"},
+            initial_model_text=_sample_modelica(),
+            initial_actions=["resolve undefined symbols"],
+            run_attempt=_runner,
+            max_rounds=3,
+            max_time_sec=30,
+            max_actions_per_round=3,
+        )
+        self.assertEqual(result.get("status"), "PASS")
+        self.assertEqual(int(result.get("rounds_used") or 0), 2)
+        self.assertEqual(result.get("stop_reason"), "hard_checks_pass")
+        self.assertGreaterEqual(len(result.get("trajectory_rows") or []), 1)
+
+    def test_orchestrator_stops_on_no_progress_window(self) -> None:
+        def _runner(_round_idx: int, _model_text: str, _actions: list[str]) -> dict:
+            return {
+                "check_model_pass": False,
+                "simulate_pass": False,
+                "physics_contract_pass": False,
+                "regression_pass": False,
+                "elapsed_sec": 1.0,
+                "observed_failure_type": "model_check_error",
+                "reason": "compile/syntax error",
+                "stderr_snippet": "Error: undefined symbol",
+            }
+
+        result = run_l4_orchestrator_v0(
+            task={"task_id": "t2", "failure_type": "model_check_error", "expected_stage": "check"},
+            initial_model_text=_sample_modelica(),
+            initial_actions=["resolve undefined symbols"],
+            run_attempt=_runner,
+            max_rounds=5,
+            max_time_sec=60,
+            no_progress_window=2,
+        )
+        self.assertEqual(result.get("status"), "FAIL")
+        self.assertEqual(result.get("stop_reason"), "no_progress_window")
+
+    def test_orchestrator_stops_on_time_budget(self) -> None:
+        def _runner(_round_idx: int, _model_text: str, _actions: list[str]) -> dict:
+            return {
+                "check_model_pass": False,
+                "simulate_pass": False,
+                "physics_contract_pass": False,
+                "regression_pass": False,
+                "elapsed_sec": 10.0,
+                "observed_failure_type": "simulate_error",
+                "reason": "simulation timeout",
+                "stderr_snippet": "TimeoutExpired",
+            }
+
+        result = run_l4_orchestrator_v0(
+            task={"task_id": "t3", "failure_type": "simulate_error", "expected_stage": "simulate"},
+            initial_model_text=_sample_modelica(),
+            initial_actions=["stabilize initialization"],
+            run_attempt=_runner,
+            max_rounds=3,
+            max_time_sec=5,
+        )
+        self.assertEqual(result.get("status"), "FAIL")
+        self.assertEqual(result.get("stop_reason"), "time_budget_exceeded")
+
+
+if __name__ == "__main__":
+    unittest.main()
