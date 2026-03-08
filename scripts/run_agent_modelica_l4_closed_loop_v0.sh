@@ -50,13 +50,44 @@ allowed_scales = {x.strip().lower() for x in scales_raw.split(",") if x.strip()}
 
 payload = json.loads(base_taskset_path.read_text(encoding="utf-8"))
 tasks = payload.get("tasks") if isinstance(payload.get("tasks"), list) else []
+
+model_dir = filtered_taskset_path.parent / "_prepared_models"
+model_dir.mkdir(parents=True, exist_ok=True)
+default_model = model_dir / "A1_default.mo"
+default_model.write_text(
+    "\n".join(
+        [
+            "model A1_default",
+            "  Modelica.Electrical.Analog.Sources.ConstantVoltage V1(V=10);",
+            "  Modelica.Electrical.Analog.Basic.Resistor R1(R=10);",
+            "  Modelica.Electrical.Analog.Basic.Ground G1;",
+            "equation",
+            "  connect(V1.p, R1.p);",
+            "  connect(R1.n, G1.p);",
+            "  connect(V1.n, G1.p);",
+            "end A1_default;",
+            "",
+        ]
+    ),
+    encoding="utf-8",
+)
+
 filtered = []
 for row in tasks:
     if not isinstance(row, dict):
         continue
     scale = str(row.get("scale") or "").strip().lower()
     if scale in allowed_scales:
-        filtered.append(row)
+        updated = dict(row)
+        source = str(updated.get("source_model_path") or "").strip()
+        mutated = str(updated.get("mutated_model_path") or "").strip()
+        if not source:
+            source = str(default_model)
+        if not mutated:
+            mutated = source
+        updated["source_model_path"] = source
+        updated["mutated_model_path"] = mutated
+        filtered.append(updated)
 
 filtered_payload = {
     "schema_version": str(payload.get("schema_version") or "agent_modelica_taskset_filtered_v0"),
@@ -116,7 +147,8 @@ run_once() {
 run_once off off
 run_once on on
 
-python3 - "$OUT_DIR" "$FILTERED_TASKSET" "$MIN_SUCCESS_DELTA_PP" "$MAX_REGRESSION_WORSEN_PP" "$MAX_PHYSICS_WORSEN_PP" <<'PY'
+python3 - "$OUT_DIR" "$FILTERED_TASKSET" "$MIN_SUCCESS_DELTA_PP" "$MAX_REGRESSION_WORSEN_PP" "$MAX_PHYSICS_WORSEN_PP" "$L4_POLICY_PROFILE" "$L4_POLICY_BACKEND" "$L4_LLM_FALLBACK_THRESHOLD" "$L4_MAX_ROUNDS" "$L4_MAX_ACTIONS_PER_ROUND" <<'PY'
+import hashlib
 import json
 import sys
 from datetime import datetime, timezone
@@ -127,6 +159,11 @@ filtered_taskset = Path(sys.argv[2])
 min_success_delta_pp = float(sys.argv[3])
 max_regression_worsen_pp = float(sys.argv[4])
 max_physics_worsen_pp = float(sys.argv[5])
+l4_policy_profile = str(sys.argv[6] or "").strip()
+l4_policy_backend = str(sys.argv[7] or "").strip()
+l4_llm_fallback_threshold = int(sys.argv[8])
+l4_max_rounds = int(sys.argv[9])
+l4_max_actions_per_round = int(sys.argv[10])
 
 def _load(path: Path) -> dict:
     if not path.exists():
@@ -177,12 +214,16 @@ def _summarize_run(run_dir: Path) -> dict:
     infra_count = 0
     infra_by_reason: dict[str, int] = {}
     reason_distribution: dict[str, int] = {}
+    observed_policy_profiles: set[str] = set()
     llm_fallback_count = 0
     no_progress_count = 0
     unknown_reason_count = 0
     for rec in records:
         l4 = rec.get("l4") if isinstance(rec.get("l4"), dict) else {}
         l4_enabled = bool(l4.get("enabled"))
+        profile = str(l4.get("policy_profile") or "").strip()
+        if profile:
+            observed_policy_profiles.add(profile)
         primary_reason = str(l4.get("l4_primary_reason") or l4.get("stop_reason") or "none")
         reason_distribution[primary_reason] = int(reason_distribution.get(primary_reason, 0)) + 1
         if l4_enabled and primary_reason not in ALLOWED_L4_REASONS:
@@ -204,6 +245,8 @@ def _summarize_run(run_dir: Path) -> dict:
             if infra:
                 infra_count += 1
                 infra_by_reason[infra] = int(infra_by_reason.get(infra, 0)) + 1
+    ranked_reasons = sorted(reason_distribution.items(), key=lambda row: (-int(row[1]), str(row[0])))
+    top_reason = str(ranked_reasons[0][0]) if ranked_reasons else "none"
     return {
         "run_contract_status": str(run_summary.get("status") or ""),
         "success_at_k_pct": float(run_summary.get("success_at_k_pct") or 0.0),
@@ -214,6 +257,8 @@ def _summarize_run(run_dir: Path) -> dict:
         "infra_failure_count": infra_count,
         "infra_failure_by_reason": {k: infra_by_reason[k] for k in sorted(infra_by_reason.keys())},
         "reason_distribution": {k: reason_distribution[k] for k in sorted(reason_distribution.keys())},
+        "l4_primary_reason": top_reason,
+        "observed_policy_profiles": sorted([x for x in observed_policy_profiles if x]),
         "no_progress_rate_pct": _pct(no_progress_count, record_count),
         "llm_fallback_rate_pct": _pct(llm_fallback_count, record_count),
         "unknown_reason_count": unknown_reason_count,
@@ -258,6 +303,14 @@ summary = {
     "generated_at_utc": datetime.now(timezone.utc).isoformat(),
     "status": status,
     "filtered_task_count": filtered_task_count,
+    "taskset_sha256": hashlib.sha256(filtered_taskset.read_bytes()).hexdigest() if filtered_taskset.exists() else "",
+    "policy_profile": l4_policy_profile or "score_v1",
+    "policy_backend": l4_policy_backend or "rule",
+    "run_config": {
+        "l4_llm_fallback_threshold": l4_llm_fallback_threshold,
+        "l4_max_rounds": l4_max_rounds,
+        "l4_max_actions_per_round": l4_max_actions_per_round,
+    },
     "off": off,
     "on": on,
     "delta": {

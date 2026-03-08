@@ -10,6 +10,7 @@ from .agent_modelica_diagnostic_ir_v0 import build_diagnostic_ir_v0
 from .agent_modelica_error_action_mapper_v1 import map_error_to_actions
 from .agent_modelica_modeling_ir_v0 import DEFAULT_COMPONENT_WHITELIST, modelica_to_ir
 from .agent_modelica_orchestrator_guard_v0 import detect_no_progress_v0, prioritize_repair_actions_v0
+from .agent_modelica_l4_policy_profile_v0 import DEFAULT_POLICY_PROFILE, resolve_l4_policy_profile_v0
 from .agent_modelica_repair_action_ir_v0 import validate_action_batch_v0
 from .agent_modelica_repair_action_policy_v0 import recommend_repair_actions_v0
 from .agent_modelica_repair_memory_v2 import summarize_action_effectiveness_v2
@@ -475,6 +476,9 @@ def build_l4_action_plan_v0(
         repair_history_payload if isinstance(repair_history_payload, dict) else {},
         trajectory_rows if isinstance(trajectory_rows, list) else [],
     )
+    policy_profile_cfg = resolve_l4_policy_profile_v0(str(policy_profile or DEFAULT_POLICY_PROFILE))
+    score_weights = policy_profile_cfg.get("score_weights") if isinstance(policy_profile_cfg.get("score_weights"), dict) else {}
+    memory_terms = policy_profile_cfg.get("memory_terms") if isinstance(policy_profile_cfg.get("memory_terms"), dict) else {}
 
     candidates: list[dict] = []
     seen_signatures_in_round: set[str] = set()
@@ -513,19 +517,19 @@ def build_l4_action_plan_v0(
             diversity_bonus = 1 if operation not in recent_ops else 0
 
             memory_effectiveness = round(
-                float(memory.get("success_rate", 0.0)) * 20.0
-                - float(memory.get("infra_risk_rate", 0.0)) * 12.0
-                - max(0.0, float(memory.get("median_round_to_pass", 0.0)) - 1.0) * 1.5,
+                float(memory.get("success_rate", 0.0)) * float(memory_terms.get("success_scale", 20.0))
+                - float(memory.get("infra_risk_rate", 0.0)) * float(memory_terms.get("infra_risk_scale", 12.0))
+                - max(0.0, float(memory.get("median_round_to_pass", 0.0)) - 1.0) * float(memory_terms.get("round_penalty", 1.5)),
                 3,
             )
             score = round(
-                phase_match * 1000.0
-                + stage_match * 220.0
-                + subtype_match * 140.0
-                + memory_effectiveness * 8.0
-                + retrieval_support * 20.0
-                - retry_penalty * 80.0
-                + diversity_bonus * 8.0,
+                phase_match * float(score_weights.get("phase", 1000.0))
+                + stage_match * float(score_weights.get("stage", 220.0))
+                + subtype_match * float(score_weights.get("subtype", 140.0))
+                + memory_effectiveness * float(score_weights.get("memory", 8.0))
+                + retrieval_support * float(score_weights.get("retrieval", 20.0))
+                - retry_penalty * float(score_weights.get("retry_penalty", 80.0))
+                + diversity_bonus * float(score_weights.get("diversity", 8.0)),
                 3,
             )
             banned = signature in banned_action_signatures
@@ -649,7 +653,11 @@ def build_l4_action_plan_v0(
         "llm_fallback_used": llm_fallback_used,
         "llm_fallback_exhausted": llm_fallback_exhausted,
         "recovery_stage": int(max(1, min(3, int(recovery_stage)))),
-        "policy_profile": str(policy_profile or "score_v1"),
+        "policy_profile": str(policy_profile_cfg.get("resolved_profile") or DEFAULT_POLICY_PROFILE),
+        "policy_profile_requested": str(policy_profile_cfg.get("requested_profile") or ""),
+        "policy_profile_fallback_used": bool(policy_profile_cfg.get("fallback_used")),
+        "policy_profile_score_weights": score_weights,
+        "policy_profile_memory_terms": memory_terms,
     }
 
 
@@ -664,7 +672,7 @@ def run_l4_orchestrator_v0(
     max_actions_per_round: int = 3,
     no_progress_window: int = 2,
     policy_backend: str = "rule",
-    policy_profile: str = "score_v1",
+    policy_profile: str = DEFAULT_POLICY_PROFILE,
     llm_fallback_threshold: int = 2,
     repair_history_payload: dict | None = None,
     retrieval_policy_payload: dict | None = None,
@@ -765,7 +773,7 @@ def run_l4_orchestrator_v0(
             repair_history_payload=repair_history_payload if isinstance(repair_history_payload, dict) else {},
             retrieval_policy_payload=retrieval_policy_payload if isinstance(retrieval_policy_payload, dict) else {},
             policy_backend=str(policy_backend or "rule"),
-            policy_profile=str(policy_profile or "score_v1"),
+            policy_profile=str(policy_profile or DEFAULT_POLICY_PROFILE),
             max_actions_per_round=max(1, int(max_actions_per_round)),
             recovery_stage=max(1, min(3, int(recovery_stage))),
             attempted_signature_counts=attempted_signature_counts,
@@ -786,7 +794,7 @@ def run_l4_orchestrator_v0(
                 "round": round_idx,
                 "diagnostic_subtype": current_subtype,
                 "recovery_stage": int(plan.get("recovery_stage") or max(1, min(3, int(recovery_stage)))),
-                "policy_profile": str(plan.get("policy_profile") or policy_profile or "score_v1"),
+                "policy_profile": str(plan.get("policy_profile") or policy_profile or DEFAULT_POLICY_PROFILE),
                 "llm_fallback_used": bool(plan.get("llm_fallback_used")),
                 "selected_signatures": selected_signatures,
                 "candidates": [x for x in (plan.get("action_rank_trace") or []) if isinstance(x, dict)],
@@ -803,7 +811,7 @@ def run_l4_orchestrator_v0(
             "next_failure_type": "",
             "plan_error_code": str(plan.get("plan_error_code") or ""),
             "apply_error_code": "",
-            "policy_profile": str(plan.get("policy_profile") or policy_profile or "score_v1"),
+            "policy_profile": str(plan.get("policy_profile") or policy_profile or DEFAULT_POLICY_PROFILE),
             "recovery_stage": int(plan.get("recovery_stage") or max(1, min(3, int(recovery_stage)))),
             "llm_fallback_used": bool(plan.get("llm_fallback_used")),
             "selected_signatures": selected_signatures,
@@ -893,7 +901,7 @@ def run_l4_orchestrator_v0(
         "reason_enum": sorted(ALLOWED_L4_PRIMARY_REASONS),
         "final_model_text": current_text,
         "policy_backend": str(policy_backend or "rule"),
-        "policy_profile": str(policy_profile or "score_v1"),
+        "policy_profile": str(policy_profile or DEFAULT_POLICY_PROFILE),
         "llm_fallback_threshold": max(1, int(llm_fallback_threshold)),
     }
 
