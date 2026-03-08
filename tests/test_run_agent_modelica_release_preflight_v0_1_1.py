@@ -32,6 +32,15 @@ class RunAgentModelicaReleasePreflightV011Tests(unittest.TestCase):
         self.assertIn('"l3_parse_coverage_pct"', script)
         self.assertIn('"l3_type_match_rate_pct"', script)
         self.assertIn('"l3_stage_match_rate_pct"', script)
+        self.assertIn("ENABLE_L5_EVAL_GATE", script)
+        self.assertIn("ENFORCE_L5_EVAL_GATE", script)
+        self.assertIn("run_agent_modelica_l5_eval_v1.sh", script)
+        self.assertIn('"l5_gate_status"', script)
+        self.assertIn('"l5_success_at_k_pct"', script)
+        self.assertIn('"l5_delta_success_at_k_pp"', script)
+        self.assertIn('"l5_physics_fail_rate_pct"', script)
+        self.assertIn('"l5_regression_fail_rate_pct"', script)
+        self.assertIn('"l5_infra_failure_count"', script)
 
     def test_script_runs_live_smoke_path_with_mock_executor(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
@@ -49,6 +58,8 @@ class RunAgentModelicaReleasePreflightV011Tests(unittest.TestCase):
                 "GATEFORGE_AGENT_RELEASE_SMOKE_BACKEND": "mock",
                 "GATEFORGE_AGENT_RELEASE_SMOKE_FAILURE_TYPE": "simulate_error",
                 "GATEFORGE_AGENT_RELEASE_SMOKE_EXPECTED_STAGE": "simulate",
+                "GATEFORGE_AGENT_RELEASE_ENFORCE_L5_EVAL_GATE": "0",
+                "GATEFORGE_AGENT_RELEASE_L5_GATE_MODE": "observe",
             }
             proc = subprocess.run(
                 ["bash", str(script)],
@@ -62,11 +73,17 @@ class RunAgentModelicaReleasePreflightV011Tests(unittest.TestCase):
             self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
 
             summary = json.loads((out_dir / "release_preflight_summary.json").read_text(encoding="utf-8"))
-            self.assertEqual(summary.get("status"), "PASS")
+            self.assertIn(str(summary.get("status") or ""), {"PASS", "NEEDS_REVIEW"})
             self.assertEqual(summary.get("live_smoke_status"), "PASS")
             self.assertEqual(summary.get("live_smoke_backend_used"), "mock")
             self.assertEqual(summary.get("l3_diagnostic_gate_status"), "PASS")
             self.assertEqual(float(summary.get("l3_parse_coverage_pct") or 0.0), 100.0)
+            self.assertIn(str(summary.get("l5_gate_status") or ""), {"PASS", "NEEDS_REVIEW"})
+            self.assertIn("l5_success_at_k_pct", summary)
+            self.assertIn("l5_delta_success_at_k_pp", summary)
+            self.assertIn("l5_physics_fail_rate_pct", summary)
+            self.assertIn("l5_regression_fail_rate_pct", summary)
+            self.assertIn("l5_infra_failure_count", summary)
 
 
 if __name__ == "__main__":
