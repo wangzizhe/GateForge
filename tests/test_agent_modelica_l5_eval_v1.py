@@ -119,6 +119,22 @@ class AgentModelicaL5EvalV1Tests(unittest.TestCase):
         self.assertEqual(summary.get("status"), "NEEDS_REVIEW")
         self.assertEqual(summary.get("gate_result"), "NEEDS_REVIEW")
 
+    def test_eval_allows_zero_delta_when_baseline_success_is_at_ceiling(self) -> None:
+        run_summary, run_results, l3_quality, l3_gate, l4_ab = self._base_inputs()
+        l4_ab["off"]["success_at_k_pct"] = 100.0
+        l4_ab["on"]["success_at_k_pct"] = 100.0
+        l4_ab["delta"] = {"success_at_k_pp": 0.0}
+        summary = evaluate_l5_eval_v1(
+            run_summary=run_summary,
+            run_results=run_results,
+            l3_quality_summary=l3_quality,
+            l3_gate_summary=l3_gate,
+            l4_ab_compare_summary=l4_ab,
+            gate_mode="strict",
+        )
+        self.assertEqual(summary.get("status"), "PASS")
+        self.assertEqual(float(summary.get("effective_min_delta_success_at_k_pp") or 0.0), 0.0)
+
     def test_cli_writes_effective_thresholds(self) -> None:
         run_summary, run_results, l3_quality, l3_gate, l4_ab = self._base_inputs()
         with tempfile.TemporaryDirectory() as td:
