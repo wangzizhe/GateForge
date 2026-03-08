@@ -15,6 +15,7 @@ class CIShardConfigContractTests(unittest.TestCase):
         self.assertIn('  l3-diagnostic-gate:\n    name: "L3 Diagnostic Gate"', workflow)
         self.assertIn('  l5-gate:\n    name: "L5 Gate"', workflow)
         self.assertIn('  l5-nightly-observe:\n    name: "L5 Nightly Observe"', workflow)
+        self.assertIn('  l4-nightly-observe:\n    name: "L4 Nightly Observe"', workflow)
         self.assertIn('  smoke-gate:\n    name: "Smoke"', workflow)
         self.assertIn('  test-and-smoke:\n    name: "Test and Smoke"', workflow)
         self.assertIn('  demo-full:\n    name: "Demo Full"', workflow)
@@ -55,6 +56,7 @@ class CIShardConfigContractTests(unittest.TestCase):
         self.assertIn("artifacts/agent_modelica_l3_stability_regression_v0_ci", workflow)
         self.assertIn("artifacts/agent_modelica_l5_eval_v1_ci", workflow)
         self.assertIn("artifacts/agent_modelica_l5_eval_v1_nightly", workflow)
+        self.assertIn("artifacts/agent_modelica_l4_closed_loop_v0_nightly", workflow)
         self.assertIn("artifacts/private/l5_eval_ledger_v1.jsonl", workflow)
         self.assertIn("tests/fixtures/agent_modelica_l3_stability_ci_taskset_v0.json", workflow)
         self.assertIn("python3 -m gateforge.agent_modelica_live_executor_mock_v0", workflow)
@@ -62,6 +64,8 @@ class CIShardConfigContractTests(unittest.TestCase):
         self.assertIn("inputs.run_release_live_smoke", workflow)
         self.assertIn("if: ${{ github.event_name == 'schedule' }}", workflow)
         self.assertIn('GATEFORGE_AGENT_L5_EVAL_PLANNER_BACKEND: "gemini"', workflow)
+        self.assertIn('GATEFORGE_AGENT_L4_CLOSED_LOOP_PLANNER_BACKEND: "gemini"', workflow)
+        self.assertIn("bash scripts/run_agent_modelica_l4_closed_loop_v0.sh", workflow)
         self.assertIn(
             "if: ${{ (github.event_name == 'workflow_dispatch' && inputs.run_demo_bundle) || github.event_name == 'schedule' }}",
             workflow,

@@ -176,6 +176,12 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+from gateforge.agent_modelica_l4_l5_reason_map_v0 import (
+    ALLOWED_WEEKLY_RECOMMENDATION_REASONS,
+    map_l4_to_weekly_recommendation_reason_v0,
+    normalize_l4_primary_reason_v0,
+)
+
 prep_taskset = Path(sys.argv[1])
 l5_summary_path = Path(sys.argv[2])
 ledger_path = Path(sys.argv[3])
@@ -189,10 +195,33 @@ backend = str(sys.argv[10] or "").strip()
 gate_mode = str(sys.argv[11] or "").strip()
 
 summary = json.loads(l5_summary_path.read_text(encoding="utf-8")) if l5_summary_path.exists() else {}
+l4_ab_summary_path = l5_summary_path.parent / "l4" / "ab_compare_summary.json"
+l4_ab_summary = json.loads(l4_ab_summary_path.read_text(encoding="utf-8")) if l4_ab_summary_path.exists() else {}
 taskset_hash = hashlib.sha256(prep_taskset.read_bytes()).hexdigest() if prep_taskset.exists() else ""
 reason_enum = summary.get("reason_enum") if isinstance(summary.get("reason_enum"), list) else []
 reason_enum = [str(x).strip() for x in reason_enum if str(x).strip()]
 primary_reason = str(summary.get("primary_reason") or "none")
+
+def _infer_l4_primary_reason(payload: dict) -> str:
+    on_payload = payload.get("on") if isinstance(payload.get("on"), dict) else {}
+    reason_distribution = (
+        on_payload.get("reason_distribution") if isinstance(on_payload.get("reason_distribution"), dict) else {}
+    )
+    ranked = sorted(
+        [(str(k), int(v) if isinstance(v, int) else 0) for k, v in reason_distribution.items() if str(k).strip()],
+        key=lambda row: (-row[1], row[0]),
+    )
+    if not ranked:
+        return "none"
+    for reason, _count in ranked:
+        normalized = normalize_l4_primary_reason_v0(reason)
+        if normalized not in {"none", "hard_checks_pass", "reason_enum_unknown"}:
+            return normalized
+    return normalize_l4_primary_reason_v0(ranked[0][0])
+
+l4_primary_reason = normalize_l4_primary_reason_v0(str(summary.get("l4_primary_reason") or ""))
+if l4_primary_reason in {"none", "reason_enum_unknown"}:
+    l4_primary_reason = _infer_l4_primary_reason(l4_ab_summary if isinstance(l4_ab_summary, dict) else {})
 
 row = {
     "generated_at_utc": datetime.now(timezone.utc).isoformat(),
@@ -213,6 +242,7 @@ row = {
     "planner_backend": planner_backend,
     "backend": backend,
     "primary_reason": primary_reason,
+    "l4_primary_reason": l4_primary_reason,
     "reasons": [str(x) for x in (summary.get("reasons") or []) if isinstance(x, str)],
     "reason_enum": reason_enum,
     "script_exit_codes": {
@@ -271,6 +301,7 @@ def _is_promote_ready(item: dict) -> bool:
 current_primary_reason = str((current or {}).get("primary_reason") or "none")
 if current_primary_reason != "none" and reason_enum and current_primary_reason not in reason_enum:
     current_primary_reason = "reason_enum_unknown"
+current_l4_primary_reason = normalize_l4_primary_reason_v0(str((current or {}).get("l4_primary_reason") or "none"))
 consecutive_promote_ready = _is_promote_ready(current) and _is_promote_ready(previous)
 recommendation = "promote" if consecutive_promote_ready else "hold"
 if recommendation == "promote":
@@ -283,7 +314,10 @@ else:
     elif current_primary_reason != "none":
         recommendation_reason = current_primary_reason
     else:
-        recommendation_reason = "threshold_not_met"
+        recommendation_reason = map_l4_to_weekly_recommendation_reason_v0(current_l4_primary_reason)
+
+if recommendation_reason not in ALLOWED_WEEKLY_RECOMMENDATION_REASONS:
+    recommendation_reason = "reason_enum_unknown"
 
 weekly = {
     "schema_version": "agent_modelica_l5_weekly_metrics_v1",
@@ -301,12 +335,14 @@ weekly = {
     },
     "recommendation": recommendation,
     "recommendation_reason": recommendation_reason,
+    "l4_primary_reason": current_l4_primary_reason,
     "promote_rule": {
         "requires_two_week_consecutive_pass": True,
         "min_delta_success_at_k_pp": 5.0,
         "infra_failure_count_must_equal": 0,
     },
     "reason_enum": reason_enum,
+    "recommendation_reason_enum": sorted(ALLOWED_WEEKLY_RECOMMENDATION_REASONS),
     "ledger_path": str(ledger_path),
     "row_count": len(rows),
 }
@@ -376,6 +412,7 @@ summary = {
     "l3_type_match_rate_pct": float(l5_summary.get("l3_type_match_rate_pct") or 0.0),
     "l3_stage_match_rate_pct": float(l5_summary.get("l3_stage_match_rate_pct") or 0.0),
     "l5_primary_reason": str(l5_summary.get("primary_reason") or "none"),
+    "l4_primary_reason": str(l5_summary.get("l4_primary_reason") or "none"),
     "l5_reason_enum": [str(x) for x in (l5_summary.get("reason_enum") or []) if isinstance(x, str)],
     "weekly_recommendation": str(weekly_summary.get("recommendation") or ""),
     "weekly_recommendation_reason": str(weekly_summary.get("recommendation_reason") or ""),

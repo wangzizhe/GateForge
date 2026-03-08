@@ -112,6 +112,34 @@ class AgentModelicaL4OrchestratorV0Tests(unittest.TestCase):
         self.assertEqual(result.get("stop_reason"), "time_budget_exceeded")
         self.assertEqual(str(result.get("l4_primary_reason") or ""), "time_budget_exceeded")
 
+    def test_orchestrator_unknown_policy_profile_falls_back(self) -> None:
+        def _runner(_round_idx: int, _model_text: str, _actions: list[str]) -> dict:
+            return {
+                "check_model_pass": False,
+                "simulate_pass": False,
+                "physics_contract_pass": False,
+                "regression_pass": False,
+                "elapsed_sec": 1.0,
+                "observed_failure_type": "model_check_error",
+                "reason": "compile/syntax error",
+                "stderr_snippet": "Error: undefined symbol",
+            }
+
+        result = run_l4_orchestrator_v0(
+            task={"task_id": "t4", "failure_type": "model_check_error", "expected_stage": "check"},
+            initial_model_text=_sample_modelica(),
+            initial_actions=["resolve undefined symbols"],
+            run_attempt=_runner,
+            max_rounds=1,
+            max_time_sec=30,
+            policy_profile="unknown_profile_x",
+        )
+        self.assertEqual(str(result.get("policy_profile") or ""), "unknown_profile_x")
+        ranks = result.get("action_rank_trace") if isinstance(result.get("action_rank_trace"), list) else []
+        self.assertGreaterEqual(len(ranks), 1)
+        first = ranks[0] if isinstance(ranks[0], dict) else {}
+        self.assertEqual(str(first.get("policy_profile") or ""), "score_v1")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -64,12 +64,14 @@ class AgentModelicaL5EvalV1Tests(unittest.TestCase):
                 "physics_fail_rate_pct": 5.0,
                 "regression_fail_rate_pct": 10.0,
                 "infra_failure_count": 0,
+                "reason_distribution": {"hard_checks_pass": 1, "no_progress_window": 1},
             },
             "off": {
                 "success_at_k_pct": 70.0,
                 "physics_fail_rate_pct": 4.0,
                 "regression_fail_rate_pct": 9.0,
                 "infra_failure_count": 0,
+                "reason_distribution": {"none": 2},
             },
             "delta": {
                 "success_at_k_pp": 10.0,
@@ -90,6 +92,7 @@ class AgentModelicaL5EvalV1Tests(unittest.TestCase):
         self.assertEqual(summary.get("status"), "PASS")
         self.assertEqual(summary.get("gate_result"), "PASS")
         self.assertEqual(float(summary.get("delta_success_at_k_pp") or 0.0), 10.0)
+        self.assertEqual(str(summary.get("l4_primary_reason") or ""), "no_progress_window")
 
     def test_eval_fails_when_delta_below_threshold(self) -> None:
         run_summary, run_results, l3_quality, l3_gate, l4_ab = self._base_inputs()

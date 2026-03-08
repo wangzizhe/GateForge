@@ -6,6 +6,8 @@ import statistics
 from datetime import datetime, timezone
 from pathlib import Path
 
+from .agent_modelica_l4_l5_reason_map_v0 import normalize_l4_primary_reason_v0
+
 
 ALLOWED_L5_REASONS = {
     "run_summary_missing",
@@ -165,6 +167,7 @@ def _write_markdown(path: str, payload: dict) -> None:
         f"- l3_type_match_rate_pct: `{payload.get('l3_type_match_rate_pct')}`",
         f"- l3_stage_match_rate_pct: `{payload.get('l3_stage_match_rate_pct')}`",
         f"- l3_gate_status: `{payload.get('l3_diagnostic_gate_status')}`",
+        f"- l4_primary_reason: `{payload.get('l4_primary_reason')}`",
         f"- primary_reason: `{payload.get('primary_reason')}`",
         "",
         "## Cost Metrics",
@@ -184,6 +187,30 @@ def _write_markdown(path: str, payload: dict) -> None:
         "",
     ]
     p.write_text("\n".join(lines), encoding="utf-8")
+
+
+def _infer_l4_primary_reason(l4_ab_compare_summary: dict) -> str:
+    on_payload = l4_ab_compare_summary.get("on") if isinstance(l4_ab_compare_summary.get("on"), dict) else {}
+    reason_distribution = (
+        on_payload.get("reason_distribution") if isinstance(on_payload.get("reason_distribution"), dict) else {}
+    )
+    if not reason_distribution:
+        return "none"
+    ranked = sorted(
+        [
+            (str(k), _to_int(v, 0))
+            for k, v in reason_distribution.items()
+            if str(k).strip()
+        ],
+        key=lambda row: (-int(row[1]), str(row[0])),
+    )
+    if not ranked:
+        return "none"
+    for reason, _count in ranked:
+        normalized = normalize_l4_primary_reason_v0(reason)
+        if normalized not in {"none", "hard_checks_pass", "reason_enum_unknown"}:
+            return normalized
+    return normalize_l4_primary_reason_v0(ranked[0][0])
 
 
 def evaluate_l5_eval_v1(
@@ -208,6 +235,7 @@ def evaluate_l5_eval_v1(
     l4_on = l4_ab_compare_summary.get("on") if isinstance(l4_ab_compare_summary.get("on"), dict) else {}
     l4_off = l4_ab_compare_summary.get("off") if isinstance(l4_ab_compare_summary.get("off"), dict) else {}
     l4_delta = l4_ab_compare_summary.get("delta") if isinstance(l4_ab_compare_summary.get("delta"), dict) else {}
+    l4_primary_reason = _infer_l4_primary_reason(l4_ab_compare_summary if isinstance(l4_ab_compare_summary, dict) else {})
 
     success_at_k_pct = _to_float(l4_on.get("success_at_k_pct"), _to_float(run_summary.get("success_at_k_pct"), run_results_summary["success_at_k_pct"]))
     baseline_success_at_k_pct = _to_float(l4_off.get("success_at_k_pct"), success_at_k_pct)
@@ -340,6 +368,7 @@ def evaluate_l5_eval_v1(
         "l3_type_match_rate_pct": l3_type,
         "l3_stage_match_rate_pct": l3_stage,
         "l3_low_confidence_rate_pct": l3_low_conf,
+        "l4_primary_reason": l4_primary_reason,
         "cost_metrics": {
             "median_rounds": median_rounds,
             "median_time_to_pass_sec": median_time,

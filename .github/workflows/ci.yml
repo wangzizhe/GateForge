@@ -519,6 +519,51 @@ jobs:
             artifacts/private/l5_eval_ledger_v1.jsonl
           if-no-files-found: ignore
 
+  l4-nightly-observe:
+    name: "L4 Nightly Observe"
+    if: ${{ github.event_name == 'schedule' }}
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    env:
+      GATEFORGE_DEMO_FAST: "1"
+      GATEFORGE_AGENT_L4_CLOSED_LOOP_TASKSET: "tests/fixtures/agent_modelica_l3_stability_ci_taskset_v0.json"
+      GATEFORGE_AGENT_L4_CLOSED_LOOP_SCALES: "small,medium"
+      GATEFORGE_AGENT_L4_CLOSED_LOOP_OUT_DIR: "artifacts/agent_modelica_l4_closed_loop_v0_nightly"
+      GATEFORGE_AGENT_L4_CLOSED_LOOP_PLANNER_BACKEND: "gemini"
+      GATEFORGE_AGENT_L4_CLOSED_LOOP_BACKEND: "openmodelica_docker"
+      GATEFORGE_AGENT_L4_CLOSED_LOOP_MAX_ROUNDS: "1"
+      GATEFORGE_AGENT_L4_CLOSED_LOOP_MAX_TIME_SEC: "120"
+      GATEFORGE_AGENT_L4_CLOSED_LOOP_LIVE_TIMEOUT_SEC: "90"
+      GATEFORGE_AGENT_L4_CLOSED_LOOP_LIVE_MAX_OUTPUT_CHARS: "1600"
+      GATEFORGE_AGENT_L4_POLICY_BACKEND: "rule"
+      GATEFORGE_AGENT_L4_POLICY_PROFILE: "score_v1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Run L4 nightly observe
+        run: |
+          bash scripts/run_agent_modelica_l4_closed_loop_v0.sh
+
+      - name: Upload L4 nightly observe artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: l4-nightly-observe-logs
+          path: artifacts/agent_modelica_l4_closed_loop_v0_nightly
+          if-no-files-found: ignore
+
   smoke-gate:
     name: "Smoke"
     needs:
