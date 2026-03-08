@@ -68,18 +68,8 @@ on:
         required: false
         default: false
         type: boolean
-      run_planner_output_validate_demo:
-        description: "Run optional planner-output validate demo job"
-        required: false
-        default: false
-        type: boolean
       run_repair_batch_demo:
         description: "Run optional repair batch demo job"
-        required: false
-        default: false
-        type: boolean
-      run_repair_batch_compare_demo:
-        description: "Run optional repair batch profile compare demo job"
         required: false
         default: false
         type: boolean
@@ -1522,7 +1512,7 @@ jobs:
 
   planner-output-validate-demo-optional:
     name: "Optional / Planner Output Validate"
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_planner_output_validate_demo }}
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_planner_guardrails }}
     continue-on-error: true
     runs-on: ubuntu-latest
     steps:
@@ -1652,7 +1642,7 @@ jobs:
 
   repair-batch-compare-demo-optional:
     name: "Optional / Repair Batch Compare"
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_repair_batch_compare_demo }}
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_repair_batch_demo }}
     continue-on-error: true
     runs-on: ubuntu-latest
     env:
