@@ -94,6 +94,34 @@ print(json.dumps(payload))
 """.strip()
     return f"python3 -c {shlex.quote(code)}"
 
+def _cmd_fail() -> str:
+    code = """
+import json
+payload = {
+  "check_model_pass": False,
+  "simulate_pass": False,
+  "physics_contract_pass": False,
+  "regression_pass": False,
+  "elapsed_sec": 0.1,
+  "error_message": "model check failed",
+  "compile_error": "model check failed",
+  "attempts": [
+    {
+      "observed_failure_type": "model_check_error",
+      "reason": "compile/syntax error",
+      "diagnostic_ir": {
+        "error_type": "model_check_error",
+        "error_subtype": "parse_lexer_error",
+        "stage": "check",
+        "confidence": 0.95
+      }
+    }
+  ]
+}
+print(json.dumps(payload))
+""".strip()
+    return f"python3 -c {shlex.quote(code)}"
+
 
 class RunAgentModelicaL5EvalV1ScriptTests(unittest.TestCase):
     def test_script_passes_with_positive_delta_and_clean_infra(self) -> None:
@@ -164,7 +192,7 @@ class RunAgentModelicaL5EvalV1ScriptTests(unittest.TestCase):
                 "GATEFORGE_AGENT_L5_EVAL_MAX_TIME_SEC": "20",
                 "GATEFORGE_AGENT_L5_EVAL_LIVE_TIMEOUT_SEC": "20",
                 "GATEFORGE_AGENT_L5_EVAL_L3_LIVE_EXECUTOR_CMD": _cmd_pass(),
-                "GATEFORGE_AGENT_L5_EVAL_L4_LIVE_EXECUTOR_CMD": _cmd_pass(),
+                "GATEFORGE_AGENT_L5_EVAL_L4_LIVE_EXECUTOR_CMD": _cmd_fail(),
             }
             proc = subprocess.run(
                 ["bash", str(script)],

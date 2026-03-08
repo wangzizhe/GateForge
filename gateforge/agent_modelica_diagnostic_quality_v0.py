@@ -139,7 +139,10 @@ def evaluate_diagnostic_quality_v0(
     elif parsed_attempts < total_attempts:
         status = "NEEDS_REVIEW"
 
-    canonical_type_match_rate = _ratio(type_match, type_comparable)
+    type_not_applicable = bool(total_attempts > 0 and type_comparable <= 0)
+    stage_not_applicable = bool(total_attempts > 0 and stage_comparable <= 0)
+    canonical_type_match_rate = 100.0 if type_not_applicable else _ratio(type_match, type_comparable)
+    stage_match_rate = 100.0 if stage_not_applicable else _ratio(stage_match, stage_comparable)
     summary = {
         "schema_version": "agent_modelica_diagnostic_quality_v0",
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
@@ -150,9 +153,11 @@ def evaluate_diagnostic_quality_v0(
         "canonical_type_match_rate_pct": canonical_type_match_rate,
         # Backward-compatible alias.
         "type_match_rate_pct": canonical_type_match_rate,
-        "stage_match_rate_pct": _ratio(stage_match, stage_comparable),
+        "stage_match_rate_pct": stage_match_rate,
         "type_comparable_count": type_comparable,
         "stage_comparable_count": stage_comparable,
+        "type_match_not_applicable": type_not_applicable,
+        "stage_match_not_applicable": stage_not_applicable,
         "error_type_distribution": dict(sorted(by_error_type.items())),
         "subtype_distribution": dict(sorted(subtype_distribution.items())),
         "low_confidence_threshold": float(low_confidence_threshold),

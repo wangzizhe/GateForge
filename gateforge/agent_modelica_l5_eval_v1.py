@@ -156,6 +156,8 @@ def _write_markdown(path: str, payload: dict) -> None:
         f"- gate_mode: `{payload.get('gate_mode')}`",
         f"- success_at_k_pct: `{payload.get('success_at_k_pct')}`",
         f"- delta_success_at_k_pp: `{payload.get('delta_success_at_k_pp')}`",
+        f"- success_headroom_pp: `{payload.get('success_headroom_pp')}`",
+        f"- effective_min_delta_success_at_k_pp: `{payload.get('effective_min_delta_success_at_k_pp')}`",
         f"- physics_fail_rate_pct: `{payload.get('physics_fail_rate_pct')}`",
         f"- regression_fail_rate_pct: `{payload.get('regression_fail_rate_pct')}`",
         f"- infra_failure_count: `{payload.get('infra_failure_count')}`",
@@ -210,6 +212,8 @@ def evaluate_l5_eval_v1(
     success_at_k_pct = _to_float(l4_on.get("success_at_k_pct"), _to_float(run_summary.get("success_at_k_pct"), run_results_summary["success_at_k_pct"]))
     baseline_success_at_k_pct = _to_float(l4_off.get("success_at_k_pct"), success_at_k_pct)
     delta_success_at_k_pp = _to_float(l4_delta.get("success_at_k_pp"), round(success_at_k_pct - baseline_success_at_k_pct, 2))
+    success_headroom_pp = max(0.0, round(100.0 - max(0.0, min(100.0, baseline_success_at_k_pct)), 2))
+    effective_min_delta_success_at_k_pp = min(float(min_delta_success_at_k_pp), success_headroom_pp)
 
     physics_fail_rate_pct = _to_float(l4_on.get("physics_fail_rate_pct"), run_results_summary["physics_fail_rate_pct"])
     baseline_physics_fail_rate_pct = _to_float(l4_off.get("physics_fail_rate_pct"), physics_fail_rate_pct)
@@ -264,7 +268,7 @@ def evaluate_l5_eval_v1(
     if _to_int(run_results_summary.get("attempt_count"), 0) <= 0:
         hard_reasons.append("attempts_missing")
 
-    if delta_success_at_k_pp < float(min_delta_success_at_k_pp):
+    if delta_success_at_k_pp < float(effective_min_delta_success_at_k_pp):
         hard_reasons.append("delta_success_at_k_below_threshold")
     if delta_physics_fail_rate_pp > float(max_physics_fail_rate_worsen_pp):
         hard_reasons.append("physics_fail_rate_worsened_beyond_threshold")
@@ -321,6 +325,8 @@ def evaluate_l5_eval_v1(
         "success_at_k_pct": success_at_k_pct,
         "baseline_success_at_k_pct": baseline_success_at_k_pct,
         "delta_success_at_k_pp": delta_success_at_k_pp,
+        "success_headroom_pp": success_headroom_pp,
+        "effective_min_delta_success_at_k_pp": effective_min_delta_success_at_k_pp,
         "physics_fail_rate_pct": physics_fail_rate_pct,
         "baseline_physics_fail_rate_pct": baseline_physics_fail_rate_pct,
         "delta_physics_fail_rate_pp": delta_physics_fail_rate_pp,
@@ -341,6 +347,7 @@ def evaluate_l5_eval_v1(
         "run_results_stats": run_results_summary,
         "thresholds": {
             "min_delta_success_at_k_pp": float(min_delta_success_at_k_pp),
+            "effective_min_delta_success_at_k_pp": float(effective_min_delta_success_at_k_pp),
             "max_physics_fail_rate_worsen_pp": float(max_physics_fail_rate_worsen_pp),
             "max_regression_fail_rate_worsen_pp": float(max_regression_fail_rate_worsen_pp),
             "infra_failure_count_must_equal": int(infra_failure_count_must_equal),
