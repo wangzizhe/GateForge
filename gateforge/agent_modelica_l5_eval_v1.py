@@ -7,6 +7,25 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 
+ALLOWED_L5_REASONS = {
+    "run_summary_missing",
+    "run_results_missing",
+    "l3_quality_summary_missing",
+    "l4_ab_compare_summary_missing",
+    "attempts_missing",
+    "delta_success_at_k_below_threshold",
+    "physics_fail_rate_worsened_beyond_threshold",
+    "regression_fail_rate_worsened_beyond_threshold",
+    "infra_failure_count_not_zero",
+    "l3_parse_coverage_below_threshold",
+    "l3_type_match_rate_below_threshold",
+    "l3_stage_match_rate_below_threshold",
+    "l3_diagnostic_gate_not_pass",
+    "l3_diagnostic_gate_needs_review",
+    "reason_enum_unknown",
+}
+
+
 def _load_json(path: str | None) -> dict:
     if not path:
         return {}
@@ -144,6 +163,7 @@ def _write_markdown(path: str, payload: dict) -> None:
         f"- l3_type_match_rate_pct: `{payload.get('l3_type_match_rate_pct')}`",
         f"- l3_stage_match_rate_pct: `{payload.get('l3_stage_match_rate_pct')}`",
         f"- l3_gate_status: `{payload.get('l3_diagnostic_gate_status')}`",
+        f"- primary_reason: `{payload.get('primary_reason')}`",
         "",
         "## Cost Metrics",
         "",
@@ -179,6 +199,7 @@ def evaluate_l5_eval_v1(
     min_l3_parse_coverage_pct: float = 95.0,
     min_l3_type_match_rate_pct: float = 70.0,
     min_l3_stage_match_rate_pct: float = 70.0,
+    additional_reasons: list[str] | None = None,
 ) -> dict:
     run_results_summary = _summarize_run_results(run_results)
 
@@ -269,6 +290,18 @@ def evaluate_l5_eval_v1(
         gate_mode_norm = "strict"
 
     reasons = sorted(set(hard_reasons + soft_reasons))
+    extra = [str(x).strip() for x in (additional_reasons or []) if str(x).strip()]
+    reasons = sorted(set(reasons + extra))
+    unknown_reasons = [x for x in reasons if x not in ALLOWED_L5_REASONS]
+    if unknown_reasons:
+        if gate_mode_norm == "strict":
+            if "reason_enum_unknown" not in hard_reasons:
+                hard_reasons.append("reason_enum_unknown")
+        else:
+            if "reason_enum_unknown" not in soft_reasons:
+                soft_reasons.append("reason_enum_unknown")
+        reasons = sorted(set(reasons + ["reason_enum_unknown"]))
+
     if gate_mode_norm == "observe":
         gate_result = "PASS" if not reasons else "NEEDS_REVIEW"
     else:
@@ -316,6 +349,9 @@ def evaluate_l5_eval_v1(
             "min_l3_stage_match_rate_pct": float(min_l3_stage_match_rate_pct),
         },
         "reasons": reasons,
+        "primary_reason": reasons[0] if reasons else "none",
+        "unknown_reasons": sorted(set(unknown_reasons)),
+        "reason_enum": sorted(ALLOWED_L5_REASONS),
     }
     return summary
 
@@ -335,6 +371,7 @@ def main() -> None:
     parser.add_argument("--min-l3-parse-coverage-pct", type=float, default=95.0)
     parser.add_argument("--min-l3-type-match-rate-pct", type=float, default=70.0)
     parser.add_argument("--min-l3-stage-match-rate-pct", type=float, default=70.0)
+    parser.add_argument("--additional-reasons-json", default="")
     parser.add_argument("--out", default="artifacts/agent_modelica_l5_eval_v1/l5_eval_summary.json")
     parser.add_argument("--report-out", default="")
     args = parser.parse_args()
@@ -344,6 +381,14 @@ def main() -> None:
     l3_quality_summary = _load_json(args.l3_quality_summary)
     l3_gate_summary = _load_json(args.l3_gate_summary)
     l4_ab_compare_summary = _load_json(args.l4_ab_compare_summary)
+    additional_reasons: list[str] = []
+    if str(args.additional_reasons_json).strip():
+        try:
+            parsed = json.loads(str(args.additional_reasons_json))
+        except Exception:
+            parsed = []
+        if isinstance(parsed, list):
+            additional_reasons = [str(x).strip() for x in parsed if str(x).strip()]
 
     summary = evaluate_l5_eval_v1(
         run_summary=run_summary,
@@ -359,6 +404,7 @@ def main() -> None:
         min_l3_parse_coverage_pct=float(args.min_l3_parse_coverage_pct),
         min_l3_type_match_rate_pct=float(args.min_l3_type_match_rate_pct),
         min_l3_stage_match_rate_pct=float(args.min_l3_stage_match_rate_pct),
+        additional_reasons=additional_reasons,
     )
     summary["inputs"] = {
         "run_summary": str(args.run_summary),
@@ -366,6 +412,7 @@ def main() -> None:
         "l3_quality_summary": str(args.l3_quality_summary),
         "l3_gate_summary": str(args.l3_gate_summary),
         "l4_ab_compare_summary": str(args.l4_ab_compare_summary),
+        "additional_reasons_json": str(args.additional_reasons_json or ""),
     }
 
     _write_json(args.out, summary)

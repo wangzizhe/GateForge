@@ -4,6 +4,7 @@ import shlex
 import subprocess
 import tempfile
 import unittest
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 
@@ -219,6 +220,106 @@ class RunAgentModelicaL5EvalV1ScriptTests(unittest.TestCase):
             summary = json.loads((out_dir / "l5_eval_summary.json").read_text(encoding="utf-8"))
             self.assertEqual(summary.get("status"), "FAIL")
             self.assertIn("infra_failure_count_not_zero", set(summary.get("reasons") or []))
+
+    def test_weekly_recommendation_requires_two_week_consecutive_pass(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        script = repo_root / "scripts" / "run_agent_modelica_l5_eval_v1.sh"
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            taskset = root / "taskset.json"
+            out_dir = root / "out_weekly_promote"
+            ledger = root / "private" / "ledger.jsonl"
+            taskset.write_text(
+                json.dumps(
+                    {
+                        "tasks": [
+                            {"task_id": "t_small", "scale": "small", "failure_type": "model_check_error", "expected_stage": "check"},
+                            {"task_id": "t_medium", "scale": "medium", "failure_type": "simulate_error", "expected_stage": "simulate"},
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            previous_week = datetime.now(timezone.utc) - timedelta(days=8)
+            previous_row = {
+                "generated_at_utc": previous_week.isoformat(),
+                "l5_gate_status": "PASS",
+                "status": "PASS",
+                "gate_result": "PASS",
+                "delta_success_at_k_pp": 6.0,
+                "infra_failure_count": 0,
+                "primary_reason": "none",
+                "reason_enum": ["reason_enum_unknown"],
+            }
+            ledger.parent.mkdir(parents=True, exist_ok=True)
+            ledger.write_text(json.dumps(previous_row) + "\n", encoding="utf-8")
+
+            env = {
+                **os.environ,
+                "GATEFORGE_AGENT_L5_EVAL_TASKSET": str(taskset),
+                "GATEFORGE_AGENT_L5_EVAL_OUT_DIR": str(out_dir),
+                "GATEFORGE_AGENT_L5_LEDGER_PATH": str(ledger),
+                "GATEFORGE_AGENT_L5_EVAL_MAX_ROUNDS": "1",
+                "GATEFORGE_AGENT_L5_EVAL_MAX_TIME_SEC": "20",
+                "GATEFORGE_AGENT_L5_EVAL_LIVE_TIMEOUT_SEC": "20",
+                "GATEFORGE_AGENT_L5_EVAL_L3_LIVE_EXECUTOR_CMD": _cmd_pass(),
+                "GATEFORGE_AGENT_L5_EVAL_L4_LIVE_EXECUTOR_CMD": _cmd_l4_switch(),
+            }
+            proc = subprocess.run(
+                ["bash", str(script)],
+                cwd=str(repo_root),
+                capture_output=True,
+                text=True,
+                check=False,
+                env=env,
+                timeout=240,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            weekly = json.loads((out_dir / "l5_weekly_metrics.json").read_text(encoding="utf-8"))
+            self.assertEqual(str(weekly.get("recommendation") or ""), "promote")
+            self.assertEqual(str(weekly.get("recommendation_reason") or ""), "two_week_consecutive_pass")
+
+    def test_weekly_recommendation_holds_without_previous_week(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        script = repo_root / "scripts" / "run_agent_modelica_l5_eval_v1.sh"
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            taskset = root / "taskset.json"
+            out_dir = root / "out_weekly_hold"
+            taskset.write_text(
+                json.dumps(
+                    {
+                        "tasks": [
+                            {"task_id": "t_small", "scale": "small", "failure_type": "model_check_error", "expected_stage": "check"},
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            env = {
+                **os.environ,
+                "GATEFORGE_AGENT_L5_EVAL_TASKSET": str(taskset),
+                "GATEFORGE_AGENT_L5_EVAL_OUT_DIR": str(out_dir),
+                "GATEFORGE_AGENT_L5_EVAL_MAX_ROUNDS": "1",
+                "GATEFORGE_AGENT_L5_EVAL_MAX_TIME_SEC": "20",
+                "GATEFORGE_AGENT_L5_EVAL_LIVE_TIMEOUT_SEC": "20",
+                "GATEFORGE_AGENT_L5_EVAL_L3_LIVE_EXECUTOR_CMD": _cmd_pass(),
+                "GATEFORGE_AGENT_L5_EVAL_L4_LIVE_EXECUTOR_CMD": _cmd_l4_switch(),
+            }
+            proc = subprocess.run(
+                ["bash", str(script)],
+                cwd=str(repo_root),
+                capture_output=True,
+                text=True,
+                check=False,
+                env=env,
+                timeout=240,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            weekly = json.loads((out_dir / "l5_weekly_metrics.json").read_text(encoding="utf-8"))
+            self.assertEqual(str(weekly.get("recommendation") or ""), "hold")
+            self.assertEqual(str(weekly.get("recommendation_reason") or ""), "insufficient_consecutive_history")
 
 
 if __name__ == "__main__":

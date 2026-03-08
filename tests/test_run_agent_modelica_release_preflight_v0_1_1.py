@@ -41,6 +41,7 @@ class RunAgentModelicaReleasePreflightV011Tests(unittest.TestCase):
         self.assertIn('"l5_physics_fail_rate_pct"', script)
         self.assertIn('"l5_regression_fail_rate_pct"', script)
         self.assertIn('"l5_infra_failure_count"', script)
+        self.assertIn('"l5_primary_reason"', script)
 
     def test_script_runs_live_smoke_path_with_mock_executor(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
@@ -84,6 +85,10 @@ class RunAgentModelicaReleasePreflightV011Tests(unittest.TestCase):
             self.assertIn("l5_physics_fail_rate_pct", summary)
             self.assertIn("l5_regression_fail_rate_pct", summary)
             self.assertIn("l5_infra_failure_count", summary)
+            self.assertIn("l5_primary_reason", summary)
+
+            l5_summary = json.loads((out_dir / "l5_eval_summary.json").read_text(encoding="utf-8"))
+            self.assertEqual(str(summary.get("l5_primary_reason") or "none"), str(l5_summary.get("primary_reason") or "none"))
 
 
 if __name__ == "__main__":

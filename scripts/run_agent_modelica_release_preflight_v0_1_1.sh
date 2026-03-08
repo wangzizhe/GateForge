@@ -480,6 +480,8 @@ payload = {
     "l5_physics_fail_rate_pct": float(l5_eval.get("physics_fail_rate_pct") or 0.0),
     "l5_regression_fail_rate_pct": float(l5_eval.get("regression_fail_rate_pct") or 0.0),
     "l5_infra_failure_count": int(l5_eval.get("infra_failure_count") or 0),
+    "l5_primary_reason": str(l5_eval.get("primary_reason") or "none"),
+    "l5_reasons": [str(x) for x in (l5_eval.get("reasons") or []) if isinstance(x, str)],
     "reasons": reasons,
     "paths": {
         "learning_preflight": str(out_dir / "learning_preflight.json"),
