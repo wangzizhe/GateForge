@@ -15,6 +15,23 @@ L3_MIN_TYPE_MATCH_RATE_PCT="${GATEFORGE_AGENT_RELEASE_L3_MIN_TYPE_MATCH_RATE_PCT
 L3_MIN_STAGE_MATCH_RATE_PCT="${GATEFORGE_AGENT_RELEASE_L3_MIN_STAGE_MATCH_RATE_PCT:-70}"
 L3_MAX_LOW_CONFIDENCE_RATE_PCT="${GATEFORGE_AGENT_RELEASE_L3_MAX_LOW_CONFIDENCE_RATE_PCT:-30}"
 L3_LOW_CONFIDENCE_THRESHOLD="${GATEFORGE_AGENT_RELEASE_L3_LOW_CONFIDENCE_THRESHOLD:-0.65}"
+ENABLE_L5_EVAL_GATE="${GATEFORGE_AGENT_RELEASE_ENABLE_L5_EVAL_GATE:-1}"
+ENFORCE_L5_EVAL_GATE="${GATEFORGE_AGENT_RELEASE_ENFORCE_L5_EVAL_GATE:-$REQUIRE_REAL_OMC_BACKEND}"
+L5_GATE_MODE="${GATEFORGE_AGENT_RELEASE_L5_GATE_MODE:-strict}"
+L5_MIN_DELTA_SUCCESS_PP="${GATEFORGE_AGENT_RELEASE_L5_MIN_DELTA_SUCCESS_PP:-5}"
+L5_MAX_PHYSICS_WORSEN_PP="${GATEFORGE_AGENT_RELEASE_L5_MAX_PHYSICS_WORSEN_PP:-2}"
+L5_MAX_REGRESSION_WORSEN_PP="${GATEFORGE_AGENT_RELEASE_L5_MAX_REGRESSION_WORSEN_PP:-2}"
+L5_INFRA_FAILURE_MUST_EQUAL="${GATEFORGE_AGENT_RELEASE_L5_INFRA_FAILURE_MUST_EQUAL:-0}"
+L5_MIN_L3_PARSE_PCT="${GATEFORGE_AGENT_RELEASE_L5_MIN_L3_PARSE_PCT:-95}"
+L5_MIN_L3_TYPE_PCT="${GATEFORGE_AGENT_RELEASE_L5_MIN_L3_TYPE_PCT:-70}"
+L5_MIN_L3_STAGE_PCT="${GATEFORGE_AGENT_RELEASE_L5_MIN_L3_STAGE_PCT:-70}"
+L5_TASKSET="${GATEFORGE_AGENT_RELEASE_L5_TASKSET:-assets_private/agent_modelica_l2_freeze_pack_v0_smoke/taskset_frozen.json}"
+if [ ! -f "$L5_TASKSET" ]; then
+  L5_TASKSET="tests/fixtures/agent_modelica_l3_stability_ci_taskset_v0.json"
+fi
+L5_LIVE_EXECUTOR_CMD_DEFAULT="python3 -m ${LIVE_SMOKE_EXECUTOR_MODULE} --task-id \"__TASK_ID__\" --failure-type \"__FAILURE_TYPE__\" --expected-stage \"__EXPECTED_STAGE__\" --source-model-path \"__SOURCE_MODEL_PATH__\" --mutated-model-path \"__MUTATED_MODEL_PATH__\" --repair-actions __REPAIR_ACTIONS_SHQ__ --max-rounds \"__MAX_ROUNDS__\" --timeout-sec \"__MAX_TIME_SEC__\" --planner-backend \"${GATEFORGE_AGENT_RELEASE_SMOKE_PLANNER_BACKEND:-rule}\" --backend \"${GATEFORGE_AGENT_RELEASE_SMOKE_BACKEND:-openmodelica_docker}\" --docker-image \"${GATEFORGE_AGENT_RELEASE_SMOKE_OM_DOCKER_IMAGE:-openmodelica/openmodelica:v1.26.1-minimal}\""
+L5_L3_LIVE_EXECUTOR_CMD="${GATEFORGE_AGENT_RELEASE_L5_L3_LIVE_EXECUTOR_CMD:-$L5_LIVE_EXECUTOR_CMD_DEFAULT}"
+L5_L4_LIVE_EXECUTOR_CMD="${GATEFORGE_AGENT_RELEASE_L5_L4_LIVE_EXECUTOR_CMD:-$L5_LIVE_EXECUTOR_CMD_DEFAULT}"
 
 PROFILE_PATH="${GATEFORGE_AGENT_MVP_PROFILE_PATH:-benchmarks/private/agent_modelica_mvp_repair_v1.json}"
 if [ ! -f "$PROFILE_PATH" ]; then
@@ -284,7 +301,93 @@ print(json.dumps({"status": "NEEDS_REVIEW", "l3_gate_result": "SKIPPED", "reason
 PY
 fi
 
-python3 - "$OUT_DIR" "$RUN_LIVE_SMOKE" "$REQUIRE_REAL_OMC_BACKEND" "$ENABLE_L3_DIAGNOSTIC_GATE" "$ENFORCE_L3_DIAGNOSTIC_GATE" <<'PY'
+L5_EVAL_OUT_DIR="$OUT_DIR/l5_eval"
+L5_EVAL_SUMMARY_PATH="$OUT_DIR/l5_eval_summary.json"
+if [ "$ENABLE_L5_EVAL_GATE" = "1" ] && [ "$RUN_LIVE_SMOKE" = "1" ]; then
+  set +e
+  GATEFORGE_AGENT_L5_EVAL_OUT_DIR="$L5_EVAL_OUT_DIR" \
+  GATEFORGE_AGENT_L5_EVAL_TASKSET="$L5_TASKSET" \
+  GATEFORGE_AGENT_L5_EVAL_SCALES="small,medium" \
+  GATEFORGE_AGENT_L5_EVAL_PLANNER_BACKEND="${GATEFORGE_AGENT_RELEASE_SMOKE_PLANNER_BACKEND:-rule}" \
+  GATEFORGE_AGENT_L5_EVAL_BACKEND="${GATEFORGE_AGENT_RELEASE_SMOKE_BACKEND:-openmodelica_docker}" \
+  GATEFORGE_AGENT_L5_EVAL_OM_DOCKER_IMAGE="${GATEFORGE_AGENT_RELEASE_SMOKE_OM_DOCKER_IMAGE:-openmodelica/openmodelica:v1.26.1-minimal}" \
+  GATEFORGE_AGENT_L5_EVAL_MAX_ROUNDS="${GATEFORGE_AGENT_RELEASE_SMOKE_MAX_ROUNDS:-2}" \
+  GATEFORGE_AGENT_L5_EVAL_MAX_TIME_SEC="${GATEFORGE_AGENT_RELEASE_SMOKE_TIMEOUT_SEC:-90}" \
+  GATEFORGE_AGENT_L5_EVAL_LIVE_TIMEOUT_SEC="${GATEFORGE_AGENT_RELEASE_SMOKE_TIMEOUT_SEC:-90}" \
+  GATEFORGE_AGENT_L5_EVAL_RUNTIME_THRESHOLD="${GATEFORGE_AGENT_RELEASE_L5_RUNTIME_THRESHOLD:-0.2}" \
+  GATEFORGE_AGENT_L5_EVAL_L3_LIVE_EXECUTOR_CMD="$L5_L3_LIVE_EXECUTOR_CMD" \
+  GATEFORGE_AGENT_L5_EVAL_L4_LIVE_EXECUTOR_CMD="$L5_L4_LIVE_EXECUTOR_CMD" \
+  GATEFORGE_AGENT_L5_GATE_MODE="$L5_GATE_MODE" \
+  GATEFORGE_AGENT_L5_MIN_DELTA_SUCCESS_PP="$L5_MIN_DELTA_SUCCESS_PP" \
+  GATEFORGE_AGENT_L5_MAX_PHYSICS_WORSEN_PP="$L5_MAX_PHYSICS_WORSEN_PP" \
+  GATEFORGE_AGENT_L5_MAX_REGRESSION_WORSEN_PP="$L5_MAX_REGRESSION_WORSEN_PP" \
+  GATEFORGE_AGENT_L5_INFRA_FAILURE_MUST_EQUAL="$L5_INFRA_FAILURE_MUST_EQUAL" \
+  GATEFORGE_AGENT_L5_MIN_L3_PARSE_PCT="$L5_MIN_L3_PARSE_PCT" \
+  GATEFORGE_AGENT_L5_MIN_L3_TYPE_PCT="$L5_MIN_L3_TYPE_PCT" \
+  GATEFORGE_AGENT_L5_MIN_L3_STAGE_PCT="$L5_MIN_L3_STAGE_PCT" \
+  bash scripts/run_agent_modelica_l5_eval_v1.sh
+  L5_EVAL_RC=$?
+  set -e
+  if [ -f "$L5_EVAL_OUT_DIR/l5_eval_summary.json" ]; then
+    cp "$L5_EVAL_OUT_DIR/l5_eval_summary.json" "$L5_EVAL_SUMMARY_PATH"
+  else
+    python3 - "$L5_EVAL_SUMMARY_PATH" "$L5_EVAL_RC" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+out_path = Path(sys.argv[1])
+exit_code = int(sys.argv[2])
+payload = {
+    "schema_version": "agent_modelica_l5_eval_v1",
+    "status": "FAIL",
+    "gate_result": "FAIL",
+    "reason": "l5_eval_summary_missing",
+    "runner_exit_code": exit_code,
+}
+out_path.parent.mkdir(parents=True, exist_ok=True)
+out_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+print(json.dumps(payload))
+PY
+  fi
+else
+  python3 - "$L5_EVAL_SUMMARY_PATH" "$RUN_LIVE_SMOKE" "$ENABLE_L5_EVAL_GATE" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+out_path = Path(sys.argv[1])
+run_live_smoke = str(sys.argv[2]).strip() == "1"
+enabled = str(sys.argv[3]).strip() == "1"
+
+if run_live_smoke and not enabled:
+    reason = "l5_gate_disabled"
+elif not run_live_smoke:
+    reason = "live_smoke_disabled"
+else:
+    reason = "l5_gate_not_run"
+
+payload = {
+    "schema_version": "agent_modelica_l5_eval_v1",
+    "status": "NEEDS_REVIEW",
+    "gate_result": "SKIPPED",
+    "reason": reason,
+    "success_at_k_pct": 0.0,
+    "delta_success_at_k_pp": 0.0,
+    "physics_fail_rate_pct": 0.0,
+    "regression_fail_rate_pct": 0.0,
+    "infra_failure_count": 0,
+    "l3_parse_coverage_pct": 0.0,
+    "l3_type_match_rate_pct": 0.0,
+    "l3_stage_match_rate_pct": 0.0,
+}
+out_path.parent.mkdir(parents=True, exist_ok=True)
+out_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+print(json.dumps(payload))
+PY
+fi
+
+python3 - "$OUT_DIR" "$RUN_LIVE_SMOKE" "$REQUIRE_REAL_OMC_BACKEND" "$ENABLE_L3_DIAGNOSTIC_GATE" "$ENFORCE_L3_DIAGNOSTIC_GATE" "$ENABLE_L5_EVAL_GATE" "$ENFORCE_L5_EVAL_GATE" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -294,11 +397,14 @@ run_live_smoke = str(sys.argv[2]).strip() == "1"
 require_real_omc = str(sys.argv[3]).strip() == "1"
 enable_l3_gate = str(sys.argv[4]).strip() == "1"
 enforce_l3_gate = str(sys.argv[5]).strip() == "1"
+enable_l5_gate = str(sys.argv[6]).strip() == "1"
+enforce_l5_gate = str(sys.argv[7]).strip() == "1"
 learning = json.loads((out_dir / "learning_preflight.json").read_text(encoding="utf-8"))
 private_guard = json.loads((out_dir / "private_asset_guard.json").read_text(encoding="utf-8"))
 live_smoke = json.loads((out_dir / "live_smoke_executor.json").read_text(encoding="utf-8"))
 l3_gate = json.loads((out_dir / "l3_diagnostic_gate_summary.json").read_text(encoding="utf-8"))
 l3_quality = json.loads((out_dir / "l3_diagnostic_quality_summary.json").read_text(encoding="utf-8"))
+l5_eval = json.loads((out_dir / "l5_eval_summary.json").read_text(encoding="utf-8"))
 
 status = "PASS"
 reasons = []
@@ -340,6 +446,15 @@ if run_live_smoke and enable_l3_gate:
         elif status != "FAIL":
             status = "NEEDS_REVIEW"
 
+l5_gate_status = str(l5_eval.get("status") or "").strip()
+if run_live_smoke and enable_l5_gate:
+    if l5_gate_status != "PASS":
+        if enforce_l5_gate:
+            status = "FAIL"
+            reasons.append("l5_eval_gate_not_pass")
+        elif status != "FAIL":
+            status = "NEEDS_REVIEW"
+
 payload = {
     "status": status,
     "profile_path": str(((learning.get("inputs") or {}).get("profile")) or ""),
@@ -357,6 +472,14 @@ payload = {
     ),
     "l3_stage_match_rate_pct": float(l3_quality.get("stage_match_rate_pct") or 0.0),
     "l3_low_confidence_rate_pct": float(l3_quality.get("low_confidence_rate_pct") or 0.0),
+    "l5_eval_gate_enabled": enable_l5_gate,
+    "l5_eval_gate_enforced": enforce_l5_gate,
+    "l5_gate_status": l5_gate_status or "SKIPPED",
+    "l5_success_at_k_pct": float(l5_eval.get("success_at_k_pct") or 0.0),
+    "l5_delta_success_at_k_pp": float(l5_eval.get("delta_success_at_k_pp") or 0.0),
+    "l5_physics_fail_rate_pct": float(l5_eval.get("physics_fail_rate_pct") or 0.0),
+    "l5_regression_fail_rate_pct": float(l5_eval.get("regression_fail_rate_pct") or 0.0),
+    "l5_infra_failure_count": int(l5_eval.get("infra_failure_count") or 0),
     "reasons": reasons,
     "paths": {
         "learning_preflight": str(out_dir / "learning_preflight.json"),
@@ -364,6 +487,9 @@ payload = {
         "live_smoke_executor": str(out_dir / "live_smoke_executor.json"),
         "l3_diagnostic_quality": str(out_dir / "l3_diagnostic_quality_summary.json"),
         "l3_diagnostic_gate": str(out_dir / "l3_diagnostic_gate_summary.json"),
+        "l5_eval_summary": str(out_dir / "l5_eval_summary.json"),
+        "l5_eval_bundle": str(out_dir / "l5_eval" / "summary.json"),
+        "l5_weekly_metrics": str(out_dir / "l5_eval" / "l5_weekly_metrics.json"),
     },
 }
 (out_dir / "release_preflight_summary.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")

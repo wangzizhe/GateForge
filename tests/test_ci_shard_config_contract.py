@@ -13,6 +13,7 @@ class CIShardConfigContractTests(unittest.TestCase):
         self.assertIn('  test-dataset:\n    name: "Test Dataset"', workflow)
         self.assertIn('  release-preflight:\n    name: "Release Preflight"', workflow)
         self.assertIn('  l3-diagnostic-gate:\n    name: "L3 Diagnostic Gate"', workflow)
+        self.assertIn('  l5-gate:\n    name: "L5 Gate"', workflow)
         self.assertIn('  smoke-gate:\n    name: "Smoke"', workflow)
         self.assertIn('  test-and-smoke:\n    name: "Test and Smoke"', workflow)
         self.assertIn('  demo-full:\n    name: "Demo Full"', workflow)
@@ -35,6 +36,7 @@ class CIShardConfigContractTests(unittest.TestCase):
         self.assertIn("needs:\n      - test-core-a\n      - test-core-b\n      - test-dataset\n      - smoke-gate", workflow)
         self.assertIn("bash scripts/run_agent_modelica_release_preflight_v0_1_1.sh", workflow)
         self.assertIn("bash scripts/run_agent_modelica_l3_stability_regression_v0.sh", workflow)
+        self.assertIn("bash scripts/run_agent_modelica_l5_eval_v1.sh", workflow)
         self.assertIn('run_release_live_smoke:', workflow)
         self.assertIn("Publish release preflight status", workflow)
         self.assertIn("artifacts/release_v0_1_1/release_preflight_summary.json", workflow)
@@ -42,9 +44,17 @@ class CIShardConfigContractTests(unittest.TestCase):
         self.assertIn("l3_parse_coverage_pct", workflow)
         self.assertIn("l3_type_match_rate_pct", workflow)
         self.assertIn("l3_stage_match_rate_pct", workflow)
+        self.assertIn("l5_gate_status", workflow)
+        self.assertIn("l5_success_at_k_pct", workflow)
+        self.assertIn("l5_delta_success_at_k_pp", workflow)
+        self.assertIn("l5_physics_fail_rate_pct", workflow)
+        self.assertIn("l5_regression_fail_rate_pct", workflow)
+        self.assertIn("l5_infra_failure_count", workflow)
         self.assertIn("artifacts/agent_modelica_l3_stability_regression_v0_ci", workflow)
+        self.assertIn("artifacts/agent_modelica_l5_eval_v1_ci", workflow)
         self.assertIn("tests/fixtures/agent_modelica_l3_stability_ci_taskset_v0.json", workflow)
         self.assertIn("python3 -m gateforge.agent_modelica_live_executor_mock_v0", workflow)
+        self.assertIn("python3 -m gateforge.agent_modelica_live_executor_mock_l4_switch_v0", workflow)
         self.assertIn("inputs.run_release_live_smoke", workflow)
         self.assertIn(
             "if: ${{ (github.event_name == 'workflow_dispatch' && inputs.run_demo_bundle) || github.event_name == 'schedule' }}",
@@ -55,6 +65,7 @@ class CIShardConfigContractTests(unittest.TestCase):
         self.assertIn("steps.demo_full_tests.outcome", workflow)
         self.assertIn("continue-on-error: ${{ github.event_name == 'pull_request' }}", workflow)
         self.assertIn("needs.l3-diagnostic-gate.result", workflow)
+        self.assertIn("needs.l5-gate.result", workflow)
         self.assertIn('if-no-files-found: ignore', workflow)
 
 

@@ -331,6 +331,12 @@ jobs:
                 f.write(f"- l3_parse_coverage_pct: `{details.get('l3_parse_coverage_pct', '')}`\n")
                 f.write(f"- l3_type_match_rate_pct: `{details.get('l3_type_match_rate_pct', '')}`\n")
                 f.write(f"- l3_stage_match_rate_pct: `{details.get('l3_stage_match_rate_pct', '')}`\n")
+                f.write(f"- l5_gate_status: `{details.get('l5_gate_status', '')}`\n")
+                f.write(f"- l5_success_at_k_pct: `{details.get('l5_success_at_k_pct', '')}`\n")
+                f.write(f"- l5_delta_success_at_k_pp: `{details.get('l5_delta_success_at_k_pp', '')}`\n")
+                f.write(f"- l5_physics_fail_rate_pct: `{details.get('l5_physics_fail_rate_pct', '')}`\n")
+                f.write(f"- l5_regression_fail_rate_pct: `{details.get('l5_regression_fail_rate_pct', '')}`\n")
+                f.write(f"- l5_infra_failure_count: `{details.get('l5_infra_failure_count', '')}`\n")
               f.write("\n")
           if status == "FAIL":
             raise SystemExit(1)
@@ -396,6 +402,74 @@ jobs:
           path: artifacts/agent_modelica_l3_stability_regression_v0_ci
           if-no-files-found: ignore
 
+  l5-gate:
+    name: "L5 Gate"
+    runs-on: ubuntu-latest
+    continue-on-error: ${{ github.event_name == 'pull_request' }}
+    env:
+      GATEFORGE_DEMO_FAST: "1"
+      GATEFORGE_AGENT_L5_EVAL_TASKSET: "tests/fixtures/agent_modelica_l3_stability_ci_taskset_v0.json"
+      GATEFORGE_AGENT_L5_EVAL_SCALES: "small,medium"
+      GATEFORGE_AGENT_L5_EVAL_OUT_DIR: "artifacts/agent_modelica_l5_eval_v1_ci"
+      GATEFORGE_AGENT_L5_EVAL_PLANNER_BACKEND: "rule"
+      GATEFORGE_AGENT_L5_EVAL_BACKEND: "openmodelica_docker"
+      GATEFORGE_AGENT_L5_EVAL_MAX_ROUNDS: "1"
+      GATEFORGE_AGENT_L5_EVAL_MAX_TIME_SEC: "120"
+      GATEFORGE_AGENT_L5_EVAL_LIVE_TIMEOUT_SEC: "90"
+      GATEFORGE_AGENT_L5_EVAL_LIVE_MAX_OUTPUT_CHARS: "1600"
+      GATEFORGE_AGENT_L5_EVAL_L3_LIVE_EXECUTOR_CMD: >-
+        python3 -m gateforge.agent_modelica_live_executor_mock_v0
+        --task-id "__TASK_ID__"
+        --failure-type "__FAILURE_TYPE__"
+        --expected-stage "__EXPECTED_STAGE__"
+        --source-model-path "__SOURCE_MODEL_PATH__"
+        --mutated-model-path "__MUTATED_MODEL_PATH__"
+        --repair-actions __REPAIR_ACTIONS_SHQ__
+        --max-rounds "__MAX_ROUNDS__"
+        --timeout-sec "__MAX_TIME_SEC__"
+      GATEFORGE_AGENT_L5_EVAL_L4_LIVE_EXECUTOR_CMD: >-
+        python3 -m gateforge.agent_modelica_live_executor_mock_l4_switch_v0
+        --task-id "__TASK_ID__"
+        --failure-type "__FAILURE_TYPE__"
+        --expected-stage "__EXPECTED_STAGE__"
+        --source-model-path "__SOURCE_MODEL_PATH__"
+        --mutated-model-path "__MUTATED_MODEL_PATH__"
+        --repair-actions __REPAIR_ACTIONS_SHQ__
+        --max-rounds "__MAX_ROUNDS__"
+        --timeout-sec "__MAX_TIME_SEC__"
+        --l4-enabled "__L4_ENABLED__"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Set L5 gate mode for pull requests
+        if: ${{ github.event_name == 'pull_request' }}
+        run: |
+          echo "GATEFORGE_AGENT_L5_GATE_MODE=observe" >> "$GITHUB_ENV"
+
+      - name: Run L5 eval gate
+        run: |
+          bash scripts/run_agent_modelica_l5_eval_v1.sh
+
+      - name: Upload L5 gate artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: l5-gate-logs
+          path: artifacts/agent_modelica_l5_eval_v1_ci
+          if-no-files-found: ignore
+
   smoke-gate:
     name: "Smoke"
     needs:
@@ -459,6 +533,7 @@ jobs:
       - smoke-gate
       - release-preflight
       - l3-diagnostic-gate
+      - l5-gate
     runs-on: ubuntu-latest
     steps:
       - name: Enforce upstream success
@@ -485,6 +560,10 @@ jobs:
           fi
           if [ "${{ needs.l3-diagnostic-gate.result }}" != "success" ]; then
             echo "l3-diagnostic-gate result: ${{ needs.l3-diagnostic-gate.result }}"
+            exit 1
+          fi
+          if [ "${{ needs.l5-gate.result }}" != "success" ]; then
+            echo "l5-gate result: ${{ needs.l5-gate.result }}"
             exit 1
           fi
           echo "test-and-smoke gate passed"
