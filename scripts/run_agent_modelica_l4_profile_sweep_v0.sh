@@ -211,6 +211,12 @@ summary = {
     "profile_results": results,
     "recommended_profile": str(best.get("profile") or "") if isinstance(best, dict) else "",
     "recommended_profile_result": best if isinstance(best, dict) else {},
+    "delta_success_at_k_pp": float(best.get("delta_success_at_k_pp") or 0.0) if isinstance(best, dict) else 0.0,
+    "delta_regression_fail_rate_pp": float(best.get("delta_regression_fail_rate_pp") or 0.0) if isinstance(best, dict) else 0.0,
+    "delta_physics_fail_rate_pp": float(best.get("delta_physics_fail_rate_pp") or 0.0) if isinstance(best, dict) else 0.0,
+    "reason_distribution": best.get("reason_distribution_on") if isinstance(best, dict) and isinstance(best.get("reason_distribution_on"), dict) else {},
+    "no_progress_rate_pct": float(best.get("no_progress_rate_pct_on") or 0.0) if isinstance(best, dict) else 0.0,
+    "llm_fallback_rate_pct": float(best.get("llm_fallback_rate_pct_on") or 0.0) if isinstance(best, dict) else 0.0,
     "reasons": [] if best else ["no_profile_passed"],
 }
 
@@ -225,6 +231,9 @@ summary = {
             f"- backend: `{summary.get('backend')}`",
             f"- l4_policy_backend: `{summary.get('l4_policy_backend')}`",
             f"- recommended_profile: `{summary.get('recommended_profile')}`",
+            f"- delta_success_at_k_pp: `{summary.get('delta_success_at_k_pp')}`",
+            f"- no_progress_rate_pct: `{summary.get('no_progress_rate_pct')}`",
+            f"- llm_fallback_rate_pct: `{summary.get('llm_fallback_rate_pct')}`",
             f"- profile_count: `{len(results)}`",
             "",
         ]
