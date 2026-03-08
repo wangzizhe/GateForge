@@ -1,0 +1,17 @@
+{
+  "schema_version": "agent_modelica_l3_stability_ci_taskset_v0",
+  "tasks": [
+    {
+      "task_id": "ci_small_model_check",
+      "scale": "small",
+      "failure_type": "model_check_error",
+      "expected_stage": "check"
+    },
+    {
+      "task_id": "ci_medium_simulate",
+      "scale": "medium",
+      "failure_type": "simulate_error",
+      "expected_stage": "simulate"
+    }
+  ]
+}

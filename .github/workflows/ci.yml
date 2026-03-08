@@ -23,6 +23,11 @@ on:
         required: false
         default: false
         type: boolean
+      run_release_live_smoke:
+        description: "Run release preflight live smoke on manual dispatch"
+        required: false
+        default: false
+        type: boolean
       run_steady_state_demo:
         description: "Run optional steady-state checker demo job"
         required: false
@@ -301,7 +306,7 @@ jobs:
           pip install -e .
 
       - name: Enable live smoke for mainline/scheduled runs
-        if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
+        if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.run_release_live_smoke) }}
         run: |
           echo "GATEFORGE_AGENT_RELEASE_RUN_LIVE_SMOKE=1" >> "$GITHUB_ENV"
 
@@ -355,9 +360,19 @@ jobs:
     continue-on-error: ${{ github.event_name == 'pull_request' }}
     env:
       GATEFORGE_DEMO_FAST: "1"
-      GATEFORGE_AGENT_L3_STABILITY_TASKSET: "assets_private/agent_modelica_l2_freeze_pack_v0_smoke/taskset_frozen.json"
+      GATEFORGE_AGENT_L3_STABILITY_TASKSET: "tests/fixtures/agent_modelica_l3_stability_ci_taskset_v0.json"
       GATEFORGE_AGENT_L3_STABILITY_SCALES: "small,medium"
       GATEFORGE_AGENT_L3_STABILITY_OUT_DIR: "artifacts/agent_modelica_l3_stability_regression_v0_ci"
+      GATEFORGE_AGENT_L3_STABILITY_LIVE_EXECUTOR_CMD: >-
+        python3 -m gateforge.agent_modelica_live_executor_mock_v0
+        --task-id "__TASK_ID__"
+        --failure-type "__FAILURE_TYPE__"
+        --expected-stage "__EXPECTED_STAGE__"
+        --source-model-path "__SOURCE_MODEL_PATH__"
+        --mutated-model-path "__MUTATED_MODEL_PATH__"
+        --repair-actions __REPAIR_ACTIONS_SHQ__
+        --max-rounds "__MAX_ROUNDS__"
+        --timeout-sec "__MAX_TIME_SEC__"
       GATEFORGE_AGENT_L3_STABILITY_PLANNER_BACKEND: "rule"
       GATEFORGE_AGENT_L3_STABILITY_BACKEND: "openmodelica_docker"
       GATEFORGE_AGENT_L3_STABILITY_MAX_ROUNDS: "1"

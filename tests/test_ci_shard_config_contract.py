@@ -35,6 +35,7 @@ class CIShardConfigContractTests(unittest.TestCase):
         self.assertIn("needs:\n      - test-core-a\n      - test-core-b\n      - test-dataset\n      - smoke-gate", workflow)
         self.assertIn("bash scripts/run_agent_modelica_release_preflight_v0_1_1.sh", workflow)
         self.assertIn("bash scripts/run_agent_modelica_l3_stability_regression_v0.sh", workflow)
+        self.assertIn('run_release_live_smoke:', workflow)
         self.assertIn("Publish release preflight status", workflow)
         self.assertIn("artifacts/release_v0_1_1/release_preflight_summary.json", workflow)
         self.assertIn("l3_diagnostic_gate_status", workflow)
@@ -42,6 +43,9 @@ class CIShardConfigContractTests(unittest.TestCase):
         self.assertIn("l3_type_match_rate_pct", workflow)
         self.assertIn("l3_stage_match_rate_pct", workflow)
         self.assertIn("artifacts/agent_modelica_l3_stability_regression_v0_ci", workflow)
+        self.assertIn("tests/fixtures/agent_modelica_l3_stability_ci_taskset_v0.json", workflow)
+        self.assertIn("python3 -m gateforge.agent_modelica_live_executor_mock_v0", workflow)
+        self.assertIn("inputs.run_release_live_smoke", workflow)
         self.assertIn(
             "if: ${{ (github.event_name == 'workflow_dispatch' && inputs.run_demo_bundle) || github.event_name == 'schedule' }}",
             workflow,
