@@ -169,7 +169,7 @@ python3 -m gateforge.agent_modelica_l5_eval_v1 \
 L5_RC=$?
 set -e
 
-python3 - "$PREP_TASKSET" "$OUT_DIR/l5_eval_summary.json" "$L5_LEDGER_PATH" "$L5_WEEKLY_OUT_JSON" "$L5_WEEKLY_OUT_MD" "$L3_RC" "$L4_RC" "$L5_RC" <<'PY'
+python3 - "$PREP_TASKSET" "$OUT_DIR/l5_eval_summary.json" "$L5_LEDGER_PATH" "$L5_WEEKLY_OUT_JSON" "$L5_WEEKLY_OUT_MD" "$L3_RC" "$L4_RC" "$L5_RC" "$PLANNER_BACKEND" "$BACKEND" "$L5_GATE_MODE" <<'PY'
 import hashlib
 import json
 import sys
@@ -184,17 +184,24 @@ weekly_md = Path(sys.argv[5])
 l3_rc = int(sys.argv[6])
 l4_rc = int(sys.argv[7])
 l5_rc = int(sys.argv[8])
+planner_backend = str(sys.argv[9] or "").strip()
+backend = str(sys.argv[10] or "").strip()
+gate_mode = str(sys.argv[11] or "").strip()
 
 summary = json.loads(l5_summary_path.read_text(encoding="utf-8")) if l5_summary_path.exists() else {}
 taskset_hash = hashlib.sha256(prep_taskset.read_bytes()).hexdigest() if prep_taskset.exists() else ""
+reason_enum = summary.get("reason_enum") if isinstance(summary.get("reason_enum"), list) else []
+reason_enum = [str(x).strip() for x in reason_enum if str(x).strip()]
+primary_reason = str(summary.get("primary_reason") or "none")
 
 row = {
     "generated_at_utc": datetime.now(timezone.utc).isoformat(),
     "taskset_sha256": taskset_hash,
     "thresholds": summary.get("thresholds") if isinstance(summary.get("thresholds"), dict) else {},
-    "gate_mode": summary.get("gate_mode"),
+    "gate_mode": str(summary.get("gate_mode") or gate_mode),
     "gate_result": summary.get("gate_result"),
     "status": summary.get("status"),
+    "l5_gate_status": summary.get("status"),
     "success_at_k_pct": summary.get("success_at_k_pct"),
     "delta_success_at_k_pp": summary.get("delta_success_at_k_pp"),
     "physics_fail_rate_pct": summary.get("physics_fail_rate_pct"),
@@ -203,8 +210,11 @@ row = {
     "l3_parse_coverage_pct": summary.get("l3_parse_coverage_pct"),
     "l3_type_match_rate_pct": summary.get("l3_type_match_rate_pct"),
     "l3_stage_match_rate_pct": summary.get("l3_stage_match_rate_pct"),
-    "planner_backend": str((summary.get("inputs") or {}).get("planner_backend") or ""),
-    "backend": str((summary.get("inputs") or {}).get("backend") or ""),
+    "planner_backend": planner_backend,
+    "backend": backend,
+    "primary_reason": primary_reason,
+    "reasons": [str(x) for x in (summary.get("reasons") or []) if isinstance(x, str)],
+    "reason_enum": reason_enum,
     "script_exit_codes": {
         "l3": l3_rc,
         "l4": l4_rc,
@@ -250,6 +260,31 @@ previous = by_week.get(previous_key) if previous_key else {}
 def _f(v, default=0.0):
     return float(v) if isinstance(v, (int, float)) else float(default)
 
+def _is_promote_ready(item: dict) -> bool:
+    if not isinstance(item, dict) or not item:
+        return False
+    gate_ok = str(item.get("l5_gate_status") or item.get("status") or "") == "PASS"
+    delta_ok = _f(item.get("delta_success_at_k_pp")) >= 5.0
+    infra_ok = int(item.get("infra_failure_count") or 0) == 0
+    return bool(gate_ok and delta_ok and infra_ok)
+
+current_primary_reason = str((current or {}).get("primary_reason") or "none")
+if current_primary_reason != "none" and reason_enum and current_primary_reason not in reason_enum:
+    current_primary_reason = "reason_enum_unknown"
+consecutive_promote_ready = _is_promote_ready(current) and _is_promote_ready(previous)
+recommendation = "promote" if consecutive_promote_ready else "hold"
+if recommendation == "promote":
+    recommendation_reason = "two_week_consecutive_pass"
+else:
+    if not current:
+        recommendation_reason = "insufficient_history"
+    elif not previous:
+        recommendation_reason = "insufficient_consecutive_history"
+    elif current_primary_reason != "none":
+        recommendation_reason = current_primary_reason
+    else:
+        recommendation_reason = "threshold_not_met"
+
 weekly = {
     "schema_version": "agent_modelica_l5_weekly_metrics_v1",
     "generated_at_utc": datetime.now(timezone.utc).isoformat(),
@@ -264,9 +299,14 @@ weekly = {
         "physics_fail_rate_pp": round(_f(current.get("physics_fail_rate_pct")) - _f(previous.get("physics_fail_rate_pct")), 2),
         "regression_fail_rate_pp": round(_f(current.get("regression_fail_rate_pct")) - _f(previous.get("regression_fail_rate_pct")), 2),
     },
-    "recommendation": "promote"
-    if str(current.get("gate_result") or "") == "PASS" and _f(current.get("delta_success_at_k_pp")) >= 0.0
-    else "hold",
+    "recommendation": recommendation,
+    "recommendation_reason": recommendation_reason,
+    "promote_rule": {
+        "requires_two_week_consecutive_pass": True,
+        "min_delta_success_at_k_pp": 5.0,
+        "infra_failure_count_must_equal": 0,
+    },
+    "reason_enum": reason_enum,
     "ledger_path": str(ledger_path),
     "row_count": len(rows),
 }
@@ -286,6 +326,7 @@ weekly_md.write_text(
             f"- previous_success_at_k_pct: `{(previous or {}).get('success_at_k_pct', 0.0)}`",
             f"- delta_success_at_k_pp: `{(weekly.get('delta') or {}).get('success_at_k_pp', 0.0)}`",
             f"- recommendation: `{weekly.get('recommendation')}`",
+            f"- recommendation_reason: `{weekly.get('recommendation_reason')}`",
             "",
         ]
     ),
@@ -305,6 +346,7 @@ l4_rc = int(sys.argv[3])
 l5_rc = int(sys.argv[4])
 
 l5_summary = json.loads((out_dir / "l5_eval_summary.json").read_text(encoding="utf-8")) if (out_dir / "l5_eval_summary.json").exists() else {}
+weekly_summary = json.loads((out_dir / "l5_weekly_metrics.json").read_text(encoding="utf-8")) if (out_dir / "l5_weekly_metrics.json").exists() else {}
 reasons = [str(x) for x in (l5_summary.get("reasons") or []) if isinstance(x, str)]
 if l3_rc != 0:
     reasons.append("l3_regression_script_nonzero_exit")
@@ -333,6 +375,10 @@ summary = {
     "l3_parse_coverage_pct": float(l5_summary.get("l3_parse_coverage_pct") or 0.0),
     "l3_type_match_rate_pct": float(l5_summary.get("l3_type_match_rate_pct") or 0.0),
     "l3_stage_match_rate_pct": float(l5_summary.get("l3_stage_match_rate_pct") or 0.0),
+    "l5_primary_reason": str(l5_summary.get("primary_reason") or "none"),
+    "l5_reason_enum": [str(x) for x in (l5_summary.get("reason_enum") or []) if isinstance(x, str)],
+    "weekly_recommendation": str(weekly_summary.get("recommendation") or ""),
+    "weekly_recommendation_reason": str(weekly_summary.get("recommendation_reason") or ""),
     "reasons": sorted(set(reasons)),
     "paths": {
         "l3_summary": str(out_dir / "l3" / "summary.json"),

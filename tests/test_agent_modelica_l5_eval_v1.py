@@ -166,6 +166,37 @@ class AgentModelicaL5EvalV1Tests(unittest.TestCase):
             self.assertEqual(float(thresholds.get("min_delta_success_at_k_pp") or 0.0), 12.0)
             self.assertEqual(payload.get("status"), "FAIL")
 
+    def test_reason_enum_strict_mode_flags_unknown_reason(self) -> None:
+        run_summary, run_results, l3_quality, l3_gate, l4_ab = self._base_inputs()
+        summary = evaluate_l5_eval_v1(
+            run_summary=run_summary,
+            run_results=run_results,
+            l3_quality_summary=l3_quality,
+            l3_gate_summary=l3_gate,
+            l4_ab_compare_summary=l4_ab,
+            gate_mode="strict",
+            additional_reasons=["custom_unknown_reason_x"],
+        )
+        self.assertEqual(summary.get("status"), "FAIL")
+        reasons = set(summary.get("reasons") or [])
+        self.assertIn("reason_enum_unknown", reasons)
+        unknown = set(summary.get("unknown_reasons") or [])
+        self.assertIn("custom_unknown_reason_x", unknown)
+
+    def test_reason_enum_observe_mode_stays_needs_review(self) -> None:
+        run_summary, run_results, l3_quality, l3_gate, l4_ab = self._base_inputs()
+        summary = evaluate_l5_eval_v1(
+            run_summary=run_summary,
+            run_results=run_results,
+            l3_quality_summary=l3_quality,
+            l3_gate_summary=l3_gate,
+            l4_ab_compare_summary=l4_ab,
+            gate_mode="observe",
+            additional_reasons=["custom_unknown_reason_x"],
+        )
+        self.assertEqual(summary.get("status"), "NEEDS_REVIEW")
+        self.assertIn("reason_enum_unknown", set(summary.get("reasons") or []))
+
 
 if __name__ == "__main__":
     unittest.main()
