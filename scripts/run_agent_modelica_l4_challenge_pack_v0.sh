@@ -23,7 +23,18 @@ MAX_TIME_SEC="${GATEFORGE_AGENT_L4_CHALLENGE_MAX_TIME_SEC:-120}"
 RUNTIME_THRESHOLD="${GATEFORGE_AGENT_L4_CHALLENGE_RUNTIME_THRESHOLD:-0.2}"
 LIVE_TIMEOUT_SEC="${GATEFORGE_AGENT_L4_CHALLENGE_LIVE_TIMEOUT_SEC:-90}"
 LIVE_MAX_OUTPUT_CHARS="${GATEFORGE_AGENT_L4_CHALLENGE_LIVE_MAX_OUTPUT_CHARS:-1600}"
-LIVE_EXECUTOR_CMD="${GATEFORGE_AGENT_L4_CHALLENGE_LIVE_EXECUTOR_CMD:-python3 -m gateforge.agent_modelica_live_executor_gemini_v1 --task-id \"__TASK_ID__\" --failure-type \"__FAILURE_TYPE__\" --expected-stage \"__EXPECTED_STAGE__\" --source-model-path \"__SOURCE_MODEL_PATH__\" --mutated-model-path \"__MUTATED_MODEL_PATH__\" --repair-actions __REPAIR_ACTIONS_SHQ__ --max-rounds \"__MAX_ROUNDS__\" --timeout-sec \"__MAX_TIME_SEC__\" --planner-backend \"${PLANNER_BACKEND}\" --backend \"${BACKEND}\" --docker-image \"${OM_DOCKER_IMAGE}\"}"
+BASELINE_PLANNER_BACKEND="${GATEFORGE_AGENT_L4_CHALLENGE_BASELINE_PLANNER_BACKEND:-gemini}"
+BASELINE_LLM_MODEL="${GATEFORGE_AGENT_L4_CHALLENGE_BASELINE_LLM_MODEL:-${LLM_MODEL:-${GATEFORGE_GEMINI_MODEL:-}}}"
+LIVE_EXECUTOR_CMD="${GATEFORGE_AGENT_L4_CHALLENGE_LIVE_EXECUTOR_CMD:-python3 -m gateforge.agent_modelica_live_executor_gemini_v1 --task-id \"__TASK_ID__\" --failure-type \"__FAILURE_TYPE__\" --expected-stage \"__EXPECTED_STAGE__\" --source-model-path \"__SOURCE_MODEL_PATH__\" --mutated-model-path \"__MUTATED_MODEL_PATH__\" --repair-actions __REPAIR_ACTIONS_SHQ__ --max-rounds \"__MAX_ROUNDS__\" --timeout-sec \"__MAX_TIME_SEC__\" --planner-backend \"${BASELINE_PLANNER_BACKEND}\" --backend \"${BACKEND}\" --docker-image \"${OM_DOCKER_IMAGE}\"}"
+BASELINE_RUN_SUMMARY="$OUT_DIR/baseline_off_run_summary.json"
+BASELINE_RUN_RESULTS="$OUT_DIR/baseline_off_run_results.json"
+BASELINE_CMD_SHA256="$(python3 - "$LIVE_EXECUTOR_CMD" <<'PY'
+import hashlib
+import sys
+print(hashlib.sha256(sys.argv[1].encode("utf-8")).hexdigest())
+PY
+)"
+GIT_COMMIT="$(git rev-parse --short HEAD 2>/dev/null || true)"
 
 if [ ! -f "$BASE_TASKSET" ]; then
   echo "Missing base taskset: $BASE_TASKSET" >&2
@@ -46,7 +57,8 @@ python3 -m gateforge.agent_modelica_l4_challenge_pack_v0 \
   --report-out "$OUT_DIR/frozen_summary.md"
 
 set +e
-python3 -m gateforge.agent_modelica_run_contract_v1 \
+if [ -n "$BASELINE_LLM_MODEL" ]; then
+  env LLM_MODEL="$BASELINE_LLM_MODEL" python3 -m gateforge.agent_modelica_run_contract_v1 \
   --taskset "$OUT_DIR/taskset_frozen.json" \
   --mode live \
   --max-rounds "$MAX_ROUNDS" \
@@ -56,14 +68,28 @@ python3 -m gateforge.agent_modelica_run_contract_v1 \
   --live-timeout-sec "$LIVE_TIMEOUT_SEC" \
   --live-max-output-chars "$LIVE_MAX_OUTPUT_CHARS" \
   --l4-enabled off \
-  --results-out "$OUT_DIR/baseline_off_run_results.json" \
-  --out "$OUT_DIR/baseline_off_run_summary.json"
+  --results-out "$BASELINE_RUN_RESULTS" \
+  --out "$BASELINE_RUN_SUMMARY"
+else
+  python3 -m gateforge.agent_modelica_run_contract_v1 \
+  --taskset "$OUT_DIR/taskset_frozen.json" \
+  --mode live \
+  --max-rounds "$MAX_ROUNDS" \
+  --max-time-sec "$MAX_TIME_SEC" \
+  --runtime-threshold "$RUNTIME_THRESHOLD" \
+  --live-executor-cmd "$LIVE_EXECUTOR_CMD" \
+  --live-timeout-sec "$LIVE_TIMEOUT_SEC" \
+  --live-max-output-chars "$LIVE_MAX_OUTPUT_CHARS" \
+  --l4-enabled off \
+  --results-out "$BASELINE_RUN_RESULTS" \
+  --out "$BASELINE_RUN_SUMMARY"
+fi
 BASELINE_RC=$?
 set -e
 
 BASELINE_OFF_SUCCESS=""
-if [ -f "$OUT_DIR/baseline_off_run_summary.json" ]; then
-  BASELINE_OFF_SUCCESS="$(python3 - "$OUT_DIR/baseline_off_run_summary.json" <<'PY'
+if [ -f "$BASELINE_RUN_SUMMARY" ]; then
+  BASELINE_OFF_SUCCESS="$(python3 - "$BASELINE_RUN_SUMMARY" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -120,6 +146,57 @@ summary = json.loads(summary_path.read_text(encoding="utf-8")) if summary_path.e
 summary["baseline_off_run_exit_code"] = baseline_rc
 summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
 print(json.dumps({"status": summary.get("status"), "baseline_off_success_at_k_pct": summary.get("baseline_off_success_at_k_pct")}))
+PY
+
+python3 - "$OUT_DIR/frozen_summary.json" "$OUT_DIR/manifest.json" "$BASE_TASKSET" "$BASELINE_RUN_SUMMARY" "$BASELINE_RUN_RESULTS" "$BASELINE_PLANNER_BACKEND" "$BASELINE_LLM_MODEL" "$BACKEND" "$OM_DOCKER_IMAGE" "$LIVE_EXECUTOR_CMD" "$BASELINE_CMD_SHA256" "$LIVE_TIMEOUT_SEC" "$LIVE_MAX_OUTPUT_CHARS" "$MAX_ROUNDS" "$MAX_TIME_SEC" "$RUNTIME_THRESHOLD" "$GIT_COMMIT" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+summary_path = Path(sys.argv[1])
+manifest_path = Path(sys.argv[2])
+base_taskset = str(sys.argv[3] or "")
+baseline_run_summary = str(sys.argv[4] or "")
+baseline_run_results = str(sys.argv[5] or "")
+planner_backend = str(sys.argv[6] or "")
+llm_model = str(sys.argv[7] or "")
+backend = str(sys.argv[8] or "")
+docker_image = str(sys.argv[9] or "")
+live_executor_cmd = str(sys.argv[10] or "")
+live_executor_cmd_sha256 = str(sys.argv[11] or "")
+live_timeout_sec = int(float(sys.argv[12] or 0))
+live_max_output_chars = int(float(sys.argv[13] or 0))
+max_rounds = int(float(sys.argv[14] or 0))
+max_time_sec = int(float(sys.argv[15] or 0))
+runtime_threshold = float(sys.argv[16] or 0.0)
+git_commit = str(sys.argv[17] or "")
+
+baseline_provenance = {
+    "taskset_in": base_taskset,
+    "baseline_run_summary_path": baseline_run_summary,
+    "baseline_run_results_path": baseline_run_results,
+    "planner_backend": planner_backend,
+    "llm_model": llm_model or None,
+    "backend": backend,
+    "docker_image": docker_image,
+    "live_executor_cmd": live_executor_cmd,
+    "live_executor_cmd_sha256": live_executor_cmd_sha256,
+    "live_timeout_sec": live_timeout_sec,
+    "live_max_output_chars": live_max_output_chars,
+    "max_rounds": max_rounds,
+    "max_time_sec": max_time_sec,
+    "runtime_threshold": runtime_threshold,
+    "git_commit": git_commit,
+}
+
+for path in (summary_path, manifest_path):
+    if not path.exists():
+        continue
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        continue
+    payload["baseline_provenance"] = baseline_provenance
+    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 PY
 
 cat "$OUT_DIR/frozen_summary.json"
