@@ -10,7 +10,8 @@ from typing import Any
 SCHEMA_VERSION = "agent_modelica_l4_uplift_decision_v0"
 PRIMARY_REASON_PRIORITY = [
     "infra",
-    "baseline_out_of_range",
+    "baseline_too_weak",
+    "baseline_saturated_no_headroom",
     "delta_below_threshold",
     "quality_regression",
 ]
@@ -52,6 +53,9 @@ def _write_markdown(path: str, payload: dict) -> None:
         f"- main_delta_success_at_k_pp: `{payload.get('main_delta_success_at_k_pp')}`",
         f"- main_infra_failure_count: `{payload.get('main_infra_failure_count')}`",
         f"- baseline_off_success_at_k_pct: `{payload.get('baseline_off_success_at_k_pct')}`",
+        f"- baseline_meets_minimum: `{payload.get('baseline_meets_minimum')}`",
+        f"- baseline_has_headroom: `{payload.get('baseline_has_headroom')}`",
+        f"- baseline_headroom_max_pct: `{payload.get('baseline_headroom_max_pct')}`",
         f"- baseline_in_target_range: `{payload.get('baseline_in_target_range')}`",
         f"- consistency_ok: `{payload.get('consistency_ok')}`",
         "",
@@ -216,10 +220,21 @@ def evaluate_l4_uplift_decision_v0(
     compare_main = _extract_compare_metrics(main_sweep_summary if isinstance(main_sweep_summary, dict) else {})
     compare_night = _extract_compare_metrics(night_sweep_summary if isinstance(night_sweep_summary, dict) else {})
 
-    baseline_off_success = challenge_summary.get("baseline_off_success_at_k_pct")
-    baseline_in_range = challenge_summary.get("baseline_in_target_range")
-    if baseline_in_range is not True:
-        reasons.append("baseline_out_of_range")
+    baseline_off_success = _to_float(challenge_summary.get("baseline_off_success_at_k_pct"), 0.0)
+    baseline_meets_minimum = challenge_summary.get("baseline_meets_minimum")
+    if baseline_meets_minimum is None:
+        baseline_meets_minimum = challenge_summary.get("baseline_in_target_range")
+    baseline_meets_minimum = baseline_meets_minimum is True
+    baseline_headroom_max_pct = max(0.0, 100.0 - float(min_delta_success_pp))
+    baseline_has_headroom = challenge_summary.get("baseline_has_headroom")
+    if baseline_has_headroom is None:
+        baseline_has_headroom = baseline_off_success <= baseline_headroom_max_pct
+    baseline_has_headroom = baseline_has_headroom is True
+    baseline_uplift_eligible = baseline_meets_minimum and baseline_has_headroom
+    if not baseline_meets_minimum:
+        reasons.append("baseline_too_weak")
+    elif not baseline_has_headroom:
+        reasons.append("baseline_saturated_no_headroom")
 
     main_delta = _to_float(compare_main.get("delta_success_at_k_pp"), 0.0)
     main_delta_reg = _to_float(compare_main.get("delta_regression_fail_rate_pp"), 0.0)
@@ -231,7 +246,7 @@ def evaluate_l4_uplift_decision_v0(
     if infra_total > 0:
         reasons.append("infra")
 
-    if baseline_in_range is True:
+    if baseline_uplift_eligible:
         if main_delta < float(min_delta_success_pp):
             reasons.append("delta_below_threshold")
         if main_delta_reg > float(max_regression_worsen_pp) or main_delta_phy > float(max_physics_worsen_pp):
@@ -293,7 +308,11 @@ def evaluate_l4_uplift_decision_v0(
         "night_infra_failure_count": infra_night,
         "infra_failure_count_total": infra_total,
         "baseline_off_success_at_k_pct": baseline_off_success,
-        "baseline_in_target_range": baseline_in_range,
+        "baseline_meets_minimum": baseline_meets_minimum,
+        "baseline_has_headroom": baseline_has_headroom,
+        "baseline_headroom_max_pct": baseline_headroom_max_pct,
+        "baseline_eligible_for_uplift": baseline_uplift_eligible,
+        "baseline_in_target_range": baseline_meets_minimum,
         "main_recommended_profile": str(compare_main.get("recommended_profile") or main_sweep_summary.get("recommended_profile") or ""),
         "main_no_progress_rate_pct": _to_float(compare_main.get("no_progress_rate_pct_on"), 0.0),
         "main_llm_fallback_rate_pct": _to_float(compare_main.get("llm_fallback_rate_pct_on"), 0.0),

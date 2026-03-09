@@ -15,8 +15,8 @@ PRIMARY_REASON_PRIORITY = [
     "missing_artifacts",
     "repeat_required",
     "candidate_unstable",
+    "baseline_saturated_no_headroom",
     "baseline_too_weak",
-    "baseline_too_strong",
     "no_in_range_candidate",
 ]
 
@@ -56,6 +56,7 @@ def _write_markdown(path: str, payload: dict[str, Any]) -> None:
         f"- primary_reason: `{payload.get('primary_reason')}`",
         f"- canonical_budget_token: `{canonical.get('budget_token')}`",
         f"- canonical_success_at_k_pct: `{canonical.get('baseline_off_success_at_k_pct')}`",
+        f"- baseline_headroom_max_pct: `{payload.get('baseline_headroom_max_pct')}`",
         f"- stability_ok: `{payload.get('stability_ok')}`",
         f"- stability_in_range_run_count: `{payload.get('stability_in_range_run_count')}`",
         f"- stability_total_run_count: `{payload.get('stability_total_run_count')}`",
@@ -137,6 +138,13 @@ def _candidate_row(candidate_dir: str) -> dict[str, Any]:
         "max_rounds": _to_int(max_rounds, 0),
         "max_time_sec": _to_int(max_time_sec, 0),
         "baseline_off_success_at_k_pct": _to_float(success_pct, 0.0),
+        "baseline_meets_minimum": (
+            frozen_summary.get("baseline_meets_minimum")
+            if frozen_summary.get("baseline_meets_minimum") is not None
+            else (frozen_summary.get("baseline_in_target_range") is True)
+        ),
+        "baseline_has_headroom": frozen_summary.get("baseline_has_headroom"),
+        "baseline_eligible_for_uplift": frozen_summary.get("baseline_eligible_for_uplift"),
         "baseline_in_target_range": frozen_summary.get("baseline_in_target_range") is True,
         "status": str(frozen_summary.get("status") or ""),
         "total_selected_tasks": _to_int(frozen_summary.get("total_selected_tasks"), 0),
@@ -160,13 +168,12 @@ def _stability_payload(
     rows: list[dict[str, Any]],
     *,
     min_pct: float,
-    max_pct: float,
     min_in_range_runs: int,
     max_spread_pp: float,
 ) -> dict[str, Any]:
     usable = [row for row in rows if row.get("complete_artifacts") and _to_int(row.get("infra_failure_count"), 0) == 0]
     values = [_to_float(row.get("baseline_off_success_at_k_pct"), 0.0) for row in usable]
-    in_range_runs = [value for value in values if float(min_pct) <= value <= float(max_pct)]
+    in_range_runs = [value for value in values if value >= float(min_pct)]
     spread = (max(values) - min(values)) if values else 0.0
     ok = bool(
         usable
@@ -188,11 +195,12 @@ def evaluate_l4_canonical_baseline_v0(
     *,
     candidate_dirs: list[str],
     target_min_off_success_pct: float = 60.0,
-    target_max_off_success_pct: float = 90.0,
+    min_uplift_delta_pp: float = 5.0,
     required_total_runs: int = 3,
     min_in_range_runs: int = 2,
     max_repeat_spread_pp: float = 20.0,
 ) -> dict[str, Any]:
+    baseline_headroom_max_pct = max(0.0, 100.0 - float(min_uplift_delta_pp))
     rows = [_candidate_row(x) for x in candidate_dirs if str(x).strip()]
     rows = [row for row in rows if str(row.get("candidate_dir") or "").strip()]
     grouped: dict[str, list[dict[str, Any]]] = {}
@@ -242,7 +250,7 @@ def evaluate_l4_canonical_baseline_v0(
             continue
         if _to_int(row.get("infra_failure_count"), 0) > 0:
             continue
-        if row.get("baseline_in_target_range") is not True:
+        if row.get("baseline_meets_minimum") is not True:
             continue
         runs = grouped.get(str(row.get("budget_token") or ""), [])
         if len(runs) < int(required_total_runs):
@@ -251,7 +259,6 @@ def evaluate_l4_canonical_baseline_v0(
         candidate_stability = _stability_payload(
             runs,
             min_pct=float(target_min_off_success_pct),
-            max_pct=float(target_max_off_success_pct),
             min_in_range_runs=int(min_in_range_runs),
             max_spread_pp=float(max_repeat_spread_pp),
         )
@@ -287,12 +294,15 @@ def evaluate_l4_canonical_baseline_v0(
             values = [_to_float(row.get("baseline_off_success_at_k_pct"), 0.0) for row in strength_rows]
             if values and all(value < float(target_min_off_success_pct) for value in values):
                 reasons.append("baseline_too_weak")
-            elif values and all(value > float(target_max_off_success_pct) for value in values):
-                reasons.append("baseline_too_strong")
             else:
                 reasons.append("no_in_range_candidate")
         else:
             reasons.append("no_in_range_candidate")
+
+    if canonical_budget is not None:
+        canonical_success = _to_float(canonical_budget.get("baseline_off_success_at_k_pct"), 0.0)
+        if canonical_success > float(baseline_headroom_max_pct):
+            reasons.append("baseline_saturated_no_headroom")
 
     primary_reason = "none"
     for reason in PRIMARY_REASON_PRIORITY:
@@ -322,9 +332,10 @@ def evaluate_l4_canonical_baseline_v0(
         "baseline_planner_backend": provenance_values.get("planner_backend", [None])[0] if len(provenance_values.get("planner_backend", [])) == 1 else None,
         "baseline_llm_model": provenance_values.get("llm_model", [None])[0] if len(provenance_values.get("llm_model", [])) == 1 else None,
         "base_taskset": provenance_values.get("taskset_in", [None])[0] if len(provenance_values.get("taskset_in", [])) == 1 else None,
+        "baseline_headroom_max_pct": float(baseline_headroom_max_pct),
         "thresholds": {
             "target_min_off_success_pct": float(target_min_off_success_pct),
-            "target_max_off_success_pct": float(target_max_off_success_pct),
+            "min_uplift_delta_pp": float(min_uplift_delta_pp),
             "required_total_runs": int(required_total_runs),
             "min_in_range_runs": int(min_in_range_runs),
             "max_repeat_spread_pp": float(max_repeat_spread_pp),
@@ -339,7 +350,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Select canonical L4 baseline budget from challenge runs")
     parser.add_argument("--candidate-dir", action="append", default=[])
     parser.add_argument("--target-min-off-success-pct", type=float, default=60.0)
-    parser.add_argument("--target-max-off-success-pct", type=float, default=90.0)
+    parser.add_argument("--min-uplift-delta-pp", type=float, default=5.0)
     parser.add_argument("--required-total-runs", type=int, default=3)
     parser.add_argument("--min-in-range-runs", type=int, default=2)
     parser.add_argument("--max-repeat-spread-pp", type=float, default=20.0)
@@ -350,7 +361,7 @@ def main() -> None:
     summary = evaluate_l4_canonical_baseline_v0(
         candidate_dirs=[str(x) for x in args.candidate_dir],
         target_min_off_success_pct=float(args.target_min_off_success_pct),
-        target_max_off_success_pct=float(args.target_max_off_success_pct),
+        min_uplift_delta_pp=float(args.min_uplift_delta_pp),
         required_total_runs=int(args.required_total_runs),
         min_in_range_runs=int(args.min_in_range_runs),
         max_repeat_spread_pp=float(args.max_repeat_spread_pp),

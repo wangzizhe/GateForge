@@ -10,7 +10,7 @@ BUDGETS="${GATEFORGE_AGENT_L4_CANONICAL_BASELINE_BUDGETS:-1x120,1x180,2x90,2x120
 REPEAT_COUNT="${GATEFORGE_AGENT_L4_CANONICAL_BASELINE_REPEAT_COUNT:-2}"
 REUSE_EXISTING="${GATEFORGE_AGENT_L4_CANONICAL_BASELINE_REUSE_EXISTING:-1}"
 TARGET_MIN_OFF_SUCCESS_PCT="${GATEFORGE_AGENT_L4_CANONICAL_BASELINE_TARGET_MIN_OFF_SUCCESS_PCT:-60}"
-TARGET_MAX_OFF_SUCCESS_PCT="${GATEFORGE_AGENT_L4_CANONICAL_BASELINE_TARGET_MAX_OFF_SUCCESS_PCT:-90}"
+MIN_UPLIFT_DELTA_PP="${GATEFORGE_AGENT_L4_CANONICAL_BASELINE_MIN_UPLIFT_DELTA_PP:-5}"
 REQUIRED_TOTAL_RUNS="${GATEFORGE_AGENT_L4_CANONICAL_BASELINE_REQUIRED_TOTAL_RUNS:-3}"
 MIN_IN_RANGE_RUNS="${GATEFORGE_AGENT_L4_CANONICAL_BASELINE_MIN_IN_RANGE_RUNS:-2}"
 MAX_REPEAT_SPREAD_PP="${GATEFORGE_AGENT_L4_CANONICAL_BASELINE_MAX_REPEAT_SPREAD_PP:-20}"
@@ -35,6 +35,12 @@ RUNS_DIR="$OUT_DIR/candidates"
 SUMMARY_PATH="$OUT_DIR/summary.json"
 REPORT_PATH="$OUT_DIR/summary.md"
 RUN_MANIFEST_PATH="$OUT_DIR/run_manifest.json"
+TARGET_MAX_OFF_SUCCESS_PCT="$(python3 - "$MIN_UPLIFT_DELTA_PP" <<'PY'
+import sys
+delta = float(sys.argv[1] or 5.0)
+print(max(0.0, 100.0 - delta))
+PY
+)"
 PROVISIONAL_SUMMARY_PATH="$OUT_DIR/.provisional_summary.json"
 
 if [ ! -f "$BASE_TASKSET" ]; then
@@ -107,14 +113,17 @@ run_budget_dir() {
   fi
 }
 
-summary_in_range() {
+summary_meets_minimum() {
   local path="$1"
   python3 - "$path" <<'PY'
 import json
 import sys
 from pathlib import Path
 payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
-print("1" if payload.get("baseline_in_target_range") is True else "0")
+meets = payload.get("baseline_meets_minimum")
+if meets is None:
+    meets = payload.get("baseline_in_target_range")
+print("1" if meets is True else "0")
 PY
 }
 
@@ -136,8 +145,8 @@ for raw_budget in "${BUDGET_TOKENS[@]}"; do
   run_budget_dir "$budget" "$out_dir" "$max_rounds" "$max_time_sec"
   RUN_DIRS+=("$out_dir")
   if [ -z "$SELECTED_BUDGET" ]; then
-    in_range="$(summary_in_range "$out_dir/frozen_summary.json")"
-    if [ "$in_range" = "1" ]; then
+    meets_minimum="$(summary_meets_minimum "$out_dir/frozen_summary.json")"
+    if [ "$meets_minimum" = "1" ]; then
       SELECTED_BUDGET="$budget"
       SELECTED_ROUNDS="$max_rounds"
       SELECTED_TIME="$max_time_sec"
@@ -156,20 +165,22 @@ for raw_budget in "${BUDGET_TOKENS[@]}"; do
       python3 -m gateforge.agent_modelica_l4_canonical_baseline_v0 \
         "${DECISION_ARGS[@]}" \
         --target-min-off-success-pct "$TARGET_MIN_OFF_SUCCESS_PCT" \
-        --target-max-off-success-pct "$TARGET_MAX_OFF_SUCCESS_PCT" \
+        --min-uplift-delta-pp "$MIN_UPLIFT_DELTA_PP" \
         --required-total-runs "$REQUIRED_TOTAL_RUNS" \
         --min-in-range-runs "$MIN_IN_RANGE_RUNS" \
         --max-repeat-spread-pp "$MAX_REPEAT_SPREAD_PP" \
         --out "$PROVISIONAL_SUMMARY_PATH" >/dev/null
-      provisional_decision="$(python3 - "$PROVISIONAL_SUMMARY_PATH" <<'PY'
+      provisional_status="$(python3 - "$PROVISIONAL_SUMMARY_PATH" <<'PY'
 import json
 import sys
 from pathlib import Path
 payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
-print(str(payload.get("decision") or ""))
+print(f"{payload.get('decision') or ''}|{payload.get('primary_reason') or ''}")
 PY
 )"
-      if [ "$provisional_decision" = "ready" ]; then
+      provisional_decision="${provisional_status%%|*}"
+      provisional_reason="${provisional_status#*|}"
+      if [ "$provisional_decision" = "ready" ] || [ "$provisional_reason" = "baseline_saturated_no_headroom" ]; then
         break
       fi
       SELECTED_BUDGET=""
@@ -187,7 +198,7 @@ done
 python3 -m gateforge.agent_modelica_l4_canonical_baseline_v0 \
   "${DECISION_ARGS[@]}" \
   --target-min-off-success-pct "$TARGET_MIN_OFF_SUCCESS_PCT" \
-  --target-max-off-success-pct "$TARGET_MAX_OFF_SUCCESS_PCT" \
+  --min-uplift-delta-pp "$MIN_UPLIFT_DELTA_PP" \
   --required-total-runs "$REQUIRED_TOTAL_RUNS" \
   --min-in-range-runs "$MIN_IN_RANGE_RUNS" \
   --max-repeat-spread-pp "$MAX_REPEAT_SPREAD_PP" \

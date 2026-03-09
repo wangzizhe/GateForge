@@ -34,6 +34,38 @@ print(json.dumps(payload))
     return f"python3 -c {shlex.quote(code)}"
 
 
+def _cmd_always_fail() -> str:
+    code = """
+import json
+payload = {
+  "check_model_pass": False,
+  "simulate_pass": False,
+  "physics_contract_pass": False,
+  "regression_pass": False,
+  "elapsed_sec": 0.1,
+  "error_message": "mock_failure",
+  "compile_error": "mock_failure",
+  "simulate_error_message": "mock_failure",
+  "stderr_snippet": "mock_failure",
+  "attempts": [
+    {
+      "observed_failure_type": "model_check_error",
+      "reason": "mock_failure",
+      "stderr_snippet": "mock_failure",
+      "diagnostic_ir": {
+        "error_type": "model_check_error",
+        "error_subtype": "mock_failure",
+        "stage": "check",
+        "confidence": 0.95
+      }
+    }
+  ]
+}
+print(json.dumps(payload))
+""".strip()
+    return f"python3 -c {shlex.quote(code)}"
+
+
 class RunAgentModelicaL4ChallengePackV0ScriptTests(unittest.TestCase):
     def _taskset_payload(self, model_path: str) -> dict:
         rows = []
@@ -119,7 +151,7 @@ class RunAgentModelicaL4ChallengePackV0ScriptTests(unittest.TestCase):
                 **os.environ,
                 "GATEFORGE_AGENT_L4_CHALLENGE_BASE_TASKSET": str(taskset),
                 "GATEFORGE_AGENT_L4_CHALLENGE_OUT_DIR": str(out_dir),
-                "GATEFORGE_AGENT_L4_CHALLENGE_LIVE_EXECUTOR_CMD": _cmd_always_pass(),
+                "GATEFORGE_AGENT_L4_CHALLENGE_LIVE_EXECUTOR_CMD": _cmd_always_fail(),
                 "GATEFORGE_AGENT_L4_CHALLENGE_TARGET_MIN_OFF_SUCCESS_PCT": "60",
                 "GATEFORGE_AGENT_L4_CHALLENGE_TARGET_MAX_OFF_SUCCESS_PCT": "90",
                 "GATEFORGE_AGENT_L4_CHALLENGE_MAX_ROUNDS": "1",
@@ -139,7 +171,7 @@ class RunAgentModelicaL4ChallengePackV0ScriptTests(unittest.TestCase):
             self.assertNotEqual(proc.returncode, 0, msg=proc.stdout)
             summary = json.loads((out_dir / "frozen_summary.json").read_text(encoding="utf-8"))
             self.assertEqual(summary.get("status"), "FAIL")
-            self.assertIn("baseline_off_success_out_of_target_range", set(summary.get("reasons") or []))
+            self.assertIn("baseline_off_success_below_minimum", set(summary.get("reasons") or []))
             self.assertEqual(int(summary.get("baseline_summary_refresh_exit_code") or 0), 1)
             self.assertIn("baseline_provenance", summary)
             manifest = json.loads((out_dir / "manifest.json").read_text(encoding="utf-8"))
@@ -181,9 +213,9 @@ class RunAgentModelicaL4ChallengePackV0ScriptTests(unittest.TestCase):
             )
             self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
             summary = json.loads((out_dir / "frozen_summary.json").read_text(encoding="utf-8"))
-            self.assertEqual(summary.get("status"), "FAIL")
-            self.assertEqual(int(summary.get("baseline_summary_refresh_exit_code") or 0), 1)
-            self.assertIn("baseline_off_success_out_of_target_range", set(summary.get("reasons") or []))
+            self.assertEqual(summary.get("status"), "PASS")
+            self.assertEqual(int(summary.get("baseline_summary_refresh_exit_code") or 0), 0)
+            self.assertIn("baseline_off_success_above_headroom_limit", set(summary.get("reasons") or []))
             provenance = summary.get("baseline_provenance") if isinstance(summary.get("baseline_provenance"), dict) else {}
             self.assertEqual(str(provenance.get("planner_backend") or ""), "gemini")
             self.assertEqual(str(provenance.get("llm_model") or ""), "gemini-3.1-pro-preview")
