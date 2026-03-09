@@ -208,6 +208,51 @@ class RunAgentModelicaL5EvalV1ScriptTests(unittest.TestCase):
             self.assertEqual(summary.get("status"), "FAIL")
             self.assertIn("delta_success_at_k_below_threshold", set(summary.get("reasons") or []))
 
+    def test_script_passes_in_absolute_mode_with_strong_baseline_reference(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        script = repo_root / "scripts" / "run_agent_modelica_l5_eval_v1.sh"
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            taskset = root / "taskset.json"
+            out_dir = root / "out_abs"
+            taskset.write_text(
+                json.dumps(
+                    {
+                        "tasks": [
+                            {"task_id": "t_small", "scale": "small", "failure_type": "model_check_error", "expected_stage": "check"},
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            env = {
+                **os.environ,
+                "GATEFORGE_AGENT_L5_EVAL_TASKSET": str(taskset),
+                "GATEFORGE_AGENT_L5_EVAL_OUT_DIR": str(out_dir),
+                "GATEFORGE_AGENT_L5_EVAL_MAX_ROUNDS": "1",
+                "GATEFORGE_AGENT_L5_EVAL_MAX_TIME_SEC": "20",
+                "GATEFORGE_AGENT_L5_EVAL_LIVE_TIMEOUT_SEC": "20",
+                "GATEFORGE_AGENT_L5_ACCEPTANCE_MODE": "absolute_non_regression",
+                "GATEFORGE_AGENT_L5_ABSOLUTE_SUCCESS_TARGET_PCT": "85",
+                "GATEFORGE_AGENT_L5_BASELINE_REFERENCE_SUCCESS_PCT": "100",
+                "GATEFORGE_AGENT_L5_EVAL_L3_LIVE_EXECUTOR_CMD": _cmd_pass(),
+                "GATEFORGE_AGENT_L5_EVAL_L4_LIVE_EXECUTOR_CMD": _cmd_pass(),
+            }
+            proc = subprocess.run(
+                ["bash", str(script)],
+                cwd=str(repo_root),
+                capture_output=True,
+                text=True,
+                check=False,
+                env=env,
+                timeout=240,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            summary = json.loads((out_dir / "l5_eval_summary.json").read_text(encoding="utf-8"))
+            self.assertEqual(summary.get("status"), "PASS")
+            self.assertEqual(summary.get("acceptance_mode"), "absolute_non_regression")
+            self.assertTrue(bool(summary.get("non_regression_ok")))
+
     def test_script_fails_when_infra_reason_detected(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
         script = repo_root / "scripts" / "run_agent_modelica_l5_eval_v1.sh"
@@ -307,6 +352,70 @@ class RunAgentModelicaL5EvalV1ScriptTests(unittest.TestCase):
             weekly = json.loads((out_dir / "l5_weekly_metrics.json").read_text(encoding="utf-8"))
             self.assertEqual(str(weekly.get("recommendation") or ""), "promote")
             self.assertEqual(str(weekly.get("recommendation_reason") or ""), "two_week_consecutive_pass")
+
+    def test_weekly_recommendation_supports_absolute_mode(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        script = repo_root / "scripts" / "run_agent_modelica_l5_eval_v1.sh"
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            taskset = root / "taskset.json"
+            out_dir = root / "out_weekly_absolute"
+            ledger = root / "private" / "ledger.jsonl"
+            taskset.write_text(
+                json.dumps(
+                    {
+                        "tasks": [
+                            {"task_id": "t_small", "scale": "small", "failure_type": "model_check_error", "expected_stage": "check"},
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            previous_week = datetime.now(timezone.utc) - timedelta(days=8)
+            previous_row = {
+                "generated_at_utc": previous_week.isoformat(),
+                "l5_gate_status": "PASS",
+                "status": "PASS",
+                "gate_result": "PASS",
+                "acceptance_mode": "absolute_non_regression",
+                "success_at_k_pct": 100.0,
+                "absolute_success_target_pct": 85.0,
+                "non_regression_ok": True,
+                "infra_failure_count": 0,
+                "primary_reason": "none",
+                "reason_enum": ["reason_enum_unknown"],
+            }
+            ledger.parent.mkdir(parents=True, exist_ok=True)
+            ledger.write_text(json.dumps(previous_row) + "\n", encoding="utf-8")
+
+            env = {
+                **os.environ,
+                "GATEFORGE_AGENT_L5_EVAL_TASKSET": str(taskset),
+                "GATEFORGE_AGENT_L5_EVAL_OUT_DIR": str(out_dir),
+                "GATEFORGE_AGENT_L5_LEDGER_PATH": str(ledger),
+                "GATEFORGE_AGENT_L5_EVAL_MAX_ROUNDS": "1",
+                "GATEFORGE_AGENT_L5_EVAL_MAX_TIME_SEC": "20",
+                "GATEFORGE_AGENT_L5_EVAL_LIVE_TIMEOUT_SEC": "20",
+                "GATEFORGE_AGENT_L5_ACCEPTANCE_MODE": "absolute_non_regression",
+                "GATEFORGE_AGENT_L5_ABSOLUTE_SUCCESS_TARGET_PCT": "85",
+                "GATEFORGE_AGENT_L5_BASELINE_REFERENCE_SUCCESS_PCT": "100",
+                "GATEFORGE_AGENT_L5_EVAL_L3_LIVE_EXECUTOR_CMD": _cmd_pass(),
+                "GATEFORGE_AGENT_L5_EVAL_L4_LIVE_EXECUTOR_CMD": _cmd_pass(),
+            }
+            proc = subprocess.run(
+                ["bash", str(script)],
+                cwd=str(repo_root),
+                capture_output=True,
+                text=True,
+                check=False,
+                env=env,
+                timeout=240,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            weekly = json.loads((out_dir / "l5_weekly_metrics.json").read_text(encoding="utf-8"))
+            self.assertEqual(str(weekly.get("recommendation") or ""), "promote")
+            self.assertEqual(str(weekly.get("acceptance_mode") or ""), "absolute_non_regression")
 
     def test_weekly_recommendation_holds_without_previous_week(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]

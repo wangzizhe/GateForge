@@ -16,6 +16,8 @@ ALLOWED_L5_REASONS = {
     "l4_ab_compare_summary_missing",
     "attempts_missing",
     "delta_success_at_k_below_threshold",
+    "absolute_success_below_threshold",
+    "non_regression_failed",
     "physics_fail_rate_worsened_beyond_threshold",
     "regression_fail_rate_worsened_beyond_threshold",
     "infra_failure_count_not_zero",
@@ -156,8 +158,11 @@ def _write_markdown(path: str, payload: dict) -> None:
         f"- status: `{payload.get('status')}`",
         f"- gate_result: `{payload.get('gate_result')}`",
         f"- gate_mode: `{payload.get('gate_mode')}`",
+        f"- acceptance_mode: `{payload.get('acceptance_mode')}`",
         f"- success_at_k_pct: `{payload.get('success_at_k_pct')}`",
+        f"- absolute_success_target_pct: `{payload.get('absolute_success_target_pct')}`",
         f"- delta_success_at_k_pp: `{payload.get('delta_success_at_k_pp')}`",
+        f"- non_regression_ok: `{payload.get('non_regression_ok')}`",
         f"- success_headroom_pp: `{payload.get('success_headroom_pp')}`",
         f"- effective_min_delta_success_at_k_pp: `{payload.get('effective_min_delta_success_at_k_pp')}`",
         f"- physics_fail_rate_pct: `{payload.get('physics_fail_rate_pct')}`",
@@ -213,6 +218,13 @@ def _infer_l4_primary_reason(l4_ab_compare_summary: dict) -> str:
     return normalize_l4_primary_reason_v0(ranked[0][0])
 
 
+def _normalize_acceptance_mode(value: object) -> str:
+    text = str(value or "").strip().lower()
+    if text in {"delta_uplift", "absolute_non_regression"}:
+        return text
+    return "delta_uplift"
+
+
 def evaluate_l5_eval_v1(
     *,
     run_summary: dict,
@@ -221,6 +233,10 @@ def evaluate_l5_eval_v1(
     l3_gate_summary: dict,
     l4_ab_compare_summary: dict,
     gate_mode: str = "strict",
+    acceptance_mode: str = "delta_uplift",
+    absolute_success_target_pct: float = 85.0,
+    non_regression_tolerance_pp: float = 0.0,
+    baseline_reference_success_at_k_pct: float | None = None,
     min_delta_success_at_k_pp: float = 5.0,
     max_physics_fail_rate_worsen_pp: float = 2.0,
     max_regression_fail_rate_worsen_pp: float = 2.0,
@@ -242,6 +258,9 @@ def evaluate_l5_eval_v1(
     delta_success_at_k_pp = _to_float(l4_delta.get("success_at_k_pp"), round(success_at_k_pct - baseline_success_at_k_pct, 2))
     success_headroom_pp = max(0.0, round(100.0 - max(0.0, min(100.0, baseline_success_at_k_pct)), 2))
     effective_min_delta_success_at_k_pp = min(float(min_delta_success_at_k_pp), success_headroom_pp)
+    acceptance_mode_norm = _normalize_acceptance_mode(acceptance_mode)
+    baseline_reference_success = baseline_success_at_k_pct if baseline_reference_success_at_k_pct is None else float(baseline_reference_success_at_k_pct)
+    non_regression_ok = success_at_k_pct >= (baseline_reference_success - float(non_regression_tolerance_pp))
 
     physics_fail_rate_pct = _to_float(l4_on.get("physics_fail_rate_pct"), run_results_summary["physics_fail_rate_pct"])
     baseline_physics_fail_rate_pct = _to_float(l4_off.get("physics_fail_rate_pct"), physics_fail_rate_pct)
@@ -296,8 +315,14 @@ def evaluate_l5_eval_v1(
     if _to_int(run_results_summary.get("attempt_count"), 0) <= 0:
         hard_reasons.append("attempts_missing")
 
-    if delta_success_at_k_pp < float(effective_min_delta_success_at_k_pp):
-        hard_reasons.append("delta_success_at_k_below_threshold")
+    if acceptance_mode_norm == "absolute_non_regression":
+        if success_at_k_pct < float(absolute_success_target_pct):
+            hard_reasons.append("absolute_success_below_threshold")
+        if not non_regression_ok:
+            hard_reasons.append("non_regression_failed")
+    else:
+        if delta_success_at_k_pp < float(effective_min_delta_success_at_k_pp):
+            hard_reasons.append("delta_success_at_k_below_threshold")
     if delta_physics_fail_rate_pp > float(max_physics_fail_rate_worsen_pp):
         hard_reasons.append("physics_fail_rate_worsened_beyond_threshold")
     if delta_regression_fail_rate_pp > float(max_regression_fail_rate_worsen_pp):
@@ -350,9 +375,14 @@ def evaluate_l5_eval_v1(
         "status": gate_result,
         "gate_result": gate_result,
         "gate_mode": gate_mode_norm,
+        "acceptance_mode": acceptance_mode_norm,
         "success_at_k_pct": success_at_k_pct,
         "baseline_success_at_k_pct": baseline_success_at_k_pct,
+        "baseline_reference_success_at_k_pct": baseline_reference_success,
+        "absolute_success_target_pct": float(absolute_success_target_pct),
         "delta_success_at_k_pp": delta_success_at_k_pp,
+        "non_regression_tolerance_pp": float(non_regression_tolerance_pp),
+        "non_regression_ok": non_regression_ok,
         "success_headroom_pp": success_headroom_pp,
         "effective_min_delta_success_at_k_pp": effective_min_delta_success_at_k_pp,
         "physics_fail_rate_pct": physics_fail_rate_pct,
@@ -375,6 +405,9 @@ def evaluate_l5_eval_v1(
         },
         "run_results_stats": run_results_summary,
         "thresholds": {
+            "acceptance_mode": acceptance_mode_norm,
+            "absolute_success_target_pct": float(absolute_success_target_pct),
+            "non_regression_tolerance_pp": float(non_regression_tolerance_pp),
             "min_delta_success_at_k_pp": float(min_delta_success_at_k_pp),
             "effective_min_delta_success_at_k_pp": float(effective_min_delta_success_at_k_pp),
             "max_physics_fail_rate_worsen_pp": float(max_physics_fail_rate_worsen_pp),
@@ -400,6 +433,10 @@ def main() -> None:
     parser.add_argument("--l3-gate-summary", required=True)
     parser.add_argument("--l4-ab-compare-summary", required=True)
     parser.add_argument("--gate-mode", default="strict", choices=["strict", "observe"])
+    parser.add_argument("--acceptance-mode", default="delta_uplift", choices=["delta_uplift", "absolute_non_regression"])
+    parser.add_argument("--absolute-success-target-pct", type=float, default=85.0)
+    parser.add_argument("--non-regression-tolerance-pp", type=float, default=0.0)
+    parser.add_argument("--baseline-reference-success-at-k-pct", type=float, default=None)
     parser.add_argument("--min-delta-success-at-k-pp", type=float, default=5.0)
     parser.add_argument("--max-physics-fail-rate-worsen-pp", type=float, default=2.0)
     parser.add_argument("--max-regression-fail-rate-worsen-pp", type=float, default=2.0)
@@ -433,6 +470,10 @@ def main() -> None:
         l3_gate_summary=l3_gate_summary,
         l4_ab_compare_summary=l4_ab_compare_summary,
         gate_mode=str(args.gate_mode),
+        acceptance_mode=str(args.acceptance_mode),
+        absolute_success_target_pct=float(args.absolute_success_target_pct),
+        non_regression_tolerance_pp=float(args.non_regression_tolerance_pp),
+        baseline_reference_success_at_k_pct=args.baseline_reference_success_at_k_pct,
         min_delta_success_at_k_pp=float(args.min_delta_success_at_k_pp),
         max_physics_fail_rate_worsen_pp=float(args.max_physics_fail_rate_worsen_pp),
         max_regression_fail_rate_worsen_pp=float(args.max_regression_fail_rate_worsen_pp),

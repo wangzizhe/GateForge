@@ -108,6 +108,47 @@ class AgentModelicaL5EvalV1Tests(unittest.TestCase):
         self.assertEqual(summary.get("status"), "FAIL")
         self.assertIn("delta_success_at_k_below_threshold", set(summary.get("reasons") or []))
 
+    def test_eval_passes_in_absolute_mode_when_non_regressing(self) -> None:
+        run_summary, run_results, l3_quality, l3_gate, l4_ab = self._base_inputs()
+        l4_ab["off"]["success_at_k_pct"] = 100.0
+        l4_ab["on"]["success_at_k_pct"] = 100.0
+        l4_ab["delta"] = {"success_at_k_pp": 0.0}
+        summary = evaluate_l5_eval_v1(
+            run_summary=run_summary,
+            run_results=run_results,
+            l3_quality_summary=l3_quality,
+            l3_gate_summary=l3_gate,
+            l4_ab_compare_summary=l4_ab,
+            gate_mode="strict",
+            acceptance_mode="absolute_non_regression",
+            absolute_success_target_pct=85.0,
+            non_regression_tolerance_pp=0.0,
+        )
+        self.assertEqual(summary.get("status"), "PASS")
+        self.assertEqual(summary.get("acceptance_mode"), "absolute_non_regression")
+        self.assertTrue(bool(summary.get("non_regression_ok")))
+
+    def test_eval_fails_in_absolute_mode_when_absolute_target_missed(self) -> None:
+        run_summary, run_results, l3_quality, l3_gate, l4_ab = self._base_inputs()
+        l4_ab["off"]["success_at_k_pct"] = 100.0
+        l4_ab["on"]["success_at_k_pct"] = 80.0
+        l4_ab["delta"] = {"success_at_k_pp": -20.0}
+        summary = evaluate_l5_eval_v1(
+            run_summary=run_summary,
+            run_results=run_results,
+            l3_quality_summary=l3_quality,
+            l3_gate_summary=l3_gate,
+            l4_ab_compare_summary=l4_ab,
+            gate_mode="strict",
+            acceptance_mode="absolute_non_regression",
+            absolute_success_target_pct=85.0,
+            non_regression_tolerance_pp=0.0,
+        )
+        self.assertEqual(summary.get("status"), "FAIL")
+        reasons = set(summary.get("reasons") or [])
+        self.assertIn("absolute_success_below_threshold", reasons)
+        self.assertIn("non_regression_failed", reasons)
+
     def test_eval_observe_mode_downgrades_fail_to_needs_review(self) -> None:
         run_summary, run_results, l3_quality, l3_gate, l4_ab = self._base_inputs()
         l4_ab["delta"] = {"success_at_k_pp": 0.0}
@@ -170,6 +211,10 @@ class AgentModelicaL5EvalV1Tests(unittest.TestCase):
                     str(l3_gate_path),
                     "--l4-ab-compare-summary",
                     str(l4_ab_path),
+                    "--acceptance-mode",
+                    "absolute_non_regression",
+                    "--absolute-success-target-pct",
+                    "85",
                     "--min-delta-success-at-k-pp",
                     "12",
                     "--out",
