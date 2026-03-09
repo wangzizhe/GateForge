@@ -13,9 +13,9 @@ PRIMARY_REASON_PRIORITY = [
     "inconsistent_provenance",
     "infra",
     "missing_artifacts",
+    "baseline_saturated_no_headroom",
     "repeat_required",
     "candidate_unstable",
-    "baseline_saturated_no_headroom",
     "baseline_too_weak",
     "no_in_range_candidate",
 ]
@@ -164,6 +164,20 @@ def _candidate_row(candidate_dir: str) -> dict[str, Any]:
     }
 
 
+def _canonical_budget_payload(row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "budget_token": str(row.get("budget_token") or ""),
+        "candidate_dir": str(row.get("candidate_dir") or ""),
+        "max_rounds": _to_int(row.get("max_rounds"), 0),
+        "max_time_sec": _to_int(row.get("max_time_sec"), 0),
+        "baseline_off_success_at_k_pct": _to_float(row.get("baseline_off_success_at_k_pct"), 0.0),
+        "planner_backend": str(row.get("planner_backend") or ""),
+        "llm_model": str(row.get("llm_model") or ""),
+        "taskset_in": str(row.get("taskset_in") or ""),
+        "git_commit": str(row.get("git_commit") or ""),
+    }
+
+
 def _stability_payload(
     rows: list[dict[str, Any]],
     *,
@@ -242,6 +256,7 @@ def evaluate_l4_canonical_baseline_v0(
         "values": [],
     }
     canonical_budget: dict[str, Any] | None = None
+    saturated_budget: dict[str, Any] | None = None
     selected_runs: list[dict[str, Any]] = []
     pending_repeat = False
     unstable_candidate = False
@@ -252,6 +267,12 @@ def evaluate_l4_canonical_baseline_v0(
             continue
         if row.get("baseline_meets_minimum") is not True:
             continue
+        if (
+            row.get("baseline_has_headroom") is False
+            or _to_float(row.get("baseline_off_success_at_k_pct"), 0.0) > float(baseline_headroom_max_pct)
+        ):
+            saturated_budget = _canonical_budget_payload(row)
+            break
         runs = grouped.get(str(row.get("budget_token") or ""), [])
         if len(runs) < int(required_total_runs):
             pending_repeat = True
@@ -265,22 +286,15 @@ def evaluate_l4_canonical_baseline_v0(
         if candidate_stability.get("ok"):
             selected_runs = runs
             stability = candidate_stability
-            canonical_budget = {
-                "budget_token": str(row.get("budget_token") or ""),
-                "candidate_dir": str(row.get("candidate_dir") or ""),
-                "max_rounds": _to_int(row.get("max_rounds"), 0),
-                "max_time_sec": _to_int(row.get("max_time_sec"), 0),
-                "baseline_off_success_at_k_pct": _to_float(row.get("baseline_off_success_at_k_pct"), 0.0),
-                "planner_backend": str(row.get("planner_backend") or ""),
-                "llm_model": str(row.get("llm_model") or ""),
-                "taskset_in": str(row.get("taskset_in") or ""),
-                "git_commit": str(row.get("git_commit") or ""),
-            }
+            canonical_budget = _canonical_budget_payload(row)
             break
         unstable_candidate = True
 
     if canonical_budget is not None:
         pass
+    elif saturated_budget is not None:
+        canonical_budget = saturated_budget
+        reasons.append("baseline_saturated_no_headroom")
     elif pending_repeat:
         reasons.append("repeat_required")
         status = "NEEDS_REVIEW"
@@ -301,7 +315,7 @@ def evaluate_l4_canonical_baseline_v0(
 
     if canonical_budget is not None:
         canonical_success = _to_float(canonical_budget.get("baseline_off_success_at_k_pct"), 0.0)
-        if canonical_success > float(baseline_headroom_max_pct):
+        if canonical_success > float(baseline_headroom_max_pct) and "baseline_saturated_no_headroom" not in reasons:
             reasons.append("baseline_saturated_no_headroom")
 
     primary_reason = "none"

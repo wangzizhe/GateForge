@@ -110,6 +110,29 @@ class AgentModelicaL4CanonicalBaselineV0Tests(unittest.TestCase):
             canonical = summary.get("canonical_budget") if isinstance(summary.get("canonical_budget"), dict) else {}
             self.assertEqual(str(canonical.get("budget_token") or ""), "2x20")
 
+    def test_holds_when_first_minimum_budget_has_no_headroom_without_repeats(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            dirs = [
+                _write_candidate(root, "mr1_mt20", success_pct=33.33, in_range=False, max_rounds=1, max_time_sec=20),
+                _write_candidate(root, "mr2_mt20", success_pct=100.0, in_range=False, max_rounds=2, max_time_sec=20),
+            ]
+            frozen = json.loads((root / "mr2_mt20" / "frozen_summary.json").read_text(encoding="utf-8"))
+            frozen["baseline_meets_minimum"] = True
+            frozen["baseline_has_headroom"] = False
+            frozen["baseline_eligible_for_uplift"] = False
+            frozen["baseline_in_target_range"] = True
+            (root / "mr2_mt20" / "frozen_summary.json").write_text(json.dumps(frozen, indent=2), encoding="utf-8")
+            summary = evaluate_l4_canonical_baseline_v0(
+                candidate_dirs=dirs,
+                target_min_off_success_pct=60.0,
+                min_uplift_delta_pp=5.0,
+            )
+            self.assertEqual(str(summary.get("decision") or ""), "hold")
+            self.assertEqual(str(summary.get("primary_reason") or ""), "baseline_saturated_no_headroom")
+            canonical = summary.get("canonical_budget") if isinstance(summary.get("canonical_budget"), dict) else {}
+            self.assertEqual(str(canonical.get("budget_token") or ""), "2x20")
+
     def test_holds_when_candidate_is_unstable(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
