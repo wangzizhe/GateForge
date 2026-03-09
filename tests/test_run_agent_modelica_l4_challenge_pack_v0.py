@@ -76,6 +76,8 @@ class RunAgentModelicaL4ChallengePackV0ScriptTests(unittest.TestCase):
                 "GATEFORGE_AGENT_L4_CHALLENGE_BASE_TASKSET": str(taskset),
                 "GATEFORGE_AGENT_L4_CHALLENGE_OUT_DIR": str(out_dir),
                 "GATEFORGE_AGENT_L4_CHALLENGE_LIVE_EXECUTOR_CMD": _cmd_always_pass(),
+                "GATEFORGE_AGENT_L4_CHALLENGE_BASELINE_PLANNER_BACKEND": "gemini",
+                "GATEFORGE_AGENT_L4_CHALLENGE_BASELINE_LLM_MODEL": "gemini-3.1-pro-preview",
                 "GATEFORGE_AGENT_L4_CHALLENGE_TARGET_MIN_OFF_SUCCESS_PCT": "90",
                 "GATEFORGE_AGENT_L4_CHALLENGE_TARGET_MAX_OFF_SUCCESS_PCT": "100",
                 "GATEFORGE_AGENT_L4_CHALLENGE_MAX_ROUNDS": "1",
@@ -95,6 +97,12 @@ class RunAgentModelicaL4ChallengePackV0ScriptTests(unittest.TestCase):
             summary = json.loads((out_dir / "frozen_summary.json").read_text(encoding="utf-8"))
             self.assertEqual(summary.get("status"), "PASS")
             self.assertEqual(float(summary.get("baseline_off_success_at_k_pct") or 0.0), 100.0)
+            provenance = summary.get("baseline_provenance") if isinstance(summary.get("baseline_provenance"), dict) else {}
+            self.assertEqual(str(provenance.get("planner_backend") or ""), "gemini")
+            self.assertEqual(str(provenance.get("llm_model") or ""), "gemini-3.1-pro-preview")
+            self.assertTrue(str(provenance.get("live_executor_cmd_sha256") or ""))
+            manifest = json.loads((out_dir / "manifest.json").read_text(encoding="utf-8"))
+            self.assertIn("baseline_provenance", manifest)
 
     def test_script_fails_when_baseline_out_of_range(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
