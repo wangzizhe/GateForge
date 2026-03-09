@@ -26,6 +26,10 @@ L3_LIVE_EXECUTOR_CMD="${GATEFORGE_AGENT_L5_EVAL_L3_LIVE_EXECUTOR_CMD:-python3 -m
 L4_LIVE_EXECUTOR_CMD="${GATEFORGE_AGENT_L5_EVAL_L4_LIVE_EXECUTOR_CMD:-${L3_LIVE_EXECUTOR_CMD}}"
 
 L5_GATE_MODE="${GATEFORGE_AGENT_L5_GATE_MODE:-strict}"
+L5_ACCEPTANCE_MODE="${GATEFORGE_AGENT_L5_ACCEPTANCE_MODE:-delta_uplift}"
+L5_ABSOLUTE_SUCCESS_TARGET_PCT="${GATEFORGE_AGENT_L5_ABSOLUTE_SUCCESS_TARGET_PCT:-85}"
+L5_NON_REGRESSION_TOLERANCE_PP="${GATEFORGE_AGENT_L5_NON_REGRESSION_TOLERANCE_PP:-0}"
+L5_BASELINE_REFERENCE_SUCCESS_PCT="${GATEFORGE_AGENT_L5_BASELINE_REFERENCE_SUCCESS_PCT:-}"
 L5_MIN_DELTA_SUCCESS_PP="${GATEFORGE_AGENT_L5_MIN_DELTA_SUCCESS_PP:-5}"
 L5_MAX_PHYSICS_WORSEN_PP="${GATEFORGE_AGENT_L5_MAX_PHYSICS_WORSEN_PP:-2}"
 L5_MAX_REGRESSION_WORSEN_PP="${GATEFORGE_AGENT_L5_MAX_REGRESSION_WORSEN_PP:-2}"
@@ -154,22 +158,48 @@ GATEFORGE_AGENT_L4_MAX_PHYSICS_WORSEN_PP="$L5_MAX_PHYSICS_WORSEN_PP" \
 bash scripts/run_agent_modelica_l4_closed_loop_v0.sh
 L4_RC=$?
 
-python3 -m gateforge.agent_modelica_l5_eval_v1 \
-  --run-summary "$OUT_DIR/l4/on/run_summary.json" \
-  --run-results "$OUT_DIR/l4/on/run_results.json" \
-  --l3-quality-summary "$OUT_DIR/l3/run2/diagnostic_quality_summary.json" \
-  --l3-gate-summary "$OUT_DIR/l3/run2/l3_diagnostic_gate_summary.json" \
-  --l4-ab-compare-summary "$OUT_DIR/l4/ab_compare_summary.json" \
-  --gate-mode "$L5_GATE_MODE" \
-  --min-delta-success-at-k-pp "$L5_MIN_DELTA_SUCCESS_PP" \
-  --max-physics-fail-rate-worsen-pp "$L5_MAX_PHYSICS_WORSEN_PP" \
-  --max-regression-fail-rate-worsen-pp "$L5_MAX_REGRESSION_WORSEN_PP" \
-  --infra-failure-count-must-equal "$L5_INFRA_FAILURE_MUST_EQUAL" \
-  --min-l3-parse-coverage-pct "$L5_MIN_L3_PARSE_PCT" \
-  --min-l3-type-match-rate-pct "$L5_MIN_L3_TYPE_PCT" \
-  --min-l3-stage-match-rate-pct "$L5_MIN_L3_STAGE_PCT" \
-  --out "$OUT_DIR/l5_eval_summary.json" \
-  --report-out "$OUT_DIR/l5_eval_summary.md"
+if [ -n "$L5_BASELINE_REFERENCE_SUCCESS_PCT" ]; then
+  python3 -m gateforge.agent_modelica_l5_eval_v1 \
+    --run-summary "$OUT_DIR/l4/on/run_summary.json" \
+    --run-results "$OUT_DIR/l4/on/run_results.json" \
+    --l3-quality-summary "$OUT_DIR/l3/run2/diagnostic_quality_summary.json" \
+    --l3-gate-summary "$OUT_DIR/l3/run2/l3_diagnostic_gate_summary.json" \
+    --l4-ab-compare-summary "$OUT_DIR/l4/ab_compare_summary.json" \
+    --gate-mode "$L5_GATE_MODE" \
+    --acceptance-mode "$L5_ACCEPTANCE_MODE" \
+    --absolute-success-target-pct "$L5_ABSOLUTE_SUCCESS_TARGET_PCT" \
+    --non-regression-tolerance-pp "$L5_NON_REGRESSION_TOLERANCE_PP" \
+    --baseline-reference-success-at-k-pct "$L5_BASELINE_REFERENCE_SUCCESS_PCT" \
+    --min-delta-success-at-k-pp "$L5_MIN_DELTA_SUCCESS_PP" \
+    --max-physics-fail-rate-worsen-pp "$L5_MAX_PHYSICS_WORSEN_PP" \
+    --max-regression-fail-rate-worsen-pp "$L5_MAX_REGRESSION_WORSEN_PP" \
+    --infra-failure-count-must-equal "$L5_INFRA_FAILURE_MUST_EQUAL" \
+    --min-l3-parse-coverage-pct "$L5_MIN_L3_PARSE_PCT" \
+    --min-l3-type-match-rate-pct "$L5_MIN_L3_TYPE_PCT" \
+    --min-l3-stage-match-rate-pct "$L5_MIN_L3_STAGE_PCT" \
+    --out "$OUT_DIR/l5_eval_summary.json" \
+    --report-out "$OUT_DIR/l5_eval_summary.md"
+else
+  python3 -m gateforge.agent_modelica_l5_eval_v1 \
+    --run-summary "$OUT_DIR/l4/on/run_summary.json" \
+    --run-results "$OUT_DIR/l4/on/run_results.json" \
+    --l3-quality-summary "$OUT_DIR/l3/run2/diagnostic_quality_summary.json" \
+    --l3-gate-summary "$OUT_DIR/l3/run2/l3_diagnostic_gate_summary.json" \
+    --l4-ab-compare-summary "$OUT_DIR/l4/ab_compare_summary.json" \
+    --gate-mode "$L5_GATE_MODE" \
+    --acceptance-mode "$L5_ACCEPTANCE_MODE" \
+    --absolute-success-target-pct "$L5_ABSOLUTE_SUCCESS_TARGET_PCT" \
+    --non-regression-tolerance-pp "$L5_NON_REGRESSION_TOLERANCE_PP" \
+    --min-delta-success-at-k-pp "$L5_MIN_DELTA_SUCCESS_PP" \
+    --max-physics-fail-rate-worsen-pp "$L5_MAX_PHYSICS_WORSEN_PP" \
+    --max-regression-fail-rate-worsen-pp "$L5_MAX_REGRESSION_WORSEN_PP" \
+    --infra-failure-count-must-equal "$L5_INFRA_FAILURE_MUST_EQUAL" \
+    --min-l3-parse-coverage-pct "$L5_MIN_L3_PARSE_PCT" \
+    --min-l3-type-match-rate-pct "$L5_MIN_L3_TYPE_PCT" \
+    --min-l3-stage-match-rate-pct "$L5_MIN_L3_STAGE_PCT" \
+    --out "$OUT_DIR/l5_eval_summary.json" \
+    --report-out "$OUT_DIR/l5_eval_summary.md"
+fi
 L5_RC=$?
 set -e
 
@@ -232,11 +262,16 @@ row = {
     "taskset_sha256": taskset_hash,
     "thresholds": summary.get("thresholds") if isinstance(summary.get("thresholds"), dict) else {},
     "gate_mode": str(summary.get("gate_mode") or gate_mode),
+    "acceptance_mode": str(summary.get("acceptance_mode") or "delta_uplift"),
     "gate_result": summary.get("gate_result"),
     "status": summary.get("status"),
     "l5_gate_status": summary.get("status"),
     "success_at_k_pct": summary.get("success_at_k_pct"),
+    "absolute_success_target_pct": summary.get("absolute_success_target_pct"),
     "delta_success_at_k_pp": summary.get("delta_success_at_k_pp"),
+    "baseline_success_at_k_pct": summary.get("baseline_success_at_k_pct"),
+    "baseline_reference_success_at_k_pct": summary.get("baseline_reference_success_at_k_pct"),
+    "non_regression_ok": summary.get("non_regression_ok"),
     "physics_fail_rate_pct": summary.get("physics_fail_rate_pct"),
     "regression_fail_rate_pct": summary.get("regression_fail_rate_pct"),
     "infra_failure_count": summary.get("infra_failure_count"),
@@ -298,8 +333,13 @@ def _is_promote_ready(item: dict) -> bool:
     if not isinstance(item, dict) or not item:
         return False
     gate_ok = str(item.get("l5_gate_status") or item.get("status") or "") == "PASS"
-    delta_ok = _f(item.get("delta_success_at_k_pp")) >= 5.0
     infra_ok = int(item.get("infra_failure_count") or 0) == 0
+    acceptance_mode = str(item.get("acceptance_mode") or "delta_uplift")
+    if acceptance_mode == "absolute_non_regression":
+        absolute_ok = _f(item.get("success_at_k_pct")) >= _f(item.get("absolute_success_target_pct"))
+        non_regression_ok = bool(item.get("non_regression_ok") is True)
+        return bool(gate_ok and absolute_ok and non_regression_ok and infra_ok)
+    delta_ok = _f(item.get("delta_success_at_k_pp")) >= 5.0
     return bool(gate_ok and delta_ok and infra_ok)
 
 current_primary_reason = str((current or {}).get("primary_reason") or "none")
@@ -339,11 +379,15 @@ weekly = {
     },
     "recommendation": recommendation,
     "recommendation_reason": recommendation_reason,
+    "acceptance_mode": str((current or {}).get("acceptance_mode") or "delta_uplift"),
     "l4_primary_reason": current_l4_primary_reason,
     "promote_rule": {
         "requires_two_week_consecutive_pass": True,
-        "min_delta_success_at_k_pp": 5.0,
-        "infra_failure_count_must_equal": 0,
+        "acceptance_mode": str((current or {}).get("acceptance_mode") or "delta_uplift"),
+        "absolute_success_target_pct": _f((current or {}).get("absolute_success_target_pct")),
+        "non_regression_tolerance_pp": _f(((current or {}).get("thresholds") or {}).get("non_regression_tolerance_pp")),
+        "min_delta_success_at_k_pp": _f(((current or {}).get("thresholds") or {}).get("min_delta_success_at_k_pp")),
+        "infra_failure_count_must_equal": int(((current or {}).get("thresholds") or {}).get("infra_failure_count_must_equal") or 0),
     },
     "reason_enum": reason_enum,
     "recommendation_reason_enum": sorted(ALLOWED_WEEKLY_RECOMMENDATION_REASONS),
@@ -409,6 +453,9 @@ summary = {
     "l5_gate_result": str(l5_summary.get("gate_result") or ""),
     "success_at_k_pct": float(l5_summary.get("success_at_k_pct") or 0.0),
     "delta_success_at_k_pp": float(l5_summary.get("delta_success_at_k_pp") or 0.0),
+    "acceptance_mode": str(l5_summary.get("acceptance_mode") or "delta_uplift"),
+    "absolute_success_target_pct": float(l5_summary.get("absolute_success_target_pct") or 0.0),
+    "non_regression_ok": bool(l5_summary.get("non_regression_ok") is True),
     "physics_fail_rate_pct": float(l5_summary.get("physics_fail_rate_pct") or 0.0),
     "regression_fail_rate_pct": float(l5_summary.get("regression_fail_rate_pct") or 0.0),
     "infra_failure_count": int(l5_summary.get("infra_failure_count") or 0),

@@ -42,6 +42,8 @@ HOLDOUT_RATIO="${GATEFORGE_AGENT_L4_UPLIFT_HOLDOUT_RATIO:-0.15}"
 SPLIT_SEED="${GATEFORGE_AGENT_L4_UPLIFT_SPLIT_SEED:-agent_modelica_l4_challenge_v0}"
 
 MIN_DELTA_SUCCESS_PP="${GATEFORGE_AGENT_L4_UPLIFT_MIN_DELTA_SUCCESS_PP:-5}"
+ABSOLUTE_SUCCESS_TARGET_PCT="${GATEFORGE_AGENT_L4_UPLIFT_ABSOLUTE_SUCCESS_TARGET_PCT:-85}"
+NON_REGRESSION_TOLERANCE_PP="${GATEFORGE_AGENT_L4_UPLIFT_NON_REGRESSION_TOLERANCE_PP:-0}"
 MAX_REGRESSION_WORSEN_PP="${GATEFORGE_AGENT_L4_UPLIFT_MAX_REGRESSION_WORSEN_PP:-2}"
 MAX_PHYSICS_WORSEN_PP="${GATEFORGE_AGENT_L4_UPLIFT_MAX_PHYSICS_WORSEN_PP:-2}"
 L5_INFRA_MUST_EQUAL="${GATEFORGE_AGENT_L4_UPLIFT_L5_INFRA_MUST_EQUAL:-0}"
@@ -194,6 +196,10 @@ run_l5_eval() {
     GATEFORGE_AGENT_L5_EVAL_RUNTIME_THRESHOLD="$RUNTIME_THRESHOLD" \
     GATEFORGE_AGENT_L5_EVAL_LIVE_TIMEOUT_SEC="$LIVE_TIMEOUT_SEC" \
     GATEFORGE_AGENT_L5_EVAL_LIVE_MAX_OUTPUT_CHARS="$LIVE_MAX_OUTPUT_CHARS" \
+    GATEFORGE_AGENT_L5_ACCEPTANCE_MODE="$ACCEPTANCE_MODE" \
+    GATEFORGE_AGENT_L5_ABSOLUTE_SUCCESS_TARGET_PCT="$ABSOLUTE_SUCCESS_TARGET_PCT" \
+    GATEFORGE_AGENT_L5_NON_REGRESSION_TOLERANCE_PP="$NON_REGRESSION_TOLERANCE_PP" \
+    GATEFORGE_AGENT_L5_BASELINE_REFERENCE_SUCCESS_PCT="$CHALLENGE_BASELINE_OFF_SUCCESS_PCT" \
     GATEFORGE_AGENT_L4_POLICY_PROFILE="$policy_profile" \
     GATEFORGE_AGENT_L4_POLICY_BACKEND="$L4_POLICY_BACKEND" \
     GATEFORGE_AGENT_L4_LLM_FALLBACK_THRESHOLD="$L4_LLM_FALLBACK_THRESHOLD" \
@@ -223,6 +229,10 @@ run_l5_eval() {
     GATEFORGE_AGENT_L5_EVAL_RUNTIME_THRESHOLD="$RUNTIME_THRESHOLD" \
     GATEFORGE_AGENT_L5_EVAL_LIVE_TIMEOUT_SEC="$LIVE_TIMEOUT_SEC" \
     GATEFORGE_AGENT_L5_EVAL_LIVE_MAX_OUTPUT_CHARS="$LIVE_MAX_OUTPUT_CHARS" \
+    GATEFORGE_AGENT_L5_ACCEPTANCE_MODE="$ACCEPTANCE_MODE" \
+    GATEFORGE_AGENT_L5_ABSOLUTE_SUCCESS_TARGET_PCT="$ABSOLUTE_SUCCESS_TARGET_PCT" \
+    GATEFORGE_AGENT_L5_NON_REGRESSION_TOLERANCE_PP="$NON_REGRESSION_TOLERANCE_PP" \
+    GATEFORGE_AGENT_L5_BASELINE_REFERENCE_SUCCESS_PCT="$CHALLENGE_BASELINE_OFF_SUCCESS_PCT" \
     GATEFORGE_AGENT_L4_POLICY_PROFILE="$policy_profile" \
     GATEFORGE_AGENT_L4_POLICY_BACKEND="$L4_POLICY_BACKEND" \
     GATEFORGE_AGENT_L4_LLM_FALLBACK_THRESHOLD="$L4_LLM_FALLBACK_THRESHOLD" \
@@ -250,26 +260,39 @@ if [ ! -f "$CHALLENGE_SUMMARY" ] || [ ! -f "$CHALLENGE_TASKSET" ]; then
   echo "Missing challenge artifacts under $CHALLENGE_OUT" >&2
   exit 1
 fi
+CHALLENGE_BASELINE_OFF_SUCCESS_PCT="$(python3 - "$CHALLENGE_SUMMARY" <<'PY'
+import json
+import sys
+from pathlib import Path
+summary = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+value = summary.get("baseline_off_success_at_k_pct")
+print("" if value is None else str(value))
+PY
+)"
 
-BASELINE_ELIGIBLE_FOR_UPLIFT="$(python3 - "$CHALLENGE_SUMMARY" "$MIN_DELTA_SUCCESS_PP" <<'PY'
+BASELINE_STATE="$(python3 - "$CHALLENGE_SUMMARY" "$MIN_DELTA_SUCCESS_PP" <<'PY'
 import json
 import sys
 from pathlib import Path
 summary = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
 min_delta_success_pp = float(sys.argv[2] or 5.0)
-eligible = summary.get("baseline_eligible_for_uplift")
-if eligible is None:
-    meets = summary.get("baseline_meets_minimum")
-    if meets is None:
-        meets = summary.get("baseline_in_target_range")
-    has_headroom = summary.get("baseline_has_headroom")
-    if has_headroom is None:
-        baseline = float(summary.get("baseline_off_success_at_k_pct") or 0.0)
-        has_headroom = baseline <= max(0.0, 100.0 - min_delta_success_pp)
-    eligible = bool(meets is True and has_headroom is True)
-print("1" if eligible else "0")
+meets = summary.get("baseline_meets_minimum")
+if meets is None:
+    meets = summary.get("baseline_in_target_range")
+has_headroom = summary.get("baseline_has_headroom")
+if has_headroom is None:
+    baseline = float(summary.get("baseline_off_success_at_k_pct") or 0.0)
+    has_headroom = baseline <= max(0.0, 100.0 - min_delta_success_pp)
+meets = bool(meets is True)
+has_headroom = bool(has_headroom is True)
+acceptance_mode = "absolute_non_regression" if meets and not has_headroom else "delta_uplift"
+print(("1" if meets else "0") + "|" + ("1" if has_headroom else "0") + "|" + acceptance_mode)
 PY
 )"
+BASELINE_MEETS_MINIMUM="${BASELINE_STATE%%|*}"
+BASELINE_STATE_REST="${BASELINE_STATE#*|}"
+BASELINE_HAS_HEADROOM="${BASELINE_STATE_REST%%|*}"
+ACCEPTANCE_MODE="${BASELINE_STATE_REST#*|}"
 
 MAIN_SWEEP_RC=0
 NIGHT_SWEEP_RC=0
@@ -277,7 +300,7 @@ MAIN_L5_RC=0
 NIGHT_L5_RC=0
 MAIN_PROFILE="score_v1"
 
-if [ "$BASELINE_ELIGIBLE_FOR_UPLIFT" = "1" ]; then
+if [ "$BASELINE_MEETS_MINIMUM" = "1" ]; then
   set +e
   run_sweep "$MAIN_PLANNER_BACKEND" "$MAIN_SWEEP_OUT" "$MAIN_SWEEP_EXECUTOR_CMD"
   MAIN_SWEEP_RC=$?
@@ -330,6 +353,8 @@ python3 -m gateforge.agent_modelica_l4_uplift_decision_v0 \
   --night-l5-summary "$NIGHT_L5_OUT/l5_eval_summary.json" \
   --night-weekly-summary "$NIGHT_L5_OUT/l5_weekly_metrics.json" \
   --min-delta-success-pp "$MIN_DELTA_SUCCESS_PP" \
+  --absolute-success-target-pct "$ABSOLUTE_SUCCESS_TARGET_PCT" \
+  --non-regression-tolerance-pp "$NON_REGRESSION_TOLERANCE_PP" \
   --max-regression-worsen-pp "$MAX_REGRESSION_WORSEN_PP" \
   --max-physics-worsen-pp "$MAX_PHYSICS_WORSEN_PP" \
   --out "$DECISION_JSON" \
@@ -383,10 +408,13 @@ for label, payload in (
     if not payload:
         missing.append(label)
 
+baseline_meets_minimum = challenge.get("baseline_meets_minimum") is True
+baseline_has_headroom = challenge.get("baseline_has_headroom") is True
 baseline_eligible_for_uplift = challenge.get("baseline_eligible_for_uplift")
 if baseline_eligible_for_uplift is None:
-    baseline_eligible_for_uplift = challenge.get("baseline_meets_minimum") is True and challenge.get("baseline_has_headroom") is True
-if baseline_eligible_for_uplift is True:
+    baseline_eligible_for_uplift = baseline_meets_minimum and baseline_has_headroom
+acceptance_mode = str(decision.get("acceptance_mode") or ("absolute_non_regression" if baseline_meets_minimum and not baseline_has_headroom else "delta_uplift"))
+if baseline_meets_minimum:
     for label, payload in (
         ("main_sweep_summary", main_sweep),
         ("night_sweep_summary", night_sweep),
@@ -400,15 +428,15 @@ if baseline_eligible_for_uplift is True:
 
 status = "PASS" if not missing else "FAIL"
 reasons = []
-if challenge_rc != 0:
+if challenge_rc != 0 and not challenge:
     reasons.append("challenge_script_nonzero_exit")
-if main_sweep_rc != 0:
+if main_sweep_rc != 0 and not main_sweep:
     reasons.append("main_sweep_script_nonzero_exit")
-if night_sweep_rc != 0:
+if night_sweep_rc != 0 and not night_sweep:
     reasons.append("night_sweep_script_nonzero_exit")
-if main_l5_rc != 0:
+if main_l5_rc != 0 and not main_l5:
     reasons.append("main_l5_script_nonzero_exit")
-if night_l5_rc != 0:
+if night_l5_rc != 0 and not night_l5:
     reasons.append("night_l5_script_nonzero_exit")
 if missing:
     reasons.extend([f"missing_{x}" for x in sorted(set(missing))])
@@ -419,13 +447,17 @@ bundle = {
     "status": status,
     "decision": str(decision.get("decision") or ""),
     "primary_reason": str(decision.get("primary_reason") or "none"),
-    "baseline_meets_minimum": challenge.get("baseline_meets_minimum"),
-    "baseline_has_headroom": challenge.get("baseline_has_headroom"),
+    "acceptance_mode": acceptance_mode,
+    "baseline_meets_minimum": baseline_meets_minimum,
+    "baseline_has_headroom": baseline_has_headroom,
     "baseline_headroom_max_pct": challenge.get("baseline_target_range_pct", {}).get("max") if isinstance(challenge.get("baseline_target_range_pct"), dict) else None,
     "baseline_eligible_for_uplift": baseline_eligible_for_uplift,
     "baseline_in_target_range": challenge.get("baseline_in_target_range"),
     "main_recommended_profile": main_profile or str(main_sweep.get("recommended_profile") or ""),
+    "main_success_at_k_pct": decision.get("main_success_at_k_pct"),
+    "absolute_success_target_pct": decision.get("absolute_success_target_pct"),
     "main_delta_success_at_k_pp": decision.get("main_delta_success_at_k_pp"),
+    "non_regression_ok": decision.get("non_regression_ok"),
     "main_delta_regression_fail_rate_pp": decision.get("main_delta_regression_fail_rate_pp"),
     "main_delta_physics_fail_rate_pp": decision.get("main_delta_physics_fail_rate_pp"),
     "infra_failure_count_total": decision.get("infra_failure_count_total"),
@@ -464,12 +496,16 @@ summary_md.write_text(
             f"- status: `{bundle.get('status')}`",
             f"- decision: `{bundle.get('decision')}`",
             f"- primary_reason: `{bundle.get('primary_reason')}`",
+            f"- acceptance_mode: `{bundle.get('acceptance_mode')}`",
             f"- baseline_meets_minimum: `{bundle.get('baseline_meets_minimum')}`",
             f"- baseline_has_headroom: `{bundle.get('baseline_has_headroom')}`",
             f"- baseline_eligible_for_uplift: `{bundle.get('baseline_eligible_for_uplift')}`",
             f"- baseline_in_target_range: `{bundle.get('baseline_in_target_range')}`",
             f"- main_recommended_profile: `{bundle.get('main_recommended_profile')}`",
+            f"- main_success_at_k_pct: `{bundle.get('main_success_at_k_pct')}`",
+            f"- absolute_success_target_pct: `{bundle.get('absolute_success_target_pct')}`",
             f"- main_delta_success_at_k_pp: `{bundle.get('main_delta_success_at_k_pp')}`",
+            f"- non_regression_ok: `{bundle.get('non_regression_ok')}`",
             f"- infra_failure_count_total: `{bundle.get('infra_failure_count_total')}`",
             f"- reasons: `{bundle.get('reasons')}`",
             "",

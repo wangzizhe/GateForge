@@ -10,9 +10,9 @@ from typing import Any
 SCHEMA_VERSION = "agent_modelica_l4_uplift_decision_v0"
 PRIMARY_REASON_PRIORITY = [
     "infra",
+    "missing_artifacts",
     "baseline_too_weak",
-    "baseline_saturated_no_headroom",
-    "delta_below_threshold",
+    "absolute_success_below_threshold",
     "quality_regression",
 ]
 
@@ -50,7 +50,11 @@ def _write_markdown(path: str, payload: dict) -> None:
         f"- status: `{payload.get('status')}`",
         f"- decision: `{payload.get('decision')}`",
         f"- primary_reason: `{payload.get('primary_reason')}`",
+        f"- acceptance_mode: `{payload.get('acceptance_mode')}`",
+        f"- main_success_at_k_pct: `{payload.get('main_success_at_k_pct')}`",
+        f"- absolute_success_target_pct: `{payload.get('absolute_success_target_pct')}`",
         f"- main_delta_success_at_k_pp: `{payload.get('main_delta_success_at_k_pp')}`",
+        f"- non_regression_ok: `{payload.get('non_regression_ok')}`",
         f"- main_infra_failure_count: `{payload.get('main_infra_failure_count')}`",
         f"- baseline_off_success_at_k_pct: `{payload.get('baseline_off_success_at_k_pct')}`",
         f"- baseline_meets_minimum: `{payload.get('baseline_meets_minimum')}`",
@@ -97,6 +101,13 @@ def _normalize_weekly(value: object) -> str:
     if text in {"promote", "hold"}:
         return text
     return ""
+
+
+def _normalize_acceptance_mode(value: object) -> str:
+    text = str(value or "").strip().lower()
+    if text in {"delta_uplift", "absolute_non_regression"}:
+        return text
+    return "delta_uplift"
 
 
 def _extract_compare_metrics(payload: dict) -> dict[str, Any]:
@@ -210,6 +221,8 @@ def evaluate_l4_uplift_decision_v0(
     night_l5_summary: dict,
     night_weekly_summary: dict,
     min_delta_success_pp: float = 5.0,
+    absolute_success_target_pct: float = 85.0,
+    non_regression_tolerance_pp: float = 0.0,
     max_regression_worsen_pp: float = 2.0,
     max_physics_worsen_pp: float = 2.0,
 ) -> dict:
@@ -231,14 +244,34 @@ def evaluate_l4_uplift_decision_v0(
         baseline_has_headroom = baseline_off_success <= baseline_headroom_max_pct
     baseline_has_headroom = baseline_has_headroom is True
     baseline_uplift_eligible = baseline_meets_minimum and baseline_has_headroom
+    acceptance_mode = "absolute_non_regression" if baseline_meets_minimum and not baseline_has_headroom else "delta_uplift"
     if not baseline_meets_minimum:
         reasons.append("baseline_too_weak")
-    elif not baseline_has_headroom:
-        reasons.append("baseline_saturated_no_headroom")
+
+    missing_labels: list[str] = []
+    if baseline_meets_minimum:
+        required_payloads = (
+            ("main_sweep_summary", main_sweep_summary),
+            ("main_l5_summary", main_l5_summary),
+            ("main_weekly_summary", main_weekly_summary),
+            ("night_sweep_summary", night_sweep_summary),
+            ("night_l5_summary", night_l5_summary),
+            ("night_weekly_summary", night_weekly_summary),
+        )
+        for label, payload in required_payloads:
+            if not isinstance(payload, dict) or not payload:
+                missing_labels.append(label)
+        if missing_labels:
+            reasons.append("missing_artifacts")
 
     main_delta = _to_float(compare_main.get("delta_success_at_k_pp"), 0.0)
     main_delta_reg = _to_float(compare_main.get("delta_regression_fail_rate_pp"), 0.0)
     main_delta_phy = _to_float(compare_main.get("delta_physics_fail_rate_pp"), 0.0)
+    main_success = _to_float(main_l5_summary.get("success_at_k_pct"), _to_float((compare_main.get("on") or {}).get("success_at_k_pct"), 0.0))
+    non_regression_ok = main_l5_summary.get("non_regression_ok")
+    if non_regression_ok is None:
+        non_regression_ok = main_success >= (baseline_off_success - float(non_regression_tolerance_pp))
+    non_regression_ok = non_regression_ok is True
 
     infra_main = _to_int(main_l5_summary.get("infra_failure_count"), _to_int(compare_main.get("infra_failure_count_on"), 0))
     infra_night = _to_int(night_l5_summary.get("infra_failure_count"), _to_int(compare_night.get("infra_failure_count_on"), 0))
@@ -246,13 +279,20 @@ def evaluate_l4_uplift_decision_v0(
     if infra_total > 0:
         reasons.append("infra")
 
-    if baseline_uplift_eligible:
-        if main_delta < float(min_delta_success_pp):
-            reasons.append("delta_below_threshold")
-        if main_delta_reg > float(max_regression_worsen_pp) or main_delta_phy > float(max_physics_worsen_pp):
+    main_gate = _normalize_gate(main_l5_summary.get("gate_result") or main_l5_summary.get("status"))
+    if baseline_meets_minimum and "missing_artifacts" not in reasons and "infra" not in reasons:
+        if acceptance_mode == "absolute_non_regression":
+            if main_success < float(absolute_success_target_pct):
+                reasons.append("absolute_success_below_threshold")
+        if (
+            not non_regression_ok
+            or main_delta_reg > float(max_regression_worsen_pp)
+            or main_delta_phy > float(max_physics_worsen_pp)
+            or (acceptance_mode == "delta_uplift" and main_delta < float(min_delta_success_pp))
+            or main_gate != "PASS"
+        ):
             reasons.append("quality_regression")
 
-    main_gate = _normalize_gate(main_l5_summary.get("gate_result") or main_l5_summary.get("status"))
     main_weekly_rec = _normalize_weekly(main_weekly_summary.get("recommendation"))
     main_weekly_reason = str(main_weekly_summary.get("recommendation_reason") or "").strip()
     l4_main_reason = str(main_l5_summary.get("l4_primary_reason") or compare_main.get("l4_primary_reason_on") or "none")
@@ -279,6 +319,8 @@ def evaluate_l4_uplift_decision_v0(
     consistency_ok = len(consistency_reasons) == 0
     if not consistency_ok:
         status = "NEEDS_REVIEW"
+    if "missing_artifacts" in reasons:
+        status = "NEEDS_REVIEW"
 
     primary_reason = "none"
     for reason in PRIMARY_REASON_PRIORITY:
@@ -299,11 +341,17 @@ def evaluate_l4_uplift_decision_v0(
         "primary_reason": primary_reason,
         "reason_priority": PRIMARY_REASON_PRIORITY,
         "reasons": sorted(set(reasons)),
+        "acceptance_mode": acceptance_mode,
         "consistency_ok": consistency_ok,
         "consistency_reasons": consistency_reasons,
+        "missing_artifact_labels": missing_labels,
+        "main_success_at_k_pct": main_success,
+        "absolute_success_target_pct": float(absolute_success_target_pct),
         "main_delta_success_at_k_pp": main_delta,
         "main_delta_regression_fail_rate_pp": main_delta_reg,
         "main_delta_physics_fail_rate_pp": main_delta_phy,
+        "non_regression_tolerance_pp": float(non_regression_tolerance_pp),
+        "non_regression_ok": non_regression_ok,
         "main_infra_failure_count": infra_main,
         "night_infra_failure_count": infra_night,
         "infra_failure_count_total": infra_total,
@@ -342,6 +390,8 @@ def main() -> None:
     parser.add_argument("--night-l5-summary", required=True)
     parser.add_argument("--night-weekly-summary", required=True)
     parser.add_argument("--min-delta-success-pp", type=float, default=5.0)
+    parser.add_argument("--absolute-success-target-pct", type=float, default=85.0)
+    parser.add_argument("--non-regression-tolerance-pp", type=float, default=0.0)
     parser.add_argument("--max-regression-worsen-pp", type=float, default=2.0)
     parser.add_argument("--max-physics-worsen-pp", type=float, default=2.0)
     parser.add_argument("--out", default="artifacts/agent_modelica_l4_uplift_evidence_v0/decision_summary.json")
@@ -357,6 +407,8 @@ def main() -> None:
         night_l5_summary=_load_json(args.night_l5_summary),
         night_weekly_summary=_load_json(args.night_weekly_summary),
         min_delta_success_pp=float(args.min_delta_success_pp),
+        absolute_success_target_pct=float(args.absolute_success_target_pct),
+        non_regression_tolerance_pp=float(args.non_regression_tolerance_pp),
         max_regression_worsen_pp=float(args.max_regression_worsen_pp),
         max_physics_worsen_pp=float(args.max_physics_worsen_pp),
     )

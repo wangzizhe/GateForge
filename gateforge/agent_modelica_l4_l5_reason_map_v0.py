@@ -25,6 +25,8 @@ ALLOWED_WEEKLY_RECOMMENDATION_REASONS = {
     "l4_ab_compare_summary_missing",
     "attempts_missing",
     "delta_success_at_k_below_threshold",
+    "absolute_success_below_threshold",
+    "non_regression_failed",
     "physics_fail_rate_worsened_beyond_threshold",
     "regression_fail_rate_worsened_beyond_threshold",
     "infra_failure_count_not_zero",

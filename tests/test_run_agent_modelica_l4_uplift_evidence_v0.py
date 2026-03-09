@@ -85,7 +85,7 @@ class RunAgentModelicaL4UpliftEvidenceV0ScriptTests(unittest.TestCase):
             self.assertEqual(str(summary.get("status") or ""), "PASS")
             self.assertEqual(str(decision.get("decision") or ""), "promote")
             self.assertEqual(str(decision.get("primary_reason") or ""), "none")
-            self.assertGreaterEqual(float(decision.get("main_delta_success_at_k_pp") or 0.0), 5.0)
+            self.assertEqual(str(decision.get("acceptance_mode") or ""), "delta_uplift")
 
     def test_weak_baseline_short_circuits_to_hold(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
@@ -122,6 +122,52 @@ class RunAgentModelicaL4UpliftEvidenceV0ScriptTests(unittest.TestCase):
             self.assertEqual(str(summary.get("status") or ""), "PASS")
             self.assertEqual(str(decision.get("decision") or ""), "hold")
             self.assertEqual(str(decision.get("primary_reason") or ""), "baseline_too_weak")
+
+    def test_saturated_baseline_runs_full_chain_in_absolute_mode(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        script = repo_root / "scripts" / "run_agent_modelica_l4_uplift_evidence_v0.sh"
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            taskset = root / "taskset.json"
+            out_dir = root / "out_abs"
+            _build_taskset(taskset)
+
+            env = {
+                **os.environ,
+                "GATEFORGE_AGENT_L4_UPLIFT_BASE_TASKSET": str(taskset),
+                "GATEFORGE_AGENT_L4_UPLIFT_OUT_DIR": str(out_dir),
+                "GATEFORGE_AGENT_L4_UPLIFT_TARGET_MIN_OFF_SUCCESS_PCT": "60",
+                "GATEFORGE_AGENT_L4_UPLIFT_TARGET_MAX_OFF_SUCCESS_PCT": "95",
+                "GATEFORGE_AGENT_L4_UPLIFT_ABSOLUTE_SUCCESS_TARGET_PCT": "85",
+                "GATEFORGE_AGENT_L4_UPLIFT_MAX_ROUNDS": "1",
+                "GATEFORGE_AGENT_L4_UPLIFT_MAX_TIME_SEC": "20",
+                "GATEFORGE_AGENT_L4_UPLIFT_LIVE_TIMEOUT_SEC": "20",
+                "GATEFORGE_AGENT_L4_UPLIFT_L4_MAX_ROUNDS": "1",
+                "GATEFORGE_AGENT_L4_UPLIFT_BACKEND": "mock",
+                "GATEFORGE_AGENT_L4_UPLIFT_CHALLENGE_LIVE_EXECUTOR_CMD": _cmd_pass(),
+                "GATEFORGE_AGENT_L4_UPLIFT_MAIN_SWEEP_LIVE_EXECUTOR_CMD": _cmd_l4_switch(),
+                "GATEFORGE_AGENT_L4_UPLIFT_NIGHT_SWEEP_LIVE_EXECUTOR_CMD": _cmd_l4_switch(),
+                "GATEFORGE_AGENT_L4_UPLIFT_MAIN_L5_L3_LIVE_EXECUTOR_CMD": _cmd_pass(),
+                "GATEFORGE_AGENT_L4_UPLIFT_MAIN_L5_L4_LIVE_EXECUTOR_CMD": _cmd_l4_switch(),
+                "GATEFORGE_AGENT_L4_UPLIFT_NIGHT_L5_L3_LIVE_EXECUTOR_CMD": _cmd_pass(),
+                "GATEFORGE_AGENT_L4_UPLIFT_NIGHT_L5_L4_LIVE_EXECUTOR_CMD": _cmd_l4_switch(),
+            }
+            proc = subprocess.run(
+                ["bash", str(script)],
+                cwd=str(repo_root),
+                capture_output=True,
+                text=True,
+                check=False,
+                env=env,
+                timeout=900,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            decision = json.loads((out_dir / "decision_summary.json").read_text(encoding="utf-8"))
+            summary = json.loads((out_dir / "summary.json").read_text(encoding="utf-8"))
+            self.assertEqual(str(summary.get("status") or ""), "PASS")
+            self.assertEqual(str(decision.get("acceptance_mode") or ""), "absolute_non_regression")
+            self.assertEqual(str(decision.get("decision") or ""), "promote")
+            self.assertEqual(str(decision.get("primary_reason") or ""), "none")
 
 
 if __name__ == "__main__":
