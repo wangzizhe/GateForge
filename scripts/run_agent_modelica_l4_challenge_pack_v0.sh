@@ -104,7 +104,9 @@ PY
 )"
 fi
 
+SUMMARY_REFRESH_RC=0
 if [ -n "$BASELINE_OFF_SUCCESS" ]; then
+  set +e
   python3 -m gateforge.agent_modelica_l4_challenge_pack_v0 \
     --taskset-in "$BASE_TASKSET" \
     --out-dir "$OUT_DIR" \
@@ -118,6 +120,8 @@ if [ -n "$BASELINE_OFF_SUCCESS" ]; then
     --target-max-off-success-pct "$TARGET_MAX_OFF_SUCCESS_PCT" \
     --out "$OUT_DIR/frozen_summary.json" \
     --report-out "$OUT_DIR/frozen_summary.md"
+  SUMMARY_REFRESH_RC=$?
+  set -e
 else
   python3 - "$OUT_DIR/frozen_summary.json" <<'PY'
 import json
@@ -146,6 +150,18 @@ summary = json.loads(summary_path.read_text(encoding="utf-8")) if summary_path.e
 summary["baseline_off_run_exit_code"] = baseline_rc
 summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
 print(json.dumps({"status": summary.get("status"), "baseline_off_success_at_k_pct": summary.get("baseline_off_success_at_k_pct")}))
+PY
+
+python3 - "$OUT_DIR/frozen_summary.json" "$SUMMARY_REFRESH_RC" <<'PY'
+import json
+import sys
+from pathlib import Path
+summary_path = Path(sys.argv[1])
+summary_refresh_rc = int(sys.argv[2])
+summary = json.loads(summary_path.read_text(encoding="utf-8")) if summary_path.exists() else {}
+summary["baseline_summary_refresh_exit_code"] = summary_refresh_rc
+summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
+print(json.dumps({"status": summary.get("status"), "baseline_summary_refresh_exit_code": summary.get("baseline_summary_refresh_exit_code")}))
 PY
 
 python3 - "$OUT_DIR/frozen_summary.json" "$OUT_DIR/manifest.json" "$BASE_TASKSET" "$BASELINE_RUN_SUMMARY" "$BASELINE_RUN_RESULTS" "$BASELINE_PLANNER_BACKEND" "$BASELINE_LLM_MODEL" "$BACKEND" "$OM_DOCKER_IMAGE" "$LIVE_EXECUTOR_CMD" "$BASELINE_CMD_SHA256" "$LIVE_TIMEOUT_SEC" "$LIVE_MAX_OUTPUT_CHARS" "$MAX_ROUNDS" "$MAX_TIME_SEC" "$RUNTIME_THRESHOLD" "$GIT_COMMIT" <<'PY'
