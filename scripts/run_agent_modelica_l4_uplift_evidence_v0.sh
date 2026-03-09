@@ -36,7 +36,6 @@ L4_LLM_FALLBACK_THRESHOLD="${GATEFORGE_AGENT_L4_UPLIFT_L4_LLM_FALLBACK_THRESHOLD
 L4_MAX_ACTIONS_PER_ROUND="${GATEFORGE_AGENT_L4_UPLIFT_L4_MAX_ACTIONS_PER_ROUND:-3}"
 
 TARGET_MIN_OFF_SUCCESS_PCT="${GATEFORGE_AGENT_L4_UPLIFT_TARGET_MIN_OFF_SUCCESS_PCT:-60}"
-TARGET_MAX_OFF_SUCCESS_PCT="${GATEFORGE_AGENT_L4_UPLIFT_TARGET_MAX_OFF_SUCCESS_PCT:-90}"
 PER_FAILURE_TYPE_CAP="${GATEFORGE_AGENT_L4_UPLIFT_PER_FAILURE_TYPE_CAP:-6}"
 FAILURE_TYPES="${GATEFORGE_AGENT_L4_UPLIFT_FAILURE_TYPES:-model_check_error,simulate_error,semantic_regression}"
 HOLDOUT_RATIO="${GATEFORGE_AGENT_L4_UPLIFT_HOLDOUT_RATIO:-0.15}"
@@ -52,6 +51,12 @@ L5_MIN_L3_STAGE_PCT="${GATEFORGE_AGENT_L4_UPLIFT_L5_MIN_L3_STAGE_PCT:-70}"
 
 L5_LEDGER_PATH="${GATEFORGE_AGENT_L4_UPLIFT_L5_LEDGER_PATH:-$OUT_DIR/private/l5_eval_ledger_v1.jsonl}"
 ENFORCE_PROMOTE="${GATEFORGE_AGENT_L4_UPLIFT_ENFORCE_PROMOTE:-0}"
+TARGET_MAX_OFF_SUCCESS_PCT="${GATEFORGE_AGENT_L4_UPLIFT_TARGET_MAX_OFF_SUCCESS_PCT:-$(python3 - "$MIN_DELTA_SUCCESS_PP" <<'PY'
+import sys
+delta = float(sys.argv[1] or 5.0)
+print(max(0.0, 100.0 - delta))
+PY
+)}"
 
 DEFAULT_EXECUTOR_CMD="${GATEFORGE_AGENT_L4_UPLIFT_LIVE_EXECUTOR_CMD:-}"
 CHALLENGE_EXECUTOR_CMD="${GATEFORGE_AGENT_L4_UPLIFT_CHALLENGE_LIVE_EXECUTOR_CMD:-$DEFAULT_EXECUTOR_CMD}"
@@ -246,12 +251,23 @@ if [ ! -f "$CHALLENGE_SUMMARY" ] || [ ! -f "$CHALLENGE_TASKSET" ]; then
   exit 1
 fi
 
-BASELINE_IN_RANGE="$(python3 - "$CHALLENGE_SUMMARY" <<'PY'
+BASELINE_ELIGIBLE_FOR_UPLIFT="$(python3 - "$CHALLENGE_SUMMARY" "$MIN_DELTA_SUCCESS_PP" <<'PY'
 import json
 import sys
 from pathlib import Path
 summary = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
-print("1" if summary.get("baseline_in_target_range") is True else "0")
+min_delta_success_pp = float(sys.argv[2] or 5.0)
+eligible = summary.get("baseline_eligible_for_uplift")
+if eligible is None:
+    meets = summary.get("baseline_meets_minimum")
+    if meets is None:
+        meets = summary.get("baseline_in_target_range")
+    has_headroom = summary.get("baseline_has_headroom")
+    if has_headroom is None:
+        baseline = float(summary.get("baseline_off_success_at_k_pct") or 0.0)
+        has_headroom = baseline <= max(0.0, 100.0 - min_delta_success_pp)
+    eligible = bool(meets is True and has_headroom is True)
+print("1" if eligible else "0")
 PY
 )"
 
@@ -261,7 +277,7 @@ MAIN_L5_RC=0
 NIGHT_L5_RC=0
 MAIN_PROFILE="score_v1"
 
-if [ "$BASELINE_IN_RANGE" = "1" ]; then
+if [ "$BASELINE_ELIGIBLE_FOR_UPLIFT" = "1" ]; then
   set +e
   run_sweep "$MAIN_PLANNER_BACKEND" "$MAIN_SWEEP_OUT" "$MAIN_SWEEP_EXECUTOR_CMD"
   MAIN_SWEEP_RC=$?
@@ -367,8 +383,10 @@ for label, payload in (
     if not payload:
         missing.append(label)
 
-baseline_in_range = challenge.get("baseline_in_target_range")
-if baseline_in_range is True:
+baseline_eligible_for_uplift = challenge.get("baseline_eligible_for_uplift")
+if baseline_eligible_for_uplift is None:
+    baseline_eligible_for_uplift = challenge.get("baseline_meets_minimum") is True and challenge.get("baseline_has_headroom") is True
+if baseline_eligible_for_uplift is True:
     for label, payload in (
         ("main_sweep_summary", main_sweep),
         ("night_sweep_summary", night_sweep),
@@ -401,7 +419,11 @@ bundle = {
     "status": status,
     "decision": str(decision.get("decision") or ""),
     "primary_reason": str(decision.get("primary_reason") or "none"),
-    "baseline_in_target_range": baseline_in_range,
+    "baseline_meets_minimum": challenge.get("baseline_meets_minimum"),
+    "baseline_has_headroom": challenge.get("baseline_has_headroom"),
+    "baseline_headroom_max_pct": challenge.get("baseline_target_range_pct", {}).get("max") if isinstance(challenge.get("baseline_target_range_pct"), dict) else None,
+    "baseline_eligible_for_uplift": baseline_eligible_for_uplift,
+    "baseline_in_target_range": challenge.get("baseline_in_target_range"),
     "main_recommended_profile": main_profile or str(main_sweep.get("recommended_profile") or ""),
     "main_delta_success_at_k_pp": decision.get("main_delta_success_at_k_pp"),
     "main_delta_regression_fail_rate_pp": decision.get("main_delta_regression_fail_rate_pp"),
@@ -442,6 +464,9 @@ summary_md.write_text(
             f"- status: `{bundle.get('status')}`",
             f"- decision: `{bundle.get('decision')}`",
             f"- primary_reason: `{bundle.get('primary_reason')}`",
+            f"- baseline_meets_minimum: `{bundle.get('baseline_meets_minimum')}`",
+            f"- baseline_has_headroom: `{bundle.get('baseline_has_headroom')}`",
+            f"- baseline_eligible_for_uplift: `{bundle.get('baseline_eligible_for_uplift')}`",
             f"- baseline_in_target_range: `{bundle.get('baseline_in_target_range')}`",
             f"- main_recommended_profile: `{bundle.get('main_recommended_profile')}`",
             f"- main_delta_success_at_k_pp: `{bundle.get('main_delta_success_at_k_pp')}`",

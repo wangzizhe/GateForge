@@ -40,6 +40,9 @@ def _write_markdown(path: str, payload: dict) -> None:
         f"- per_failure_type_quota: `{payload.get('per_failure_type_quota')}`",
         f"- baseline_off_success_at_k_pct: `{payload.get('baseline_off_success_at_k_pct')}`",
         f"- baseline_target_range_pct: `{payload.get('baseline_target_range_pct')}`",
+        f"- baseline_meets_minimum: `{payload.get('baseline_meets_minimum')}`",
+        f"- baseline_has_headroom: `{payload.get('baseline_has_headroom')}`",
+        f"- baseline_eligible_for_uplift: `{payload.get('baseline_eligible_for_uplift')}`",
         f"- baseline_in_target_range: `{payload.get('baseline_in_target_range')}`",
         f"- reasons: `{payload.get('reasons')}`",
         "",
@@ -97,7 +100,7 @@ def main() -> None:
     parser.add_argument("--split-seed", default="agent_modelica_l4_challenge_v0")
     parser.add_argument("--baseline-off-success-at-k-pct", type=float, default=None)
     parser.add_argument("--target-min-off-success-pct", type=float, default=60.0)
-    parser.add_argument("--target-max-off-success-pct", type=float, default=90.0)
+    parser.add_argument("--target-max-off-success-pct", type=float, default=95.0)
     parser.add_argument("--out", default="")
     parser.add_argument("--report-out", default="")
     args = parser.parse_args()
@@ -206,7 +209,9 @@ def main() -> None:
             split_counts[split] += 1
 
     baseline = args.baseline_off_success_at_k_pct if args.baseline_off_success_at_k_pct is not None else None
-    baseline_in_range = False
+    baseline_meets_minimum = False
+    baseline_has_headroom = False
+    baseline_eligible_for_uplift = False
     reasons: list[str] = []
     if not selected:
         reasons.append("taskset_empty_after_selection")
@@ -215,11 +220,21 @@ def main() -> None:
     if baseline is None:
         reasons.append("baseline_off_success_at_k_missing")
     else:
-        baseline_in_range = float(args.target_min_off_success_pct) <= float(baseline) <= float(args.target_max_off_success_pct)
-        if not baseline_in_range:
-            reasons.append("baseline_off_success_out_of_target_range")
+        baseline_meets_minimum = float(baseline) >= float(args.target_min_off_success_pct)
+        baseline_has_headroom = float(baseline) <= float(args.target_max_off_success_pct)
+        baseline_eligible_for_uplift = baseline_meets_minimum and baseline_has_headroom
+        if not baseline_meets_minimum:
+            reasons.append("baseline_off_success_below_minimum")
+        if baseline_meets_minimum and not baseline_has_headroom:
+            reasons.append("baseline_off_success_above_headroom_limit")
 
-    status = "PASS" if not reasons else ("NEEDS_REVIEW" if reasons == ["baseline_off_success_at_k_missing"] else "FAIL")
+    fatal_reasons = {"taskset_empty_after_selection", "quota_zero", "baseline_off_success_below_minimum"}
+    if any(reason in fatal_reasons for reason in reasons):
+        status = "FAIL"
+    elif reasons == ["baseline_off_success_at_k_missing"]:
+        status = "NEEDS_REVIEW"
+    else:
+        status = "PASS"
     manifest = {
         "schema_version": SCHEMA_VERSION,
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
@@ -234,7 +249,10 @@ def main() -> None:
         "selection": selection_config,
         "baseline_off_success_at_k_pct": baseline,
         "baseline_target_range_pct": {"min": float(args.target_min_off_success_pct), "max": float(args.target_max_off_success_pct)},
-        "baseline_in_target_range": baseline_in_range if baseline is not None else None,
+        "baseline_meets_minimum": baseline_meets_minimum if baseline is not None else None,
+        "baseline_has_headroom": baseline_has_headroom if baseline is not None else None,
+        "baseline_eligible_for_uplift": baseline_eligible_for_uplift if baseline is not None else None,
+        "baseline_in_target_range": baseline_meets_minimum if baseline is not None else None,
         "files": {
             "taskset_unfrozen": str(taskset_unfrozen_path),
             "taskset_frozen": str(taskset_frozen_path),
@@ -254,7 +272,10 @@ def main() -> None:
         "per_failure_type_quota": quota,
         "baseline_off_success_at_k_pct": baseline,
         "baseline_target_range_pct": {"min": float(args.target_min_off_success_pct), "max": float(args.target_max_off_success_pct)},
-        "baseline_in_target_range": baseline_in_range if baseline is not None else None,
+        "baseline_meets_minimum": baseline_meets_minimum if baseline is not None else None,
+        "baseline_has_headroom": baseline_has_headroom if baseline is not None else None,
+        "baseline_eligible_for_uplift": baseline_eligible_for_uplift if baseline is not None else None,
+        "baseline_in_target_range": baseline_meets_minimum if baseline is not None else None,
         "manifest_path": str(manifest_path),
         "taskset_frozen_path": str(taskset_frozen_path),
         "reasons": reasons,

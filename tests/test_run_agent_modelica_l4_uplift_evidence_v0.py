@@ -87,7 +87,7 @@ class RunAgentModelicaL4UpliftEvidenceV0ScriptTests(unittest.TestCase):
             self.assertEqual(str(decision.get("primary_reason") or ""), "none")
             self.assertGreaterEqual(float(decision.get("main_delta_success_at_k_pp") or 0.0), 5.0)
 
-    def test_out_of_range_baseline_short_circuits_to_hold(self) -> None:
+    def test_weak_baseline_short_circuits_to_hold(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
         script = repo_root / "scripts" / "run_agent_modelica_l4_uplift_evidence_v0.sh"
         with tempfile.TemporaryDirectory() as d:
@@ -121,7 +121,7 @@ class RunAgentModelicaL4UpliftEvidenceV0ScriptTests(unittest.TestCase):
             summary = json.loads((out_dir / "summary.json").read_text(encoding="utf-8"))
             self.assertEqual(str(summary.get("status") or ""), "PASS")
             self.assertEqual(str(decision.get("decision") or ""), "hold")
-            self.assertEqual(str(decision.get("primary_reason") or ""), "baseline_out_of_range")
+            self.assertEqual(str(decision.get("primary_reason") or ""), "baseline_too_weak")
 
 
 if __name__ == "__main__":
