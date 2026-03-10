@@ -388,15 +388,15 @@ def _plan_with_gemini_backend(
     emit_change_set_draft: bool,
 ) -> dict:
     api_key = os.getenv("GOOGLE_API_KEY")
-    model = os.getenv("LLM_MODEL") or os.getenv("GATEFORGE_GEMINI_MODEL")
+    model = os.getenv("LLM_MODEL") or os.getenv("GATEFORGE_GEMINI_MODEL") or os.getenv("GEMINI_MODEL")
     if not api_key or not model:
-        _bootstrap_env_from_repo(allowed_keys={"GOOGLE_API_KEY", "LLM_MODEL", "GATEFORGE_GEMINI_MODEL"})
+        _bootstrap_env_from_repo(allowed_keys={"GOOGLE_API_KEY", "LLM_MODEL", "GATEFORGE_GEMINI_MODEL", "GEMINI_MODEL"})
         api_key = os.getenv("GOOGLE_API_KEY")
-        model = os.getenv("LLM_MODEL") or os.getenv("GATEFORGE_GEMINI_MODEL")
+        model = os.getenv("LLM_MODEL") or os.getenv("GATEFORGE_GEMINI_MODEL") or os.getenv("GEMINI_MODEL")
     if not api_key:
         raise ValueError("planner-backend=gemini requires GOOGLE_API_KEY to be set")
     if not model:
-        raise ValueError("planner-backend=gemini requires LLM_MODEL or GATEFORGE_GEMINI_MODEL to be set")
+        raise ValueError("planner-backend=gemini requires LLM_MODEL or GATEFORGE_GEMINI_MODEL or GEMINI_MODEL to be set")
     prompt = (
         "You are a planning backend for GateForge.\n"
         "Return ONLY JSON object with keys: intent, proposal_id, overrides.\n"

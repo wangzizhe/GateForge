@@ -7,6 +7,39 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 DEFAULT_STRATEGIES = {
+    "underconstrained_system": [
+        {
+            "strategy_id": "topo_balance_restore",
+            "name": "Topology Balance Restore",
+            "actions": [
+                "inspect dropped connects and restore dangling conservation path",
+                "rebuild missing topology before any simulate attempt",
+            ],
+            "priority": 100,
+        }
+    ],
+    "connector_mismatch": [
+        {
+            "strategy_id": "topo_connector_alignment",
+            "name": "Connector Alignment",
+            "actions": [
+                "align connector endpoint names and connector types",
+                "rerun checkModel after each connect statement repair",
+            ],
+            "priority": 100,
+        }
+    ],
+    "initialization_infeasible": [
+        {
+            "strategy_id": "init_conflict_resolution",
+            "name": "Initialization Conflict Resolution",
+            "actions": [
+                "inspect conflicting initial equations and fixed starts",
+                "relax or align inconsistent initial conditions before simulate",
+            ],
+            "priority": 100,
+        }
+    ],
     "model_check_error": [
         {
             "strategy_id": "mc_undefined_symbol_guard",

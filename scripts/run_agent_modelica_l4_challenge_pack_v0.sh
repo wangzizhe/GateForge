@@ -8,12 +8,17 @@ OUT_DIR="${GATEFORGE_AGENT_L4_CHALLENGE_OUT_DIR:-assets_private/agent_modelica_l
 BASE_TASKSET="${GATEFORGE_AGENT_L4_CHALLENGE_BASE_TASKSET:-assets_private/agent_modelica_l2_freeze_pack_v0/taskset_frozen.json}"
 SCALES="${GATEFORGE_AGENT_L4_CHALLENGE_SCALES:-small,medium}"
 FAILURE_TYPES="${GATEFORGE_AGENT_L4_CHALLENGE_FAILURE_TYPES:-model_check_error,simulate_error,semantic_regression}"
+REQUIRED_CATEGORIES="${GATEFORGE_AGENT_L4_CHALLENGE_REQUIRED_CATEGORIES:-}"
 PER_FAILURE_TYPE_CAP="${GATEFORGE_AGENT_L4_CHALLENGE_PER_FAILURE_TYPE_CAP:-6}"
 SPLIT_SEED="${GATEFORGE_AGENT_L4_CHALLENGE_SPLIT_SEED:-agent_modelica_l4_challenge_v0}"
 HOLDOUT_RATIO="${GATEFORGE_AGENT_L4_CHALLENGE_HOLDOUT_RATIO:-0.15}"
 TARGET_MIN_OFF_SUCCESS_PCT="${GATEFORGE_AGENT_L4_CHALLENGE_TARGET_MIN_OFF_SUCCESS_PCT:-60}"
 TARGET_MAX_OFF_SUCCESS_PCT="${GATEFORGE_AGENT_L4_CHALLENGE_TARGET_MAX_OFF_SUCCESS_PCT:-95}"
 ENFORCE_BASELINE_RANGE="${GATEFORGE_AGENT_L4_CHALLENGE_ENFORCE_BASELINE_RANGE:-1}"
+PACK_ID="${GATEFORGE_AGENT_L4_CHALLENGE_PACK_ID:-}"
+PACK_VERSION="${GATEFORGE_AGENT_L4_CHALLENGE_PACK_VERSION:-}"
+PACK_TRACK="${GATEFORGE_AGENT_L4_CHALLENGE_PACK_TRACK:-}"
+ACCEPTANCE_SCOPE="${GATEFORGE_AGENT_L4_CHALLENGE_ACCEPTANCE_SCOPE:-}"
 
 PLANNER_BACKEND="${GATEFORGE_AGENT_L4_CHALLENGE_PLANNER_BACKEND:-rule}"
 BACKEND="${GATEFORGE_AGENT_L4_CHALLENGE_BACKEND:-openmodelica_docker}"
@@ -48,6 +53,11 @@ python3 -m gateforge.agent_modelica_l4_challenge_pack_v0 \
   --out-dir "$OUT_DIR" \
   --scales "$SCALES" \
   --failure-types "$FAILURE_TYPES" \
+  --required-categories "$REQUIRED_CATEGORIES" \
+  --pack-id "$PACK_ID" \
+  --pack-version "$PACK_VERSION" \
+  --pack-track "$PACK_TRACK" \
+  --acceptance-scope "$ACCEPTANCE_SCOPE" \
   --per-failure-type-cap "$PER_FAILURE_TYPE_CAP" \
   --holdout-ratio "$HOLDOUT_RATIO" \
   --split-seed "$SPLIT_SEED" \
@@ -112,6 +122,11 @@ if [ -n "$BASELINE_OFF_SUCCESS" ]; then
     --out-dir "$OUT_DIR" \
     --scales "$SCALES" \
     --failure-types "$FAILURE_TYPES" \
+    --required-categories "$REQUIRED_CATEGORIES" \
+    --pack-id "$PACK_ID" \
+    --pack-version "$PACK_VERSION" \
+    --pack-track "$PACK_TRACK" \
+    --acceptance-scope "$ACCEPTANCE_SCOPE" \
     --per-failure-type-cap "$PER_FAILURE_TYPE_CAP" \
     --holdout-ratio "$HOLDOUT_RATIO" \
     --split-seed "$SPLIT_SEED" \

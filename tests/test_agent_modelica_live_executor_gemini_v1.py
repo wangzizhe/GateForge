@@ -222,6 +222,24 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
                 else:
                     os.environ["GOOGLE_API_KEY"] = prev
 
+    def test_bootstrap_env_from_repo_loads_gemini_model_alias_from_cwd_env(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="gf_env_bootstrap_") as td:
+            env_path = Path(td) / ".env"
+            env_path.write_text("GEMINI_MODEL=gemini-3.1-pro-preview\n", encoding="utf-8")
+            prev = os.environ.pop("GEMINI_MODEL", None)
+            prev_cwd = os.getcwd()
+            try:
+                os.chdir(td)
+                loaded = _bootstrap_env_from_repo(allowed_keys={"GEMINI_MODEL"})
+                self.assertGreaterEqual(loaded, 1)
+                self.assertEqual(os.getenv("GEMINI_MODEL"), "gemini-3.1-pro-preview")
+            finally:
+                os.chdir(prev_cwd)
+                if prev is None:
+                    os.environ.pop("GEMINI_MODEL", None)
+                else:
+                    os.environ["GEMINI_MODEL"] = prev
+
     def test_parse_repair_actions_supports_json_and_pipe_formats(self) -> None:
         self.assertEqual(_parse_repair_actions('["a","b"]'), ["a", "b"])
         self.assertEqual(_parse_repair_actions("a | b | c"), ["a", "b", "c"])

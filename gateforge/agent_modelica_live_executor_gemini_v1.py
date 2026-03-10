@@ -194,13 +194,13 @@ def _gemini_repair_model_text(
 ) -> tuple[str | None, str]:
     api_key = os.getenv("GOOGLE_API_KEY")
     if not api_key:
-        _bootstrap_env_from_repo(allowed_keys={"GOOGLE_API_KEY", "LLM_MODEL", "GATEFORGE_GEMINI_MODEL"})
+        _bootstrap_env_from_repo(allowed_keys={"GOOGLE_API_KEY", "LLM_MODEL", "GATEFORGE_GEMINI_MODEL", "GEMINI_MODEL"})
         api_key = os.getenv("GOOGLE_API_KEY")
     if not api_key:
         return None, "GOOGLE_API_KEY missing"
-    model = os.getenv("LLM_MODEL") or os.getenv("GATEFORGE_GEMINI_MODEL")
+    model = os.getenv("LLM_MODEL") or os.getenv("GATEFORGE_GEMINI_MODEL") or os.getenv("GEMINI_MODEL")
     if not model:
-        return None, "LLM_MODEL or GATEFORGE_GEMINI_MODEL missing"
+        return None, "LLM_MODEL or GATEFORGE_GEMINI_MODEL or GEMINI_MODEL missing"
     prompt = (
         "You are fixing a Modelica model.\n"
         "Return ONLY JSON object with keys: patched_model_text, rationale.\n"
