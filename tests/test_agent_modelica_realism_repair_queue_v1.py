@@ -262,6 +262,68 @@ def _signal_gap_realism_summary_payload() -> dict:
     return payload
 
 
+def _shifted_under_run_results_payload() -> dict:
+    return {
+        "records": [
+            {
+                "task_id": "t_under",
+                "failure_type": "underconstrained_system",
+                "passed": False,
+                "attempts": [
+                    {
+                        "round": 1,
+                        "observed_failure_type": "simulate_error",
+                        "diagnostic_ir": {
+                            "error_type": "simulate_error",
+                            "error_subtype": "simulation_failure_unknown",
+                            "stage": "simulate",
+                        },
+                    }
+                ],
+            }
+        ]
+    }
+
+
+def _shifted_under_realism_summary_payload() -> dict:
+    payload = {
+        "schema_version": "agent_modelica_realism_summary_v1",
+        "status": "NEEDS_REVIEW",
+        "recommendation": "repair_wave1_taxonomy_alignment",
+        "taxonomy_view_mode": "dual_view",
+        "mismatch_summary": {
+            "canonical_type_mismatch_count": 1,
+            "stage_mismatch_count": 1,
+            "subtype_mismatch_count": 0,
+            "missing_failure_signal_count": 0,
+            "initialization_truncated_by_check_count": 0,
+            "connector_subtype_match_rate_pct": 100.0,
+            "initialization_simulate_stage_rate_pct": 100.0,
+            "category_record_gap_count": 0,
+            "missing_failure_type_records": [],
+            "missing_categories": [],
+        },
+        "by_failure_type": {
+            "underconstrained_system": {
+                "task_count": 1,
+                "l3_record_count": 1,
+                "manifestation_record_count": 1,
+                "canonical_match_rate_pct": 0.0,
+                "stage_match_rate_pct": 0.0,
+                "subtype_match_rate_pct": 0.0,
+                "no_failure_signal_count": 0,
+                "l5_success_count_on": 0,
+            }
+        },
+    }
+    payload["failure_manifestation_view"] = {
+        "status": "NEEDS_REVIEW",
+        "by_failure_type": payload["by_failure_type"],
+        "mismatch_summary": payload["mismatch_summary"],
+    }
+    return payload
+
+
 def _final_summary_payload(run_root: Path) -> dict:
     return {
         "schema_version": "agent_modelica_realism_final_run_summary_v1",
@@ -341,6 +403,22 @@ class AgentModelicaRealismRepairQueueV1Tests(unittest.TestCase):
             self.assertEqual(summary.get("top_repair_priority"), "underconstrained_system:manifestation_signal_gap")
             by_failure_type = summary.get("by_failure_type") if isinstance(summary.get("by_failure_type"), dict) else {}
             self.assertEqual((by_failure_type.get("underconstrained_system") or {}).get("priority_reason"), "manifestation_signal_gap")
+
+    def test_build_repair_queue_classifies_underconstrained_stage_shift_as_actionable(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            run_root = Path(d) / "run04"
+            _write_json(run_root / "final_run_summary.json", _final_summary_payload(run_root))
+            _write_json(run_root / "challenge" / "taskset_frozen.json", {"tasks": [_taskset_payload()["tasks"][-1]]})
+            _write_json(run_root / "main_l5" / "l3" / "run2" / "run_results.json", _shifted_under_run_results_payload())
+            _write_json(run_root / "main_l5" / "l3" / "run2" / "diagnostic_quality_summary.json", _diagnostic_quality_payload())
+            _write_json(run_root / "realism_internal_summary.json", _shifted_under_realism_summary_payload())
+
+            summary = build_repair_queue_v1(run_root=str(run_root), update_final_summary=True)
+
+            self.assertEqual(summary.get("status"), "PASS")
+            self.assertEqual(summary.get("top_repair_priority"), "underconstrained_system:manifestation_stage_shift")
+            by_failure_type = summary.get("by_failure_type") if isinstance(summary.get("by_failure_type"), dict) else {}
+            self.assertEqual((by_failure_type.get("underconstrained_system") or {}).get("priority_reason"), "manifestation_stage_shift")
 
     def test_finalize_run_updates_final_summary_with_repair_queue_fields(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]

@@ -46,6 +46,7 @@ PACK_ID="${GATEFORGE_AGENT_L4_UPLIFT_PACK_ID:-}"
 PACK_VERSION="${GATEFORGE_AGENT_L4_UPLIFT_PACK_VERSION:-}"
 PACK_TRACK="${GATEFORGE_AGENT_L4_UPLIFT_PACK_TRACK:-}"
 ACCEPTANCE_SCOPE="${GATEFORGE_AGENT_L4_UPLIFT_ACCEPTANCE_SCOPE:-}"
+CONTINUE_ON_WEAK_BASELINE="${GATEFORGE_AGENT_L4_UPLIFT_CONTINUE_ON_WEAK_BASELINE:-0}"
 
 MIN_DELTA_SUCCESS_PP="${GATEFORGE_AGENT_L4_UPLIFT_MIN_DELTA_SUCCESS_PP:-5}"
 ABSOLUTE_SUCCESS_TARGET_PCT="${GATEFORGE_AGENT_L4_UPLIFT_ABSOLUTE_SUCCESS_TARGET_PCT:-85}"
@@ -355,6 +356,34 @@ BASELINE_MEETS_MINIMUM="${BASELINE_STATE%%|*}"
 BASELINE_STATE_REST="${BASELINE_STATE#*|}"
 BASELINE_HAS_HEADROOM="${BASELINE_STATE_REST%%|*}"
 ACCEPTANCE_MODE="${BASELINE_STATE_REST#*|}"
+DOWNSTREAM_STATE="$(python3 - "$CHALLENGE_SUMMARY" "$PACK_TRACK" "$ACCEPTANCE_SCOPE" "$CONTINUE_ON_WEAK_BASELINE" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+summary = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+pack_track = str(sys.argv[2] or "").strip().lower()
+acceptance_scope = str(sys.argv[3] or "").strip().lower()
+continue_flag = str(sys.argv[4] or "").strip().lower() not in {"", "0", "false", "no", "off"}
+reasons = {str(x) for x in (summary.get("reasons") if isinstance(summary.get("reasons"), list) else []) if str(x)}
+meets = summary.get("baseline_meets_minimum")
+if meets is None:
+    meets = summary.get("baseline_in_target_range")
+meets = meets is True
+execution_valid = summary.get("baseline_execution_valid")
+if execution_valid is None:
+    execution_valid = "baseline_off_run_results_empty" not in reasons
+execution_valid = execution_valid is True
+realism_independent = pack_track == "realism" and acceptance_scope == "independent_validation"
+continued = continue_flag and realism_independent and execution_valid and not meets
+should_run = meets or continued
+print(("1" if should_run else "0") + "|" + ("1" if continued else "0") + "|" + ("1" if execution_valid else "0"))
+PY
+)"
+SHOULD_RUN_DOWNSTREAM="${DOWNSTREAM_STATE%%|*}"
+DOWNSTREAM_STATE_REST="${DOWNSTREAM_STATE#*|}"
+CONTINUED_AFTER_WEAK_BASELINE="${DOWNSTREAM_STATE_REST%%|*}"
+BASELINE_EXECUTION_VALID="${DOWNSTREAM_STATE_REST#*|}"
 
 MAIN_SWEEP_RC=0
 NIGHT_SWEEP_RC=0
@@ -362,7 +391,7 @@ MAIN_L5_RC=0
 NIGHT_L5_RC=0
 MAIN_PROFILE="score_v1"
 
-if [ "$BASELINE_MEETS_MINIMUM" = "1" ]; then
+if [ "$SHOULD_RUN_DOWNSTREAM" = "1" ]; then
   set +e
   write_stage_status "main_sweep" "RUNNING" 0 "$MAIN_SWEEP_OUT/summary.json"
   run_sweep "$MAIN_PLANNER_BACKEND" "$MAIN_SWEEP_OUT" "$MAIN_SWEEP_EXECUTOR_CMD"
@@ -434,7 +463,7 @@ python3 -m gateforge.agent_modelica_l4_uplift_decision_v0 \
   --out "$DECISION_JSON" \
   --report-out "$DECISION_MD"
 
-python3 - "$OUT_DIR" "$CHALLENGE_SUMMARY" "$DECISION_JSON" "$MAIN_SWEEP_OUT/summary.json" "$NIGHT_SWEEP_OUT/summary.json" "$MAIN_L5_OUT/l5_eval_summary.json" "$MAIN_L5_OUT/l5_weekly_metrics.json" "$NIGHT_L5_OUT/l5_eval_summary.json" "$NIGHT_L5_OUT/l5_weekly_metrics.json" "$CHALLENGE_RC" "$MAIN_SWEEP_RC" "$NIGHT_SWEEP_RC" "$MAIN_L5_RC" "$NIGHT_L5_RC" "$MAIN_PROFILE" <<'PY'
+python3 - "$OUT_DIR" "$CHALLENGE_SUMMARY" "$DECISION_JSON" "$MAIN_SWEEP_OUT/summary.json" "$NIGHT_SWEEP_OUT/summary.json" "$MAIN_L5_OUT/l5_eval_summary.json" "$MAIN_L5_OUT/l5_weekly_metrics.json" "$NIGHT_L5_OUT/l5_eval_summary.json" "$NIGHT_L5_OUT/l5_weekly_metrics.json" "$CHALLENGE_RC" "$MAIN_SWEEP_RC" "$NIGHT_SWEEP_RC" "$MAIN_L5_RC" "$NIGHT_L5_RC" "$MAIN_PROFILE" "$CONTINUED_AFTER_WEAK_BASELINE" "$BASELINE_EXECUTION_VALID" <<'PY'
 import json
 import sys
 from datetime import datetime, timezone
@@ -455,6 +484,8 @@ night_sweep_rc = int(sys.argv[12])
 main_l5_rc = int(sys.argv[13])
 night_l5_rc = int(sys.argv[14])
 main_profile = str(sys.argv[15] or "").strip()
+continued_after_weak_baseline = str(sys.argv[16] or "") == "1"
+baseline_execution_valid = str(sys.argv[17] or "") == "1"
 
 def _load(path: Path) -> dict:
     if not path.exists():
@@ -488,7 +519,7 @@ baseline_eligible_for_uplift = challenge.get("baseline_eligible_for_uplift")
 if baseline_eligible_for_uplift is None:
     baseline_eligible_for_uplift = baseline_meets_minimum and baseline_has_headroom
 acceptance_mode = str(decision.get("acceptance_mode") or ("absolute_non_regression" if baseline_meets_minimum and not baseline_has_headroom else "delta_uplift"))
-if baseline_meets_minimum:
+if baseline_meets_minimum or continued_after_weak_baseline:
     for label, payload in (
         ("main_sweep_summary", main_sweep),
         ("night_sweep_summary", night_sweep),
@@ -528,6 +559,8 @@ bundle = {
     "acceptance_mode": acceptance_mode,
     "baseline_meets_minimum": baseline_meets_minimum,
     "baseline_has_headroom": baseline_has_headroom,
+    "baseline_execution_valid": baseline_execution_valid,
+    "continued_after_weak_baseline": continued_after_weak_baseline,
     "baseline_headroom_max_pct": challenge.get("baseline_target_range_pct", {}).get("max") if isinstance(challenge.get("baseline_target_range_pct"), dict) else None,
     "baseline_eligible_for_uplift": baseline_eligible_for_uplift,
     "baseline_in_target_range": challenge.get("baseline_in_target_range"),

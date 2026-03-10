@@ -37,6 +37,7 @@ def build_payload(task_id: str, failure_type: str, expected_stage: str) -> dict:
                     "error_type": observed_failure_type,
                     "error_subtype": "mock_ci_signal",
                     "stage": stage,
+                    "observed_phase": stage,
                     "confidence": 0.99,
                 },
             }

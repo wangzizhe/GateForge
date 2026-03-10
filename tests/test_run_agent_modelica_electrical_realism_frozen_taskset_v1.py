@@ -82,6 +82,10 @@ class RunAgentModelicaElectricalRealismFrozenTasksetV1Tests(unittest.TestCase):
             self.assertEqual(int((summary.get("counts_by_category") or {}).get("topology_wiring") or 0), 4)
             self.assertEqual(int((summary.get("counts_by_category") or {}).get("initialization") or 0), 2)
             self.assertEqual(manifest.get("pack_id"), "agent_modelica_realism_pack_v1")
+            builder_provenance = manifest.get("builder_provenance") if isinstance(manifest.get("builder_provenance"), dict) else {}
+            self.assertTrue(str(builder_provenance.get("builder_source_path") or "").endswith("agent_modelica_electrical_mutant_taskset_v0.py"))
+            self.assertTrue(bool(builder_provenance.get("builder_source_sha")))
+            self.assertEqual(summary.get("builder_source_sha"), builder_provenance.get("builder_source_sha"))
             self.assertTrue((out_dir / "sha256.json").exists())
 
 

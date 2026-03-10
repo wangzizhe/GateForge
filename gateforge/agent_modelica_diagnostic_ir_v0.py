@@ -105,6 +105,20 @@ def _contains_any(text: str, needles: tuple[str, ...]) -> bool:
     return any(n in text for n in needles)
 
 
+def _structural_count_mismatch(text: str) -> tuple[int, int] | None:
+    m = re.search(r"class\s+[a-z_][a-z0-9_]*\s+has\s+([0-9]+)\s+equation\(s\)\s+and\s+([0-9]+)\s+variable\(s\)", str(text or ""), re.IGNORECASE)
+    if not m:
+        return None
+    try:
+        equations = int(m.group(1))
+        variables = int(m.group(2))
+    except Exception:
+        return None
+    if equations == variables:
+        return None
+    return equations, variables
+
+
 def _classify_check_failure(lower: str) -> tuple[str, str, str, str]:
     parse_markers = (
         "no viable alternative near token",
@@ -128,6 +142,11 @@ def _classify_check_failure(lower: str) -> tuple[str, str, str, str]:
         ),
     ):
         return "model_check_error", "underconstrained_system", "structural balance failed", "model_check_error"
+    structural_mismatch = _structural_count_mismatch(lower)
+    if structural_mismatch:
+        equations, variables = structural_mismatch
+        if equations < variables:
+            return "model_check_error", "underconstrained_system", "structural balance failed", "model_check_error"
 
     if _contains_any(lower, ("type mismatch", "incompatible connector", "connector")) and "connect" in lower:
         return "model_check_error", "connector_mismatch", "connector mismatch", "model_check_error"
@@ -145,6 +164,19 @@ def _classify_check_failure(lower: str) -> tuple[str, str, str, str]:
 
 
 def _classify_sim_failure(lower: str) -> tuple[str, str, str]:
+    if _contains_any(
+        lower,
+        (
+            "under-determined",
+            "underdetermined",
+            "too few equations",
+            "not fully determined",
+            "structurally singular",
+            "gateforge_underconstrained_probe",
+        ),
+    ):
+        return "model_check_error", "underconstrained_system", "structural balance failed"
+
     if _contains_any(lower, ("gateforge_initialization_infeasible", "initialization infeasible", "initial equation")):
         return "simulate_error", "init_failure", "initialization failed"
 
@@ -235,6 +267,16 @@ def _confidence(error_type: str, error_subtype: str, expected_stage: str, stage:
     return round(max(0.05, min(conf, 1.0)), 4)
 
 
+def _taxonomy_stage(error_type: str, observed_phase: str) -> str:
+    canonical_stage = canonical_stage_from_failure_type_v0(error_type)
+    if canonical_stage in {"check", "simulate"}:
+        return canonical_stage
+    phase = str(observed_phase or "").strip().lower()
+    if phase in {"check", "simulate"}:
+        return phase
+    return "none"
+
+
 def build_diagnostic_ir_v0(
     *,
     output: str,
@@ -247,22 +289,24 @@ def build_diagnostic_ir_v0(
     err_type = "none"
     err_subtype = "none"
     reason = ""
-    stage = "none"
+    observed_phase = "none"
     legacy_type = "none"
 
     if not check_model_pass:
-        stage = "check"
+        observed_phase = "check"
         err_type, err_subtype, reason, legacy_type = _classify_check_failure(lower)
     elif not simulate_pass:
-        stage = "simulate"
+        observed_phase = "simulate"
         err_type, err_subtype, reason = _classify_sim_failure(lower)
         legacy_type = err_type
 
     if err_type == "none":
-        stage = "none"
+        observed_phase = "none"
         reason = ""
         err_subtype = "none"
         legacy_type = "none"
+
+    stage = _taxonomy_stage(err_type, observed_phase)
 
     objects = _extract_objects(output)
     declared_raw = str(declared_failure_type or "").strip().lower()
@@ -276,6 +320,7 @@ def build_diagnostic_ir_v0(
         "error_subtype": err_subtype,
         "error_type_legacy": legacy_type,
         "stage": stage,
+        "observed_phase": observed_phase,
         "reason": reason,
         "expected_stage": expected,
         "declared_failure_type": declared_raw,

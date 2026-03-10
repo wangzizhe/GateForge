@@ -11,6 +11,7 @@ SCHEMA_VERSION = "agent_modelica_l4_uplift_decision_v0"
 PRIMARY_REASON_PRIORITY = [
     "infra",
     "missing_artifacts",
+    "baseline_execution_failed",
     "baseline_too_weak",
     "absolute_success_below_threshold",
     "quality_regression",
@@ -234,6 +235,11 @@ def evaluate_l4_uplift_decision_v0(
     compare_night = _extract_compare_metrics(night_sweep_summary if isinstance(night_sweep_summary, dict) else {})
 
     baseline_off_success = _to_float(challenge_summary.get("baseline_off_success_at_k_pct"), 0.0)
+    challenge_reasons = challenge_summary.get("reasons") if isinstance(challenge_summary.get("reasons"), list) else []
+    baseline_execution_valid = challenge_summary.get("baseline_execution_valid")
+    if baseline_execution_valid is None:
+        baseline_execution_valid = "baseline_off_run_results_empty" not in {str(x) for x in challenge_reasons}
+    baseline_execution_valid = baseline_execution_valid is True
     baseline_meets_minimum = challenge_summary.get("baseline_meets_minimum")
     if baseline_meets_minimum is None:
         baseline_meets_minimum = challenge_summary.get("baseline_in_target_range")
@@ -245,11 +251,26 @@ def evaluate_l4_uplift_decision_v0(
     baseline_has_headroom = baseline_has_headroom is True
     baseline_uplift_eligible = baseline_meets_minimum and baseline_has_headroom
     acceptance_mode = "absolute_non_regression" if baseline_meets_minimum and not baseline_has_headroom else "delta_uplift"
-    if not baseline_meets_minimum:
+    continued_after_weak_baseline = (
+        not baseline_meets_minimum
+        and baseline_execution_valid
+        and any(
+            isinstance(payload, dict) and bool(payload)
+            for payload in (
+                main_sweep_summary,
+                main_l5_summary,
+                night_sweep_summary,
+                night_l5_summary,
+            )
+        )
+    )
+    if not baseline_execution_valid:
+        reasons.append("baseline_execution_failed")
+    elif not baseline_meets_minimum:
         reasons.append("baseline_too_weak")
 
     missing_labels: list[str] = []
-    if baseline_meets_minimum:
+    if baseline_meets_minimum or continued_after_weak_baseline:
         required_payloads = (
             ("main_sweep_summary", main_sweep_summary),
             ("main_l5_summary", main_l5_summary),
@@ -361,6 +382,7 @@ def evaluate_l4_uplift_decision_v0(
         "baseline_headroom_max_pct": baseline_headroom_max_pct,
         "baseline_eligible_for_uplift": baseline_uplift_eligible,
         "baseline_in_target_range": baseline_meets_minimum,
+        "continued_after_weak_baseline": continued_after_weak_baseline,
         "main_recommended_profile": str(compare_main.get("recommended_profile") or main_sweep_summary.get("recommended_profile") or ""),
         "main_no_progress_rate_pct": _to_float(compare_main.get("no_progress_rate_pct_on"), 0.0),
         "main_llm_fallback_rate_pct": _to_float(compare_main.get("llm_fallback_rate_pct_on"), 0.0),

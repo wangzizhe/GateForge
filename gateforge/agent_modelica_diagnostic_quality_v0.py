@@ -100,7 +100,9 @@ def evaluate_diagnostic_quality_v0(
     by_error_type: dict[str, int] = {}
     subtype_distribution: dict[str, int] = {}
     category_distribution: dict[str, int] = {}
+    observed_phase_distribution: dict[str, int] = {}
     low_confidence_count = 0
+    phase_drift_count = 0
 
     for record in records:
         expected_stage = _expected_stage(task_map=task_map, record=record)
@@ -114,6 +116,7 @@ def evaluate_diagnostic_quality_v0(
             diagnostic = attempt.get("diagnostic_ir") if isinstance(attempt.get("diagnostic_ir"), dict) else {}
             diag_type = canonical_error_type_v0(str(diagnostic.get("error_type") or "").strip().lower())
             diag_stage = str(diagnostic.get("stage") or "").strip().lower()
+            observed_phase = str(diagnostic.get("observed_phase") or diag_stage or "").strip().lower()
             diag_subtype = str(diagnostic.get("error_subtype") or "").strip().lower()
             confidence = _to_float(diagnostic.get("confidence"), default=1.0)
 
@@ -122,6 +125,10 @@ def evaluate_diagnostic_quality_v0(
                 by_error_type[diag_type] = int(by_error_type.get(diag_type, 0)) + 1
                 if diag_subtype and diag_subtype != "none":
                     subtype_distribution[diag_subtype] = int(subtype_distribution.get(diag_subtype, 0)) + 1
+                if observed_phase in {"check", "simulate"}:
+                    observed_phase_distribution[observed_phase] = int(observed_phase_distribution.get(observed_phase, 0)) + 1
+                    if diag_stage in {"check", "simulate"} and observed_phase != diag_stage:
+                        phase_drift_count += 1
                 if task_category:
                     category_distribution[task_category] = int(category_distribution.get(task_category, 0)) + 1
                 if confidence < float(low_confidence_threshold):
@@ -166,6 +173,9 @@ def evaluate_diagnostic_quality_v0(
         "error_type_distribution": dict(sorted(by_error_type.items())),
         "subtype_distribution": dict(sorted(subtype_distribution.items())),
         "category_distribution": dict(sorted(category_distribution.items())),
+        "observed_phase_distribution": dict(sorted(observed_phase_distribution.items())),
+        "phase_drift_count": phase_drift_count,
+        "phase_drift_rate_pct": _ratio(phase_drift_count, parsed_attempts),
         "low_confidence_threshold": float(low_confidence_threshold),
         "low_confidence_count": low_confidence_count,
         "low_confidence_rate_pct": _ratio(low_confidence_count, parsed_attempts),

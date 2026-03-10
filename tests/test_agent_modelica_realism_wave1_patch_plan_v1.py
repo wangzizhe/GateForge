@@ -180,9 +180,77 @@ def _final_summary_payload(run_root: Path) -> dict:
 
 def _build_finalized_run_fixture(run_root: Path, include_queue: bool = True) -> None:
     _write_json(run_root / "final_run_summary.json", _final_summary_payload(run_root))
+    _write_json(
+        run_root / "summary.json",
+        {
+            "schema_version": "agent_modelica_l4_uplift_evidence_bundle_v0",
+            "status": "PASS",
+            "decision": "hold",
+            "primary_reason": "taxonomy_alignment_failed",
+            "acceptance_mode": "absolute_non_regression",
+            "pack_id": "agent_modelica_realism_pack_v1",
+            "pack_version": "v1",
+            "pack_track": "realism",
+            "acceptance_scope": "independent_validation",
+        },
+    )
+    _write_json(
+        run_root / "challenge" / "frozen_summary.json",
+        {
+            "schema_version": "agent_modelica_l4_challenge_pack_v0",
+            "status": "PASS",
+            "pack_id": "agent_modelica_realism_pack_v1",
+            "pack_version": "v1",
+            "pack_track": "realism",
+            "acceptance_scope": "independent_validation",
+            "baseline_off_success_at_k_pct": 100.0,
+            "baseline_has_headroom": False,
+            "baseline_meets_minimum": True,
+            "counts_by_failure_type": {
+                "connector_mismatch": 1,
+                "initialization_infeasible": 1,
+                "underconstrained_system": 1,
+            },
+            "counts_by_category": {
+                "initialization": 1,
+                "topology_wiring": 2,
+            },
+        },
+    )
+    _write_json(
+        run_root / "challenge" / "manifest.json",
+        {
+            "baseline_provenance": {
+                "planner_backend": "gemini",
+                "llm_model": "gemini-3.1-pro-preview",
+                "backend": "openmodelica_docker",
+                "docker_image": "openmodelica/openmodelica:v1.26.1-minimal",
+                "max_rounds": 2,
+                "max_time_sec": 180,
+            }
+        },
+    )
     _write_json(run_root / "challenge" / "taskset_frozen.json", _taskset_payload())
     _write_json(run_root / "main_l5" / "l3" / "run2" / "run_results.json", _run_results_payload())
     _write_json(run_root / "main_l5" / "l3" / "run2" / "diagnostic_quality_summary.json", _diagnostic_quality_payload())
+    _write_json(run_root / "main_l5" / "l4" / "ab_compare_summary.json", {})
+    _write_json(
+        run_root / "main_l5" / "l5_eval_summary.json",
+        {
+            "status": "PASS",
+            "gate_result": "PASS",
+            "success_at_k_pct": 0.0,
+            "failure_type_breakdown_on": {
+                "connector_mismatch": {"record_count": 1, "success_count": 0},
+                "initialization_infeasible": {"record_count": 1, "success_count": 0},
+                "underconstrained_system": {"record_count": 1, "success_count": 0},
+            },
+            "category_breakdown_on": {
+                "initialization": {"record_count": 1, "success_count": 0},
+                "topology_wiring": {"record_count": 2, "success_count": 0},
+            },
+        },
+    )
     _write_json(run_root / "realism_internal_summary.json", _realism_summary_payload())
     if include_queue:
         build_repair_queue_v1(run_root=str(run_root), update_final_summary=True)
@@ -259,6 +327,60 @@ def _build_signal_gap_fixture(run_root: Path) -> None:
     build_repair_queue_v1(run_root=str(run_root), update_final_summary=True)
 
 
+def _build_stage_shift_fixture(run_root: Path) -> None:
+    _write_json(run_root / "final_run_summary.json", _final_summary_payload(run_root))
+    _write_json(run_root / "challenge" / "taskset_frozen.json", {"tasks": [_taskset_payload()["tasks"][-1]]})
+    _write_json(
+        run_root / "main_l5" / "l3" / "run2" / "run_results.json",
+        {
+            "records": [
+                {
+                    "task_id": "t_under",
+                    "attempts": [
+                        {
+                            "round": 1,
+                            "observed_failure_type": "simulate_error",
+                            "diagnostic_ir": {
+                                "error_type": "simulate_error",
+                                "error_subtype": "simulation_failure_unknown",
+                                "stage": "simulate",
+                            },
+                        }
+                    ],
+                }
+            ]
+        },
+    )
+    _write_json(run_root / "main_l5" / "l3" / "run2" / "diagnostic_quality_summary.json", _diagnostic_quality_payload())
+    _write_json(
+        run_root / "realism_internal_summary.json",
+        {
+            "schema_version": "agent_modelica_realism_summary_v1",
+            "status": "NEEDS_REVIEW",
+            "recommendation": "repair_wave1_taxonomy_alignment",
+            "failure_manifestation_view": {
+                "status": "NEEDS_REVIEW",
+                "mismatch_summary": {
+                    "missing_failure_signal_count": 0,
+                    "initialization_truncated_by_check_count": 0,
+                    "connector_subtype_match_rate_pct": 100.0,
+                    "initialization_simulate_stage_rate_pct": 100.0,
+                },
+                "by_failure_type": {
+                    "underconstrained_system": {
+                        "manifestation_record_count": 1,
+                        "canonical_match_rate_pct": 0.0,
+                        "stage_match_rate_pct": 0.0,
+                        "no_failure_signal_count": 0,
+                        "l5_success_count_on": 0,
+                    }
+                },
+            },
+        },
+    )
+    build_repair_queue_v1(run_root=str(run_root), update_final_summary=True)
+
+
 class AgentModelicaRealismWave1PatchPlanV1Tests(unittest.TestCase):
     def test_build_patch_plan_outputs_operator_and_playbook_changes(self) -> None:
         with tempfile.TemporaryDirectory() as d:
@@ -304,6 +426,18 @@ class AgentModelicaRealismWave1PatchPlanV1Tests(unittest.TestCase):
             self.assertEqual(summary.get("top_patch_target"), "topology_realism:drop_connect_equation")
             operator_changes = summary.get("operator_changes") if isinstance(summary.get("operator_changes"), list) else []
             self.assertEqual((operator_changes[0] or {}).get("patch_kind"), "operator_rework")
+
+    def test_build_patch_plan_maps_underconstrained_stage_shift_to_operator_rework(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            run_root = Path(d) / "run04"
+            _build_stage_shift_fixture(run_root)
+
+            summary = build_wave1_patch_plan_v1(run_root=str(run_root), update_final_summary=True)
+
+            self.assertEqual(summary.get("status"), "PASS")
+            self.assertEqual(summary.get("top_patch_target"), "topology_realism:drop_connect_equation")
+            operator_changes = summary.get("operator_changes") if isinstance(summary.get("operator_changes"), list) else []
+            self.assertEqual((operator_changes[0] or {}).get("patch_kind"), "operator_and_mapping_rework")
 
     def test_finalize_run_updates_final_summary_with_patch_plan_fields(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]

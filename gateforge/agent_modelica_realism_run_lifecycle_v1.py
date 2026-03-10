@@ -578,7 +578,7 @@ def _maybe_refresh_realism_summary(run_root: Path) -> dict:
     l3_quality = _load_json(run_root / "main_l5" / "l3" / "run2" / "diagnostic_quality_summary.json")
     l4_ab = _load_json(run_root / "main_l5" / "l4" / "ab_compare_summary.json")
     l5_summary = _load_json(run_root / "main_l5" / "l5_eval_summary.json")
-    if not (challenge and taskset and l3_run and l3_quality and l5_summary):
+    if not (challenge and taskset):
         return {}
     realism = build_realism_summary_v1(
         evidence_summary=evidence,
@@ -1159,6 +1159,11 @@ def _final_status_from_artifacts(run_root: Path) -> tuple[dict, dict]:
     l3_run = _load_json(run_root / "main_l5" / "l3" / "run2" / "run_results.json")
 
     baseline_pct = _safe_float(challenge.get("baseline_off_success_at_k_pct"))
+    challenge_reasons = {str(x) for x in (challenge.get("reasons") if isinstance(challenge.get("reasons"), list) else []) if str(x)}
+    baseline_execution_valid = challenge.get("baseline_execution_valid")
+    if baseline_execution_valid is None:
+        baseline_execution_valid = "baseline_off_run_results_empty" not in challenge_reasons
+    baseline_execution_valid = baseline_execution_valid is True
     baseline_has_headroom = challenge.get("baseline_has_headroom")
     baseline_saturated = bool(
         (baseline_pct is not None and baseline_pct >= 100.0)
@@ -1177,10 +1182,20 @@ def _final_status_from_artifacts(run_root: Path) -> tuple[dict, dict]:
     completion_reason = ""
 
     preflight_blocked = str(preflight.get("status") or "").upper() == "BLOCKED"
+    preflight_blockers = {
+        str(x)
+        for x in (preflight.get("blockers") if isinstance(preflight.get("blockers"), list) else [])
+        if str(x)
+    }
+    continued_after_weak_baseline = bool(evidence.get("continued_after_weak_baseline"))
 
     if preflight_blocked and not challenge:
         status = "BLOCKED"
-        primary_reason = "environment_preflight_failed"
+        primary_reason = "stale_base_taskset" if "stale_base_taskset" in preflight_blockers else "environment_preflight_failed"
+        completion_reason = primary_reason
+    elif not baseline_execution_valid:
+        status = "BLOCKED"
+        primary_reason = "baseline_execution_failed"
         completion_reason = primary_reason
     elif not challenge or baseline_pct is None:
         status = "BLOCKED"
@@ -1188,11 +1203,15 @@ def _final_status_from_artifacts(run_root: Path) -> tuple[dict, dict]:
         completion_reason = primary_reason
     elif not main_l5 or not (l3_run.get("records") if isinstance(l3_run.get("records"), list) else []):
         status = "NEEDS_REVIEW"
-        primary_reason = "downstream_evidence_incomplete"
+        primary_reason = "baseline_too_weak" if (continued_after_weak_baseline and evidence_status == "PASS") else "downstream_evidence_incomplete"
         completion_reason = primary_reason
     elif realism:
         realism_status = str(realism.get("status") or "").upper()
-        if realism_status in {"FAIL", "NEEDS_REVIEW"}:
+        if continued_after_weak_baseline and evidence_status == "PASS":
+            status = "NEEDS_REVIEW"
+            primary_reason = "baseline_too_weak"
+            completion_reason = primary_reason
+        elif realism_status in {"FAIL", "NEEDS_REVIEW"}:
             status = "NEEDS_REVIEW"
             primary_reason = "taxonomy_alignment_failed"
             completion_reason = primary_reason
@@ -1206,6 +1225,11 @@ def _final_status_from_artifacts(run_root: Path) -> tuple[dict, dict]:
     taxonomy_alignment_recommendation = str(realism.get("recommendation") or "")
     manifestation_alignment_status = str(manifestation_view.get("status") or taxonomy_alignment_status)
     outcome_alignment_status = str(outcome_view.get("status") or "INCOMPLETE")
+    if str(realism.get("status") or "").upper() == "BLOCKED":
+        taxonomy_alignment_status = "INCOMPLETE"
+        taxonomy_alignment_recommendation = ""
+        manifestation_alignment_status = "INCOMPLETE"
+        outcome_alignment_status = "INCOMPLETE"
 
     summary = {
         "schema_version": FINAL_RUN_SUMMARY_SCHEMA_VERSION,
@@ -1218,6 +1242,7 @@ def _final_status_from_artifacts(run_root: Path) -> tuple[dict, dict]:
         "acceptance_mode": str(evidence.get("acceptance_mode") or ""),
         "baseline_state": baseline_state,
         "baseline_off_success_at_k_pct": baseline_pct,
+        "continued_after_weak_baseline": continued_after_weak_baseline,
         "main_success_at_k_pct": evidence.get("main_success_at_k_pct"),
         "connector_subtype_match_rate_pct": mismatch_summary.get("connector_subtype_match_rate_pct"),
         "initialization_simulate_stage_rate_pct": mismatch_summary.get("initialization_simulate_stage_rate_pct"),

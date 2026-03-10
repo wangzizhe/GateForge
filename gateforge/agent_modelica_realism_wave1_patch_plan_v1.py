@@ -90,6 +90,32 @@ PATCH_TEMPLATES = {
         ],
         "priority_boost": 22,
     },
+    ("underconstrained_system", "manifestation_stage_shift"): {
+        "patch_kind": "operator_and_mapping_rework",
+        "patch_target": "topology_realism:drop_connect_equation",
+        "title": "Pull underconstrained_system back to check/model_check",
+        "recommended_patch_action": "tighten dropped-connect realism edits so structural underconstraint is detected during check/model-check instead of drifting into simulate",
+        "rationale": "Current underconstrained_system tasks emit a failure signal, but it lands in the wrong canonical type or stage, so realism evidence validates the wrong manifestation path.",
+        "code_targets": [
+            "gateforge/agent_modelica_electrical_mutant_taskset_v0.py",
+            "gateforge/agent_modelica_diagnostic_ir_v0.py",
+        ],
+        "planned_changes": [
+            "use non-elidable structural probes so dropped-connect edits remain underdetermined during checkModel",
+            "prefer structural underconstraint markers before generic simulate failure fallback when solver logs echo the same defect",
+            "keep the topology defect local so the first surfaced signal stays on the intended check/model_check path",
+        ],
+        "acceptance_checks": [
+            "underconstrained_system canonical_match_rate_pct rises above zero",
+            "underconstrained_system stage_match_rate_pct rises above zero",
+            "underconstrained_system no longer collapses into simulate_error/simulation_failure_unknown",
+        ],
+        "playbook_actions": [
+            "treat check-to-simulate manifestation drift as a realism generation defect before tuning repair policy",
+            "verify dropped-connect edits fail during checkModel before evaluating repair success on underconstrained tasks",
+        ],
+        "priority_boost": 21,
+    },
     ("underconstrained_system", "repair_policy_gap"): {
         "patch_kind": "playbook_policy_update",
         "patch_target": "repair_playbook:underconstrained_system",

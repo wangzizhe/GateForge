@@ -97,8 +97,36 @@ fi
 BASELINE_RC=$?
 set -e
 
+BASELINE_RECORD_COUNT="$(python3 - "$BASELINE_RUN_RESULTS" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+p = Path(sys.argv[1])
+count = 0
+if p.exists():
+    try:
+        payload = json.loads(p.read_text(encoding="utf-8"))
+    except Exception:
+        payload = None
+    rows = []
+    if isinstance(payload, list):
+        rows = payload
+    elif isinstance(payload, dict):
+        maybe_rows = payload.get("records")
+        if isinstance(maybe_rows, list):
+            rows = maybe_rows
+        else:
+            maybe_rows = payload.get("rows")
+            if isinstance(maybe_rows, list):
+                rows = maybe_rows
+    count = len([row for row in rows if isinstance(row, dict)])
+print(count)
+PY
+)"
+
 BASELINE_OFF_SUCCESS=""
-if [ -f "$BASELINE_RUN_SUMMARY" ]; then
+if [ "$BASELINE_RECORD_COUNT" != "0" ] && [ -f "$BASELINE_RUN_SUMMARY" ]; then
   BASELINE_OFF_SUCCESS="$(python3 - "$BASELINE_RUN_SUMMARY" <<'PY'
 import json
 import sys
@@ -115,7 +143,33 @@ PY
 fi
 
 SUMMARY_REFRESH_RC=0
-if [ -n "$BASELINE_OFF_SUCCESS" ]; then
+if [ "$BASELINE_RECORD_COUNT" = "0" ]; then
+  python3 - "$OUT_DIR/frozen_summary.json" "$BASELINE_RECORD_COUNT" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+summary_path = Path(sys.argv[1])
+record_count = int(sys.argv[2])
+summary = json.loads(summary_path.read_text(encoding="utf-8")) if summary_path.exists() else {}
+reasons = summary.get("reasons") if isinstance(summary.get("reasons"), list) else []
+for reason in ("baseline_off_run_results_empty", "baseline_execution_failed"):
+    if reason not in reasons:
+        reasons.append(reason)
+summary["reasons"] = sorted(set([str(x) for x in reasons if str(x)]))
+summary["status"] = "FAIL"
+summary["baseline_off_success_at_k_pct"] = None
+summary["baseline_off_record_count"] = record_count
+summary["baseline_execution_valid"] = False
+summary["baseline_meets_minimum"] = None
+summary["baseline_has_headroom"] = None
+summary["baseline_eligible_for_uplift"] = None
+summary["baseline_in_target_range"] = None
+summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
+print(json.dumps({"status": summary.get("status"), "baseline_off_record_count": record_count}))
+PY
+  SUMMARY_REFRESH_RC=2
+elif [ -n "$BASELINE_OFF_SUCCESS" ]; then
   set +e
   python3 -m gateforge.agent_modelica_l4_challenge_pack_v0 \
     --taskset-in "$BASE_TASKSET" \
@@ -131,6 +185,7 @@ if [ -n "$BASELINE_OFF_SUCCESS" ]; then
     --holdout-ratio "$HOLDOUT_RATIO" \
     --split-seed "$SPLIT_SEED" \
     --baseline-off-success-at-k-pct "$BASELINE_OFF_SUCCESS" \
+    --baseline-off-record-count "$BASELINE_RECORD_COUNT" \
     --target-min-off-success-pct "$TARGET_MIN_OFF_SUCCESS_PCT" \
     --target-max-off-success-pct "$TARGET_MAX_OFF_SUCCESS_PCT" \
     --out "$OUT_DIR/frozen_summary.json" \
@@ -138,11 +193,12 @@ if [ -n "$BASELINE_OFF_SUCCESS" ]; then
   SUMMARY_REFRESH_RC=$?
   set -e
 else
-  python3 - "$OUT_DIR/frozen_summary.json" <<'PY'
+  python3 - "$OUT_DIR/frozen_summary.json" "$BASELINE_RECORD_COUNT" <<'PY'
 import json
 import sys
 from pathlib import Path
 summary_path = Path(sys.argv[1])
+record_count = int(sys.argv[2])
 summary = json.loads(summary_path.read_text(encoding="utf-8")) if summary_path.exists() else {}
 reasons = summary.get("reasons") if isinstance(summary.get("reasons"), list) else []
 if "baseline_off_run_summary_missing" not in reasons:
@@ -150,6 +206,8 @@ if "baseline_off_run_summary_missing" not in reasons:
 summary["reasons"] = sorted(set([str(x) for x in reasons if str(x)]))
 summary["status"] = "NEEDS_REVIEW" if summary.get("status") != "FAIL" else "FAIL"
 summary["baseline_off_success_at_k_pct"] = None
+summary["baseline_off_record_count"] = record_count
+summary["baseline_execution_valid"] = record_count > 0
 summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
 print(json.dumps({"status": summary.get("status"), "baseline_off_success_at_k_pct": None}))
 PY

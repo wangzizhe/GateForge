@@ -249,6 +249,7 @@ class AgentModelicaElectricalMutantTasksetV0Tests(unittest.TestCase):
                     any(
                         str(obj.get("kind") or "") == "free_variable_probe"
                         and str(obj.get("effect") or "") == "structural_underconstraint"
+                        and str(obj.get("paired_with") or "").startswith("gateforge_underconstrained_probe_")
                         for obj in (row.get("mutated_objects") or [])
                         if isinstance(obj, dict)
                     )
@@ -257,6 +258,7 @@ class AgentModelicaElectricalMutantTasksetV0Tests(unittest.TestCase):
             )
             under_text = Path(str(under_rows[0].get("mutated_model_path"))).read_text(encoding="utf-8")
             self.assertIn("gateforge_underconstrained_probe_", under_text)
+            self.assertIn("_a = gateforge_underconstrained_probe_", under_text)
             self.assertNotIn("connect(V1.p, R1.p);", under_text)
 
 

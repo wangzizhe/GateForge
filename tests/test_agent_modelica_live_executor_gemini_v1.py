@@ -10,6 +10,7 @@ from unittest.mock import patch
 from gateforge.agent_modelica_live_executor_gemini_v1 import (
     _apply_parse_error_pre_repair,
     _bootstrap_env_from_repo,
+    _extract_om_success_flags,
     _extract_json_object,
     _normalize_terminal_errors,
     _parse_env_assignment,
@@ -76,6 +77,13 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
                 script_text = str(mocked.call_args.kwargs.get("script_text") or mocked.call_args.args[0])
                 self.assertIn("installPackage(Modelica);", script_text)
                 self.assertIn("loadModel(Modelica);", script_text)
+
+    def test_extract_om_success_flags_treats_structural_mismatch_as_check_failure(self) -> None:
+        check_ok, simulate_ok = _extract_om_success_flags(
+            'Check of SmallRDividerV0 completed successfully.\nClass SmallRDividerV0 has 32 equation(s) and 33 variable(s).\n'
+        )
+        self.assertFalse(check_ok)
+        self.assertFalse(simulate_ok)
 
     def test_run_omc_script_docker_mounts_cache_dir(self) -> None:
         with tempfile.TemporaryDirectory(prefix="gf_live_exec_docker_cache_") as td:

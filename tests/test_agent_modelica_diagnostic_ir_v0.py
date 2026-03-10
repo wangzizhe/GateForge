@@ -16,6 +16,7 @@ class AgentModelicaDiagnosticIRV0Tests(unittest.TestCase):
         self.assertEqual(payload.get("error_subtype"), "parse_lexer_error")
         self.assertEqual(payload.get("error_type_legacy"), "script_parse_error")
         self.assertEqual(payload.get("stage"), "check")
+        self.assertEqual(payload.get("observed_phase"), "check")
         objects = payload.get("objects") if isinstance(payload.get("objects"), dict) else {}
         self.assertIn("__gf_state_301500", objects.get("injected_states") or [])
         compat = payload.get("compat") if isinstance(payload.get("compat"), dict) else {}
@@ -32,6 +33,7 @@ class AgentModelicaDiagnosticIRV0Tests(unittest.TestCase):
         self.assertEqual(payload.get("error_type"), "numerical_instability")
         self.assertEqual(payload.get("error_subtype"), "solver_divergence")
         self.assertEqual(payload.get("stage"), "simulate")
+        self.assertEqual(payload.get("observed_phase"), "simulate")
         self.assertIn("stabilize solver-facing dynamics", " | ".join(payload.get("suggested_actions") or []))
 
     def test_build_diagnostic_detects_undefined_symbol_subtype(self) -> None:
@@ -95,6 +97,7 @@ class AgentModelicaDiagnosticIRV0Tests(unittest.TestCase):
         self.assertEqual(payload.get("error_type"), "simulate_error")
         self.assertEqual(payload.get("error_subtype"), "init_failure")
         self.assertEqual(payload.get("stage"), "simulate")
+        self.assertEqual(payload.get("observed_phase"), "simulate")
         objects = payload.get("objects") if isinstance(payload.get("objects"), dict) else {}
         self.assertIn("gateforge_initialization_infeasible_ab12cd34", objects.get("assertion_hints") or [])
 
@@ -109,6 +112,34 @@ class AgentModelicaDiagnosticIRV0Tests(unittest.TestCase):
         self.assertEqual(payload.get("error_type"), "model_check_error")
         self.assertEqual(payload.get("error_subtype"), "underconstrained_system")
         self.assertEqual(payload.get("stage"), "check")
+        self.assertEqual(payload.get("observed_phase"), "check")
+        self.assertIn("restore dropped connects", " | ".join(payload.get("suggested_actions") or []))
+
+    def test_build_diagnostic_detects_structural_count_mismatch_as_underconstrained(self) -> None:
+        payload = build_diagnostic_ir_v0(
+            output='Check of SmallRDividerV0 completed successfully.\nClass SmallRDividerV0 has 32 equation(s) and 33 variable(s).',
+            check_model_pass=False,
+            simulate_pass=True,
+            expected_stage="check",
+            declared_failure_type="underconstrained_system",
+        )
+        self.assertEqual(payload.get("error_type"), "model_check_error")
+        self.assertEqual(payload.get("error_subtype"), "underconstrained_system")
+        self.assertEqual(payload.get("stage"), "check")
+        self.assertEqual(payload.get("observed_phase"), "check")
+
+    def test_build_diagnostic_detects_underconstrained_signal_even_when_it_surfaces_during_simulate(self) -> None:
+        payload = build_diagnostic_ir_v0(
+            output="Simulation failed: System is structurally singular with too few equations around gateforge_underconstrained_probe_ab12cd34",
+            check_model_pass=True,
+            simulate_pass=False,
+            expected_stage="check",
+            declared_failure_type="underconstrained_system",
+        )
+        self.assertEqual(payload.get("error_type"), "model_check_error")
+        self.assertEqual(payload.get("error_subtype"), "underconstrained_system")
+        self.assertEqual(payload.get("stage"), "check")
+        self.assertEqual(payload.get("observed_phase"), "simulate")
         self.assertIn("restore dropped connects", " | ".join(payload.get("suggested_actions") or []))
 
     def test_build_diagnostic_normalizes_legacy_declared_failure_type(self) -> None:

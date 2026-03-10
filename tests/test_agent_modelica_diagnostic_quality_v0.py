@@ -16,7 +16,7 @@ class AgentModelicaDiagnosticQualityV0Tests(unittest.TestCase):
                         },
                         {
                             "observed_failure_type": "simulate_error",
-                            "diagnostic_ir": {"error_type": "simulate_error", "error_subtype": "init_failure", "stage": "simulate"},
+                            "diagnostic_ir": {"error_type": "simulate_error", "error_subtype": "init_failure", "stage": "simulate", "observed_phase": "simulate"},
                         },
                     ],
                 }
@@ -87,6 +87,32 @@ class AgentModelicaDiagnosticQualityV0Tests(unittest.TestCase):
         self.assertEqual(float(summary.get("low_confidence_rate_pct") or 0.0), 50.0)
         category_distribution = summary.get("category_distribution") if isinstance(summary.get("category_distribution"), dict) else {}
         self.assertEqual(category_distribution, {})
+
+    def test_quality_metrics_counts_phase_drift_without_penalizing_taxonomy_stage(self) -> None:
+        run_results = {
+            "records": [
+                {
+                    "task_id": "t_under",
+                    "attempts": [
+                        {
+                            "observed_failure_type": "model_check_error",
+                            "diagnostic_ir": {
+                                "error_type": "model_check_error",
+                                "error_subtype": "underconstrained_system",
+                                "stage": "check",
+                                "observed_phase": "simulate",
+                            },
+                        }
+                    ],
+                }
+            ]
+        }
+        taskset = {"tasks": [{"task_id": "t_under", "expected_stage": "check", "category": "topology_wiring"}]}
+        summary = evaluate_diagnostic_quality_v0(run_results_payload=run_results, taskset_payload=taskset)
+        self.assertEqual(float(summary.get("stage_match_rate_pct") or 0.0), 100.0)
+        self.assertEqual(int(summary.get("phase_drift_count") or 0), 1)
+        observed_phase_distribution = summary.get("observed_phase_distribution") if isinstance(summary.get("observed_phase_distribution"), dict) else {}
+        self.assertEqual(int(observed_phase_distribution.get("simulate") or 0), 1)
 
     def test_quality_metrics_treats_no_comparable_type_stage_as_not_applicable(self) -> None:
         run_results = {

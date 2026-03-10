@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
+CURRENT_BUILDER_SOURCE_PATH="$ROOT_DIR/gateforge/agent_modelica_electrical_mutant_taskset_v0.py"
 
 OUT_DIR="${GATEFORGE_AGENT_L4_REALISM_EVIDENCE_OUT_DIR:-artifacts/agent_modelica_l4_realism_evidence_v1}"
 BASE_TASKSET="${GATEFORGE_AGENT_L4_REALISM_BASE_TASKSET:-artifacts/agent_modelica_electrical_realism_frozen_taskset_v1/taskset_frozen.json}"
@@ -16,6 +17,7 @@ PACK_ID="${GATEFORGE_AGENT_L4_REALISM_PACK_ID:-agent_modelica_realism_pack_v1}"
 PACK_VERSION="${GATEFORGE_AGENT_L4_REALISM_PACK_VERSION:-v1}"
 PACK_TRACK="${GATEFORGE_AGENT_L4_REALISM_PACK_TRACK:-realism}"
 ACCEPTANCE_SCOPE="${GATEFORGE_AGENT_L4_REALISM_ACCEPTANCE_SCOPE:-independent_validation}"
+CONTINUE_ON_WEAK_BASELINE="${GATEFORGE_AGENT_L4_REALISM_CONTINUE_ON_WEAK_BASELINE:-1}"
 RUN_ID="${GATEFORGE_AGENT_L4_REALISM_RUN_ID:-$(python3 - <<'PY'
 from datetime import datetime, timezone
 print(datetime.now(timezone.utc).strftime("realism_%Y%m%dT%H%M%SZ"))
@@ -283,6 +285,44 @@ PY
   fi
 fi
 
+stale_taskset_blockers="$(python3 - "$BASE_TASKSET" "$CURRENT_BUILDER_SOURCE_PATH" <<'PY'
+import hashlib
+import json
+import sys
+from pathlib import Path
+
+taskset_path = Path(sys.argv[1])
+builder_path = Path(sys.argv[2])
+blockers = []
+manifest_path = taskset_path.parent / "manifest.json"
+if manifest_path.exists() and builder_path.exists():
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except Exception:
+        manifest = {}
+    provenance = manifest.get("builder_provenance") if isinstance(manifest.get("builder_provenance"), dict) else {}
+    taskset_builder_sha = str(provenance.get("builder_source_sha") or "").strip()
+    current_builder_sha = hashlib.sha256(builder_path.read_bytes()).hexdigest()
+    if taskset_builder_sha and taskset_builder_sha != current_builder_sha:
+        blockers.append("stale_base_taskset")
+print(json.dumps(blockers))
+PY
+)"
+if [ "$stale_taskset_blockers" != "[]" ]; then
+  blockers_json="$(python3 - "$blockers_json" "$stale_taskset_blockers" <<'PY'
+import json
+import sys
+
+blockers = json.loads(sys.argv[1] or "[]")
+extras = json.loads(sys.argv[2] or "[]")
+for item in extras:
+    if item not in blockers:
+        blockers.append(item)
+print(json.dumps(blockers))
+PY
+)"
+fi
+
 if [ "$blockers_json" != "[]" ]; then
   write_preflight_blocked "$BACKEND" "$CHALLENGE_PLANNER_BACKEND" "$CHALLENGE_LLM_MODEL" "$docker_access" "$blockers_json" >/dev/null
   stage_update "preflight" "BLOCKED" 2 "$RUN_ROOT/environment_preflight_summary.json" "{\"blockers\": $blockers_json}"
@@ -308,6 +348,7 @@ GATEFORGE_AGENT_L4_UPLIFT_PACK_ID="$PACK_ID" \
 GATEFORGE_AGENT_L4_UPLIFT_PACK_VERSION="$PACK_VERSION" \
 GATEFORGE_AGENT_L4_UPLIFT_PACK_TRACK="$PACK_TRACK" \
 GATEFORGE_AGENT_L4_UPLIFT_ACCEPTANCE_SCOPE="$ACCEPTANCE_SCOPE" \
+GATEFORGE_AGENT_L4_UPLIFT_CONTINUE_ON_WEAK_BASELINE="$CONTINUE_ON_WEAK_BASELINE" \
 GATEFORGE_AGENT_L4_UPLIFT_RUN_ROOT="$RUN_ROOT" \
 bash scripts/run_agent_modelica_l4_uplift_evidence_v0.sh
 UPLIFT_RC=$?
