@@ -150,6 +150,25 @@ def _insert_initial_equation_lines(model_text: str, lines_to_insert: list[str]) 
     return "\n".join(lines) + "\n"
 
 
+def _insert_declaration_line(model_text: str, line_to_insert: str) -> str:
+    lines = str(model_text or "").splitlines()
+    if not lines:
+        return str(model_text or "")
+    for idx, line in enumerate(lines):
+        if re.match(r"^\s*(initial\s+equation|equation)\s*$", line):
+            lines.insert(idx, line_to_insert)
+            return "\n".join(lines) + "\n"
+    end_idx = -1
+    for idx, line in enumerate(lines):
+        if re.match(r"^\s*end\s+[A-Za-z_][A-Za-z0-9_]*\s*;\s*$", line):
+            end_idx = idx
+            break
+    if end_idx < 0:
+        return str(model_text or "")
+    lines.insert(end_idx, line_to_insert)
+    return "\n".join(lines) + "\n"
+
+
 def _inject_model_check_error(model_text: str, token: str) -> str:
     return _insert_equation_line(model_text, f"  __gf_undef_{token} = 1.0;")
 
@@ -274,9 +293,13 @@ def _mutate_connection_drop(model_text: str, ir: dict) -> tuple[str, list[dict]]
     return patched, objects
 
 
-def _mutate_underconstrained_system(model_text: str, ir: dict) -> tuple[str, list[dict]]:
+def _mutate_underconstrained_system(model_text: str, ir: dict, token: str) -> tuple[str, list[dict]]:
     patched, objects = _mutate_connection_drop(model_text=model_text, ir=ir)
     if not objects:
+        return model_text, []
+    probe_name = f"gateforge_underconstrained_probe_{token}"
+    patched = _insert_declaration_line(patched, f"  Real {probe_name};")
+    if patched == model_text:
         return model_text, []
     enriched = []
     for row in objects:
@@ -287,6 +310,13 @@ def _mutate_underconstrained_system(model_text: str, ir: dict) -> tuple[str, lis
                 "effect": "dangling_connectivity",
             }
         )
+    enriched.append(
+        {
+            "kind": "free_variable_probe",
+            "name": probe_name,
+            "effect": "structural_underconstraint",
+        }
+    )
     return patched, enriched
 
 
@@ -350,7 +380,7 @@ def _inject_failure(model_text: str, ir: dict, failure_type: str, token: str, mu
     ftype = str(failure_type or "").strip().lower()
     style = str(mutation_style or "hybrid").strip().lower()
     if ftype == "underconstrained_system":
-        patched, objects = _mutate_underconstrained_system(model_text=model_text, ir=ir)
+        patched, objects = _mutate_underconstrained_system(model_text=model_text, ir=ir, token=token)
         if objects:
             return patched, "drop_connect_equation", objects
         return model_text, "none", []

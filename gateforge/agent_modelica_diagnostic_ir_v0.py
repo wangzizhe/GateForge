@@ -116,6 +116,19 @@ def _classify_check_failure(lower: str) -> tuple[str, str, str, str]:
     if _contains_any(lower, parse_markers):
         return "model_check_error", "parse_lexer_error", "compile/syntax error", "script_parse_error"
 
+    if _contains_any(
+        lower,
+        (
+            "under-determined",
+            "underdetermined",
+            "too few equations",
+            "not fully determined",
+            "structurally singular",
+            "gateforge_underconstrained_probe",
+        ),
+    ):
+        return "model_check_error", "underconstrained_system", "structural balance failed", "model_check_error"
+
     if _contains_any(lower, ("type mismatch", "incompatible connector", "connector")) and "connect" in lower:
         return "model_check_error", "connector_mismatch", "connector mismatch", "model_check_error"
 
@@ -166,6 +179,11 @@ def _suggest_actions(error_type: str, error_subtype: str) -> list[str]:
         return [
             "align connector types and endpoint port names",
             "rerun checkModel before simulation",
+        ]
+    if et == "model_check_error" and sub == "underconstrained_system":
+        return [
+            "restore dropped connects and structural balance before simulate",
+            "rerun checkModel and verify the model is square before repair rollout",
         ]
     if et == "model_check_error":
         return [

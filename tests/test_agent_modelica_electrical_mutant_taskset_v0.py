@@ -241,6 +241,23 @@ class AgentModelicaElectricalMutantTasksetV0Tests(unittest.TestCase):
             init_text = Path(str(init_rows[0].get("mutated_model_path"))).read_text(encoding="utf-8")
             self.assertIn("gateforge_initialization_infeasible_", init_text)
             self.assertIn("assert(false", init_text)
+            under_rows = [row for row in rows if str(row.get("failure_type") or "") == "underconstrained_system"]
+            self.assertEqual(len(under_rows), 3)
+            self.assertTrue(all(str(row.get("mutation_operator") or "") == "drop_connect_equation" for row in under_rows))
+            self.assertTrue(
+                all(
+                    any(
+                        str(obj.get("kind") or "") == "free_variable_probe"
+                        and str(obj.get("effect") or "") == "structural_underconstraint"
+                        for obj in (row.get("mutated_objects") or [])
+                        if isinstance(obj, dict)
+                    )
+                    for row in under_rows
+                )
+            )
+            under_text = Path(str(under_rows[0].get("mutated_model_path"))).read_text(encoding="utf-8")
+            self.assertIn("gateforge_underconstrained_probe_", under_text)
+            self.assertNotIn("connect(V1.p, R1.p);", under_text)
 
 
 if __name__ == "__main__":
