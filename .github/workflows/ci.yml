@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - public-clean
+
+jobs:
+  public-core:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Run public core tests
+        run: |
+          python -m unittest \
+            tests.test_llm_provider_adapter \
+            tests.test_agent_modelica_agent_profile_registry_v1 \
+            tests.test_agent_modelica_omc_workspace_v1 \
+            tests.test_agent_modelica_workspace_style_probe_v0_67 \
+            tests.test_agent_modelica_admission_failure_stage_v1 \
+            tests.test_ci_runner_contract \
+            tests.test_ci_shard_config_contract \
+            -v
