@@ -36,11 +36,14 @@ class RunAgentModelicaReleasePreflightV011Tests(unittest.TestCase):
         self.assertIn("ENFORCE_L5_EVAL_GATE", script)
         self.assertIn("run_agent_modelica_l5_eval_v1.sh", script)
         self.assertIn('"l5_gate_status"', script)
+        self.assertIn('"l5_acceptance_mode"', script)
         self.assertIn('"l5_success_at_k_pct"', script)
         self.assertIn('"l5_delta_success_at_k_pp"', script)
+        self.assertIn('"l5_absolute_success_target_pct"', script)
         self.assertIn('"l5_physics_fail_rate_pct"', script)
         self.assertIn('"l5_regression_fail_rate_pct"', script)
         self.assertIn('"l5_infra_failure_count"', script)
+        self.assertIn('"l5_non_regression_ok"', script)
         self.assertIn('"l5_primary_reason"', script)
 
     def test_script_runs_live_smoke_path_with_mock_executor(self) -> None:
@@ -80,15 +83,22 @@ class RunAgentModelicaReleasePreflightV011Tests(unittest.TestCase):
             self.assertEqual(summary.get("l3_diagnostic_gate_status"), "PASS")
             self.assertEqual(float(summary.get("l3_parse_coverage_pct") or 0.0), 100.0)
             self.assertIn(str(summary.get("l5_gate_status") or ""), {"PASS", "NEEDS_REVIEW"})
+            self.assertIn("l5_acceptance_mode", summary)
             self.assertIn("l5_success_at_k_pct", summary)
             self.assertIn("l5_delta_success_at_k_pp", summary)
+            self.assertIn("l5_absolute_success_target_pct", summary)
             self.assertIn("l5_physics_fail_rate_pct", summary)
             self.assertIn("l5_regression_fail_rate_pct", summary)
             self.assertIn("l5_infra_failure_count", summary)
+            self.assertIn("l5_non_regression_ok", summary)
             self.assertIn("l5_primary_reason", summary)
 
             l5_summary = json.loads((out_dir / "l5_eval_summary.json").read_text(encoding="utf-8"))
             self.assertEqual(str(summary.get("l5_primary_reason") or "none"), str(l5_summary.get("primary_reason") or "none"))
+            self.assertEqual(
+                str(summary.get("l5_acceptance_mode") or "delta_uplift"),
+                str(l5_summary.get("acceptance_mode") or "delta_uplift"),
+            )
 
 
 if __name__ == "__main__":
