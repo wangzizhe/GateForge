@@ -64,6 +64,32 @@ PATCH_TEMPLATES = {
         ],
         "priority_boost": 20,
     },
+    ("underconstrained_system", "manifestation_signal_gap"): {
+        "patch_kind": "operator_rework",
+        "patch_target": "topology_realism:drop_connect_equation",
+        "title": "Force underconstrained_system to manifest as a structural failure",
+        "recommended_patch_action": "strengthen dropped-connect topology edits so the model surfaces an underconstrained structural failure before any repair attempt",
+        "rationale": "Current underconstrained_system tasks can resolve without ever emitting the intended structural failure signal, so realism evidence never validates that failure mode.",
+        "code_targets": [
+            "gateforge/agent_modelica_electrical_mutant_taskset_v0.py",
+            "gateforge/agent_modelica_diagnostic_ir_v0.py",
+        ],
+        "planned_changes": [
+            "strengthen dropped-connect mutations so they break structural balance while still compiling into the expected check-stage failure",
+            "avoid no-op or self-healing topology edits that leave the model directly solvable",
+            "ensure diagnostic mapping prefers underconstrained structural hints before generic none/none outcomes",
+        ],
+        "acceptance_checks": [
+            "underconstrained_system tasks emit a non-none structural failure signal before repair",
+            "manifestation missing-signal count drops to zero for underconstrained_system",
+            "topology_wiring category retains stable task coverage and diagnostic separation",
+        ],
+        "playbook_actions": [
+            "treat structurally silent underconstrained tasks as realism generation defects before tuning repair policy",
+            "verify dropped-connect edits produce observable balance/connectivity failures before evaluating repair success",
+        ],
+        "priority_boost": 22,
+    },
     ("underconstrained_system", "repair_policy_gap"): {
         "patch_kind": "playbook_policy_update",
         "patch_target": "repair_playbook:underconstrained_system",

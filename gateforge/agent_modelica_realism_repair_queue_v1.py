@@ -17,16 +17,19 @@ WAVE1_FAILURE_TYPES = {
 }
 REASON_PRIORITY = {
     "stage_truncation": 0,
-    "subtype_signal_gap": 1,
-    "repair_policy_gap": 2,
+    "manifestation_signal_gap": 1,
+    "subtype_signal_gap": 2,
+    "repair_policy_gap": 3,
 }
 REASON_ACTIONS = {
     "stage_truncation": "strengthen initialization realism operators so failures manifest in simulate/init instead of check",
+    "manifestation_signal_gap": "strengthen topology realism operators so underconstrained_system manifests as a structural failure before repair",
     "subtype_signal_gap": "strengthen connector/port mismatch edits and subtype mapping so connector_mismatch is surfaced explicitly",
     "repair_policy_gap": "improve wave1 repair playbook and policy for structurally aligned failures instead of changing mutation operators",
 }
 REASON_LABELS = {
     "stage_truncation": "initialization failure is truncated at check stage",
+    "manifestation_signal_gap": "declared realism task resolves without ever surfacing the intended failure signal",
     "subtype_signal_gap": "connector mismatch signal is too weak to surface the expected subtype",
     "repair_policy_gap": "repair policy fails despite aligned structural failure signal",
 }
@@ -68,6 +71,36 @@ def _first_attempt(record: dict) -> dict:
     return attempts[0]
 
 
+def _attempt_observation(attempt: dict) -> tuple[str, str, str]:
+    diagnostic = attempt.get("diagnostic_ir") if isinstance(attempt.get("diagnostic_ir"), dict) else {}
+    observed_failure_type = canonical_error_type_v0(
+        str(attempt.get("observed_failure_type") or diagnostic.get("error_type") or "").strip().lower()
+    )
+    observed_stage = str(diagnostic.get("stage") or "").strip().lower()
+    if not observed_stage:
+        observed_stage = canonical_stage_from_failure_type_v0(observed_failure_type)
+    observed_subtype = str(diagnostic.get("error_subtype") or "none").strip().lower() or "none"
+    return observed_failure_type or "none", observed_stage or "none", observed_subtype
+
+
+def _has_failure_signal(observed_failure_type: str, observed_stage: str, observed_subtype: str) -> bool:
+    return (
+        str(observed_failure_type or "").strip().lower() not in {"", "none"}
+        or str(observed_stage or "").strip().lower() in {"check", "simulate"}
+        or str(observed_subtype or "").strip().lower() not in {"", "none"}
+    )
+
+
+def _manifestation_attempt(record: dict) -> dict:
+    attempts = record.get("attempts") if isinstance(record.get("attempts"), list) else []
+    attempts = [x for x in attempts if isinstance(x, dict)]
+    for attempt in attempts:
+        observed_failure_type, observed_stage, observed_subtype = _attempt_observation(attempt)
+        if _has_failure_signal(observed_failure_type, observed_stage, observed_subtype):
+            return attempt
+    return {}
+
+
 def _record_map(run_results: dict) -> dict[str, dict]:
     records = run_results.get("records") if isinstance(run_results.get("records"), list) else []
     out: dict[str, dict] = {}
@@ -85,18 +118,19 @@ def _reason_for_task(task: dict, record: dict, realism_summary: dict) -> str:
     if failure_type not in WAVE1_FAILURE_TYPES:
         return ""
 
-    by_failure_type = realism_summary.get("by_failure_type") if isinstance(realism_summary.get("by_failure_type"), dict) else {}
-    failure_row = by_failure_type.get(failure_type) if isinstance(by_failure_type.get(failure_type), dict) else {}
-    mismatch_summary = realism_summary.get("mismatch_summary") if isinstance(realism_summary.get("mismatch_summary"), dict) else {}
-    attempt = _first_attempt(record)
-    diagnostic = attempt.get("diagnostic_ir") if isinstance(attempt.get("diagnostic_ir"), dict) else {}
-    observed_failure_type = canonical_error_type_v0(
-        str(attempt.get("observed_failure_type") or diagnostic.get("error_type") or "").strip().lower()
+    manifestation_view = (
+        realism_summary.get("failure_manifestation_view") if isinstance(realism_summary.get("failure_manifestation_view"), dict) else {}
     )
-    observed_stage = str(diagnostic.get("stage") or "").strip().lower()
-    if not observed_stage:
-        observed_stage = canonical_stage_from_failure_type_v0(observed_failure_type)
-    observed_subtype = str(diagnostic.get("error_subtype") or "none").strip().lower() or "none"
+    by_failure_type = manifestation_view.get("by_failure_type") if isinstance(manifestation_view.get("by_failure_type"), dict) else {}
+    if not by_failure_type:
+        by_failure_type = realism_summary.get("by_failure_type") if isinstance(realism_summary.get("by_failure_type"), dict) else {}
+    failure_row = by_failure_type.get(failure_type) if isinstance(by_failure_type.get(failure_type), dict) else {}
+    mismatch_summary = manifestation_view.get("mismatch_summary") if isinstance(manifestation_view.get("mismatch_summary"), dict) else {}
+    if not mismatch_summary:
+        mismatch_summary = realism_summary.get("mismatch_summary") if isinstance(realism_summary.get("mismatch_summary"), dict) else {}
+    attempt = _manifestation_attempt(record)
+    observed_failure_type, observed_stage, observed_subtype = _attempt_observation(attempt or {})
+    has_failure_signal = _has_failure_signal(observed_failure_type, observed_stage, observed_subtype)
 
     if failure_type == "initialization_infeasible":
         if int(mismatch_summary.get("initialization_truncated_by_check_count") or 0) > 0 and (
@@ -114,6 +148,8 @@ def _reason_for_task(task: dict, record: dict, realism_summary: dict) -> str:
         return ""
 
     if failure_type == "underconstrained_system":
+        if not has_failure_signal:
+            return "manifestation_signal_gap"
         canonical_ok = float(failure_row.get("canonical_match_rate_pct") or 0.0) >= 100.0
         stage_ok = float(failure_row.get("stage_match_rate_pct") or 0.0) >= 100.0
         l5_success_count_on = int(failure_row.get("l5_success_count_on") or 0)
@@ -203,15 +239,8 @@ def build_repair_queue_v1(*, run_root: str, update_final_summary: bool = True) -
             record = record_map.get(task_id) if isinstance(record_map.get(task_id), dict) else {}
             if not record:
                 continue
-            attempt = _first_attempt(record)
-            diagnostic = attempt.get("diagnostic_ir") if isinstance(attempt.get("diagnostic_ir"), dict) else {}
-            observed_failure_type = canonical_error_type_v0(
-                str(attempt.get("observed_failure_type") or diagnostic.get("error_type") or "").strip().lower()
-            )
-            observed_stage = str(diagnostic.get("stage") or "").strip().lower()
-            if not observed_stage:
-                observed_stage = canonical_stage_from_failure_type_v0(observed_failure_type)
-            observed_subtype = str(diagnostic.get("error_subtype") or "none").strip().lower() or "none"
+            attempt = _manifestation_attempt(record)
+            observed_failure_type, observed_stage, observed_subtype = _attempt_observation(attempt or {})
 
             priority_reason = _reason_for_task(task, record, realism_summary)
             if not priority_reason:

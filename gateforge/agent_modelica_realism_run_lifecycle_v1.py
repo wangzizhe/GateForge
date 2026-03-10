@@ -1200,8 +1200,12 @@ def _final_status_from_artifacts(run_root: Path) -> tuple[dict, dict]:
         status = "PASS"
 
     mismatch_summary = realism.get("mismatch_summary") if isinstance(realism.get("mismatch_summary"), dict) else {}
+    manifestation_view = realism.get("failure_manifestation_view") if isinstance(realism.get("failure_manifestation_view"), dict) else {}
+    outcome_view = realism.get("final_outcome_view") if isinstance(realism.get("final_outcome_view"), dict) else {}
     taxonomy_alignment_status = str(realism.get("status") or "INCOMPLETE")
     taxonomy_alignment_recommendation = str(realism.get("recommendation") or "")
+    manifestation_alignment_status = str(manifestation_view.get("status") or taxonomy_alignment_status)
+    outcome_alignment_status = str(outcome_view.get("status") or "INCOMPLETE")
 
     summary = {
         "schema_version": FINAL_RUN_SUMMARY_SCHEMA_VERSION,
@@ -1218,8 +1222,11 @@ def _final_status_from_artifacts(run_root: Path) -> tuple[dict, dict]:
         "connector_subtype_match_rate_pct": mismatch_summary.get("connector_subtype_match_rate_pct"),
         "initialization_simulate_stage_rate_pct": mismatch_summary.get("initialization_simulate_stage_rate_pct"),
         "initialization_truncated_by_check_count": mismatch_summary.get("initialization_truncated_by_check_count"),
+        "taxonomy_view_mode": str(realism.get("taxonomy_view_mode") or ""),
         "taxonomy_alignment_status": taxonomy_alignment_status,
         "taxonomy_alignment_recommendation": taxonomy_alignment_recommendation,
+        "manifestation_alignment_status": manifestation_alignment_status,
+        "outcome_alignment_status": outcome_alignment_status,
         "completion_reason": completion_reason,
         "pack_id": str(manifest.get("pack_id") or evidence.get("pack_id") or challenge.get("pack_id") or ""),
         "pack_version": str(manifest.get("pack_version") or evidence.get("pack_version") or challenge.get("pack_version") or ""),
@@ -1291,8 +1298,11 @@ def finalize_run(
             f"- acceptance_mode: `{summary.get('acceptance_mode')}`",
             f"- baseline_state: `{summary.get('baseline_state')}`",
             f"- baseline_off_success_at_k_pct: `{summary.get('baseline_off_success_at_k_pct')}`",
+            f"- taxonomy_view_mode: `{summary.get('taxonomy_view_mode')}`",
             f"- taxonomy_alignment_status: `{summary.get('taxonomy_alignment_status')}`",
             f"- taxonomy_alignment_recommendation: `{summary.get('taxonomy_alignment_recommendation')}`",
+            f"- manifestation_alignment_status: `{summary.get('manifestation_alignment_status')}`",
+            f"- outcome_alignment_status: `{summary.get('outcome_alignment_status')}`",
             f"- repair_queue_status: `{summary.get('repair_queue_status')}`",
             f"- top_repair_priority: `{summary.get('top_repair_priority')}`",
             f"- patch_plan_status: `{summary.get('patch_plan_status')}`",
@@ -1515,7 +1525,10 @@ def report_run(*, out_dir: str, run_id: str = "", run_root: str = "") -> dict:
         if final_summary:
             payload["decision"] = final_summary.get("decision")
             payload["primary_reason"] = final_summary.get("primary_reason")
+            payload["taxonomy_view_mode"] = final_summary.get("taxonomy_view_mode")
             payload["taxonomy_alignment_status"] = final_summary.get("taxonomy_alignment_status")
+            payload["manifestation_alignment_status"] = final_summary.get("manifestation_alignment_status")
+            payload["outcome_alignment_status"] = final_summary.get("outcome_alignment_status")
             payload["repair_queue_status"] = final_summary.get("repair_queue_status")
             payload["top_repair_priority"] = final_summary.get("top_repair_priority")
             payload["patch_plan_status"] = final_summary.get("patch_plan_status")

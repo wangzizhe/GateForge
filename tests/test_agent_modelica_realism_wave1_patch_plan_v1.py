@@ -119,33 +119,47 @@ def _diagnostic_quality_payload() -> dict:
 
 
 def _realism_summary_payload() -> dict:
-    return {
+    payload = {
         "schema_version": "agent_modelica_realism_summary_v1",
         "status": "NEEDS_REVIEW",
         "recommendation": "repair_wave1_mutations",
+        "taxonomy_view_mode": "dual_view",
         "mismatch_summary": {
+            "missing_failure_signal_count": 0,
             "initialization_truncated_by_check_count": 1,
             "connector_subtype_match_rate_pct": 0.0,
             "initialization_simulate_stage_rate_pct": 0.0,
         },
         "by_failure_type": {
             "connector_mismatch": {
+                "manifestation_record_count": 1,
                 "canonical_match_rate_pct": 100.0,
                 "stage_match_rate_pct": 100.0,
+                "no_failure_signal_count": 0,
                 "l5_success_count_on": 0,
             },
             "initialization_infeasible": {
+                "manifestation_record_count": 1,
                 "canonical_match_rate_pct": 0.0,
                 "stage_match_rate_pct": 0.0,
+                "no_failure_signal_count": 0,
                 "l5_success_count_on": 0,
             },
             "underconstrained_system": {
+                "manifestation_record_count": 1,
                 "canonical_match_rate_pct": 100.0,
                 "stage_match_rate_pct": 100.0,
+                "no_failure_signal_count": 0,
                 "l5_success_count_on": 0,
             },
         },
     }
+    payload["failure_manifestation_view"] = {
+        "status": "NEEDS_REVIEW",
+        "by_failure_type": payload["by_failure_type"],
+        "mismatch_summary": payload["mismatch_summary"],
+    }
+    return payload
 
 
 def _final_summary_payload(run_root: Path) -> dict:
@@ -172,6 +186,77 @@ def _build_finalized_run_fixture(run_root: Path, include_queue: bool = True) -> 
     _write_json(run_root / "realism_internal_summary.json", _realism_summary_payload())
     if include_queue:
         build_repair_queue_v1(run_root=str(run_root), update_final_summary=True)
+
+
+def _build_signal_gap_fixture(run_root: Path) -> None:
+    _write_json(run_root / "final_run_summary.json", _final_summary_payload(run_root))
+    _write_json(run_root / "challenge" / "taskset_frozen.json", {"tasks": [_taskset_payload()["tasks"][-1]]})
+    _write_json(
+        run_root / "main_l5" / "l3" / "run2" / "run_results.json",
+        {
+            "records": [
+                {
+                    "task_id": "t_under",
+                    "passed": True,
+                    "attempts": [
+                        {
+                            "round": 1,
+                            "observed_failure_type": "none",
+                            "diagnostic_ir": {
+                                "error_type": "none",
+                                "error_subtype": "none",
+                                "stage": "none",
+                            },
+                        }
+                    ],
+                }
+            ]
+        },
+    )
+    _write_json(run_root / "main_l5" / "l3" / "run2" / "diagnostic_quality_summary.json", _diagnostic_quality_payload())
+    _write_json(
+        run_root / "realism_internal_summary.json",
+        {
+            "schema_version": "agent_modelica_realism_summary_v1",
+            "status": "NEEDS_REVIEW",
+            "recommendation": "repair_wave1_taxonomy_alignment",
+            "taxonomy_view_mode": "dual_view",
+            "mismatch_summary": {
+                "missing_failure_signal_count": 1,
+                "initialization_truncated_by_check_count": 0,
+                "connector_subtype_match_rate_pct": 100.0,
+                "initialization_simulate_stage_rate_pct": 100.0,
+            },
+            "by_failure_type": {
+                "underconstrained_system": {
+                    "manifestation_record_count": 0,
+                    "canonical_match_rate_pct": 0.0,
+                    "stage_match_rate_pct": 0.0,
+                    "no_failure_signal_count": 1,
+                    "l5_success_count_on": 1,
+                }
+            },
+            "failure_manifestation_view": {
+                "status": "NEEDS_REVIEW",
+                "by_failure_type": {
+                    "underconstrained_system": {
+                        "manifestation_record_count": 0,
+                        "canonical_match_rate_pct": 0.0,
+                        "stage_match_rate_pct": 0.0,
+                        "no_failure_signal_count": 1,
+                        "l5_success_count_on": 1,
+                    }
+                },
+                "mismatch_summary": {
+                    "missing_failure_signal_count": 1,
+                    "initialization_truncated_by_check_count": 0,
+                    "connector_subtype_match_rate_pct": 100.0,
+                    "initialization_simulate_stage_rate_pct": 100.0,
+                },
+            },
+        },
+    )
+    build_repair_queue_v1(run_root=str(run_root), update_final_summary=True)
 
 
 class AgentModelicaRealismWave1PatchPlanV1Tests(unittest.TestCase):
@@ -207,6 +292,18 @@ class AgentModelicaRealismWave1PatchPlanV1Tests(unittest.TestCase):
             self.assertEqual(summary.get("status"), "BLOCKED")
             self.assertIn("repair_queue_missing", summary.get("reasons") or [])
             self.assertEqual(final_summary.get("patch_plan_status"), "BLOCKED")
+
+    def test_build_patch_plan_maps_underconstrained_signal_gap_to_operator_rework(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            run_root = Path(d) / "run03"
+            _build_signal_gap_fixture(run_root)
+
+            summary = build_wave1_patch_plan_v1(run_root=str(run_root), update_final_summary=True)
+
+            self.assertEqual(summary.get("status"), "PASS")
+            self.assertEqual(summary.get("top_patch_target"), "topology_realism:drop_connect_equation")
+            operator_changes = summary.get("operator_changes") if isinstance(summary.get("operator_changes"), list) else []
+            self.assertEqual((operator_changes[0] or {}).get("patch_kind"), "operator_rework")
 
     def test_finalize_run_updates_final_summary_with_patch_plan_fields(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
