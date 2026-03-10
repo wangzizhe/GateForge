@@ -89,6 +89,44 @@ def _first_attempt(record: dict) -> dict:
     return attempts[0]
 
 
+def _last_attempt(record: dict) -> dict:
+    attempts = record.get("attempts") if isinstance(record.get("attempts"), list) else []
+    attempts = [x for x in attempts if isinstance(x, dict)]
+    if not attempts:
+        return {}
+    return attempts[-1]
+
+
+def _attempt_observation(attempt: dict) -> tuple[str, str, str]:
+    diagnostic = attempt.get("diagnostic_ir") if isinstance(attempt.get("diagnostic_ir"), dict) else {}
+    observed_failure_type = canonical_error_type_v0(
+        str(attempt.get("observed_failure_type") or diagnostic.get("error_type") or "").strip().lower()
+    )
+    observed_subtype = str(diagnostic.get("error_subtype") or "none").strip().lower() or "none"
+    observed_stage = str(diagnostic.get("stage") or "").strip().lower()
+    if not observed_stage:
+        observed_stage = canonical_stage_from_failure_type_v0(observed_failure_type)
+    return observed_failure_type or "none", observed_stage or "none", observed_subtype
+
+
+def _has_failure_signal(observed_failure_type: str, observed_stage: str, observed_subtype: str) -> bool:
+    return (
+        str(observed_failure_type or "").strip().lower() not in {"", "none"}
+        or str(observed_stage or "").strip().lower() in {"check", "simulate"}
+        or str(observed_subtype or "").strip().lower() not in {"", "none"}
+    )
+
+
+def _manifestation_attempt(record: dict) -> dict:
+    attempts = record.get("attempts") if isinstance(record.get("attempts"), list) else []
+    attempts = [x for x in attempts if isinstance(x, dict)]
+    for attempt in attempts:
+        observed_failure_type, observed_stage, observed_subtype = _attempt_observation(attempt)
+        if _has_failure_signal(observed_failure_type, observed_stage, observed_subtype):
+            return attempt
+    return {}
+
+
 def _inc(counter: dict[str, int], key: str) -> None:
     counter[key] = int(counter.get(key, 0)) + 1
 
@@ -101,11 +139,16 @@ def _write_markdown(path: str, payload: dict) -> None:
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
     mismatch = payload.get("mismatch_summary") if isinstance(payload.get("mismatch_summary"), dict) else {}
+    manifestation = payload.get("failure_manifestation_view") if isinstance(payload.get("failure_manifestation_view"), dict) else {}
+    outcome = payload.get("final_outcome_view") if isinstance(payload.get("final_outcome_view"), dict) else {}
     lines = [
         "# Agent Modelica Realism Summary v1",
         "",
         f"- status: `{payload.get('status')}`",
         f"- recommendation: `{payload.get('recommendation')}`",
+        f"- taxonomy_view_mode: `{payload.get('taxonomy_view_mode')}`",
+        f"- manifestation_status: `{manifestation.get('status')}`",
+        f"- outcome_status: `{outcome.get('status')}`",
         f"- pack_id: `{payload.get('pack_id')}`",
         f"- pack_version: `{payload.get('pack_version')}`",
         f"- pack_track: `{payload.get('pack_track')}`",
@@ -116,12 +159,14 @@ def _write_markdown(path: str, payload: dict) -> None:
         f"- connector_subtype_match_rate_pct: `{mismatch.get('connector_subtype_match_rate_pct')}`",
         f"- initialization_simulate_stage_rate_pct: `{mismatch.get('initialization_simulate_stage_rate_pct')}`",
         f"- initialization_truncated_by_check_count: `{mismatch.get('initialization_truncated_by_check_count')}`",
+        f"- missing_failure_signal_count: `{mismatch.get('missing_failure_signal_count')}`",
         "",
         "## Counts",
         "",
         f"- challenge_counts_by_failure_type: `{payload.get('challenge_counts_by_failure_type')}`",
         f"- challenge_counts_by_category: `{payload.get('challenge_counts_by_category')}`",
         f"- l3_category_distribution: `{payload.get('l3_category_distribution')}`",
+        f"- l3_task_category_distribution: `{payload.get('l3_task_category_distribution')}`",
         f"- l5_category_breakdown_on: `{payload.get('l5_category_breakdown_on')}`",
         "",
     ]
@@ -154,6 +199,7 @@ def build_realism_summary_v1(
 
     l3_records = l3_run_results.get("records") if isinstance(l3_run_results.get("records"), list) else []
     l3_records = [x for x in l3_records if isinstance(x, dict)]
+    l3_task_category_distribution: dict[str, int] = {}
 
     by_failure_type: dict[str, dict] = {}
     initialization_truncated_by_check_count = 0
@@ -164,22 +210,36 @@ def build_realism_summary_v1(
     total_canonical_mismatch = 0
     total_stage_mismatch = 0
     total_subtype_mismatch = 0
+    total_missing_failure_signal = 0
+    resolved_task_count = 0
+    resolved_after_aligned_manifestation_count = 0
+    resolved_without_failure_signal_count = 0
 
     for failure_type in sorted(declared_counts_by_failure.keys()):
         by_failure_type[failure_type] = {
             "task_count": int(declared_counts_by_failure.get(failure_type, 0)),
             "l3_record_count": 0,
+            "manifestation_record_count": 0,
             "canonical_match_count": 0,
             "stage_match_count": 0,
             "subtype_match_count": 0,
-            "observed_failure_type_distribution": {},
-            "observed_subtype_distribution": {},
+            "no_failure_signal_count": 0,
+            "resolved_task_count": 0,
+            "resolved_after_aligned_manifestation_count": 0,
+            "resolved_without_failure_signal_count": 0,
+            "manifestation_failure_type_distribution": {},
+            "manifestation_subtype_distribution": {},
+            "final_failure_type_distribution": {},
+            "final_subtype_distribution": {},
             "mismatch_reasons": {},
         }
 
     for record in l3_records:
         task_id = str(record.get("task_id") or "")
         task = task_map.get(task_id) if isinstance(task_map.get(task_id), dict) else {}
+        task_category = str(task.get("category") or "").strip().lower()
+        if task_category:
+            _inc(l3_task_category_distribution, task_category)
         declared_failure_type = str(task.get("failure_type") or record.get("failure_type") or "").strip().lower()
         if not declared_failure_type:
             continue
@@ -188,63 +248,86 @@ def build_realism_summary_v1(
             {
                 "task_count": int(declared_counts_by_failure.get(declared_failure_type, 0)),
                 "l3_record_count": 0,
+                "manifestation_record_count": 0,
                 "canonical_match_count": 0,
                 "stage_match_count": 0,
                 "subtype_match_count": 0,
-                "observed_failure_type_distribution": {},
-                "observed_subtype_distribution": {},
+                "no_failure_signal_count": 0,
+                "resolved_task_count": 0,
+                "resolved_after_aligned_manifestation_count": 0,
+                "resolved_without_failure_signal_count": 0,
+                "manifestation_failure_type_distribution": {},
+                "manifestation_subtype_distribution": {},
+                "final_failure_type_distribution": {},
+                "final_subtype_distribution": {},
                 "mismatch_reasons": {},
             },
         )
         row["l3_record_count"] = int(row.get("l3_record_count", 0)) + 1
 
-        attempt = _first_attempt(record)
-        diagnostic = attempt.get("diagnostic_ir") if isinstance(attempt.get("diagnostic_ir"), dict) else {}
-        observed_failure_type = canonical_error_type_v0(
-            str(attempt.get("observed_failure_type") or diagnostic.get("error_type") or "").strip().lower()
-        )
-        observed_subtype = str(diagnostic.get("error_subtype") or "none").strip().lower() or "none"
-        observed_stage = str(diagnostic.get("stage") or "").strip().lower()
-        if not observed_stage:
-            observed_stage = canonical_stage_from_failure_type_v0(observed_failure_type)
+        manifestation_attempt = _manifestation_attempt(record)
+        final_attempt = _last_attempt(record)
+        manifestation_failure_type, manifestation_stage, manifestation_subtype = _attempt_observation(manifestation_attempt or {})
+        final_failure_type, final_stage, final_subtype = _attempt_observation(final_attempt or {})
+        record_passed = bool(record.get("passed"))
         expected_canonical = _expected_canonical_type(declared_failure_type)
         expected_stage = _expected_stage(task)
         expected_subtypes = _expected_subtypes(declared_failure_type)
 
-        _inc(row["observed_failure_type_distribution"], observed_failure_type or "none")
-        _inc(row["observed_subtype_distribution"], observed_subtype or "none")
+        _inc(row["final_failure_type_distribution"], final_failure_type or "none")
+        _inc(row["final_subtype_distribution"], final_subtype or "none")
 
-        canonical_match = observed_failure_type == expected_canonical
-        stage_match = observed_stage == expected_stage
-        subtype_match = True if not expected_subtypes else observed_subtype in expected_subtypes
+        if record_passed:
+            resolved_task_count += 1
+            row["resolved_task_count"] = int(row.get("resolved_task_count", 0)) + 1
 
-        if canonical_match:
-            row["canonical_match_count"] = int(row.get("canonical_match_count", 0)) + 1
-        else:
-            _inc(row["mismatch_reasons"], "canonical_type_mismatch")
-            total_canonical_mismatch += 1
-        if stage_match:
-            row["stage_match_count"] = int(row.get("stage_match_count", 0)) + 1
-        else:
-            _inc(row["mismatch_reasons"], "stage_mismatch")
-            total_stage_mismatch += 1
-        if subtype_match:
-            row["subtype_match_count"] = int(row.get("subtype_match_count", 0)) + 1
-        else:
-            _inc(row["mismatch_reasons"], "subtype_mismatch")
-            total_subtype_mismatch += 1
+        if _has_failure_signal(manifestation_failure_type, manifestation_stage, manifestation_subtype):
+            row["manifestation_record_count"] = int(row.get("manifestation_record_count", 0)) + 1
+            _inc(row["manifestation_failure_type_distribution"], manifestation_failure_type or "none")
+            _inc(row["manifestation_subtype_distribution"], manifestation_subtype or "none")
 
-        if declared_failure_type == "connector_mismatch":
-            connector_record_count += 1
+            canonical_match = manifestation_failure_type == expected_canonical
+            stage_match = manifestation_stage == expected_stage
+            subtype_match = True if not expected_subtypes else manifestation_subtype in expected_subtypes
+
+            if canonical_match:
+                row["canonical_match_count"] = int(row.get("canonical_match_count", 0)) + 1
+            else:
+                _inc(row["mismatch_reasons"], "canonical_type_mismatch")
+                total_canonical_mismatch += 1
+            if stage_match:
+                row["stage_match_count"] = int(row.get("stage_match_count", 0)) + 1
+            else:
+                _inc(row["mismatch_reasons"], "stage_mismatch")
+                total_stage_mismatch += 1
             if subtype_match:
-                connector_subtype_match_count += 1
-        if declared_failure_type == "initialization_infeasible":
-            initialization_record_count += 1
-            if observed_stage == "simulate":
-                initialization_simulate_stage_count += 1
-            if observed_stage == "check" or observed_failure_type == "model_check_error":
-                initialization_truncated_by_check_count += 1
-                _inc(row["mismatch_reasons"], "truncated_by_check")
+                row["subtype_match_count"] = int(row.get("subtype_match_count", 0)) + 1
+            else:
+                _inc(row["mismatch_reasons"], "subtype_mismatch")
+                total_subtype_mismatch += 1
+
+            if record_passed and canonical_match and stage_match and subtype_match:
+                resolved_after_aligned_manifestation_count += 1
+                row["resolved_after_aligned_manifestation_count"] = int(row.get("resolved_after_aligned_manifestation_count", 0)) + 1
+
+            if declared_failure_type == "connector_mismatch":
+                connector_record_count += 1
+                if subtype_match:
+                    connector_subtype_match_count += 1
+            if declared_failure_type == "initialization_infeasible":
+                initialization_record_count += 1
+                if manifestation_stage == "simulate":
+                    initialization_simulate_stage_count += 1
+                if manifestation_stage == "check" or manifestation_failure_type == "model_check_error":
+                    initialization_truncated_by_check_count += 1
+                    _inc(row["mismatch_reasons"], "truncated_by_check")
+        else:
+            row["no_failure_signal_count"] = int(row.get("no_failure_signal_count", 0)) + 1
+            _inc(row["mismatch_reasons"], "missing_failure_signal")
+            total_missing_failure_signal += 1
+            if record_passed:
+                resolved_without_failure_signal_count += 1
+                row["resolved_without_failure_signal_count"] = int(row.get("resolved_without_failure_signal_count", 0)) + 1
 
     failure_type_breakdown_on = l5_summary.get("failure_type_breakdown_on") if isinstance(l5_summary.get("failure_type_breakdown_on"), dict) else {}
     category_breakdown_on = l5_summary.get("category_breakdown_on") if isinstance(l5_summary.get("category_breakdown_on"), dict) else {}
@@ -255,15 +338,16 @@ def build_realism_summary_v1(
     category_record_gap_count = 0
     for category in sorted(declared_counts_by_category.keys()):
         expected_count = int(declared_counts_by_category.get(category, 0))
-        l3_count = int(l3_category_distribution.get(category, 0))
+        l3_count = int(l3_task_category_distribution.get(category, 0))
         l5_row = category_breakdown_on.get(category) if isinstance(category_breakdown_on.get(category), dict) else {}
         l5_record_count = _to_int(l5_row.get("record_count"), 0)
-        counts_match = expected_count == l5_record_count and (l3_count == 0 or l3_count == expected_count)
+        counts_match = expected_count == l5_record_count and expected_count == l3_count
         if not counts_match:
             category_record_gap_count += 1
         category_alignment[category] = {
             "expected_task_count": expected_count,
-            "l3_category_count": l3_count,
+            "l3_task_category_count": l3_count,
+            "l3_attempt_category_count": int(l3_category_distribution.get(category, 0)),
             "l5_record_count_on": l5_record_count,
             "counts_match": counts_match,
         }
@@ -272,19 +356,31 @@ def build_realism_summary_v1(
     missing_failure_type_records: list[str] = []
     for failure_type, row in by_failure_type.items():
         l3_record_count = int(row.get("l3_record_count", 0))
+        manifestation_record_count = int(row.get("manifestation_record_count", 0))
         if l3_record_count <= 0:
             missing_failure_type_records.append(failure_type)
         summary = {
             "task_count": int(row.get("task_count", 0)),
             "l3_record_count": l3_record_count,
-            "canonical_match_rate_pct": _ratio(int(row.get("canonical_match_count", 0)), l3_record_count),
-            "stage_match_rate_pct": _ratio(int(row.get("stage_match_count", 0)), l3_record_count),
-            "subtype_match_rate_pct": _ratio(int(row.get("subtype_match_count", 0)), l3_record_count),
+            "manifestation_record_count": manifestation_record_count,
+            "canonical_match_rate_pct": _ratio(int(row.get("canonical_match_count", 0)), manifestation_record_count),
+            "stage_match_rate_pct": _ratio(int(row.get("stage_match_count", 0)), manifestation_record_count),
+            "subtype_match_rate_pct": _ratio(int(row.get("subtype_match_count", 0)), manifestation_record_count),
+            "no_failure_signal_count": int(row.get("no_failure_signal_count", 0)),
+            "resolved_task_count": int(row.get("resolved_task_count", 0)),
+            "resolved_after_aligned_manifestation_count": int(row.get("resolved_after_aligned_manifestation_count", 0)),
+            "resolved_without_failure_signal_count": int(row.get("resolved_without_failure_signal_count", 0)),
             "observed_failure_type_distribution": _sorted_counter(
-                row.get("observed_failure_type_distribution") if isinstance(row.get("observed_failure_type_distribution"), dict) else {}
+                row.get("manifestation_failure_type_distribution") if isinstance(row.get("manifestation_failure_type_distribution"), dict) else {}
             ),
             "observed_subtype_distribution": _sorted_counter(
-                row.get("observed_subtype_distribution") if isinstance(row.get("observed_subtype_distribution"), dict) else {}
+                row.get("manifestation_subtype_distribution") if isinstance(row.get("manifestation_subtype_distribution"), dict) else {}
+            ),
+            "final_observed_failure_type_distribution": _sorted_counter(
+                row.get("final_failure_type_distribution") if isinstance(row.get("final_failure_type_distribution"), dict) else {}
+            ),
+            "final_observed_subtype_distribution": _sorted_counter(
+                row.get("final_subtype_distribution") if isinstance(row.get("final_subtype_distribution"), dict) else {}
             ),
             "mismatch_reasons": _sorted_counter(row.get("mismatch_reasons") if isinstance(row.get("mismatch_reasons"), dict) else {}),
             "l5_success_count_on": _to_int(
@@ -301,29 +397,55 @@ def build_realism_summary_v1(
     challenge_counts_by_failure_type = challenge_summary.get("counts_by_failure_type") if isinstance(challenge_summary.get("counts_by_failure_type"), dict) else {}
     challenge_counts_by_category = challenge_summary.get("counts_by_category") if isinstance(challenge_summary.get("counts_by_category"), dict) else {}
     missing_categories = [x for x, count in declared_counts_by_category.items() if int(count or 0) <= 0]
+    connector_subtype_match_rate_pct = 100.0 if connector_record_count <= 0 else _ratio(connector_subtype_match_count, connector_record_count)
+    initialization_simulate_stage_rate_pct = 100.0 if initialization_record_count <= 0 else _ratio(initialization_simulate_stage_count, initialization_record_count)
+    l5_success_total = sum(
+        _to_int(
+            (
+                failure_type_breakdown_on.get(failure_type)
+                if isinstance(failure_type_breakdown_on.get(failure_type), dict)
+                else {}
+            ).get("success_count"),
+            0,
+        )
+        for failure_type in declared_counts_by_failure.keys()
+    )
+    outcome_resolved_task_count = max(resolved_task_count, l5_success_total)
 
     mismatch_summary = {
         "canonical_type_mismatch_count": total_canonical_mismatch,
         "stage_mismatch_count": total_stage_mismatch,
         "subtype_mismatch_count": total_subtype_mismatch,
+        "missing_failure_signal_count": total_missing_failure_signal,
         "initialization_truncated_by_check_count": initialization_truncated_by_check_count,
-        "connector_subtype_match_rate_pct": _ratio(connector_subtype_match_count, connector_record_count),
-        "initialization_simulate_stage_rate_pct": _ratio(initialization_simulate_stage_count, initialization_record_count),
+        "connector_subtype_match_rate_pct": connector_subtype_match_rate_pct,
+        "initialization_simulate_stage_rate_pct": initialization_simulate_stage_rate_pct,
         "category_record_gap_count": category_record_gap_count,
         "missing_failure_type_records": missing_failure_type_records,
         "missing_categories": missing_categories,
     }
 
-    status = "PASS"
+    manifestation_status = "PASS"
     if missing_failure_type_records or missing_categories:
-        status = "FAIL"
-    elif initialization_truncated_by_check_count > 0 or _ratio(connector_subtype_match_count, connector_record_count) < 50.0 or category_record_gap_count > 0:
-        status = "NEEDS_REVIEW"
+        manifestation_status = "FAIL"
+    elif (
+        initialization_truncated_by_check_count > 0
+        or connector_subtype_match_rate_pct < 50.0
+        or category_record_gap_count > 0
+        or total_canonical_mismatch > 0
+        or total_stage_mismatch > 0
+        or total_subtype_mismatch > 0
+        or total_missing_failure_signal > 0
+    ):
+        manifestation_status = "NEEDS_REVIEW"
+
+    outcome_status = "PASS" if outcome_resolved_task_count >= len(tasks) and tasks else "NEEDS_REVIEW"
+    status = manifestation_status
 
     recommendation = "ready_for_next_realism_iteration"
     if status == "FAIL" or initialization_truncated_by_check_count > 0:
         recommendation = "repair_wave1_mutations"
-    elif _ratio(connector_subtype_match_count, connector_record_count) < 50.0 or category_record_gap_count > 0:
+    elif status == "NEEDS_REVIEW":
         recommendation = "repair_wave1_taxonomy_alignment"
 
     baseline_provenance = challenge_manifest.get("baseline_provenance") if isinstance(challenge_manifest.get("baseline_provenance"), dict) else {}
@@ -332,6 +454,7 @@ def build_realism_summary_v1(
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
         "status": status,
         "recommendation": recommendation,
+        "taxonomy_view_mode": "dual_view",
         "pack_id": str(evidence_summary.get("pack_id") or challenge_summary.get("pack_id") or ""),
         "pack_version": str(evidence_summary.get("pack_version") or challenge_summary.get("pack_version") or ""),
         "pack_track": str(evidence_summary.get("pack_track") or challenge_summary.get("pack_track") or ""),
@@ -342,12 +465,25 @@ def build_realism_summary_v1(
         "challenge_counts_by_failure_type": challenge_counts_by_failure_type,
         "challenge_counts_by_category": challenge_counts_by_category,
         "l3_category_distribution": l3_category_distribution,
+        "l3_task_category_distribution": _sorted_counter(l3_task_category_distribution),
         "l3_subtype_distribution": l3_subtype_distribution,
         "l5_category_breakdown_on": category_breakdown_on,
         "l5_failure_type_breakdown_on": failure_type_breakdown_on,
         "by_failure_type": by_failure_type_summary,
         "category_alignment": category_alignment,
         "mismatch_summary": mismatch_summary,
+        "failure_manifestation_view": {
+            "status": manifestation_status,
+            "by_failure_type": by_failure_type_summary,
+            "mismatch_summary": mismatch_summary,
+        },
+        "final_outcome_view": {
+            "status": outcome_status,
+            "resolved_task_count": outcome_resolved_task_count,
+            "unresolved_task_count": max(0, len(tasks) - outcome_resolved_task_count),
+            "resolved_after_aligned_manifestation_count": resolved_after_aligned_manifestation_count,
+            "resolved_without_failure_signal_count": resolved_without_failure_signal_count,
+        },
         "environment": {
             "planner_backend": str(baseline_provenance.get("planner_backend") or ""),
             "llm_model": baseline_provenance.get("llm_model"),
