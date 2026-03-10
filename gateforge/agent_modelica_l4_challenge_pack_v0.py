@@ -95,6 +95,11 @@ def main() -> None:
     parser.add_argument("--out-dir", default="assets_private/agent_modelica_l4_challenge_pack_v0")
     parser.add_argument("--scales", default="small,medium")
     parser.add_argument("--failure-types", default="model_check_error,simulate_error,semantic_regression")
+    parser.add_argument("--required-categories", default="")
+    parser.add_argument("--pack-id", default="")
+    parser.add_argument("--pack-version", default="")
+    parser.add_argument("--pack-track", default="")
+    parser.add_argument("--acceptance-scope", default="")
     parser.add_argument("--per-failure-type-cap", type=int, default=6)
     parser.add_argument("--holdout-ratio", type=float, default=0.15)
     parser.add_argument("--split-seed", default="agent_modelica_l4_challenge_v0")
@@ -107,6 +112,7 @@ def main() -> None:
 
     scales = [x.lower() for x in _parse_csv(args.scales, DEFAULT_SCALES)]
     failure_types = [x.lower() for x in _parse_csv(args.failure_types, DEFAULT_FAILURE_TYPES)]
+    required_categories = [x.lower() for x in _parse_csv(args.required_categories, tuple())]
     per_failure_type_cap = max(1, int(args.per_failure_type_cap))
 
     payload = _load_json(args.taskset_in)
@@ -128,6 +134,7 @@ def main() -> None:
         grouped[_norm(task.get("failure_type")).lower()].append(task)
     for key in grouped:
         grouped[key] = sorted(grouped[key], key=_task_sort_key)
+    missing_failure_types = [f for f in failure_types if not grouped.get(f)]
 
     non_empty_counts = [len(grouped[f]) for f in failure_types]
     quota = min([per_failure_type_cap] + non_empty_counts) if non_empty_counts else 0
@@ -173,6 +180,7 @@ def main() -> None:
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
         "scales": scales,
         "failure_types": failure_types,
+        "required_categories": required_categories,
         "per_failure_type_cap": per_failure_type_cap,
         "effective_per_failure_type_quota": quota,
         "split_seed": str(args.split_seed),
@@ -197,14 +205,18 @@ def main() -> None:
     _write_json(str(sha_path), sha_payload)
 
     by_scale: dict[str, int] = {}
-    by_failure: dict[str, int] = {}
+    by_failure: dict[str, int] = {f: 0 for f in failure_types}
+    by_category: dict[str, int] = {c: 0 for c in required_categories}
     split_counts = {"train": 0, "holdout": 0}
     for task in selected:
         scale = _norm(task.get("scale")).lower()
         failure_type = _norm(task.get("failure_type")).lower()
+        category = _norm(task.get("category")).lower()
         split = _norm(task.get("split")).lower()
         by_scale[scale] = int(by_scale.get(scale, 0)) + 1
         by_failure[failure_type] = int(by_failure.get(failure_type, 0)) + 1
+        if category:
+            by_category[category] = int(by_category.get(category, 0)) + 1
         if split in split_counts:
             split_counts[split] += 1
 
@@ -217,6 +229,11 @@ def main() -> None:
         reasons.append("taskset_empty_after_selection")
     if quota <= 0:
         reasons.append("quota_zero")
+    for failure_type in missing_failure_types:
+        reasons.append(f"requested_failure_type_missing:{failure_type}")
+    missing_categories = [c for c in required_categories if int(by_category.get(c, 0)) <= 0]
+    for category in missing_categories:
+        reasons.append(f"required_category_missing:{category}")
     if baseline is None:
         reasons.append("baseline_off_success_at_k_missing")
     else:
@@ -239,11 +256,16 @@ def main() -> None:
         "schema_version": SCHEMA_VERSION,
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
         "status": status,
+        "pack_id": str(args.pack_id or ""),
+        "pack_version": str(args.pack_version or ""),
+        "pack_track": str(args.pack_track or ""),
+        "acceptance_scope": str(args.acceptance_scope or ""),
         "taskset_in": str(args.taskset_in),
         "counts": {
             "total_selected_tasks": len(selected),
             "counts_by_scale": by_scale,
             "counts_by_failure_type": by_failure,
+            "counts_by_category": by_category,
             "split_counts": split_counts,
         },
         "selection": selection_config,
@@ -268,8 +290,14 @@ def main() -> None:
         "schema_version": SCHEMA_VERSION,
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
         "status": status,
+        "pack_id": str(args.pack_id or ""),
+        "pack_version": str(args.pack_version or ""),
+        "pack_track": str(args.pack_track or ""),
+        "acceptance_scope": str(args.acceptance_scope or ""),
         "total_selected_tasks": len(selected),
         "per_failure_type_quota": quota,
+        "counts_by_failure_type": by_failure,
+        "counts_by_category": by_category,
         "baseline_off_success_at_k_pct": baseline,
         "baseline_target_range_pct": {"min": float(args.target_min_off_success_pct), "max": float(args.target_max_off_success_pct)},
         "baseline_meets_minimum": baseline_meets_minimum if baseline is not None else None,

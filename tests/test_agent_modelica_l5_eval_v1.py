@@ -53,6 +53,8 @@ class AgentModelicaL5EvalV1Tests(unittest.TestCase):
             "canonical_type_match_rate_pct": 80.0,
             "stage_match_rate_pct": 80.0,
             "low_confidence_rate_pct": 5.0,
+            "subtype_distribution": {"connector_mismatch": 1},
+            "category_distribution": {"topology_wiring": 1},
         }
         l3_gate = {
             "status": "PASS",
@@ -65,6 +67,16 @@ class AgentModelicaL5EvalV1Tests(unittest.TestCase):
                 "regression_fail_rate_pct": 10.0,
                 "infra_failure_count": 0,
                 "reason_distribution": {"hard_checks_pass": 1, "no_progress_window": 1},
+                "category_breakdown": {
+                    "topology_wiring": {
+                        "record_count": 1,
+                        "success_count": 1,
+                        "success_at_k_pct": 100.0,
+                        "physics_fail_rate_pct": 0.0,
+                        "regression_fail_rate_pct": 0.0,
+                        "infra_failure_count": 0,
+                    }
+                },
             },
             "off": {
                 "success_at_k_pct": 70.0,
@@ -72,9 +84,29 @@ class AgentModelicaL5EvalV1Tests(unittest.TestCase):
                 "regression_fail_rate_pct": 9.0,
                 "infra_failure_count": 0,
                 "reason_distribution": {"none": 2},
+                "category_breakdown": {
+                    "topology_wiring": {
+                        "record_count": 1,
+                        "success_count": 0,
+                        "success_at_k_pct": 0.0,
+                        "physics_fail_rate_pct": 100.0,
+                        "regression_fail_rate_pct": 100.0,
+                        "infra_failure_count": 0,
+                    }
+                },
             },
             "delta": {
                 "success_at_k_pp": 10.0,
+                "category_breakdown": {
+                    "topology_wiring": {
+                        "success_at_k_pp": 100.0,
+                        "physics_fail_rate_pp": -100.0,
+                        "regression_fail_rate_pp": -100.0,
+                        "infra_failure_count_delta": 0,
+                        "record_count_on": 1,
+                        "record_count_off": 1,
+                    }
+                },
             },
         }
         return run_summary, run_results, l3_quality, l3_gate, l4_ab
@@ -93,6 +125,12 @@ class AgentModelicaL5EvalV1Tests(unittest.TestCase):
         self.assertEqual(summary.get("gate_result"), "PASS")
         self.assertEqual(float(summary.get("delta_success_at_k_pp") or 0.0), 10.0)
         self.assertEqual(str(summary.get("l4_primary_reason") or ""), "no_progress_window")
+        self.assertEqual(
+            int((((summary.get("category_breakdown_delta") or {}).get("topology_wiring") or {}).get("record_count_on") or 0)),
+            1,
+        )
+        self.assertEqual(int(((summary.get("l3_category_distribution") or {}).get("topology_wiring") or 0)), 1)
+        self.assertEqual(int(((summary.get("l3_subtype_distribution") or {}).get("connector_mismatch") or 0)), 1)
 
     def test_eval_fails_when_delta_below_threshold(self) -> None:
         run_summary, run_results, l3_quality, l3_gate, l4_ab = self._base_inputs()

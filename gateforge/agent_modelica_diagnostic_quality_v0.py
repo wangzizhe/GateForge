@@ -99,10 +99,13 @@ def evaluate_diagnostic_quality_v0(
     stage_match = 0
     by_error_type: dict[str, int] = {}
     subtype_distribution: dict[str, int] = {}
+    category_distribution: dict[str, int] = {}
     low_confidence_count = 0
 
     for record in records:
         expected_stage = _expected_stage(task_map=task_map, record=record)
+        task_id = str(record.get("task_id") or "")
+        task_category = str((task_map.get(task_id) or {}).get("category") or "").strip().lower()
         attempts = record.get("attempts") if isinstance(record.get("attempts"), list) else []
         attempts = [x for x in attempts if isinstance(x, dict)]
         for attempt in attempts:
@@ -119,6 +122,8 @@ def evaluate_diagnostic_quality_v0(
                 by_error_type[diag_type] = int(by_error_type.get(diag_type, 0)) + 1
                 if diag_subtype and diag_subtype != "none":
                     subtype_distribution[diag_subtype] = int(subtype_distribution.get(diag_subtype, 0)) + 1
+                if task_category:
+                    category_distribution[task_category] = int(category_distribution.get(task_category, 0)) + 1
                 if confidence < float(low_confidence_threshold):
                     low_confidence_count += 1
 
@@ -160,6 +165,7 @@ def evaluate_diagnostic_quality_v0(
         "stage_match_not_applicable": stage_not_applicable,
         "error_type_distribution": dict(sorted(by_error_type.items())),
         "subtype_distribution": dict(sorted(subtype_distribution.items())),
+        "category_distribution": dict(sorted(category_distribution.items())),
         "low_confidence_threshold": float(low_confidence_threshold),
         "low_confidence_count": low_confidence_count,
         "low_confidence_rate_pct": _ratio(low_confidence_count, parsed_attempts),

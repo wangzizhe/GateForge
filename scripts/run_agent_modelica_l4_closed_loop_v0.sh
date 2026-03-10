@@ -191,6 +191,81 @@ def _pct(num: int, den: int) -> float:
         return 0.0
     return round((num / den) * 100.0, 2)
 
+def _empty_bucket() -> dict:
+    return {
+        "record_count": 0,
+        "success_count": 0,
+        "physics_fail_count": 0,
+        "regression_fail_count": 0,
+        "infra_failure_count": 0,
+    }
+
+def _finalize_bucket(raw: dict[str, dict]) -> dict[str, dict]:
+    out: dict[str, dict] = {}
+    for key in sorted(raw.keys()):
+        row = raw.get(key) if isinstance(raw.get(key), dict) else {}
+        record_count = int(row.get("record_count") or 0)
+        success_count = int(row.get("success_count") or 0)
+        physics_fail_count = int(row.get("physics_fail_count") or 0)
+        regression_fail_count = int(row.get("regression_fail_count") or 0)
+        infra_failure_count = int(row.get("infra_failure_count") or 0)
+        out[key] = {
+            "record_count": record_count,
+            "success_count": success_count,
+            "success_at_k_pct": _pct(success_count, record_count),
+            "physics_fail_rate_pct": _pct(physics_fail_count, record_count),
+            "regression_fail_rate_pct": _pct(regression_fail_count, record_count),
+            "infra_failure_count": infra_failure_count,
+        }
+    return out
+
+def _summarize_breakdown(records: list[dict], task_meta_map: dict[str, dict], key_name: str, known_keys: list[str]) -> dict[str, dict]:
+    buckets: dict[str, dict] = {str(key): _empty_bucket() for key in known_keys if str(key).strip()}
+    for rec in records:
+        if not isinstance(rec, dict):
+            continue
+        task_id = str(rec.get("task_id") or "")
+        meta = task_meta_map.get(task_id) if isinstance(task_meta_map.get(task_id), dict) else {}
+        bucket_key = str(meta.get(key_name) or rec.get(key_name) or "unknown").strip().lower()
+        if not bucket_key:
+            bucket_key = "unknown"
+        bucket = buckets.setdefault(bucket_key, _empty_bucket())
+        bucket["record_count"] = int(bucket.get("record_count", 0)) + 1
+        if bool(rec.get("passed")):
+            bucket["success_count"] = int(bucket.get("success_count", 0)) + 1
+        if not bool((rec.get("hard_checks") or {}).get("physics_contract_pass")):
+            bucket["physics_fail_count"] = int(bucket.get("physics_fail_count", 0)) + 1
+        if not bool((rec.get("hard_checks") or {}).get("regression_pass")):
+            bucket["regression_fail_count"] = int(bucket.get("regression_fail_count", 0)) + 1
+        attempts = rec.get("attempts") if isinstance(rec.get("attempts"), list) else []
+        for row in attempts:
+            if not isinstance(row, dict):
+                continue
+            infra = _infra_reason(
+                stderr=row.get("stderr_snippet"),
+                reason=row.get("reason"),
+                log_excerpt=row.get("log_excerpt"),
+            )
+            if infra:
+                bucket["infra_failure_count"] = int(bucket.get("infra_failure_count", 0)) + 1
+    return _finalize_bucket(buckets)
+
+def _delta_breakdown(on_map: dict[str, dict], off_map: dict[str, dict]) -> dict[str, dict]:
+    keys = sorted(set(on_map.keys()) | set(off_map.keys()))
+    out: dict[str, dict] = {}
+    for key in keys:
+        on = on_map.get(key) if isinstance(on_map.get(key), dict) else {}
+        off = off_map.get(key) if isinstance(off_map.get(key), dict) else {}
+        out[key] = {
+            "success_at_k_pp": round(float(on.get("success_at_k_pct") or 0.0) - float(off.get("success_at_k_pct") or 0.0), 2),
+            "physics_fail_rate_pp": round(float(on.get("physics_fail_rate_pct") or 0.0) - float(off.get("physics_fail_rate_pct") or 0.0), 2),
+            "regression_fail_rate_pp": round(float(on.get("regression_fail_rate_pct") or 0.0) - float(off.get("regression_fail_rate_pct") or 0.0), 2),
+            "infra_failure_count_delta": int(on.get("infra_failure_count") or 0) - int(off.get("infra_failure_count") or 0),
+            "record_count_on": int(on.get("record_count") or 0),
+            "record_count_off": int(off.get("record_count") or 0),
+        }
+    return out
+
 ALLOWED_L4_REASONS = {
     "none",
     "hard_checks_pass",
@@ -202,7 +277,7 @@ ALLOWED_L4_REASONS = {
     "llm_fallback_exhausted",
 }
 
-def _summarize_run(run_dir: Path) -> dict:
+def _summarize_run(run_dir: Path, task_meta_map: dict[str, dict], known_categories: list[str], known_failure_types: list[str]) -> dict:
     run_summary = _load(run_dir / "run_summary.json")
     run_results = _load(run_dir / "run_results.json")
     records = run_results.get("records") if isinstance(run_results.get("records"), list) else []
@@ -262,18 +337,47 @@ def _summarize_run(run_dir: Path) -> dict:
         "no_progress_rate_pct": _pct(no_progress_count, record_count),
         "llm_fallback_rate_pct": _pct(llm_fallback_count, record_count),
         "unknown_reason_count": unknown_reason_count,
+        "category_breakdown": _summarize_breakdown(records, task_meta_map, "category", known_categories),
+        "failure_type_breakdown": _summarize_breakdown(records, task_meta_map, "failure_type", known_failure_types),
         "reason_enum": sorted(ALLOWED_L4_REASONS),
     }
 
 taskset_payload = _load(filtered_taskset)
 filtered_tasks = taskset_payload.get("tasks") if isinstance(taskset_payload.get("tasks"), list) else []
 filtered_task_count = len([x for x in filtered_tasks if isinstance(x, dict)])
+task_meta_map = {
+    str(row.get("task_id") or ""): row
+    for row in filtered_tasks
+    if isinstance(row, dict) and str(row.get("task_id") or "").strip()
+}
+known_categories = sorted(
+    {
+        str(row.get("category") or "").strip().lower()
+        for row in filtered_tasks
+        if isinstance(row, dict) and str(row.get("category") or "").strip()
+    }
+)
+known_failure_types = sorted(
+    {
+        str(row.get("failure_type") or "").strip().lower()
+        for row in filtered_tasks
+        if isinstance(row, dict) and str(row.get("failure_type") or "").strip()
+    }
+)
 
-off = _summarize_run(out_dir / "off")
-on = _summarize_run(out_dir / "on")
+off = _summarize_run(out_dir / "off", task_meta_map, known_categories, known_failure_types)
+on = _summarize_run(out_dir / "on", task_meta_map, known_categories, known_failure_types)
 delta_success = round(float(on["success_at_k_pct"]) - float(off["success_at_k_pct"]), 2)
 delta_regression_fail_rate = round(float(on["regression_fail_rate_pct"]) - float(off["regression_fail_rate_pct"]), 2)
 delta_physics_fail_rate = round(float(on["physics_fail_rate_pct"]) - float(off["physics_fail_rate_pct"]), 2)
+category_delta = _delta_breakdown(
+    on.get("category_breakdown") if isinstance(on.get("category_breakdown"), dict) else {},
+    off.get("category_breakdown") if isinstance(off.get("category_breakdown"), dict) else {},
+)
+failure_type_delta = _delta_breakdown(
+    on.get("failure_type_breakdown") if isinstance(on.get("failure_type_breakdown"), dict) else {},
+    off.get("failure_type_breakdown") if isinstance(off.get("failure_type_breakdown"), dict) else {},
+)
 
 reasons: list[str] = []
 if filtered_task_count <= 0:
@@ -317,6 +421,8 @@ summary = {
         "success_at_k_pp": delta_success,
         "regression_fail_rate_pp": delta_regression_fail_rate,
         "physics_fail_rate_pp": delta_physics_fail_rate,
+        "category_breakdown": category_delta,
+        "failure_type_breakdown": failure_type_delta,
     },
     "acceptance": {
         "min_success_delta_pp": min_success_delta_pp,

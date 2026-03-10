@@ -172,6 +172,76 @@ class AgentModelicaElectricalMutantTasksetV0Tests(unittest.TestCase):
             # At least one task should carry explicit mutated objects from connection edits.
             self.assertTrue(any(isinstance(x.get("mutated_objects"), list) and x.get("mutated_objects") for x in rows))
 
+    def test_builder_explicit_realism_failure_types_emit_metadata(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            benchmark = root / "benchmark.json"
+            taskset = root / "taskset.json"
+            summary = root / "summary.json"
+            benchmark.write_text(json.dumps(_benchmark_fixture()), encoding="utf-8")
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.agent_modelica_electrical_mutant_taskset_v0",
+                    "--benchmark",
+                    str(benchmark),
+                    "--failure-types",
+                    "underconstrained_system,connector_mismatch,initialization_infeasible",
+                    "--expand-failure-types",
+                    "--source-models-dir",
+                    str(root / "source"),
+                    "--mutants-dir",
+                    str(root / "mutants"),
+                    "--taskset-out",
+                    str(taskset),
+                    "--out",
+                    str(summary),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            taskset_payload = json.loads(taskset.read_text(encoding="utf-8"))
+            summary_payload = json.loads(summary.read_text(encoding="utf-8"))
+            rows = taskset_payload.get("tasks") or []
+            failure_types = {str(x.get("failure_type") or "") for x in rows}
+            self.assertEqual(
+                failure_types,
+                {"underconstrained_system", "connector_mismatch", "initialization_infeasible"},
+            )
+            categories = {str(x.get("category") or "") for x in rows}
+            self.assertEqual(categories, {"topology_wiring", "initialization"})
+            self.assertTrue(all(str(x.get("mutation_operator_family") or "") for x in rows))
+            self.assertEqual(
+                int((summary_payload.get("counts_by_category") or {}).get("topology_wiring") or 0),
+                6,
+            )
+            self.assertEqual(
+                int((summary_payload.get("counts_by_category") or {}).get("initialization") or 0),
+                3,
+            )
+            self.assertEqual(summary_payload.get("reasons"), [])
+            init_rows = [row for row in rows if str(row.get("failure_type") or "") == "initialization_infeasible"]
+            self.assertEqual(len(init_rows), 3)
+            self.assertTrue(all(str(row.get("mutation_operator") or "") == "initial_equation_assert" for row in init_rows))
+            self.assertTrue(
+                all(
+                    any(
+                        str(obj.get("kind") or "") == "initialization_trigger"
+                        and str(obj.get("effect") or "") == "forced_initialization_failure"
+                        for obj in (row.get("mutated_objects") or [])
+                        if isinstance(obj, dict)
+                    )
+                    for row in init_rows
+                )
+            )
+            init_text = Path(str(init_rows[0].get("mutated_model_path"))).read_text(encoding="utf-8")
+            self.assertIn("gateforge_initialization_infeasible_", init_text)
+            self.assertIn("assert(false", init_text)
+
 
 if __name__ == "__main__":
     unittest.main()

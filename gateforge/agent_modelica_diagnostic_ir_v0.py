@@ -132,6 +132,9 @@ def _classify_check_failure(lower: str) -> tuple[str, str, str, str]:
 
 
 def _classify_sim_failure(lower: str) -> tuple[str, str, str]:
+    if _contains_any(lower, ("gateforge_initialization_infeasible", "initialization infeasible", "initial equation")):
+        return "simulate_error", "init_failure", "initialization failed"
+
     if _contains_any(lower, ("timeoutexpired", "timed out", "timeout expired", "simulation timeout")):
         return "numerical_instability", "timeout", "simulation timeout"
 

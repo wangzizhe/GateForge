@@ -84,6 +84,20 @@ class AgentModelicaDiagnosticIRV0Tests(unittest.TestCase):
         self.assertEqual(payload.get("error_type"), "numerical_instability")
         self.assertEqual(payload.get("error_subtype"), "timeout")
 
+    def test_build_diagnostic_detects_gateforge_initialization_marker(self) -> None:
+        payload = build_diagnostic_ir_v0(
+            output='Simulation failed during initial equation evaluation: assert | gateforge_initialization_infeasible_ab12cd34',
+            check_model_pass=True,
+            simulate_pass=False,
+            expected_stage="simulate",
+            declared_failure_type="initialization_infeasible",
+        )
+        self.assertEqual(payload.get("error_type"), "simulate_error")
+        self.assertEqual(payload.get("error_subtype"), "init_failure")
+        self.assertEqual(payload.get("stage"), "simulate")
+        objects = payload.get("objects") if isinstance(payload.get("objects"), dict) else {}
+        self.assertIn("gateforge_initialization_infeasible_ab12cd34", objects.get("assertion_hints") or [])
+
     def test_build_diagnostic_normalizes_legacy_declared_failure_type(self) -> None:
         payload = build_diagnostic_ir_v0(
             output="Error: No viable alternative near token: __gf_state_301500",

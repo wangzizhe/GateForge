@@ -252,6 +252,12 @@ def evaluate_l5_eval_v1(
     l4_off = l4_ab_compare_summary.get("off") if isinstance(l4_ab_compare_summary.get("off"), dict) else {}
     l4_delta = l4_ab_compare_summary.get("delta") if isinstance(l4_ab_compare_summary.get("delta"), dict) else {}
     l4_primary_reason = _infer_l4_primary_reason(l4_ab_compare_summary if isinstance(l4_ab_compare_summary, dict) else {})
+    l4_category_breakdown_on = l4_on.get("category_breakdown") if isinstance(l4_on.get("category_breakdown"), dict) else {}
+    l4_category_breakdown_off = l4_off.get("category_breakdown") if isinstance(l4_off.get("category_breakdown"), dict) else {}
+    l4_category_breakdown_delta = l4_delta.get("category_breakdown") if isinstance(l4_delta.get("category_breakdown"), dict) else {}
+    l4_failure_type_breakdown_on = l4_on.get("failure_type_breakdown") if isinstance(l4_on.get("failure_type_breakdown"), dict) else {}
+    l4_failure_type_breakdown_off = l4_off.get("failure_type_breakdown") if isinstance(l4_off.get("failure_type_breakdown"), dict) else {}
+    l4_failure_type_breakdown_delta = l4_delta.get("failure_type_breakdown") if isinstance(l4_delta.get("failure_type_breakdown"), dict) else {}
 
     success_at_k_pct = _to_float(l4_on.get("success_at_k_pct"), _to_float(run_summary.get("success_at_k_pct"), run_results_summary["success_at_k_pct"]))
     baseline_success_at_k_pct = _to_float(l4_off.get("success_at_k_pct"), success_at_k_pct)
@@ -398,7 +404,16 @@ def evaluate_l5_eval_v1(
         "l3_type_match_rate_pct": l3_type,
         "l3_stage_match_rate_pct": l3_stage,
         "l3_low_confidence_rate_pct": l3_low_conf,
+        "l3_error_type_distribution": l3_quality_summary.get("error_type_distribution") if isinstance(l3_quality_summary.get("error_type_distribution"), dict) else {},
+        "l3_subtype_distribution": l3_quality_summary.get("subtype_distribution") if isinstance(l3_quality_summary.get("subtype_distribution"), dict) else {},
+        "l3_category_distribution": l3_quality_summary.get("category_distribution") if isinstance(l3_quality_summary.get("category_distribution"), dict) else {},
         "l4_primary_reason": l4_primary_reason,
+        "category_breakdown_on": l4_category_breakdown_on,
+        "category_breakdown_off": l4_category_breakdown_off,
+        "category_breakdown_delta": l4_category_breakdown_delta,
+        "failure_type_breakdown_on": l4_failure_type_breakdown_on,
+        "failure_type_breakdown_off": l4_failure_type_breakdown_off,
+        "failure_type_breakdown_delta": l4_failure_type_breakdown_delta,
         "cost_metrics": {
             "median_rounds": median_rounds,
             "median_time_to_pass_sec": median_time,

@@ -85,6 +85,8 @@ class AgentModelicaDiagnosticQualityV0Tests(unittest.TestCase):
         )
         self.assertEqual(int(summary.get("low_confidence_count") or 0), 1)
         self.assertEqual(float(summary.get("low_confidence_rate_pct") or 0.0), 50.0)
+        category_distribution = summary.get("category_distribution") if isinstance(summary.get("category_distribution"), dict) else {}
+        self.assertEqual(category_distribution, {})
 
     def test_quality_metrics_treats_no_comparable_type_stage_as_not_applicable(self) -> None:
         run_results = {
@@ -107,6 +109,25 @@ class AgentModelicaDiagnosticQualityV0Tests(unittest.TestCase):
         self.assertEqual(int(summary.get("stage_comparable_count") or 0), 0)
         self.assertTrue(bool(summary.get("type_match_not_applicable")))
         self.assertTrue(bool(summary.get("stage_match_not_applicable")))
+
+    def test_quality_metrics_reports_task_category_distribution(self) -> None:
+        run_results = {
+            "records": [
+                {
+                    "task_id": "t_realism",
+                    "attempts": [
+                        {
+                            "observed_failure_type": "connector_mismatch",
+                            "diagnostic_ir": {"error_type": "model_check_error", "error_subtype": "connector_mismatch", "stage": "check"},
+                        }
+                    ],
+                }
+            ]
+        }
+        taskset = {"tasks": [{"task_id": "t_realism", "expected_stage": "check", "category": "topology_wiring"}]}
+        summary = evaluate_diagnostic_quality_v0(run_results_payload=run_results, taskset_payload=taskset)
+        category_distribution = summary.get("category_distribution") if isinstance(summary.get("category_distribution"), dict) else {}
+        self.assertEqual(int(category_distribution.get("topology_wiring") or 0), 1)
 
 
 if __name__ == "__main__":
