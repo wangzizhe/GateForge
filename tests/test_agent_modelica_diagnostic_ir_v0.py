@@ -98,6 +98,19 @@ class AgentModelicaDiagnosticIRV0Tests(unittest.TestCase):
         objects = payload.get("objects") if isinstance(payload.get("objects"), dict) else {}
         self.assertIn("gateforge_initialization_infeasible_ab12cd34", objects.get("assertion_hints") or [])
 
+    def test_build_diagnostic_detects_underconstrained_system_subtype(self) -> None:
+        payload = build_diagnostic_ir_v0(
+            output="Error: System is underdetermined. Too few equations for variables including gateforge_underconstrained_probe_ab12cd34",
+            check_model_pass=False,
+            simulate_pass=False,
+            expected_stage="check",
+            declared_failure_type="underconstrained_system",
+        )
+        self.assertEqual(payload.get("error_type"), "model_check_error")
+        self.assertEqual(payload.get("error_subtype"), "underconstrained_system")
+        self.assertEqual(payload.get("stage"), "check")
+        self.assertIn("restore dropped connects", " | ".join(payload.get("suggested_actions") or []))
+
     def test_build_diagnostic_normalizes_legacy_declared_failure_type(self) -> None:
         payload = build_diagnostic_ir_v0(
             output="Error: No viable alternative near token: __gf_state_301500",
