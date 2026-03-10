@@ -70,4 +70,9 @@ bash scripts/demo_agent_change_loop.sh
 bash scripts/run_agent_modelica_release_preflight_v0_1_1.sh
 ```
 
+- [ ] Release preflight summary shows the intended L5 acceptance contract:
+  - `artifacts/release_v0_1_1/release_preflight_summary.json`
+  - required keys: `l5_acceptance_mode`, `l5_success_at_k_pct`, `l5_absolute_success_target_pct`, `l5_non_regression_ok`
+- [ ] For saturated baselines, acceptance may be `absolute_non_regression` instead of raw uplift delta.
+
 - [ ] Create release tag only after all above checks are done.

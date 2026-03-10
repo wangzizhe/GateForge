@@ -11,6 +11,8 @@ All notable changes to this project are documented in this file.
 - Hardened mutation execution and validation flow for reproducible Modelica repair benchmarking.
 - Improved phase-scoped mutation generation and diagnostics in problem-plan execution.
 - Improved Docker-based OpenModelica validation stability for local macOS workflows.
+- Switched Agent Modelica L4/L5 acceptance to dual-mode evaluation: uplift delta when baseline has headroom, absolute non-regression when baseline is saturated.
+- Extended release preflight and CI summaries to expose L5 acceptance mode and non-regression signals.
 
 ### Fixed
 - Fixed model loading in Docker OMC validation by resolving absolute model paths.
