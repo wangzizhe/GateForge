@@ -70,6 +70,27 @@ class AgentModelicaL4UpliftDecisionV0Tests(unittest.TestCase):
         self.assertEqual(summary.get("primary_reason"), "baseline_too_weak")
         self.assertEqual(summary.get("acceptance_mode"), "delta_uplift")
 
+    def test_baseline_execution_failed_short_circuits_before_baseline_too_weak(self) -> None:
+        summary = evaluate_l4_uplift_decision_v0(
+            challenge_summary={
+                "baseline_off_success_at_k_pct": 0.0,
+                "baseline_execution_valid": False,
+                "baseline_meets_minimum": False,
+                "baseline_has_headroom": True,
+                "baseline_eligible_for_uplift": False,
+                "baseline_in_target_range": False,
+                "reasons": ["baseline_off_run_results_empty", "baseline_execution_failed"],
+            },
+            main_sweep_summary={},
+            main_l5_summary={},
+            main_weekly_summary={},
+            night_sweep_summary={},
+            night_l5_summary={},
+            night_weekly_summary={},
+        )
+        self.assertEqual(summary.get("decision"), "hold")
+        self.assertEqual(summary.get("primary_reason"), "baseline_execution_failed")
+
     def test_absolute_mode_promotes_when_threshold_met_and_non_regressing(self) -> None:
         summary = evaluate_l4_uplift_decision_v0(
             challenge_summary={

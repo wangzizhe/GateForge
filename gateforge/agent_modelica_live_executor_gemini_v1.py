@@ -83,7 +83,14 @@ def _run_omc_script_docker(script_text: str, timeout_sec: int, cwd: str, image: 
 
 def _extract_om_success_flags(output: str) -> tuple[bool, bool]:
     lower = str(output or "").lower()
-    check_ok = "check of" in lower and "completed successfully" in lower
+    structural_mismatch = re.search(r"class\s+[a-z_][a-z0-9_]*\s+has\s+([0-9]+)\s+equation\(s\)\s+and\s+([0-9]+)\s+variable\(s\)", lower)
+    structural_balance_ok = True
+    if structural_mismatch:
+        try:
+            structural_balance_ok = int(structural_mismatch.group(1)) == int(structural_mismatch.group(2))
+        except Exception:
+            structural_balance_ok = True
+    check_ok = "check of" in lower and "completed successfully" in lower and structural_balance_ok
     has_sim_result = "record simulationresult" in lower
     result_file_empty = 'resultfile = ""' in lower
     sim_error_markers = (

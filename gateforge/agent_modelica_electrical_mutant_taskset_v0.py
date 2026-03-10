@@ -297,8 +297,11 @@ def _mutate_underconstrained_system(model_text: str, ir: dict, token: str) -> tu
     patched, objects = _mutate_connection_drop(model_text=model_text, ir=ir)
     if not objects:
         return model_text, []
-    probe_name = f"gateforge_underconstrained_probe_{token}"
-    patched = _insert_declaration_line(patched, f"  Real {probe_name};")
+    probe_a = f"gateforge_underconstrained_probe_{token}_a"
+    probe_b = f"gateforge_underconstrained_probe_{token}_b"
+    patched = _insert_declaration_line(patched, f"  Real {probe_a};")
+    patched = _insert_declaration_line(patched, f"  Real {probe_b};")
+    patched = _insert_equation_line(patched, f"  {probe_a} = {probe_b};")
     if patched == model_text:
         return model_text, []
     enriched = []
@@ -313,7 +316,8 @@ def _mutate_underconstrained_system(model_text: str, ir: dict, token: str) -> tu
     enriched.append(
         {
             "kind": "free_variable_probe",
-            "name": probe_name,
+            "name": probe_a,
+            "paired_with": probe_b,
             "effect": "structural_underconstraint",
         }
     )

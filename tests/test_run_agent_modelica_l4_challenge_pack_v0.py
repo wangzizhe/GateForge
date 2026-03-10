@@ -222,6 +222,45 @@ class RunAgentModelicaL4ChallengePackV0ScriptTests(unittest.TestCase):
             manifest = json.loads((out_dir / "manifest.json").read_text(encoding="utf-8"))
             self.assertIn("baseline_provenance", manifest)
 
+    def test_module_fails_when_baseline_run_results_are_empty(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            model = root / "A1.mo"
+            model.write_text("model A1\nend A1;\n", encoding="utf-8")
+            taskset = root / "taskset.json"
+            taskset.write_text(json.dumps(self._taskset_payload(str(model))), encoding="utf-8")
+            out_dir = root / "pack"
+            proc = subprocess.run(
+                [
+                    "python3",
+                    "-m",
+                    "gateforge.agent_modelica_l4_challenge_pack_v0",
+                    "--taskset-in",
+                    str(taskset),
+                    "--out-dir",
+                    str(out_dir),
+                    "--baseline-off-success-at-k-pct",
+                    "0",
+                    "--baseline-off-record-count",
+                    "0",
+                    "--out",
+                    str(out_dir / "frozen_summary.json"),
+                ],
+                cwd=str(repo_root),
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=120,
+            )
+            self.assertNotEqual(proc.returncode, 0, msg=proc.stdout)
+            summary = json.loads((out_dir / "frozen_summary.json").read_text(encoding="utf-8"))
+            self.assertEqual(summary.get("status"), "FAIL")
+            self.assertEqual(summary.get("baseline_off_success_at_k_pct"), None)
+            self.assertEqual(summary.get("baseline_off_record_count"), 0)
+            self.assertFalse(bool(summary.get("baseline_execution_valid")))
+            self.assertIn("baseline_off_run_results_empty", set(summary.get("reasons") or []))
+
 
 if __name__ == "__main__":
     unittest.main()

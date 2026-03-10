@@ -71,6 +71,7 @@ class AgentModelicaRealismSummaryV1Tests(unittest.TestCase):
                                     "error_type": "model_check_error",
                                     "error_subtype": "compile_failure_unknown",
                                     "stage": "check",
+                                    "observed_phase": "check",
                                 },
                             }
                         ],
@@ -84,6 +85,7 @@ class AgentModelicaRealismSummaryV1Tests(unittest.TestCase):
                                     "error_type": "model_check_error",
                                     "error_subtype": "connector_mismatch",
                                     "stage": "check",
+                                    "observed_phase": "check",
                                 },
                             }
                         ],
@@ -97,6 +99,7 @@ class AgentModelicaRealismSummaryV1Tests(unittest.TestCase):
                                     "error_type": "simulate_error",
                                     "error_subtype": "init_failure",
                                     "stage": "simulate",
+                                    "observed_phase": "simulate",
                                 },
                             }
                         ],
@@ -141,6 +144,7 @@ class AgentModelicaRealismSummaryV1Tests(unittest.TestCase):
         self.assertEqual(float(mismatch.get("connector_subtype_match_rate_pct") or 0.0), 100.0)
         self.assertEqual(float(mismatch.get("initialization_simulate_stage_rate_pct") or 0.0), 100.0)
         self.assertEqual(int(mismatch.get("missing_failure_signal_count") or 0), 0)
+        self.assertEqual(int(mismatch.get("phase_drift_count") or 0), 0)
 
     def test_build_realism_summary_flags_initialization_truncation_for_wave1_repair(self) -> None:
         summary = build_realism_summary_v1(
@@ -171,6 +175,7 @@ class AgentModelicaRealismSummaryV1Tests(unittest.TestCase):
                                     "error_type": "model_check_error",
                                     "error_subtype": "undefined_symbol",
                                     "stage": "check",
+                                    "observed_phase": "check",
                                 },
                             }
                         ],
@@ -229,6 +234,7 @@ class AgentModelicaRealismSummaryV1Tests(unittest.TestCase):
                                     "error_type": "model_check_error",
                                     "error_subtype": "compile_failure_unknown",
                                     "stage": "check",
+                                    "observed_phase": "check",
                                 },
                             },
                             {
@@ -237,6 +243,7 @@ class AgentModelicaRealismSummaryV1Tests(unittest.TestCase):
                                     "error_type": "none",
                                     "error_subtype": "none",
                                     "stage": "none",
+                                    "observed_phase": "none",
                                 },
                             },
                         ],
@@ -297,6 +304,7 @@ class AgentModelicaRealismSummaryV1Tests(unittest.TestCase):
                                     "error_type": "none",
                                     "error_subtype": "none",
                                     "stage": "none",
+                                    "observed_phase": "none",
                                 },
                             }
                         ],
@@ -326,6 +334,102 @@ class AgentModelicaRealismSummaryV1Tests(unittest.TestCase):
         by_failure_type = summary.get("by_failure_type") if isinstance(summary.get("by_failure_type"), dict) else {}
         under = by_failure_type.get("underconstrained_system") if isinstance(by_failure_type.get("underconstrained_system"), dict) else {}
         self.assertEqual(int(under.get("resolved_without_failure_signal_count") or 0), 1)
+
+    def test_build_realism_summary_counts_phase_drift_without_stage_mismatch(self) -> None:
+        summary = build_realism_summary_v1(
+            evidence_summary={},
+            challenge_summary={
+                "counts_by_failure_type": {"underconstrained_system": 1},
+                "counts_by_category": {"topology_wiring": 1},
+            },
+            challenge_manifest={},
+            taskset_payload={
+                "tasks": [
+                    {
+                        "task_id": "t_under",
+                        "failure_type": "underconstrained_system",
+                        "category": "topology_wiring",
+                        "expected_stage": "check",
+                    }
+                ]
+            },
+            l3_run_results={
+                "records": [
+                    {
+                        "task_id": "t_under",
+                        "attempts": [
+                            {
+                                "observed_failure_type": "model_check_error",
+                                "diagnostic_ir": {
+                                    "error_type": "model_check_error",
+                                    "error_subtype": "underconstrained_system",
+                                    "stage": "check",
+                                    "observed_phase": "simulate",
+                                },
+                            }
+                        ],
+                    }
+                ]
+            },
+            l3_quality_summary={
+                "category_distribution": {"topology_wiring": 1},
+                "subtype_distribution": {"underconstrained_system": 1},
+                "observed_phase_distribution": {"simulate": 1},
+                "phase_drift_count": 1,
+            },
+            l4_ab_compare_summary={},
+            l5_summary={
+                "gate_result": "PASS",
+                "success_at_k_pct": 0.0,
+                "failure_type_breakdown_on": {
+                    "underconstrained_system": {"record_count": 1, "success_count": 0},
+                },
+                "category_breakdown_on": {
+                    "topology_wiring": {"record_count": 1, "success_count": 0},
+                },
+            },
+        )
+        mismatch = summary.get("mismatch_summary") if isinstance(summary.get("mismatch_summary"), dict) else {}
+        self.assertEqual(int(mismatch.get("stage_mismatch_count") or 0), 0)
+        self.assertEqual(int(mismatch.get("phase_drift_count") or 0), 1)
+        under = ((summary.get("by_failure_type") or {}).get("underconstrained_system") or {})
+        self.assertEqual(float(under.get("stage_match_rate_pct") or 0.0), 100.0)
+        self.assertEqual(int(under.get("phase_drift_count") or 0), 1)
+
+    def test_build_realism_summary_blocks_when_l3_l5_inputs_are_missing(self) -> None:
+        summary = build_realism_summary_v1(
+            evidence_summary={"acceptance_mode": "delta_uplift"},
+            challenge_summary={
+                "counts_by_failure_type": {"underconstrained_system": 1},
+                "counts_by_category": {"topology_wiring": 1},
+            },
+            challenge_manifest={
+                "baseline_provenance": {
+                    "planner_backend": "gemini",
+                    "llm_model": "gemini-3.1-pro-preview",
+                }
+            },
+            taskset_payload={
+                "tasks": [
+                    {
+                        "task_id": "t_under",
+                        "failure_type": "underconstrained_system",
+                        "category": "topology_wiring",
+                        "expected_stage": "check",
+                    }
+                ]
+            },
+            l3_run_results={},
+            l3_quality_summary={},
+            l4_ab_compare_summary={},
+            l5_summary={},
+        )
+        self.assertEqual(summary.get("status"), "BLOCKED")
+        self.assertEqual(summary.get("recommendation"), "blocked_missing_realism_inputs")
+        self.assertEqual((summary.get("failure_manifestation_view") or {}).get("status"), "BLOCKED")
+        self.assertEqual((summary.get("final_outcome_view") or {}).get("status"), "BLOCKED")
+        self.assertIn("l3_run_results_missing", summary.get("reasons") or [])
+        self.assertIn("l5_summary_missing", summary.get("reasons") or [])
 
 
 if __name__ == "__main__":

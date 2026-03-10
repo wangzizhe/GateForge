@@ -104,6 +104,7 @@ def main() -> None:
     parser.add_argument("--holdout-ratio", type=float, default=0.15)
     parser.add_argument("--split-seed", default="agent_modelica_l4_challenge_v0")
     parser.add_argument("--baseline-off-success-at-k-pct", type=float, default=None)
+    parser.add_argument("--baseline-off-record-count", type=int, default=None)
     parser.add_argument("--target-min-off-success-pct", type=float, default=60.0)
     parser.add_argument("--target-max-off-success-pct", type=float, default=95.0)
     parser.add_argument("--out", default="")
@@ -221,9 +222,11 @@ def main() -> None:
             split_counts[split] += 1
 
     baseline = args.baseline_off_success_at_k_pct if args.baseline_off_success_at_k_pct is not None else None
+    baseline_record_count = int(args.baseline_off_record_count) if args.baseline_off_record_count is not None else None
     baseline_meets_minimum = False
     baseline_has_headroom = False
     baseline_eligible_for_uplift = False
+    baseline_execution_valid = baseline_record_count is None or baseline_record_count > 0
     reasons: list[str] = []
     if not selected:
         reasons.append("taskset_empty_after_selection")
@@ -234,9 +237,11 @@ def main() -> None:
     missing_categories = [c for c in required_categories if int(by_category.get(c, 0)) <= 0]
     for category in missing_categories:
         reasons.append(f"required_category_missing:{category}")
+    if baseline_record_count == 0:
+        reasons.append("baseline_off_run_results_empty")
     if baseline is None:
         reasons.append("baseline_off_success_at_k_missing")
-    else:
+    elif baseline_execution_valid:
         baseline_meets_minimum = float(baseline) >= float(args.target_min_off_success_pct)
         baseline_has_headroom = float(baseline) <= float(args.target_max_off_success_pct)
         baseline_eligible_for_uplift = baseline_meets_minimum and baseline_has_headroom
@@ -244,8 +249,15 @@ def main() -> None:
             reasons.append("baseline_off_success_below_minimum")
         if baseline_meets_minimum and not baseline_has_headroom:
             reasons.append("baseline_off_success_above_headroom_limit")
+    else:
+        baseline = None
 
-    fatal_reasons = {"taskset_empty_after_selection", "quota_zero", "baseline_off_success_below_minimum"}
+    fatal_reasons = {
+        "taskset_empty_after_selection",
+        "quota_zero",
+        "baseline_off_success_below_minimum",
+        "baseline_off_run_results_empty",
+    }
     if any(reason in fatal_reasons for reason in reasons):
         status = "FAIL"
     elif reasons == ["baseline_off_success_at_k_missing"]:
@@ -270,6 +282,8 @@ def main() -> None:
         },
         "selection": selection_config,
         "baseline_off_success_at_k_pct": baseline,
+        "baseline_off_record_count": baseline_record_count,
+        "baseline_execution_valid": baseline_execution_valid,
         "baseline_target_range_pct": {"min": float(args.target_min_off_success_pct), "max": float(args.target_max_off_success_pct)},
         "baseline_meets_minimum": baseline_meets_minimum if baseline is not None else None,
         "baseline_has_headroom": baseline_has_headroom if baseline is not None else None,
@@ -299,6 +313,8 @@ def main() -> None:
         "counts_by_failure_type": by_failure,
         "counts_by_category": by_category,
         "baseline_off_success_at_k_pct": baseline,
+        "baseline_off_record_count": baseline_record_count,
+        "baseline_execution_valid": baseline_execution_valid,
         "baseline_target_range_pct": {"min": float(args.target_min_off_success_pct), "max": float(args.target_max_off_success_pct)},
         "baseline_meets_minimum": baseline_meets_minimum if baseline is not None else None,
         "baseline_has_headroom": baseline_has_headroom if baseline is not None else None,

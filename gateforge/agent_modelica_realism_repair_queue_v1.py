@@ -18,18 +18,21 @@ WAVE1_FAILURE_TYPES = {
 REASON_PRIORITY = {
     "stage_truncation": 0,
     "manifestation_signal_gap": 1,
-    "subtype_signal_gap": 2,
-    "repair_policy_gap": 3,
+    "manifestation_stage_shift": 2,
+    "subtype_signal_gap": 3,
+    "repair_policy_gap": 4,
 }
 REASON_ACTIONS = {
     "stage_truncation": "strengthen initialization realism operators so failures manifest in simulate/init instead of check",
     "manifestation_signal_gap": "strengthen topology realism operators so underconstrained_system manifests as a structural failure before repair",
+    "manifestation_stage_shift": "tighten underconstrained topology edits and structural diagnostics so failures surface during check/model-check instead of drifting into simulate",
     "subtype_signal_gap": "strengthen connector/port mismatch edits and subtype mapping so connector_mismatch is surfaced explicitly",
     "repair_policy_gap": "improve wave1 repair playbook and policy for structurally aligned failures instead of changing mutation operators",
 }
 REASON_LABELS = {
     "stage_truncation": "initialization failure is truncated at check stage",
     "manifestation_signal_gap": "declared realism task resolves without ever surfacing the intended failure signal",
+    "manifestation_stage_shift": "underconstrained signal appears, but it surfaces in the wrong canonical type or stage",
     "subtype_signal_gap": "connector mismatch signal is too weak to surface the expected subtype",
     "repair_policy_gap": "repair policy fails despite aligned structural failure signal",
 }
@@ -152,6 +155,8 @@ def _reason_for_task(task: dict, record: dict, realism_summary: dict) -> str:
             return "manifestation_signal_gap"
         canonical_ok = float(failure_row.get("canonical_match_rate_pct") or 0.0) >= 100.0
         stage_ok = float(failure_row.get("stage_match_rate_pct") or 0.0) >= 100.0
+        if not canonical_ok or not stage_ok:
+            return "manifestation_stage_shift"
         l5_success_count_on = int(failure_row.get("l5_success_count_on") or 0)
         if canonical_ok and stage_ok and l5_success_count_on == 0:
             return "repair_policy_gap"

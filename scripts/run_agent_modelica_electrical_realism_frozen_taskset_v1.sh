@@ -16,6 +16,7 @@ PACK_ID="${GATEFORGE_AGENT_ELECTRICAL_REALISM_PACK_ID:-agent_modelica_realism_pa
 PACK_VERSION="${GATEFORGE_AGENT_ELECTRICAL_REALISM_PACK_VERSION:-v1}"
 PACK_TRACK="${GATEFORGE_AGENT_ELECTRICAL_REALISM_PACK_TRACK:-realism}"
 ACCEPTANCE_SCOPE="${GATEFORGE_AGENT_ELECTRICAL_REALISM_ACCEPTANCE_SCOPE:-independent_validation}"
+BUILDER_SOURCE_PATH="$ROOT_DIR/gateforge/agent_modelica_electrical_mutant_taskset_v0.py"
 
 mkdir -p "$OUT_DIR"
 
@@ -37,7 +38,7 @@ python3 -m gateforge.agent_modelica_taskset_split_freeze_v1 \
   --out-taskset "$OUT_DIR/taskset_frozen.json" \
   --out "$OUT_DIR/frozen_summary.json"
 
-python3 - "$OUT_DIR" "$FAILURE_TYPES" "$REQUIRED_CATEGORIES" "$PACK_ID" "$PACK_VERSION" "$PACK_TRACK" "$ACCEPTANCE_SCOPE" "$BENCHMARK_PATH" "$SCALES" "$HOLDOUT_RATIO" "$SPLIT_SEED" <<'PY'
+python3 - "$OUT_DIR" "$FAILURE_TYPES" "$REQUIRED_CATEGORIES" "$PACK_ID" "$PACK_VERSION" "$PACK_TRACK" "$ACCEPTANCE_SCOPE" "$BENCHMARK_PATH" "$SCALES" "$HOLDOUT_RATIO" "$SPLIT_SEED" "$BUILDER_SOURCE_PATH" <<'PY'
 import hashlib
 import json
 import sys
@@ -55,6 +56,10 @@ benchmark_path = str(sys.argv[8] or "")
 scales = [x.strip().lower() for x in str(sys.argv[9] or "").split(",") if x.strip()]
 holdout_ratio = float(sys.argv[10] or 0.15)
 split_seed = str(sys.argv[11] or "")
+builder_source_path = Path(sys.argv[12])
+builder_source_sha = ""
+if builder_source_path.exists():
+    builder_source_sha = hashlib.sha256(builder_source_path.read_bytes()).hexdigest()
 
 taskset = json.loads((out_dir / "taskset_frozen.json").read_text(encoding="utf-8"))
 tasks = [x for x in (taskset.get("tasks") or []) if isinstance(x, dict)]
@@ -88,6 +93,10 @@ manifest = {
     "pack_version": pack_version,
     "pack_track": pack_track,
     "acceptance_scope": acceptance_scope,
+    "builder_provenance": {
+        "builder_source_path": str(builder_source_path),
+        "builder_source_sha": builder_source_sha,
+    },
     "benchmark_path": benchmark_path,
     "scales": scales,
     "requested_failure_types": failure_types,
@@ -129,6 +138,8 @@ summary = {
     "pack_version": pack_version,
     "pack_track": pack_track,
     "acceptance_scope": acceptance_scope,
+    "builder_source_path": str(builder_source_path),
+    "builder_source_sha": builder_source_sha,
     "total_tasks": len(tasks),
     "counts_by_scale": counts_by_scale,
     "counts_by_failure_type": counts_by_failure,

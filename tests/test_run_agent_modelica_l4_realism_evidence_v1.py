@@ -4,6 +4,7 @@ import subprocess
 import tempfile
 import time
 import unittest
+import hashlib
 from pathlib import Path
 
 
@@ -33,6 +34,19 @@ def _build_taskset(path: Path) -> None:
 def _write_json(path: Path, payload: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+
+def _write_realism_manifest(taskset_path: Path, *, builder_sha: str) -> None:
+    _write_json(
+        taskset_path.parent / "manifest.json",
+        {
+            "schema_version": "agent_modelica_electrical_realism_frozen_taskset_v1",
+            "builder_provenance": {
+                "builder_source_path": "gateforge/agent_modelica_electrical_mutant_taskset_v0.py",
+                "builder_source_sha": builder_sha,
+            },
+        },
+    )
 
 
 def _build_legacy_artifacts(out_dir: Path) -> None:
@@ -235,6 +249,34 @@ class RunAgentModelicaL4RealismEvidenceV1Tests(unittest.TestCase):
             self.assertFalse((out_dir / "latest_summary.json").exists())
             self.assertFalse((out_dir / "latest_run.json").exists())
 
+    def test_stale_base_taskset_blocks_preflight(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        builder_path = repo_root / "gateforge" / "agent_modelica_electrical_mutant_taskset_v0.py"
+        current_sha = hashlib.sha256(builder_path.read_bytes()).hexdigest()
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            taskset = root / "taskset_frozen.json"
+            out_dir = root / "out"
+            run_root = out_dir / "runs" / "stalepack01"
+            _build_taskset(taskset)
+            _write_realism_manifest(taskset, builder_sha=("0" * len(current_sha)))
+            env = {
+                **os.environ,
+                "GATEFORGE_AGENT_L4_REALISM_BASE_TASKSET": str(taskset),
+                "GATEFORGE_AGENT_L4_REALISM_EVIDENCE_OUT_DIR": str(out_dir),
+                "GATEFORGE_AGENT_L4_REALISM_RUN_ID": "stalepack01",
+                "GATEFORGE_AGENT_L4_UPLIFT_BACKEND": "mock",
+                "GATEFORGE_AGENT_L4_UPLIFT_CHALLENGE_LLM_MODEL": "mock-model",
+                "GOOGLE_API_KEY": "dummy",
+            }
+            proc = self._run_script(env=env, repo_root=repo_root)
+            self.assertEqual(proc.returncode, 2, msg=proc.stderr or proc.stdout)
+            final_summary = json.loads((run_root / "final_run_summary.json").read_text(encoding="utf-8"))
+            preflight = json.loads((run_root / "environment_preflight_summary.json").read_text(encoding="utf-8"))
+            self.assertEqual(final_summary.get("status"), "BLOCKED")
+            self.assertEqual(final_summary.get("primary_reason"), "stale_base_taskset")
+            self.assertIn("stale_base_taskset", preflight.get("blockers") or [])
+
     def test_full_chain_outputs_run_scoped_bundle_and_updates_latest(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
         report_script = repo_root / "scripts" / "report_agent_modelica_l4_realism_run_status_v1.sh"
@@ -302,6 +344,43 @@ class RunAgentModelicaL4RealismEvidenceV1Tests(unittest.TestCase):
             self.assertEqual(report_payload.get("run_mode"), "scoped")
             self.assertIn("challenge", report_payload.get("completed_stages") or [])
             self.assertEqual(report_payload.get("active_pid"), None)
+
+    def test_realism_wrapper_continues_after_weak_baseline_by_default(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            taskset = root / "taskset.json"
+            out_dir = root / "out"
+            run_root = out_dir / "runs" / "weakreal01"
+            _build_taskset(taskset)
+            env = {
+                **os.environ,
+                "GATEFORGE_AGENT_L4_REALISM_BASE_TASKSET": str(taskset),
+                "GATEFORGE_AGENT_L4_REALISM_EVIDENCE_OUT_DIR": str(out_dir),
+                "GATEFORGE_AGENT_L4_REALISM_RUN_ID": "weakreal01",
+                "GATEFORGE_AGENT_L4_UPLIFT_MAX_ROUNDS": "1",
+                "GATEFORGE_AGENT_L4_UPLIFT_MAX_TIME_SEC": "20",
+                "GATEFORGE_AGENT_L4_UPLIFT_LIVE_TIMEOUT_SEC": "20",
+                "GATEFORGE_AGENT_L4_UPLIFT_L4_MAX_ROUNDS": "1",
+                "GATEFORGE_AGENT_L4_UPLIFT_BACKEND": "mock",
+                "GATEFORGE_AGENT_L4_UPLIFT_CHALLENGE_LIVE_EXECUTOR_CMD": _cmd_l4_switch(),
+                "GATEFORGE_AGENT_L4_UPLIFT_MAIN_SWEEP_LIVE_EXECUTOR_CMD": _cmd_l4_switch(),
+                "GATEFORGE_AGENT_L4_UPLIFT_NIGHT_SWEEP_LIVE_EXECUTOR_CMD": _cmd_l4_switch(),
+                "GATEFORGE_AGENT_L4_UPLIFT_MAIN_L5_L3_LIVE_EXECUTOR_CMD": _cmd_pass(),
+                "GATEFORGE_AGENT_L4_UPLIFT_MAIN_L5_L4_LIVE_EXECUTOR_CMD": _cmd_l4_switch(),
+                "GATEFORGE_AGENT_L4_UPLIFT_NIGHT_L5_L3_LIVE_EXECUTOR_CMD": _cmd_pass(),
+                "GATEFORGE_AGENT_L4_UPLIFT_NIGHT_L5_L4_LIVE_EXECUTOR_CMD": _cmd_l4_switch(),
+            }
+            proc = self._run_script(env=env, repo_root=repo_root)
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            final_summary = json.loads((run_root / "final_run_summary.json").read_text(encoding="utf-8"))
+            evidence_summary = json.loads((run_root / "summary.json").read_text(encoding="utf-8"))
+            main_l5 = json.loads((run_root / "main_l5" / "l5_eval_summary.json").read_text(encoding="utf-8"))
+            self.assertEqual(final_summary.get("primary_reason"), "baseline_too_weak")
+            self.assertTrue(bool(final_summary.get("continued_after_weak_baseline")))
+            self.assertTrue(bool(evidence_summary.get("continued_after_weak_baseline")))
+            self.assertNotEqual(final_summary.get("taxonomy_alignment_status"), "INCOMPLETE")
+            self.assertTrue(bool(main_l5))
 
     def test_blocked_run_does_not_replace_existing_latest_pointers(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
@@ -470,11 +549,123 @@ class RunAgentModelicaL4RealismEvidenceV1Tests(unittest.TestCase):
             payload = json.loads(report.stdout.strip().splitlines()[-1])
             self.assertEqual(payload.get("run_mode"), "scoped")
             self.assertTrue(bool(payload.get("resume_recommended")))
-            self.assertEqual(
-                payload.get("next_resume_stages"),
-                ["night_sweep", "main_l5", "night_l5", "realism_summary"],
-            )
+            self.assertEqual(payload.get("next_resume_stages"), ["night_sweep", "main_l5", "night_l5"])
             self.assertEqual(payload.get("resume_blockers"), [])
+
+    def test_finalize_marks_baseline_execution_failure_and_blocks_taxonomy_artifacts(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as d:
+            out_dir = Path(d) / "out"
+            run_root = out_dir / "runs" / "baseline_exec_fail01"
+            run_root.mkdir(parents=True, exist_ok=True)
+            (run_root / "challenge").mkdir(parents=True, exist_ok=True)
+            _build_taskset(run_root / "challenge" / "taskset_frozen.json")
+            _write_json(
+                run_root / "run_manifest.json",
+                {
+                    "schema_version": "agent_modelica_realism_run_manifest_v1",
+                    "run_id": "baseline_exec_fail01",
+                    "out_dir": str(out_dir),
+                    "run_root": str(run_root),
+                    "pack_id": "agent_modelica_realism_pack_v1",
+                    "pack_version": "v1",
+                    "pack_track": "realism",
+                    "acceptance_scope": "independent_validation",
+                },
+            )
+            _write_json(
+                run_root / "run_status.json",
+                {
+                    "schema_version": "agent_modelica_realism_run_status_v1",
+                    "run_id": "baseline_exec_fail01",
+                    "out_dir": str(out_dir),
+                    "run_root": str(run_root),
+                    "status": "RUNNING",
+                    "current_stage": "challenge",
+                    "finalized": False,
+                    "latest_updated": False,
+                    "stages": {},
+                },
+            )
+            _write_json(
+                run_root / "summary.json",
+                {
+                    "schema_version": "agent_modelica_l4_uplift_evidence_bundle_v0",
+                    "status": "PASS",
+                    "decision": "hold",
+                    "primary_reason": "baseline_execution_failed",
+                    "acceptance_mode": "delta_uplift",
+                    "pack_id": "agent_modelica_realism_pack_v1",
+                    "pack_version": "v1",
+                    "pack_track": "realism",
+                    "acceptance_scope": "independent_validation",
+                },
+            )
+            _write_json(
+                run_root / "challenge" / "frozen_summary.json",
+                {
+                    "schema_version": "agent_modelica_l4_challenge_pack_v0",
+                    "status": "FAIL",
+                    "pack_id": "agent_modelica_realism_pack_v1",
+                    "pack_version": "v1",
+                    "pack_track": "realism",
+                    "acceptance_scope": "independent_validation",
+                    "baseline_off_success_at_k_pct": None,
+                    "baseline_off_record_count": 0,
+                    "baseline_execution_valid": False,
+                    "baseline_meets_minimum": None,
+                    "baseline_has_headroom": None,
+                    "counts_by_failure_type": {
+                        "underconstrained_system": 2,
+                        "connector_mismatch": 2,
+                        "initialization_infeasible": 2,
+                    },
+                    "counts_by_category": {
+                        "topology_wiring": 4,
+                        "initialization": 2,
+                    },
+                    "reasons": ["baseline_off_run_results_empty", "baseline_execution_failed"],
+                },
+            )
+            _write_json(
+                run_root / "challenge" / "manifest.json",
+                {
+                    "baseline_provenance": {
+                        "planner_backend": "gemini",
+                        "llm_model": "gemini-3.1-pro-preview",
+                        "backend": "openmodelica_docker",
+                    }
+                },
+            )
+            proc = subprocess.run(
+                [
+                    "python3",
+                    "-m",
+                    "gateforge.agent_modelica_realism_run_lifecycle_v1",
+                    "finalize-run",
+                    "--out-dir",
+                    str(out_dir),
+                    "--run-root",
+                    str(run_root),
+                ],
+                cwd=str(repo_root),
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=120,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            final_summary = json.loads((run_root / "final_run_summary.json").read_text(encoding="utf-8"))
+            realism_summary = json.loads((run_root / "realism_internal_summary.json").read_text(encoding="utf-8"))
+            repair_queue = json.loads((run_root / "repair_queue_summary.json").read_text(encoding="utf-8"))
+            patch_plan = json.loads((run_root / "wave1_patch_plan_summary.json").read_text(encoding="utf-8"))
+            self.assertEqual(final_summary.get("status"), "BLOCKED")
+            self.assertEqual(final_summary.get("primary_reason"), "baseline_execution_failed")
+            self.assertEqual(final_summary.get("taxonomy_alignment_status"), "INCOMPLETE")
+            self.assertEqual(realism_summary.get("status"), "BLOCKED")
+            self.assertIn("l3_run_results_missing", realism_summary.get("reasons") or [])
+            self.assertEqual(repair_queue.get("status"), "BLOCKED")
+            self.assertEqual(patch_plan.get("status"), "BLOCKED")
 
     def test_resume_run_auto_backfills_missing_stages_and_refreshes_bundle(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
