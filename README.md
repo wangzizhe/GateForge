@@ -89,6 +89,16 @@ bash scripts/demo_policy_autotune_full_chain.sh
 bash scripts/run_agent_modelica_release_preflight_v0_1_1.sh
 ```
 
+Current Agent Modelica acceptance uses two modes:
+
+- `delta_uplift`: use when the baseline has headroom and require the configured uplift delta.
+- `absolute_non_regression`: use when the baseline is already saturated; require absolute Success@K target plus non-regression.
+
+The release preflight summary exposes the active L5 acceptance contract in:
+
+- `artifacts/release_v0_1_1/release_preflight_summary.json`
+- keys: `l5_acceptance_mode`, `l5_absolute_success_target_pct`, `l5_non_regression_ok`
+
 ## Documentation Map
 
 - Daily demo cookbook: `DEMO.md`
