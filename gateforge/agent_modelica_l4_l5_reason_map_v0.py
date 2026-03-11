@@ -11,6 +11,8 @@ ALLOWED_L4_PRIMARY_REASONS = {
     "action_plan_failed",
     "apply_failed",
     "llm_fallback_exhausted",
+    "live_request_budget_exceeded",
+    "rate_limited",
 }
 ALLOWED_WEEKLY_RECOMMENDATION_REASONS = {
     "none",
@@ -41,6 +43,8 @@ ALLOWED_WEEKLY_RECOMMENDATION_REASONS = {
     "action_plan_failed",
     "apply_failed",
     "llm_fallback_exhausted",
+    "live_request_budget_exceeded",
+    "rate_limited",
 }
 
 

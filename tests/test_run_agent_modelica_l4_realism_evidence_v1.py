@@ -318,6 +318,8 @@ class RunAgentModelicaL4RealismEvidenceV1Tests(unittest.TestCase):
 
             self.assertEqual(final_summary.get("run_id"), "success01")
             self.assertEqual(final_summary.get("baseline_state"), "baseline_saturated")
+            self.assertEqual(str(final_summary.get("realism_mode") or ""), "lean")
+            self.assertFalse(bool(final_summary.get("night_enabled")))
             self.assertTrue(bool(run_status.get("finalized")))
             self.assertTrue(bool(run_status.get("latest_updated")))
             self.assertEqual(latest_run.get("run_id"), "success01")
@@ -344,6 +346,108 @@ class RunAgentModelicaL4RealismEvidenceV1Tests(unittest.TestCase):
             self.assertEqual(report_payload.get("run_mode"), "scoped")
             self.assertIn("challenge", report_payload.get("completed_stages") or [])
             self.assertEqual(report_payload.get("active_pid"), None)
+
+    def test_finalize_surfaces_rate_limit_budget_stop_reason(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as d:
+            out_dir = Path(d) / "out"
+            run_root = out_dir / "runs" / "ratelimit01"
+            run_root.mkdir(parents=True, exist_ok=True)
+            (run_root / "challenge").mkdir(parents=True, exist_ok=True)
+            _build_taskset(run_root / "challenge" / "taskset_frozen.json")
+            _write_json(
+                run_root / "run_manifest.json",
+                {
+                    "schema_version": "agent_modelica_realism_run_manifest_v1",
+                    "run_id": "ratelimit01",
+                    "out_dir": str(out_dir),
+                    "run_root": str(run_root),
+                    "pack_id": "agent_modelica_realism_pack_v1",
+                    "pack_version": "v1",
+                    "pack_track": "realism",
+                    "acceptance_scope": "independent_validation",
+                },
+            )
+            _write_json(
+                run_root / "run_status.json",
+                {
+                    "schema_version": "agent_modelica_realism_run_status_v1",
+                    "run_id": "ratelimit01",
+                    "out_dir": str(out_dir),
+                    "run_root": str(run_root),
+                    "status": "RUNNING",
+                    "current_stage": "main_sweep",
+                    "finalized": False,
+                    "latest_updated": False,
+                    "stages": {},
+                },
+            )
+            _write_json(
+                run_root / "summary.json",
+                {
+                    "schema_version": "agent_modelica_l4_uplift_evidence_bundle_v0",
+                    "status": "PASS",
+                    "decision": "hold",
+                    "primary_reason": "rate_limited",
+                    "live_budget_stop_reason": "rate_limited",
+                    "budget_stop_triggered": True,
+                    "realism_mode": "lean",
+                    "night_enabled": False,
+                    "pack_id": "agent_modelica_realism_pack_v1",
+                    "pack_version": "v1",
+                    "pack_track": "realism",
+                    "acceptance_scope": "independent_validation",
+                },
+            )
+            _write_json(
+                run_root / "challenge" / "frozen_summary.json",
+                {
+                    "schema_version": "agent_modelica_l4_challenge_pack_v0",
+                    "status": "PASS",
+                    "pack_id": "agent_modelica_realism_pack_v1",
+                    "pack_version": "v1",
+                    "pack_track": "realism",
+                    "acceptance_scope": "independent_validation",
+                    "baseline_off_success_at_k_pct": 0.0,
+                    "baseline_off_record_count": 6,
+                    "baseline_execution_valid": True,
+                    "baseline_meets_minimum": False,
+                    "baseline_has_headroom": True,
+                    "counts_by_failure_type": {
+                        "underconstrained_system": 2,
+                        "connector_mismatch": 2,
+                        "initialization_infeasible": 2,
+                    },
+                    "counts_by_category": {
+                        "topology_wiring": 4,
+                        "initialization": 2,
+                    },
+                },
+            )
+            proc = subprocess.run(
+                [
+                    "python3",
+                    "-m",
+                    "gateforge.agent_modelica_realism_run_lifecycle_v1",
+                    "finalize-run",
+                    "--out-dir",
+                    str(out_dir),
+                    "--run-root",
+                    str(run_root),
+                    "--update-latest",
+                    "0",
+                ],
+                cwd=str(repo_root),
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=120,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            final_summary = json.loads((run_root / "final_run_summary.json").read_text(encoding="utf-8"))
+            self.assertEqual(final_summary.get("status"), "BLOCKED")
+            self.assertEqual(final_summary.get("primary_reason"), "rate_limited")
+            self.assertTrue(bool(final_summary.get("budget_stop_triggered")))
 
     def test_realism_wrapper_continues_after_weak_baseline_by_default(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]

@@ -18,6 +18,7 @@ from .agent_modelica_diagnostic_ir_v0 import build_diagnostic_ir_v0
 
 DEFAULT_DOCKER_IMAGE = "openmodelica/openmodelica:v1.26.1-minimal"
 ENV_KEY_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+LIVE_LEDGER_SCHEMA_VERSION = "agent_modelica_live_request_ledger_v1"
 
 
 def _read_text(path: Path) -> str:
@@ -25,6 +26,21 @@ def _read_text(path: Path) -> str:
         return path.read_text(encoding="utf-8")
     except UnicodeDecodeError:
         return path.read_text(encoding="latin-1")
+
+
+def _load_json(path: Path) -> dict:
+    if not path.exists():
+        return {}
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _write_json(path: Path, payload: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
 def _find_primary_model_name(text: str) -> str:
@@ -102,6 +118,116 @@ def _extract_om_success_flags(output: str) -> tuple[bool, bool]:
     )
     simulate_ok = has_sim_result and not result_file_empty and not sim_error_markers
     return check_ok, simulate_ok
+
+
+def _to_int_env(name: str, default: int) -> int:
+    try:
+        return max(0, int(str(os.getenv(name) or "").strip() or default))
+    except Exception:
+        return max(0, int(default))
+
+
+def _to_float_env(name: str, default: float) -> float:
+    try:
+        return max(0.0, float(str(os.getenv(name) or "").strip() or default))
+    except Exception:
+        return max(0.0, float(default))
+
+
+def _live_budget_config() -> dict:
+    ledger_path = str(os.getenv("GATEFORGE_AGENT_LIVE_REQUEST_LEDGER_PATH") or "").strip()
+    return {
+        "ledger_path": ledger_path,
+        "stage": str(os.getenv("GATEFORGE_AGENT_LIVE_REQUEST_STAGE") or "").strip(),
+        "max_requests_per_run": _to_int_env("GATEFORGE_AGENT_LIVE_MAX_REQUESTS_PER_RUN", 80),
+        "max_consecutive_429": max(1, _to_int_env("GATEFORGE_AGENT_LIVE_MAX_CONSECUTIVE_429", 3)),
+        "base_backoff_sec": _to_float_env("GATEFORGE_AGENT_LIVE_BACKOFF_BASE_SEC", 5.0),
+        "max_backoff_sec": _to_float_env("GATEFORGE_AGENT_LIVE_BACKOFF_MAX_SEC", 60.0),
+    }
+
+
+def _empty_live_ledger(cfg: dict) -> dict:
+    return {
+        "schema_version": LIVE_LEDGER_SCHEMA_VERSION,
+        "live_budget": {
+            "max_requests_per_run": int(cfg.get("max_requests_per_run") or 0),
+            "max_consecutive_429": int(cfg.get("max_consecutive_429") or 0),
+            "base_backoff_sec": float(cfg.get("base_backoff_sec") or 0.0),
+            "max_backoff_sec": float(cfg.get("max_backoff_sec") or 0.0),
+        },
+        "request_count": 0,
+        "rate_limit_429_count": 0,
+        "consecutive_429_count": 0,
+        "backoff_count": 0,
+        "last_backoff_sec": 0.0,
+        "budget_stop_triggered": False,
+        "last_stop_reason": "",
+        "last_stage": str(cfg.get("stage") or ""),
+    }
+
+
+def _load_live_ledger(cfg: dict) -> dict:
+    ledger_path = str(cfg.get("ledger_path") or "").strip()
+    if not ledger_path:
+        return _empty_live_ledger(cfg)
+    payload = _load_json(Path(ledger_path))
+    if not payload:
+        return _empty_live_ledger(cfg)
+    out = _empty_live_ledger(cfg)
+    out.update(payload)
+    if cfg.get("stage"):
+        out["last_stage"] = str(cfg.get("stage") or "")
+    return out
+
+
+def _write_live_ledger(cfg: dict, payload: dict) -> None:
+    ledger_path = str(cfg.get("ledger_path") or "").strip()
+    if not ledger_path:
+        return
+    _write_json(Path(ledger_path), payload)
+
+
+def _reserve_live_request(cfg: dict) -> tuple[bool, dict]:
+    ledger = _load_live_ledger(cfg)
+    max_requests = int(cfg.get("max_requests_per_run") or 0)
+    if max_requests > 0 and int(ledger.get("request_count") or 0) >= max_requests:
+        ledger["budget_stop_triggered"] = True
+        ledger["last_stop_reason"] = "live_request_budget_exceeded"
+        _write_live_ledger(cfg, ledger)
+        return False, ledger
+    ledger["request_count"] = int(ledger.get("request_count") or 0) + 1
+    ledger["last_stage"] = str(cfg.get("stage") or ledger.get("last_stage") or "")
+    _write_live_ledger(cfg, ledger)
+    return True, ledger
+
+
+def _record_live_request_success(cfg: dict) -> dict:
+    ledger = _load_live_ledger(cfg)
+    ledger["consecutive_429_count"] = 0
+    _write_live_ledger(cfg, ledger)
+    return ledger
+
+
+def _record_live_request_429(cfg: dict) -> tuple[str, dict]:
+    ledger = _load_live_ledger(cfg)
+    ledger["rate_limit_429_count"] = int(ledger.get("rate_limit_429_count") or 0) + 1
+    ledger["consecutive_429_count"] = int(ledger.get("consecutive_429_count") or 0) + 1
+    threshold = max(1, int(cfg.get("max_consecutive_429") or 1))
+    if int(ledger.get("consecutive_429_count") or 0) >= threshold:
+        ledger["budget_stop_triggered"] = True
+        ledger["last_stop_reason"] = "rate_limited"
+        _write_live_ledger(cfg, ledger)
+        return "rate_limited", ledger
+    backoff = min(
+        float(cfg.get("max_backoff_sec") or 0.0),
+        float(cfg.get("base_backoff_sec") or 0.0) * (2 ** max(0, int(ledger.get("consecutive_429_count") or 1) - 1)),
+    )
+    ledger["backoff_count"] = int(ledger.get("backoff_count") or 0) + 1
+    ledger["last_backoff_sec"] = float(backoff)
+    _write_live_ledger(cfg, ledger)
+    if backoff > 0:
+        time.sleep(backoff)
+    return "", ledger
 
 
 def _classify_failure(output: str, check_ok: bool, simulate_ok: bool) -> tuple[str, str]:
@@ -240,14 +366,26 @@ def _gemini_repair_model_text(
         headers={"Content-Type": "application/json"},
         method="POST",
     )
-    try:
-        with urllib.request.urlopen(req, timeout=45) as resp:
-            response_payload = json.loads(resp.read().decode("utf-8"))
-    except urllib.error.HTTPError as exc:
-        body = exc.read().decode("utf-8", errors="ignore")
-        return None, f"gemini_http_error:{exc.code}:{body[:180]}"
-    except urllib.error.URLError as exc:
-        return None, f"gemini_url_error:{exc.reason}"
+    cfg = _live_budget_config()
+    while True:
+        allowed, _ledger = _reserve_live_request(cfg)
+        if not allowed:
+            return None, "live_request_budget_exceeded"
+        try:
+            with urllib.request.urlopen(req, timeout=45) as resp:
+                response_payload = json.loads(resp.read().decode("utf-8"))
+            _record_live_request_success(cfg)
+            break
+        except urllib.error.HTTPError as exc:
+            body = exc.read().decode("utf-8", errors="ignore")
+            if int(exc.code) == 429:
+                stop_reason, _ledger = _record_live_request_429(cfg)
+                if stop_reason:
+                    return None, stop_reason
+                continue
+            return None, f"gemini_http_error:{exc.code}:{body[:180]}"
+        except urllib.error.URLError as exc:
+            return None, f"gemini_url_error:{exc.reason}"
     candidates = response_payload.get("candidates", [])
     if not candidates:
         return None, "gemini_no_candidates"
@@ -526,6 +664,7 @@ def main() -> None:
     final_sim_error = ""
     final_stderr = ""
     executor_status = "FAILED"
+    budget_cfg = _live_budget_config()
 
     with _temporary_workspace(prefix="gf_live_exec_") as td:
         workspace = Path(td)
@@ -632,7 +771,18 @@ def main() -> None:
         "simulate_error_message": final_sim_error,
         "stderr_snippet": final_stderr,
         "attempts": attempts,
+        "live_budget": {
+            "max_requests_per_run": int(budget_cfg.get("max_requests_per_run") or 0),
+            "max_consecutive_429": int(budget_cfg.get("max_consecutive_429") or 0),
+            "base_backoff_sec": float(budget_cfg.get("base_backoff_sec") or 0.0),
+            "max_backoff_sec": float(budget_cfg.get("max_backoff_sec") or 0.0),
+        },
     }
+    ledger = _load_live_ledger(budget_cfg)
+    payload["live_request_count"] = int(ledger.get("request_count") or 0)
+    payload["rate_limit_429_count"] = int(ledger.get("rate_limit_429_count") or 0)
+    payload["budget_stop_triggered"] = bool(ledger.get("budget_stop_triggered"))
+    payload["live_budget_stop_reason"] = str(ledger.get("last_stop_reason") or "")
     if str(args.out).strip():
         out = Path(args.out)
         out.parent.mkdir(parents=True, exist_ok=True)

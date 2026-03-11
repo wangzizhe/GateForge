@@ -86,6 +86,10 @@ def _median(values: list[float]) -> float:
 
 def _infer_infra_reason(stderr: str, reason: str, log_excerpt: str) -> str:
     text = " ".join([str(stderr or ""), str(reason or ""), str(log_excerpt or "")]).lower()
+    if "live_request_budget_exceeded" in text:
+        return "live_request_budget_exceeded"
+    if "rate_limited" in text or "429" in text or "too many requests" in text:
+        return "rate_limited"
     if "timeoutexpired" in text or "timed out" in text or "live_executor_timeout" in text:
         return "timeout"
     if "permission denied while trying to connect to the docker api" in text:

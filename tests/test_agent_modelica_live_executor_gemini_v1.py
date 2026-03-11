@@ -12,9 +12,12 @@ from gateforge.agent_modelica_live_executor_gemini_v1 import (
     _bootstrap_env_from_repo,
     _extract_om_success_flags,
     _extract_json_object,
+    _live_budget_config,
     _normalize_terminal_errors,
     _parse_env_assignment,
     _parse_repair_actions,
+    _record_live_request_429,
+    _reserve_live_request,
     _run_omc_script_docker,
     _run_check_and_simulate,
     _temporary_workspace,
@@ -84,6 +87,58 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
         )
         self.assertFalse(check_ok)
         self.assertFalse(simulate_ok)
+
+    def test_live_budget_reserve_stops_when_request_cap_is_reached(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="gf_live_budget_") as td:
+            ledger = Path(td) / "ledger.json"
+            prev = {
+                "GATEFORGE_AGENT_LIVE_REQUEST_LEDGER_PATH": os.environ.get("GATEFORGE_AGENT_LIVE_REQUEST_LEDGER_PATH"),
+                "GATEFORGE_AGENT_LIVE_MAX_REQUESTS_PER_RUN": os.environ.get("GATEFORGE_AGENT_LIVE_MAX_REQUESTS_PER_RUN"),
+            }
+            os.environ["GATEFORGE_AGENT_LIVE_REQUEST_LEDGER_PATH"] = str(ledger)
+            os.environ["GATEFORGE_AGENT_LIVE_MAX_REQUESTS_PER_RUN"] = "1"
+            try:
+                cfg = _live_budget_config()
+                allowed, _ = _reserve_live_request(cfg)
+                self.assertTrue(allowed)
+                allowed, state = _reserve_live_request(cfg)
+                self.assertFalse(allowed)
+                self.assertTrue(bool(state.get("budget_stop_triggered")))
+                self.assertEqual(str(state.get("last_stop_reason") or ""), "live_request_budget_exceeded")
+            finally:
+                for key, value in prev.items():
+                    if value is None:
+                        os.environ.pop(key, None)
+                    else:
+                        os.environ[key] = value
+
+    def test_live_budget_429_stop_sets_rate_limited(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="gf_live_budget_429_") as td:
+            ledger = Path(td) / "ledger.json"
+            prev = {
+                "GATEFORGE_AGENT_LIVE_REQUEST_LEDGER_PATH": os.environ.get("GATEFORGE_AGENT_LIVE_REQUEST_LEDGER_PATH"),
+                "GATEFORGE_AGENT_LIVE_MAX_CONSECUTIVE_429": os.environ.get("GATEFORGE_AGENT_LIVE_MAX_CONSECUTIVE_429"),
+                "GATEFORGE_AGENT_LIVE_BACKOFF_BASE_SEC": os.environ.get("GATEFORGE_AGENT_LIVE_BACKOFF_BASE_SEC"),
+                "GATEFORGE_AGENT_LIVE_BACKOFF_MAX_SEC": os.environ.get("GATEFORGE_AGENT_LIVE_BACKOFF_MAX_SEC"),
+            }
+            os.environ["GATEFORGE_AGENT_LIVE_REQUEST_LEDGER_PATH"] = str(ledger)
+            os.environ["GATEFORGE_AGENT_LIVE_MAX_CONSECUTIVE_429"] = "2"
+            os.environ["GATEFORGE_AGENT_LIVE_BACKOFF_BASE_SEC"] = "0"
+            os.environ["GATEFORGE_AGENT_LIVE_BACKOFF_MAX_SEC"] = "0"
+            try:
+                cfg = _live_budget_config()
+                stop_reason, _ = _record_live_request_429(cfg)
+                self.assertEqual(stop_reason, "")
+                stop_reason, state = _record_live_request_429(cfg)
+                self.assertEqual(stop_reason, "rate_limited")
+                self.assertEqual(int(state.get("rate_limit_429_count") or 0), 2)
+                self.assertTrue(bool(state.get("budget_stop_triggered")))
+            finally:
+                for key, value in prev.items():
+                    if value is None:
+                        os.environ.pop(key, None)
+                    else:
+                        os.environ[key] = value
 
     def test_run_omc_script_docker_mounts_cache_dir(self) -> None:
         with tempfile.TemporaryDirectory(prefix="gf_live_exec_docker_cache_") as td:
