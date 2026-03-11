@@ -15,6 +15,8 @@ RUN_ROOT="${GATEFORGE_AGENT_L4_UPLIFT_RUN_ROOT:-}"
 BASE_TASKSET="${GATEFORGE_AGENT_L4_UPLIFT_BASE_TASKSET:-assets_private/agent_modelica_l2_freeze_pack_v0/taskset_frozen.json}"
 SCALES="${GATEFORGE_AGENT_L4_UPLIFT_SCALES:-small,medium}"
 PROFILES="${GATEFORGE_AGENT_L4_UPLIFT_PROFILES:-score_v1,score_v1a,score_v1b,score_v1c}"
+REALISM_MODE="${GATEFORGE_AGENT_L4_UPLIFT_REALISM_MODE:-full}"
+ENABLE_NIGHT="${GATEFORGE_AGENT_L4_UPLIFT_ENABLE_NIGHT:-1}"
 
 BACKEND="${GATEFORGE_AGENT_L4_UPLIFT_BACKEND:-openmodelica_docker}"
 OM_DOCKER_IMAGE="${GATEFORGE_AGENT_L4_UPLIFT_OM_DOCKER_IMAGE:-openmodelica/openmodelica:v1.26.1-minimal}"
@@ -75,6 +77,7 @@ MAIN_L5_L3_EXECUTOR_CMD="${GATEFORGE_AGENT_L4_UPLIFT_MAIN_L5_L3_LIVE_EXECUTOR_CM
 MAIN_L5_L4_EXECUTOR_CMD="${GATEFORGE_AGENT_L4_UPLIFT_MAIN_L5_L4_LIVE_EXECUTOR_CMD:-$DEFAULT_EXECUTOR_CMD}"
 NIGHT_L5_L3_EXECUTOR_CMD="${GATEFORGE_AGENT_L4_UPLIFT_NIGHT_L5_L3_LIVE_EXECUTOR_CMD:-$DEFAULT_EXECUTOR_CMD}"
 NIGHT_L5_L4_EXECUTOR_CMD="${GATEFORGE_AGENT_L4_UPLIFT_NIGHT_L5_L4_LIVE_EXECUTOR_CMD:-$DEFAULT_EXECUTOR_CMD}"
+LIVE_LEDGER_PATH="${GATEFORGE_AGENT_LIVE_REQUEST_LEDGER_PATH:-$OUT_DIR/private/live_request_ledger.json}"
 
 if [ ! -f "$BASE_TASKSET" ]; then
   echo "Missing base taskset: $BASE_TASKSET" >&2
@@ -154,6 +157,8 @@ run_challenge() {
     GATEFORGE_AGENT_L4_CHALLENGE_LIVE_TIMEOUT_SEC="$LIVE_TIMEOUT_SEC" \
     GATEFORGE_AGENT_L4_CHALLENGE_LIVE_MAX_OUTPUT_CHARS="$LIVE_MAX_OUTPUT_CHARS" \
     GATEFORGE_AGENT_L4_CHALLENGE_LIVE_EXECUTOR_CMD="$CHALLENGE_EXECUTOR_CMD" \
+    GATEFORGE_AGENT_LIVE_REQUEST_LEDGER_PATH="$LIVE_LEDGER_PATH" \
+    GATEFORGE_AGENT_LIVE_REQUEST_STAGE="challenge" \
     bash scripts/run_agent_modelica_l4_challenge_pack_v0.sh
   else
     GATEFORGE_AGENT_L4_CHALLENGE_OUT_DIR="$CHALLENGE_OUT" \
@@ -181,6 +186,8 @@ run_challenge() {
     GATEFORGE_AGENT_L4_CHALLENGE_RUNTIME_THRESHOLD="$RUNTIME_THRESHOLD" \
     GATEFORGE_AGENT_L4_CHALLENGE_LIVE_TIMEOUT_SEC="$LIVE_TIMEOUT_SEC" \
     GATEFORGE_AGENT_L4_CHALLENGE_LIVE_MAX_OUTPUT_CHARS="$LIVE_MAX_OUTPUT_CHARS" \
+    GATEFORGE_AGENT_LIVE_REQUEST_LEDGER_PATH="$LIVE_LEDGER_PATH" \
+    GATEFORGE_AGENT_LIVE_REQUEST_STAGE="challenge" \
     bash scripts/run_agent_modelica_l4_challenge_pack_v0.sh
   fi
 }
@@ -210,6 +217,8 @@ run_sweep() {
     GATEFORGE_AGENT_L4_PROFILE_SWEEP_MIN_SUCCESS_DELTA_PP="$MIN_DELTA_SUCCESS_PP" \
     GATEFORGE_AGENT_L4_PROFILE_SWEEP_MAX_REGRESSION_WORSEN_PP="$MAX_REGRESSION_WORSEN_PP" \
     GATEFORGE_AGENT_L4_PROFILE_SWEEP_MAX_PHYSICS_WORSEN_PP="$MAX_PHYSICS_WORSEN_PP" \
+    GATEFORGE_AGENT_LIVE_REQUEST_LEDGER_PATH="$LIVE_LEDGER_PATH" \
+    GATEFORGE_AGENT_LIVE_REQUEST_STAGE="$(basename "$out_dir")" \
     bash scripts/run_agent_modelica_l4_profile_sweep_v0.sh
   else
     GATEFORGE_AGENT_L4_PROFILE_SWEEP_OUT_DIR="$out_dir" \
@@ -231,6 +240,8 @@ run_sweep() {
     GATEFORGE_AGENT_L4_PROFILE_SWEEP_MIN_SUCCESS_DELTA_PP="$MIN_DELTA_SUCCESS_PP" \
     GATEFORGE_AGENT_L4_PROFILE_SWEEP_MAX_REGRESSION_WORSEN_PP="$MAX_REGRESSION_WORSEN_PP" \
     GATEFORGE_AGENT_L4_PROFILE_SWEEP_MAX_PHYSICS_WORSEN_PP="$MAX_PHYSICS_WORSEN_PP" \
+    GATEFORGE_AGENT_LIVE_REQUEST_LEDGER_PATH="$LIVE_LEDGER_PATH" \
+    GATEFORGE_AGENT_LIVE_REQUEST_STAGE="$(basename "$out_dir")" \
     bash scripts/run_agent_modelica_l4_profile_sweep_v0.sh
   fi
 }
@@ -274,6 +285,8 @@ run_l5_eval() {
     GATEFORGE_AGENT_L5_MIN_L3_STAGE_PCT="$L5_MIN_L3_STAGE_PCT" \
     GATEFORGE_AGENT_L5_EVAL_L3_LIVE_EXECUTOR_CMD="$l3_executor_cmd" \
     GATEFORGE_AGENT_L5_EVAL_L4_LIVE_EXECUTOR_CMD="$l4_executor_cmd" \
+    GATEFORGE_AGENT_LIVE_REQUEST_LEDGER_PATH="$LIVE_LEDGER_PATH" \
+    GATEFORGE_AGENT_LIVE_REQUEST_STAGE="$(basename "$out_dir")" \
     bash scripts/run_agent_modelica_l5_eval_v1.sh
   else
     GATEFORGE_AGENT_L5_EVAL_TASKSET="$CHALLENGE_OUT/taskset_frozen.json" \
@@ -305,6 +318,8 @@ run_l5_eval() {
     GATEFORGE_AGENT_L5_MIN_L3_PARSE_PCT="$L5_MIN_L3_PARSE_PCT" \
     GATEFORGE_AGENT_L5_MIN_L3_TYPE_PCT="$L5_MIN_L3_TYPE_PCT" \
     GATEFORGE_AGENT_L5_MIN_L3_STAGE_PCT="$L5_MIN_L3_STAGE_PCT" \
+    GATEFORGE_AGENT_LIVE_REQUEST_LEDGER_PATH="$LIVE_LEDGER_PATH" \
+    GATEFORGE_AGENT_LIVE_REQUEST_STAGE="$(basename "$out_dir")" \
     bash scripts/run_agent_modelica_l5_eval_v1.sh
   fi
 }
@@ -411,12 +426,18 @@ PY
 )"
   fi
 
-  set +e
-  write_stage_status "night_sweep" "RUNNING" 0 "$NIGHT_SWEEP_OUT/summary.json"
-  run_sweep "$NIGHT_PLANNER_BACKEND" "$NIGHT_SWEEP_OUT" "$NIGHT_SWEEP_EXECUTOR_CMD"
-  NIGHT_SWEEP_RC=$?
-  set -e
-  write_stage_status "night_sweep" "$(summary_status "$NIGHT_SWEEP_OUT/summary.json" "$NIGHT_SWEEP_RC")" "$NIGHT_SWEEP_RC" "$NIGHT_SWEEP_OUT/summary.json"
+  if [ "$ENABLE_NIGHT" = "1" ]; then
+    set +e
+    write_stage_status "night_sweep" "RUNNING" 0 "$NIGHT_SWEEP_OUT/summary.json"
+    run_sweep "$NIGHT_PLANNER_BACKEND" "$NIGHT_SWEEP_OUT" "$NIGHT_SWEEP_EXECUTOR_CMD"
+    NIGHT_SWEEP_RC=$?
+    set -e
+    write_stage_status "night_sweep" "$(summary_status "$NIGHT_SWEEP_OUT/summary.json" "$NIGHT_SWEEP_RC")" "$NIGHT_SWEEP_RC" "$NIGHT_SWEEP_OUT/summary.json"
+  else
+    mkdir -p "$NIGHT_SWEEP_OUT"
+    printf '{}\n' > "$NIGHT_SWEEP_OUT/summary.json"
+    write_stage_status "night_sweep" "SKIPPED" 0 "$NIGHT_SWEEP_OUT/summary.json" "{\"reason\": \"lean_mode_night_disabled\"}"
+  fi
 
   set +e
   write_stage_status "main_l5" "RUNNING" 0 "$MAIN_L5_OUT/l5_eval_summary.json"
@@ -425,12 +446,19 @@ PY
   set -e
   write_stage_status "main_l5" "$(summary_status "$MAIN_L5_OUT/l5_eval_summary.json" "$MAIN_L5_RC")" "$MAIN_L5_RC" "$MAIN_L5_OUT/l5_eval_summary.json"
 
-  set +e
-  write_stage_status "night_l5" "RUNNING" 0 "$NIGHT_L5_OUT/l5_eval_summary.json"
-  run_l5_eval "$NIGHT_PLANNER_BACKEND" "$NIGHT_GATE_MODE" "$NIGHT_L5_OUT" "$MAIN_PROFILE" "$NIGHT_L5_L3_EXECUTOR_CMD" "$NIGHT_L5_L4_EXECUTOR_CMD"
-  NIGHT_L5_RC=$?
-  set -e
-  write_stage_status "night_l5" "$(summary_status "$NIGHT_L5_OUT/l5_eval_summary.json" "$NIGHT_L5_RC")" "$NIGHT_L5_RC" "$NIGHT_L5_OUT/l5_eval_summary.json"
+  if [ "$ENABLE_NIGHT" = "1" ]; then
+    set +e
+    write_stage_status "night_l5" "RUNNING" 0 "$NIGHT_L5_OUT/l5_eval_summary.json"
+    run_l5_eval "$NIGHT_PLANNER_BACKEND" "$NIGHT_GATE_MODE" "$NIGHT_L5_OUT" "$MAIN_PROFILE" "$NIGHT_L5_L3_EXECUTOR_CMD" "$NIGHT_L5_L4_EXECUTOR_CMD"
+    NIGHT_L5_RC=$?
+    set -e
+    write_stage_status "night_l5" "$(summary_status "$NIGHT_L5_OUT/l5_eval_summary.json" "$NIGHT_L5_RC")" "$NIGHT_L5_RC" "$NIGHT_L5_OUT/l5_eval_summary.json"
+  else
+    mkdir -p "$NIGHT_L5_OUT"
+    printf '{}\n' > "$NIGHT_L5_OUT/l5_eval_summary.json"
+    printf '{}\n' > "$NIGHT_L5_OUT/l5_weekly_metrics.json"
+    write_stage_status "night_l5" "SKIPPED" 0 "$NIGHT_L5_OUT/l5_eval_summary.json" "{\"reason\": \"lean_mode_night_disabled\"}"
+  fi
 else
   mkdir -p "$MAIN_SWEEP_OUT" "$NIGHT_SWEEP_OUT" "$MAIN_L5_OUT" "$NIGHT_L5_OUT"
   printf '{}\n' > "$MAIN_SWEEP_OUT/summary.json"
@@ -460,10 +488,11 @@ python3 -m gateforge.agent_modelica_l4_uplift_decision_v0 \
   --non-regression-tolerance-pp "$NON_REGRESSION_TOLERANCE_PP" \
   --max-regression-worsen-pp "$MAX_REGRESSION_WORSEN_PP" \
   --max-physics-worsen-pp "$MAX_PHYSICS_WORSEN_PP" \
+  --night-enabled "$ENABLE_NIGHT" \
   --out "$DECISION_JSON" \
   --report-out "$DECISION_MD"
 
-python3 - "$OUT_DIR" "$CHALLENGE_SUMMARY" "$DECISION_JSON" "$MAIN_SWEEP_OUT/summary.json" "$NIGHT_SWEEP_OUT/summary.json" "$MAIN_L5_OUT/l5_eval_summary.json" "$MAIN_L5_OUT/l5_weekly_metrics.json" "$NIGHT_L5_OUT/l5_eval_summary.json" "$NIGHT_L5_OUT/l5_weekly_metrics.json" "$CHALLENGE_RC" "$MAIN_SWEEP_RC" "$NIGHT_SWEEP_RC" "$MAIN_L5_RC" "$NIGHT_L5_RC" "$MAIN_PROFILE" "$CONTINUED_AFTER_WEAK_BASELINE" "$BASELINE_EXECUTION_VALID" <<'PY'
+python3 - "$OUT_DIR" "$CHALLENGE_SUMMARY" "$DECISION_JSON" "$MAIN_SWEEP_OUT/summary.json" "$NIGHT_SWEEP_OUT/summary.json" "$MAIN_L5_OUT/l5_eval_summary.json" "$MAIN_L5_OUT/l5_weekly_metrics.json" "$NIGHT_L5_OUT/l5_eval_summary.json" "$NIGHT_L5_OUT/l5_weekly_metrics.json" "$CHALLENGE_RC" "$MAIN_SWEEP_RC" "$NIGHT_SWEEP_RC" "$MAIN_L5_RC" "$NIGHT_L5_RC" "$MAIN_PROFILE" "$CONTINUED_AFTER_WEAK_BASELINE" "$BASELINE_EXECUTION_VALID" "$REALISM_MODE" "$ENABLE_NIGHT" "$LIVE_LEDGER_PATH" <<'PY'
 import json
 import sys
 from datetime import datetime, timezone
@@ -486,6 +515,9 @@ night_l5_rc = int(sys.argv[14])
 main_profile = str(sys.argv[15] or "").strip()
 continued_after_weak_baseline = str(sys.argv[16] or "") == "1"
 baseline_execution_valid = str(sys.argv[17] or "") == "1"
+realism_mode = str(sys.argv[18] or "").strip()
+night_enabled = str(sys.argv[19] or "") == "1"
+live_ledger_path = Path(sys.argv[20])
 
 def _load(path: Path) -> dict:
     if not path.exists():
@@ -504,6 +536,7 @@ main_l5 = _load(main_l5_path)
 main_weekly = _load(main_weekly_path)
 night_l5 = _load(night_l5_path)
 night_weekly = _load(night_weekly_path)
+live_ledger = _load(live_ledger_path)
 
 missing = []
 for label, payload in (
@@ -520,14 +553,20 @@ if baseline_eligible_for_uplift is None:
     baseline_eligible_for_uplift = baseline_meets_minimum and baseline_has_headroom
 acceptance_mode = str(decision.get("acceptance_mode") or ("absolute_non_regression" if baseline_meets_minimum and not baseline_has_headroom else "delta_uplift"))
 if baseline_meets_minimum or continued_after_weak_baseline:
-    for label, payload in (
+    required_payloads = [
         ("main_sweep_summary", main_sweep),
-        ("night_sweep_summary", night_sweep),
         ("main_l5_eval_summary", main_l5),
         ("main_weekly_summary", main_weekly),
-        ("night_l5_eval_summary", night_l5),
-        ("night_weekly_summary", night_weekly),
-    ):
+    ]
+    if night_enabled:
+        required_payloads.extend(
+            [
+                ("night_sweep_summary", night_sweep),
+                ("night_l5_eval_summary", night_l5),
+                ("night_weekly_summary", night_weekly),
+            ]
+        )
+    for label, payload in required_payloads:
         if not payload:
             missing.append(label)
 
@@ -561,6 +600,18 @@ bundle = {
     "baseline_has_headroom": baseline_has_headroom,
     "baseline_execution_valid": baseline_execution_valid,
     "continued_after_weak_baseline": continued_after_weak_baseline,
+    "realism_mode": realism_mode or "full",
+    "night_enabled": night_enabled,
+    "live_budget": {
+        "max_requests_per_run": int((live_ledger.get("live_budget") or {}).get("max_requests_per_run") or 0) if isinstance(live_ledger.get("live_budget"), dict) else None,
+        "max_consecutive_429": int((live_ledger.get("live_budget") or {}).get("max_consecutive_429") or 0) if isinstance(live_ledger.get("live_budget"), dict) else None,
+        "base_backoff_sec": (live_ledger.get("live_budget") or {}).get("base_backoff_sec") if isinstance(live_ledger.get("live_budget"), dict) else None,
+        "max_backoff_sec": (live_ledger.get("live_budget") or {}).get("max_backoff_sec") if isinstance(live_ledger.get("live_budget"), dict) else None,
+    },
+    "live_request_count": int(live_ledger.get("request_count") or 0),
+    "rate_limit_429_count": int(live_ledger.get("rate_limit_429_count") or 0),
+    "budget_stop_triggered": bool(live_ledger.get("budget_stop_triggered")),
+    "live_budget_stop_reason": str(live_ledger.get("last_stop_reason") or ""),
     "baseline_headroom_max_pct": challenge.get("baseline_target_range_pct", {}).get("max") if isinstance(challenge.get("baseline_target_range_pct"), dict) else None,
     "baseline_eligible_for_uplift": baseline_eligible_for_uplift,
     "baseline_in_target_range": challenge.get("baseline_in_target_range"),
@@ -598,6 +649,9 @@ bundle = {
     },
 }
 
+if bundle.get("live_budget_stop_reason") in {"live_request_budget_exceeded", "rate_limited"}:
+    bundle["primary_reason"] = str(bundle.get("live_budget_stop_reason"))
+
 summary_json = out_dir / "summary.json"
 summary_md = out_dir / "summary.md"
 summary_json.write_text(json.dumps(bundle, indent=2), encoding="utf-8")
@@ -610,6 +664,8 @@ summary_md.write_text(
             f"- decision: `{bundle.get('decision')}`",
             f"- primary_reason: `{bundle.get('primary_reason')}`",
             f"- acceptance_mode: `{bundle.get('acceptance_mode')}`",
+            f"- realism_mode: `{bundle.get('realism_mode')}`",
+            f"- night_enabled: `{bundle.get('night_enabled')}`",
             f"- baseline_meets_minimum: `{bundle.get('baseline_meets_minimum')}`",
             f"- baseline_has_headroom: `{bundle.get('baseline_has_headroom')}`",
             f"- baseline_eligible_for_uplift: `{bundle.get('baseline_eligible_for_uplift')}`",
@@ -620,6 +676,9 @@ summary_md.write_text(
             f"- main_delta_success_at_k_pp: `{bundle.get('main_delta_success_at_k_pp')}`",
             f"- non_regression_ok: `{bundle.get('non_regression_ok')}`",
             f"- infra_failure_count_total: `{bundle.get('infra_failure_count_total')}`",
+            f"- live_request_count: `{bundle.get('live_request_count')}`",
+            f"- rate_limit_429_count: `{bundle.get('rate_limit_429_count')}`",
+            f"- budget_stop_triggered: `{bundle.get('budget_stop_triggered')}`",
             f"- reasons: `{bundle.get('reasons')}`",
             "",
         ]

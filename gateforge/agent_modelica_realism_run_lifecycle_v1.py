@@ -1188,6 +1188,7 @@ def _final_status_from_artifacts(run_root: Path) -> tuple[dict, dict]:
         if str(x)
     }
     continued_after_weak_baseline = bool(evidence.get("continued_after_weak_baseline"))
+    live_budget_stop_reason = str(evidence.get("live_budget_stop_reason") or "")
 
     if preflight_blocked and not challenge:
         status = "BLOCKED"
@@ -1200,6 +1201,10 @@ def _final_status_from_artifacts(run_root: Path) -> tuple[dict, dict]:
     elif not challenge or baseline_pct is None:
         status = "BLOCKED"
         primary_reason = "challenge_incomplete"
+        completion_reason = primary_reason
+    elif live_budget_stop_reason in {"live_request_budget_exceeded", "rate_limited"}:
+        status = "BLOCKED"
+        primary_reason = live_budget_stop_reason
         completion_reason = primary_reason
     elif not main_l5 or not (l3_run.get("records") if isinstance(l3_run.get("records"), list) else []):
         status = "NEEDS_REVIEW"
@@ -1243,6 +1248,12 @@ def _final_status_from_artifacts(run_root: Path) -> tuple[dict, dict]:
         "baseline_state": baseline_state,
         "baseline_off_success_at_k_pct": baseline_pct,
         "continued_after_weak_baseline": continued_after_weak_baseline,
+        "realism_mode": str(evidence.get("realism_mode") or ""),
+        "night_enabled": evidence.get("night_enabled"),
+        "live_budget": evidence.get("live_budget") if isinstance(evidence.get("live_budget"), dict) else {},
+        "live_request_count": evidence.get("live_request_count"),
+        "rate_limit_429_count": evidence.get("rate_limit_429_count"),
+        "budget_stop_triggered": bool(evidence.get("budget_stop_triggered")),
         "main_success_at_k_pct": evidence.get("main_success_at_k_pct"),
         "connector_subtype_match_rate_pct": mismatch_summary.get("connector_subtype_match_rate_pct"),
         "initialization_simulate_stage_rate_pct": mismatch_summary.get("initialization_simulate_stage_rate_pct"),

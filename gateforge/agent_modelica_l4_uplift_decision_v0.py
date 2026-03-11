@@ -226,6 +226,7 @@ def evaluate_l4_uplift_decision_v0(
     non_regression_tolerance_pp: float = 0.0,
     max_regression_worsen_pp: float = 2.0,
     max_physics_worsen_pp: float = 2.0,
+    night_enabled: bool = True,
 ) -> dict:
     reasons: list[str] = []
     decision = "hold"
@@ -271,14 +272,19 @@ def evaluate_l4_uplift_decision_v0(
 
     missing_labels: list[str] = []
     if baseline_meets_minimum or continued_after_weak_baseline:
-        required_payloads = (
+        required_payloads = [
             ("main_sweep_summary", main_sweep_summary),
             ("main_l5_summary", main_l5_summary),
             ("main_weekly_summary", main_weekly_summary),
-            ("night_sweep_summary", night_sweep_summary),
-            ("night_l5_summary", night_l5_summary),
-            ("night_weekly_summary", night_weekly_summary),
-        )
+        ]
+        if night_enabled:
+            required_payloads.extend(
+                [
+                    ("night_sweep_summary", night_sweep_summary),
+                    ("night_l5_summary", night_l5_summary),
+                    ("night_weekly_summary", night_weekly_summary),
+                ]
+            )
         for label, payload in required_payloads:
             if not isinstance(payload, dict) or not payload:
                 missing_labels.append(label)
@@ -383,6 +389,7 @@ def evaluate_l4_uplift_decision_v0(
         "baseline_eligible_for_uplift": baseline_uplift_eligible,
         "baseline_in_target_range": baseline_meets_minimum,
         "continued_after_weak_baseline": continued_after_weak_baseline,
+        "night_enabled": bool(night_enabled),
         "main_recommended_profile": str(compare_main.get("recommended_profile") or main_sweep_summary.get("recommended_profile") or ""),
         "main_no_progress_rate_pct": _to_float(compare_main.get("no_progress_rate_pct_on"), 0.0),
         "main_llm_fallback_rate_pct": _to_float(compare_main.get("llm_fallback_rate_pct_on"), 0.0),
@@ -416,6 +423,7 @@ def main() -> None:
     parser.add_argument("--non-regression-tolerance-pp", type=float, default=0.0)
     parser.add_argument("--max-regression-worsen-pp", type=float, default=2.0)
     parser.add_argument("--max-physics-worsen-pp", type=float, default=2.0)
+    parser.add_argument("--night-enabled", default="1")
     parser.add_argument("--out", default="artifacts/agent_modelica_l4_uplift_evidence_v0/decision_summary.json")
     parser.add_argument("--report-out", default="")
     args = parser.parse_args()
@@ -433,6 +441,7 @@ def main() -> None:
         non_regression_tolerance_pp=float(args.non_regression_tolerance_pp),
         max_regression_worsen_pp=float(args.max_regression_worsen_pp),
         max_physics_worsen_pp=float(args.max_physics_worsen_pp),
+        night_enabled=str(args.night_enabled).strip().lower() not in {"", "0", "false", "no", "off"},
     )
     summary["inputs"] = {
         "challenge_summary": str(args.challenge_summary),
