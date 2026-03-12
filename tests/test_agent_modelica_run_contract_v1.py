@@ -599,6 +599,95 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
             first_attempt = attempts[0] if isinstance(attempts[0], dict) else {}
             self.assertEqual(str(first_attempt.get("observed_failure_type") or ""), "script_parse_error")
 
+    def test_run_contract_live_mode_persists_manifestation_attempts_when_final_attempt_passes(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            taskset = root / "taskset.json"
+            results = root / "results.json"
+            summary = root / "summary.json"
+            taskset.write_text(
+                json.dumps(
+                    {
+                        "tasks": [
+                            {
+                                "task_id": "t_live_nested_manifestation",
+                                "scale": "small",
+                                "failure_type": "underconstrained_system",
+                                "expected_stage": "check",
+                                "source_model_path": "assets_private/modelica/Minimal.mo",
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            live_cmd = (
+                "python3 -c 'import json; "
+                "print(json.dumps({"
+                "\"check_model_pass\": True, "
+                "\"simulate_pass\": True, "
+                "\"physics_contract_pass\": True, "
+                "\"regression_pass\": True, "
+                "\"elapsed_sec\": 1.2, "
+                "\"attempts\": ["
+                "{"
+                "\"observed_failure_type\": \"model_check_error\", "
+                "\"reason\": \"structural underconstraint\", "
+                "\"log_excerpt\": \"Class has 32 equation(s) and 33 variable(s).\", "
+                "\"diagnostic_ir\": {"
+                "\"error_type\": \"model_check_error\", "
+                "\"error_subtype\": \"underconstrained_system\", "
+                "\"stage\": \"check\", "
+                "\"observed_phase\": \"simulate\""
+                "}"
+                "}, "
+                "{"
+                "\"observed_failure_type\": \"none\", "
+                "\"reason\": \"\", "
+                "\"log_excerpt\": \"\", "
+                "\"diagnostic_ir\": {"
+                "\"error_type\": \"none\", "
+                "\"error_subtype\": \"none\", "
+                "\"stage\": \"none\", "
+                "\"observed_phase\": \"none\""
+                "}"
+                "}"
+                "]"
+                "}))'"
+            )
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.agent_modelica_run_contract_v1",
+                    "--taskset",
+                    str(taskset),
+                    "--mode",
+                    "live",
+                    "--live-executor-cmd",
+                    live_cmd,
+                    "--results-out",
+                    str(results),
+                    "--out",
+                    str(summary),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            rec = (json.loads(results.read_text(encoding="utf-8")).get("records") or [])[0]
+            self.assertTrue(bool(rec.get("passed")))
+            attempts = rec.get("attempts") if isinstance(rec.get("attempts"), list) else []
+            self.assertTrue(attempts)
+            first_attempt = attempts[0] if isinstance(attempts[0], dict) else {}
+            self.assertEqual(str(first_attempt.get("observed_failure_type") or ""), "model_check_error")
+            diagnostic = first_attempt.get("diagnostic_ir") if isinstance(first_attempt.get("diagnostic_ir"), dict) else {}
+            self.assertEqual(str(diagnostic.get("error_subtype") or ""), "underconstrained_system")
+            self.assertEqual(str(diagnostic.get("stage") or ""), "check")
+            nested_attempts = first_attempt.get("attempts") if isinstance(first_attempt.get("attempts"), list) else []
+            self.assertEqual(len(nested_attempts), 2)
+
     def test_run_contract_live_mode_auto_upgrades_legacy_repair_actions_placeholder(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)

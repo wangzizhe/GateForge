@@ -19,7 +19,7 @@ from .agent_modelica_repair_playbook_v1 import load_repair_playbook, recommend_r
 from .agent_modelica_patch_template_engine_v1 import build_patch_template
 from .agent_modelica_error_action_mapper_v1 import map_error_to_actions
 from .agent_modelica_retrieval_augmented_repair_v1 import retrieve_repair_examples
-from .agent_modelica_diagnostic_ir_v0 import build_diagnostic_ir_v0
+from .agent_modelica_diagnostic_ir_v0 import build_diagnostic_ir_v0, canonical_error_type_v0
 from .agent_modelica_repair_action_policy_v0 import recommend_repair_actions_v0
 from .agent_modelica_orchestrator_guard_v0 import detect_no_progress_v0, prioritize_repair_actions_v0
 from .agent_modelica_l4_orchestrator_v0 import run_l4_orchestrator_v0
@@ -470,6 +470,37 @@ def _infer_observed_failure_type(
     if not simulate_ok:
         return "simulate_error"
     return "none"
+
+
+def _expected_canonical_for_failure_type(failure_type: str) -> str:
+    ftype = str(failure_type or "").strip().lower()
+    if ftype in {"underconstrained_system", "connector_mismatch"}:
+        return "model_check_error"
+    if ftype == "initialization_infeasible":
+        return "simulate_error"
+    return canonical_error_type_v0(ftype)
+
+
+def _pick_manifestation_live_attempt(live_attempts: list[dict], *, failure_type: str, expected_stage: str) -> dict:
+    attempts = [x for x in live_attempts if isinstance(x, dict)]
+    if not attempts:
+        return {}
+    expected_canonical = _expected_canonical_for_failure_type(failure_type)
+    expected_stage_norm = str(expected_stage or "").strip().lower()
+
+    def _row(attempt: dict) -> tuple[tuple[int, int, int], dict]:
+        diagnostic = attempt.get("diagnostic_ir") if isinstance(attempt.get("diagnostic_ir"), dict) else {}
+        observed_failure_type = canonical_error_type_v0(
+            str(attempt.get("observed_failure_type") or diagnostic.get("error_type") or "").strip().lower()
+        )
+        observed_stage = str(diagnostic.get("stage") or "").strip().lower()
+        non_wrapper = 0 if observed_failure_type in {"executor_runtime_error", "executor_invocation_error", "none"} else 1
+        canonical_match = 1 if observed_failure_type == expected_canonical else 0
+        stage_match = 1 if expected_stage_norm and observed_stage == expected_stage_norm else 0
+        return (canonical_match, stage_match, non_wrapper), attempt
+
+    ranked = max(enumerate(attempts), key=lambda item: (_row(item[1])[0], -item[0]))
+    return ranked[1]
 
 
 def _action_text(strategy: dict) -> str:
@@ -1189,7 +1220,14 @@ def _run_task_live_l4(
             or ""
         )
         live_attempts = live_payload.get("attempts") if isinstance(live_payload.get("attempts"), list) else []
-        live_attempt = live_attempts[-1] if live_attempts and isinstance(live_attempts[-1], dict) else {}
+        live_attempts = [x for x in live_attempts if isinstance(x, dict)]
+        live_attempt = _pick_manifestation_live_attempt(
+            live_attempts,
+            failure_type=failure_type,
+            expected_stage=str(task.get("expected_stage") or ""),
+        )
+        if not live_attempt and live_attempts:
+            live_attempt = live_attempts[-1]
         observed_failure_type = str(
             live_attempt.get("observed_failure_type")
             or live_payload.get("observed_failure_type")
@@ -1254,6 +1292,7 @@ def _run_task_live_l4(
             "log_excerpt": attempt_log_excerpt[: max(0, int(live_max_output_chars))],
             "diagnostic_ir": diagnostic_ir,
             "pre_repair": pre_repair,
+            "attempts": live_attempts,
         }
 
     try:
@@ -1616,7 +1655,14 @@ def _run_task_live(
             or ""
         )
         live_attempts = live_payload.get("attempts") if isinstance(live_payload.get("attempts"), list) else []
-        live_attempt = live_attempts[-1] if live_attempts and isinstance(live_attempts[-1], dict) else {}
+        live_attempts = [x for x in live_attempts if isinstance(x, dict)]
+        live_attempt = _pick_manifestation_live_attempt(
+            live_attempts,
+            failure_type=failure_type,
+            expected_stage=str(task.get("expected_stage") or ""),
+        )
+        if not live_attempt and live_attempts:
+            live_attempt = live_attempts[-1]
         observed_failure_type = str(
             live_attempt.get("observed_failure_type")
             or live_payload.get("observed_failure_type")
@@ -1684,6 +1730,7 @@ def _run_task_live(
                 "log_excerpt": attempt_log_excerpt[: max(0, int(live_max_output_chars))],
                 "diagnostic_ir": diagnostic_ir,
                 "pre_repair": pre_repair,
+                "attempts": live_attempts,
             }
         )
         hard = {

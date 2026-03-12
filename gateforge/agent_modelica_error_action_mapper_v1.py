@@ -11,6 +11,7 @@ PATTERNS: list[tuple[str, str, str]] = [
     (r"connect(or)?\s+mismatch|incompatible\s+connector", "fix_connector_mismatch", "fix connector type/causality mismatch"),
     (r"type\s+mismatch|incompatible\s+type|cannot\s+convert\s+type", "fix_type_mismatch", "align variable/connector types and unit-compatible assignments"),
     (r"too\s+few\s+equations|too\s+many\s+equations|under.?determined|over.?determined", "fix_equation_balance", "rebalance equation/variable counts before simulation"),
+    (r"underconstrained_system|dangling_connectivity|structural_underconstraint", "restore_topology_balance", "restore dropped connect path and dangling conservation balance before equation rewrites"),
     (r"initial(ization)?\s+failed|cannot\s+initialize", "fix_initialization", "stabilize initial equations and start values"),
     (r"solver\s+failed|failed\s+to\s+solve|non.?convergen|convergence\s+failed", "improve_solver_convergence", "tighten parameter bounds and improve solver convergence path"),
     (r"singular|division\s+by\s+zero|nan|inf", "numerical_stability_guard", "add numerical guards and bounded parameters"),
@@ -39,6 +40,9 @@ def map_error_to_actions(error_message: str, failure_type: str | None = None) ->
     if not actions and ftype == "model_check_error":
         tags.append("generic_model_check_repair")
         actions.append("resolve compile-time symbol/connector issues before simulate")
+    elif not actions and ftype == "underconstrained_system":
+        tags.append("generic_underconstrained_repair")
+        actions.append("restore dropped connect path and dangling conservation balance before equation rewrites")
     elif not actions and ftype == "simulate_error":
         tags.append("generic_simulate_repair")
         actions.append("repair initialization and solver-facing constraints")

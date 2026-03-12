@@ -201,6 +201,21 @@ class AgentModelicaL5EvalV1Tests(unittest.TestCase):
         self.assertEqual(summary.get("status"), "NEEDS_REVIEW")
         self.assertEqual(summary.get("gate_result"), "NEEDS_REVIEW")
 
+    def test_eval_prioritizes_live_budget_reason_when_additional_reasons_present(self) -> None:
+        run_summary, run_results, l3_quality, l3_gate, l4_ab = self._base_inputs()
+        summary = evaluate_l5_eval_v1(
+            run_summary=run_summary,
+            run_results=run_results,
+            l3_quality_summary=l3_quality,
+            l3_gate_summary=l3_gate,
+            l4_ab_compare_summary=l4_ab,
+            gate_mode="strict",
+            additional_reasons=["live_request_budget_exceeded"],
+        )
+        self.assertEqual(summary.get("status"), "FAIL")
+        self.assertIn("live_request_budget_exceeded", set(summary.get("reasons") or []))
+        self.assertEqual(summary.get("primary_reason"), "live_request_budget_exceeded")
+
     def test_eval_allows_zero_delta_when_baseline_success_is_at_ceiling(self) -> None:
         run_summary, run_results, l3_quality, l3_gate, l4_ab = self._base_inputs()
         l4_ab["off"]["success_at_k_pct"] = 100.0
@@ -298,6 +313,38 @@ class AgentModelicaL5EvalV1Tests(unittest.TestCase):
         )
         self.assertEqual(summary.get("status"), "NEEDS_REVIEW")
         self.assertIn("reason_enum_unknown", set(summary.get("reasons") or []))
+
+    def test_eval_uses_l4_nonzero_reason_instead_of_missing_artifacts_when_ab_compare_exists(self) -> None:
+        run_summary, run_results, l3_quality, l3_gate, l4_ab = self._base_inputs()
+        run_summary = {}
+        run_results = {}
+        l4_ab["on"] = {
+            "success_at_k_pct": 0.0,
+            "attempt_count": 0,
+            "infra_failure_count": 0,
+            "category_breakdown": {},
+            "failure_type_breakdown": {},
+        }
+        l4_ab["off"]["success_at_k_pct"] = 100.0
+        l4_ab["delta"] = {"success_at_k_pp": -100.0}
+        l4_ab["reasons"] = ["on_run_nonzero"]
+        summary = evaluate_l5_eval_v1(
+            run_summary=run_summary,
+            run_results=run_results,
+            l3_quality_summary=l3_quality,
+            l3_gate_summary=l3_gate,
+            l4_ab_compare_summary=l4_ab,
+            gate_mode="strict",
+            acceptance_mode="absolute_non_regression",
+            absolute_success_target_pct=85.0,
+            non_regression_tolerance_pp=0.0,
+        )
+        reasons = set(summary.get("reasons") or [])
+        self.assertIn("l4_on_run_nonzero", reasons)
+        self.assertNotIn("run_summary_missing", reasons)
+        self.assertNotIn("run_results_missing", reasons)
+        self.assertNotIn("attempts_missing", reasons)
+        self.assertEqual(summary.get("primary_reason"), "l4_on_run_nonzero")
 
 
 if __name__ == "__main__":

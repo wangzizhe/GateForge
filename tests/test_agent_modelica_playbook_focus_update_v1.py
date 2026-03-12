@@ -7,6 +7,65 @@ from pathlib import Path
 
 
 class AgentModelicaPlaybookFocusUpdateV1Tests(unittest.TestCase):
+    def test_underconstrained_focus_promotes_topology_restore_before_broad_rewrite(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            playbook = root / "playbook.json"
+            queue = root / "queue.json"
+            out = root / "focused.json"
+            playbook.write_text(
+                json.dumps(
+                    {
+                        "playbook": [
+                            {
+                                "failure_type": "underconstrained_system",
+                                "strategy_id": "topo_balance_restore",
+                                "priority": 100,
+                                "actions": ["baseline topology action"],
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            queue.write_text(
+                json.dumps({"queue": [{"failure_type": "underconstrained_system", "rank": 1}]}),
+                encoding="utf-8",
+            )
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.agent_modelica_playbook_focus_update_v1",
+                    "--playbook",
+                    str(playbook),
+                    "--queue",
+                    str(queue),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            payload = json.loads(out.read_text(encoding="utf-8"))
+            entry = (payload.get("playbook") or [])[0]
+            actions = entry.get("actions") if isinstance(entry.get("actions"), list) else []
+            self.assertEqual(entry.get("focus_tag"), "top_failure_focus")
+            self.assertIn(
+                "restore the exact dropped connect statement and dangling conservation path before any broad rewrite",
+                actions,
+            )
+            self.assertIn(
+                "prefer minimal topology balance repair over simulate-first or generic equation rewrite attempts",
+                actions,
+            )
+            self.assertIn(
+                "do not replace topology restore with broad equation rewrite while checkModel still reports underconstraint",
+                actions,
+            )
+
     def test_focus_update_boosts_top_failure_entries(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)

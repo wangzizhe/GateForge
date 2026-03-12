@@ -6,6 +6,10 @@ import time
 import unittest
 import hashlib
 from pathlib import Path
+from unittest import mock
+
+import gateforge.agent_modelica_realism_run_lifecycle_v1 as realism_lifecycle
+from gateforge.agent_modelica_realism_run_lifecycle_v1 import _runtime_config
 
 
 def _cmd_pass() -> str:
@@ -249,6 +253,147 @@ class RunAgentModelicaL4RealismEvidenceV1Tests(unittest.TestCase):
             self.assertFalse((out_dir / "latest_summary.json").exists())
             self.assertFalse((out_dir / "latest_run.json").exists())
 
+    def test_resume_main_l5_refreshes_live_budget_and_clears_budget_stop_when_limit_increased(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            run_root = root / "runs" / "r1"
+            run_root.mkdir(parents=True, exist_ok=True)
+            realism_lifecycle.init_run(
+                out_dir=str(root),
+                run_root=str(run_root),
+                run_id="r1",
+                pack_id="p",
+                pack_version="v1",
+                pack_track="realism",
+                acceptance_scope="independent_validation",
+                base_taskset="taskset.json",
+                lock_path="",
+                update_latest=False,
+                runtime_config={"night_enabled": 0},
+            )
+            _write_json(
+                run_root / "private" / "live_request_ledger.json",
+                {
+                    "schema_version": "agent_modelica_live_request_ledger_v1",
+                    "live_budget": {
+                        "max_requests_per_run": 80,
+                        "max_consecutive_429": 3,
+                        "base_backoff_sec": 5.0,
+                        "max_backoff_sec": 60.0,
+                    },
+                    "request_count": 81,
+                    "rate_limit_429_count": 0,
+                    "consecutive_429_count": 0,
+                    "backoff_count": 0,
+                    "last_backoff_sec": 0.0,
+                    "budget_stop_triggered": True,
+                    "last_stop_reason": "live_request_budget_exceeded",
+                    "last_stage": "main_l5",
+                },
+            )
+            with mock.patch.dict(
+                os.environ,
+                {
+                    "GATEFORGE_AGENT_LIVE_MAX_REQUESTS_PER_RUN": "140",
+                    "GATEFORGE_AGENT_LIVE_MAX_CONSECUTIVE_429": "4",
+                    "GATEFORGE_AGENT_LIVE_BACKOFF_BASE_SEC": "2",
+                    "GATEFORGE_AGENT_LIVE_BACKOFF_MAX_SEC": "30",
+                },
+                clear=False,
+            ):
+                realism_lifecycle._reset_live_ledger_for_resume(run_root, "main_l5")
+            ledger = json.loads((run_root / "private" / "live_request_ledger.json").read_text(encoding="utf-8"))
+            self.assertEqual(ledger["live_budget"]["max_requests_per_run"], 140)
+            self.assertEqual(ledger["live_budget"]["max_consecutive_429"], 4)
+            self.assertEqual(ledger["live_budget"]["base_backoff_sec"], 2.0)
+            self.assertEqual(ledger["live_budget"]["max_backoff_sec"], 30.0)
+            self.assertFalse(ledger["budget_stop_triggered"])
+            self.assertEqual(ledger["last_stop_reason"], "")
+            self.assertEqual(ledger["last_stage"], "main_l5")
+
+    def test_resume_main_l5_force_rerun_resets_live_budget_window(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            run_root = root / "runs" / "r1"
+            run_root.mkdir(parents=True, exist_ok=True)
+            _write_json(
+                run_root / "private" / "live_request_ledger.json",
+                {
+                    "schema_version": "agent_modelica_live_request_ledger_v1",
+                    "live_budget": {
+                        "max_requests_per_run": 80,
+                        "max_consecutive_429": 3,
+                        "base_backoff_sec": 5.0,
+                        "max_backoff_sec": 60.0,
+                    },
+                    "request_count": 101,
+                    "rate_limit_429_count": 12,
+                    "consecutive_429_count": 3,
+                    "backoff_count": 4,
+                    "last_backoff_sec": 10.0,
+                    "budget_stop_triggered": True,
+                    "last_stop_reason": "live_request_budget_exceeded",
+                    "last_stage": "main_l5",
+                },
+            )
+            with mock.patch.dict(
+                os.environ,
+                {
+                    "GATEFORGE_AGENT_LIVE_MAX_REQUESTS_PER_RUN": "140",
+                },
+                clear=False,
+            ):
+                realism_lifecycle._reset_live_ledger_for_resume(
+                    run_root,
+                    "main_l5",
+                    restart_budget_window=True,
+                )
+            ledger = json.loads((run_root / "private" / "live_request_ledger.json").read_text(encoding="utf-8"))
+            self.assertEqual(ledger["request_count"], 0)
+            self.assertEqual(ledger["rate_limit_429_count"], 0)
+            self.assertEqual(ledger["backoff_count"], 0)
+            self.assertFalse(ledger["budget_stop_triggered"])
+            self.assertEqual(ledger["last_stop_reason"], "")
+
+    def test_resume_main_l5_disable_live_budget_sets_unbounded_budget(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            run_root = root / "runs" / "r1"
+            run_root.mkdir(parents=True, exist_ok=True)
+            _write_json(
+                run_root / "private" / "live_request_ledger.json",
+                {
+                    "schema_version": "agent_modelica_live_request_ledger_v1",
+                    "live_budget": {
+                        "max_requests_per_run": 80,
+                        "max_consecutive_429": 3,
+                        "base_backoff_sec": 5.0,
+                        "max_backoff_sec": 60.0,
+                    },
+                    "request_count": 80,
+                    "rate_limit_429_count": 0,
+                    "consecutive_429_count": 0,
+                    "backoff_count": 0,
+                    "last_backoff_sec": 0.0,
+                    "budget_stop_triggered": True,
+                    "last_stop_reason": "live_request_budget_exceeded",
+                    "last_stage": "main_l5",
+                },
+            )
+            with mock.patch.dict(
+                os.environ,
+                {
+                    "GATEFORGE_AGENT_L4_REALISM_DISABLE_LIVE_BUDGET": "1",
+                },
+                clear=False,
+            ):
+                realism_lifecycle._reset_live_ledger_for_resume(run_root, "main_l5")
+            ledger = json.loads((run_root / "private" / "live_request_ledger.json").read_text(encoding="utf-8"))
+            self.assertEqual(ledger["live_budget"]["max_requests_per_run"], 0)
+            self.assertFalse(ledger["budget_stop_triggered"])
+            self.assertEqual(ledger["last_stop_reason"], "")
+            self.assertEqual(ledger["last_stage"], "main_l5")
+
     def test_stale_base_taskset_blocks_preflight(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
         builder_path = repo_root / "gateforge" / "agent_modelica_electrical_mutant_taskset_v0.py"
@@ -311,6 +456,7 @@ class RunAgentModelicaL4RealismEvidenceV1Tests(unittest.TestCase):
 
             final_summary = json.loads((run_root / "final_run_summary.json").read_text(encoding="utf-8"))
             run_status = json.loads((run_root / "run_status.json").read_text(encoding="utf-8"))
+            evidence_summary = json.loads((run_root / "summary.json").read_text(encoding="utf-8"))
             latest_run = json.loads((out_dir / "latest_run.json").read_text(encoding="utf-8"))
             latest_summary = json.loads((out_dir / "latest_summary.json").read_text(encoding="utf-8"))
             latest_realism = json.loads((out_dir / "latest_realism_internal_summary.json").read_text(encoding="utf-8"))
@@ -320,6 +466,10 @@ class RunAgentModelicaL4RealismEvidenceV1Tests(unittest.TestCase):
             self.assertEqual(final_summary.get("baseline_state"), "baseline_saturated")
             self.assertEqual(str(final_summary.get("realism_mode") or ""), "lean")
             self.assertFalse(bool(final_summary.get("night_enabled")))
+            self.assertEqual(evidence_summary.get("status"), "PASS")
+            self.assertFalse(bool(evidence_summary.get("night_enabled")))
+            self.assertNotIn("missing_night_sweep_summary", set(evidence_summary.get("reasons") or []))
+            self.assertNotIn("missing_night_l5_eval_summary", set(evidence_summary.get("reasons") or []))
             self.assertTrue(bool(run_status.get("finalized")))
             self.assertTrue(bool(run_status.get("latest_updated")))
             self.assertEqual(latest_run.get("run_id"), "success01")
@@ -898,6 +1048,481 @@ class RunAgentModelicaL4RealismEvidenceV1Tests(unittest.TestCase):
             self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
             payload = json.loads(proc.stdout.strip().splitlines()[-1])
             self.assertEqual(payload.get("run_id"), "legacy_adopted_v1")
+
+    def test_runtime_config_prefers_persisted_manifest_backends_for_resume(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            run_root = Path(d) / "runs" / "resume_cfg01"
+            (run_root / "challenge").mkdir(parents=True, exist_ok=True)
+            _write_json(
+                run_root / "run_manifest.json",
+                {
+                    "schema_version": "agent_modelica_realism_run_manifest_v1",
+                    "run_id": "resume_cfg01",
+                    "out_dir": str(Path(d)),
+                    "run_root": str(run_root),
+                    "pack_id": "agent_modelica_realism_pack_v1",
+                    "pack_version": "v1",
+                    "pack_track": "realism",
+                    "acceptance_scope": "independent_validation",
+                    "runtime_config": {
+                        "scales": "small,medium",
+                        "profiles": "score_v1",
+                        "backend": "openmodelica_docker",
+                        "docker_image": "openmodelica/openmodelica:v1.26.1-minimal",
+                        "challenge_planner_backend": "gemini",
+                        "main_planner_backend": "gemini",
+                        "night_planner_backend": "gemini",
+                        "l4_policy_backend": "gemini",
+                        "main_gate_mode": "strict",
+                        "night_gate_mode": "observe",
+                    },
+                },
+            )
+            _write_json(
+                run_root / "challenge" / "frozen_summary.json",
+                {
+                    "schema_version": "agent_modelica_l4_challenge_pack_v0",
+                    "status": "PASS",
+                    "baseline_off_success_at_k_pct": 88.89,
+                    "baseline_meets_minimum": True,
+                    "baseline_has_headroom": True,
+                    "baseline_provenance": {
+                        "planner_backend": "gemini",
+                        "llm_model": "gemini-3.1-pro-preview",
+                    },
+                },
+            )
+            with mock.patch.dict(
+                os.environ,
+                {
+                    "GATEFORGE_AGENT_L4_UPLIFT_MAIN_PLANNER_BACKEND": "",
+                    "GATEFORGE_AGENT_L4_UPLIFT_NIGHT_PLANNER_BACKEND": "",
+                    "GATEFORGE_AGENT_L4_UPLIFT_L4_POLICY_BACKEND": "",
+                },
+                clear=False,
+            ):
+                cfg = _runtime_config(run_root)
+            self.assertEqual(cfg.get("main_planner_backend"), "gemini")
+            self.assertEqual(cfg.get("night_planner_backend"), "gemini")
+            self.assertEqual(cfg.get("l4_policy_backend"), "gemini")
+
+    def test_plain_realism_run_infers_and_propagates_gemini_backend_from_env(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        script = repo_root / "scripts" / "run_agent_modelica_l4_realism_evidence_v1.sh"
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            taskset = root / "taskset.json"
+            out_dir = root / "out"
+            _build_taskset(taskset)
+            _write_realism_manifest(
+                taskset,
+                builder_sha=hashlib.sha256((repo_root / "gateforge" / "agent_modelica_electrical_mutant_taskset_v0.py").read_bytes()).hexdigest(),
+            )
+            env = {
+                **os.environ,
+                "GATEFORGE_AGENT_L4_REALISM_BASE_TASKSET": str(taskset),
+                "GATEFORGE_AGENT_L4_REALISM_EVIDENCE_OUT_DIR": str(out_dir),
+                "GATEFORGE_AGENT_L4_UPLIFT_BACKEND": "mock",
+                "GOOGLE_API_KEY": "test-key",
+                "LLM_MODEL": "gemini-3.1-pro-preview",
+                "GATEFORGE_AGENT_L4_UPLIFT_CHALLENGE_LIVE_EXECUTOR_CMD": _cmd_pass(),
+                "GATEFORGE_AGENT_L4_UPLIFT_MAIN_SWEEP_LIVE_EXECUTOR_CMD": _cmd_l4_switch(),
+                "GATEFORGE_AGENT_L4_UPLIFT_MAIN_L5_L3_LIVE_EXECUTOR_CMD": _cmd_pass(),
+                "GATEFORGE_AGENT_L4_UPLIFT_MAIN_L5_L4_LIVE_EXECUTOR_CMD": _cmd_l4_switch(),
+                "GATEFORGE_AGENT_L4_UPLIFT_MAX_ROUNDS": "1",
+                "GATEFORGE_AGENT_L4_UPLIFT_MAX_TIME_SEC": "20",
+                "GATEFORGE_AGENT_L4_UPLIFT_LIVE_TIMEOUT_SEC": "20",
+                "GATEFORGE_AGENT_L4_UPLIFT_L4_MAX_ROUNDS": "1",
+                "GATEFORGE_AGENT_L4_UPLIFT_TARGET_MIN_OFF_SUCCESS_PCT": "0",
+                "GATEFORGE_AGENT_L4_UPLIFT_TARGET_MAX_OFF_SUCCESS_PCT": "100",
+            }
+            proc = subprocess.run(
+                ["bash", str(script)],
+                cwd=str(repo_root),
+                capture_output=True,
+                text=True,
+                check=False,
+                env=env,
+                timeout=900,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            runs_dir = out_dir / "runs"
+            run_root = sorted([p for p in runs_dir.iterdir() if p.is_dir()], key=lambda p: p.stat().st_mtime)[-1]
+            manifest = json.loads((run_root / "run_manifest.json").read_text(encoding="utf-8"))
+            cfg = manifest.get("runtime_config") if isinstance(manifest.get("runtime_config"), dict) else {}
+            self.assertEqual(cfg.get("challenge_planner_backend"), "gemini")
+            self.assertEqual(cfg.get("main_planner_backend"), "gemini")
+            self.assertEqual(cfg.get("night_planner_backend"), "gemini")
+            self.assertEqual(cfg.get("l4_policy_backend"), "gemini")
+            main_sweep = json.loads((run_root / "main_sweep" / "summary.json").read_text(encoding="utf-8"))
+            self.assertEqual(str(main_sweep.get("planner_backend") or ""), "gemini")
+            self.assertEqual(str(main_sweep.get("l4_policy_backend") or ""), "gemini")
+
+    def test_resume_run_auto_skips_night_stages_for_lean_runtime(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as d:
+            out_dir = Path(d) / "out"
+            run_root = out_dir / "runs" / "lean_resume01"
+            (run_root / "challenge").mkdir(parents=True, exist_ok=True)
+            _build_taskset(run_root / "challenge" / "taskset_frozen.json")
+            _write_json(
+                run_root / "run_manifest.json",
+                {
+                    "schema_version": "agent_modelica_realism_run_manifest_v1",
+                    "run_id": "lean_resume01",
+                    "out_dir": str(out_dir),
+                    "run_root": str(run_root),
+                    "pack_id": "agent_modelica_realism_pack_v1",
+                    "pack_version": "v1",
+                    "pack_track": "realism",
+                    "acceptance_scope": "independent_validation",
+                    "runtime_config": {
+                        "scales": "small,medium",
+                        "profiles": "score_v1",
+                        "backend": "mock",
+                        "challenge_planner_backend": "gemini",
+                        "main_planner_backend": "gemini",
+                        "night_planner_backend": "gemini",
+                        "realism_mode": "lean",
+                        "night_enabled": "0",
+                        "main_gate_mode": "strict",
+                        "night_gate_mode": "observe",
+                    },
+                },
+            )
+            _write_json(
+                run_root / "run_status.json",
+                {
+                    "schema_version": "agent_modelica_realism_run_status_v1",
+                    "run_id": "lean_resume01",
+                    "out_dir": str(out_dir),
+                    "run_root": str(run_root),
+                    "status": "RUNNING",
+                    "current_stage": "challenge",
+                    "finalized": False,
+                    "latest_updated": False,
+                    "stages": {},
+                },
+            )
+            _write_json(
+                run_root / "challenge" / "frozen_summary.json",
+                {
+                    "schema_version": "agent_modelica_l4_challenge_pack_v0",
+                    "status": "PASS",
+                    "pack_id": "agent_modelica_realism_pack_v1",
+                    "pack_version": "v1",
+                    "pack_track": "realism",
+                    "acceptance_scope": "independent_validation",
+                    "baseline_off_success_at_k_pct": 88.89,
+                    "baseline_off_record_count": 6,
+                    "baseline_execution_valid": True,
+                    "baseline_meets_minimum": True,
+                    "baseline_has_headroom": True,
+                    "counts_by_failure_type": {
+                        "underconstrained_system": 2,
+                        "connector_mismatch": 2,
+                        "initialization_infeasible": 2,
+                    },
+                    "counts_by_category": {
+                        "topology_wiring": 4,
+                        "initialization": 2,
+                    },
+                },
+            )
+            _write_json(
+                run_root / "main_sweep" / "summary.json",
+                {
+                    "status": "FAIL",
+                    "recommended_profile": "",
+                    "profiles": ["score_v1"],
+                    "reasons": ["no_profile_passed"],
+                },
+            )
+            env = {
+                **os.environ,
+                "GATEFORGE_AGENT_L4_REALISM_EVIDENCE_OUT_DIR": str(out_dir),
+                "GATEFORGE_AGENT_L4_REALISM_RESUME_RUN_ID": "lean_resume01",
+                "GATEFORGE_AGENT_L4_REALISM_RESUME_STAGES": "auto",
+                "GATEFORGE_AGENT_L4_UPLIFT_BACKEND": "mock",
+                "GATEFORGE_AGENT_L4_UPLIFT_MAIN_L5_L3_LIVE_EXECUTOR_CMD": _cmd_pass(),
+                "GATEFORGE_AGENT_L4_UPLIFT_MAIN_L5_L4_LIVE_EXECUTOR_CMD": _cmd_l4_switch(),
+                "GATEFORGE_AGENT_L4_UPLIFT_MAX_ROUNDS": "1",
+                "GATEFORGE_AGENT_L4_UPLIFT_MAX_TIME_SEC": "20",
+                "GATEFORGE_AGENT_L4_UPLIFT_LIVE_TIMEOUT_SEC": "20",
+                "GATEFORGE_AGENT_L4_UPLIFT_L4_MAX_ROUNDS": "1",
+            }
+            proc = self._run_resume_script(env=env, repo_root=repo_root)
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            night_sweep_stage = json.loads((run_root / "stages" / "night_sweep" / "stage_status.json").read_text(encoding="utf-8"))
+            night_l5_stage = json.loads((run_root / "stages" / "night_l5" / "stage_status.json").read_text(encoding="utf-8"))
+            self.assertEqual(night_sweep_stage.get("status"), "SKIPPED")
+            self.assertEqual(night_l5_stage.get("status"), "SKIPPED")
+            self.assertTrue((run_root / "night_sweep" / "summary.json").exists())
+            self.assertTrue((run_root / "night_l5" / "l5_eval_summary.json").exists())
+
+    def test_finalize_run_refreshes_lean_bundle_without_night_missing_artifacts(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as d:
+            out_dir = Path(d) / "out"
+            run_root = out_dir / "runs" / "lean_refresh01"
+            run_root.mkdir(parents=True, exist_ok=True)
+            _write_json(
+                run_root / "run_manifest.json",
+                {
+                    "run_id": "lean_refresh01",
+                    "runtime_config": {
+                        "realism_mode": "lean",
+                        "night_enabled": "0",
+                        "main_profile": "score_v1",
+                        "min_delta_success_pp": "5",
+                        "absolute_success_target_pct": "85",
+                        "non_regression_tolerance_pp": "0",
+                        "max_regression_worsen_pp": "2",
+                        "max_physics_worsen_pp": "2",
+                    },
+                },
+            )
+            _write_json(run_root / "challenge" / "frozen_summary.json", {"status": "PASS", "baseline_meets_minimum": True, "baseline_has_headroom": False, "baseline_off_success_at_k_pct": 100.0})
+            _write_json(run_root / "main_sweep" / "summary.json", {"status": "FAIL", "planner_backend": "gemini"})
+            _write_json(run_root / "main_l5" / "l5_eval_summary.json", {"status": "FAIL", "gate_result": "FAIL", "acceptance_mode": "absolute_non_regression", "success_at_k_pct": 0.0, "non_regression_ok": False, "l4_primary_reason": "none"})
+            _write_json(run_root / "main_l5" / "l5_weekly_metrics.json", {"recommendation": "hold", "recommendation_reason": "insufficient_consecutive_history"})
+            _write_json(run_root / "night_sweep" / "summary.json", {})
+            _write_json(run_root / "night_l5" / "l5_eval_summary.json", {})
+            _write_json(run_root / "night_l5" / "l5_weekly_metrics.json", {})
+            _write_json(run_root / "summary.json", {"status": "FAIL", "primary_reason": "missing_artifacts", "reasons": ["missing_night_sweep_summary"]})
+            _write_json(run_root / "realism_internal_summary.json", {"status": "BLOCKED", "reasons": ["l3_run_results_missing"]})
+            _write_json(run_root / "run_status.json", {"run_id": "lean_refresh01", "status": "RUNNING", "current_stage": "finalize"})
+            for stage in ("challenge", "main_sweep", "night_sweep", "main_l5", "night_l5"):
+                _write_json(run_root / "stages" / stage / "stage_status.json", {"status": "PASS", "exit_code": 0, "complete": True})
+
+            proc = subprocess.run(
+                [
+                    "python3",
+                    "-m",
+                    "gateforge.agent_modelica_realism_run_lifecycle_v1",
+                    "finalize-run",
+                    "--out-dir",
+                    str(out_dir),
+                    "--run-root",
+                    str(run_root),
+                    "--update-latest",
+                    "0",
+                ],
+                cwd=str(repo_root),
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=120,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            evidence_summary = json.loads((run_root / "summary.json").read_text(encoding="utf-8"))
+            decision_summary = json.loads((run_root / "decision_summary.json").read_text(encoding="utf-8"))
+            self.assertFalse(bool(evidence_summary.get("night_enabled")))
+            self.assertNotIn("missing_night_sweep_summary", set(evidence_summary.get("reasons") or []))
+            self.assertNotIn("missing_night_l5_eval_summary", set(evidence_summary.get("reasons") or []))
+            self.assertFalse(bool(decision_summary.get("night_enabled")))
+            self.assertNotIn("missing_artifacts", set(decision_summary.get("reasons") or []))
+
+    def test_resume_run_force_rerun_completed_clears_stale_downstream_outputs(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            out_dir = Path(d) / "out"
+            run_root = out_dir / "runs" / "rerun_clean01"
+            (run_root / "challenge").mkdir(parents=True, exist_ok=True)
+            _build_taskset(run_root / "challenge" / "taskset_frozen.json")
+            _write_json(
+                run_root / "run_manifest.json",
+                {
+                    "schema_version": "agent_modelica_realism_run_manifest_v1",
+                    "run_id": "rerun_clean01",
+                    "out_dir": str(out_dir),
+                    "run_root": str(run_root),
+                    "pack_id": "agent_modelica_realism_pack_v1",
+                    "pack_version": "v1",
+                    "pack_track": "realism",
+                    "acceptance_scope": "independent_validation",
+                    "runtime_config": {
+                        "scales": "small,medium",
+                        "profiles": "score_v1",
+                        "backend": "mock",
+                        "challenge_planner_backend": "gemini",
+                        "main_planner_backend": "gemini",
+                        "night_planner_backend": "gemini",
+                        "realism_mode": "lean",
+                        "night_enabled": "0",
+                        "main_gate_mode": "strict",
+                        "night_gate_mode": "observe",
+                    },
+                },
+            )
+            _write_json(
+                run_root / "run_status.json",
+                {
+                    "schema_version": "agent_modelica_realism_run_status_v1",
+                    "run_id": "rerun_clean01",
+                    "out_dir": str(out_dir),
+                    "run_root": str(run_root),
+                    "status": "NEEDS_REVIEW",
+                    "current_stage": "finalize",
+                    "finalized": True,
+                    "latest_updated": True,
+                    "stages": {
+                        "challenge": {"status": "PASS"},
+                        "main_sweep": {"status": "PASS"},
+                        "main_l5": {"status": "FAIL"},
+                        "realism_summary": {"status": "PASS"},
+                        "finalize": {"status": "PASS"},
+                    },
+                },
+            )
+            _write_json(
+                run_root / "challenge" / "frozen_summary.json",
+                {
+                    "schema_version": "agent_modelica_l4_challenge_pack_v0",
+                    "status": "PASS",
+                    "pack_id": "agent_modelica_realism_pack_v1",
+                    "pack_version": "v1",
+                    "pack_track": "realism",
+                    "acceptance_scope": "independent_validation",
+                    "baseline_off_success_at_k_pct": 88.89,
+                    "baseline_off_record_count": 6,
+                    "baseline_execution_valid": True,
+                    "baseline_meets_minimum": True,
+                    "baseline_has_headroom": True,
+                },
+            )
+            _write_json(run_root / "main_sweep" / "summary.json", {"status": "PASS", "profiles": {"score_v1": {}}})
+            _write_json(run_root / "main_l5" / "l5_eval_summary.json", {"status": "FAIL"})
+            _write_json(run_root / "realism_internal_summary.json", {"status": "FAIL"})
+            _write_json(run_root / "repair_queue_summary.json", {"status": "PASS"})
+            _write_json(run_root / "wave1_patch_plan_summary.json", {"status": "PASS"})
+            _write_json(run_root / "final_run_summary.json", {"status": "NEEDS_REVIEW"})
+            _write_json(run_root / "summary.json", {"status": "PASS"})
+            for stage in ("main_l5", "realism_summary", "finalize"):
+                (run_root / "stages" / stage).mkdir(parents=True, exist_ok=True)
+                _write_json(run_root / "stages" / stage / "stage_status.json", {"stage": stage, "status": "PASS"})
+
+            calls: list[str] = []
+
+            def _fake_run_resumable_stage(
+                run_root_arg: Path,
+                stage: str,
+                cfg: dict,
+                *,
+                restart_live_budget_window: bool = False,
+            ) -> int:
+                calls.append(stage)
+                summary_path = {
+                    "main_l5": run_root_arg / "main_l5" / "l5_eval_summary.json",
+                    "realism_summary": run_root_arg / "realism_internal_summary.json",
+                }.get(stage, run_root_arg / "final_run_summary.json")
+                summary_path.parent.mkdir(parents=True, exist_ok=True)
+                _write_json(summary_path, {"status": "PASS", "stage": stage})
+                realism_lifecycle.stage_update(
+                    run_root=str(run_root_arg),
+                    stage=stage,
+                    status="PASS",
+                    exit_code=0,
+                    summary_path=str(summary_path),
+                    details={"mocked": True},
+                )
+                return 0
+
+            with mock.patch.object(realism_lifecycle, "_run_resumable_stage", side_effect=_fake_run_resumable_stage), mock.patch.object(
+                realism_lifecycle,
+                "_refresh_decision_and_bundle",
+                return_value={"decision_rc": 0, "bundle_rc": 0},
+            ), mock.patch.object(
+                realism_lifecycle,
+                "finalize_run",
+                return_value={"status": "PASS"},
+            ), mock.patch.object(
+                realism_lifecycle,
+                "report_run",
+                return_value={"status": "RUNNING", "run_id": "rerun_clean01"},
+            ):
+                payload = realism_lifecycle.resume_run(
+                    out_dir=str(out_dir),
+                    run_id="rerun_clean01",
+                    stages="main_l5,realism_summary,finalize",
+                    update_latest=False,
+                    force_rerun_completed=True,
+                )
+
+            self.assertEqual(payload.get("run_id"), "rerun_clean01")
+            self.assertEqual(calls, ["main_l5", "realism_summary"])
+            self.assertFalse((run_root / "final_run_summary.json").exists())
+            self.assertFalse((run_root / "repair_queue_summary.json").exists())
+            stage_status = json.loads((run_root / "stages" / "main_l5" / "stage_status.json").read_text(encoding="utf-8"))
+            self.assertEqual(stage_status.get("status"), "PASS")
+            run_status = json.loads((run_root / "run_status.json").read_text(encoding="utf-8"))
+            self.assertFalse(bool(run_status.get("finalized")))
+            self.assertEqual(run_status.get("status"), "RUNNING")
+
+    def test_run_resumable_main_l5_propagates_live_request_ledger(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            out_dir = Path(d) / "out"
+            run_root = out_dir / "runs" / "ledger_resume01"
+            (run_root / "challenge").mkdir(parents=True, exist_ok=True)
+            _build_taskset(run_root / "challenge" / "taskset_frozen.json")
+            _write_json(
+                run_root / "run_manifest.json",
+                {
+                    "schema_version": "agent_modelica_realism_run_manifest_v1",
+                    "run_id": "ledger_resume01",
+                    "out_dir": str(out_dir),
+                    "run_root": str(run_root),
+                    "pack_id": "agent_modelica_realism_pack_v1",
+                    "pack_version": "v1",
+                    "pack_track": "realism",
+                    "acceptance_scope": "independent_validation",
+                    "runtime_config": {
+                        "scales": "small,medium",
+                        "profiles": "score_v1",
+                        "backend": "openmodelica_docker",
+                        "docker_image": "openmodelica/openmodelica:v1.26.1-minimal",
+                        "challenge_planner_backend": "gemini",
+                        "main_planner_backend": "gemini",
+                        "night_planner_backend": "gemini",
+                        "realism_mode": "lean",
+                        "night_enabled": "0",
+                        "main_gate_mode": "strict",
+                        "night_gate_mode": "observe",
+                    },
+                },
+            )
+            _write_json(
+                run_root / "run_status.json",
+                {
+                    "schema_version": "agent_modelica_realism_run_status_v1",
+                    "run_id": "ledger_resume01",
+                    "out_dir": str(out_dir),
+                    "run_root": str(run_root),
+                    "status": "RUNNING",
+                    "current_stage": "main_l5",
+                    "finalized": False,
+                    "latest_updated": False,
+                    "stages": {},
+                },
+            )
+
+            cfg = realism_lifecycle._runtime_config(run_root)
+            captured: dict[str, str] = {}
+
+            def _fake_run_shell_script(script_name: str, env: dict[str, str]) -> subprocess.CompletedProcess[str]:
+                captured["script_name"] = script_name
+                captured.update(env)
+                return subprocess.CompletedProcess(args=[script_name], returncode=0, stdout="", stderr="")
+
+            with mock.patch.object(realism_lifecycle, "_run_shell_script", side_effect=_fake_run_shell_script):
+                rc = realism_lifecycle._run_resumable_stage(run_root, "main_l5", cfg)
+
+            self.assertEqual(rc, 0)
+            self.assertEqual(captured.get("script_name"), "run_agent_modelica_l5_eval_v1.sh")
+            self.assertEqual(
+                captured.get("GATEFORGE_AGENT_LIVE_REQUEST_LEDGER_PATH"),
+                str(run_root / "private" / "live_request_ledger.json"),
+            )
+            self.assertEqual(captured.get("GATEFORGE_AGENT_LIVE_REQUEST_STAGE"), "main_l5")
 
 
 if __name__ == "__main__":

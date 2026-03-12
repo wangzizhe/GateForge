@@ -4,6 +4,19 @@ from gateforge.agent_modelica_repair_action_policy_v0 import recommend_repair_ac
 
 
 class AgentModelicaRepairActionPolicyV0Tests(unittest.TestCase):
+    def test_underconstrained_policy_prefers_topology_restore(self) -> None:
+        payload = recommend_repair_actions_v0(
+            failure_type="underconstrained_system",
+            expected_stage="check",
+            diagnostic_payload={},
+            fallback_actions=["fallback_action_1"],
+        )
+        self.assertEqual(payload.get("channel"), "deterministic_rule_policy")
+        actions = payload.get("actions") if isinstance(payload.get("actions"), list) else []
+        self.assertTrue(any("missing connect" in str(x).lower() for x in actions))
+        self.assertTrue(any("dangling conservation path" in str(x).lower() for x in actions))
+        self.assertTrue(any("checkmodel" in str(x).lower() for x in actions))
+
     def test_policy_prefers_deterministic_actions(self) -> None:
         payload = recommend_repair_actions_v0(
             failure_type="model_check_error",

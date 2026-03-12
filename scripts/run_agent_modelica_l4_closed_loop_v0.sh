@@ -19,6 +19,10 @@ L4_POLICY_BACKEND="${GATEFORGE_AGENT_L4_POLICY_BACKEND:-rule}"
 L4_POLICY_PROFILE="${GATEFORGE_AGENT_L4_POLICY_PROFILE:-score_v1}"
 L4_LLM_FALLBACK_THRESHOLD="${GATEFORGE_AGENT_L4_LLM_FALLBACK_THRESHOLD:-2}"
 L4_MAX_ACTIONS_PER_ROUND="${GATEFORGE_AGENT_L4_MAX_ACTIONS_PER_ROUND:-3}"
+L4_POLICY_BACKEND_NORM="$L4_POLICY_BACKEND"
+if [ "$L4_POLICY_BACKEND_NORM" != "rule" ] && [ "$L4_POLICY_BACKEND_NORM" != "llm" ]; then
+  L4_POLICY_BACKEND_NORM="llm"
+fi
 
 MIN_SUCCESS_DELTA_PP="${GATEFORGE_AGENT_L4_MIN_SUCCESS_DELTA_PP:-5}"
 MAX_REGRESSION_WORSEN_PP="${GATEFORGE_AGENT_L4_MAX_REGRESSION_WORSEN_PP:-2}"
@@ -118,7 +122,7 @@ run_once() {
     l4_args+=(
       "--l4-enabled" "on"
       "--l4-max-rounds" "$L4_MAX_ROUNDS"
-      "--l4-policy-backend" "$L4_POLICY_BACKEND"
+      "--l4-policy-backend" "$L4_POLICY_BACKEND_NORM"
       "--l4-policy-profile" "$L4_POLICY_PROFILE"
       "--l4-llm-fallback-threshold" "$L4_LLM_FALLBACK_THRESHOLD"
       "--l4-max-actions-per-round" "$L4_MAX_ACTIONS_PER_ROUND"
@@ -144,10 +148,14 @@ run_once() {
     --out "$OUT_DIR/$run_tag/run_summary.json"
 }
 
+set +e
 run_once off off
+OFF_RC=$?
 run_once on on
+ON_RC=$?
+set -e
 
-python3 - "$OUT_DIR" "$FILTERED_TASKSET" "$MIN_SUCCESS_DELTA_PP" "$MAX_REGRESSION_WORSEN_PP" "$MAX_PHYSICS_WORSEN_PP" "$L4_POLICY_PROFILE" "$L4_POLICY_BACKEND" "$L4_LLM_FALLBACK_THRESHOLD" "$L4_MAX_ROUNDS" "$L4_MAX_ACTIONS_PER_ROUND" <<'PY'
+python3 - "$OUT_DIR" "$FILTERED_TASKSET" "$MIN_SUCCESS_DELTA_PP" "$MAX_REGRESSION_WORSEN_PP" "$MAX_PHYSICS_WORSEN_PP" "$L4_POLICY_PROFILE" "$L4_POLICY_BACKEND" "$L4_LLM_FALLBACK_THRESHOLD" "$L4_MAX_ROUNDS" "$L4_MAX_ACTIONS_PER_ROUND" "$OFF_RC" "$ON_RC" <<'PY'
 import hashlib
 import json
 import sys
@@ -164,6 +172,8 @@ l4_policy_backend = str(sys.argv[7] or "").strip()
 l4_llm_fallback_threshold = int(sys.argv[8])
 l4_max_rounds = int(sys.argv[9])
 l4_max_actions_per_round = int(sys.argv[10])
+off_rc = int(sys.argv[11])
+on_rc = int(sys.argv[12])
 
 def _load(path: Path) -> dict:
     if not path.exists():
@@ -390,6 +400,10 @@ if int(off["attempt_count"]) <= 0:
     reasons.append("off_attempts_missing")
 if int(on["attempt_count"]) <= 0:
     reasons.append("on_attempts_missing")
+if off_rc != 0:
+    reasons.append("off_run_nonzero")
+if on_rc != 0:
+    reasons.append("on_run_nonzero")
 if int(off["infra_failure_count"]) > 0:
     reasons.append("off_infra_failure_present")
 if int(on["infra_failure_count"]) > 0:
@@ -439,8 +453,10 @@ summary = {
         "filtered_taskset": str(filtered_taskset),
         "off_results": str(out_dir / "off" / "run_results.json"),
         "off_summary": str(out_dir / "off" / "run_summary.json"),
+        "off_exit_code": off_rc,
         "on_results": str(out_dir / "on" / "run_results.json"),
         "on_summary": str(out_dir / "on" / "run_summary.json"),
+        "on_exit_code": on_rc,
     },
 }
 (out_dir / "ab_compare_summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")

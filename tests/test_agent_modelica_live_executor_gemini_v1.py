@@ -14,9 +14,11 @@ from gateforge.agent_modelica_live_executor_gemini_v1 import (
     _extract_json_object,
     _live_budget_config,
     _normalize_terminal_errors,
+    _openai_repair_model_text,
     _parse_env_assignment,
     _parse_repair_actions,
     _record_live_request_429,
+    _resolve_llm_provider,
     _reserve_live_request,
     _run_omc_script_docker,
     _run_check_and_simulate,
@@ -302,6 +304,101 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
                     os.environ.pop("GEMINI_MODEL", None)
                 else:
                     os.environ["GEMINI_MODEL"] = prev
+
+    def test_bootstrap_env_from_repo_loads_openai_key_from_cwd_env(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="gf_env_bootstrap_") as td:
+            env_path = Path(td) / ".env"
+            env_path.write_text("OPENAI_API_KEY=test-openai-key\nLLM_MODEL=gpt-5.4\n", encoding="utf-8")
+            prev_key = os.environ.pop("OPENAI_API_KEY", None)
+            prev_model = os.environ.pop("LLM_MODEL", None)
+            prev_cwd = os.getcwd()
+            try:
+                os.chdir(td)
+                loaded = _bootstrap_env_from_repo(allowed_keys={"OPENAI_API_KEY", "LLM_MODEL"})
+                self.assertGreaterEqual(loaded, 1)
+                self.assertEqual(os.getenv("OPENAI_API_KEY"), "test-openai-key")
+                self.assertEqual(os.getenv("LLM_MODEL"), "gpt-5.4")
+            finally:
+                os.chdir(prev_cwd)
+                if prev_key is None:
+                    os.environ.pop("OPENAI_API_KEY", None)
+                else:
+                    os.environ["OPENAI_API_KEY"] = prev_key
+                if prev_model is None:
+                    os.environ.pop("LLM_MODEL", None)
+                else:
+                    os.environ["LLM_MODEL"] = prev_model
+
+    def test_resolve_llm_provider_infers_openai_from_model_and_key(self) -> None:
+        prev = {
+            "OPENAI_API_KEY": os.environ.get("OPENAI_API_KEY"),
+            "GOOGLE_API_KEY": os.environ.get("GOOGLE_API_KEY"),
+            "GEMINI_API_KEY": os.environ.get("GEMINI_API_KEY"),
+            "LLM_MODEL": os.environ.get("LLM_MODEL"),
+            "LLM_PROVIDER": os.environ.get("LLM_PROVIDER"),
+        }
+        os.environ["OPENAI_API_KEY"] = "sk-test"
+        os.environ.pop("GOOGLE_API_KEY", None)
+        os.environ.pop("GEMINI_API_KEY", None)
+        os.environ["LLM_MODEL"] = "gpt-5.4"
+        os.environ.pop("LLM_PROVIDER", None)
+        try:
+            provider, model, key = _resolve_llm_provider("auto")
+            self.assertEqual(provider, "openai")
+            self.assertEqual(model, "gpt-5.4")
+            self.assertEqual(key, "sk-test")
+        finally:
+            for key, value in prev.items():
+                if value is None:
+                    os.environ.pop(key, None)
+                else:
+                    os.environ[key] = value
+
+    def test_openai_repair_model_text_uses_responses_api(self) -> None:
+        prev = {
+            "OPENAI_API_KEY": os.environ.get("OPENAI_API_KEY"),
+            "LLM_MODEL": os.environ.get("LLM_MODEL"),
+        }
+        os.environ["OPENAI_API_KEY"] = "sk-test"
+        os.environ["LLM_MODEL"] = "gpt-5.4"
+
+        class _Resp:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def read(self):
+                return json.dumps(
+                    {
+                        "output_text": json.dumps(
+                            {"patched_model_text": "model A1\nend A1;\n", "rationale": "minimal"},
+                            ensure_ascii=True,
+                        )
+                    }
+                ).encode("utf-8")
+
+        try:
+            with patch("urllib.request.urlopen", return_value=_Resp()) as mocked:
+                patched, err = _openai_repair_model_text(
+                    original_text="model A1\nend A1;\n",
+                    failure_type="model_check_error",
+                    expected_stage="check",
+                    error_excerpt="Error",
+                    repair_actions=["fix it"],
+                    model_name="A1",
+                )
+                self.assertEqual(err, "")
+                self.assertEqual(patched, "model A1\nend A1;\n")
+                req = mocked.call_args.args[0]
+                self.assertEqual(req.full_url, "https://api.openai.com/v1/responses")
+        finally:
+            for key, value in prev.items():
+                if value is None:
+                    os.environ.pop(key, None)
+                else:
+                    os.environ[key] = value
 
     def test_parse_repair_actions_supports_json_and_pipe_formats(self) -> None:
         self.assertEqual(_parse_repair_actions('["a","b"]'), ["a", "b"])

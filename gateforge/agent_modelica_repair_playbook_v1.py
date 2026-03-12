@@ -12,8 +12,11 @@ DEFAULT_STRATEGIES = {
             "strategy_id": "topo_balance_restore",
             "name": "Topology Balance Restore",
             "actions": [
-                "inspect dropped connects and restore dangling conservation path",
-                "rebuild missing topology before any simulate attempt",
+                "restore the missing connect(...) edge that most directly repairs the dangling topology",
+                "restore dangling conservation path and connector balance before any broad rewrite",
+                "rebuild only the minimal topology needed for structural balance before any simulate attempt",
+                "remove or neutralize temporary underconstraint probes only after topology balance is restored",
+                "only consider equation rewrite after topology restore fails to recover checkModel balance",
             ],
             "priority": 100,
         }

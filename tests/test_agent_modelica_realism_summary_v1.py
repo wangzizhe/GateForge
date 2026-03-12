@@ -1,4 +1,5 @@
 import unittest
+import json
 
 from gateforge.agent_modelica_realism_summary_v1 import build_realism_summary_v1
 
@@ -204,6 +205,58 @@ class AgentModelicaRealismSummaryV1Tests(unittest.TestCase):
         self.assertEqual(int(mismatch.get("initialization_truncated_by_check_count") or 0), 1)
         self.assertEqual(float(mismatch.get("initialization_simulate_stage_rate_pct") or 0.0), 0.0)
 
+    def test_build_realism_summary_blocks_when_l5_is_budget_stopped(self) -> None:
+        summary = build_realism_summary_v1(
+            evidence_summary={},
+            challenge_summary={
+                "counts_by_failure_type": {"underconstrained_system": 1},
+                "counts_by_category": {"topology_wiring": 1},
+            },
+            challenge_manifest={},
+            taskset_payload={
+                "tasks": [
+                    {
+                        "task_id": "t_under",
+                        "failure_type": "underconstrained_system",
+                        "category": "topology_wiring",
+                        "expected_stage": "check",
+                    }
+                ]
+            },
+            l3_run_results={
+                "records": [
+                    {
+                        "task_id": "t_under",
+                        "attempts": [
+                            {
+                                "observed_failure_type": "model_check_error",
+                                "diagnostic_ir": {
+                                    "error_type": "model_check_error",
+                                    "error_subtype": "underconstrained_system",
+                                    "stage": "check",
+                                    "observed_phase": "check",
+                                },
+                            }
+                        ],
+                    }
+                ]
+            },
+            l3_quality_summary={
+                "category_distribution": {"topology_wiring": 1},
+                "subtype_distribution": {"underconstrained_system": 1},
+            },
+            l4_ab_compare_summary={},
+            l5_summary={
+                "status": "FAIL",
+                "gate_result": "FAIL",
+                "primary_reason": "live_request_budget_exceeded",
+                "reasons": ["live_request_budget_exceeded", "run_results_missing"],
+            },
+        )
+        self.assertEqual(summary.get("status"), "BLOCKED")
+        self.assertEqual(summary.get("recommendation"), "blocked_missing_realism_inputs")
+        self.assertIn("live_request_budget_exceeded", summary.get("reasons") or [])
+
     def test_build_realism_summary_uses_manifestation_for_resolved_tasks(self) -> None:
         summary = build_realism_summary_v1(
             evidence_summary={},
@@ -395,6 +448,81 @@ class AgentModelicaRealismSummaryV1Tests(unittest.TestCase):
         under = ((summary.get("by_failure_type") or {}).get("underconstrained_system") or {})
         self.assertEqual(float(under.get("stage_match_rate_pct") or 0.0), 100.0)
         self.assertEqual(int(under.get("phase_drift_count") or 0), 1)
+
+    def test_build_realism_summary_uses_nested_executor_attempts_for_manifestation(self) -> None:
+        summary = build_realism_summary_v1(
+            evidence_summary={},
+            challenge_summary={
+                "counts_by_failure_type": {"underconstrained_system": 1},
+                "counts_by_category": {"topology_wiring": 1},
+            },
+            challenge_manifest={},
+            taskset_payload={
+                "tasks": [
+                    {
+                        "task_id": "t_under",
+                        "failure_type": "underconstrained_system",
+                        "category": "topology_wiring",
+                        "expected_stage": "check",
+                    }
+                ]
+            },
+            l3_run_results={
+                "records": [
+                    {
+                        "task_id": "t_under",
+                        "passed": True,
+                        "attempts": [
+                            {
+                                "round": 1,
+                                "check_model_pass": True,
+                                "simulate_pass": True,
+                                "executor_stdout_tail": json.dumps(
+                                    {
+                                        "task_id": "t_under",
+                                        "executor_status": "PASS",
+                                        "attempts": [
+                                            {
+                                                "round": 1,
+                                                "observed_failure_type": "model_check_error",
+                                                "diagnostic_ir": {
+                                                    "error_type": "model_check_error",
+                                                    "error_subtype": "underconstrained_system",
+                                                    "stage": "check",
+                                                    "observed_phase": "check",
+                                                },
+                                            }
+                                        ],
+                                    }
+                                ),
+                            }
+                        ],
+                    }
+                ]
+            },
+            l3_quality_summary={
+                "category_distribution": {"topology_wiring": 1},
+                "subtype_distribution": {"underconstrained_system": 1},
+            },
+            l4_ab_compare_summary={},
+            l5_summary={
+                "gate_result": "PASS",
+                "success_at_k_pct": 100.0,
+                "failure_type_breakdown_on": {
+                    "underconstrained_system": {"record_count": 1, "success_count": 1},
+                },
+                "category_breakdown_on": {
+                    "topology_wiring": {"record_count": 1, "success_count": 1},
+                },
+            },
+        )
+        under = ((summary.get("by_failure_type") or {}).get("underconstrained_system") or {})
+        mismatch = summary.get("mismatch_summary") if isinstance(summary.get("mismatch_summary"), dict) else {}
+        self.assertEqual(int(under.get("manifestation_record_count") or 0), 1)
+        self.assertEqual(float(under.get("canonical_match_rate_pct") or 0.0), 100.0)
+        self.assertEqual(float(under.get("stage_match_rate_pct") or 0.0), 100.0)
+        self.assertEqual(int(under.get("resolved_after_aligned_manifestation_count") or 0), 1)
+        self.assertEqual(int(mismatch.get("missing_failure_signal_count") or 0), 0)
 
     def test_build_realism_summary_blocks_when_l3_l5_inputs_are_missing(self) -> None:
         summary = build_realism_summary_v1(
