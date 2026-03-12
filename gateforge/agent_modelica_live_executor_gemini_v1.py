@@ -19,6 +19,7 @@ from .agent_modelica_diagnostic_ir_v0 import build_diagnostic_ir_v0
 DEFAULT_DOCKER_IMAGE = "openmodelica/openmodelica:v1.26.1-minimal"
 ENV_KEY_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 LIVE_LEDGER_SCHEMA_VERSION = "agent_modelica_live_request_ledger_v1"
+OPENAI_MODEL_HINT_PATTERN = re.compile(r"^(gpt|o[0-9]|chatgpt|gpt-5)", re.IGNORECASE)
 
 
 def _read_text(path: Path) -> str:
@@ -316,6 +317,70 @@ def _bootstrap_env_from_repo(allowed_keys: set[str] | None = None) -> int:
     return loaded
 
 
+def _resolve_llm_provider(requested_backend: str) -> tuple[str, str, str]:
+    _bootstrap_env_from_repo(
+        allowed_keys={
+            "GOOGLE_API_KEY",
+            "GEMINI_API_KEY",
+            "OPENAI_API_KEY",
+            "LLM_MODEL",
+            "GATEFORGE_GEMINI_MODEL",
+            "GEMINI_MODEL",
+            "OPENAI_MODEL",
+            "LLM_PROVIDER",
+            "GATEFORGE_LIVE_PLANNER_BACKEND",
+        }
+    )
+    requested = str(requested_backend or "").strip().lower()
+    if requested == "rule":
+        return "rule", "", ""
+
+    model = (
+        str(os.getenv("LLM_MODEL") or "").strip()
+        or str(os.getenv("OPENAI_MODEL") or "").strip()
+        or str(os.getenv("GATEFORGE_GEMINI_MODEL") or "").strip()
+        or str(os.getenv("GEMINI_MODEL") or "").strip()
+    )
+    explicit = requested if requested in {"gemini", "openai"} else ""
+    if not explicit:
+        explicit = str(os.getenv("LLM_PROVIDER") or os.getenv("GATEFORGE_LIVE_PLANNER_BACKEND") or "").strip().lower()
+    if explicit not in {"gemini", "openai"}:
+        has_openai = bool(str(os.getenv("OPENAI_API_KEY") or "").strip())
+        has_gemini = bool(str(os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY") or "").strip())
+        if model and OPENAI_MODEL_HINT_PATTERN.search(model) and has_openai:
+            explicit = "openai"
+        elif model and "gemini" in model.lower() and has_gemini:
+            explicit = "gemini"
+        elif has_openai and not has_gemini:
+            explicit = "openai"
+        elif has_gemini and not has_openai:
+            explicit = "gemini"
+        else:
+            explicit = "gemini"
+    if explicit == "openai":
+        return explicit, model, str(os.getenv("OPENAI_API_KEY") or "").strip()
+    return explicit, model, str(os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY") or "").strip()
+
+
+def _extract_response_text_openai(payload: dict) -> str:
+    if isinstance(payload.get("output_text"), str) and str(payload.get("output_text")).strip():
+        return str(payload.get("output_text"))
+    output = payload.get("output") if isinstance(payload.get("output"), list) else []
+    parts: list[str] = []
+    for item in output:
+        if not isinstance(item, dict):
+            continue
+        content = item.get("content") if isinstance(item.get("content"), list) else []
+        for row in content:
+            if not isinstance(row, dict):
+                continue
+            if isinstance(row.get("text"), str):
+                parts.append(str(row.get("text")))
+            elif isinstance(row.get("value"), str):
+                parts.append(str(row.get("value")))
+    return "\n".join([x for x in parts if x.strip()]).strip()
+
+
 def _gemini_repair_model_text(
     *,
     original_text: str,
@@ -397,6 +462,116 @@ def _gemini_repair_model_text(
     if not isinstance(patched, str) or not patched.strip():
         return None, "gemini_missing_patched_model_text"
     return patched, ""
+
+
+def _openai_repair_model_text(
+    *,
+    original_text: str,
+    failure_type: str,
+    expected_stage: str,
+    error_excerpt: str,
+    repair_actions: list[str],
+    model_name: str,
+) -> tuple[str | None, str]:
+    provider, model, api_key = _resolve_llm_provider("openai")
+    if provider != "openai":
+        return None, "openai_provider_resolution_failed"
+    if not api_key:
+        return None, "OPENAI_API_KEY missing"
+    if not model:
+        return None, "LLM_MODEL or OPENAI_MODEL missing"
+    prompt = (
+        "You are fixing a Modelica model.\n"
+        "Return ONLY JSON object with keys: patched_model_text, rationale.\n"
+        "Constraints:\n"
+        "- Keep model name unchanged.\n"
+        "- Keep edits minimal and compile-oriented.\n"
+        "- Do not output markdown.\n"
+        f"- model_name: {model_name}\n"
+        f"- failure_type: {failure_type}\n"
+        f"- expected_stage: {expected_stage}\n"
+        f"- error_excerpt: {error_excerpt[:1200]}\n"
+        f"- suggested_actions: {json.dumps(repair_actions, ensure_ascii=True)}\n"
+        "Model text below:\n"
+        "-----BEGIN_MODEL-----\n"
+        f"{original_text}\n"
+        "-----END_MODEL-----\n"
+    )
+    req_payload = {
+        "model": model,
+        "input": prompt,
+        "temperature": 0.1,
+    }
+    req_data = json.dumps(req_payload).encode("utf-8")
+    req = urllib.request.Request(
+        "https://api.openai.com/v1/responses",
+        data=req_data,
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {api_key}",
+        },
+        method="POST",
+    )
+    cfg = _live_budget_config()
+    while True:
+        allowed, _ledger = _reserve_live_request(cfg)
+        if not allowed:
+            return None, "live_request_budget_exceeded"
+        try:
+            with urllib.request.urlopen(req, timeout=45) as resp:
+                response_payload = json.loads(resp.read().decode("utf-8"))
+            _record_live_request_success(cfg)
+            break
+        except urllib.error.HTTPError as exc:
+            body = exc.read().decode("utf-8", errors="ignore")
+            if int(exc.code) == 429:
+                stop_reason, _ledger = _record_live_request_429(cfg)
+                if stop_reason:
+                    return None, stop_reason
+                continue
+            return None, f"openai_http_error:{exc.code}:{body[:180]}"
+        except urllib.error.URLError as exc:
+            return None, f"openai_url_error:{exc.reason}"
+    text = _extract_response_text_openai(response_payload)
+    payload = _extract_json_object(text)
+    patched = payload.get("patched_model_text")
+    if not isinstance(patched, str) or not patched.strip():
+        return None, "openai_missing_patched_model_text"
+    return patched, ""
+
+
+def _llm_repair_model_text(
+    *,
+    planner_backend: str,
+    original_text: str,
+    failure_type: str,
+    expected_stage: str,
+    error_excerpt: str,
+    repair_actions: list[str],
+    model_name: str,
+) -> tuple[str | None, str, str]:
+    provider, _model, _key = _resolve_llm_provider(planner_backend)
+    if provider == "openai":
+        patched, err = _openai_repair_model_text(
+            original_text=original_text,
+            failure_type=failure_type,
+            expected_stage=expected_stage,
+            error_excerpt=error_excerpt,
+            repair_actions=repair_actions,
+            model_name=model_name,
+        )
+        return patched, err, provider
+    if provider == "gemini":
+        patched, err = _gemini_repair_model_text(
+            original_text=original_text,
+            failure_type=failure_type,
+            expected_stage=expected_stage,
+            error_excerpt=error_excerpt,
+            repair_actions=repair_actions,
+            model_name=model_name,
+        )
+        return patched, err, provider
+    return None, "rule_backend_selected", "rule"
 
 
 def _parse_repair_actions(raw: str) -> list[str]:
@@ -593,7 +768,7 @@ def _cleanup_workspace_best_effort(path: str) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Live Modelica executor with Gemini patching loop and OMC validation")
+    parser = argparse.ArgumentParser(description="Live Modelica executor with provider-configurable patching loop and OMC validation")
     parser.add_argument("--task-id", default="")
     parser.add_argument("--failure-type", default="unknown")
     parser.add_argument("--expected-stage", default="unknown")
@@ -606,7 +781,7 @@ def main() -> None:
     parser.add_argument("--simulate-intervals", type=int, default=20)
     parser.add_argument("--backend", choices=["auto", "omc", "openmodelica_docker"], default="auto")
     parser.add_argument("--docker-image", default=os.getenv("GATEFORGE_OM_IMAGE", DEFAULT_DOCKER_IMAGE))
-    parser.add_argument("--planner-backend", choices=["gemini", "rule"], default="gemini")
+    parser.add_argument("--planner-backend", choices=["auto", "gemini", "openai", "rule"], default="auto")
     parser.add_argument("--out", default="")
     args = parser.parse_args()
 
@@ -665,6 +840,7 @@ def main() -> None:
     final_stderr = ""
     executor_status = "FAILED"
     budget_cfg = _live_budget_config()
+    resolved_provider = "rule" if str(args.planner_backend) == "rule" else _resolve_llm_provider(str(args.planner_backend))[0]
 
     with _temporary_workspace(prefix="gf_live_exec_") as td:
         workspace = Path(td)
@@ -730,8 +906,9 @@ def main() -> None:
                 final_error = "pre_repair_applied_retry_pending"
                 continue
 
-            if str(args.planner_backend) == "gemini":
-                patched, gemini_err = _gemini_repair_model_text(
+            if resolved_provider in {"gemini", "openai"}:
+                patched, llm_err, resolved_provider = _llm_repair_model_text(
+                    planner_backend=str(args.planner_backend),
                     original_text=current_text,
                     failure_type=str(args.failure_type),
                     expected_stage=str(args.expected_stage),
@@ -742,7 +919,7 @@ def main() -> None:
                 if isinstance(patched, str) and patched.strip():
                     current_text = patched
                 else:
-                    final_error = gemini_err or "gemini_patch_generation_failed"
+                    final_error = llm_err or f"{resolved_provider}_patch_generation_failed"
                     break
             else:
                 # rule backend does not mutate model text; useful for dry harness checks.
@@ -760,6 +937,7 @@ def main() -> None:
         "failure_type": str(args.failure_type),
         "executor_status": executor_status,
         "planner_backend": str(args.planner_backend),
+        "resolved_llm_provider": resolved_provider,
         "backend_used": backend,
         "check_model_pass": bool(final_check_ok),
         "simulate_pass": bool(final_simulate_ok),

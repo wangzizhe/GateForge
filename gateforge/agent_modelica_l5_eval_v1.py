@@ -10,6 +10,10 @@ from .agent_modelica_l4_l5_reason_map_v0 import normalize_l4_primary_reason_v0
 
 
 ALLOWED_L5_REASONS = {
+    "live_request_budget_exceeded",
+    "rate_limited",
+    "l4_on_run_nonzero",
+    "l4_off_run_nonzero",
     "run_summary_missing",
     "run_results_missing",
     "l3_quality_summary_missing",
@@ -103,6 +107,16 @@ def _infer_infra_reason(stderr: str, reason: str, log_excerpt: str) -> str:
     if "mount" in text and "permission denied" in text:
         return "mount_permission_denied"
     return ""
+
+
+def _primary_reason(reasons: list[str]) -> str:
+    rows = [str(x).strip() for x in reasons if str(x).strip()]
+    if not rows:
+        return "none"
+    for key in ("live_request_budget_exceeded", "rate_limited", "l4_on_run_nonzero", "l4_off_run_nonzero"):
+        if key in rows:
+            return key
+    return rows[0]
 
 
 def _summarize_run_results(run_results_payload: dict) -> dict:
@@ -262,6 +276,13 @@ def evaluate_l5_eval_v1(
     l4_failure_type_breakdown_on = l4_on.get("failure_type_breakdown") if isinstance(l4_on.get("failure_type_breakdown"), dict) else {}
     l4_failure_type_breakdown_off = l4_off.get("failure_type_breakdown") if isinstance(l4_off.get("failure_type_breakdown"), dict) else {}
     l4_failure_type_breakdown_delta = l4_delta.get("failure_type_breakdown") if isinstance(l4_delta.get("failure_type_breakdown"), dict) else {}
+    l4_reasons = {
+        str(x).strip()
+        for x in (l4_ab_compare_summary.get("reasons") if isinstance(l4_ab_compare_summary.get("reasons"), list) else [])
+        if str(x).strip()
+    }
+    l4_on_nonzero = "on_run_nonzero" in l4_reasons
+    l4_off_nonzero = "off_run_nonzero" in l4_reasons
 
     success_at_k_pct = _to_float(l4_on.get("success_at_k_pct"), _to_float(run_summary.get("success_at_k_pct"), run_results_summary["success_at_k_pct"]))
     baseline_success_at_k_pct = _to_float(l4_off.get("success_at_k_pct"), success_at_k_pct)
@@ -313,17 +334,23 @@ def evaluate_l5_eval_v1(
     hard_reasons: list[str] = []
     soft_reasons: list[str] = []
 
-    if not run_summary:
+    if not run_summary and not l4_ab_compare_summary:
         hard_reasons.append("run_summary_missing")
-    if not run_results:
+    if not run_results and not l4_ab_compare_summary:
         hard_reasons.append("run_results_missing")
     if not l3_quality_summary:
         hard_reasons.append("l3_quality_summary_missing")
     if not l4_ab_compare_summary:
         hard_reasons.append("l4_ab_compare_summary_missing")
 
-    if _to_int(run_results_summary.get("attempt_count"), 0) <= 0:
-        hard_reasons.append("attempts_missing")
+    effective_attempt_count = _to_int(l4_on.get("attempt_count"), _to_int(run_results_summary.get("attempt_count"), 0))
+    if effective_attempt_count <= 0:
+        if l4_on_nonzero:
+            hard_reasons.append("l4_on_run_nonzero")
+        else:
+            hard_reasons.append("attempts_missing")
+    if l4_off_nonzero:
+        hard_reasons.append("l4_off_run_nonzero")
 
     if acceptance_mode_norm == "absolute_non_regression":
         if success_at_k_pct < float(absolute_success_target_pct):
@@ -358,6 +385,9 @@ def evaluate_l5_eval_v1(
 
     reasons = sorted(set(hard_reasons + soft_reasons))
     extra = [str(x).strip() for x in (additional_reasons or []) if str(x).strip()]
+    for key in ("live_request_budget_exceeded", "rate_limited"):
+        if key in extra and key not in hard_reasons:
+            hard_reasons.append(key)
     reasons = sorted(set(reasons + extra))
     unknown_reasons = [x for x in reasons if x not in ALLOWED_L5_REASONS]
     if unknown_reasons:
@@ -437,7 +467,7 @@ def evaluate_l5_eval_v1(
             "min_l3_stage_match_rate_pct": float(min_l3_stage_match_rate_pct),
         },
         "reasons": reasons,
-        "primary_reason": reasons[0] if reasons else "none",
+        "primary_reason": _primary_reason(reasons),
         "unknown_reasons": sorted(set(unknown_reasons)),
         "reason_enum": sorted(ALLOWED_L5_REASONS),
     }

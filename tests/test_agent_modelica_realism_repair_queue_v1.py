@@ -388,6 +388,22 @@ class AgentModelicaRealismRepairQueueV1Tests(unittest.TestCase):
             self.assertEqual(summary.get("task_queue_count"), 0)
             self.assertEqual(final_summary.get("repair_queue_status"), "BLOCKED")
 
+    def test_build_repair_queue_blocks_when_final_run_is_budget_blocked(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            run_root = Path(d) / "run02b"
+            _build_finalized_run_fixture(run_root, include_realism=True)
+            final_summary = json.loads((run_root / "final_run_summary.json").read_text(encoding="utf-8"))
+            final_summary["status"] = "BLOCKED"
+            final_summary["primary_reason"] = "live_request_budget_exceeded"
+            _write_json(run_root / "final_run_summary.json", final_summary)
+
+            summary = build_repair_queue_v1(run_root=str(run_root), update_final_summary=True)
+            refreshed_final = json.loads((run_root / "final_run_summary.json").read_text(encoding="utf-8"))
+
+            self.assertEqual(summary.get("status"), "BLOCKED")
+            self.assertIn("final_run_blocked", summary.get("reasons") or [])
+            self.assertEqual(refreshed_final.get("repair_queue_status"), "BLOCKED")
+
     def test_build_repair_queue_uses_manifestation_signal_gap_for_structurally_silent_tasks(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             run_root = Path(d) / "run03"

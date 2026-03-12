@@ -20,11 +20,12 @@ ENABLE_NIGHT="${GATEFORGE_AGENT_L4_UPLIFT_ENABLE_NIGHT:-1}"
 
 BACKEND="${GATEFORGE_AGENT_L4_UPLIFT_BACKEND:-openmodelica_docker}"
 OM_DOCKER_IMAGE="${GATEFORGE_AGENT_L4_UPLIFT_OM_DOCKER_IMAGE:-openmodelica/openmodelica:v1.26.1-minimal}"
-MAIN_PLANNER_BACKEND="${GATEFORGE_AGENT_L4_UPLIFT_MAIN_PLANNER_BACKEND:-rule}"
-NIGHT_PLANNER_BACKEND="${GATEFORGE_AGENT_L4_UPLIFT_NIGHT_PLANNER_BACKEND:-gemini}"
+GLOBAL_LIVE_PLANNER_BACKEND="${GATEFORGE_AGENT_LIVE_PLANNER_BACKEND:-${LLM_PROVIDER:-}}"
+MAIN_PLANNER_BACKEND="${GATEFORGE_AGENT_L4_UPLIFT_MAIN_PLANNER_BACKEND:-${GLOBAL_LIVE_PLANNER_BACKEND:-rule}}"
+NIGHT_PLANNER_BACKEND="${GATEFORGE_AGENT_L4_UPLIFT_NIGHT_PLANNER_BACKEND:-${GLOBAL_LIVE_PLANNER_BACKEND:-gemini}}"
 MAIN_GATE_MODE="${GATEFORGE_AGENT_L4_UPLIFT_MAIN_GATE_MODE:-strict}"
 NIGHT_GATE_MODE="${GATEFORGE_AGENT_L4_UPLIFT_NIGHT_GATE_MODE:-observe}"
-CHALLENGE_PLANNER_BACKEND="${GATEFORGE_AGENT_L4_UPLIFT_CHALLENGE_PLANNER_BACKEND:-gemini}"
+CHALLENGE_PLANNER_BACKEND="${GATEFORGE_AGENT_L4_UPLIFT_CHALLENGE_PLANNER_BACKEND:-${GLOBAL_LIVE_PLANNER_BACKEND:-gemini}}"
 CHALLENGE_LLM_MODEL="${GATEFORGE_AGENT_L4_UPLIFT_CHALLENGE_LLM_MODEL:-${LLM_MODEL:-${GATEFORGE_GEMINI_MODEL:-}}}"
 
 MAX_ROUNDS="${GATEFORGE_AGENT_L4_UPLIFT_MAX_ROUNDS:-2}"
@@ -576,14 +577,39 @@ if challenge_rc != 0 and not challenge:
     reasons.append("challenge_script_nonzero_exit")
 if main_sweep_rc != 0 and not main_sweep:
     reasons.append("main_sweep_script_nonzero_exit")
-if night_sweep_rc != 0 and not night_sweep:
+if night_enabled and night_sweep_rc != 0 and not night_sweep:
     reasons.append("night_sweep_script_nonzero_exit")
 if main_l5_rc != 0 and not main_l5:
     reasons.append("main_l5_script_nonzero_exit")
-if night_l5_rc != 0 and not night_l5:
+if night_enabled and night_l5_rc != 0 and not night_l5:
     reasons.append("night_l5_script_nonzero_exit")
 if missing:
     reasons.extend([f"missing_{x}" for x in sorted(set(missing))])
+
+if not night_enabled:
+    reasons = [
+        x
+        for x in reasons
+        if x
+        not in {
+            "missing_night_sweep_summary",
+            "missing_night_l5_eval_summary",
+            "missing_night_weekly_summary",
+            "night_sweep_script_nonzero_exit",
+            "night_l5_script_nonzero_exit",
+        }
+    ]
+    missing = [
+        x
+        for x in missing
+        if x
+        not in {
+            "night_sweep_summary",
+            "night_l5_eval_summary",
+            "night_weekly_summary",
+        }
+    ]
+    status = "PASS" if not missing else "FAIL"
 
 bundle = {
     "schema_version": "agent_modelica_l4_uplift_evidence_bundle_v0",

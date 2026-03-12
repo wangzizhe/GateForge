@@ -223,6 +223,7 @@ def init_run(
     base_taskset: str,
     lock_path: str,
     update_latest: bool,
+    runtime_config: dict | None = None,
 ) -> dict:
     root = Path(run_root)
     root.mkdir(parents=True, exist_ok=True)
@@ -239,6 +240,7 @@ def init_run(
         "base_taskset": base_taskset,
         "lock_path": lock_path,
         "update_latest": bool(update_latest),
+        "runtime_config": runtime_config if isinstance(runtime_config, dict) else {},
     }
     run_status = {
         "schema_version": RUN_STATUS_SCHEMA_VERSION,
@@ -516,22 +518,34 @@ def _current_stage_from_states(states: dict[str, dict], finalized: bool) -> str:
         return "finalize"
     for stage in STAGE_ORDER:
         row = states.get(stage) if isinstance(states.get(stage), dict) else {}
-        if not bool(row.get("complete")):
+        status = str(row.get("status") or "").upper()
+        if not bool(row.get("complete")) and status != "SKIPPED":
             return stage
     return "finalize"
 
 
 def _completed_and_missing_stages(states: dict[str, dict]) -> tuple[list[str], list[str]]:
-    completed = [stage for stage in STAGE_ORDER if bool((states.get(stage) or {}).get("complete"))]
-    missing = [stage for stage in STAGE_ORDER if not bool((states.get(stage) or {}).get("complete")) and stage != "finalize"]
+    def _done(row: dict) -> bool:
+        status = str(row.get("status") or "").upper()
+        return bool(row.get("complete")) or status == "SKIPPED"
+
+    completed = [stage for stage in STAGE_ORDER if _done(states.get(stage) or {})]
+    missing = [stage for stage in STAGE_ORDER if not _done(states.get(stage) or {}) and stage != "finalize"]
     return completed, missing
 
 
-def _auto_resume_stages(states: dict[str, dict]) -> list[str]:
+def _night_enabled(cfg: dict) -> bool:
+    return _bool_env(str(cfg.get("night_enabled") or cfg.get("realism_mode") != "lean"), default=True)
+
+
+def _auto_resume_stages(states: dict[str, dict], cfg: dict | None = None) -> list[str]:
+    night_enabled = True if cfg is None else _night_enabled(cfg)
     return [
         stage
         for stage in RESUMABLE_STAGE_ORDER
         if not bool((states.get(stage) or {}).get("complete"))
+        and str((states.get(stage) or {}).get("status") or "").upper() != "SKIPPED"
+        and (night_enabled or stage not in {"night_sweep", "night_l5"})
     ]
 
 
@@ -615,6 +629,7 @@ def _bootstrap_runtime_env() -> None:
 
 def _runtime_config(run_root: Path) -> dict:
     manifest = _load_json(_run_manifest_path(run_root))
+    persisted_runtime = manifest.get("runtime_config") if isinstance(manifest.get("runtime_config"), dict) else {}
     challenge = _load_json(run_root / "challenge" / "frozen_summary.json")
     main_sweep = _load_json(run_root / "main_sweep" / "summary.json")
 
@@ -640,25 +655,101 @@ def _runtime_config(run_root: Path) -> dict:
         "out_dir": str(run_root),
         "run_root": str(run_root),
         "taskset": str(run_root / "challenge" / "taskset_frozen.json"),
-        "scales": str(os.environ.get("GATEFORGE_AGENT_L4_REALISM_SCALES") or os.environ.get("GATEFORGE_AGENT_L4_UPLIFT_SCALES") or "small,medium"),
-        "profiles": str(os.environ.get("GATEFORGE_AGENT_L4_UPLIFT_PROFILES") or "score_v1,score_v1a,score_v1b,score_v1c"),
-        "backend": str(os.environ.get("GATEFORGE_AGENT_L4_UPLIFT_BACKEND") or "openmodelica_docker"),
-        "docker_image": str(os.environ.get("GATEFORGE_AGENT_L4_UPLIFT_OM_DOCKER_IMAGE") or "openmodelica/openmodelica:v1.26.1-minimal"),
-        "challenge_planner_backend": str(os.environ.get("GATEFORGE_AGENT_L4_UPLIFT_CHALLENGE_PLANNER_BACKEND") or "gemini"),
-        "main_planner_backend": str(os.environ.get("GATEFORGE_AGENT_L4_UPLIFT_MAIN_PLANNER_BACKEND") or "rule"),
-        "night_planner_backend": str(os.environ.get("GATEFORGE_AGENT_L4_UPLIFT_NIGHT_PLANNER_BACKEND") or "gemini"),
-        "main_gate_mode": str(os.environ.get("GATEFORGE_AGENT_L4_UPLIFT_MAIN_GATE_MODE") or "strict"),
-        "night_gate_mode": str(os.environ.get("GATEFORGE_AGENT_L4_UPLIFT_NIGHT_GATE_MODE") or "observe"),
+        "scales": str(
+            persisted_runtime.get("scales")
+            or os.environ.get("GATEFORGE_AGENT_L4_REALISM_SCALES")
+            or os.environ.get("GATEFORGE_AGENT_L4_UPLIFT_SCALES")
+            or "small,medium"
+        ),
+        "profiles": str(
+            persisted_runtime.get("profiles")
+            or os.environ.get("GATEFORGE_AGENT_L4_UPLIFT_PROFILES")
+            or "score_v1,score_v1a,score_v1b,score_v1c"
+        ),
+        "backend": str(
+            persisted_runtime.get("backend")
+            or os.environ.get("GATEFORGE_AGENT_L4_UPLIFT_BACKEND")
+            or "openmodelica_docker"
+        ),
+        "docker_image": str(
+            persisted_runtime.get("docker_image")
+            or os.environ.get("GATEFORGE_AGENT_L4_UPLIFT_OM_DOCKER_IMAGE")
+            or "openmodelica/openmodelica:v1.26.1-minimal"
+        ),
+        "challenge_planner_backend": str(
+            persisted_runtime.get("challenge_planner_backend")
+            or os.environ.get("GATEFORGE_AGENT_L4_UPLIFT_CHALLENGE_PLANNER_BACKEND")
+            or challenge.get("baseline_provenance", {}).get("planner_backend")
+            or "gemini"
+        ),
+        "main_planner_backend": str(
+            persisted_runtime.get("main_planner_backend")
+            or os.environ.get("GATEFORGE_AGENT_L4_UPLIFT_MAIN_PLANNER_BACKEND")
+            or "rule"
+        ),
+        "night_planner_backend": str(
+            persisted_runtime.get("night_planner_backend")
+            or os.environ.get("GATEFORGE_AGENT_L4_UPLIFT_NIGHT_PLANNER_BACKEND")
+            or "gemini"
+        ),
+        "realism_mode": str(
+            persisted_runtime.get("realism_mode")
+            or os.environ.get("GATEFORGE_AGENT_L4_REALISM_MODE")
+            or "full"
+        ),
+        "night_enabled": str(
+            persisted_runtime.get("night_enabled")
+            or os.environ.get("GATEFORGE_AGENT_L4_REALISM_NIGHT_ENABLED")
+            or "1"
+        ),
+        "main_gate_mode": str(
+            persisted_runtime.get("main_gate_mode")
+            or os.environ.get("GATEFORGE_AGENT_L4_UPLIFT_MAIN_GATE_MODE")
+            or "strict"
+        ),
+        "night_gate_mode": str(
+            persisted_runtime.get("night_gate_mode")
+            or os.environ.get("GATEFORGE_AGENT_L4_UPLIFT_NIGHT_GATE_MODE")
+            or "observe"
+        ),
         "challenge_llm_model": llm_model,
-        "max_rounds": str(os.environ.get("GATEFORGE_AGENT_L4_UPLIFT_MAX_ROUNDS") or "2"),
-        "max_time_sec": str(os.environ.get("GATEFORGE_AGENT_L4_UPLIFT_MAX_TIME_SEC") or "180"),
-        "runtime_threshold": str(os.environ.get("GATEFORGE_AGENT_L4_UPLIFT_RUNTIME_THRESHOLD") or "0.2"),
-        "live_timeout_sec": str(os.environ.get("GATEFORGE_AGENT_L4_UPLIFT_LIVE_TIMEOUT_SEC") or "90"),
-        "live_max_output_chars": str(os.environ.get("GATEFORGE_AGENT_L4_UPLIFT_LIVE_MAX_OUTPUT_CHARS") or "2400"),
-        "l4_max_rounds": str(os.environ.get("GATEFORGE_AGENT_L4_UPLIFT_L4_MAX_ROUNDS") or "3"),
-        "l4_policy_backend": str(os.environ.get("GATEFORGE_AGENT_L4_UPLIFT_L4_POLICY_BACKEND") or "rule"),
-        "l4_llm_fallback_threshold": str(os.environ.get("GATEFORGE_AGENT_L4_UPLIFT_L4_LLM_FALLBACK_THRESHOLD") or "2"),
-        "l4_max_actions_per_round": str(os.environ.get("GATEFORGE_AGENT_L4_UPLIFT_L4_MAX_ACTIONS_PER_ROUND") or "3"),
+        "max_rounds": str(persisted_runtime.get("max_rounds") or os.environ.get("GATEFORGE_AGENT_L4_UPLIFT_MAX_ROUNDS") or "2"),
+        "max_time_sec": str(persisted_runtime.get("max_time_sec") or os.environ.get("GATEFORGE_AGENT_L4_UPLIFT_MAX_TIME_SEC") or "180"),
+        "runtime_threshold": str(
+            persisted_runtime.get("runtime_threshold")
+            or os.environ.get("GATEFORGE_AGENT_L4_UPLIFT_RUNTIME_THRESHOLD")
+            or "0.2"
+        ),
+        "live_timeout_sec": str(
+            persisted_runtime.get("live_timeout_sec")
+            or os.environ.get("GATEFORGE_AGENT_L4_UPLIFT_LIVE_TIMEOUT_SEC")
+            or "90"
+        ),
+        "live_max_output_chars": str(
+            persisted_runtime.get("live_max_output_chars")
+            or os.environ.get("GATEFORGE_AGENT_L4_UPLIFT_LIVE_MAX_OUTPUT_CHARS")
+            or "2400"
+        ),
+        "l4_max_rounds": str(
+            persisted_runtime.get("l4_max_rounds")
+            or os.environ.get("GATEFORGE_AGENT_L4_UPLIFT_L4_MAX_ROUNDS")
+            or "3"
+        ),
+        "l4_policy_backend": str(
+            persisted_runtime.get("l4_policy_backend")
+            or os.environ.get("GATEFORGE_AGENT_L4_UPLIFT_L4_POLICY_BACKEND")
+            or "rule"
+        ),
+        "l4_llm_fallback_threshold": str(
+            persisted_runtime.get("l4_llm_fallback_threshold")
+            or os.environ.get("GATEFORGE_AGENT_L4_UPLIFT_L4_LLM_FALLBACK_THRESHOLD")
+            or "2"
+        ),
+        "l4_max_actions_per_round": str(
+            persisted_runtime.get("l4_max_actions_per_round")
+            or os.environ.get("GATEFORGE_AGENT_L4_UPLIFT_L4_MAX_ACTIONS_PER_ROUND")
+            or "3"
+        ),
         "min_delta_success_pp": str(min_delta_success_pp),
         "absolute_success_target_pct": str(os.environ.get("GATEFORGE_AGENT_L4_UPLIFT_ABSOLUTE_SUCCESS_TARGET_PCT") or "85"),
         "non_regression_tolerance_pp": str(os.environ.get("GATEFORGE_AGENT_L4_UPLIFT_NON_REGRESSION_TOLERANCE_PP") or "0"),
@@ -668,7 +759,16 @@ def _runtime_config(run_root: Path) -> dict:
         "l5_min_l3_parse_pct": str(os.environ.get("GATEFORGE_AGENT_L4_UPLIFT_L5_MIN_L3_PARSE_PCT") or "95"),
         "l5_min_l3_type_pct": str(os.environ.get("GATEFORGE_AGENT_L4_UPLIFT_L5_MIN_L3_TYPE_PCT") or "70"),
         "l5_min_l3_stage_pct": str(os.environ.get("GATEFORGE_AGENT_L4_UPLIFT_L5_MIN_L3_STAGE_PCT") or "70"),
-        "l5_ledger_path": str(os.environ.get("GATEFORGE_AGENT_L4_UPLIFT_L5_LEDGER_PATH") or (run_root / "private" / "l5_eval_ledger_v1.jsonl")),
+        "l5_ledger_path": str(
+            persisted_runtime.get("l5_ledger_path")
+            or os.environ.get("GATEFORGE_AGENT_L4_UPLIFT_L5_LEDGER_PATH")
+            or (run_root / "private" / "l5_eval_ledger_v1.jsonl")
+        ),
+        "live_ledger_path": str(
+            persisted_runtime.get("live_ledger_path")
+            or os.environ.get("GATEFORGE_AGENT_LIVE_REQUEST_LEDGER_PATH")
+            or (run_root / "private" / "live_request_ledger.json")
+        ),
         "main_profile": str(main_sweep.get("recommended_profile") or "score_v1"),
         "acceptance_mode": acceptance_mode,
         "baseline_reference_success_pct": str(challenge.get("baseline_off_success_at_k_pct") or ""),
@@ -676,13 +776,48 @@ def _runtime_config(run_root: Path) -> dict:
         "pack_version": str(manifest.get("pack_version") or challenge.get("pack_version") or ""),
         "pack_track": str(manifest.get("pack_track") or challenge.get("pack_track") or ""),
         "acceptance_scope": str(manifest.get("acceptance_scope") or challenge.get("acceptance_scope") or ""),
-        "challenge_executor_cmd": str(os.environ.get("GATEFORGE_AGENT_L4_UPLIFT_CHALLENGE_LIVE_EXECUTOR_CMD") or os.environ.get("GATEFORGE_AGENT_L4_UPLIFT_LIVE_EXECUTOR_CMD") or ""),
-        "main_sweep_executor_cmd": str(os.environ.get("GATEFORGE_AGENT_L4_UPLIFT_MAIN_SWEEP_LIVE_EXECUTOR_CMD") or os.environ.get("GATEFORGE_AGENT_L4_UPLIFT_LIVE_EXECUTOR_CMD") or ""),
-        "night_sweep_executor_cmd": str(os.environ.get("GATEFORGE_AGENT_L4_UPLIFT_NIGHT_SWEEP_LIVE_EXECUTOR_CMD") or os.environ.get("GATEFORGE_AGENT_L4_UPLIFT_LIVE_EXECUTOR_CMD") or ""),
-        "main_l5_l3_executor_cmd": str(os.environ.get("GATEFORGE_AGENT_L4_UPLIFT_MAIN_L5_L3_LIVE_EXECUTOR_CMD") or os.environ.get("GATEFORGE_AGENT_L4_UPLIFT_LIVE_EXECUTOR_CMD") or ""),
-        "main_l5_l4_executor_cmd": str(os.environ.get("GATEFORGE_AGENT_L4_UPLIFT_MAIN_L5_L4_LIVE_EXECUTOR_CMD") or os.environ.get("GATEFORGE_AGENT_L4_UPLIFT_LIVE_EXECUTOR_CMD") or ""),
-        "night_l5_l3_executor_cmd": str(os.environ.get("GATEFORGE_AGENT_L4_UPLIFT_NIGHT_L5_L3_LIVE_EXECUTOR_CMD") or os.environ.get("GATEFORGE_AGENT_L4_UPLIFT_LIVE_EXECUTOR_CMD") or ""),
-        "night_l5_l4_executor_cmd": str(os.environ.get("GATEFORGE_AGENT_L4_UPLIFT_NIGHT_L5_L4_LIVE_EXECUTOR_CMD") or os.environ.get("GATEFORGE_AGENT_L4_UPLIFT_LIVE_EXECUTOR_CMD") or ""),
+        "challenge_executor_cmd": str(
+            persisted_runtime.get("challenge_executor_cmd")
+            or os.environ.get("GATEFORGE_AGENT_L4_UPLIFT_CHALLENGE_LIVE_EXECUTOR_CMD")
+            or os.environ.get("GATEFORGE_AGENT_L4_UPLIFT_LIVE_EXECUTOR_CMD")
+            or ""
+        ),
+        "main_sweep_executor_cmd": str(
+            persisted_runtime.get("main_sweep_executor_cmd")
+            or os.environ.get("GATEFORGE_AGENT_L4_UPLIFT_MAIN_SWEEP_LIVE_EXECUTOR_CMD")
+            or os.environ.get("GATEFORGE_AGENT_L4_UPLIFT_LIVE_EXECUTOR_CMD")
+            or ""
+        ),
+        "night_sweep_executor_cmd": str(
+            persisted_runtime.get("night_sweep_executor_cmd")
+            or os.environ.get("GATEFORGE_AGENT_L4_UPLIFT_NIGHT_SWEEP_LIVE_EXECUTOR_CMD")
+            or os.environ.get("GATEFORGE_AGENT_L4_UPLIFT_LIVE_EXECUTOR_CMD")
+            or ""
+        ),
+        "main_l5_l3_executor_cmd": str(
+            persisted_runtime.get("main_l5_l3_executor_cmd")
+            or os.environ.get("GATEFORGE_AGENT_L4_UPLIFT_MAIN_L5_L3_LIVE_EXECUTOR_CMD")
+            or os.environ.get("GATEFORGE_AGENT_L4_UPLIFT_LIVE_EXECUTOR_CMD")
+            or ""
+        ),
+        "main_l5_l4_executor_cmd": str(
+            persisted_runtime.get("main_l5_l4_executor_cmd")
+            or os.environ.get("GATEFORGE_AGENT_L4_UPLIFT_MAIN_L5_L4_LIVE_EXECUTOR_CMD")
+            or os.environ.get("GATEFORGE_AGENT_L4_UPLIFT_LIVE_EXECUTOR_CMD")
+            or ""
+        ),
+        "night_l5_l3_executor_cmd": str(
+            persisted_runtime.get("night_l5_l3_executor_cmd")
+            or os.environ.get("GATEFORGE_AGENT_L4_UPLIFT_NIGHT_L5_L3_LIVE_EXECUTOR_CMD")
+            or os.environ.get("GATEFORGE_AGENT_L4_UPLIFT_LIVE_EXECUTOR_CMD")
+            or ""
+        ),
+        "night_l5_l4_executor_cmd": str(
+            persisted_runtime.get("night_l5_l4_executor_cmd")
+            or os.environ.get("GATEFORGE_AGENT_L4_UPLIFT_NIGHT_L5_L4_LIVE_EXECUTOR_CMD")
+            or os.environ.get("GATEFORGE_AGENT_L4_UPLIFT_LIVE_EXECUTOR_CMD")
+            or ""
+        ),
     }
 
 
@@ -700,6 +835,13 @@ def _run_shell_script(script_name: str, env_overrides: dict[str, str]) -> subpro
 
 def _refresh_decision_and_bundle(run_root: Path, cfg: dict, exit_codes: dict[str, int]) -> dict:
     repo_root = _repo_root()
+    min_delta_success_pp = str(cfg.get("min_delta_success_pp") or "5")
+    absolute_success_target_pct = str(cfg.get("absolute_success_target_pct") or "85")
+    non_regression_tolerance_pp = str(cfg.get("non_regression_tolerance_pp") or "0")
+    max_regression_worsen_pp = str(cfg.get("max_regression_worsen_pp") or "2")
+    max_physics_worsen_pp = str(cfg.get("max_physics_worsen_pp") or "2")
+    main_profile = str(cfg.get("main_profile") or "score_v1")
+    realism_mode = str(cfg.get("realism_mode") or "")
     challenge_summary = run_root / "challenge" / "frozen_summary.json"
     main_sweep_summary = run_root / "main_sweep" / "summary.json"
     night_sweep_summary = run_root / "night_sweep" / "summary.json"
@@ -730,15 +872,17 @@ def _refresh_decision_and_bundle(run_root: Path, cfg: dict, exit_codes: dict[str
             "--night-weekly-summary",
             str(night_weekly_summary),
             "--min-delta-success-pp",
-            cfg["min_delta_success_pp"],
+            min_delta_success_pp,
             "--absolute-success-target-pct",
-            cfg["absolute_success_target_pct"],
+            absolute_success_target_pct,
             "--non-regression-tolerance-pp",
-            cfg["non_regression_tolerance_pp"],
+            non_regression_tolerance_pp,
             "--max-regression-worsen-pp",
-            cfg["max_regression_worsen_pp"],
+            max_regression_worsen_pp,
             "--max-physics-worsen-pp",
-            cfg["max_physics_worsen_pp"],
+            max_physics_worsen_pp,
+            "--night-enabled",
+            "1" if _night_enabled(cfg) else "0",
             "--out",
             str(decision_json),
             "--report-out",
@@ -769,7 +913,9 @@ def _refresh_decision_and_bundle(run_root: Path, cfg: dict, exit_codes: dict[str
             str(exit_codes.get("night_sweep", 0)),
             str(exit_codes.get("main_l5", 0)),
             str(exit_codes.get("night_l5", 0)),
-            str(cfg["main_profile"]),
+            main_profile,
+            realism_mode,
+            "1" if _night_enabled(cfg) else "0",
         ],
         cwd=str(repo_root),
         capture_output=True,
@@ -796,6 +942,8 @@ night_sweep_rc = int(sys.argv[12])
 main_l5_rc = int(sys.argv[13])
 night_l5_rc = int(sys.argv[14])
 main_profile = str(sys.argv[15] or "").strip()
+realism_mode = str(sys.argv[16] or "").strip()
+night_enabled = str(sys.argv[17] or "") == "1"
 
 def _load(path: Path) -> dict:
     if not path.exists():
@@ -820,21 +968,44 @@ for label, payload in (('challenge_summary', challenge), ('decision_summary', de
     if not payload:
         missing.append(label)
 
+challenge_reasons = {
+    str(x)
+    for x in (challenge.get('reasons') if isinstance(challenge.get('reasons'), list) else [])
+    if str(x)
+}
 baseline_meets_minimum = challenge.get('baseline_meets_minimum') is True
 baseline_has_headroom = challenge.get('baseline_has_headroom') is True
 baseline_eligible_for_uplift = challenge.get('baseline_eligible_for_uplift')
 if baseline_eligible_for_uplift is None:
     baseline_eligible_for_uplift = baseline_meets_minimum and baseline_has_headroom
+baseline_execution_valid = challenge.get('baseline_execution_valid')
+if baseline_execution_valid is None:
+    baseline_execution_valid = 'baseline_off_run_results_empty' not in challenge_reasons
+baseline_execution_valid = baseline_execution_valid is True
+continued_after_weak_baseline = (
+    not baseline_meets_minimum
+    and baseline_execution_valid
+    and any(
+        isinstance(payload, dict) and bool(payload)
+        for payload in (main_sweep, main_l5, night_sweep, night_l5)
+    )
+)
 acceptance_mode = str(decision.get('acceptance_mode') or ('absolute_non_regression' if baseline_meets_minimum and not baseline_has_headroom else 'delta_uplift'))
-if baseline_meets_minimum:
-    for label, payload in (
+if baseline_meets_minimum or continued_after_weak_baseline:
+    required_payloads = [
         ('main_sweep_summary', main_sweep),
-        ('night_sweep_summary', night_sweep),
         ('main_l5_eval_summary', main_l5),
         ('main_weekly_summary', main_weekly),
-        ('night_l5_eval_summary', night_l5),
-        ('night_weekly_summary', night_weekly),
-    ):
+    ]
+    if night_enabled:
+        required_payloads.extend(
+            [
+                ('night_sweep_summary', night_sweep),
+                ('night_l5_eval_summary', night_l5),
+                ('night_weekly_summary', night_weekly),
+            ]
+        )
+    for label, payload in required_payloads:
         if not payload:
             missing.append(label)
 
@@ -852,6 +1023,28 @@ if night_l5_rc != 0 and not night_l5:
     reasons.append('night_l5_script_nonzero_exit')
 if missing:
     reasons.extend([f'missing_{x}' for x in sorted(set(missing))])
+if not night_enabled:
+    reasons = [
+        x
+        for x in reasons
+        if x not in {
+            'missing_night_sweep_summary',
+            'missing_night_l5_eval_summary',
+            'missing_night_weekly_summary',
+            'night_sweep_script_nonzero_exit',
+            'night_l5_script_nonzero_exit',
+        }
+    ]
+    missing = [
+        x
+        for x in missing
+        if x not in {
+            'night_sweep_summary',
+            'night_l5_eval_summary',
+            'night_weekly_summary',
+        }
+    ]
+    status = 'PASS' if not missing else 'FAIL'
 
 bundle = {
     'schema_version': 'agent_modelica_l4_uplift_evidence_bundle_v0',
@@ -866,9 +1059,13 @@ bundle = {
     'acceptance_mode': acceptance_mode,
     'baseline_meets_minimum': baseline_meets_minimum,
     'baseline_has_headroom': baseline_has_headroom,
+    'baseline_execution_valid': baseline_execution_valid,
+    'continued_after_weak_baseline': continued_after_weak_baseline,
     'baseline_headroom_max_pct': challenge.get('baseline_target_range_pct', {}).get('max') if isinstance(challenge.get('baseline_target_range_pct'), dict) else None,
     'baseline_eligible_for_uplift': baseline_eligible_for_uplift,
     'baseline_in_target_range': challenge.get('baseline_in_target_range'),
+    'realism_mode': realism_mode or 'full',
+    'night_enabled': night_enabled,
     'main_recommended_profile': main_profile or str(main_sweep.get('recommended_profile') or ''),
     'main_success_at_k_pct': decision.get('main_success_at_k_pct'),
     'absolute_success_target_pct': decision.get('absolute_success_target_pct'),
@@ -951,9 +1148,158 @@ def _resume_stage_details(run_root: Path, stage: str) -> dict:
     }
 
 
-def _run_resumable_stage(run_root: Path, stage: str, cfg: dict) -> int:
+def _write_stage_placeholder(run_root: Path, stage: str, summary_path: Path, reason: str) -> None:
+    summary_path.parent.mkdir(parents=True, exist_ok=True)
+    if stage in {"main_sweep", "night_sweep"}:
+        _write_json(summary_path, {})
+    elif stage in {"main_l5", "night_l5"}:
+        _write_json(summary_path, {})
+        weekly_path = summary_path.parent / "l5_weekly_metrics.json"
+        _write_json(weekly_path, {})
+    else:
+        _write_json(summary_path, {})
+    stage_update(
+        run_root=str(run_root),
+        stage=stage,
+        status="SKIPPED",
+        exit_code=0,
+        summary_path=str(summary_path),
+        details={"reason": reason},
+    )
+
+
+def _remove_path(path: Path) -> None:
+    if not path.exists() and not path.is_symlink():
+        return
+    if path.is_dir() and not path.is_symlink():
+        shutil.rmtree(path, ignore_errors=True)
+        return
+    try:
+        path.unlink()
+    except FileNotFoundError:
+        return
+
+
+def _reset_live_ledger_for_resume(run_root: Path, stage: str, *, restart_budget_window: bool = False) -> None:
+    ledger_path = run_root / "private" / "live_request_ledger.json"
+    payload = _load_json(ledger_path)
+    if not payload:
+        return
+    disable_live_budget = str(os.getenv("GATEFORGE_AGENT_L4_REALISM_DISABLE_LIVE_BUDGET") or "").strip() == "1"
+    try:
+        max_requests = 0 if disable_live_budget else max(
+            0, int(str(os.getenv("GATEFORGE_AGENT_LIVE_MAX_REQUESTS_PER_RUN") or "").strip() or 80)
+        )
+    except Exception:
+        max_requests = 0 if disable_live_budget else 80
+    try:
+        max_consecutive_429 = max(1, int(str(os.getenv("GATEFORGE_AGENT_LIVE_MAX_CONSECUTIVE_429") or "").strip() or 3))
+    except Exception:
+        max_consecutive_429 = 3
+    try:
+        base_backoff_sec = max(0.0, float(str(os.getenv("GATEFORGE_AGENT_LIVE_BACKOFF_BASE_SEC") or "").strip() or 5.0))
+    except Exception:
+        base_backoff_sec = 5.0
+    try:
+        max_backoff_sec = max(0.0, float(str(os.getenv("GATEFORGE_AGENT_LIVE_BACKOFF_MAX_SEC") or "").strip() or 60.0))
+    except Exception:
+        max_backoff_sec = 60.0
+
+    request_count = int(payload.get("request_count") or 0)
+    stop_reason = str(payload.get("last_stop_reason") or "").strip()
+    should_clear_stop = False
+    if stop_reason == "live_request_budget_exceeded" and (max_requests <= 0 or request_count < max_requests):
+        should_clear_stop = True
+    if stop_reason == "rate_limited":
+        should_clear_stop = True
+    if restart_budget_window:
+        should_clear_stop = True
+
+    payload["live_budget"] = {
+        "max_requests_per_run": max_requests,
+        "max_consecutive_429": max_consecutive_429,
+        "base_backoff_sec": base_backoff_sec,
+        "max_backoff_sec": max_backoff_sec,
+    }
+    payload["last_stage"] = stage
+    payload["consecutive_429_count"] = 0
+    payload["last_backoff_sec"] = 0.0
+    if restart_budget_window:
+        payload["request_count"] = 0
+        payload["rate_limit_429_count"] = 0
+        payload["backoff_count"] = 0
+    if should_clear_stop:
+        payload["budget_stop_triggered"] = False
+        payload["last_stop_reason"] = ""
+    _write_json(ledger_path, payload)
+
+
+def _stage_cleanup_paths(run_root: Path, stage: str) -> list[Path]:
+    paths: list[Path] = []
+    if stage == "preflight":
+        paths.extend([run_root / "environment_preflight_summary.json", run_root / "environment_preflight_summary.md"])
+    elif stage == "challenge":
+        paths.append(run_root / "challenge")
+    elif stage in {"main_sweep", "night_sweep", "main_l5", "night_l5"}:
+        paths.append(run_root / stage)
+    elif stage == "realism_summary":
+        paths.extend(
+            [
+                run_root / "realism_internal_summary.json",
+                run_root / "realism_internal_summary.md",
+                run_root / "repair_queue_summary.json",
+                run_root / "repair_queue_summary.md",
+                run_root / "repair_queue_tasks.json",
+                run_root / "wave1_patch_plan_summary.json",
+                run_root / "wave1_patch_plan_summary.md",
+                run_root / "wave1_patch_plan_tasks.json",
+                run_root / "wave1_focused_playbook.json",
+            ]
+        )
+    elif stage == "finalize":
+        paths.extend([run_root / "final_run_summary.json", run_root / "final_run_summary.md"])
+
+    if stage in {"challenge", "main_sweep", "night_sweep", "main_l5", "night_l5", "realism_summary"}:
+        paths.extend(
+            [
+                run_root / "summary.json",
+                run_root / "summary.md",
+                run_root / "decision_summary.json",
+                run_root / "decision_summary.md",
+            ]
+        )
+    if stage in {"main_l5", "night_l5", "realism_summary", "finalize"}:
+        paths.extend([run_root / "final_run_summary.json", run_root / "final_run_summary.md"])
+    return paths
+
+
+def _invalidate_from_stage(run_root: Path, stage: str) -> None:
+    start_idx = STAGE_ORDER.index(stage)
+    for downstream_stage in STAGE_ORDER[start_idx:]:
+        for path in _stage_cleanup_paths(run_root, downstream_stage):
+            _remove_path(path)
+        _remove_path(_stage_status_path(run_root, downstream_stage))
+        _remove_path(_stage_status_md_path(run_root, downstream_stage))
+
+    run_status = _read_run_status(run_root)
+    stages = run_status.get("stages") if isinstance(run_status.get("stages"), dict) else {}
+    for downstream_stage in STAGE_ORDER[start_idx:]:
+        stages.pop(downstream_stage, None)
+    run_status["stages"] = stages
+    run_status["updated_at_utc"] = _utc_now()
+    run_status["status"] = "RUNNING"
+    run_status["current_stage"] = stage
+    run_status["finalized"] = False
+    run_status["latest_updated"] = False
+    _write_json(_run_status_path(run_root), run_status)
+    _write_run_status_md(run_root, run_status)
+
+
+def _run_resumable_stage(run_root: Path, stage: str, cfg: dict, *, restart_live_budget_window: bool = False) -> int:
     summary_path = _scoped_stage_summary_path(run_root, stage)
     details = _resume_stage_details(run_root, stage)
+    if stage in {"challenge", "main_sweep", "night_sweep", "main_l5", "night_l5"}:
+        _reset_live_ledger_for_resume(run_root, stage, restart_budget_window=restart_live_budget_window)
     _set_run_resuming(run_root, stage)
     stage_update(
         run_root=str(run_root),
@@ -1059,6 +1405,8 @@ def _run_resumable_stage(run_root: Path, stage: str, cfg: dict) -> int:
                 "GATEFORGE_AGENT_L5_MIN_L3_STAGE_PCT": cfg["l5_min_l3_stage_pct"],
                 "GATEFORGE_AGENT_L5_EVAL_L3_LIVE_EXECUTOR_CMD": l3_cmd,
                 "GATEFORGE_AGENT_L5_EVAL_L4_LIVE_EXECUTOR_CMD": l4_cmd,
+                "GATEFORGE_AGENT_LIVE_REQUEST_LEDGER_PATH": cfg["live_ledger_path"],
+                "GATEFORGE_AGENT_LIVE_REQUEST_STAGE": stage,
             },
         )
     elif stage == "realism_summary":
@@ -1105,13 +1453,24 @@ def resume_run(
         return {"schema_version": SCHEMA_VERSION, "status": "NOT_FOUND", "reason": "run_root_not_scoped"}
 
     states = _infer_scoped_stage_states(root)
+    cfg = _runtime_config(root)
+    if not _night_enabled(cfg):
+        for skipped_stage in ("night_sweep", "night_l5"):
+            row = states.get(skipped_stage) or {}
+            if not bool(row.get("complete")) and str(row.get("status") or "").upper() != "SKIPPED":
+                _write_stage_placeholder(root, skipped_stage, _scoped_stage_summary_path(root, skipped_stage), "lean_mode_night_disabled")
+        states = _infer_scoped_stage_states(root)
+
     stage_list = []
     if str(stages or "auto").strip().lower() == "auto":
-        stage_list = _auto_resume_stages(states)
+        stage_list = _auto_resume_stages(states, cfg)
     else:
         requested = [str(x).strip() for x in str(stages).split(",") if str(x).strip()]
         for stage in requested:
             if stage not in RESUMABLE_STAGE_ORDER:
+                continue
+            if not _night_enabled(cfg) and stage in {"night_sweep", "night_l5"}:
+                _write_stage_placeholder(root, stage, _scoped_stage_summary_path(root, stage), "lean_mode_night_disabled")
                 continue
             if force_rerun_completed or not bool((states.get(stage) or {}).get("complete")):
                 stage_list.append(stage)
@@ -1120,7 +1479,21 @@ def resume_run(
         finalized = finalize_run(out_dir=out_dir, run_root=str(root), update_latest=update_latest)
         return report_run(out_dir=out_dir, run_root=str(root))
 
-    cfg = _runtime_config(root)
+    invalidated = False
+    for stage in stage_list:
+        if force_rerun_completed and bool((states.get(stage) or {}).get("complete")):
+            _invalidate_from_stage(root, stage)
+            invalidated = True
+            break
+    if invalidated:
+        states = _infer_scoped_stage_states(root)
+        if not _night_enabled(cfg):
+            for skipped_stage in ("night_sweep", "night_l5"):
+                row = states.get(skipped_stage) or {}
+                if not bool(row.get("complete")) and str(row.get("status") or "").upper() != "SKIPPED":
+                    _write_stage_placeholder(root, skipped_stage, _scoped_stage_summary_path(root, skipped_stage), "lean_mode_night_disabled")
+            states = _infer_scoped_stage_states(root)
+
     exit_codes = {
         "challenge": 0,
         "main_sweep": 0,
@@ -1129,7 +1502,7 @@ def resume_run(
         "night_l5": 0,
     }
     for stage in stage_list:
-        rc = _run_resumable_stage(root, stage, cfg)
+        rc = _run_resumable_stage(root, stage, cfg, restart_live_budget_window=force_rerun_completed)
         if stage in exit_codes:
             exit_codes[stage] = rc
 
@@ -1286,6 +1659,15 @@ def finalize_run(
 ) -> dict:
     root = Path(run_root)
     out_root = Path(out_dir)
+    manifest = _load_json(_run_manifest_path(root))
+    runtime_cfg = manifest.get("runtime_config") if isinstance(manifest.get("runtime_config"), dict) else {}
+    if runtime_cfg:
+        states = _infer_scoped_stage_states(root)
+        exit_codes: dict[str, int] = {}
+        for stage in ("challenge", "main_sweep", "night_sweep", "main_l5", "night_l5"):
+            parsed = _safe_int((states.get(stage) or {}).get("exit_code"))
+            exit_codes[stage] = 0 if parsed is None else parsed
+        _refresh_decision_and_bundle(root, runtime_cfg, exit_codes)
     _maybe_refresh_realism_summary(root)
     summary, run_status = _final_status_from_artifacts(root)
     _write_json(_final_summary_path(root), summary)
@@ -1524,7 +1906,8 @@ def report_run(*, out_dir: str, run_id: str = "", run_root: str = "") -> dict:
         states = _infer_scoped_stage_states(root)
         completed_stages, missing_stages = _completed_and_missing_stages(states)
         finalized = bool(run_status.get("finalized")) or _nonempty_dict(final_summary)
-        next_resume_stages = _auto_resume_stages(states)
+        cfg = _runtime_config(root)
+        next_resume_stages = _auto_resume_stages(states, cfg)
         resume_blockers = _resume_blockers("scoped", active_pid=active_pid, states=states)
         finalize_ready = False
         if not finalized:
@@ -1663,6 +2046,7 @@ def main() -> None:
     init_parser.add_argument("--base-taskset", required=True)
     init_parser.add_argument("--lock-path", required=True)
     init_parser.add_argument("--update-latest", default="1")
+    init_parser.add_argument("--runtime-config-json", default="")
 
     stage_parser = sub.add_parser("stage-update")
     stage_parser.add_argument("--run-root", required=True)
@@ -1708,6 +2092,14 @@ def main() -> None:
     args = parser.parse_args()
 
     if args.cmd == "init-run":
+        runtime_config = {}
+        if str(args.runtime_config_json or "").strip():
+            try:
+                loaded = json.loads(args.runtime_config_json)
+                if isinstance(loaded, dict):
+                    runtime_config = loaded
+            except Exception:
+                runtime_config = {}
         payload = init_run(
             out_dir=args.out_dir,
             run_root=args.run_root,
@@ -1719,6 +2111,7 @@ def main() -> None:
             base_taskset=args.base_taskset,
             lock_path=args.lock_path,
             update_latest=_bool_env(args.update_latest, default=True),
+            runtime_config=runtime_config,
         )
     elif args.cmd == "stage-update":
         details = {}

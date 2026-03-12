@@ -211,6 +211,12 @@ def build_repair_queue_v1(*, run_root: str, update_final_summary: bool = True) -
     if not final_summary:
         status = "BLOCKED"
         reasons.append("final_run_summary_missing")
+    if final_summary and (
+        str(final_summary.get("status") or "").upper() == "BLOCKED"
+        or str(final_summary.get("primary_reason") or "").strip() in {"live_request_budget_exceeded", "rate_limited"}
+    ):
+        status = "BLOCKED"
+        reasons.append("final_run_blocked")
     if not realism_summary:
         status = "BLOCKED"
         reasons.append("realism_summary_missing")

@@ -33,6 +33,16 @@ class AgentModelicaErrorActionMapperV1Tests(unittest.TestCase):
         tags = payload.get("tags") if isinstance(payload.get("tags"), list) else []
         self.assertIn("fix_equation_balance", tags)
 
+    def test_maps_underconstrained_signal_to_topology_restore(self) -> None:
+        payload = map_error_to_actions(
+            error_message="underconstrained_system dangling_connectivity structural_underconstraint",
+            failure_type="underconstrained_system",
+        )
+        tags = payload.get("tags") if isinstance(payload.get("tags"), list) else []
+        actions = payload.get("actions") if isinstance(payload.get("actions"), list) else []
+        self.assertIn("restore_topology_balance", tags)
+        self.assertTrue(any("dropped connect path" in str(x).lower() for x in actions))
+
 
 if __name__ == "__main__":
     unittest.main()

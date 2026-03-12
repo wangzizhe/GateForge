@@ -124,13 +124,73 @@ def _has_failure_signal(observed_failure_type: str, observed_stage: str, observe
 
 
 def _manifestation_attempt(record: dict) -> dict:
-    attempts = record.get("attempts") if isinstance(record.get("attempts"), list) else []
-    attempts = [x for x in attempts if isinstance(x, dict)]
-    for attempt in attempts:
+    declared_failure_type = str(record.get("failure_type") or "").strip().lower()
+    expected_canonical = _expected_canonical_type(declared_failure_type)
+    expected_stage = canonical_stage_from_failure_type_v0(expected_canonical)
+    expected_subtypes = _expected_subtypes(declared_failure_type)
+    candidates = _flatten_attempt_candidates(record)
+    signaled: list[tuple[dict, str, str, str]] = []
+    for attempt in candidates:
         observed_failure_type, observed_stage, observed_subtype = _attempt_observation(attempt)
         if _has_failure_signal(observed_failure_type, observed_stage, observed_subtype):
-            return attempt
+            signaled.append((attempt, observed_failure_type, observed_stage, observed_subtype))
+    if not signaled:
+        return {}
+
+    def _score(row: tuple[dict, str, str, str]) -> tuple[int, int, int, int]:
+        _, observed_failure_type, observed_stage, observed_subtype = row
+        subtype_match = 1 if (not expected_subtypes or observed_subtype in expected_subtypes) else 0
+        stage_match = 1 if observed_stage == expected_stage else 0
+        canonical_match = 1 if observed_failure_type == expected_canonical else 0
+        non_wrapper = 0 if observed_failure_type in {"executor_runtime_error", "executor_invocation_error"} else 1
+        return (canonical_match, stage_match, subtype_match, non_wrapper)
+
+    ranked = max(enumerate(signaled), key=lambda item: (_score(item[1]), -item[0]))
+    return ranked[1][0]
     return {}
+
+
+def _parse_json_object(text: str) -> dict:
+    raw = str(text or "").strip()
+    if not raw:
+        return {}
+    candidates = [raw]
+    start = raw.find("{")
+    end = raw.rfind("}")
+    if start >= 0 and end > start:
+        snippet = raw[start : end + 1]
+        if snippet != raw:
+            candidates.append(snippet)
+    for candidate in candidates:
+        try:
+            payload = json.loads(candidate)
+        except Exception:
+            continue
+        if isinstance(payload, dict):
+            return payload
+    return {}
+
+
+def _nested_attempts_from_attempt(attempt: dict) -> list[dict]:
+    nested = attempt.get("attempts") if isinstance(attempt.get("attempts"), list) else []
+    nested = [x for x in nested if isinstance(x, dict)]
+    if nested:
+        return nested
+    payload = _parse_json_object(str(attempt.get("executor_stdout_tail") or ""))
+    nested = payload.get("attempts") if isinstance(payload.get("attempts"), list) else []
+    return [x for x in nested if isinstance(x, dict)]
+
+
+def _flatten_attempt_candidates(record: dict) -> list[dict]:
+    attempts = record.get("attempts") if isinstance(record.get("attempts"), list) else []
+    attempts = [x for x in attempts if isinstance(x, dict)]
+    flattened: list[dict] = []
+    for attempt in attempts:
+        nested = _nested_attempts_from_attempt(attempt)
+        if nested:
+            flattened.extend(nested)
+        flattened.append(attempt)
+    return flattened
 
 
 def _inc(counter: dict[str, int], key: str) -> None:
@@ -320,6 +380,18 @@ def build_realism_summary_v1(
             taskset_payload=taskset_payload,
             reasons=missing_inputs,
         )
+
+    l5_primary_reason = str(l5_summary.get("primary_reason") or "").strip()
+    l5_reasons = [str(x).strip() for x in (l5_summary.get("reasons") or []) if str(x).strip()]
+    for key in ("live_request_budget_exceeded", "rate_limited"):
+        if l5_primary_reason == key or key in l5_reasons:
+            return _blocked_summary(
+                evidence_summary=evidence_summary,
+                challenge_summary=challenge_summary,
+                challenge_manifest=challenge_manifest,
+                taskset_payload=taskset_payload,
+                reasons=[key],
+            )
 
     tasks = taskset_payload.get("tasks") if isinstance(taskset_payload.get("tasks"), list) else []
     tasks = [x for x in tasks if isinstance(x, dict)]

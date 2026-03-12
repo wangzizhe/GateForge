@@ -29,9 +29,7 @@ RUN_ROOT="${GATEFORGE_AGENT_L4_REALISM_RUN_ROOT:-$RUN_ROOT_DEFAULT}"
 UPDATE_LATEST="${GATEFORGE_AGENT_L4_REALISM_UPDATE_LATEST:-1}"
 
 BACKEND="${GATEFORGE_AGENT_L4_UPLIFT_BACKEND:-openmodelica_docker}"
-CHALLENGE_PLANNER_BACKEND="${GATEFORGE_AGENT_L4_UPLIFT_CHALLENGE_PLANNER_BACKEND:-gemini}"
-MAIN_PLANNER_BACKEND="${GATEFORGE_AGENT_L4_UPLIFT_MAIN_PLANNER_BACKEND:-rule}"
-NIGHT_PLANNER_BACKEND="${GATEFORGE_AGENT_L4_UPLIFT_NIGHT_PLANNER_BACKEND:-gemini}"
+OM_DOCKER_IMAGE="${GATEFORGE_AGENT_L4_UPLIFT_OM_DOCKER_IMAGE:-openmodelica/openmodelica:v1.26.1-minimal}"
 CHALLENGE_EXECUTOR_CMD="${GATEFORGE_AGENT_L4_UPLIFT_CHALLENGE_LIVE_EXECUTOR_CMD:-}"
 MAIN_SWEEP_EXECUTOR_CMD="${GATEFORGE_AGENT_L4_UPLIFT_MAIN_SWEEP_LIVE_EXECUTOR_CMD:-}"
 NIGHT_SWEEP_EXECUTOR_CMD="${GATEFORGE_AGENT_L4_UPLIFT_NIGHT_SWEEP_LIVE_EXECUTOR_CMD:-}"
@@ -39,6 +37,17 @@ MAIN_L5_L3_EXECUTOR_CMD="${GATEFORGE_AGENT_L4_UPLIFT_MAIN_L5_L3_LIVE_EXECUTOR_CM
 MAIN_L5_L4_EXECUTOR_CMD="${GATEFORGE_AGENT_L4_UPLIFT_MAIN_L5_L4_LIVE_EXECUTOR_CMD:-}"
 NIGHT_L5_L3_EXECUTOR_CMD="${GATEFORGE_AGENT_L4_UPLIFT_NIGHT_L5_L3_LIVE_EXECUTOR_CMD:-}"
 NIGHT_L5_L4_EXECUTOR_CMD="${GATEFORGE_AGENT_L4_UPLIFT_NIGHT_L5_L4_LIVE_EXECUTOR_CMD:-}"
+MAX_ROUNDS="${GATEFORGE_AGENT_L4_UPLIFT_MAX_ROUNDS:-2}"
+MAX_TIME_SEC="${GATEFORGE_AGENT_L4_UPLIFT_MAX_TIME_SEC:-180}"
+RUNTIME_THRESHOLD="${GATEFORGE_AGENT_L4_UPLIFT_RUNTIME_THRESHOLD:-0.2}"
+LIVE_TIMEOUT_SEC="${GATEFORGE_AGENT_L4_UPLIFT_LIVE_TIMEOUT_SEC:-90}"
+LIVE_MAX_OUTPUT_CHARS="${GATEFORGE_AGENT_L4_UPLIFT_LIVE_MAX_OUTPUT_CHARS:-2400}"
+L4_MAX_ROUNDS="${GATEFORGE_AGENT_L4_UPLIFT_L4_MAX_ROUNDS:-3}"
+L4_LLM_FALLBACK_THRESHOLD="${GATEFORGE_AGENT_L4_UPLIFT_L4_LLM_FALLBACK_THRESHOLD:-2}"
+L4_MAX_ACTIONS_PER_ROUND="${GATEFORGE_AGENT_L4_UPLIFT_L4_MAX_ACTIONS_PER_ROUND:-3}"
+MAIN_GATE_MODE="${GATEFORGE_AGENT_L4_UPLIFT_MAIN_GATE_MODE:-strict}"
+NIGHT_GATE_MODE="${GATEFORGE_AGENT_L4_UPLIFT_NIGHT_GATE_MODE:-observe}"
+L5_LEDGER_PATH="${GATEFORGE_AGENT_L4_UPLIFT_L5_LEDGER_PATH:-$RUN_ROOT/private/l5_eval_ledger_v1.jsonl}"
 
 if [ "$REALISM_MODE" = "lean" ]; then
   NIGHT_ENABLED="${GATEFORGE_AGENT_L4_REALISM_NIGHT_ENABLED:-0}"
@@ -52,6 +61,10 @@ LIVE_MAX_REQUESTS_PER_RUN="${GATEFORGE_AGENT_LIVE_MAX_REQUESTS_PER_RUN:-80}"
 LIVE_MAX_CONSECUTIVE_429="${GATEFORGE_AGENT_LIVE_MAX_CONSECUTIVE_429:-3}"
 LIVE_BACKOFF_BASE_SEC="${GATEFORGE_AGENT_LIVE_BACKOFF_BASE_SEC:-5}"
 LIVE_BACKOFF_MAX_SEC="${GATEFORGE_AGENT_LIVE_BACKOFF_MAX_SEC:-60}"
+LIVE_BUDGET_DISABLED="${GATEFORGE_AGENT_L4_REALISM_DISABLE_LIVE_BUDGET:-0}"
+if [ "$LIVE_BUDGET_DISABLED" = "1" ]; then
+  LIVE_MAX_REQUESTS_PER_RUN="0"
+fi
 
 if [ ! -f "$BASE_TASKSET" ]; then
   echo "Missing realism base taskset: $BASE_TASKSET" >&2
@@ -70,9 +83,13 @@ from gateforge.agent_modelica_live_executor_gemini_v1 import _bootstrap_env_from
 keys = [
     "GOOGLE_API_KEY",
     "GEMINI_API_KEY",
+    "OPENAI_API_KEY",
     "LLM_MODEL",
     "GATEFORGE_GEMINI_MODEL",
     "GEMINI_MODEL",
+    "OPENAI_MODEL",
+    "LLM_PROVIDER",
+    "GATEFORGE_AGENT_LIVE_PLANNER_BACKEND",
 ]
 before = {key: str(os.environ.get(key) or "") for key in keys}
 _bootstrap_env_from_repo(allowed_keys=set(keys))
@@ -85,7 +102,21 @@ PY
 
 eval "$(bootstrap_env_exports)"
 
-CHALLENGE_LLM_MODEL="${GATEFORGE_AGENT_L4_UPLIFT_CHALLENGE_LLM_MODEL:-${LLM_MODEL:-${GATEFORGE_GEMINI_MODEL:-${GEMINI_MODEL:-}}}}"
+GLOBAL_LIVE_PLANNER_BACKEND="${GATEFORGE_AGENT_LIVE_PLANNER_BACKEND:-${LLM_PROVIDER:-}}"
+if [ -z "$GLOBAL_LIVE_PLANNER_BACKEND" ]; then
+  GLOBAL_LIVE_PLANNER_BACKEND="$(python3 - <<'PY'
+from gateforge.agent_modelica_live_executor_gemini_v1 import _resolve_llm_provider
+provider, _, _ = _resolve_llm_provider("auto")
+print(provider)
+PY
+)"
+fi
+CHALLENGE_PLANNER_BACKEND="${GATEFORGE_AGENT_L4_UPLIFT_CHALLENGE_PLANNER_BACKEND:-${GLOBAL_LIVE_PLANNER_BACKEND:-gemini}}"
+MAIN_PLANNER_BACKEND="${GATEFORGE_AGENT_L4_UPLIFT_MAIN_PLANNER_BACKEND:-${GLOBAL_LIVE_PLANNER_BACKEND:-gemini}}"
+NIGHT_PLANNER_BACKEND="${GATEFORGE_AGENT_L4_UPLIFT_NIGHT_PLANNER_BACKEND:-${GLOBAL_LIVE_PLANNER_BACKEND:-gemini}}"
+L4_POLICY_BACKEND="${GATEFORGE_AGENT_L4_UPLIFT_L4_POLICY_BACKEND:-${MAIN_PLANNER_BACKEND:-gemini}}"
+
+CHALLENGE_LLM_MODEL="${GATEFORGE_AGENT_L4_UPLIFT_CHALLENGE_LLM_MODEL:-${LLM_MODEL:-${OPENAI_MODEL:-${GATEFORGE_GEMINI_MODEL:-${GEMINI_MODEL:-}}}}}"
 
 release_run_lock() {
   python3 - "$LOCK_PATH" "$$" <<'PY'
@@ -182,6 +213,77 @@ python3 -m gateforge.agent_modelica_realism_run_lifecycle_v1 init-run \
   --acceptance-scope "$ACCEPTANCE_SCOPE" \
   --base-taskset "$BASE_TASKSET" \
   --lock-path "$LOCK_PATH" \
+  --runtime-config-json "$(python3 - "$SCALES" "$PROFILES" "$BACKEND" "$CHALLENGE_PLANNER_BACKEND" "$MAIN_PLANNER_BACKEND" "$NIGHT_PLANNER_BACKEND" "$REALISM_MODE" "$NIGHT_ENABLED" "$CHALLENGE_EXECUTOR_CMD" "$MAIN_SWEEP_EXECUTOR_CMD" "$NIGHT_SWEEP_EXECUTOR_CMD" "$MAIN_L5_L3_EXECUTOR_CMD" "$MAIN_L5_L4_EXECUTOR_CMD" "$NIGHT_L5_L3_EXECUTOR_CMD" "$NIGHT_L5_L4_EXECUTOR_CMD" "$OM_DOCKER_IMAGE" "$MAX_ROUNDS" "$MAX_TIME_SEC" "$RUNTIME_THRESHOLD" "$LIVE_TIMEOUT_SEC" "$LIVE_MAX_OUTPUT_CHARS" "$L4_MAX_ROUNDS" "$L4_POLICY_BACKEND" "$L4_LLM_FALLBACK_THRESHOLD" "$L4_MAX_ACTIONS_PER_ROUND" "$MAIN_GATE_MODE" "$NIGHT_GATE_MODE" "$L5_LEDGER_PATH" <<'PY'
+import json
+import sys
+
+(
+    scales,
+    profiles,
+    backend,
+    challenge_planner_backend,
+    main_planner_backend,
+    night_planner_backend,
+    realism_mode,
+    night_enabled,
+    challenge_executor_cmd,
+    main_sweep_executor_cmd,
+    night_sweep_executor_cmd,
+    main_l5_l3_executor_cmd,
+    main_l5_l4_executor_cmd,
+    night_l5_l3_executor_cmd,
+    night_l5_l4_executor_cmd,
+    docker_image,
+    max_rounds,
+    max_time_sec,
+    runtime_threshold,
+    live_timeout_sec,
+    live_max_output_chars,
+    l4_max_rounds,
+    l4_policy_backend,
+    l4_llm_fallback_threshold,
+    l4_max_actions_per_round,
+    main_gate_mode,
+    night_gate_mode,
+    l5_ledger_path,
+) = sys.argv[1:]
+
+print(
+    json.dumps(
+        {
+            "scales": scales,
+            "profiles": profiles,
+            "backend": backend,
+            "docker_image": docker_image,
+            "challenge_planner_backend": challenge_planner_backend,
+            "main_planner_backend": main_planner_backend,
+            "night_planner_backend": night_planner_backend,
+            "realism_mode": realism_mode,
+            "night_enabled": night_enabled,
+            "challenge_executor_cmd": challenge_executor_cmd,
+            "main_sweep_executor_cmd": main_sweep_executor_cmd,
+            "night_sweep_executor_cmd": night_sweep_executor_cmd,
+            "main_l5_l3_executor_cmd": main_l5_l3_executor_cmd,
+            "main_l5_l4_executor_cmd": main_l5_l4_executor_cmd,
+            "night_l5_l3_executor_cmd": night_l5_l3_executor_cmd,
+            "night_l5_l4_executor_cmd": night_l5_l4_executor_cmd,
+            "max_rounds": max_rounds,
+            "max_time_sec": max_time_sec,
+            "runtime_threshold": runtime_threshold,
+            "live_timeout_sec": live_timeout_sec,
+            "live_max_output_chars": live_max_output_chars,
+            "l4_max_rounds": l4_max_rounds,
+            "l4_policy_backend": l4_policy_backend,
+            "l4_llm_fallback_threshold": l4_llm_fallback_threshold,
+            "l4_max_actions_per_round": l4_max_actions_per_round,
+            "main_gate_mode": main_gate_mode,
+            "night_gate_mode": night_gate_mode,
+            "l5_ledger_path": l5_ledger_path,
+        }
+    )
+)
+PY
+)" \
   --update-latest "$UPDATE_LATEST" >/dev/null
 
 stage_update() {
@@ -252,10 +354,10 @@ if [ -z "$CHALLENGE_EXECUTOR_CMD" ] && [ -z "$MAIN_SWEEP_EXECUTOR_CMD" ] && [ -z
   requires_default_live_stack=1
 fi
 
-requires_gemini_env=0
+requires_llm_env=0
 for planner_backend in "$CHALLENGE_PLANNER_BACKEND" "$MAIN_PLANNER_BACKEND" "$NIGHT_PLANNER_BACKEND"; do
-  if [ "$planner_backend" = "gemini" ]; then
-    requires_gemini_env=1
+  if [ "$planner_backend" != "rule" ]; then
+    requires_llm_env=1
     break
   fi
 done
@@ -264,18 +366,30 @@ stage_update "preflight" "RUNNING" 0 "$RUN_ROOT/environment_preflight_summary.js
 docker_access="skipped"
 blockers_json="[]"
 if [ "$requires_default_live_stack" = "1" ]; then
-  if [ "$requires_gemini_env" = "1" ]; then
-    blockers_json="$(python3 - "$CHALLENGE_LLM_MODEL" <<'PY'
+  if [ "$requires_llm_env" = "1" ]; then
+    blockers_json="$(python3 - "$CHALLENGE_LLM_MODEL" "$CHALLENGE_PLANNER_BACKEND" "$MAIN_PLANNER_BACKEND" "$NIGHT_PLANNER_BACKEND" <<'PY'
 import json
 import os
 import sys
 
 challenge_llm_model = str(sys.argv[1] or "").strip()
+planner_backends = [str(x or "").strip().lower() for x in sys.argv[2:]]
 blockers = []
 if not challenge_llm_model:
     blockers.append("missing_llm_model")
-if not (os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")):
+needs_openai = any(x == "openai" for x in planner_backends)
+needs_gemini = any(x == "gemini" for x in planner_backends)
+needs_auto = any(x == "auto" for x in planner_backends)
+if needs_openai and not os.environ.get("OPENAI_API_KEY"):
+    blockers.append("missing_openai_api_key")
+if needs_gemini and not (os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")):
     blockers.append("missing_gemini_api_key")
+if needs_auto and not (
+    os.environ.get("OPENAI_API_KEY")
+    or os.environ.get("GOOGLE_API_KEY")
+    or os.environ.get("GEMINI_API_KEY")
+):
+    blockers.append("missing_llm_api_key")
 print(json.dumps(blockers))
 PY
 )"
@@ -367,6 +481,23 @@ GATEFORGE_AGENT_L4_UPLIFT_CONTINUE_ON_WEAK_BASELINE="$CONTINUE_ON_WEAK_BASELINE"
 GATEFORGE_AGENT_L4_UPLIFT_REALISM_MODE="$REALISM_MODE" \
 GATEFORGE_AGENT_L4_UPLIFT_ENABLE_NIGHT="$NIGHT_ENABLED" \
 GATEFORGE_AGENT_L4_UPLIFT_RUN_ROOT="$RUN_ROOT" \
+GATEFORGE_AGENT_L4_UPLIFT_BACKEND="$BACKEND" \
+GATEFORGE_AGENT_L4_UPLIFT_OM_DOCKER_IMAGE="$OM_DOCKER_IMAGE" \
+GATEFORGE_AGENT_L4_UPLIFT_CHALLENGE_PLANNER_BACKEND="$CHALLENGE_PLANNER_BACKEND" \
+GATEFORGE_AGENT_L4_UPLIFT_MAIN_PLANNER_BACKEND="$MAIN_PLANNER_BACKEND" \
+GATEFORGE_AGENT_L4_UPLIFT_NIGHT_PLANNER_BACKEND="$NIGHT_PLANNER_BACKEND" \
+GATEFORGE_AGENT_L4_UPLIFT_MAX_ROUNDS="$MAX_ROUNDS" \
+GATEFORGE_AGENT_L4_UPLIFT_MAX_TIME_SEC="$MAX_TIME_SEC" \
+GATEFORGE_AGENT_L4_UPLIFT_RUNTIME_THRESHOLD="$RUNTIME_THRESHOLD" \
+GATEFORGE_AGENT_L4_UPLIFT_LIVE_TIMEOUT_SEC="$LIVE_TIMEOUT_SEC" \
+GATEFORGE_AGENT_L4_UPLIFT_LIVE_MAX_OUTPUT_CHARS="$LIVE_MAX_OUTPUT_CHARS" \
+GATEFORGE_AGENT_L4_UPLIFT_L4_MAX_ROUNDS="$L4_MAX_ROUNDS" \
+GATEFORGE_AGENT_L4_UPLIFT_L4_POLICY_BACKEND="$L4_POLICY_BACKEND" \
+GATEFORGE_AGENT_L4_UPLIFT_L4_LLM_FALLBACK_THRESHOLD="$L4_LLM_FALLBACK_THRESHOLD" \
+GATEFORGE_AGENT_L4_UPLIFT_L4_MAX_ACTIONS_PER_ROUND="$L4_MAX_ACTIONS_PER_ROUND" \
+GATEFORGE_AGENT_L4_UPLIFT_MAIN_GATE_MODE="$MAIN_GATE_MODE" \
+GATEFORGE_AGENT_L4_UPLIFT_NIGHT_GATE_MODE="$NIGHT_GATE_MODE" \
+GATEFORGE_AGENT_L4_UPLIFT_L5_LEDGER_PATH="$L5_LEDGER_PATH" \
 GATEFORGE_AGENT_LIVE_REQUEST_LEDGER_PATH="$LIVE_LEDGER_PATH" \
 GATEFORGE_AGENT_LIVE_MAX_REQUESTS_PER_RUN="$LIVE_MAX_REQUESTS_PER_RUN" \
 GATEFORGE_AGENT_LIVE_MAX_CONSECUTIVE_429="$LIVE_MAX_CONSECUTIVE_429" \

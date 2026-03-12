@@ -6,6 +6,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 FOCUS_ACTIONS = {
+    "underconstrained_system": [
+        "restore the exact dropped connect statement and dangling conservation path before any broad rewrite",
+        "prefer minimal topology balance repair over simulate-first or generic equation rewrite attempts",
+        "do not replace topology restore with broad equation rewrite while checkModel still reports underconstraint",
+    ],
     "model_check_error": [
         "enforce compile-first edit order and rerun checkModel after each patch",
         "prioritize undefined-symbol and connector mismatch fixes before structural rewrites",

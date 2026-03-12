@@ -85,6 +85,10 @@ class RunAgentModelicaL4UpliftEvidenceV0ScriptTests(unittest.TestCase):
             self.assertEqual(str(summary.get("realism_mode") or ""), "lean")
             self.assertFalse(bool(summary.get("night_enabled")))
             self.assertEqual(str(decision.get("decision") or ""), "promote")
+            reasons = [str(x) for x in (summary.get("reasons") or [])]
+            self.assertNotIn("missing_night_sweep_summary", reasons)
+            self.assertNotIn("missing_night_l5_eval_summary", reasons)
+            self.assertNotIn("missing_night_weekly_summary", reasons)
 
     def test_full_chain_outputs_promote_with_mock(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]

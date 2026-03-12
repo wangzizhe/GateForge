@@ -41,6 +41,8 @@ L5_MIN_L3_STAGE_PCT="${GATEFORGE_AGENT_L5_MIN_L3_STAGE_PCT:-70}"
 L5_LEDGER_PATH="${GATEFORGE_AGENT_L5_LEDGER_PATH:-${OUT_DIR}/private/l5_eval_ledger_v1.jsonl}"
 L5_WEEKLY_OUT_JSON="${GATEFORGE_AGENT_L5_WEEKLY_OUT_JSON:-${OUT_DIR}/l5_weekly_metrics.json}"
 L5_WEEKLY_OUT_MD="${GATEFORGE_AGENT_L5_WEEKLY_OUT_MD:-${OUT_DIR}/l5_weekly_metrics.md}"
+LIVE_LEDGER_PATH="${GATEFORGE_AGENT_LIVE_REQUEST_LEDGER_PATH:-${OUT_DIR}/private/live_request_ledger.json}"
+LIVE_STAGE="${GATEFORGE_AGENT_LIVE_REQUEST_STAGE:-$(basename "$OUT_DIR")}"
 
 if [ ! -f "$BASE_TASKSET" ]; then
   echo "Missing base taskset: $BASE_TASKSET" >&2
@@ -137,6 +139,8 @@ GATEFORGE_AGENT_L3_STABILITY_LIVE_TIMEOUT_SEC="$LIVE_TIMEOUT_SEC" \
 GATEFORGE_AGENT_L3_STABILITY_LIVE_MAX_OUTPUT_CHARS="$LIVE_MAX_OUTPUT_CHARS" \
 GATEFORGE_AGENT_L3_STABILITY_RUNTIME_THRESHOLD="$RUNTIME_THRESHOLD" \
 GATEFORGE_AGENT_L3_STABILITY_LIVE_EXECUTOR_CMD="$L3_LIVE_EXECUTOR_CMD" \
+GATEFORGE_AGENT_LIVE_REQUEST_LEDGER_PATH="$LIVE_LEDGER_PATH" \
+GATEFORGE_AGENT_LIVE_REQUEST_STAGE="$LIVE_STAGE" \
 bash scripts/run_agent_modelica_l3_stability_regression_v0.sh
 L3_RC=$?
 
@@ -152,11 +156,36 @@ GATEFORGE_AGENT_L4_CLOSED_LOOP_LIVE_TIMEOUT_SEC="$LIVE_TIMEOUT_SEC" \
 GATEFORGE_AGENT_L4_CLOSED_LOOP_LIVE_MAX_OUTPUT_CHARS="$LIVE_MAX_OUTPUT_CHARS" \
 GATEFORGE_AGENT_L4_CLOSED_LOOP_RUNTIME_THRESHOLD="$RUNTIME_THRESHOLD" \
 GATEFORGE_AGENT_L4_CLOSED_LOOP_LIVE_EXECUTOR_CMD="$L4_LIVE_EXECUTOR_CMD" \
+GATEFORGE_AGENT_LIVE_REQUEST_LEDGER_PATH="$LIVE_LEDGER_PATH" \
+GATEFORGE_AGENT_LIVE_REQUEST_STAGE="$LIVE_STAGE" \
 GATEFORGE_AGENT_L4_MIN_SUCCESS_DELTA_PP="$L5_MIN_DELTA_SUCCESS_PP" \
 GATEFORGE_AGENT_L4_MAX_REGRESSION_WORSEN_PP="$L5_MAX_REGRESSION_WORSEN_PP" \
 GATEFORGE_AGENT_L4_MAX_PHYSICS_WORSEN_PP="$L5_MAX_PHYSICS_WORSEN_PP" \
 bash scripts/run_agent_modelica_l4_closed_loop_v0.sh
 L4_RC=$?
+
+ADDITIONAL_REASONS_JSON="$(python3 - "$LIVE_LEDGER_PATH" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+ledger_path = Path(sys.argv[1])
+if not ledger_path.exists():
+    print("[]")
+    raise SystemExit(0)
+try:
+    payload = json.loads(ledger_path.read_text(encoding="utf-8"))
+except Exception:
+    print("[]")
+    raise SystemExit(0)
+reasons = []
+if bool(payload.get("budget_stop_triggered")):
+    reason = str(payload.get("last_stop_reason") or "").strip()
+    if reason:
+        reasons.append(reason)
+print(json.dumps(reasons))
+PY
+)"
 
 if [ -n "$L5_BASELINE_REFERENCE_SUCCESS_PCT" ]; then
   python3 -m gateforge.agent_modelica_l5_eval_v1 \
@@ -177,6 +206,7 @@ if [ -n "$L5_BASELINE_REFERENCE_SUCCESS_PCT" ]; then
     --min-l3-parse-coverage-pct "$L5_MIN_L3_PARSE_PCT" \
     --min-l3-type-match-rate-pct "$L5_MIN_L3_TYPE_PCT" \
     --min-l3-stage-match-rate-pct "$L5_MIN_L3_STAGE_PCT" \
+    --additional-reasons-json "$ADDITIONAL_REASONS_JSON" \
     --out "$OUT_DIR/l5_eval_summary.json" \
     --report-out "$OUT_DIR/l5_eval_summary.md"
 else
@@ -197,6 +227,7 @@ else
     --min-l3-parse-coverage-pct "$L5_MIN_L3_PARSE_PCT" \
     --min-l3-type-match-rate-pct "$L5_MIN_L3_TYPE_PCT" \
     --min-l3-stage-match-rate-pct "$L5_MIN_L3_STAGE_PCT" \
+    --additional-reasons-json "$ADDITIONAL_REASONS_JSON" \
     --out "$OUT_DIR/l5_eval_summary.json" \
     --report-out "$OUT_DIR/l5_eval_summary.md"
 fi

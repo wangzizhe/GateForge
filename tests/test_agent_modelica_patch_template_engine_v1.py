@@ -4,6 +4,13 @@ from gateforge.agent_modelica_patch_template_engine_v1 import build_patch_templa
 
 
 class AgentModelicaPatchTemplateEngineV1Tests(unittest.TestCase):
+    def test_builds_template_for_underconstrained_system(self) -> None:
+        payload = build_patch_template(failure_type="underconstrained_system", expected_stage="check")
+        self.assertEqual(payload.get("template_id"), "tpl_underconstrained_topology_restore_v1")
+        actions = payload.get("actions") if isinstance(payload.get("actions"), list) else []
+        self.assertTrue(any("missing connect" in str(x).lower() for x in actions))
+        self.assertTrue(any("dangling conservation path" in str(x).lower() for x in actions))
+
     def test_builds_template_for_simulate_error(self) -> None:
         payload = build_patch_template(failure_type="simulate_error", expected_stage="simulate")
         self.assertTrue(str(payload.get("template_id") or "").startswith("tpl_"))

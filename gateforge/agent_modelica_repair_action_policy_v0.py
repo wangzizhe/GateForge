@@ -7,6 +7,11 @@ from pathlib import Path
 
 
 DEFAULT_RULES = {
+    "underconstrained_system": [
+        "restore the missing connect(...) edge before declaration or equation rewrites",
+        "restore dangling conservation path and connector balance before any simulate retry",
+        "rerun checkModel immediately after each topology repair step",
+    ],
     "model_check_error": [
         "scan undefined symbols and missing declarations",
         "resolve connector/causality mismatches before simulation",
@@ -53,6 +58,8 @@ def recommend_repair_actions_v0(
     if rules or suggested:
         if stage == "check":
             stage_guard.append("do not simulate until checkModel returns pass")
+            if ftype == "underconstrained_system":
+                stage_guard.append("do not replace topology restore with broad equation rewrite while checkModel still reports underconstraint")
         elif stage == "simulate":
             stage_guard.append("compile/checkModel must pass before any simulate retry")
 

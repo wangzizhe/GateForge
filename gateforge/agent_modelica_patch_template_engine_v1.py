@@ -7,6 +7,18 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 TEMPLATES: dict[str, dict] = {
+    "underconstrained_system": {
+        "template_id": "tpl_underconstrained_topology_restore_v1",
+        "actions": [
+            "restore the missing connect(...) edge before any declaration or equation rewrite",
+            "restore dangling conservation path and connector balance before simulation",
+            "rerun checkModel after every single topology repair step",
+        ],
+        "edit_directives": [
+            {"kind": "restore_connect_edge", "priority": "high"},
+            {"kind": "restore_conservation_path", "priority": "high"},
+        ],
+    },
     "model_check_error": {
         "template_id": "tpl_model_check_symbol_and_connector_v1",
         "actions": [
