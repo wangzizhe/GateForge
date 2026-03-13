@@ -22,6 +22,7 @@ ALLOWED_OPS = {
     "set_start_value",
     "connect_ports",
     "disconnect_ports",
+    "rewrite_connection_endpoint",
     "replace_component",
 }
 ALLOWED_SOURCES = {"rule", "llm"}
@@ -197,6 +198,39 @@ def _validate_action_by_op(
             errors.append(f"to_{dst_err}")
         if src and dst and src == dst:
             errors.append("connection_self_loop_invalid")
+    elif op == "rewrite_connection_endpoint":
+        src = str(target.get("from") or "").strip()
+        dst = str(target.get("to") or "").strip()
+        src_before = str(target.get("from_before") or "").strip()
+        src_after = str(target.get("from_after") or "").strip()
+        dst_before = str(target.get("to_before") or "").strip()
+        dst_after = str(target.get("to_after") or "").strip()
+        if src and (dst_before or dst_after):
+            src_err = _validate_endpoint(src, component_type_by_id=component_type_by_id)
+            if src_err:
+                errors.append(f"from_{src_err}")
+            if not dst_before or _parse_endpoint(dst_before) is None:
+                errors.append("to_before_endpoint_invalid")
+            if not dst_after:
+                errors.append("to_after_endpoint_missing")
+            else:
+                dst_err = _validate_endpoint(dst_after, component_type_by_id=component_type_by_id)
+                if dst_err:
+                    errors.append(f"to_after_{dst_err}")
+        elif dst and (src_before or src_after):
+            dst_err = _validate_endpoint(dst, component_type_by_id=component_type_by_id)
+            if dst_err:
+                errors.append(f"to_{dst_err}")
+            if not src_before or _parse_endpoint(src_before) is None:
+                errors.append("from_before_endpoint_invalid")
+            if not src_after:
+                errors.append("from_after_endpoint_missing")
+            else:
+                src_err = _validate_endpoint(src_after, component_type_by_id=component_type_by_id)
+                if src_err:
+                    errors.append(f"from_after_{src_err}")
+        else:
+            errors.append("rewrite_connection_endpoint_shape_invalid")
     elif op == "replace_component":
         new_type = str(args.get("new_type") or "").strip()
         if not new_type:

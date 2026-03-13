@@ -114,9 +114,16 @@ def _last_attempt(record: dict) -> dict:
 
 def _attempt_observation(attempt: dict) -> tuple[str, str, str]:
     diagnostic = attempt.get("diagnostic_ir") if isinstance(attempt.get("diagnostic_ir"), dict) else {}
-    observed_failure_type = canonical_error_type_v0(
-        str(attempt.get("observed_failure_type") or diagnostic.get("error_type") or "").strip().lower()
+    attempt_failure_type = canonical_error_type_v0(
+        str(attempt.get("observed_failure_type") or "").strip().lower()
     )
+    diagnostic_failure_type = canonical_error_type_v0(
+        str(diagnostic.get("error_type") or "").strip().lower()
+    )
+    if attempt_failure_type in {"", "none", "executor_runtime_error"} and diagnostic_failure_type not in {"", "none"}:
+        observed_failure_type = diagnostic_failure_type
+    else:
+        observed_failure_type = attempt_failure_type or diagnostic_failure_type
     observed_subtype = str(diagnostic.get("error_subtype") or "none").strip().lower() or "none"
     observed_stage = str(diagnostic.get("stage") or "").strip().lower()
     if not observed_stage:

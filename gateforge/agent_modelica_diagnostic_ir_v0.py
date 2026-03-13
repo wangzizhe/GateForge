@@ -335,6 +335,50 @@ def _normalize_declared_underconstrained_drift(
     return error_type, error_subtype, reason
 
 
+def _normalize_declared_connector_mismatch_drift(
+    *,
+    error_type: str,
+    error_subtype: str,
+    reason: str,
+    lower: str,
+    observed_phase: str,
+    declared_failure_type: str,
+    expected_stage: str,
+    declared_context_hints: list[str] | None = None,
+) -> tuple[str, str, str]:
+    declared = str(declared_failure_type or "").strip().lower()
+    if declared != "connector_mismatch":
+        return error_type, error_subtype, reason
+    subtype = str(error_subtype or "").strip().lower()
+    if subtype not in {"undefined_symbol", "compile_failure_unknown"}:
+        return error_type, error_subtype, reason
+    phase = str(observed_phase or "").strip().lower()
+    expected = str(expected_stage or "").strip().lower()
+    if phase not in {"", "check"} and expected not in {"", "check"}:
+        return error_type, error_subtype, reason
+    context = {str(x or "").strip().lower() for x in (declared_context_hints or []) if str(x or "").strip()}
+    has_connector_context = bool(
+        context.intersection(
+            {
+                "connector_port_typo",
+                "connection_endpoint",
+                "topology_realism",
+                "connector_mismatch",
+            }
+        )
+    )
+    undefined_connector = re.search(
+        r"variable\s+[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*\s+not\s+found\s+in\s+scope",
+        lower,
+        re.IGNORECASE,
+    )
+    if has_connector_context and undefined_connector:
+        return "model_check_error", "connector_mismatch", "connector mismatch"
+    if has_connector_context and _contains_any(lower, ("badport", "incompatible connector", "connector mismatch")):
+        return "model_check_error", "connector_mismatch", "connector mismatch"
+    return error_type, error_subtype, reason
+
+
 def build_diagnostic_ir_v0(
     *,
     output: str,
@@ -366,6 +410,16 @@ def build_diagnostic_ir_v0(
         legacy_type = "none"
 
     err_type, err_subtype, reason = _normalize_declared_underconstrained_drift(
+        error_type=err_type,
+        error_subtype=err_subtype,
+        reason=reason,
+        lower=lower,
+        observed_phase=observed_phase,
+        declared_failure_type=str(declared_failure_type or ""),
+        expected_stage=str(expected_stage or ""),
+        declared_context_hints=declared_context_hints,
+    )
+    err_type, err_subtype, reason = _normalize_declared_connector_mismatch_drift(
         error_type=err_type,
         error_subtype=err_subtype,
         reason=reason,

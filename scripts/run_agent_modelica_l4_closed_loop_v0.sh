@@ -212,6 +212,7 @@ def _empty_bucket() -> dict:
         "physics_fail_count": 0,
         "regression_fail_count": 0,
         "infra_failure_count": 0,
+        "infra_attempt_blip_count": 0,
     }
 
 def _finalize_bucket(raw: dict[str, dict]) -> dict[str, dict]:
@@ -223,6 +224,7 @@ def _finalize_bucket(raw: dict[str, dict]) -> dict[str, dict]:
         physics_fail_count = int(row.get("physics_fail_count") or 0)
         regression_fail_count = int(row.get("regression_fail_count") or 0)
         infra_failure_count = int(row.get("infra_failure_count") or 0)
+        infra_attempt_blip_count = int(row.get("infra_attempt_blip_count") or 0)
         out[key] = {
             "record_count": record_count,
             "success_count": success_count,
@@ -230,6 +232,7 @@ def _finalize_bucket(raw: dict[str, dict]) -> dict[str, dict]:
             "physics_fail_rate_pct": _pct(physics_fail_count, record_count),
             "regression_fail_rate_pct": _pct(regression_fail_count, record_count),
             "infra_failure_count": infra_failure_count,
+            "infra_attempt_blip_count": infra_attempt_blip_count,
         }
     return out
 
@@ -261,7 +264,10 @@ def _summarize_breakdown(records: list[dict], task_meta_map: dict[str, dict], ke
                 log_excerpt=row.get("log_excerpt"),
             )
             if infra:
-                bucket["infra_failure_count"] = int(bucket.get("infra_failure_count", 0)) + 1
+                if bool(rec.get("passed")):
+                    bucket["infra_attempt_blip_count"] = int(bucket.get("infra_attempt_blip_count", 0)) + 1
+                else:
+                    bucket["infra_failure_count"] = int(bucket.get("infra_failure_count", 0)) + 1
     return _finalize_bucket(buckets)
 
 def _delta_breakdown(on_map: dict[str, dict], off_map: dict[str, dict]) -> dict[str, dict]:
@@ -302,6 +308,8 @@ def _summarize_run(run_dir: Path, task_meta_map: dict[str, dict], known_categori
     attempts = 0
     infra_count = 0
     infra_by_reason: dict[str, int] = {}
+    infra_attempt_blip_count = 0
+    infra_attempt_blip_by_reason: dict[str, int] = {}
     reason_distribution: dict[str, int] = {}
     observed_policy_profiles: set[str] = set()
     llm_fallback_count = 0
@@ -332,8 +340,12 @@ def _summarize_run(run_dir: Path, task_meta_map: dict[str, dict], known_categori
                 log_excerpt=row.get("log_excerpt"),
             )
             if infra:
-                infra_count += 1
-                infra_by_reason[infra] = int(infra_by_reason.get(infra, 0)) + 1
+                if bool(rec.get("passed")):
+                    infra_attempt_blip_count += 1
+                    infra_attempt_blip_by_reason[infra] = int(infra_attempt_blip_by_reason.get(infra, 0)) + 1
+                else:
+                    infra_count += 1
+                    infra_by_reason[infra] = int(infra_by_reason.get(infra, 0)) + 1
     ranked_reasons = sorted(reason_distribution.items(), key=lambda row: (-int(row[1]), str(row[0])))
     top_reason = str(ranked_reasons[0][0]) if ranked_reasons else "none"
     return {
@@ -345,6 +357,10 @@ def _summarize_run(run_dir: Path, task_meta_map: dict[str, dict], known_categori
         "physics_fail_rate_pct": _pct(physics_fail_count, record_count),
         "infra_failure_count": infra_count,
         "infra_failure_by_reason": {k: infra_by_reason[k] for k in sorted(infra_by_reason.keys())},
+        "infra_attempt_blip_count": infra_attempt_blip_count,
+        "infra_attempt_blip_by_reason": {
+            k: infra_attempt_blip_by_reason[k] for k in sorted(infra_attempt_blip_by_reason.keys())
+        },
         "reason_distribution": {k: reason_distribution[k] for k in sorted(reason_distribution.keys())},
         "l4_primary_reason": top_reason,
         "observed_policy_profiles": sorted([x for x in observed_policy_profiles if x]),

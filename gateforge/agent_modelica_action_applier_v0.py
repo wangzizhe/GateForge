@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -151,6 +152,26 @@ def _apply_disconnect_ports(ir_payload: dict, action: dict) -> None:
     ir_payload["connections"] = kept
 
 
+def _rewrite_connection_endpoint_text(modelica_text: str, action: dict) -> tuple[str, bool]:
+    target = action.get("target") if isinstance(action.get("target"), dict) else {}
+    src = str(target.get("from") or "").strip()
+    dst = str(target.get("to") or "").strip()
+    src_before = str(target.get("from_before") or "").strip()
+    src_after = str(target.get("from_after") or "").strip()
+    dst_before = str(target.get("to_before") or "").strip()
+    dst_after = str(target.get("to_after") or "").strip()
+    if src and dst_before and dst_after:
+        pattern = re.compile(rf"connect\(\s*{re.escape(src)}\s*,\s*{re.escape(dst_before)}\s*\)\s*;")
+        replacement = f"connect({src}, {dst_after});"
+    elif dst and src_before and src_after:
+        pattern = re.compile(rf"connect\(\s*{re.escape(src_before)}\s*,\s*{re.escape(dst)}\s*\)\s*;")
+        replacement = f"connect({src_after}, {dst});"
+    else:
+        raise ValueError("apply_error_rewrite_connection_shape_invalid")
+    patched, count = pattern.subn(replacement, str(modelica_text or ""), count=1)
+    return patched, count > 0
+
+
 def _apply_replace_component(
     ir_payload: dict,
     action: dict,
@@ -298,8 +319,63 @@ def apply_repair_actions_to_modelica_v0(
     max_actions_per_round: int = 3,
     allowed_component_types: list[str] | tuple[str, ...] | None = None,
 ) -> dict:
+    working_text = str(modelica_text or "")
+    text_level_actions = [x for x in actions_payload if isinstance(x, dict) and str(x.get("op") or "").strip().lower() == "rewrite_connection_endpoint"]
+    ir_level_actions = [x for x in actions_payload if not (isinstance(x, dict) and str(x.get("op") or "").strip().lower() == "rewrite_connection_endpoint")]
+    applied_text_actions: list[dict] = []
+    if text_level_actions:
+        try:
+            parsed_seed_ir = modelica_to_ir(working_text)
+        except Exception as exc:
+            return {
+                "schema_version": SCHEMA_VERSION,
+                "status": "FAIL",
+                "apply_error_code": "modelica_to_ir_failed",
+                "errors": [str(exc)],
+                "rolled_back": True,
+                "applied_actions": [],
+            }
+        validation = validate_action_batch_v0(
+            actions_payload=text_level_actions,
+            ir_payload=parsed_seed_ir,
+            max_actions_per_round=max_actions_per_round,
+            allowed_component_types=allowed_component_types,
+        )
+        normalized_text_actions = validation.get("normalized_actions") if isinstance(validation.get("normalized_actions"), list) else []
+        if validation.get("status") != "PASS":
+            return {
+                "schema_version": SCHEMA_VERSION,
+                "status": "FAIL",
+                "apply_error_code": "action_batch_invalid",
+                "errors": list(validation.get("errors") or []),
+                "rejected_actions": validation.get("rejected_actions") or [],
+                "rolled_back": True,
+                "applied_actions": [],
+            }
+        for action in normalized_text_actions:
+            try:
+                working_text, changed = _rewrite_connection_endpoint_text(working_text, action)
+            except Exception as exc:
+                return {
+                    "schema_version": SCHEMA_VERSION,
+                    "status": "FAIL",
+                    "apply_error_code": str(exc),
+                    "errors": [str(exc)],
+                    "rolled_back": True,
+                    "applied_actions": [],
+                }
+            if not changed:
+                return {
+                    "schema_version": SCHEMA_VERSION,
+                    "status": "FAIL",
+                    "apply_error_code": "apply_error_connection_not_found",
+                    "errors": ["apply_error_connection_not_found"],
+                    "rolled_back": True,
+                    "applied_actions": [],
+                }
+            applied_text_actions.append(_clone_json(action))
     try:
-        parsed_ir = modelica_to_ir(str(modelica_text or ""))
+        parsed_ir = modelica_to_ir(working_text)
     except Exception as exc:
         return {
             "schema_version": SCHEMA_VERSION,
@@ -312,10 +388,16 @@ def apply_repair_actions_to_modelica_v0(
 
     result = apply_repair_actions_to_ir_v0(
         ir_payload=parsed_ir,
-        actions_payload=actions_payload,
+        actions_payload=ir_level_actions,
         max_actions_per_round=max_actions_per_round,
         allowed_component_types=allowed_component_types,
     )
+    if result.get("status") == "PASS" and applied_text_actions:
+        combined = applied_text_actions + [x for x in (result.get("applied_actions") or []) if isinstance(x, dict)]
+        result["applied_actions"] = combined
+        result["updated_modelica_text"] = str(result.get("updated_modelica_text") or working_text)
+    elif applied_text_actions:
+        result["applied_actions"] = []
     result["source_ir"] = parsed_ir
     return result
 

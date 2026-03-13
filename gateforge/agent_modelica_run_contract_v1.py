@@ -131,7 +131,7 @@ def _task_diagnostic_context_hints(task: dict) -> list[str]:
     for row in (task.get("mutated_objects") or []):
         if not isinstance(row, dict):
             continue
-        for key in ("kind", "effect", "name", "paired_with"):
+        for key in ("kind", "effect", "name", "paired_with", "from", "to", "to_before", "to_after", "from_before", "from_after"):
             value = str(row.get(key) or "").strip().lower()
             if value:
                 hints.append(value)
@@ -510,6 +510,16 @@ def _expected_canonical_for_failure_type(failure_type: str) -> str:
     return canonical_error_type_v0(ftype)
 
 
+def _prefer_diagnostic_failure_type(*, observed_failure_type: str, diagnostic_ir: dict) -> str:
+    observed_raw = str(observed_failure_type or "").strip().lower()
+    diagnostic = canonical_error_type_v0(str((diagnostic_ir or {}).get("error_type") or "").strip().lower())
+    if diagnostic in {"", "none"}:
+        return observed_raw
+    if observed_raw in {"", "none", "executor_runtime_error"}:
+        return diagnostic
+    return observed_raw
+
+
 def _pick_manifestation_live_attempt(live_attempts: list[dict], *, failure_type: str, expected_stage: str) -> dict:
     attempts = [x for x in live_attempts if isinstance(x, dict)]
     if not attempts:
@@ -519,8 +529,9 @@ def _pick_manifestation_live_attempt(live_attempts: list[dict], *, failure_type:
 
     def _row(attempt: dict) -> tuple[tuple[int, int, int], dict]:
         diagnostic = attempt.get("diagnostic_ir") if isinstance(attempt.get("diagnostic_ir"), dict) else {}
-        observed_failure_type = canonical_error_type_v0(
-            str(attempt.get("observed_failure_type") or diagnostic.get("error_type") or "").strip().lower()
+        observed_failure_type = _prefer_diagnostic_failure_type(
+            observed_failure_type=str(attempt.get("observed_failure_type") or "").strip().lower(),
+            diagnostic_ir=diagnostic,
         )
         observed_stage = str(diagnostic.get("stage") or "").strip().lower()
         non_wrapper = 0 if observed_failure_type in {"executor_runtime_error", "executor_invocation_error", "none"} else 1
@@ -1298,6 +1309,10 @@ def _run_task_live_l4(
                 declared_failure_type=failure_type,
                 declared_context_hints=_task_diagnostic_context_hints(task),
             )
+        observed_failure_type = _prefer_diagnostic_failure_type(
+            observed_failure_type=observed_failure_type,
+            diagnostic_ir=diagnostic_ir,
+        )
         return {
             "round": int(round_idx),
             "check_model_pass": bool(check_ok),
@@ -1734,6 +1749,10 @@ def _run_task_live(
                 declared_failure_type=failure_type,
                 declared_context_hints=_task_diagnostic_context_hints(task),
             )
+        observed_failure_type = _prefer_diagnostic_failure_type(
+            observed_failure_type=observed_failure_type,
+            diagnostic_ir=diagnostic_ir,
+        )
 
         attempts.append(
             {

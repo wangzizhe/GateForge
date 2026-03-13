@@ -232,6 +232,86 @@ class AgentModelicaL4UpliftDecisionV0Tests(unittest.TestCase):
         self.assertEqual(summary.get("missing_artifact_labels"), [])
         self.assertFalse(bool(summary.get("night_enabled")))
 
+    def test_infra_attempt_blips_do_not_block_promote(self) -> None:
+        summary = evaluate_l4_uplift_decision_v0(
+            challenge_summary={
+                "baseline_off_success_at_k_pct": 72.0,
+                "baseline_meets_minimum": True,
+                "baseline_has_headroom": True,
+                "baseline_in_target_range": True,
+            },
+            main_sweep_summary={
+                "status": "PASS",
+                "recommended_profile_result": {
+                    "profile": "score_v1",
+                    "success_at_k_pct_on": 88.0,
+                    "success_at_k_pct_off": 72.0,
+                    "delta_success_at_k_pp": 16.0,
+                    "delta_regression_fail_rate_pp": 0.0,
+                    "delta_physics_fail_rate_pp": 0.0,
+                    "infra_failure_count_on": 0,
+                    "infra_attempt_blip_count_on": 3,
+                    "l4_primary_reason_on": "hard_checks_pass",
+                },
+            },
+            main_l5_summary={
+                "gate_result": "PASS",
+                "status": "NEEDS_REVIEW",
+                "success_at_k_pct": 88.0,
+                "non_regression_ok": True,
+                "infra_failure_count": 0,
+                "infra_attempt_blip_count": 3,
+                "l4_primary_reason": "hard_checks_pass",
+            },
+            main_weekly_summary={"recommendation": "promote", "recommendation_reason": "two_week_consecutive_pass"},
+            night_sweep_summary={"status": "PASS"},
+            night_l5_summary={"infra_failure_count": 0, "infra_attempt_blip_count": 0, "status": "PASS"},
+            night_weekly_summary={"recommendation": "hold", "recommendation_reason": "insufficient_consecutive_history"},
+        )
+        self.assertEqual(summary.get("decision"), "promote")
+        self.assertEqual(summary.get("primary_reason"), "none")
+        self.assertNotIn("infra", summary.get("reasons", []))
+        self.assertEqual(summary.get("infra_failure_count_total"), 0)
+        self.assertEqual(summary.get("infra_attempt_blip_count_total"), 3)
+
+    def test_l5_metrics_drive_promote_when_main_sweep_has_no_recommended_profile(self) -> None:
+        summary = evaluate_l4_uplift_decision_v0(
+            challenge_summary={
+                "baseline_off_success_at_k_pct": 66.67,
+                "baseline_meets_minimum": True,
+                "baseline_has_headroom": True,
+                "baseline_in_target_range": True,
+            },
+            main_sweep_summary={
+                "status": "FAIL",
+                "recommended_profile": "",
+                "recommended_profile_result": {},
+                "delta_success_at_k_pp": 0.0,
+                "reasons": ["no_profile_passed"],
+            },
+            main_l5_summary={
+                "gate_result": "PASS",
+                "status": "PASS",
+                "success_at_k_pct": 100.0,
+                "delta_success_at_k_pp": 33.33,
+                "delta_regression_fail_rate_pp": -33.33,
+                "delta_physics_fail_rate_pp": -33.33,
+                "non_regression_ok": True,
+                "infra_failure_count": 0,
+                "infra_attempt_blip_count": 6,
+                "l4_primary_reason": "hard_checks_pass",
+            },
+            main_weekly_summary={"recommendation": "hold", "recommendation_reason": "insufficient_consecutive_history"},
+            night_sweep_summary={},
+            night_l5_summary={},
+            night_weekly_summary={},
+            night_enabled=False,
+        )
+        self.assertEqual(summary.get("decision"), "promote")
+        self.assertEqual(summary.get("primary_reason"), "none")
+        self.assertEqual(summary.get("main_delta_success_at_k_pp"), 33.33)
+        self.assertNotIn("quality_regression", summary.get("reasons", []))
+
 
 if __name__ == "__main__":
     unittest.main()

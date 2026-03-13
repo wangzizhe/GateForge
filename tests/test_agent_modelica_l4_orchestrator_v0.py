@@ -197,6 +197,77 @@ class AgentModelicaL4OrchestratorV0Tests(unittest.TestCase):
         self.assertEqual(str(target.get("to") or ""), "G1.p")
         self.assertEqual(str(action.get("reason_tag") or ""), "topology_restore")
 
+    def test_orchestrator_connector_mismatch_uses_exact_endpoint_rewrite(self) -> None:
+        def _runner(round_idx: int, _model_text: str, _actions: list[str]) -> dict:
+            if round_idx == 1:
+                return {
+                    "check_model_pass": False,
+                    "simulate_pass": False,
+                    "physics_contract_pass": False,
+                    "regression_pass": False,
+                    "elapsed_sec": 1.0,
+                    "observed_failure_type": "model_check_error",
+                    "reason": "Error: Variable R1.badPort not found in scope A1.",
+                    "stderr_snippet": "undefined symbol R1.badPort",
+                }
+            return {
+                "check_model_pass": True,
+                "simulate_pass": True,
+                "physics_contract_pass": True,
+                "regression_pass": True,
+                "elapsed_sec": 1.0,
+                "observed_failure_type": "none",
+                "reason": "",
+            }
+
+        modelica = "\n".join(
+            [
+                "model A1",
+                "  Modelica.Electrical.Analog.Sources.ConstantVoltage V1(V=10);",
+                "  Modelica.Electrical.Analog.Basic.Resistor R1(R=10);",
+                "  Modelica.Electrical.Analog.Basic.Ground G1;",
+                "equation",
+                "  connect(V1.p, R1.badPort);",
+                "  connect(R1.n, G1.p);",
+                "  connect(V1.n, G1.p);",
+                "end A1;",
+                "",
+            ]
+        )
+        result = run_l4_orchestrator_v0(
+            task={
+                "task_id": "t_conn",
+                "failure_type": "connector_mismatch",
+                "expected_stage": "check",
+                "mutated_objects": [
+                    {
+                        "kind": "connection_endpoint",
+                        "from": "V1.p",
+                        "to_before": "R1.p",
+                        "to_after": "R1.badPort",
+                    }
+                ],
+            },
+            initial_model_text=modelica,
+            initial_actions=["align connector types and endpoint port names"],
+            run_attempt=_runner,
+            max_rounds=2,
+            max_time_sec=30,
+            max_actions_per_round=3,
+        )
+        self.assertEqual(result.get("status"), "PASS")
+        attempts = result.get("attempts") if isinstance(result.get("attempts"), list) else []
+        first = attempts[0] if attempts and isinstance(attempts[0], dict) else {}
+        l4 = first.get("l4") if isinstance(first.get("l4"), dict) else {}
+        planned = l4.get("planned_actions") if isinstance(l4.get("planned_actions"), list) else []
+        self.assertEqual(len(planned), 1)
+        action = planned[0] if planned and isinstance(planned[0], dict) else {}
+        self.assertEqual(str(action.get("op") or ""), "rewrite_connection_endpoint")
+        target = action.get("target") if isinstance(action.get("target"), dict) else {}
+        self.assertEqual(str(target.get("from") or ""), "V1.p")
+        self.assertEqual(str(target.get("to_before") or ""), "R1.badPort")
+        self.assertEqual(str(target.get("to_after") or ""), "R1.p")
+
 
 if __name__ == "__main__":
     unittest.main()

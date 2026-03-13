@@ -131,6 +131,12 @@ def _infra_blip_can_be_soft(
     )
 
 
+def _sorted_int_map(value: object) -> dict[str, int]:
+    if not isinstance(value, dict):
+        return {}
+    return dict(sorted({str(k): _to_int(v) for k, v in value.items()}.items()))
+
+
 def _infer_infra_reason(stderr: str, reason: str, log_excerpt: str) -> str:
     text = " ".join([str(stderr or ""), str(reason or ""), str(log_excerpt or "")]).lower()
     if "live_request_budget_exceeded" in text:
@@ -229,6 +235,7 @@ def _write_markdown(path: str, payload: dict) -> None:
         f"- physics_fail_rate_pct: `{payload.get('physics_fail_rate_pct')}`",
         f"- regression_fail_rate_pct: `{payload.get('regression_fail_rate_pct')}`",
         f"- infra_failure_count: `{payload.get('infra_failure_count')}`",
+        f"- infra_attempt_blip_count: `{payload.get('infra_attempt_blip_count')}`",
         f"- l3_parse_coverage_pct: `{payload.get('l3_parse_coverage_pct')}`",
         f"- l3_type_match_rate_pct: `{payload.get('l3_type_match_rate_pct')}`",
         f"- l3_stage_match_rate_pct: `{payload.get('l3_stage_match_rate_pct')}`",
@@ -352,6 +359,12 @@ def evaluate_l5_eval_v1(
     )
     if not isinstance(infra_failure_by_reason, dict):
         infra_failure_by_reason = {}
+    infra_attempt_blip_count = _to_int(l4_on.get("infra_attempt_blip_count"), 0)
+    infra_attempt_blip_by_reason = (
+        l4_on.get("infra_attempt_blip_by_reason")
+        if isinstance(l4_on.get("infra_attempt_blip_by_reason"), dict)
+        else {}
+    )
 
     l3_parse = _to_float(
         l3_quality_summary.get("parse_coverage_pct"),
@@ -489,7 +502,9 @@ def evaluate_l5_eval_v1(
         "delta_regression_fail_rate_pp": delta_regression_fail_rate_pp,
         "infra_failure_count": infra_failure_count,
         "infra_failure_rate_pct": infra_failure_rate_pct,
-        "infra_failure_by_reason": dict(sorted({str(k): _to_int(v) for k, v in infra_failure_by_reason.items()}.items())),
+        "infra_failure_by_reason": _sorted_int_map(infra_failure_by_reason),
+        "infra_attempt_blip_count": infra_attempt_blip_count,
+        "infra_attempt_blip_by_reason": _sorted_int_map(infra_attempt_blip_by_reason),
         "l3_diagnostic_gate_status": l3_gate_status,
         "l3_parse_coverage_pct": l3_parse,
         "l3_type_match_rate_pct": l3_type,

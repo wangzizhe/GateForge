@@ -121,6 +121,7 @@ def _extract_compare_metrics(payload: dict) -> dict[str, Any]:
             "delta_regression_fail_rate_pp": 0.0,
             "delta_physics_fail_rate_pp": 0.0,
             "infra_failure_count_on": 0,
+            "infra_attempt_blip_count_on": 0,
             "no_progress_rate_pct_on": 0.0,
             "llm_fallback_rate_pct_on": 0.0,
             "l4_primary_reason_on": "none",
@@ -141,6 +142,7 @@ def _extract_compare_metrics(payload: dict) -> dict[str, Any]:
             "delta_regression_fail_rate_pp": _to_float(delta.get("regression_fail_rate_pp"), 0.0),
             "delta_physics_fail_rate_pp": _to_float(delta.get("physics_fail_rate_pp"), 0.0),
             "infra_failure_count_on": _to_int(on.get("infra_failure_count"), 0),
+            "infra_attempt_blip_count_on": _to_int(on.get("infra_attempt_blip_count"), 0),
             "no_progress_rate_pct_on": _to_float(on.get("no_progress_rate_pct"), 0.0),
             "llm_fallback_rate_pct_on": _to_float(on.get("llm_fallback_rate_pct"), 0.0),
             "l4_primary_reason_on": str(on.get("l4_primary_reason") or "none"),
@@ -171,6 +173,7 @@ def _extract_compare_metrics(payload: dict) -> dict[str, Any]:
         on = {
             "success_at_k_pct": _to_float(best.get("success_at_k_pct_on"), 0.0),
             "infra_failure_count": _to_int(best.get("infra_failure_count_on"), 0),
+            "infra_attempt_blip_count": _to_int(best.get("infra_attempt_blip_count_on"), 0),
             "no_progress_rate_pct": _to_float(best.get("no_progress_rate_pct_on"), 0.0),
             "llm_fallback_rate_pct": _to_float(best.get("llm_fallback_rate_pct_on"), 0.0),
             "l4_primary_reason": str(best.get("l4_primary_reason_on") or "none"),
@@ -187,6 +190,7 @@ def _extract_compare_metrics(payload: dict) -> dict[str, Any]:
             "delta_regression_fail_rate_pp": _to_float(best.get("delta_regression_fail_rate_pp"), 0.0),
             "delta_physics_fail_rate_pp": _to_float(best.get("delta_physics_fail_rate_pp"), 0.0),
             "infra_failure_count_on": _to_int(best.get("infra_failure_count_on"), 0),
+            "infra_attempt_blip_count_on": _to_int(best.get("infra_attempt_blip_count_on"), 0),
             "no_progress_rate_pct_on": _to_float(best.get("no_progress_rate_pct_on"), 0.0),
             "llm_fallback_rate_pct_on": _to_float(best.get("llm_fallback_rate_pct_on"), 0.0),
             "l4_primary_reason_on": str(best.get("l4_primary_reason_on") or "none"),
@@ -203,6 +207,7 @@ def _extract_compare_metrics(payload: dict) -> dict[str, Any]:
         "delta_regression_fail_rate_pp": 0.0,
         "delta_physics_fail_rate_pp": 0.0,
         "infra_failure_count_on": 0,
+        "infra_attempt_blip_count_on": 0,
         "no_progress_rate_pct_on": 0.0,
         "llm_fallback_rate_pct_on": 0.0,
         "l4_primary_reason_on": "none",
@@ -291,10 +296,10 @@ def evaluate_l4_uplift_decision_v0(
         if missing_labels:
             reasons.append("missing_artifacts")
 
-    main_delta = _to_float(compare_main.get("delta_success_at_k_pp"), 0.0)
-    main_delta_reg = _to_float(compare_main.get("delta_regression_fail_rate_pp"), 0.0)
-    main_delta_phy = _to_float(compare_main.get("delta_physics_fail_rate_pp"), 0.0)
     main_success = _to_float(main_l5_summary.get("success_at_k_pct"), _to_float((compare_main.get("on") or {}).get("success_at_k_pct"), 0.0))
+    main_delta = _to_float(main_l5_summary.get("delta_success_at_k_pp"), _to_float(compare_main.get("delta_success_at_k_pp"), main_success - baseline_off_success))
+    main_delta_reg = _to_float(main_l5_summary.get("delta_regression_fail_rate_pp"), _to_float(compare_main.get("delta_regression_fail_rate_pp"), 0.0))
+    main_delta_phy = _to_float(main_l5_summary.get("delta_physics_fail_rate_pp"), _to_float(compare_main.get("delta_physics_fail_rate_pp"), 0.0))
     non_regression_ok = main_l5_summary.get("non_regression_ok")
     if non_regression_ok is None:
         non_regression_ok = main_success >= (baseline_off_success - float(non_regression_tolerance_pp))
@@ -302,7 +307,16 @@ def evaluate_l4_uplift_decision_v0(
 
     infra_main = _to_int(main_l5_summary.get("infra_failure_count"), _to_int(compare_main.get("infra_failure_count_on"), 0))
     infra_night = _to_int(night_l5_summary.get("infra_failure_count"), _to_int(compare_night.get("infra_failure_count_on"), 0))
+    infra_attempt_blip_main = _to_int(
+        main_l5_summary.get("infra_attempt_blip_count"),
+        _to_int(compare_main.get("infra_attempt_blip_count_on"), 0),
+    )
+    infra_attempt_blip_night = _to_int(
+        night_l5_summary.get("infra_attempt_blip_count"),
+        _to_int(compare_night.get("infra_attempt_blip_count_on"), 0),
+    )
     infra_total = infra_main + infra_night
+    infra_attempt_blip_total = infra_attempt_blip_main + infra_attempt_blip_night
     if infra_total > 0:
         reasons.append("infra")
 
@@ -382,6 +396,9 @@ def evaluate_l4_uplift_decision_v0(
         "main_infra_failure_count": infra_main,
         "night_infra_failure_count": infra_night,
         "infra_failure_count_total": infra_total,
+        "main_infra_attempt_blip_count": infra_attempt_blip_main,
+        "night_infra_attempt_blip_count": infra_attempt_blip_night,
+        "infra_attempt_blip_count_total": infra_attempt_blip_total,
         "baseline_off_success_at_k_pct": baseline_off_success,
         "baseline_meets_minimum": baseline_meets_minimum,
         "baseline_has_headroom": baseline_has_headroom,

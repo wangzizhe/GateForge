@@ -76,9 +76,16 @@ def _first_attempt(record: dict) -> dict:
 
 def _attempt_observation(attempt: dict) -> tuple[str, str, str]:
     diagnostic = attempt.get("diagnostic_ir") if isinstance(attempt.get("diagnostic_ir"), dict) else {}
-    observed_failure_type = canonical_error_type_v0(
-        str(attempt.get("observed_failure_type") or diagnostic.get("error_type") or "").strip().lower()
+    attempt_failure_type = canonical_error_type_v0(
+        str(attempt.get("observed_failure_type") or "").strip().lower()
     )
+    diagnostic_failure_type = canonical_error_type_v0(
+        str(diagnostic.get("error_type") or "").strip().lower()
+    )
+    if attempt_failure_type in {"", "none", "executor_runtime_error"} and diagnostic_failure_type not in {"", "none"}:
+        observed_failure_type = diagnostic_failure_type
+    else:
+        observed_failure_type = attempt_failure_type or diagnostic_failure_type
     observed_stage = str(diagnostic.get("stage") or "").strip().lower()
     if not observed_stage:
         observed_stage = canonical_stage_from_failure_type_v0(observed_failure_type)
@@ -95,13 +102,76 @@ def _has_failure_signal(observed_failure_type: str, observed_stage: str, observe
 
 
 def _manifestation_attempt(record: dict) -> dict:
-    attempts = record.get("attempts") if isinstance(record.get("attempts"), list) else []
-    attempts = [x for x in attempts if isinstance(x, dict)]
-    for attempt in attempts:
+    declared_failure_type = str(record.get("failure_type") or "").strip().lower()
+    expected_canonical = canonical_error_type_v0(
+        "simulate_error" if declared_failure_type == "initialization_infeasible" else "model_check_error"
+        if declared_failure_type in {"underconstrained_system", "connector_mismatch"}
+        else declared_failure_type
+    )
+    expected_stage = canonical_stage_from_failure_type_v0(expected_canonical)
+    expected_subtypes = {"connector_mismatch"} if declared_failure_type == "connector_mismatch" else {"init_failure"} if declared_failure_type == "initialization_infeasible" else set()
+    candidates = _flatten_attempt_candidates(record)
+    signaled: list[tuple[dict, str, str, str]] = []
+    for attempt in candidates:
         observed_failure_type, observed_stage, observed_subtype = _attempt_observation(attempt)
         if _has_failure_signal(observed_failure_type, observed_stage, observed_subtype):
-            return attempt
+            signaled.append((attempt, observed_failure_type, observed_stage, observed_subtype))
+    if not signaled:
+        return {}
+
+    def _score(row: tuple[dict, str, str, str]) -> tuple[int, int, int, int]:
+        _, observed_failure_type, observed_stage, observed_subtype = row
+        subtype_match = 1 if (not expected_subtypes or observed_subtype in expected_subtypes) else 0
+        stage_match = 1 if observed_stage == expected_stage else 0
+        canonical_match = 1 if observed_failure_type == expected_canonical else 0
+        non_wrapper = 0 if observed_failure_type in {"executor_runtime_error", "executor_invocation_error"} else 1
+        return (canonical_match, stage_match, subtype_match, non_wrapper)
+
+    ranked = max(enumerate(signaled), key=lambda item: (_score(item[1]), -item[0]))
+    return ranked[1][0]
+
+
+def _parse_json_object(text: str) -> dict:
+    raw = str(text or "").strip()
+    if not raw:
+        return {}
+    candidates = [raw]
+    start = raw.find("{")
+    end = raw.rfind("}")
+    if start >= 0 and end > start:
+        snippet = raw[start : end + 1]
+        if snippet != raw:
+            candidates.append(snippet)
+    for candidate in candidates:
+        try:
+            payload = json.loads(candidate)
+        except Exception:
+            continue
+        if isinstance(payload, dict):
+            return payload
     return {}
+
+
+def _nested_attempts_from_attempt(attempt: dict) -> list[dict]:
+    nested = attempt.get("attempts") if isinstance(attempt.get("attempts"), list) else []
+    nested = [x for x in nested if isinstance(x, dict)]
+    if nested:
+        return nested
+    payload = _parse_json_object(str(attempt.get("executor_stdout_tail") or ""))
+    nested = payload.get("attempts") if isinstance(payload.get("attempts"), list) else []
+    return [x for x in nested if isinstance(x, dict)]
+
+
+def _flatten_attempt_candidates(record: dict) -> list[dict]:
+    attempts = record.get("attempts") if isinstance(record.get("attempts"), list) else []
+    attempts = [x for x in attempts if isinstance(x, dict)]
+    flattened: list[dict] = []
+    for attempt in attempts:
+        nested = _nested_attempts_from_attempt(attempt)
+        if nested:
+            flattened.extend(nested)
+        flattened.append(attempt)
+    return flattened
 
 
 def _record_map(run_results: dict) -> dict[str, dict]:
