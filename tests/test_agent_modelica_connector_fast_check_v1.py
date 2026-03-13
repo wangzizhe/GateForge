@@ -6,24 +6,23 @@ from gateforge.agent_modelica_connector_fast_check_v1 import _check_model_text_o
 
 
 class AgentModelicaConnectorFastCheckV1Tests(unittest.TestCase):
-    def test_check_model_text_once_uses_ignore_cleanup_errors_for_tempdir(self) -> None:
-        tempdir_cm = mock.MagicMock()
-        tempdir_cm.__enter__.return_value = "/tmp/connector-fast-check"
-        tempdir_cm.__exit__.return_value = False
-
+    def test_check_model_text_once_uses_mkdtemp_and_ignores_cleanup_errors(self) -> None:
         with mock.patch(
             "gateforge.agent_modelica_connector_fast_check_v1._find_primary_model_name",
             return_value="A1",
         ), mock.patch(
-            "gateforge.agent_modelica_connector_fast_check_v1.tempfile.TemporaryDirectory",
-            return_value=tempdir_cm,
-        ) as tempdir_mock, mock.patch(
+            "gateforge.agent_modelica_connector_fast_check_v1.tempfile.mkdtemp",
+            return_value="/tmp/connector-fast-check",
+        ) as mkdtemp_mock, mock.patch(
             "pathlib.Path.write_text",
             return_value=None,
         ), mock.patch(
             "gateforge.agent_modelica_connector_fast_check_v1._run_omc_script_docker",
             return_value=(0, "Check of A1 completed successfully."),
-        ):
+        ), mock.patch(
+            "gateforge.agent_modelica_connector_fast_check_v1.shutil.rmtree",
+            return_value=None,
+        ) as rmtree_mock:
             result = _check_model_text_once(
                 model_text="model A1 end A1;",
                 backend="openmodelica_docker",
@@ -32,8 +31,37 @@ class AgentModelicaConnectorFastCheckV1Tests(unittest.TestCase):
                 task={"expected_stage": "check", "failure_type": "connector_mismatch"},
             )
 
-        tempdir_mock.assert_called_once_with(ignore_cleanup_errors=True)
+        mkdtemp_mock.assert_called_once()
+        rmtree_mock.assert_called_once_with(mock.ANY, ignore_errors=True)
         self.assertTrue(bool(result.get("check_model_pass")))
+
+    def test_check_model_text_once_cleans_up_workspace_after_runner_failure(self) -> None:
+        with mock.patch(
+            "gateforge.agent_modelica_connector_fast_check_v1._find_primary_model_name",
+            return_value="A1",
+        ), mock.patch(
+            "gateforge.agent_modelica_connector_fast_check_v1.tempfile.mkdtemp",
+            return_value="/tmp/connector-fast-check",
+        ), mock.patch(
+            "pathlib.Path.write_text",
+            return_value=None,
+        ), mock.patch(
+            "gateforge.agent_modelica_connector_fast_check_v1._run_omc_script_docker",
+            side_effect=RuntimeError("runner boom"),
+        ):
+            with mock.patch(
+                "gateforge.agent_modelica_connector_fast_check_v1.shutil.rmtree",
+                return_value=None,
+            ) as rmtree_mock:
+                with self.assertRaisesRegex(RuntimeError, "runner boom"):
+                    _check_model_text_once(
+                        model_text="model A1 end A1;",
+                        backend="openmodelica_docker",
+                        docker_image="openmodelica/openmodelica:v1.26.1-minimal",
+                        timeout_sec=30,
+                        task={"expected_stage": "check", "failure_type": "connector_mismatch"},
+                    )
+        rmtree_mock.assert_called_once_with(mock.ANY, ignore_errors=True)
 
     def test_fast_check_passes_when_connector_task_is_repaired_by_endpoint_rewrite(self) -> None:
         taskset = {

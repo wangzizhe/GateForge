@@ -96,8 +96,8 @@ def _check_model_text_once(*, model_text: str, backend: str, docker_image: str, 
             "diagnostic_ir": diagnostic,
         }
 
-    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as d:
-        workspace = Path(d)
+    workspace = Path(tempfile.mkdtemp(prefix="gf_connector_fast_check_"))
+    try:
         local_model = workspace / "candidate.mo"
         local_model.write_text(model_text, encoding="utf-8")
         script = (
@@ -114,6 +114,8 @@ def _check_model_text_once(*, model_text: str, backend: str, docker_image: str, 
             rc, output = _run_omc_script_local(script, timeout_sec=timeout_sec, cwd=str(workspace))
         else:
             rc, output = _run_omc_script_docker(script, timeout_sec=timeout_sec, cwd=str(workspace), image=docker_image)
+    finally:
+        shutil.rmtree(workspace, ignore_errors=True)
     check_ok = _check_ok_from_output(output)
     diagnostic = build_diagnostic_ir_v0(
         output=output,
