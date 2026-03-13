@@ -125,6 +125,24 @@ class AgentModelicaRepairActionIRV0Tests(unittest.TestCase):
         self.assertEqual(summary.get("status"), "FAIL")
         self.assertIn("max_actions_per_round_exceeded", summary.get("errors") or [])
 
+    def test_validate_passes_for_rewrite_connection_endpoint(self) -> None:
+        summary = validate_action_batch_v0(
+            actions_payload=[
+                {
+                    "action_id": "a1",
+                    "op": "rewrite_connection_endpoint",
+                    "target": {"from": "R1.p", "to_before": "G1.badPort", "to_after": "G1.p"},
+                    "args": {},
+                    "reason_tag": "connector_repair",
+                    "source": "rule",
+                    "confidence": 0.9,
+                }
+            ],
+            ir_payload=_sample_ir(),
+            max_actions_per_round=3,
+        )
+        self.assertEqual(summary.get("status"), "PASS")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -62,6 +62,19 @@ class AgentModelicaDiagnosticIRV0Tests(unittest.TestCase):
         objects = payload.get("objects") if isinstance(payload.get("objects"), dict) else {}
         self.assertTrue(bool(objects.get("connector_hints")))
 
+    def test_build_diagnostic_normalizes_declared_connector_mismatch_undefined_symbol(self) -> None:
+        payload = build_diagnostic_ir_v0(
+            output="Error: Variable R1.badPort not found in scope SmallRDividerV0.",
+            check_model_pass=False,
+            simulate_pass=False,
+            expected_stage="check",
+            declared_failure_type="connector_mismatch",
+            declared_context_hints=["connector_port_typo", "connection_endpoint", "topology_realism"],
+        )
+        self.assertEqual(payload.get("error_type"), "model_check_error")
+        self.assertEqual(payload.get("error_subtype"), "connector_mismatch")
+        self.assertEqual(payload.get("stage"), "check")
+
     def test_build_diagnostic_detects_assertion_violation_subtype(self) -> None:
         payload = build_diagnostic_ir_v0(
             output="Simulation terminated by assertion: gateforge_voltage_limit",

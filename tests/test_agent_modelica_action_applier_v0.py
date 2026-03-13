@@ -125,6 +125,41 @@ class AgentModelicaActionApplierV0Tests(unittest.TestCase):
         self.assertIn("connect(V1.p, R1.p);", updated_text)
         self.assertEqual(len(result.get("applied_actions") or []), 1)
 
+    def test_apply_rewrite_connection_endpoint_fixes_invalid_bad_port(self) -> None:
+        modelica = "\n".join(
+            [
+                "model A1",
+                "  Modelica.Electrical.Analog.Sources.ConstantVoltage V1(V=10);",
+                "  Modelica.Electrical.Analog.Basic.Resistor R1(R=10);",
+                "  Modelica.Electrical.Analog.Basic.Ground G1;",
+                "equation",
+                "  connect(V1.p, R1.badPort);",
+                "  connect(R1.n, G1.p);",
+                "  connect(V1.n, G1.p);",
+                "end A1;",
+                "",
+            ]
+        )
+        result = apply_repair_actions_to_modelica_v0(
+            modelica_text=modelica,
+            actions_payload=[
+                {
+                    "action_id": "a1",
+                    "op": "rewrite_connection_endpoint",
+                    "target": {"from": "V1.p", "to_before": "R1.badPort", "to_after": "R1.p"},
+                    "args": {},
+                    "reason_tag": "connector_repair",
+                    "source": "rule",
+                    "confidence": 0.98,
+                }
+            ],
+            max_actions_per_round=3,
+        )
+        self.assertEqual(result.get("status"), "PASS")
+        updated_text = str(result.get("updated_modelica_text") or "")
+        self.assertIn("connect(V1.p, R1.p);", updated_text)
+        self.assertNotIn("R1.badPort", updated_text)
+
 
 if __name__ == "__main__":
     unittest.main()

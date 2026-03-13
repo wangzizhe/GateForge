@@ -1087,7 +1087,12 @@ bundle = {
         'main_l5_eval': main_l5_rc,
         'night_l5_eval': night_l5_rc,
     },
-    'reasons': sorted(set([str(x) for x in reasons if str(x)])),
+    'reasons': sorted(
+        set(
+            [str(x) for x in reasons if str(x)]
+            + [str(x) for x in (decision.get('reasons') if isinstance(decision.get('reasons'), list) else []) if str(x)]
+        )
+    ),
     'paths': {
         'challenge_summary': str(challenge_summary_path),
         'main_sweep_summary': str(main_sweep_path),

@@ -585,6 +585,64 @@ class AgentModelicaRealismSummaryV1Tests(unittest.TestCase):
         self.assertEqual(int(under.get("resolved_after_aligned_manifestation_count") or 0), 1)
         self.assertEqual(int(mismatch.get("missing_failure_signal_count") or 0), 0)
 
+    def test_build_realism_summary_prefers_diagnostic_type_over_executor_wrapper(self) -> None:
+        summary = build_realism_summary_v1(
+            evidence_summary={},
+            challenge_summary={
+                "counts_by_failure_type": {"underconstrained_system": 1},
+                "counts_by_category": {"topology_wiring": 1},
+            },
+            challenge_manifest={},
+            taskset_payload={
+                "tasks": [
+                    {
+                        "task_id": "t_under",
+                        "failure_type": "underconstrained_system",
+                        "category": "topology_wiring",
+                        "expected_stage": "check",
+                    }
+                ]
+            },
+            l3_run_results={
+                "records": [
+                    {
+                        "task_id": "t_under",
+                        "attempts": [
+                            {
+                                "observed_failure_type": "executor_runtime_error",
+                                "reason": "executor_runtime_error",
+                                "diagnostic_ir": {
+                                    "error_type": "model_check_error",
+                                    "error_subtype": "underconstrained_system",
+                                    "stage": "check",
+                                    "observed_phase": "check",
+                                },
+                            }
+                        ],
+                    }
+                ]
+            },
+            l3_quality_summary={
+                "category_distribution": {"topology_wiring": 1},
+                "subtype_distribution": {"underconstrained_system": 1},
+            },
+            l4_ab_compare_summary={},
+            l5_summary={
+                "gate_result": "PASS",
+                "success_at_k_pct": 100.0,
+                "failure_type_breakdown_on": {
+                    "underconstrained_system": {"record_count": 1, "success_count": 1},
+                },
+                "category_breakdown_on": {
+                    "topology_wiring": {"record_count": 1, "success_count": 1},
+                },
+            },
+        )
+        under = ((summary.get("by_failure_type") or {}).get("underconstrained_system") or {})
+        self.assertEqual(float(under.get("canonical_match_rate_pct") or 0.0), 100.0)
+        self.assertEqual(float(under.get("stage_match_rate_pct") or 0.0), 100.0)
+        self.assertEqual(float(under.get("subtype_match_rate_pct") or 0.0), 100.0)
+
     def test_build_realism_summary_blocks_when_l3_l5_inputs_are_missing(self) -> None:
         summary = build_realism_summary_v1(
             evidence_summary={"acceptance_mode": "delta_uplift"},

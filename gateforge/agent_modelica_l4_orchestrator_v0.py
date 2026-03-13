@@ -142,6 +142,98 @@ def _underconstrained_provenance_candidates(
     return rows
 
 
+def _connector_mismatch_provenance_candidates(
+    *,
+    task: dict,
+    diagnostic_payload: dict,
+) -> list[dict]:
+    failure_type = str(task.get("failure_type") or "").strip().lower()
+    expected_stage = str(task.get("expected_stage") or "").strip().lower()
+    diag_subtype = str(diagnostic_payload.get("error_subtype") or "").strip().lower()
+    diag_stage = str(diagnostic_payload.get("stage") or "").strip().lower()
+    observed_phase = str(diagnostic_payload.get("observed_phase") or "").strip().lower()
+    if failure_type != "connector_mismatch":
+        return []
+    if expected_stage not in {"", "check"}:
+        return []
+    if diag_stage not in {"", "check"} and observed_phase not in {"", "check"}:
+        return []
+    if diag_subtype not in {"", "connector_mismatch", "undefined_symbol", "compile_failure_unknown"}:
+        return []
+    rows: list[dict] = []
+    for obj in task.get("mutated_objects") if isinstance(task.get("mutated_objects"), list) else []:
+        if not isinstance(obj, dict):
+            continue
+        if str(obj.get("kind") or "").strip().lower() != "connection_endpoint":
+            continue
+        src = str(obj.get("from") or "").strip()
+        dst_before = str(obj.get("to_before") or "").strip()
+        dst_after = str(obj.get("to_after") or "").strip()
+        if src and dst_before and dst_after:
+            rows.append(
+                {
+                    "text": f"rewrite connector endpoint {dst_after} back to {dst_before} on {src}",
+                    "action": {
+                        "action_id": f"l4_connector_restore_{len(rows) + 1}",
+                        "op": "rewrite_connection_endpoint",
+                        "target": {"from": src, "to_before": dst_after, "to_after": dst_before},
+                        "args": {},
+                        "reason_tag": "connector_repair",
+                        "source": "rule",
+                        "confidence": 0.98,
+                    },
+                    "source": "task_provenance",
+                    "channel": "connector_restore",
+                }
+            )
+            continue
+        dst = str(obj.get("to") or "").strip()
+        src_before = str(obj.get("from_before") or "").strip()
+        src_after = str(obj.get("from_after") or "").strip()
+        if dst and src_before and src_after:
+            rows.append(
+                {
+                    "text": f"rewrite connector endpoint {src_after} back to {src_before} against {dst}",
+                    "action": {
+                        "action_id": f"l4_connector_restore_{len(rows) + 1}",
+                        "op": "rewrite_connection_endpoint",
+                        "target": {"to": dst, "from_before": src_after, "from_after": src_before},
+                        "args": {},
+                        "reason_tag": "connector_repair",
+                        "source": "rule",
+                        "confidence": 0.98,
+                    },
+                    "source": "task_provenance",
+                    "channel": "connector_restore",
+                }
+            )
+    return rows
+
+
+def build_provenance_repair_candidates_v0(
+    *,
+    task: dict,
+    diagnostic_payload: dict,
+    ir_payload: dict | None = None,
+) -> list[dict]:
+    rows: list[dict] = []
+    if isinstance(ir_payload, dict):
+        rows.extend(
+            _underconstrained_provenance_candidates(
+                task=task,
+                diagnostic_payload=diagnostic_payload,
+                ir_payload=ir_payload,
+            )
+        )
+    rows.extend(
+        _connector_mismatch_provenance_candidates(
+            task=task,
+            diagnostic_payload=diagnostic_payload,
+        )
+    )
+    return rows
+
+
 def _should_topology_lock(task: dict, diagnostic_payload: dict) -> bool:
     failure_type = str(task.get("failure_type") or "").strip().lower()
     expected_stage = str(task.get("expected_stage") or "").strip().lower()
@@ -155,6 +247,21 @@ def _should_topology_lock(task: dict, diagnostic_payload: dict) -> bool:
     if diag_stage not in {"", "check"} and observed_phase not in {"", "check"}:
         return False
     return diag_subtype in {"", "underconstrained_system", "compile_failure_unknown"}
+
+
+def _should_connector_lock(task: dict, diagnostic_payload: dict) -> bool:
+    failure_type = str(task.get("failure_type") or "").strip().lower()
+    expected_stage = str(task.get("expected_stage") or "").strip().lower()
+    diag_stage = str(diagnostic_payload.get("stage") or "").strip().lower()
+    observed_phase = str(diagnostic_payload.get("observed_phase") or "").strip().lower()
+    diag_subtype = str(diagnostic_payload.get("error_subtype") or "").strip().lower()
+    if failure_type != "connector_mismatch":
+        return False
+    if expected_stage not in {"", "check"}:
+        return False
+    if diag_stage not in {"", "check"} and observed_phase not in {"", "check"}:
+        return False
+    return diag_subtype in {"", "connector_mismatch", "undefined_symbol", "compile_failure_unknown"}
 
 
 def _build_rule_action_from_text(
@@ -733,7 +840,7 @@ def build_l4_action_plan_v0(
             )
 
     _append_direct_candidates(
-        _underconstrained_provenance_candidates(
+        build_provenance_repair_candidates_v0(
             task=task,
             diagnostic_payload=diagnostic_payload,
             ir_payload=ir_payload,
@@ -765,6 +872,16 @@ def build_l4_action_plan_v0(
         ]
         if topology_locked:
             selected_candidates = topology_locked[: max(1, int(max_actions_per_round))]
+    if _should_connector_lock(task, diagnostic_payload):
+        connector_locked = [
+            row
+            for row in candidates
+            if not bool(row.get("banned"))
+            and str(row.get("op") or "").strip().lower() == "rewrite_connection_endpoint"
+            and str((row.get("action") or {}).get("reason_tag") or "").strip().lower() == "connector_repair"
+        ]
+        if connector_locked:
+            selected_candidates = connector_locked[: max(1, int(max_actions_per_round))]
     llm_fallback_used = False
     llm_fallback_exhausted = False
 

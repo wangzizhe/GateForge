@@ -366,6 +366,28 @@ class AgentModelicaL5EvalV1Tests(unittest.TestCase):
         self.assertIn("infra_failure_count_not_zero", set(summary.get("reasons") or []))
         self.assertEqual(float(summary.get("infra_failure_rate_pct") or 0.0), 16.67)
 
+    def test_eval_ignores_passed_attempt_infra_blips_for_blocking_gate(self) -> None:
+        run_summary, run_results, l3_quality, l3_gate, l4_ab = self._base_inputs()
+        l4_ab["on"]["success_at_k_pct"] = 100.0
+        l4_ab["on"]["attempt_count"] = 18
+        l4_ab["on"]["infra_failure_count"] = 0
+        l4_ab["on"]["infra_attempt_blip_count"] = 4
+        l4_ab["on"]["infra_attempt_blip_by_reason"] = {"timeout": 4}
+        l4_ab["off"]["success_at_k_pct"] = 55.0
+        l4_ab["delta"] = {"success_at_k_pp": 45.0}
+        summary = evaluate_l5_eval_v1(
+            run_summary=run_summary,
+            run_results=run_results,
+            l3_quality_summary=l3_quality,
+            l3_gate_summary=l3_gate,
+            l4_ab_compare_summary=l4_ab,
+            gate_mode="strict",
+        )
+        self.assertEqual(summary.get("status"), "PASS")
+        self.assertNotIn("infra_failure_count_not_zero", set(summary.get("reasons") or []))
+        self.assertEqual(int(summary.get("infra_failure_count", -1)), 0)
+        self.assertEqual(int(summary.get("infra_attempt_blip_count", -1)), 4)
+
 
 if __name__ == "__main__":
     unittest.main()
