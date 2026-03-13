@@ -96,7 +96,7 @@ def _check_model_text_once(*, model_text: str, backend: str, docker_image: str, 
             "diagnostic_ir": diagnostic,
         }
 
-    with tempfile.TemporaryDirectory() as d:
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as d:
         workspace = Path(d)
         local_model = workspace / "candidate.mo"
         local_model.write_text(model_text, encoding="utf-8")
