@@ -7,6 +7,14 @@ from pathlib import Path
 
 
 class RunAgentModelicaReleasePreflightV011Tests(unittest.TestCase):
+    def test_v012_wrapper_sets_release_artifact_dir(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        script = (repo_root / "scripts" / "run_agent_modelica_release_preflight_v0_1_2.sh").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('GATEFORGE_AGENT_RELEASE_OUT_DIR="${GATEFORGE_AGENT_RELEASE_OUT_DIR:-artifacts/release_v0_1_2}"', script)
+        self.assertIn("exec bash scripts/run_agent_modelica_release_preflight_v0_1_1.sh", script)
+
     def test_fallback_mutant_generation_uses_real_newlines(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
         script = (repo_root / "scripts" / "run_agent_modelica_release_preflight_v0_1_1.sh").read_text(

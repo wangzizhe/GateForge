@@ -83,10 +83,10 @@ bash scripts/demo_medium_pack_v1_dashboard.sh
 bash scripts/demo_policy_autotune_full_chain.sh
 ```
 
-### 7) v0.1.1 release preflight
+### 7) v0.1.2 release preflight
 
 ```bash
-bash scripts/run_agent_modelica_release_preflight_v0_1_1.sh
+bash scripts/run_agent_modelica_release_preflight_v0_1_2.sh
 ```
 
 Current Agent Modelica acceptance uses two modes:
@@ -96,7 +96,7 @@ Current Agent Modelica acceptance uses two modes:
 
 The release preflight summary exposes the active L5 acceptance contract in:
 
-- `artifacts/release_v0_1_1/release_preflight_summary.json`
+- `artifacts/release_v0_1_2/release_preflight_summary.json`
 - keys: `l5_acceptance_mode`, `l5_absolute_success_target_pct`, `l5_non_regression_ok`
 
 ## Documentation Map

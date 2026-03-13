@@ -272,6 +272,53 @@ jobs:
           path: artifacts/ci_logs
           if-no-files-found: ignore
 
+  fast-check-gate:
+    name: "Fast Checks"
+    runs-on: ubuntu-latest
+    env:
+      GATEFORGE_AGENT_ELECTRICAL_REALISM_OUT_DIR: "artifacts/agent_modelica_electrical_realism_frozen_taskset_v1_ci"
+      GATEFORGE_AGENT_CONNECTOR_FAST_CHECK_TASKSET: "artifacts/agent_modelica_electrical_realism_frozen_taskset_v1_ci/taskset_frozen.json"
+      GATEFORGE_AGENT_CONNECTOR_FAST_CHECK_OUT_DIR: "artifacts/agent_modelica_connector_fast_check_v1_ci"
+      GATEFORGE_AGENT_UNDERCONSTRAINED_FAST_CHECK_TASKSET: "artifacts/agent_modelica_electrical_realism_frozen_taskset_v1_ci/taskset_frozen.json"
+      GATEFORGE_AGENT_UNDERCONSTRAINED_FAST_CHECK_OUT_DIR: "artifacts/agent_modelica_underconstrained_fast_check_v1_ci"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Build frozen realism taskset
+        run: |
+          bash scripts/run_agent_modelica_electrical_realism_frozen_taskset_v1.sh
+
+      - name: Run connector fast check
+        run: |
+          bash scripts/run_agent_modelica_connector_fast_check_v1.sh
+
+      - name: Run underconstrained fast check
+        run: |
+          bash scripts/run_agent_modelica_underconstrained_fast_check_v1.sh
+
+      - name: Upload fast-check artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fast-check-gate-logs
+          path: |
+            artifacts/agent_modelica_electrical_realism_frozen_taskset_v1_ci
+            artifacts/agent_modelica_connector_fast_check_v1_ci
+            artifacts/agent_modelica_underconstrained_fast_check_v1_ci
+          if-no-files-found: ignore
+
   release-preflight:
     name: "Release Preflight"
     runs-on: ubuntu-latest
@@ -302,7 +349,7 @@ jobs:
 
       - name: Run release preflight
         run: |
-          bash scripts/run_agent_modelica_release_preflight_v0_1_1.sh
+          bash scripts/run_agent_modelica_release_preflight_v0_1_2.sh
 
       - name: Publish release preflight status
         if: always()
@@ -312,7 +359,7 @@ jobs:
           import os
           from pathlib import Path
 
-          summary_path = Path("artifacts/release_v0_1_1/release_preflight_summary.json")
+          summary_path = Path("artifacts/release_v0_1_2/release_preflight_summary.json")
           status = "MISSING"
           details = {}
           if summary_path.exists():
@@ -351,7 +398,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: release-preflight-logs
-          path: artifacts/release_v0_1_1
+          path: artifacts/release_v0_1_2
           if-no-files-found: ignore
 
   l3-diagnostic-gate:
@@ -627,6 +674,7 @@ jobs:
       - test-core-a
       - test-core-b
       - test-dataset
+      - fast-check-gate
       - smoke-gate
       - release-preflight
       - l3-diagnostic-gate
@@ -645,6 +693,10 @@ jobs:
           fi
           if [ "${{ needs.test-dataset.result }}" != "success" ]; then
             echo "test-dataset result: ${{ needs.test-dataset.result }}"
+            exit 1
+          fi
+          if [ "${{ needs.fast-check-gate.result }}" != "success" ]; then
+            echo "fast-check-gate result: ${{ needs.fast-check-gate.result }}"
             exit 1
           fi
           if [ "${{ needs.smoke-gate.result }}" != "success" ]; then

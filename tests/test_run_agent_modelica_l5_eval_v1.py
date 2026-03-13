@@ -124,6 +124,14 @@ print(json.dumps(payload))
 
 
 class RunAgentModelicaL5EvalV1ScriptTests(unittest.TestCase):
+    def test_script_defaults_weekly_ledger_to_stable_artifacts_private_path(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        script = (repo_root / "scripts" / "run_agent_modelica_l5_eval_v1.sh").read_text(encoding="utf-8")
+        self.assertIn(
+            'L5_LEDGER_PATH="${GATEFORGE_AGENT_L5_LEDGER_PATH:-artifacts/private/l5_eval_ledger_v1.jsonl}"',
+            script,
+        )
+
     def test_script_passes_with_positive_delta_and_clean_infra(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
         script = repo_root / "scripts" / "run_agent_modelica_l5_eval_v1.sh"
@@ -253,7 +261,7 @@ class RunAgentModelicaL5EvalV1ScriptTests(unittest.TestCase):
             self.assertEqual(summary.get("acceptance_mode"), "absolute_non_regression")
             self.assertTrue(bool(summary.get("non_regression_ok")))
 
-    def test_script_fails_when_infra_reason_detected(self) -> None:
+    def test_script_tracks_infra_blip_without_failing_when_on_run_recovers(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
         script = repo_root / "scripts" / "run_agent_modelica_l5_eval_v1.sh"
         with tempfile.TemporaryDirectory() as d:
@@ -289,10 +297,11 @@ class RunAgentModelicaL5EvalV1ScriptTests(unittest.TestCase):
                 env=env,
                 timeout=240,
             )
-            self.assertNotEqual(proc.returncode, 0, msg=proc.stdout)
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
             summary = json.loads((out_dir / "l5_eval_summary.json").read_text(encoding="utf-8"))
-            self.assertEqual(summary.get("status"), "FAIL")
-            self.assertIn("infra_failure_count_not_zero", set(summary.get("reasons") or []))
+            self.assertEqual(summary.get("status"), "PASS")
+            self.assertEqual(int(summary.get("infra_failure_count", -1)), 0)
+            self.assertGreaterEqual(int(summary.get("infra_attempt_blip_count") or 0), 1)
 
     def test_weekly_recommendation_requires_two_week_consecutive_pass(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
