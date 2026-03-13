@@ -1,6 +1,9 @@
 import unittest
 
-from gateforge.agent_modelica_l4_orchestrator_v0 import run_l4_orchestrator_v0
+from gateforge.agent_modelica_l4_orchestrator_v0 import (
+    _build_rule_action_from_text,
+    run_l4_orchestrator_v0,
+)
 
 
 def _sample_modelica() -> str:
@@ -18,6 +21,40 @@ def _sample_modelica() -> str:
 
 
 class AgentModelicaL4OrchestratorV0Tests(unittest.TestCase):
+    def test_rule_action_uses_sorted_param_name_when_semantics_returns_set(self) -> None:
+        ir_payload = {
+            "schema_version": "modeling_ir_v0",
+            "model_name": "A1",
+            "components": [
+                {
+                    "id": "V1",
+                    "type": "Modelica.Electrical.Analog.Sources.ConstantVoltage",
+                    "params": {},
+                }
+            ],
+            "connections": [],
+            "structural_balance": {"variable_count": 1, "equation_count": 1},
+            "simulation": {
+                "start_time": 0.0,
+                "stop_time": 1.0,
+                "number_of_intervals": 100,
+                "tolerance": 1e-6,
+                "method": "dassl",
+            },
+        }
+        action = _build_rule_action_from_text(
+            action_id="a1",
+            action_text="adjust parameter value to fix issue",
+            ir_payload=ir_payload,
+            source="rule",
+            confidence=0.5,
+        )
+        self.assertIsInstance(action, dict)
+        self.assertEqual(str(action.get("op") or ""), "set_parameter")
+        target = action.get("target") if isinstance(action.get("target"), dict) else {}
+        self.assertEqual(str(target.get("component_id") or ""), "V1")
+        self.assertEqual(str(target.get("parameter") or ""), "V")
+
     def test_orchestrator_recovers_on_second_round(self) -> None:
         def _runner(round_idx: int, _model_text: str, _actions: list[str]) -> dict:
             if round_idx == 1:

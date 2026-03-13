@@ -330,7 +330,7 @@ def _build_rule_action_from_text(
     if not param_keys:
         from .agent_modelica_electrical_msl_semantics_v0 import allowed_ir_param_names
 
-        param_keys = allowed_ir_param_names(ctype)
+        param_keys = sorted(str(x) for x in allowed_ir_param_names(ctype))
     if not param_keys:
         return None
     key = str(param_keys[0])
