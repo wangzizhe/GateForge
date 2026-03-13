@@ -112,6 +112,24 @@ class AgentModelicaModelingIRV0Tests(unittest.TestCase):
         self.assertFalse(ok)
         self.assertTrue(any("connection_duplicate:" in str(x) for x in errors))
 
+    def test_modelica_to_ir_ignores_underconstrained_probe_real_declarations(self) -> None:
+        mo = (
+            "model A\n"
+            "  Modelica.Electrical.Analog.Sources.ConstantVoltage V1(V=10.0);\n"
+            "  Modelica.Electrical.Analog.Basic.Resistor R1(R=10.0);\n"
+            "  Modelica.Electrical.Analog.Basic.Ground G1;\n"
+            "  Real gateforge_underconstrained_probe_ab12cd34_a;\n"
+            "  Real gateforge_underconstrained_probe_ab12cd34_b;\n"
+            "equation\n"
+            "  connect(V1.n, G1.p);\n"
+            "  gateforge_underconstrained_probe_ab12cd34_a = gateforge_underconstrained_probe_ab12cd34_b;\n"
+            "end A;\n"
+        )
+        parsed = modelica_to_ir(mo)
+        component_ids = {str(x.get('id') or '') for x in (parsed.get('components') or []) if isinstance(x, dict)}
+        self.assertNotIn("gateforge_underconstrained_probe_ab12cd34_a", component_ids)
+        self.assertNotIn("gateforge_underconstrained_probe_ab12cd34_b", component_ids)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -346,6 +346,26 @@ class AgentModelicaL5EvalV1Tests(unittest.TestCase):
         self.assertNotIn("attempts_missing", reasons)
         self.assertEqual(summary.get("primary_reason"), "l4_on_run_nonzero")
 
+    def test_eval_downgrades_small_infra_blips_to_needs_review(self) -> None:
+        run_summary, run_results, l3_quality, l3_gate, l4_ab = self._base_inputs()
+        l4_ab["on"]["success_at_k_pct"] = 95.0
+        l4_ab["on"]["attempt_count"] = 18
+        l4_ab["on"]["infra_failure_count"] = 3
+        l4_ab["on"]["infra_failure_by_reason"] = {"timeout": 2, "rate_limited": 1}
+        l4_ab["off"]["success_at_k_pct"] = 50.0
+        l4_ab["delta"] = {"success_at_k_pp": 45.0}
+        summary = evaluate_l5_eval_v1(
+            run_summary=run_summary,
+            run_results=run_results,
+            l3_quality_summary=l3_quality,
+            l3_gate_summary=l3_gate,
+            l4_ab_compare_summary=l4_ab,
+            gate_mode="strict",
+        )
+        self.assertEqual(summary.get("status"), "NEEDS_REVIEW")
+        self.assertIn("infra_failure_count_not_zero", set(summary.get("reasons") or []))
+        self.assertEqual(float(summary.get("infra_failure_rate_pct") or 0.0), 16.67)
+
 
 if __name__ == "__main__":
     unittest.main()

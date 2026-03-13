@@ -11,6 +11,7 @@ from pathlib import Path
 from .agent_modelica_diagnostic_ir_v0 import build_diagnostic_ir_v0
 from .agent_modelica_live_executor_gemini_v1 import (
     DEFAULT_DOCKER_IMAGE,
+    _diagnostic_context_hints_from_model,
     _find_primary_model_name,
     _read_text,
     _run_omc_script_docker,
@@ -92,6 +93,11 @@ def _check_model_once(*, model_path: str, backend: str, docker_image: str, timeo
             simulate_pass=True,
             expected_stage="check",
             declared_failure_type="underconstrained_system",
+            declared_context_hints=_diagnostic_context_hints_from_model(
+                failure_type="underconstrained_system",
+                expected_stage="check",
+                model_text=model_text,
+            ),
         )
         return {
             "check_model_pass": False,
@@ -125,6 +131,11 @@ def _check_model_once(*, model_path: str, backend: str, docker_image: str, timeo
         simulate_pass=True,
         expected_stage="check",
         declared_failure_type="underconstrained_system",
+        declared_context_hints=_diagnostic_context_hints_from_model(
+            failure_type="underconstrained_system",
+            expected_stage="check",
+            model_text=model_text,
+        ),
     )
     return {
         "check_model_pass": bool(check_ok),

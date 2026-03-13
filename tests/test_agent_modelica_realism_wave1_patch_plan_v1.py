@@ -35,7 +35,7 @@ def _taskset_payload() -> dict:
                 "failure_type": "initialization_infeasible",
                 "category": "initialization",
                 "expected_stage": "simulate",
-                "mutation_operator": "initial_equation_assert",
+                "mutation_operator": "when_initial_assert",
                 "mutation_operator_family": "initialization_realism",
                 "source_model_path": "/tmp/source_init.mo",
                 "mutated_model_path": "/tmp/mutated_init.mo",
@@ -393,7 +393,7 @@ class AgentModelicaRealismWave1PatchPlanV1Tests(unittest.TestCase):
             final_summary = json.loads((run_root / "final_run_summary.json").read_text(encoding="utf-8"))
 
             self.assertEqual(summary.get("status"), "PASS")
-            self.assertEqual(summary.get("top_patch_target"), "initialization_realism:initial_equation_assert")
+            self.assertEqual(summary.get("top_patch_target"), "initialization_realism:when_initial_assert")
             self.assertEqual(int(summary.get("operator_change_count") or 0), 3)
             self.assertEqual(int(summary.get("playbook_update_count") or 0), 3)
             self.assertEqual(len(tasks_payload.get("tasks") or []), 3)
@@ -401,7 +401,7 @@ class AgentModelicaRealismWave1PatchPlanV1Tests(unittest.TestCase):
             init_entry = [x for x in (playbook_payload.get("playbook") or []) if x.get("failure_type") == "initialization_infeasible"][0]
             self.assertEqual(init_entry.get("focus_tag"), "realism_wave1_patch_plan")
             self.assertEqual(final_summary.get("patch_plan_status"), "PASS")
-            self.assertEqual(final_summary.get("top_patch_target"), "initialization_realism:initial_equation_assert")
+            self.assertEqual(final_summary.get("top_patch_target"), "initialization_realism:when_initial_assert")
 
     def test_build_patch_plan_blocks_when_repair_queue_missing(self) -> None:
         with tempfile.TemporaryDirectory() as d:
@@ -542,9 +542,9 @@ class AgentModelicaRealismWave1PatchPlanV1Tests(unittest.TestCase):
             )
             payload = json.loads(report.stdout)
             self.assertEqual(final_summary.get("patch_plan_status"), "PASS")
-            self.assertEqual(final_summary.get("top_patch_target"), "initialization_realism:initial_equation_assert")
+            self.assertEqual(final_summary.get("top_patch_target"), "initialization_realism:when_initial_assert")
             self.assertEqual(payload.get("patch_plan_status"), "PASS")
-            self.assertEqual(payload.get("top_patch_target"), "initialization_realism:initial_equation_assert")
+            self.assertEqual(payload.get("top_patch_target"), "initialization_realism:when_initial_assert")
 
     def test_finalize_run_refreshes_stale_realism_summary_before_repair_queue(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]

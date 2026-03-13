@@ -10,6 +10,7 @@ from unittest.mock import patch
 from gateforge.agent_modelica_live_executor_gemini_v1 import (
     _apply_parse_error_pre_repair,
     _bootstrap_env_from_repo,
+    _diagnostic_context_hints_from_model,
     _extract_om_success_flags,
     _extract_json_object,
     _live_budget_config,
@@ -27,6 +28,18 @@ from gateforge.agent_modelica_live_executor_gemini_v1 import (
 
 
 class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
+    def test_diagnostic_context_hints_from_model_detects_underconstrained_probe_and_when_initial(self) -> None:
+        hints = _diagnostic_context_hints_from_model(
+            failure_type="underconstrained_system",
+            expected_stage="check",
+            model_text="model A\n  Real gateforge_underconstrained_probe_x;\nequation\n  when initial() then\n  end when;\nend A;\n",
+        )
+        self.assertIn("underconstrained_system", hints)
+        self.assertIn("check", hints)
+        self.assertIn("free_variable_probe", hints)
+        self.assertIn("structural_underconstraint", hints)
+        self.assertIn("when_initial_assert", hints)
+
     def test_temporary_workspace_supports_ignore_cleanup_errors(self) -> None:
         with _temporary_workspace(prefix="gf_live_exec_test_tmp_") as td:
             self.assertTrue(Path(td).exists())
@@ -336,14 +349,17 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
             "GEMINI_API_KEY": os.environ.get("GEMINI_API_KEY"),
             "LLM_MODEL": os.environ.get("LLM_MODEL"),
             "LLM_PROVIDER": os.environ.get("LLM_PROVIDER"),
+            "GATEFORGE_LIVE_PLANNER_BACKEND": os.environ.get("GATEFORGE_LIVE_PLANNER_BACKEND"),
         }
         os.environ["OPENAI_API_KEY"] = "sk-test"
         os.environ.pop("GOOGLE_API_KEY", None)
         os.environ.pop("GEMINI_API_KEY", None)
         os.environ["LLM_MODEL"] = "gpt-5.4"
         os.environ.pop("LLM_PROVIDER", None)
+        os.environ.pop("GATEFORGE_LIVE_PLANNER_BACKEND", None)
         try:
-            provider, model, key = _resolve_llm_provider("auto")
+            with patch("gateforge.agent_modelica_live_executor_gemini_v1._bootstrap_env_from_repo", return_value=0):
+                provider, model, key = _resolve_llm_provider("auto")
             self.assertEqual(provider, "openai")
             self.assertEqual(model, "gpt-5.4")
             self.assertEqual(key, "sk-test")

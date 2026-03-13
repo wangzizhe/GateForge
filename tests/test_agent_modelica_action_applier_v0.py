@@ -88,6 +88,43 @@ class AgentModelicaActionApplierV0Tests(unittest.TestCase):
         self.assertEqual(result.get("status"), "FAIL")
         self.assertEqual(result.get("apply_error_code"), "action_batch_invalid")
 
+    def test_apply_connect_ports_accepts_underconstrained_probe_mutant_model(self) -> None:
+        modelica = "\n".join(
+            [
+                "model A1",
+                "  Modelica.Electrical.Analog.Sources.ConstantVoltage V1(V=10);",
+                "  Modelica.Electrical.Analog.Basic.Resistor R1(R=10);",
+                "  Modelica.Electrical.Analog.Basic.Ground G1;",
+                "  Real gateforge_underconstrained_probe_ab12cd34_a;",
+                "  Real gateforge_underconstrained_probe_ab12cd34_b;",
+                "equation",
+                "  connect(R1.n, G1.p);",
+                "  connect(V1.n, G1.p);",
+                "  gateforge_underconstrained_probe_ab12cd34_a = gateforge_underconstrained_probe_ab12cd34_b;",
+                "end A1;",
+                "",
+            ]
+        )
+        result = apply_repair_actions_to_modelica_v0(
+            modelica_text=modelica,
+            actions_payload=[
+                {
+                    "action_id": "a1",
+                    "op": "connect_ports",
+                    "target": {"from": "V1.p", "to": "R1.p"},
+                    "args": {},
+                    "reason_tag": "topology_restore",
+                    "source": "rule",
+                    "confidence": 0.98,
+                }
+            ],
+            max_actions_per_round=3,
+        )
+        self.assertEqual(result.get("status"), "PASS")
+        updated_text = str(result.get("updated_modelica_text") or "")
+        self.assertIn("connect(V1.p, R1.p);", updated_text)
+        self.assertEqual(len(result.get("applied_actions") or []), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

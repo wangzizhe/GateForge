@@ -14,16 +14,16 @@ FOCUSED_PLAYBOOK_SCHEMA_VERSION = "agent_modelica_realism_wave1_focused_playbook
 PATCH_TEMPLATES = {
     ("initialization_infeasible", "stage_truncation"): {
         "patch_kind": "operator_rework",
-        "patch_target": "initialization_realism:initial_equation_assert",
+        "patch_target": "initialization_realism:when_initial_assert",
         "title": "Move initialization realism failures from check to simulate/init",
-        "recommended_patch_action": "replace check-stage initial asserts with compile-clean initialization conflicts that surface during initialization",
+        "recommended_patch_action": "replace premature check-stage initialization triggers with compile-clean init-time assertions or conflicts that surface during initialization",
         "rationale": "Current initialization mutants fail during checkModel, so realism evidence never exercises init-time repair behavior.",
         "code_targets": [
             "gateforge/agent_modelica_electrical_mutant_taskset_v0.py",
             "gateforge/agent_modelica_diagnostic_ir_v0.py",
         ],
         "planned_changes": [
-            "replace assert(false) style initial-equation edits with compile-clean start/fixed or initial-equation conflicts",
+            "replace initialization trigger edits with compile-clean init-time assertions or equivalent initialization conflicts",
             "preserve checkModel pass so the failure manifests during initialization/simulate",
             "emit stronger initialization markers so diagnostic mapping lands on simulate_error/init_failure",
         ],

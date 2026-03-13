@@ -118,6 +118,32 @@ def _insert_equation_line(model_text: str, line_to_insert: str) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _insert_equation_lines(model_text: str, lines_to_insert: list[str]) -> str:
+    lines = str(model_text or "").splitlines()
+    if not lines or not lines_to_insert:
+        return str(model_text or "")
+    block = [line for line in lines_to_insert if str(line).strip()]
+    if not block:
+        return str(model_text or "")
+    for idx, line in enumerate(lines):
+        if re.match(r"^\s*equation\s*$", line):
+            insert_at = idx + 1
+            for extra in reversed(block):
+                lines.insert(insert_at, extra)
+            return "\n".join(lines) + "\n"
+    end_idx = -1
+    for idx, line in enumerate(lines):
+        if re.match(r"^\s*end\s+[A-Za-z_][A-Za-z0-9_]*\s*;\s*$", line):
+            end_idx = idx
+            break
+    if end_idx < 0:
+        return str(model_text or "")
+    lines.insert(end_idx, "equation")
+    for offset, extra in enumerate(block, start=1):
+        lines.insert(end_idx + offset, extra)
+    return "\n".join(lines) + "\n"
+
+
 def _insert_initial_equation_lines(model_text: str, lines_to_insert: list[str]) -> str:
     lines = str(model_text or "").splitlines()
     if not lines or not lines_to_insert:
@@ -351,10 +377,13 @@ def _pick_initialization_target(ir: dict) -> str:
 
 def _mutate_initialization_infeasible(model_text: str, ir: dict) -> tuple[str, list[dict]]:
     target = _pick_initialization_target(ir)
-    patched = _insert_initial_equation_lines(
+    token = hashlib.sha256(str(target or "init").encode("utf-8")).hexdigest()[:8]
+    patched = _insert_equation_lines(
         model_text,
         [
-            f'  assert(false, "gateforge_initialization_infeasible_{hashlib.sha256(str(target or "init").encode("utf-8")).hexdigest()[:8]}");',
+            "  when initial() then",
+            f'    assert(false, "gateforge_initialization_infeasible_{token}");',
+            "  end when;",
         ],
     )
     if patched == model_text:
@@ -396,7 +425,7 @@ def _inject_failure(model_text: str, ir: dict, failure_type: str, token: str, mu
     if ftype == "initialization_infeasible":
         patched, objects = _mutate_initialization_infeasible(model_text=model_text, ir=ir)
         if objects:
-            return patched, "initial_equation_assert", objects
+            return patched, "when_initial_assert", objects
         return model_text, "none", []
     if style == "topology" and ftype in TOPOLOGY_MUTATION_OPERATOR_BY_FAILURE:
         op = TOPOLOGY_MUTATION_OPERATOR_BY_FAILURE.get(ftype) or ""

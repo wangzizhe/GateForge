@@ -142,6 +142,44 @@ class AgentModelicaDiagnosticIRV0Tests(unittest.TestCase):
         self.assertEqual(payload.get("observed_phase"), "simulate")
         self.assertIn("restore dropped connects", " | ".join(payload.get("suggested_actions") or []))
 
+    def test_build_diagnostic_normalizes_declared_underconstrained_compile_unknown_with_structural_context(self) -> None:
+        payload = build_diagnostic_ir_v0(
+            output="Compilation failed near dropped connect path: dangling_connectivity structural_underconstraint gateforge_underconstrained_probe_ab12cd34",
+            check_model_pass=False,
+            simulate_pass=False,
+            expected_stage="check",
+            declared_failure_type="underconstrained_system",
+        )
+        self.assertEqual(payload.get("error_type"), "model_check_error")
+        self.assertEqual(payload.get("error_subtype"), "underconstrained_system")
+        self.assertEqual(payload.get("stage"), "check")
+        self.assertEqual(payload.get("observed_phase"), "check")
+
+    def test_build_diagnostic_normalizes_declared_underconstrained_timeout_wrapper(self) -> None:
+        payload = build_diagnostic_ir_v0(
+            output="TimeoutError: The read operation timed out",
+            check_model_pass=False,
+            simulate_pass=False,
+            expected_stage="check",
+            declared_failure_type="underconstrained_system",
+            declared_context_hints=["drop_connect_equation", "structural_underconstraint"],
+        )
+        self.assertEqual(payload.get("error_type"), "model_check_error")
+        self.assertEqual(payload.get("error_subtype"), "underconstrained_system")
+        self.assertEqual(payload.get("stage"), "check")
+        self.assertEqual(payload.get("observed_phase"), "check")
+
+    def test_build_diagnostic_does_not_normalize_plain_timeout_without_structural_context(self) -> None:
+        payload = build_diagnostic_ir_v0(
+            output="TimeoutError: The read operation timed out",
+            check_model_pass=False,
+            simulate_pass=False,
+            expected_stage="check",
+            declared_failure_type="underconstrained_system",
+        )
+        self.assertEqual(payload.get("error_type"), "model_check_error")
+        self.assertEqual(payload.get("error_subtype"), "compile_failure_unknown")
+
     def test_build_diagnostic_normalizes_legacy_declared_failure_type(self) -> None:
         payload = build_diagnostic_ir_v0(
             output="Error: No viable alternative near token: __gf_state_301500",

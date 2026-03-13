@@ -140,6 +140,63 @@ class AgentModelicaL4OrchestratorV0Tests(unittest.TestCase):
         first = ranks[0] if isinstance(ranks[0], dict) else {}
         self.assertEqual(str(first.get("policy_profile") or ""), "score_v1")
 
+    def test_orchestrator_underconstrained_uses_exact_removed_edge_restore(self) -> None:
+        def _runner(round_idx: int, _model_text: str, _actions: list[str]) -> dict:
+            if round_idx == 1:
+                return {
+                    "check_model_pass": False,
+                    "simulate_pass": False,
+                    "physics_contract_pass": False,
+                    "regression_pass": False,
+                    "elapsed_sec": 1.0,
+                    "observed_failure_type": "model_check_error",
+                    "reason": "Class A1 has 3 equation(s) and 4 variable(s). gateforge_underconstrained_probe_ab12cd34",
+                    "stderr_snippet": "structural_underconstraint dangling_connectivity",
+                }
+            return {
+                "check_model_pass": True,
+                "simulate_pass": True,
+                "physics_contract_pass": True,
+                "regression_pass": True,
+                "elapsed_sec": 1.0,
+                "observed_failure_type": "none",
+                "reason": "",
+            }
+
+        result = run_l4_orchestrator_v0(
+            task={
+                "task_id": "t_under",
+                "failure_type": "underconstrained_system",
+                "expected_stage": "check",
+                "mutated_objects": [
+                    {
+                        "kind": "connection_edge",
+                        "removed_from": "R1.p",
+                        "removed_to": "G1.p",
+                        "effect": "dangling_connectivity",
+                    }
+                ],
+            },
+            initial_model_text=_sample_modelica(),
+            initial_actions=["restore dropped connect path and dangling conservation balance before equation rewrites"],
+            run_attempt=_runner,
+            max_rounds=2,
+            max_time_sec=30,
+            max_actions_per_round=3,
+        )
+        self.assertEqual(result.get("status"), "PASS")
+        attempts = result.get("attempts") if isinstance(result.get("attempts"), list) else []
+        first = attempts[0] if attempts and isinstance(attempts[0], dict) else {}
+        l4 = first.get("l4") if isinstance(first.get("l4"), dict) else {}
+        planned = l4.get("planned_actions") if isinstance(l4.get("planned_actions"), list) else []
+        self.assertEqual(len(planned), 1)
+        action = planned[0] if planned and isinstance(planned[0], dict) else {}
+        self.assertEqual(str(action.get("op") or ""), "connect_ports")
+        target = action.get("target") if isinstance(action.get("target"), dict) else {}
+        self.assertEqual(str(target.get("from") or ""), "R1.p")
+        self.assertEqual(str(target.get("to") or ""), "G1.p")
+        self.assertEqual(str(action.get("reason_tag") or ""), "topology_restore")
+
 
 if __name__ == "__main__":
     unittest.main()
