@@ -106,8 +106,8 @@ def _check_model_once(*, model_path: str, backend: str, docker_image: str, timeo
             "diagnostic_ir": diagnostic,
         }
 
-    with tempfile.TemporaryDirectory() as d:
-        workspace = Path(d)
+    workspace = Path(tempfile.mkdtemp(prefix="gf_underconstrained_fast_check_"))
+    try:
         local_model = workspace / source_path.name
         shutil.copyfile(source_path, local_model)
         script = (
@@ -124,6 +124,8 @@ def _check_model_once(*, model_path: str, backend: str, docker_image: str, timeo
             rc, output = _run_omc_script_local(script, timeout_sec=timeout_sec, cwd=str(workspace))
         else:
             rc, output = _run_omc_script_docker(script, timeout_sec=timeout_sec, cwd=str(workspace), image=docker_image)
+    finally:
+        shutil.rmtree(workspace, ignore_errors=True)
     check_ok = _check_ok_from_output(output)
     diagnostic = build_diagnostic_ir_v0(
         output=output,
