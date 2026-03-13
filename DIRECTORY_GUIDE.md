@@ -51,7 +51,7 @@ If `v1/v2` naming is noisy, use this short lane for current work:
   - live learning loop summary:
     - `artifacts/agent_modelica_mvp_mutant_repair_learning_loop_v1_now/summary.json`
   - release preflight summary:
-    - `artifacts/release_v0_1_1/release_preflight_summary.json`
+    - `artifacts/release_v0_1_2/release_preflight_summary.json`
     - inspect L5 acceptance keys:
       - `l5_acceptance_mode`
       - `l5_absolute_success_target_pct`
