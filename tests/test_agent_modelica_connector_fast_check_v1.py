@@ -1,9 +1,40 @@
 import unittest
+from unittest import mock
 
 from gateforge.agent_modelica_connector_fast_check_v1 import build_connector_fast_check_v1
+from gateforge.agent_modelica_connector_fast_check_v1 import _check_model_text_once
 
 
 class AgentModelicaConnectorFastCheckV1Tests(unittest.TestCase):
+    def test_check_model_text_once_uses_ignore_cleanup_errors_for_tempdir(self) -> None:
+        tempdir_cm = mock.MagicMock()
+        tempdir_cm.__enter__.return_value = "/tmp/connector-fast-check"
+        tempdir_cm.__exit__.return_value = False
+
+        with mock.patch(
+            "gateforge.agent_modelica_connector_fast_check_v1._find_primary_model_name",
+            return_value="A1",
+        ), mock.patch(
+            "gateforge.agent_modelica_connector_fast_check_v1.tempfile.TemporaryDirectory",
+            return_value=tempdir_cm,
+        ) as tempdir_mock, mock.patch(
+            "pathlib.Path.write_text",
+            return_value=None,
+        ), mock.patch(
+            "gateforge.agent_modelica_connector_fast_check_v1._run_omc_script_docker",
+            return_value=(0, "Check of A1 completed successfully."),
+        ):
+            result = _check_model_text_once(
+                model_text="model A1 end A1;",
+                backend="openmodelica_docker",
+                docker_image="openmodelica/openmodelica:v1.26.1-minimal",
+                timeout_sec=30,
+                task={"expected_stage": "check", "failure_type": "connector_mismatch"},
+            )
+
+        tempdir_mock.assert_called_once_with(ignore_cleanup_errors=True)
+        self.assertTrue(bool(result.get("check_model_pass")))
+
     def test_fast_check_passes_when_connector_task_is_repaired_by_endpoint_rewrite(self) -> None:
         taskset = {
             "tasks": [
