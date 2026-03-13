@@ -34,7 +34,7 @@ def _taskset_payload() -> dict:
                 "failure_type": "initialization_infeasible",
                 "category": "initialization",
                 "expected_stage": "simulate",
-                "mutation_operator": "initial_equation_assert",
+                "mutation_operator": "when_initial_assert",
                 "mutation_operator_family": "initialization_realism",
                 "source_model_path": "/tmp/source_init.mo",
                 "mutated_model_path": "/tmp/mutated_init.mo",

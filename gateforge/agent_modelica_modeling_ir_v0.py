@@ -410,6 +410,12 @@ def _extract_simulation(text: str) -> dict[str, Any]:
     }
 
 
+def _is_ephemeral_probe_declaration(ctype: str, cid: str) -> bool:
+    type_name = str(ctype or "").strip()
+    ident = str(cid or "").strip()
+    return type_name == "Real" and ident.startswith("gateforge_underconstrained_probe_")
+
+
 def modelica_to_ir(text: str) -> dict:
     model_match = re.search(r"(?im)^\s*(?:partial\s+)?model\s+([A-Za-z_][A-Za-z0-9_]*)\b", text)
     if not model_match:
@@ -431,6 +437,8 @@ def modelica_to_ir(text: str) -> dict:
     for match in component_re.finditer(decl_text):
         ctype = str(match.group(1))
         cid = str(match.group(2))
+        if _is_ephemeral_probe_declaration(ctype, cid):
+            continue
         params = _parse_params(str(match.group(3) or ""))
         params = normalize_modelica_params_for_ir(ctype, params)
         components.append({"id": cid, "type": ctype, "params": params})

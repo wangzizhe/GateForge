@@ -388,6 +388,67 @@ class AgentModelicaRealismSummaryV1Tests(unittest.TestCase):
         under = by_failure_type.get("underconstrained_system") if isinstance(by_failure_type.get("underconstrained_system"), dict) else {}
         self.assertEqual(int(under.get("resolved_without_failure_signal_count") or 0), 1)
 
+    def test_build_realism_summary_allows_initialization_direct_resolve_without_manifestation(self) -> None:
+        summary = build_realism_summary_v1(
+            evidence_summary={},
+            challenge_summary={
+                "counts_by_failure_type": {"initialization_infeasible": 1},
+                "counts_by_category": {"initialization": 1},
+            },
+            challenge_manifest={},
+            taskset_payload={
+                "tasks": [
+                    {
+                        "task_id": "t_init",
+                        "failure_type": "initialization_infeasible",
+                        "category": "initialization",
+                        "expected_stage": "simulate",
+                    }
+                ]
+            },
+            l3_run_results={
+                "records": [
+                    {
+                        "task_id": "t_init",
+                        "passed": True,
+                        "attempts": [
+                            {
+                                "observed_failure_type": "none",
+                                "diagnostic_ir": {
+                                    "error_type": "none",
+                                    "error_subtype": "none",
+                                    "stage": "none",
+                                    "observed_phase": "none",
+                                },
+                            }
+                        ],
+                    }
+                ]
+            },
+            l3_quality_summary={
+                "category_distribution": {"initialization": 1},
+                "subtype_distribution": {},
+            },
+            l4_ab_compare_summary={},
+            l5_summary={
+                "gate_result": "PASS",
+                "success_at_k_pct": 100.0,
+                "failure_type_breakdown_on": {
+                    "initialization_infeasible": {"record_count": 1, "success_count": 1},
+                },
+                "category_breakdown_on": {
+                    "initialization": {"record_count": 1, "success_count": 1},
+                },
+            },
+        )
+        self.assertEqual(summary.get("status"), "PASS")
+        self.assertEqual(summary.get("recommendation"), "ready_for_next_realism_iteration")
+        mismatch = summary.get("mismatch_summary") if isinstance(summary.get("mismatch_summary"), dict) else {}
+        self.assertEqual(int(mismatch.get("missing_failure_signal_count") or 0), 0)
+        by_failure_type = summary.get("by_failure_type") if isinstance(summary.get("by_failure_type"), dict) else {}
+        init_row = by_failure_type.get("initialization_infeasible") if isinstance(by_failure_type.get("initialization_infeasible"), dict) else {}
+        self.assertEqual(int(init_row.get("resolved_without_failure_signal_count") or 0), 1)
+
     def test_build_realism_summary_counts_phase_drift_without_stage_mismatch(self) -> None:
         summary = build_realism_summary_v1(
             evidence_summary={},

@@ -120,6 +120,34 @@ def _default_candidate_metrics(failure_type: str, baseline_metrics: dict) -> dic
     return candidate
 
 
+def _task_diagnostic_context_hints(task: dict) -> list[str]:
+    hints: list[str] = []
+    if not isinstance(task, dict):
+        return hints
+    for key in ("failure_type", "mutation_operator", "mutation_operator_family", "category", "expected_stage"):
+        value = str(task.get(key) or "").strip().lower()
+        if value:
+            hints.append(value)
+    for row in (task.get("mutated_objects") or []):
+        if not isinstance(row, dict):
+            continue
+        for key in ("kind", "effect", "name", "paired_with"):
+            value = str(row.get(key) or "").strip().lower()
+            if value:
+                hints.append(value)
+    return hints
+
+
+def _should_refresh_diagnostic_ir(task: dict, diagnostic_ir: dict) -> bool:
+    if not isinstance(diagnostic_ir, dict) or not diagnostic_ir:
+        return True
+    failure_type = str(task.get("failure_type") or "").strip().lower()
+    if failure_type != "underconstrained_system":
+        return False
+    subtype = str(diagnostic_ir.get("error_subtype") or "").strip().lower()
+    return subtype == "compile_failure_unknown"
+
+
 def _merge_actions(*action_sets: list[str]) -> list[str]:
     out: list[str] = []
     seen: set[str] = set()
@@ -164,6 +192,7 @@ def _augment_repair_strategy(
         simulate_pass=False,
         expected_stage=expected_stage,
         declared_failure_type=failure_type,
+        declared_context_hints=_task_diagnostic_context_hints(task),
     )
     retrieval = retrieve_repair_examples(
         history_payload=repair_history_payload if isinstance(repair_history_payload, dict) else {},
@@ -1260,13 +1289,14 @@ def _run_task_live_l4(
         )
         pre_repair = live_attempt.get("pre_repair") if isinstance(live_attempt.get("pre_repair"), dict) else {}
         diagnostic_ir = live_attempt.get("diagnostic_ir") if isinstance(live_attempt.get("diagnostic_ir"), dict) else {}
-        if not diagnostic_ir:
+        if _should_refresh_diagnostic_ir(task, diagnostic_ir):
             diagnostic_ir = build_diagnostic_ir_v0(
                 output=attempt_log_excerpt or stderr_snippet or error_message or compile_error or simulate_error_message,
                 check_model_pass=bool(check_ok),
                 simulate_pass=bool(simulate_ok),
                 expected_stage=str(task.get("expected_stage") or ""),
                 declared_failure_type=failure_type,
+                declared_context_hints=_task_diagnostic_context_hints(task),
             )
         return {
             "round": int(round_idx),
@@ -1695,13 +1725,14 @@ def _run_task_live(
         )
         pre_repair = live_attempt.get("pre_repair") if isinstance(live_attempt.get("pre_repair"), dict) else {}
         diagnostic_ir = live_attempt.get("diagnostic_ir") if isinstance(live_attempt.get("diagnostic_ir"), dict) else {}
-        if not diagnostic_ir:
+        if _should_refresh_diagnostic_ir(task, diagnostic_ir):
             diagnostic_ir = build_diagnostic_ir_v0(
                 output=attempt_log_excerpt or stderr_snippet or error_message or compile_error or simulate_error_message,
                 check_model_pass=bool(check_ok),
                 simulate_pass=bool(simulate_ok),
                 expected_stage=str(task.get("expected_stage") or ""),
                 declared_failure_type=failure_type,
+                declared_context_hints=_task_diagnostic_context_hints(task),
             )
 
         attempts.append(

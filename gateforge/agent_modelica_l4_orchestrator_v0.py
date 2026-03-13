@@ -74,6 +74,89 @@ def _infer_numeric_value(action_text: str, default: float) -> float:
         return float(default)
 
 
+def _has_connection(ir_payload: dict, src: str, dst: str) -> bool:
+    wanted = tuple(sorted((str(src or "").strip(), str(dst or "").strip())))
+    if not all(wanted):
+        return False
+    connections = ir_payload.get("connections") if isinstance(ir_payload.get("connections"), list) else []
+    for row in connections:
+        if not isinstance(row, dict):
+            continue
+        seen = tuple(sorted((str(row.get("from") or "").strip(), str(row.get("to") or "").strip())))
+        if seen == wanted:
+            return True
+    return False
+
+
+def _underconstrained_provenance_candidates(
+    *,
+    task: dict,
+    diagnostic_payload: dict,
+    ir_payload: dict,
+) -> list[dict]:
+    failure_type = str(task.get("failure_type") or "").strip().lower()
+    expected_stage = str(task.get("expected_stage") or "").strip().lower()
+    diag_subtype = str(diagnostic_payload.get("error_subtype") or "").strip().lower()
+    diag_stage = str(diagnostic_payload.get("stage") or "").strip().lower()
+    observed_phase = str(diagnostic_payload.get("observed_phase") or "").strip().lower()
+    if failure_type != "underconstrained_system":
+        return []
+    if expected_stage not in {"", "check"}:
+        return []
+    if diag_subtype not in {"", "underconstrained_system", "compile_failure_unknown"}:
+        return []
+    if diag_stage not in {"", "check"} and observed_phase not in {"", "check"}:
+        return []
+
+    rows: list[dict] = []
+    seen_edges: set[tuple[str, str]] = set()
+    for obj in task.get("mutated_objects") if isinstance(task.get("mutated_objects"), list) else []:
+        if not isinstance(obj, dict):
+            continue
+        if str(obj.get("kind") or "").strip().lower() != "connection_edge":
+            continue
+        src = str(obj.get("removed_from") or "").strip()
+        dst = str(obj.get("removed_to") or "").strip()
+        edge = tuple(sorted((src, dst)))
+        if not src or not dst or edge in seen_edges:
+            continue
+        seen_edges.add(edge)
+        if _has_connection(ir_payload, src, dst):
+            continue
+        rows.append(
+            {
+                "text": f"restore dropped connect edge {src} -> {dst} before any rewrite",
+                "action": {
+                    "action_id": f"l4_underconstrained_restore_{len(rows) + 1}",
+                    "op": "connect_ports",
+                    "target": {"from": src, "to": dst},
+                    "args": {},
+                    "reason_tag": "topology_restore",
+                    "source": "rule",
+                    "confidence": 0.98,
+                },
+                "source": "task_provenance",
+                "channel": "underconstrained_restore",
+            }
+        )
+    return rows
+
+
+def _should_topology_lock(task: dict, diagnostic_payload: dict) -> bool:
+    failure_type = str(task.get("failure_type") or "").strip().lower()
+    expected_stage = str(task.get("expected_stage") or "").strip().lower()
+    diag_stage = str(diagnostic_payload.get("stage") or "").strip().lower()
+    observed_phase = str(diagnostic_payload.get("observed_phase") or "").strip().lower()
+    diag_subtype = str(diagnostic_payload.get("error_subtype") or "").strip().lower()
+    if failure_type != "underconstrained_system":
+        return False
+    if expected_stage not in {"", "check"}:
+        return False
+    if diag_stage not in {"", "check"} and observed_phase not in {"", "check"}:
+        return False
+    return diag_subtype in {"", "underconstrained_system", "compile_failure_unknown"}
+
+
 def _build_rule_action_from_text(
     *,
     action_id: str,
@@ -484,6 +567,86 @@ def build_l4_action_plan_v0(
     seen_signatures_in_round: set[str] = set()
     debug_rows: list[dict] = []
 
+    def _append_direct_candidates(rows: list[dict]) -> None:
+        for idx, row in enumerate([x for x in rows if isinstance(x, dict)], start=1):
+            action = row.get("action") if isinstance(row.get("action"), dict) else None
+            if not isinstance(action, dict):
+                continue
+            signature = _action_signature(action)
+            if signature in seen_signatures_in_round:
+                continue
+            seen_signatures_in_round.add(signature)
+            operation = str(action.get("op") or "").strip().lower()
+            text = str(row.get("text") or "")
+            stage_match = _stage_match_score(expected_stage=expected_stage, op=operation)
+            subtype_match = _subtype_match_score(
+                error_subtype=str(diagnostic_payload.get("error_subtype") or ""),
+                op=operation,
+                action_text=text,
+            )
+            phase_match = _phase_priority(recovery_stage=recovery_stage, op=operation)
+            memory = _memory_features(
+                memory_index,
+                diagnostic_subtype=str(diagnostic_payload.get("error_subtype") or ""),
+                signature=signature,
+            )
+            provenance_support = 1 if str(row.get("channel") or "") == "underconstrained_restore" else 0
+            retry_penalty = int(attempted_signature_counts.get(signature, 0) or 0)
+            diversity_bonus = 1 if operation not in recent_ops else 0
+            memory_effectiveness = round(
+                float(memory.get("success_rate", 0.0)) * float(memory_terms.get("success_scale", 20.0))
+                - float(memory.get("infra_risk_rate", 0.0)) * float(memory_terms.get("infra_risk_scale", 12.0))
+                - max(0.0, float(memory.get("median_round_to_pass", 0.0)) - 1.0) * float(memory_terms.get("round_penalty", 1.5)),
+                3,
+            )
+            score = round(
+                phase_match * float(score_weights.get("phase", 1000.0))
+                + stage_match * float(score_weights.get("stage", 220.0))
+                + subtype_match * float(score_weights.get("subtype", 140.0))
+                + memory_effectiveness * float(score_weights.get("memory", 8.0))
+                + provenance_support * float(score_weights.get("retrieval", 20.0))
+                + provenance_support * 200.0
+                - retry_penalty * float(score_weights.get("retry_penalty", 80.0))
+                + diversity_bonus * float(score_weights.get("diversity", 8.0)),
+                3,
+            )
+            banned = signature in banned_action_signatures
+            candidate_row = {
+                "text": text,
+                "action": action,
+                "signature": signature,
+                "op": operation,
+                "source": str(row.get("source") or "task_provenance"),
+                "channel": str(row.get("channel") or "direct"),
+                "banned": bool(banned),
+                "score": score,
+                "score_terms": {
+                    "phase_match": phase_match,
+                    "stage_match": stage_match,
+                    "subtype_match": subtype_match,
+                    "memory_effectiveness": memory_effectiveness,
+                    "memory_success_rate": float(memory.get("success_rate", 0.0)),
+                    "memory_median_round_to_pass": float(memory.get("median_round_to_pass", 0.0)),
+                    "memory_infra_risk_rate": float(memory.get("infra_risk_rate", 0.0)),
+                    "memory_seen_count": int(memory.get("seen_count", 0) or 0),
+                    "retrieval_support": provenance_support,
+                    "retry_penalty": retry_penalty,
+                    "diversity_bonus": diversity_bonus,
+                },
+            }
+            candidates.append(candidate_row)
+            debug_rows.append(
+                {
+                    "signature": signature,
+                    "op": operation,
+                    "source": candidate_row["source"],
+                    "channel": candidate_row["channel"],
+                    "banned": bool(banned),
+                    "score": score,
+                    "score_terms": candidate_row["score_terms"],
+                }
+            )
+
     def _append_candidates(text_rows: list[str], *, source: str, channel: str, confidence: float) -> None:
         for idx, text in enumerate(text_rows, start=1):
             action = _build_rule_action_from_text(
@@ -569,6 +732,13 @@ def build_l4_action_plan_v0(
                 }
             )
 
+    _append_direct_candidates(
+        _underconstrained_provenance_candidates(
+            task=task,
+            diagnostic_payload=diagnostic_payload,
+            ir_payload=ir_payload,
+        )
+    )
     _append_candidates(policy_actions, source="rule", channel="policy", confidence=0.74)
     _append_candidates(mapped_actions, source="rule", channel="mapped", confidence=0.72)
     _append_candidates(retrieved_actions, source="rule", channel="retrieval", confidence=0.71)
@@ -585,6 +755,16 @@ def build_l4_action_plan_v0(
     )
 
     selected_candidates = [row for row in candidates if not bool(row.get("banned"))][: max(1, int(max_actions_per_round))]
+    if _should_topology_lock(task, diagnostic_payload):
+        topology_locked = [
+            row
+            for row in candidates
+            if not bool(row.get("banned"))
+            and str(row.get("op") or "").strip().lower() == "connect_ports"
+            and str((row.get("action") or {}).get("reason_tag") or "").strip().lower() == "topology_restore"
+        ]
+        if topology_locked:
+            selected_candidates = topology_locked[: max(1, int(max_actions_per_round))]
     llm_fallback_used = False
     llm_fallback_exhausted = False
 
@@ -751,6 +931,16 @@ def run_l4_orchestrator_v0(
                 simulate_pass=simulate_ok,
                 expected_stage=str(task.get("expected_stage") or ""),
                 declared_failure_type=str(task.get("failure_type") or ""),
+                declared_context_hints=[
+                    str(task.get("failure_type") or ""),
+                    str(task.get("mutation_operator") or ""),
+                    str(task.get("mutation_operator_family") or ""),
+                    *[
+                        str(item.get("effect") or "")
+                        for item in (task.get("mutated_objects") or [])
+                        if isinstance(item, dict) and str(item.get("effect") or "")
+                    ],
+                ],
             )
 
         current_subtype = str(diagnostic.get("error_subtype") or "").strip().lower()

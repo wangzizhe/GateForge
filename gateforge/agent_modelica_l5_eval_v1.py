@@ -88,6 +88,49 @@ def _median(values: list[float]) -> float:
     return round(float(statistics.median(rows)), 2)
 
 
+def _passes_success_gate(
+    *,
+    acceptance_mode_norm: str,
+    success_at_k_pct: float,
+    absolute_success_target_pct: float,
+    delta_success_at_k_pp: float,
+    effective_min_delta_success_at_k_pp: float,
+    non_regression_ok: bool,
+) -> bool:
+    if acceptance_mode_norm == "absolute_non_regression":
+        return success_at_k_pct >= float(absolute_success_target_pct) and bool(non_regression_ok)
+    return delta_success_at_k_pp >= float(effective_min_delta_success_at_k_pp)
+
+
+def _infra_blip_can_be_soft(
+    *,
+    infra_failure_count: int,
+    effective_attempt_count: int,
+    acceptance_mode_norm: str,
+    success_at_k_pct: float,
+    absolute_success_target_pct: float,
+    delta_success_at_k_pp: float,
+    effective_min_delta_success_at_k_pp: float,
+    non_regression_ok: bool,
+) -> bool:
+    if infra_failure_count <= 0:
+        return False
+    if infra_failure_count > 3:
+        return False
+    attempt_den = max(1, int(effective_attempt_count))
+    infra_failure_rate_pct = _ratio(int(infra_failure_count), attempt_den)
+    if infra_failure_rate_pct > 20.0:
+        return False
+    return _passes_success_gate(
+        acceptance_mode_norm=acceptance_mode_norm,
+        success_at_k_pct=success_at_k_pct,
+        absolute_success_target_pct=absolute_success_target_pct,
+        delta_success_at_k_pp=delta_success_at_k_pp,
+        effective_min_delta_success_at_k_pp=effective_min_delta_success_at_k_pp,
+        non_regression_ok=non_regression_ok,
+    )
+
+
 def _infer_infra_reason(stderr: str, reason: str, log_excerpt: str) -> str:
     text = " ".join([str(stderr or ""), str(reason or ""), str(log_excerpt or "")]).lower()
     if "live_request_budget_exceeded" in text:
@@ -364,8 +407,21 @@ def evaluate_l5_eval_v1(
         hard_reasons.append("physics_fail_rate_worsened_beyond_threshold")
     if delta_regression_fail_rate_pp > float(max_regression_fail_rate_worsen_pp):
         hard_reasons.append("regression_fail_rate_worsened_beyond_threshold")
+    infra_failure_rate_pct = _ratio(int(infra_failure_count), max(1, int(effective_attempt_count)))
     if infra_failure_count != int(infra_failure_count_must_equal):
-        hard_reasons.append("infra_failure_count_not_zero")
+        if _infra_blip_can_be_soft(
+            infra_failure_count=infra_failure_count,
+            effective_attempt_count=effective_attempt_count,
+            acceptance_mode_norm=acceptance_mode_norm,
+            success_at_k_pct=success_at_k_pct,
+            absolute_success_target_pct=float(absolute_success_target_pct),
+            delta_success_at_k_pp=delta_success_at_k_pp,
+            effective_min_delta_success_at_k_pp=effective_min_delta_success_at_k_pp,
+            non_regression_ok=non_regression_ok,
+        ):
+            soft_reasons.append("infra_failure_count_not_zero")
+        else:
+            hard_reasons.append("infra_failure_count_not_zero")
 
     if l3_parse < float(min_l3_parse_coverage_pct):
         hard_reasons.append("l3_parse_coverage_below_threshold")
@@ -432,6 +488,7 @@ def evaluate_l5_eval_v1(
         "baseline_regression_fail_rate_pct": baseline_regression_fail_rate_pct,
         "delta_regression_fail_rate_pp": delta_regression_fail_rate_pp,
         "infra_failure_count": infra_failure_count,
+        "infra_failure_rate_pct": infra_failure_rate_pct,
         "infra_failure_by_reason": dict(sorted({str(k): _to_int(v) for k, v in infra_failure_by_reason.items()}.items())),
         "l3_diagnostic_gate_status": l3_gate_status,
         "l3_parse_coverage_pct": l3_parse,

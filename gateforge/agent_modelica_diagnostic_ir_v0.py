@@ -277,6 +277,64 @@ def _taxonomy_stage(error_type: str, observed_phase: str) -> str:
     return "none"
 
 
+def _normalize_declared_underconstrained_drift(
+    *,
+    error_type: str,
+    error_subtype: str,
+    reason: str,
+    lower: str,
+    observed_phase: str,
+    declared_failure_type: str,
+    expected_stage: str,
+    declared_context_hints: list[str] | None = None,
+) -> tuple[str, str, str]:
+    declared = str(declared_failure_type or "").strip().lower()
+    if declared != "underconstrained_system":
+        return error_type, error_subtype, reason
+    if str(error_subtype or "").strip().lower() != "compile_failure_unknown":
+        return error_type, error_subtype, reason
+    phase = str(observed_phase or "").strip().lower()
+    expected = str(expected_stage or "").strip().lower()
+    if phase not in {"", "check"} and expected not in {"", "check"}:
+        return error_type, error_subtype, reason
+    context = {str(x or "").strip().lower() for x in (declared_context_hints or []) if str(x or "").strip()}
+    has_structural_context = bool(
+        context.intersection(
+            {
+                "drop_connect_equation",
+                "topology_realism",
+                "connection_edge",
+                "dangling_connectivity",
+                "structural_underconstraint",
+                "free_variable_probe",
+            }
+        )
+    )
+    if has_structural_context and _contains_any(lower, ("timeouterror", "the read operation timed out", "timed out")):
+        return "model_check_error", "underconstrained_system", "structural balance failed"
+    if _contains_any(
+        lower,
+        (
+            "under-determined",
+            "underdetermined",
+            "too few equations",
+            "not fully determined",
+            "structurally singular",
+            "gateforge_underconstrained_probe",
+            "dangling_connectivity",
+            "structural_underconstraint",
+            "dropped connect",
+        ),
+    ):
+        return "model_check_error", "underconstrained_system", "structural balance failed"
+    structural_mismatch = _structural_count_mismatch(lower)
+    if structural_mismatch:
+        equations, variables = structural_mismatch
+        if equations < variables:
+            return "model_check_error", "underconstrained_system", "structural balance failed"
+    return error_type, error_subtype, reason
+
+
 def build_diagnostic_ir_v0(
     *,
     output: str,
@@ -284,6 +342,7 @@ def build_diagnostic_ir_v0(
     simulate_pass: bool,
     expected_stage: str = "",
     declared_failure_type: str = "",
+    declared_context_hints: list[str] | None = None,
 ) -> dict:
     lower = str(output or "").lower()
     err_type = "none"
@@ -305,6 +364,17 @@ def build_diagnostic_ir_v0(
         reason = ""
         err_subtype = "none"
         legacy_type = "none"
+
+    err_type, err_subtype, reason = _normalize_declared_underconstrained_drift(
+        error_type=err_type,
+        error_subtype=err_subtype,
+        reason=reason,
+        lower=lower,
+        observed_phase=observed_phase,
+        declared_failure_type=str(declared_failure_type or ""),
+        expected_stage=str(expected_stage or ""),
+        declared_context_hints=declared_context_hints,
+    )
 
     stage = _taxonomy_stage(err_type, observed_phase)
 

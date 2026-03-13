@@ -226,7 +226,7 @@ class AgentModelicaElectricalMutantTasksetV0Tests(unittest.TestCase):
             self.assertEqual(summary_payload.get("reasons"), [])
             init_rows = [row for row in rows if str(row.get("failure_type") or "") == "initialization_infeasible"]
             self.assertEqual(len(init_rows), 3)
-            self.assertTrue(all(str(row.get("mutation_operator") or "") == "initial_equation_assert" for row in init_rows))
+            self.assertTrue(all(str(row.get("mutation_operator") or "") == "when_initial_assert" for row in init_rows))
             self.assertTrue(
                 all(
                     any(
@@ -241,6 +241,8 @@ class AgentModelicaElectricalMutantTasksetV0Tests(unittest.TestCase):
             init_text = Path(str(init_rows[0].get("mutated_model_path"))).read_text(encoding="utf-8")
             self.assertIn("gateforge_initialization_infeasible_", init_text)
             self.assertIn("assert(false", init_text)
+            self.assertIn("when initial()", init_text)
+            self.assertNotIn("initial equation", init_text.lower())
             under_rows = [row for row in rows if str(row.get("failure_type") or "") == "underconstrained_system"]
             self.assertEqual(len(under_rows), 3)
             self.assertTrue(all(str(row.get("mutation_operator") or "") == "drop_connect_equation" for row in under_rows))

@@ -29,6 +29,22 @@ def _read_text(path: Path) -> str:
         return path.read_text(encoding="latin-1")
 
 
+def _diagnostic_context_hints_from_model(*, failure_type: str, expected_stage: str, model_text: str) -> list[str]:
+    hints: list[str] = []
+    for value in (failure_type, expected_stage):
+        text = str(value or "").strip().lower()
+        if text:
+            hints.append(text)
+    lower = str(model_text or "").lower()
+    if "gateforge_underconstrained_probe_" in lower:
+        hints.extend(["free_variable_probe", "structural_underconstraint"])
+    if "gateforge_initialization_infeasible_" in lower:
+        hints.extend(["initialization_trigger", "forced_initialization_failure"])
+    if "when initial()" in lower:
+        hints.append("when_initial_assert")
+    return hints
+
+
 def _load_json(path: Path) -> dict:
     if not path.exists():
         return {}
@@ -863,6 +879,11 @@ def main() -> None:
                 simulate_pass=bool(simulate_ok),
                 expected_stage=str(args.expected_stage or ""),
                 declared_failure_type=str(args.failure_type or ""),
+                declared_context_hints=_diagnostic_context_hints_from_model(
+                    failure_type=str(args.failure_type or ""),
+                    expected_stage=str(args.expected_stage or ""),
+                    model_text=current_text,
+                ),
             )
             ftype = str(diagnostic.get("error_type") or "none")
             reason = str(diagnostic.get("reason") or "")

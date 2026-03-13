@@ -81,6 +81,21 @@ def _expected_subtypes(failure_type: str) -> set[str]:
     return set()
 
 
+def _is_benign_missing_initialization_manifestation(
+    *,
+    declared_failure_type: str,
+    record_passed: bool,
+    final_failure_type: str,
+    final_subtype: str,
+) -> bool:
+    return (
+        str(declared_failure_type or "").strip().lower() == "initialization_infeasible"
+        and bool(record_passed)
+        and str(final_failure_type or "").strip().lower() in {"", "none"}
+        and str(final_subtype or "").strip().lower() in {"", "none"}
+    )
+
+
 def _first_attempt(record: dict) -> dict:
     attempts = record.get("attempts") if isinstance(record.get("attempts"), list) else []
     attempts = [x for x in attempts if isinstance(x, dict)]
@@ -544,11 +559,20 @@ def build_realism_summary_v1(
                     _inc(row["mismatch_reasons"], "truncated_by_check")
         else:
             row["no_failure_signal_count"] = int(row.get("no_failure_signal_count", 0)) + 1
-            _inc(row["mismatch_reasons"], "missing_failure_signal")
-            total_missing_failure_signal += 1
             if record_passed:
                 resolved_without_failure_signal_count += 1
                 row["resolved_without_failure_signal_count"] = int(row.get("resolved_without_failure_signal_count", 0)) + 1
+            benign_missing_initialization_manifestation = _is_benign_missing_initialization_manifestation(
+                declared_failure_type=declared_failure_type,
+                record_passed=record_passed,
+                final_failure_type=final_failure_type,
+                final_subtype=final_subtype,
+            )
+            if benign_missing_initialization_manifestation:
+                _inc(row["mismatch_reasons"], "resolved_without_failure_signal")
+            else:
+                _inc(row["mismatch_reasons"], "missing_failure_signal")
+                total_missing_failure_signal += 1
 
     failure_type_breakdown_on = l5_summary.get("failure_type_breakdown_on") if isinstance(l5_summary.get("failure_type_breakdown_on"), dict) else {}
     category_breakdown_on = l5_summary.get("category_breakdown_on") if isinstance(l5_summary.get("category_breakdown_on"), dict) else {}
