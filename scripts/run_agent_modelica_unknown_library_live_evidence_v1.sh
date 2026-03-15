@@ -19,6 +19,7 @@ UPDATE_LATEST="${GATEFORGE_AGENT_UNKNOWN_LIBRARY_UPDATE_LATEST:-1}"
 STOP_AFTER_STAGE="${GATEFORGE_AGENT_UNKNOWN_LIBRARY_STOP_AFTER_STAGE:-}"
 
 MANIFEST_PATH="${GATEFORGE_AGENT_UNKNOWN_LIBRARY_MANIFEST:-assets_private/agent_modelica_unknown_library_pool_v1/manifest.json}"
+EXCLUDE_MODELS_JSON="${GATEFORGE_AGENT_UNKNOWN_LIBRARY_EXCLUDE_MODELS_JSON:-}"
 REPAIR_MEMORY_PATH="${GATEFORGE_AGENT_REPAIR_MEMORY_PATH:-data/private_failure_corpus/agent_modelica_repair_memory_v1.json}"
 PATCH_TEMPLATE_ADAPTATIONS_PATH="${GATEFORGE_AGENT_PATCH_TEMPLATE_ADAPTATIONS_PATH:-data/private_failure_corpus/agent_modelica_patch_template_adaptations_v1.json}"
 RETRIEVAL_POLICY_PATH="${GATEFORGE_AGENT_RETRIEVAL_POLICY_PATH:-data/private_failure_corpus/agent_modelica_retrieval_policy_v1.json}"
@@ -108,6 +109,7 @@ RETRIEVAL_SUMMARY_PATH="$RUN_ROOT/retrieval_summary.json"
 EVIDENCE_SUMMARY_PATH="$RUN_ROOT/evidence_summary.json"
 GATE_SUMMARY_PATH="$RUN_ROOT/gate_summary.json"
 DECISION_SUMMARY_PATH="$RUN_ROOT/decision_summary.json"
+SOURCE_UNSTABLE_EXCLUSIONS_PATH="$RUN_ROOT/source_unstable_exclusions.json"
 FINAL_RUN_SUMMARY_PATH="$RUN_ROOT/final_run_summary.json"
 RUN_MANIFEST_PATH="$RUN_ROOT/run_manifest.json"
 
@@ -391,12 +393,18 @@ PY
 }
 
 run_challenge_stage() {
-  python3 -m gateforge.agent_modelica_unknown_library_taskset_v1 \
+  local args=(
+    python3 -m gateforge.agent_modelica_unknown_library_taskset_v1
     --manifest "$MANIFEST_PATH" \
     --out-dir "$CHALLENGE_DIR" \
     --failure-types "$FAILURE_TYPES" \
     --holdout-ratio "$HOLDOUT_RATIO" \
     --seed "$SPLIT_SEED"
+  )
+  if [ -n "$EXCLUDE_MODELS_JSON" ] && [ -f "$EXCLUDE_MODELS_JSON" ]; then
+    args+=(--exclude-models-json "$EXCLUDE_MODELS_JSON")
+  fi
+  "${args[@]}"
 }
 
 run_curated_retrieval_stage() {
@@ -513,7 +521,8 @@ run_evidence_stage() {
     --min-diagnostic-parse-coverage-pct "$MIN_DIAGNOSTIC_PARSE_COVERAGE_PCT" \
     --out "$EVIDENCE_SUMMARY_PATH" \
     --gate-out "$GATE_SUMMARY_PATH" \
-    --decision-out "$DECISION_SUMMARY_PATH"
+    --decision-out "$DECISION_SUMMARY_PATH" \
+    --source-unstable-exclusions-out "$SOURCE_UNSTABLE_EXCLUSIONS_PATH"
 }
 
 run_repair_memory_store_stage() {

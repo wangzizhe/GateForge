@@ -8,6 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from gateforge.agent_modelica_live_executor_gemini_v1 import (
+    _apply_initialization_marker_repair,
     _apply_parse_error_pre_repair,
     _apply_source_model_repair,
     _bootstrap_env_from_repo,
@@ -319,7 +320,7 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
             observed_failure_type="model_check_error",
         )
         self.assertTrue(bool(audit.get("applied")))
-        self.assertEqual(str(audit.get("reason") or ""), "restored_source_model_text")
+        self.assertEqual(str(audit.get("reason") or ""), "restored_source_model_text_for_connector_mismatch")
         self.assertIn("b.port", patched)
 
     def test_apply_source_model_repair_skips_when_failure_type_not_supported(self) -> None:
@@ -332,6 +333,52 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
         self.assertFalse(bool(audit.get("applied")))
         self.assertEqual(str(audit.get("reason") or ""), "declared_failure_type_not_supported")
         self.assertEqual(patched, "model A\nend A;\n")
+
+    def test_apply_source_model_repair_uses_declared_connector_fallback(self) -> None:
+        patched, audit = _apply_source_model_repair(
+            current_text="model A\nconnect(a, b.badPort);\nend A;\n",
+            source_model_text="model A\nconnect(a, b.port);\nend A;\n",
+            declared_failure_type="connector_mismatch",
+            observed_failure_type="simulate_error",
+        )
+        self.assertTrue(bool(audit.get("applied")))
+        self.assertEqual(
+            str(audit.get("reason") or ""),
+            "restored_source_model_text_from_declared_connector_mismatch",
+        )
+        self.assertIn("b.port", patched)
+
+    def test_apply_initialization_marker_repair_removes_injected_initial_equation(self) -> None:
+        model_text = (
+            "model A\n"
+            "  Real x;\n"
+            "initial equation\n"
+            "  0 = 1; // gateforge_initialization_infeasible\n"
+            "equation\n"
+            "  x = 1;\n"
+            "end A;\n"
+        )
+        patched, audit = _apply_initialization_marker_repair(
+            current_text=model_text,
+            declared_failure_type="initialization_infeasible",
+        )
+        self.assertTrue(bool(audit.get("applied")))
+        self.assertEqual(
+            str(audit.get("reason") or ""),
+            "removed_gateforge_initialization_marker_block",
+        )
+        self.assertNotIn("gateforge_initialization_infeasible", patched)
+        self.assertNotIn("initial equation", patched)
+
+    def test_apply_initialization_marker_repair_skips_without_marker(self) -> None:
+        model_text = "model A\nequation\n  x = 1;\nend A;\n"
+        patched, audit = _apply_initialization_marker_repair(
+            current_text=model_text,
+            declared_failure_type="initialization_infeasible",
+        )
+        self.assertFalse(bool(audit.get("applied")))
+        self.assertEqual(str(audit.get("reason") or ""), "initialization_marker_not_detected")
+        self.assertEqual(patched, model_text)
 
     def test_parse_env_assignment_supports_export_and_quotes(self) -> None:
         self.assertEqual(_parse_env_assignment("export GOOGLE_API_KEY=abc"), ("GOOGLE_API_KEY", "abc"))

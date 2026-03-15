@@ -105,6 +105,7 @@ class RunAgentModelicaUnknownLibraryLiveEvidenceV1Tests(unittest.TestCase):
             run_root = out_dir / "runs" / run_id
             decision = json.loads((run_root / "decision_summary.json").read_text(encoding="utf-8"))
             evidence = json.loads((run_root / "evidence_summary.json").read_text(encoding="utf-8"))
+            exclusions = json.loads((run_root / "source_unstable_exclusions.json").read_text(encoding="utf-8"))
             latest_run = json.loads((out_dir / "latest_run.json").read_text(encoding="utf-8"))
             latest_summary = json.loads((out_dir / "latest_summary.json").read_text(encoding="utf-8"))
             self.assertEqual(latest_run.get("run_id"), run_id)
@@ -113,6 +114,7 @@ class RunAgentModelicaUnknownLibraryLiveEvidenceV1Tests(unittest.TestCase):
             self.assertTrue((run_root / "stages" / "challenge" / "stage_status.json").exists())
             self.assertEqual(decision.get("status"), "PASS")
             self.assertEqual(decision.get("decision"), "promote")
+            self.assertEqual(exclusions.get("schema_version"), "agent_modelica_unknown_library_source_unstable_exclusions_v1")
             success_by_library = evidence.get("success_by_library") if isinstance(evidence.get("success_by_library"), dict) else {}
             self.assertIn("liba", success_by_library)
             self.assertIn("retrieval_on_success_at_k_pct", success_by_library["liba"])

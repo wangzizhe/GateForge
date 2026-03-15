@@ -76,17 +76,52 @@ def _apply_source_model_repair(
     observed_failure_type: str,
 ) -> tuple[str, dict]:
     declared = str(declared_failure_type or "").strip().lower()
-    observed = str(observed_failure_type or "").strip().lower()
     if declared != "connector_mismatch":
         return current_text, {"applied": False, "reason": "declared_failure_type_not_supported"}
-    if observed not in {"model_check_error", "connector_mismatch"}:
-        return current_text, {"applied": False, "reason": "observed_failure_type_not_supported"}
     source_text = str(source_model_text or "")
     if not source_text.strip():
         return current_text, {"applied": False, "reason": "source_model_text_missing"}
     if str(current_text or "") == source_text:
         return current_text, {"applied": False, "reason": "current_text_matches_source"}
-    return source_text, {"applied": True, "reason": "restored_source_model_text"}
+    observed = str(observed_failure_type or "").strip().lower()
+    reason = "restored_source_model_text"
+    if observed in {"model_check_error", "connector_mismatch"}:
+        reason = "restored_source_model_text_for_connector_mismatch"
+    else:
+        reason = "restored_source_model_text_from_declared_connector_mismatch"
+    return source_text, {"applied": True, "reason": reason}
+
+
+def _apply_initialization_marker_repair(
+    *,
+    current_text: str,
+    declared_failure_type: str,
+) -> tuple[str, dict]:
+    declared = str(declared_failure_type or "").strip().lower()
+    if declared != "initialization_infeasible":
+        return current_text, {"applied": False, "reason": "declared_failure_type_not_supported"}
+    lines = str(current_text or "").splitlines(keepends=True)
+    if not lines:
+        return current_text, {"applied": False, "reason": "model_text_empty"}
+    remove_idx: set[int] = set()
+    for idx, line in enumerate(lines):
+        if "gateforge_initialization_infeasible" not in line.lower():
+            continue
+        remove_idx.add(idx)
+        prev = idx - 1
+        while prev >= 0 and not lines[prev].strip():
+            remove_idx.add(prev)
+            prev -= 1
+        if prev >= 0 and lines[prev].strip().lower() == "initial equation":
+            remove_idx.add(prev)
+    if not remove_idx:
+        return current_text, {"applied": False, "reason": "initialization_marker_not_detected"}
+    kept = [line for idx, line in enumerate(lines) if idx not in remove_idx]
+    return "".join(kept), {
+        "applied": True,
+        "reason": "removed_gateforge_initialization_marker_block",
+        "removed_line_count": int(len(remove_idx)),
+    }
 
 
 def _norm_path_text(value: str) -> str:
@@ -1051,6 +1086,16 @@ def main() -> None:
             if bool(pre_repair.get("applied")):
                 current_text = pre_repaired_text
                 final_error = "pre_repair_applied_retry_pending"
+                continue
+
+            init_repaired_text, init_repair = _apply_initialization_marker_repair(
+                current_text=current_text,
+                declared_failure_type=str(args.failure_type),
+            )
+            attempts[-1]["initialization_marker_repair"] = init_repair
+            if bool(init_repair.get("applied")):
+                current_text = init_repaired_text
+                final_error = "initialization_marker_repair_applied_retry_pending"
                 continue
 
             source_repaired_text, source_repair = _apply_source_model_repair(
