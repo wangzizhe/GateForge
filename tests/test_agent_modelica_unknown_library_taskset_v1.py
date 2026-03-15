@@ -133,7 +133,48 @@ class AgentModelicaUnknownLibraryTasksetV1Tests(unittest.TestCase):
             split_b = {row["task_id"]: row["split"] for row in taskset_b["tasks"]}
             self.assertEqual(split_a, split_b)
 
+    def test_builder_excludes_models_from_source_unstable_manifest(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            manifest = root / "manifest.json"
+            manifest.write_text(json.dumps(_manifest_payload(root), indent=2), encoding="utf-8")
+            exclusions = root / "source_unstable_exclusions.json"
+            exclusions.write_text(
+                json.dumps(
+                    {
+                        "schema_version": "agent_modelica_unknown_library_source_unstable_exclusions_v1",
+                        "qualified_model_names": ["LibA.ModelA"],
+                        "model_ids": ["ma"],
+                        "library_ids": [],
+                    },
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+            out_dir = root / "out"
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.agent_modelica_unknown_library_taskset_v1",
+                    "--manifest",
+                    str(manifest),
+                    "--out-dir",
+                    str(out_dir),
+                    "--exclude-models-json",
+                    str(exclusions),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            summary = json.loads((out_dir / "summary.json").read_text(encoding="utf-8"))
+            taskset = json.loads((out_dir / "taskset_frozen.json").read_text(encoding="utf-8"))
+            task_ids = [row["task_id"] for row in taskset["tasks"]]
+            self.assertEqual(int(summary.get("excluded_model_count") or 0), 1)
+            self.assertFalse(any("liba_ma_" in task_id for task_id in task_ids))
+
 
 if __name__ == "__main__":
     unittest.main()
-

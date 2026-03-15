@@ -49,6 +49,17 @@ def _write_json(path: Path, payload: object) -> None:
     path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
+def _load_json(path: str) -> dict:
+    p = Path(str(path or "").strip())
+    if not p.exists():
+        return {}
+    try:
+        payload = json.loads(p.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
 def _write_text(path: Path, content: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content, encoding="utf-8")
@@ -294,6 +305,7 @@ def build_unknown_library_taskset(
     failure_types: list[str],
     holdout_ratio: float,
     seed: str,
+    exclude_models_path: str = "",
 ) -> dict:
     payload = load_unknown_library_manifest(manifest_path)
     libraries, manifest_reasons = validate_unknown_library_manifest(payload)
@@ -303,10 +315,43 @@ def build_unknown_library_taskset(
     mutants_dir = out_root / "mutants"
     selected_models: list[tuple[dict, dict]] = []
     reasons = list(manifest_reasons)
+    excluded_payload = _load_json(exclude_models_path) if str(exclude_models_path or "").strip() else {}
+    excluded_qualified = {
+        _norm(item).lower()
+        for item in (excluded_payload.get("qualified_model_names") or [])
+        if _norm(item)
+    }
+    excluded_model_ids = {
+        _norm(item).lower()
+        for item in (excluded_payload.get("model_ids") or [])
+        if _norm(item)
+    }
+    excluded_library_ids = {
+        _norm(item).lower()
+        for item in (excluded_payload.get("library_ids") or [])
+        if _norm(item)
+    }
+    excluded_models: list[dict] = []
 
     for library in libraries:
         for model in library.get("allowed_models") or []:
             if isinstance(model, dict):
+                library_id = _norm(library.get("library_id")).lower()
+                model_id = _norm(model.get("model_id")).lower()
+                qualified = _norm(model.get("qualified_model_name")).lower()
+                if (
+                    library_id in excluded_library_ids
+                    or model_id in excluded_model_ids
+                    or qualified in excluded_qualified
+                ):
+                    excluded_models.append(
+                        {
+                            "library_id": library_id,
+                            "model_id": model_id,
+                            "qualified_model_name": _norm(model.get("qualified_model_name")),
+                        }
+                    )
+                    continue
                 selected_models.append((library, model))
 
     taskset_tasks: list[dict] = []
@@ -421,10 +466,15 @@ def build_unknown_library_taskset(
         if split in split_counts:
             split_counts[split] += 1
 
+    hard_reasons = list(reasons)
     if len(taskset_tasks) < 12:
-        reasons.append("task_count_below_target")
+        if excluded_models:
+            reasons.append("task_count_below_target_after_exclusions")
+        else:
+            reasons.append("task_count_below_target")
+            hard_reasons.append("task_count_below_target")
 
-    status = "PASS" if taskset_tasks and not reasons else "FAIL"
+    status = "PASS" if taskset_tasks and not hard_reasons else "FAIL"
     return {
         "status": status,
         "reasons": sorted(set(reasons)),
@@ -443,6 +493,9 @@ def build_unknown_library_taskset(
         "source_models_dir": str(source_models_dir.resolve()),
         "mutants_dir": str(mutants_dir.resolve()),
         "manifest_path": manifest_real_path,
+        "exclude_models_path": str(exclude_models_path or ""),
+        "excluded_model_count": len(excluded_models),
+        "excluded_models": excluded_models,
         "holdout_ratio": holdout_ratio,
         "seed": seed,
     }
@@ -455,6 +508,7 @@ def main() -> None:
     parser.add_argument("--failure-types", default="underconstrained_system,connector_mismatch,initialization_infeasible")
     parser.add_argument("--holdout-ratio", type=float, default=0.15)
     parser.add_argument("--seed", default="agent_modelica_unknown_library_taskset_v1")
+    parser.add_argument("--exclude-models-json", default="")
     parser.add_argument("--out", default="")
     parser.add_argument("--report-out", default="")
     args = parser.parse_args()
@@ -469,6 +523,7 @@ def main() -> None:
         failure_types=failure_types,
         holdout_ratio=float(args.holdout_ratio),
         seed=str(args.seed),
+        exclude_models_path=str(args.exclude_models_json),
     )
     out_root = Path(args.out_dir)
     taskset_unfrozen_path = out_root / "taskset_unfrozen.json"
@@ -522,6 +577,9 @@ def main() -> None:
             "builder_source_path": str(builder_source_path),
             "builder_source_sha": _sha256(builder_source_path),
         },
+        "exclude_models_path": built.get("exclude_models_path"),
+        "excluded_model_count": built.get("excluded_model_count"),
+        "excluded_models": built.get("excluded_models"),
         "files": {
             "taskset_unfrozen": str(taskset_unfrozen_path),
             "taskset_frozen": str(taskset_frozen_path),
@@ -558,6 +616,8 @@ def main() -> None:
         "taskset_unfrozen_path": str(taskset_unfrozen_path),
         "taskset_frozen_path": str(taskset_frozen_path),
         "manifest_path": str(manifest_out_path),
+        "exclude_models_path": built.get("exclude_models_path"),
+        "excluded_model_count": built.get("excluded_model_count"),
         "reasons": built.get("reasons"),
         "records": built.get("records"),
     }
