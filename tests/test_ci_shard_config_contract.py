@@ -79,6 +79,7 @@ class CIShardConfigContractTests(unittest.TestCase):
         self.assertIn("if: ${{ github.event_name == 'schedule' }}", workflow)
         self.assertIn('GATEFORGE_AGENT_L5_EVAL_PLANNER_BACKEND: "gemini"', workflow)
         self.assertIn('GATEFORGE_AGENT_L4_CLOSED_LOOP_PLANNER_BACKEND: "gemini"', workflow)
+        self.assertIn('GATEFORGE_AGENT_L4_MIN_SUCCESS_DELTA_PP: "0"', workflow)
         self.assertIn("bash scripts/run_agent_modelica_l4_closed_loop_v0.sh", workflow)
         self.assertIn(
             "if: ${{ (github.event_name == 'workflow_dispatch' && inputs.run_demo_bundle) || github.event_name == 'schedule' }}",
