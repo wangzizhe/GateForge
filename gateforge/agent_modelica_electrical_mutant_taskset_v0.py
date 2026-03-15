@@ -475,6 +475,78 @@ def _token_for(task_id: str, failure_type: str) -> str:
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:8]
 
 
+def _append_unique(out: list[str], seen: set[str], value: object) -> None:
+    text = str(value or "").strip().lower()
+    if text and text not in seen:
+        out.append(text)
+        seen.add(text)
+
+
+def _infer_task_hints(ir: dict) -> dict:
+    source_meta = ir.get("source_meta") if isinstance(ir.get("source_meta"), dict) else {}
+    components = ir.get("components") if isinstance(ir.get("components"), list) else []
+    connections = ir.get("connections") if isinstance(ir.get("connections"), list) else []
+    validation_targets = ir.get("validation_targets") if isinstance(ir.get("validation_targets"), list) else []
+
+    library_hints: list[str] = []
+    component_hints: list[str] = []
+    connector_hints: list[str] = []
+    seen = {
+        "library": set(),
+        "component": set(),
+        "connector": set(),
+    }
+
+    for key in ("source_library", "library_name", "package_name", "source_id"):
+        _append_unique(library_hints, seen["library"], source_meta.get(key))
+    for key in ("library_hints", "libraries", "package_names"):
+        value = source_meta.get(key)
+        if isinstance(value, list):
+            for item in value:
+                _append_unique(library_hints, seen["library"], item)
+
+    for row in components:
+        if not isinstance(row, dict):
+            continue
+        comp_type = str(row.get("type") or "").strip()
+        comp_id = str(row.get("id") or "").strip()
+        if comp_type:
+            parts = [part.strip() for part in comp_type.split(".") if part.strip()]
+            for idx in range(1, len(parts)):
+                _append_unique(library_hints, seen["library"], ".".join(parts[:idx]))
+            _append_unique(component_hints, seen["component"], comp_type)
+            _append_unique(component_hints, seen["component"], parts[-1] if parts else "")
+        _append_unique(component_hints, seen["component"], comp_id)
+
+    for row in connections:
+        if not isinstance(row, dict):
+            continue
+        for key in ("from", "to"):
+            endpoint = str(row.get(key) or "").strip()
+            if not endpoint:
+                continue
+            _append_unique(connector_hints, seen["connector"], endpoint)
+            if "." in endpoint:
+                _comp, port = endpoint.split(".", 1)
+                _append_unique(connector_hints, seen["connector"], port)
+
+    for target in validation_targets:
+        endpoint = str(target or "").strip()
+        if not endpoint:
+            continue
+        _append_unique(connector_hints, seen["connector"], endpoint)
+        if "." in endpoint:
+            _comp, port = endpoint.split(".", 1)
+            _append_unique(connector_hints, seen["connector"], port)
+
+    return {
+        "source_meta": source_meta,
+        "library_hints": library_hints,
+        "component_hints": component_hints,
+        "connector_hints": connector_hints,
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Build electrical mutant taskset from modeling_ir_v0 benchmark tasks")
     parser.add_argument("--benchmark", default="benchmarks/agent_modelica_electrical_tasks_v0.json")
@@ -532,6 +604,7 @@ def main() -> None:
         model_text = ir_to_modelica(ir, allowed_component_types=whitelist)
         source_model_path = Path(args.source_models_dir) / f"{task_id}.mo"
         _write_text(str(source_model_path), model_text)
+        task_hints = _infer_task_hints(ir)
 
         if bool(args.expand_failure_types):
             failure_types_for_task = list(requested_failure_types)
@@ -585,6 +658,10 @@ def main() -> None:
                     "mutation_operator_family": mutation_operator_family,
                     "mutated_objects": mutated_objects,
                     "mutation_style": str(args.mutation_style),
+                    "source_meta": dict(task_hints.get("source_meta") or {}),
+                    "library_hints": [str(x) for x in (task_hints.get("library_hints") or []) if isinstance(x, str)],
+                    "component_hints": [str(x) for x in (task_hints.get("component_hints") or []) if isinstance(x, str)],
+                    "connector_hints": [str(x) for x in (task_hints.get("connector_hints") or []) if isinstance(x, str)],
                 }
             )
             counts_by_failure[failure_type] = int(counts_by_failure.get(failure_type, 0)) + 1
@@ -605,6 +682,10 @@ def main() -> None:
                     "mutation_operator_family": mutation_operator_family,
                     "mutated_objects": mutated_objects,
                     "mutation_style": str(args.mutation_style),
+                    "source_meta": dict(task_hints.get("source_meta") or {}),
+                    "library_hints": [str(x) for x in (task_hints.get("library_hints") or []) if isinstance(x, str)],
+                    "component_hints": [str(x) for x in (task_hints.get("component_hints") or []) if isinstance(x, str)],
+                    "connector_hints": [str(x) for x in (task_hints.get("connector_hints") or []) if isinstance(x, str)],
                 }
             )
 

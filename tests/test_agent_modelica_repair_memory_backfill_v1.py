@@ -22,8 +22,9 @@ class AgentModelicaRepairMemoryBackfillV1Tests(unittest.TestCase):
                                 "task_id": "t1",
                                 "failure_type": "simulate_error",
                                 "scale": "small",
+                                "source_model_path": "Buildings.Fluid.MixingVolumes.MixingVolume.mo",
                                 "used_strategy": "s1",
-                                "action_trace": ["a1"],
+                                "action_trace": ["a1", "align connector volume.heatPort to src.port"],
                                 "success": True,
                             },
                             {
@@ -65,6 +66,9 @@ class AgentModelicaRepairMemoryBackfillV1Tests(unittest.TestCase):
             self.assertTrue(all(str(r.get("error_signature") or "").strip() for r in rows))
             self.assertTrue(all(str(r.get("gate_break_reason") or "").strip() for r in rows))
             self.assertTrue(all(str(r.get("split") or "").strip() in {"train", "holdout"} for r in rows))
+            self.assertIn("buildings", rows[0].get("library_hints", []))
+            self.assertIn("mixingvolume", rows[0].get("component_hints", []))
+            self.assertIn("volume.heatport", rows[0].get("connector_hints", []))
             self.assertGreaterEqual(
                 sum(1 for r in rows if str(r.get("split") or "").strip() == "holdout"),
                 1,

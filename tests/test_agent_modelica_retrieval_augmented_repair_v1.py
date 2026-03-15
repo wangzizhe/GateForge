@@ -125,6 +125,85 @@ class AgentModelicaRetrievalAugmentedRepairV1Tests(unittest.TestCase):
         examples = payload.get("examples") if isinstance(payload.get("examples"), list) else []
         self.assertEqual(str(examples[0].get("strategy_id") or ""), "s2")
 
+    def test_context_hints_prefer_matching_library_component_and_connector(self) -> None:
+        history = {
+            "rows": [
+                {
+                    "failure_type": "model_check_error",
+                    "model_id": "HVACLoop",
+                    "used_strategy": "mc_generic",
+                    "action_trace": ["inspect declarations"],
+                    "library_hints": ["buildings"],
+                    "component_hints": ["mixingvolume"],
+                    "connector_hints": ["port_a", "port_b"],
+                    "status": "PASS",
+                },
+                {
+                    "failure_type": "model_check_error",
+                    "model_id": "HVACLoop",
+                    "used_strategy": "mc_buildings_connector",
+                    "action_trace": ["align fluid connector causality"],
+                    "library_hints": ["buildings"],
+                    "component_hints": ["mixingvolume", "boundary_p_t"],
+                    "connector_hints": ["port_a", "heatport"],
+                    "status": "PASS",
+                },
+            ]
+        }
+        payload = retrieve_repair_examples(
+            history_payload=history,
+            failure_type="model_check_error",
+            model_hint="Buildings.Fluid.MixingVolumes.MixingVolume",
+            top_k=1,
+            context_hints={
+                "library_hints": ["Buildings"],
+                "component_hints": ["MixingVolume"],
+                "connector_hints": ["HeatPort"],
+                "text": ["connector mismatch on heatPort"],
+            },
+        )
+        self.assertEqual(int(payload.get("retrieved_count", 0)), 1)
+        examples = payload.get("examples") if isinstance(payload.get("examples"), list) else []
+        self.assertEqual(str(examples[0].get("strategy_id") or ""), "mc_buildings_connector")
+        self.assertIn("buildings", examples[0].get("matched_library_hints", []))
+        self.assertIn("mixingvolume", examples[0].get("matched_component_hints", []))
+        self.assertIn("heatport", examples[0].get("matched_connector_hints", []))
+
+    def test_retrieval_audit_reports_domain_and_match_counts(self) -> None:
+        history = {
+            "rows": [
+                {
+                    "failure_type": "connector_mismatch",
+                    "model_id": "OpenIPSL.Tests.Solar.PSAT.SolarPVTest",
+                    "used_strategy": "curated_openipsl_connector_mismatch",
+                    "action_trace": ["align bus electrical connector semantics"],
+                    "library_hints": ["openipsl"],
+                    "component_hints": ["solarpvtest", "spv"],
+                    "connector_hints": ["gen1.p", "spv.p", "p"],
+                    "domains": ["power_system"],
+                    "status": "PASS",
+                }
+            ]
+        }
+        payload = retrieve_repair_examples(
+            history_payload=history,
+            failure_type="connector_mismatch",
+            model_hint="OpenIPSL.Tests.Solar.PSAT.SolarPVTest",
+            top_k=1,
+            context_hints={
+                "library_hints": ["openipsl"],
+                "component_hints": ["SolarPVTest"],
+                "connector_hints": ["p"],
+                "domains": ["power_system"],
+            },
+        )
+        audit = payload.get("audit") if isinstance(payload.get("audit"), dict) else {}
+        self.assertEqual(int(audit.get("library_match_count", 0)), 1)
+        self.assertEqual(int(audit.get("component_match_count", 0)), 1)
+        self.assertGreaterEqual(int(audit.get("connector_match_count", 0)), 1)
+        self.assertEqual(int(audit.get("domain_match_count", 0)), 1)
+        self.assertIn("power_system", audit.get("matched_domain_hints", []))
+
 
 if __name__ == "__main__":
     unittest.main()

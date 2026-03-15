@@ -48,6 +48,7 @@ class RunAgentModelicaWeeklyChainV1Tests(unittest.TestCase):
             content,
         )
         self.assertIn("python3 -m gateforge.agent_modelica_repair_memory_store_v1", content)
+        self.assertIn("python3 -m gateforge.agent_modelica_repair_memory_backfill_v1", content)
         self.assertIn(
             'PATCH_TEMPLATE_ADAPTATIONS_PATH="${GATEFORGE_AGENT_PATCH_TEMPLATE_ADAPTATIONS_PATH:-${PROFILE_PATCH_TEMPLATE_ADAPTATIONS_PATH:-data/private_failure_corpus/agent_modelica_patch_template_adaptations_v1.json}}"',
             content,

@@ -57,6 +57,11 @@ python3 -m gateforge.agent_modelica_repair_memory_store_v1 \
   --include-failed \
   --out "$OUT_DIR/repair_memory_summary.json"
 
+python3 -m gateforge.agent_modelica_repair_memory_backfill_v1 \
+  --memory "$REPAIR_MEMORY_PATH" \
+  --memory-out "$REPAIR_MEMORY_PATH" \
+  --out "$OUT_DIR/repair_memory_backfill_summary.json"
+
 python3 -m gateforge.agent_modelica_repair_capability_learner_v1 \
   --repair-memory "$REPAIR_MEMORY_PATH" \
   --out-patch-template-adaptations "$PATCH_TEMPLATE_ADAPTATIONS_PATH" \

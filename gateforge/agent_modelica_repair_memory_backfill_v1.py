@@ -6,6 +6,8 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
+from .agent_modelica_retrieval_augmented_repair_v1 import build_retrieval_context_hints
+
 
 def _load_json(path: str) -> dict:
     p = Path(path)
@@ -39,6 +41,9 @@ def _write_markdown(path: str, payload: dict) -> None:
         f"- filled_error_signature: `{payload.get('filled_error_signature')}`",
         f"- filled_gate_break_reason: `{payload.get('filled_gate_break_reason')}`",
         f"- filled_split: `{payload.get('filled_split')}`",
+        f"- filled_library_hints: `{payload.get('filled_library_hints')}`",
+        f"- filled_component_hints: `{payload.get('filled_component_hints')}`",
+        f"- filled_connector_hints: `{payload.get('filled_connector_hints')}`",
         f"- holdout_rows: `{payload.get('holdout_rows')}`",
         "",
     ]
@@ -103,6 +108,9 @@ def backfill_memory(memory_payload: dict, holdout_ratio: float) -> tuple[dict, d
     filled_error_signature = 0
     filled_gate_reason = 0
     filled_split = 0
+    filled_library_hints = 0
+    filled_component_hints = 0
+    filled_connector_hints = 0
     now = datetime.now(timezone.utc).isoformat()
 
     signature_to_split: dict[str, str] = {}
@@ -135,6 +143,23 @@ def backfill_memory(memory_payload: dict, holdout_ratio: float) -> tuple[dict, d
             changed = True
         else:
             signature_to_split.setdefault(sig, split)
+
+        retrieval_context = build_retrieval_context_hints(row)
+        library_hints = row.get("library_hints") if isinstance(row.get("library_hints"), list) else []
+        component_hints = row.get("component_hints") if isinstance(row.get("component_hints"), list) else []
+        connector_hints = row.get("connector_hints") if isinstance(row.get("connector_hints"), list) else []
+        if not library_hints and retrieval_context.get("libraries"):
+            row["library_hints"] = [str(x) for x in (retrieval_context.get("libraries") or []) if isinstance(x, str)]
+            filled_library_hints += 1
+            changed = True
+        if not component_hints and retrieval_context.get("components"):
+            row["component_hints"] = [str(x) for x in (retrieval_context.get("components") or []) if isinstance(x, str)]
+            filled_component_hints += 1
+            changed = True
+        if not connector_hints and retrieval_context.get("connectors"):
+            row["connector_hints"] = [str(x) for x in (retrieval_context.get("connectors") or []) if isinstance(x, str)]
+            filled_connector_hints += 1
+            changed = True
 
         if changed:
             row["last_seen_at_utc"] = now
@@ -169,6 +194,9 @@ def backfill_memory(memory_payload: dict, holdout_ratio: float) -> tuple[dict, d
         "filled_error_signature": filled_error_signature,
         "filled_gate_break_reason": filled_gate_reason,
         "filled_split": filled_split,
+        "filled_library_hints": filled_library_hints,
+        "filled_component_hints": filled_component_hints,
+        "filled_connector_hints": filled_connector_hints,
         "holdout_rows": holdout_rows,
         "holdout_signature_count": len(holdout_signatures),
     }

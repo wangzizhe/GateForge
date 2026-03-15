@@ -240,6 +240,165 @@ class AgentModelicaRepairMemoryStoreV1Tests(unittest.TestCase):
             self.assertEqual(float(row.get("elapsed_sec") or 0.0), 95.5)
             self.assertTrue(str(row.get("patch_diff_summary") or "").startswith("stabilize start values"))
 
+    def test_store_persists_retrieval_hints_from_task_context(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            run_results = root / "run_results.json"
+            taskset = root / "taskset.json"
+            memory = root / "data" / "private_failure_corpus" / "repair_memory.json"
+            out = root / "summary.json"
+
+            run_results.write_text(
+                json.dumps(
+                    {
+                        "records": [
+                            {
+                                "task_id": "t_ctx",
+                                "scale": "medium",
+                                "failure_type": "model_check_error",
+                                "passed": True,
+                                "hard_checks": {"regression_pass": True},
+                                "repair_strategy": {
+                                    "strategy_id": "mc_buildings_connector",
+                                    "actions": ["align fluid connector causality"],
+                                },
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            taskset.write_text(
+                json.dumps(
+                    {
+                        "tasks": [
+                            {
+                                "task_id": "t_ctx",
+                                "source_model_path": "Buildings.Fluid.MixingVolumes.MixingVolume.mo",
+                                "library_hints": ["Buildings"],
+                                "component_hints": ["MixingVolume"],
+                                "connector_hints": ["heatPort"],
+                                "mutated_objects": [
+                                    {
+                                        "kind": "connector_endpoint",
+                                        "from": "vol.heatPort",
+                                        "to": "src.port",
+                                    }
+                                ],
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.agent_modelica_repair_memory_store_v1",
+                    "--run-results",
+                    str(run_results),
+                    "--taskset",
+                    str(taskset),
+                    "--memory",
+                    str(memory),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            payload = json.loads(memory.read_text(encoding="utf-8"))
+            row = (payload.get("rows") or [])[0]
+            self.assertIn("buildings", row.get("library_hints", []))
+            self.assertIn("mixingvolume", row.get("component_hints", []))
+            self.assertIn("heatport", row.get("connector_hints", []))
+            self.assertIn("vol.heatport", row.get("connector_hints", []))
+            self.assertNotIn("mixingvolume.mo", row.get("connector_hints", []))
+            self.assertNotIn("mo", row.get("connector_hints", []))
+
+    def test_store_merges_new_hints_into_existing_row(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            run_results = root / "run_results.json"
+            taskset = root / "taskset.json"
+            run_results.write_text(
+                json.dumps(
+                    {
+                        "records": [
+                            {
+                                "task_id": "t_merge",
+                                "scale": "small",
+                                "failure_type": "model_check_error",
+                                "passed": True,
+                                "hard_checks": {"regression_pass": True},
+                                "repair_strategy": {
+                                    "strategy_id": "mc_buildings_connector",
+                                    "actions": ["align fluid connector causality"],
+                                },
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            taskset.write_text(
+                json.dumps(
+                    {
+                        "tasks": [
+                            {
+                                "task_id": "t_merge",
+                                "failure_type": "model_check_error",
+                                "scale": "small",
+                                "expected_stage": "check",
+                                "source_model_path": "Buildings.Fluid.MixingVolumes.MixingVolume.mo",
+                                "mutated_model_path": "Buildings.Fluid.MixingVolumes.MixingVolume_mut.mo",
+                                "source_meta": {"source_library": "buildings"},
+                                "library_hints": ["buildings"],
+                                "component_hints": ["MixingVolume"],
+                                "connector_hints": ["heatPort"],
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            from gateforge.agent_modelica_repair_memory_store_v1 import build_repair_memory_update
+
+            initial = build_repair_memory_update(
+                run_results_payload=json.loads(run_results.read_text(encoding="utf-8")),
+                taskset_payload=json.loads(taskset.read_text(encoding="utf-8")),
+                existing_memory_payload={},
+            )
+            rows = initial.get("rows") if isinstance(initial.get("rows"), list) else []
+            self.assertEqual(len(rows), 1)
+            seed_row = dict(rows[0])
+            seed_row["library_hints"] = []
+            seed_row["component_hints"] = []
+            seed_row["connector_hints"] = []
+            seed_row["source_meta"] = {}
+            existing = {
+                "schema_version": "agent_modelica_repair_memory_v1",
+                "rows": [seed_row],
+            }
+            payload = build_repair_memory_update(
+                run_results_payload=json.loads(run_results.read_text(encoding="utf-8")),
+                taskset_payload=json.loads(taskset.read_text(encoding="utf-8")),
+                existing_memory_payload=existing,
+            )
+            rows = payload.get("rows") if isinstance(payload.get("rows"), list) else []
+            self.assertEqual(len(rows), 1)
+            row = rows[0]
+            self.assertIn("buildings", row.get("library_hints", []))
+            self.assertIn("mixingvolume", row.get("component_hints", []))
+            self.assertIn("heatport", row.get("connector_hints", []))
+            self.assertEqual((row.get("source_meta") or {}).get("source_library"), "buildings")
+            self.assertEqual(row.get("source_model_path"), "Buildings.Fluid.MixingVolumes.MixingVolume.mo")
+
 
 if __name__ == "__main__":
     unittest.main()

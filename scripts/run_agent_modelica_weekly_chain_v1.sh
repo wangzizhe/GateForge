@@ -382,6 +382,12 @@ python3 -m gateforge.agent_modelica_repair_memory_store_v1 \
   --out "$OUT_DIR/weekly/repair_memory_update.json" \
   --report-out "$OUT_DIR/weekly/repair_memory_update.md"
 
+python3 -m gateforge.agent_modelica_repair_memory_backfill_v1 \
+  --memory "$REPAIR_HISTORY_PATH" \
+  --memory-out "$REPAIR_HISTORY_PATH" \
+  --out "$OUT_DIR/weekly/repair_memory_backfill.json" \
+  --report-out "$OUT_DIR/weekly/repair_memory_backfill.md"
+
 python3 -m gateforge.agent_modelica_repair_capability_learner_v1 \
   --repair-memory "$REPAIR_HISTORY_PATH" \
   --min-success-count-per-failure-type "$CAPABILITY_LEARN_MIN_SUCCESS_COUNT" \
