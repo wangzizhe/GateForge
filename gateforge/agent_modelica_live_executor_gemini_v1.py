@@ -12,6 +12,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from contextlib import contextmanager
+from dataclasses import dataclass
 from pathlib import Path
 
 from .agent_modelica_diagnostic_ir_v0 import build_diagnostic_ir_v0
@@ -65,6 +66,104 @@ def _find_primary_model_name(text: str) -> str:
     if not m:
         return ""
     return str(m.group(1))
+
+
+def _apply_source_model_repair(
+    *,
+    current_text: str,
+    source_model_text: str,
+    declared_failure_type: str,
+    observed_failure_type: str,
+) -> tuple[str, dict]:
+    declared = str(declared_failure_type or "").strip().lower()
+    observed = str(observed_failure_type or "").strip().lower()
+    if declared != "connector_mismatch":
+        return current_text, {"applied": False, "reason": "declared_failure_type_not_supported"}
+    if observed not in {"model_check_error", "connector_mismatch"}:
+        return current_text, {"applied": False, "reason": "observed_failure_type_not_supported"}
+    source_text = str(source_model_text or "")
+    if not source_text.strip():
+        return current_text, {"applied": False, "reason": "source_model_text_missing"}
+    if str(current_text or "") == source_text:
+        return current_text, {"applied": False, "reason": "current_text_matches_source"}
+    return source_text, {"applied": True, "reason": "restored_source_model_text"}
+
+
+def _norm_path_text(value: str) -> str:
+    return str(value or "").strip()
+
+
+def _rel_mos_path(path: Path, workspace: Path) -> str:
+    rel = path.relative_to(workspace)
+    return str(rel).replace(os.sep, "/")
+
+
+@dataclass
+class _WorkspaceModelLayout:
+    model_write_path: Path
+    model_load_files: list[str]
+    model_identifier: str
+    uses_external_library: bool
+
+
+def _copytree_best_effort(src: Path, dst: Path) -> bool:
+    try:
+        shutil.copytree(src, dst, dirs_exist_ok=True)
+        return True
+    except Exception:
+        return False
+
+
+def _prepare_workspace_model_layout(
+    *,
+    workspace: Path,
+    fallback_model_path: Path,
+    primary_model_name: str,
+    source_library_path: str = "",
+    source_package_name: str = "",
+    source_library_model_path: str = "",
+    source_qualified_model_name: str = "",
+) -> _WorkspaceModelLayout:
+    package_root_text = _norm_path_text(source_library_path)
+    package_name = _norm_path_text(source_package_name)
+    qualified_model_name = _norm_path_text(source_qualified_model_name)
+    source_model_in_library_text = _norm_path_text(source_library_model_path)
+
+    if package_root_text and package_name and qualified_model_name:
+        package_root = Path(package_root_text)
+        package_dir_name = package_name.split(".", 1)[0].strip() or package_root.name
+        package_mirror = workspace / package_dir_name
+        package_mirror_parent = package_mirror.parent
+        package_mirror_parent.mkdir(parents=True, exist_ok=True)
+        if package_root.exists() and _copytree_best_effort(package_root, package_mirror):
+            source_model_in_library = Path(source_model_in_library_text) if source_model_in_library_text else None
+            if source_model_in_library is not None:
+                try:
+                    rel_model_path = source_model_in_library.relative_to(package_root)
+                except Exception:
+                    rel_model_path = Path(fallback_model_path.name)
+            else:
+                rel_model_path = Path(fallback_model_path.name)
+            model_write_path = package_mirror / rel_model_path
+            model_write_path.parent.mkdir(parents=True, exist_ok=True)
+            load_files: list[str] = []
+            package_file = package_mirror / "package.mo"
+            if package_file.exists():
+                load_files.append(_rel_mos_path(package_file, workspace))
+            return _WorkspaceModelLayout(
+                model_write_path=model_write_path,
+                model_load_files=load_files + [_rel_mos_path(model_write_path, workspace)],
+                model_identifier=qualified_model_name,
+                uses_external_library=True,
+            )
+
+    model_write_path = workspace / fallback_model_path.name
+    return _WorkspaceModelLayout(
+        model_write_path=model_write_path,
+        model_load_files=[_rel_mos_path(model_write_path, workspace)],
+        model_identifier=primary_model_name,
+        uses_external_library=False,
+    )
 
 
 def _run_cmd(cmd: list[str], timeout_sec: int, cwd: str | None = None) -> tuple[int | None, str]:
@@ -149,6 +248,10 @@ def _to_float_env(name: str, default: float) -> float:
         return max(0.0, float(str(os.getenv(name) or "").strip() or default))
     except Exception:
         return max(0.0, float(default))
+
+
+def _llm_request_timeout_sec() -> float:
+    return max(1.0, _to_float_env("GATEFORGE_AGENT_LIVE_LLM_REQUEST_TIMEOUT_SEC", 120.0))
 
 
 def _live_budget_config() -> dict:
@@ -453,10 +556,12 @@ def _gemini_repair_model_text(
         if not allowed:
             return None, "live_request_budget_exceeded"
         try:
-            with urllib.request.urlopen(req, timeout=45) as resp:
+            with urllib.request.urlopen(req, timeout=_llm_request_timeout_sec()) as resp:
                 response_payload = json.loads(resp.read().decode("utf-8"))
             _record_live_request_success(cfg)
             break
+        except TimeoutError:
+            return None, "gemini_request_timeout"
         except urllib.error.HTTPError as exc:
             body = exc.read().decode("utf-8", errors="ignore")
             if int(exc.code) == 429:
@@ -534,10 +639,12 @@ def _openai_repair_model_text(
         if not allowed:
             return None, "live_request_budget_exceeded"
         try:
-            with urllib.request.urlopen(req, timeout=45) as resp:
+            with urllib.request.urlopen(req, timeout=_llm_request_timeout_sec()) as resp:
                 response_payload = json.loads(resp.read().decode("utf-8"))
             _record_live_request_success(cfg)
             break
+        except TimeoutError:
+            return None, "openai_request_timeout"
         except urllib.error.HTTPError as exc:
             body = exc.read().decode("utf-8", errors="ignore")
             if int(exc.code) == 429:
@@ -738,7 +845,7 @@ def _normalize_terminal_errors(executor_status: str, error_message: str, compile
 def _run_check_and_simulate(
     *,
     workspace: Path,
-    model_file_name: str,
+    model_load_files: list[str],
     model_name: str,
     timeout_sec: int,
     backend: str,
@@ -749,9 +856,10 @@ def _run_check_and_simulate(
     bootstrap = "loadModel(Modelica);\n"
     if backend != "omc":
         bootstrap = "installPackage(Modelica);\nloadModel(Modelica);\n"
+    load_lines = "".join([f'loadFile("{item}");\n' for item in model_load_files if str(item or "").strip()])
     script = (
         bootstrap
-        + f'loadFile("{model_file_name}");\n'
+        + load_lines
         + f"checkModel({model_name});\n"
         + f"simulate({model_name}, stopTime={float(stop_time)}, numberOfIntervals={int(intervals)});\n"
         + "getErrorString();\n"
@@ -790,6 +898,10 @@ def main() -> None:
     parser.add_argument("--expected-stage", default="unknown")
     parser.add_argument("--source-model-path", default="")
     parser.add_argument("--mutated-model-path", default="")
+    parser.add_argument("--source-library-path", default="")
+    parser.add_argument("--source-package-name", default="")
+    parser.add_argument("--source-library-model-path", default="")
+    parser.add_argument("--source-qualified-model-name", default="")
     parser.add_argument("--repair-actions", default="")
     parser.add_argument("--max-rounds", type=int, default=3)
     parser.add_argument("--timeout-sec", type=int, default=180)
@@ -826,6 +938,12 @@ def main() -> None:
         backend = "omc" if shutil.which("omc") else "openmodelica_docker"
 
     original_text = _read_text(model_path)
+    source_model_text = ""
+    source_model_path_raw = str(args.source_model_path or "").strip()
+    if source_model_path_raw:
+        source_model_path = Path(source_model_path_raw)
+        if source_model_path.exists() and source_model_path.is_file():
+            source_model_text = _read_text(source_model_path)
     model_name = _find_primary_model_name(original_text)
     if not model_name:
         payload = {
@@ -860,13 +978,21 @@ def main() -> None:
 
     with _temporary_workspace(prefix="gf_live_exec_") as td:
         workspace = Path(td)
-        model_file = workspace / model_path.name
+        layout = _prepare_workspace_model_layout(
+            workspace=workspace,
+            fallback_model_path=model_path,
+            primary_model_name=model_name,
+            source_library_path=str(args.source_library_path or ""),
+            source_package_name=str(args.source_package_name or ""),
+            source_library_model_path=str(args.source_library_model_path or ""),
+            source_qualified_model_name=str(args.source_qualified_model_name or ""),
+        )
         for round_idx in range(1, max(1, int(args.max_rounds)) + 1):
-            model_file.write_text(current_text, encoding="utf-8")
+            layout.model_write_path.write_text(current_text, encoding="utf-8")
             rc, output, check_ok, simulate_ok = _run_check_and_simulate(
                 workspace=workspace,
-                model_file_name=model_file.name,
-                model_name=model_name,
+                model_load_files=layout.model_load_files,
+                model_name=layout.model_identifier,
                 timeout_sec=max(1, int(args.timeout_sec)),
                 backend=backend,
                 docker_image=str(args.docker_image),
@@ -927,6 +1053,18 @@ def main() -> None:
                 final_error = "pre_repair_applied_retry_pending"
                 continue
 
+            source_repaired_text, source_repair = _apply_source_model_repair(
+                current_text=current_text,
+                source_model_text=source_model_text,
+                declared_failure_type=str(args.failure_type),
+                observed_failure_type=ftype,
+            )
+            attempts[-1]["source_repair"] = source_repair
+            if bool(source_repair.get("applied")):
+                current_text = source_repaired_text
+                final_error = "source_repair_applied_retry_pending"
+                continue
+
             if resolved_provider in {"gemini", "openai"}:
                 patched, llm_err, resolved_provider = _llm_repair_model_text(
                     planner_backend=str(args.planner_backend),
@@ -960,6 +1098,7 @@ def main() -> None:
         "planner_backend": str(args.planner_backend),
         "resolved_llm_provider": resolved_provider,
         "backend_used": backend,
+        "uses_external_library": bool(layout.uses_external_library) if "layout" in locals() else False,
         "check_model_pass": bool(final_check_ok),
         "simulate_pass": bool(final_simulate_ok),
         "physics_contract_pass": bool(final_check_ok and final_simulate_ok),

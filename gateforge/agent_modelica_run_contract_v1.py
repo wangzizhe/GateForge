@@ -18,7 +18,7 @@ from .physics_contract_v0 import (
 from .agent_modelica_repair_playbook_v1 import load_repair_playbook, recommend_repair_strategy
 from .agent_modelica_patch_template_engine_v1 import build_patch_template
 from .agent_modelica_error_action_mapper_v1 import map_error_to_actions
-from .agent_modelica_retrieval_augmented_repair_v1 import retrieve_repair_examples
+from .agent_modelica_retrieval_augmented_repair_v1 import build_retrieval_context_hints, retrieve_repair_examples
 from .agent_modelica_diagnostic_ir_v0 import build_diagnostic_ir_v0, canonical_error_type_v0
 from .agent_modelica_repair_action_policy_v0 import recommend_repair_actions_v0
 from .agent_modelica_orchestrator_guard_v0 import detect_no_progress_v0, prioritize_repair_actions_v0
@@ -138,6 +138,17 @@ def _task_diagnostic_context_hints(task: dict) -> list[str]:
     return hints
 
 
+def _task_retrieval_context_hints(task: dict, diagnostic_payload: dict | None = None) -> dict:
+    context = build_retrieval_context_hints(task if isinstance(task, dict) else {}, diagnostic_payload=diagnostic_payload)
+    return {
+        "libraries": [str(x) for x in (context.get("libraries") or []) if isinstance(x, str)],
+        "components": [str(x) for x in (context.get("components") or []) if isinstance(x, str)],
+        "connectors": [str(x) for x in (context.get("connectors") or []) if isinstance(x, str)],
+        "domains": [str(x) for x in (context.get("domains") or []) if isinstance(x, str)],
+        "text": [str(x) for x in (context.get("text") or []) if isinstance(x, str)],
+    }
+
+
 def _should_refresh_diagnostic_ir(task: dict, diagnostic_ir: dict) -> bool:
     if not isinstance(diagnostic_ir, dict) or not diagnostic_ir:
         return True
@@ -200,6 +211,7 @@ def _augment_repair_strategy(
         model_hint=str(task.get("source_model_path") or ""),
         top_k=2,
         policy_payload=retrieval_policy_payload if isinstance(retrieval_policy_payload, dict) else {},
+        context_hints=_task_retrieval_context_hints(task, diagnostic),
     )
 
     base_actions = [str(x) for x in (repair_strategy.get("actions") or []) if isinstance(x, str)]
@@ -213,6 +225,7 @@ def _augment_repair_strategy(
     template_actions = [str(x) for x in (template.get("actions") or []) if isinstance(x, str)]
     mapped_actions = [str(x) for x in (mapped.get("actions") or []) if isinstance(x, str)]
     retrieved_actions = [str(x) for x in (retrieval.get("suggested_actions") or []) if isinstance(x, str)]
+    retrieval_audit = retrieval.get("audit") if isinstance(retrieval.get("audit"), dict) else {}
     merged_actions = _merge_actions(policy_actions, template_actions, mapped_actions, retrieved_actions)
     prioritized_actions = prioritize_repair_actions_v0(merged_actions, expected_stage=expected_stage)
 
@@ -254,6 +267,16 @@ def _augment_repair_strategy(
         "retrieved_example_count": int(retrieval.get("retrieved_count", 0) or 0),
         "retrieval_effective_top_k": int(retrieval.get("effective_top_k", 0) or 0),
         "retrieved_suggested_action_count": len(retrieved_actions),
+        "matched_library_hints": [str(x) for x in (retrieval_audit.get("matched_library_hints") or []) if isinstance(x, str)],
+        "matched_component_hints": [str(x) for x in (retrieval_audit.get("matched_component_hints") or []) if isinstance(x, str)],
+        "matched_connector_hints": [str(x) for x in (retrieval_audit.get("matched_connector_hints") or []) if isinstance(x, str)],
+        "matched_domain_hints": [str(x) for x in (retrieval_audit.get("matched_domain_hints") or []) if isinstance(x, str)],
+        "exact_library_match_count": int(retrieval_audit.get("exact_library_match_count", 0) or 0),
+        "library_match_count": int(retrieval_audit.get("library_match_count", 0) or 0),
+        "component_match_count": int(retrieval_audit.get("component_match_count", 0) or 0),
+        "connector_match_count": int(retrieval_audit.get("connector_match_count", 0) or 0),
+        "domain_match_count": int(retrieval_audit.get("domain_match_count", 0) or 0),
+        "retrieval_fallback_used": bool(retrieval_audit.get("fallback_used", False)),
         "confidence_boost": round(confidence_boost, 4),
     }
     return augmented, audit
@@ -343,6 +366,8 @@ def _build_live_template_context(
     actions = [str(x) for x in (repair_actions_override or strategy.get("actions") or []) if isinstance(x, str)]
     source_model_path = str(source_model_path_override or task.get("source_model_path") or "")
     mutated_model_path = str(mutated_model_path_override or task.get("mutated_model_path") or "")
+    source_meta = task.get("source_meta") if isinstance(task.get("source_meta"), dict) else {}
+    source_library_path = str(source_meta.get("local_path") or source_meta.get("accepted_source_path") or "")
     mapping = {
         "task_id": str(task.get("task_id") or ""),
         "scale": str(task.get("scale") or ""),
@@ -352,6 +377,12 @@ def _build_live_template_context(
         "mutated_model_path": mutated_model_path,
         "repro_command": str(task.get("repro_command") or ""),
         "mutation_id": str(task.get("mutation_id") or ""),
+        "source_package_name": str(source_meta.get("package_name") or ""),
+        "source_library_id": str(source_meta.get("library_id") or ""),
+        "source_library_path": source_library_path,
+        "source_library_model_path": str(source_meta.get("model_path") or ""),
+        "source_qualified_model_name": str(source_meta.get("qualified_model_name") or ""),
+        "source_domain": str(source_meta.get("domain") or task.get("domain") or ""),
         "round": str(round_idx),
         "max_rounds": str(max_rounds),
         "max_time_sec": str(max_time_sec),

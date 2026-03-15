@@ -6,8 +6,38 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from gateforge.agent_modelica_run_contract_v1 import _build_live_template_context
+
 
 class AgentModelicaRunContractV1Tests(unittest.TestCase):
+    def test_build_live_template_context_exposes_unknown_library_source_meta(self) -> None:
+        context = _build_live_template_context(
+            task={
+                "task_id": "t1",
+                "failure_type": "connector_mismatch",
+                "expected_stage": "check",
+                "source_model_path": "/tmp/source.mo",
+                "mutated_model_path": "/tmp/mutated.mo",
+                "source_meta": {
+                    "package_name": "AixLib",
+                    "library_id": "aixlib",
+                    "local_path": "/repo/AixLib",
+                    "model_path": "/repo/AixLib/Systems/Examples/Demo.mo",
+                    "qualified_model_name": "AixLib.Systems.Examples.Demo",
+                    "domain": "building_hvac",
+                },
+            },
+            strategy={"actions": ["fix"]},
+            round_idx=1,
+            max_rounds=2,
+            max_time_sec=180,
+        )
+        self.assertEqual(context["source_library_path"], "/repo/AixLib")
+        self.assertEqual(context["source_package_name"], "AixLib")
+        self.assertEqual(context["source_library_model_path"], "/repo/AixLib/Systems/Examples/Demo.mo")
+        self.assertEqual(context["source_qualified_model_name"], "AixLib.Systems.Examples.Demo")
+        self.assertEqual(context["source_domain"], "building_hvac")
+
     def test_run_contract_mock_produces_metrics(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
@@ -275,8 +305,82 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
             self.assertTrue(str(audit.get("action_policy_channel") or ""))
             self.assertGreaterEqual(int(audit.get("error_action_count", 0)), 1)
             self.assertGreaterEqual(int(audit.get("retrieved_example_count", 0)), 1)
+            self.assertIn("largegrid", audit.get("matched_component_hints", []))
             actions = audit.get("actions_planned") if isinstance(audit.get("actions_planned"), list) else []
             self.assertTrue(any("declare missing symbol" in str(x).lower() for x in actions))
+
+    def test_run_contract_includes_retrieval_match_audit_fields(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            taskset = root / "taskset.json"
+            history = root / "history.json"
+            results = root / "results.json"
+            summary = root / "summary.json"
+            history.write_text(
+                json.dumps(
+                    {
+                        "rows": [
+                            {
+                                "failure_type": "connector_mismatch",
+                                "model_id": "OpenIPSL.Tests.Solar.PSAT.SolarPVTest",
+                                "used_strategy": "curated_openipsl_connector_mismatch",
+                                "action_trace": ["align bus electrical connector semantics"],
+                                "library_hints": ["openipsl"],
+                                "component_hints": ["solarpvtest", "spv"],
+                                "connector_hints": ["gen1.p", "spv.p", "p"],
+                                "domains": ["power_system"],
+                                "status": "PASS",
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            taskset.write_text(
+                json.dumps(
+                    {
+                        "tasks": [
+                            {
+                                "task_id": "t_unknown",
+                                "scale": "small",
+                                "failure_type": "connector_mismatch",
+                                "expected_stage": "check",
+                                "source_model_path": "OpenIPSL.Tests.Solar.PSAT.SolarPVTest.mo",
+                                "library_hints": ["openipsl"],
+                                "component_hints": ["SolarPVTest"],
+                                "connector_hints": ["p"],
+                                "domains": ["power_system"],
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.agent_modelica_run_contract_v1",
+                    "--taskset",
+                    str(taskset),
+                    "--repair-history",
+                    str(history),
+                    "--results-out",
+                    str(results),
+                    "--out",
+                    str(summary),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            records = json.loads(results.read_text(encoding="utf-8")).get("records") or []
+            audit = (records[0].get("repair_audit") or {}) if records else {}
+            self.assertEqual(int(audit.get("library_match_count", 0)), 1)
+            self.assertEqual(int(audit.get("component_match_count", 0)), 1)
+            self.assertEqual(int(audit.get("domain_match_count", 0)), 1)
+            self.assertIn("power_system", audit.get("matched_domain_hints", []))
 
     def test_run_contract_focus_queue_reduces_stress_runtime_regression(self) -> None:
         with tempfile.TemporaryDirectory() as d:
