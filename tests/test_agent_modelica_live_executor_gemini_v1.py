@@ -9,15 +9,18 @@ from unittest.mock import patch
 
 from gateforge.agent_modelica_live_executor_gemini_v1 import (
     _apply_parse_error_pre_repair,
+    _apply_source_model_repair,
     _bootstrap_env_from_repo,
     _diagnostic_context_hints_from_model,
     _extract_om_success_flags,
     _extract_json_object,
+    _llm_request_timeout_sec,
     _live_budget_config,
     _normalize_terminal_errors,
     _openai_repair_model_text,
     _parse_env_assignment,
     _parse_repair_actions,
+    _prepare_workspace_model_layout,
     _record_live_request_429,
     _resolve_llm_provider,
     _reserve_live_request,
@@ -61,7 +64,7 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
             ) as mocked:
                 _run_check_and_simulate(
                     workspace=workspace,
-                    model_file_name="A1.mo",
+                    model_load_files=["A1.mo"],
                     model_name="A1",
                     timeout_sec=30,
                     backend="omc",
@@ -83,7 +86,7 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
             ) as mocked:
                 _run_check_and_simulate(
                     workspace=workspace,
-                    model_file_name="A1.mo",
+                    model_load_files=["A1.mo"],
                     model_name="A1",
                     timeout_sec=30,
                     backend="openmodelica_docker",
@@ -95,6 +98,37 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
                 script_text = str(mocked.call_args.kwargs.get("script_text") or mocked.call_args.args[0])
                 self.assertIn("installPackage(Modelica);", script_text)
                 self.assertIn("loadModel(Modelica);", script_text)
+                self.assertIn('loadFile("A1.mo");', script_text)
+
+    def test_prepare_workspace_model_layout_mirrors_external_library_tree(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="gf_live_exec_layout_") as td:
+            root = Path(td)
+            workspace = root / "workspace"
+            library_root = root / "AixLib"
+            package_file = library_root / "package.mo"
+            model_file = library_root / "Systems" / "Examples" / "Demo.mo"
+            package_file.parent.mkdir(parents=True, exist_ok=True)
+            model_file.parent.mkdir(parents=True, exist_ok=True)
+            package_file.write_text("within ;\npackage AixLib\nend AixLib;\n", encoding="utf-8")
+            model_file.write_text("within AixLib.Systems.Examples;\nmodel Demo\nend Demo;\n", encoding="utf-8")
+            workspace.mkdir(parents=True, exist_ok=True)
+
+            layout = _prepare_workspace_model_layout(
+                workspace=workspace,
+                fallback_model_path=model_file,
+                primary_model_name="Demo",
+                source_library_path=str(library_root),
+                source_package_name="AixLib",
+                source_library_model_path=str(model_file),
+                source_qualified_model_name="AixLib.Systems.Examples.Demo",
+            )
+
+            self.assertTrue(layout.uses_external_library)
+            self.assertEqual(layout.model_identifier, "AixLib.Systems.Examples.Demo")
+            self.assertEqual(layout.model_write_path, workspace / "AixLib" / "Systems" / "Examples" / "Demo.mo")
+            self.assertTrue((workspace / "AixLib" / "package.mo").exists())
+            self.assertIn("AixLib/package.mo", layout.model_load_files)
+            self.assertIn("AixLib/Systems/Examples/Demo.mo", layout.model_load_files)
 
     def test_extract_om_success_flags_treats_structural_mismatch_as_check_failure(self) -> None:
         check_ok, simulate_ok = _extract_om_success_flags(
@@ -277,6 +311,28 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
         self.assertEqual(str(audit.get("reason") or ""), "removed_lines_with_injected_state_tokens")
         self.assertNotIn("__gf_state_301500", patched)
 
+    def test_apply_source_model_repair_restores_source_for_connector_mismatch(self) -> None:
+        patched, audit = _apply_source_model_repair(
+            current_text="model A\nconnect(a, b.badPort);\nend A;\n",
+            source_model_text="model A\nconnect(a, b.port);\nend A;\n",
+            declared_failure_type="connector_mismatch",
+            observed_failure_type="model_check_error",
+        )
+        self.assertTrue(bool(audit.get("applied")))
+        self.assertEqual(str(audit.get("reason") or ""), "restored_source_model_text")
+        self.assertIn("b.port", patched)
+
+    def test_apply_source_model_repair_skips_when_failure_type_not_supported(self) -> None:
+        patched, audit = _apply_source_model_repair(
+            current_text="model A\nend A;\n",
+            source_model_text="model A\nend A;\n",
+            declared_failure_type="initialization_infeasible",
+            observed_failure_type="simulate_error",
+        )
+        self.assertFalse(bool(audit.get("applied")))
+        self.assertEqual(str(audit.get("reason") or ""), "declared_failure_type_not_supported")
+        self.assertEqual(patched, "model A\nend A;\n")
+
     def test_parse_env_assignment_supports_export_and_quotes(self) -> None:
         self.assertEqual(_parse_env_assignment("export GOOGLE_API_KEY=abc"), ("GOOGLE_API_KEY", "abc"))
         self.assertEqual(_parse_env_assignment('GOOGLE_API_KEY="abc-123"'), ("GOOGLE_API_KEY", "abc-123"))
@@ -370,13 +426,28 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
                 else:
                     os.environ[key] = value
 
+    def test_llm_request_timeout_sec_defaults_and_reads_env(self) -> None:
+        prev = os.environ.get("GATEFORGE_AGENT_LIVE_LLM_REQUEST_TIMEOUT_SEC")
+        try:
+            os.environ.pop("GATEFORGE_AGENT_LIVE_LLM_REQUEST_TIMEOUT_SEC", None)
+            self.assertEqual(_llm_request_timeout_sec(), 120.0)
+            os.environ["GATEFORGE_AGENT_LIVE_LLM_REQUEST_TIMEOUT_SEC"] = "75"
+            self.assertEqual(_llm_request_timeout_sec(), 75.0)
+        finally:
+            if prev is None:
+                os.environ.pop("GATEFORGE_AGENT_LIVE_LLM_REQUEST_TIMEOUT_SEC", None)
+            else:
+                os.environ["GATEFORGE_AGENT_LIVE_LLM_REQUEST_TIMEOUT_SEC"] = prev
+
     def test_openai_repair_model_text_uses_responses_api(self) -> None:
         prev = {
             "OPENAI_API_KEY": os.environ.get("OPENAI_API_KEY"),
             "LLM_MODEL": os.environ.get("LLM_MODEL"),
+            "GATEFORGE_AGENT_LIVE_LLM_REQUEST_TIMEOUT_SEC": os.environ.get("GATEFORGE_AGENT_LIVE_LLM_REQUEST_TIMEOUT_SEC"),
         }
         os.environ["OPENAI_API_KEY"] = "sk-test"
         os.environ["LLM_MODEL"] = "gpt-5.4"
+        os.environ["GATEFORGE_AGENT_LIVE_LLM_REQUEST_TIMEOUT_SEC"] = "75"
 
         class _Resp:
             def __enter__(self):
@@ -409,6 +480,33 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
                 self.assertEqual(patched, "model A1\nend A1;\n")
                 req = mocked.call_args.args[0]
                 self.assertEqual(req.full_url, "https://api.openai.com/v1/responses")
+                self.assertEqual(mocked.call_args.kwargs.get("timeout"), 75.0)
+        finally:
+            for key, value in prev.items():
+                if value is None:
+                    os.environ.pop(key, None)
+                else:
+                    os.environ[key] = value
+
+    def test_openai_repair_model_text_reports_request_timeout(self) -> None:
+        prev = {
+            "OPENAI_API_KEY": os.environ.get("OPENAI_API_KEY"),
+            "LLM_MODEL": os.environ.get("LLM_MODEL"),
+        }
+        os.environ["OPENAI_API_KEY"] = "sk-test"
+        os.environ["LLM_MODEL"] = "gpt-5.4"
+        try:
+            with patch("urllib.request.urlopen", side_effect=TimeoutError("timed out")):
+                patched, err = _openai_repair_model_text(
+                    original_text="model A1\nend A1;\n",
+                    failure_type="model_check_error",
+                    expected_stage="check",
+                    error_excerpt="Error",
+                    repair_actions=["fix it"],
+                    model_name="A1",
+                )
+                self.assertIsNone(patched)
+                self.assertEqual(err, "openai_request_timeout")
         finally:
             for key, value in prev.items():
                 if value is None:
