@@ -9,7 +9,11 @@ from pathlib import Path
 def _benchmark_fixture() -> dict:
     base_ir = {
         "schema_version": "modeling_ir_v0",
-        "source_meta": {"domain": "electrical_analog"},
+        "source_meta": {
+            "domain": "electrical_analog",
+            "source_library": "modelica_standard_library",
+            "package_name": "Modelica.Electrical.Analog",
+        },
         "components": [
             {"id": "V1", "type": "Modelica.Electrical.Analog.Sources.ConstantVoltage", "params": {"V": 10.0}},
             {"id": "R1", "type": "Modelica.Electrical.Analog.Basic.Resistor", "params": {"R": 100.0}},
@@ -72,6 +76,7 @@ class RunAgentModelicaElectricalRealismFrozenTasksetV1Tests(unittest.TestCase):
             self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
             summary = json.loads((out_dir / "summary.json").read_text(encoding="utf-8"))
             manifest = json.loads((out_dir / "manifest.json").read_text(encoding="utf-8"))
+            taskset = json.loads((out_dir / "taskset_frozen.json").read_text(encoding="utf-8"))
             self.assertEqual(summary.get("status"), "PASS")
             self.assertEqual(summary.get("pack_track"), "realism")
             self.assertEqual(summary.get("acceptance_scope"), "independent_validation")
@@ -82,6 +87,9 @@ class RunAgentModelicaElectricalRealismFrozenTasksetV1Tests(unittest.TestCase):
             self.assertEqual(int((summary.get("counts_by_category") or {}).get("topology_wiring") or 0), 4)
             self.assertEqual(int((summary.get("counts_by_category") or {}).get("initialization") or 0), 2)
             self.assertEqual(manifest.get("pack_id"), "agent_modelica_realism_pack_v1")
+            first_task = (taskset.get("tasks") or [])[0] if isinstance(taskset.get("tasks"), list) and (taskset.get("tasks") or []) else {}
+            self.assertIn("modelica_standard_library", first_task.get("library_hints", []))
+            self.assertIn("modelica.electrical.analog", first_task.get("library_hints", []))
             builder_provenance = manifest.get("builder_provenance") if isinstance(manifest.get("builder_provenance"), dict) else {}
             self.assertTrue(str(builder_provenance.get("builder_source_path") or "").endswith("agent_modelica_electrical_mutant_taskset_v0.py"))
             self.assertTrue(bool(builder_provenance.get("builder_source_sha")))

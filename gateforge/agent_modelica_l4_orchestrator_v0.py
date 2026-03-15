@@ -14,7 +14,7 @@ from .agent_modelica_l4_policy_profile_v0 import DEFAULT_POLICY_PROFILE, resolve
 from .agent_modelica_repair_action_ir_v0 import validate_action_batch_v0
 from .agent_modelica_repair_action_policy_v0 import recommend_repair_actions_v0
 from .agent_modelica_repair_memory_v2 import summarize_action_effectiveness_v2
-from .agent_modelica_retrieval_augmented_repair_v1 import retrieve_repair_examples
+from .agent_modelica_retrieval_augmented_repair_v1 import build_retrieval_context_hints, retrieve_repair_examples
 
 
 SCHEMA_VERSION = "agent_modelica_l4_orchestrator_v0"
@@ -635,6 +635,7 @@ def build_l4_action_plan_v0(
         model_hint=str(task.get("source_model_path") or task.get("mutated_model_path") or ""),
         top_k=2,
         policy_payload=retrieval_policy_payload if isinstance(retrieval_policy_payload, dict) else {},
+        context_hints=build_retrieval_context_hints(task if isinstance(task, dict) else {}, diagnostic_payload),
     )
     policy = recommend_repair_actions_v0(
         failure_type=failure_type,

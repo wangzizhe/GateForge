@@ -9,7 +9,11 @@ from pathlib import Path
 def _benchmark_fixture() -> dict:
     base_ir = {
         "schema_version": "modeling_ir_v0",
-        "source_meta": {"domain": "electrical_analog"},
+        "source_meta": {
+            "domain": "electrical_analog",
+            "source_library": "modelica_standard_library",
+            "package_name": "Modelica.Electrical.Analog",
+        },
         "components": [
             {"id": "V1", "type": "Modelica.Electrical.Analog.Sources.ConstantVoltage", "params": {"V": 10.0}},
             {"id": "R1", "type": "Modelica.Electrical.Analog.Basic.Resistor", "params": {"R": 100.0}},
@@ -90,6 +94,10 @@ class AgentModelicaElectricalMutantTasksetV0Tests(unittest.TestCase):
                 self.assertTrue(Path(str(task.get("source_model_path"))).exists())
                 self.assertTrue(Path(str(task.get("mutated_model_path"))).exists())
                 self.assertTrue(str(task.get("mutation_operator") or ""))
+                self.assertIn("modelica_standard_library", task.get("library_hints", []))
+                self.assertIn("modelica.electrical.analog", task.get("library_hints", []))
+                self.assertIn("resistor", task.get("component_hints", []))
+                self.assertIn("v1.p", task.get("connector_hints", []))
 
     def test_builder_expand_failure_types_produces_cross_product(self) -> None:
         with tempfile.TemporaryDirectory() as d:

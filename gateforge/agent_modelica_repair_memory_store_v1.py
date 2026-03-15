@@ -6,6 +6,8 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
+from .agent_modelica_retrieval_augmented_repair_v1 import build_retrieval_context_hints
+
 DEFAULT_MEMORY_PATH = "data/private_failure_corpus/agent_modelica_repair_memory_v1.json"
 PRIVATE_RELATIVE_PREFIXES = (
     "assets_private/",
@@ -178,6 +180,20 @@ def _patch_diff_summary(strategy: dict, rec: dict) -> str:
     return "; ".join(top) + suffix
 
 
+def _merge_unique_text_list(current_value: object, incoming_value: object) -> list[str]:
+    out: list[str] = []
+    seen: set[str] = set()
+    for source in (current_value, incoming_value):
+        if not isinstance(source, list):
+            continue
+        for item in source:
+            text = str(item or "").strip().lower()
+            if text and text not in seen:
+                out.append(text)
+                seen.add(text)
+    return out
+
+
 def build_repair_memory_update(
     run_results_payload: dict,
     taskset_payload: dict,
@@ -234,6 +250,7 @@ def build_repair_memory_update(
         source_model_path = _norm(task.get("source_model_path"))
         mutated_model_path = _norm(task.get("mutated_model_path"))
         model_hint = source_model_path or mutated_model_path or task_id
+        retrieval_context = build_retrieval_context_hints(task)
         gate_break_reason = _gate_break_reason(rec)
         error_signature, error_excerpt = _error_signature(rec=rec, task=task, failure_type=failure_type)
         rounds_used = int(rec.get("rounds_used", 0) or 0)
@@ -250,6 +267,10 @@ def build_repair_memory_update(
             "source_model_path": source_model_path,
             "mutated_model_path": mutated_model_path,
             "model_id": Path(model_hint).stem if model_hint else "",
+            "source_meta": task.get("source_meta") if isinstance(task.get("source_meta"), dict) else {},
+            "library_hints": [str(x) for x in (retrieval_context.get("libraries") or []) if isinstance(x, str)],
+            "component_hints": [str(x) for x in (retrieval_context.get("components") or []) if isinstance(x, str)],
+            "connector_hints": [str(x) for x in (retrieval_context.get("connectors") or []) if isinstance(x, str)],
             "expected_stage": _norm(task.get("expected_stage")),
             "used_strategy": _norm(repair_audit.get("strategy_id") or strategy.get("strategy_id")),
             "action_trace": actions,
@@ -271,6 +292,17 @@ def build_repair_memory_update(
             current = by_fp[fp]
             current["last_seen_at_utc"] = now
             current["seen_count"] = int(current.get("seen_count", 1) or 1) + 1
+            if not _norm(current.get("source_model_path")) and source_model_path:
+                current["source_model_path"] = source_model_path
+            if not _norm(current.get("mutated_model_path")) and mutated_model_path:
+                current["mutated_model_path"] = mutated_model_path
+            if not _norm(current.get("expected_stage")) and _norm(task.get("expected_stage")):
+                current["expected_stage"] = _norm(task.get("expected_stage"))
+            if not isinstance(current.get("source_meta"), dict) or not current.get("source_meta"):
+                current["source_meta"] = row.get("source_meta") if isinstance(row.get("source_meta"), dict) else {}
+            current["library_hints"] = _merge_unique_text_list(current.get("library_hints"), row.get("library_hints"))
+            current["component_hints"] = _merge_unique_text_list(current.get("component_hints"), row.get("component_hints"))
+            current["connector_hints"] = _merge_unique_text_list(current.get("connector_hints"), row.get("connector_hints"))
             updated += 1
         else:
             row["seen_count"] = 1
