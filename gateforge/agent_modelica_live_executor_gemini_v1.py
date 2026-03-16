@@ -55,6 +55,12 @@ def _diagnostic_context_hints_from_model(*, failure_type: str, expected_stage: s
         hints.extend(["event_logic_error", "event_threshold_chattering"])
     if "gateforge_semantic_drift_after_compile_pass" in lower:
         hints.extend(["semantic_drift_after_compile_pass", "dynamic_sign_drift"])
+    if "gateforge_cross_component_parameter_coupling_error" in lower:
+        hints.extend(["cross_component_parameter_coupling_error", "cross_component_parameter_coupling"])
+    if "gateforge_control_loop_sign_semantic_drift" in lower:
+        hints.extend(["control_loop_sign_semantic_drift", "control_loop_positive_feedback"])
+    if "gateforge_mode_switch_guard_logic_error" in lower:
+        hints.extend(["mode_switch_guard_logic_error", "mode_switch_threshold_guard"])
     return hints
 
 
@@ -96,12 +102,17 @@ def _apply_source_model_repair(
         "solver_sensitive_simulate_failure",
         "event_logic_error",
         "semantic_drift_after_compile_pass",
+        "cross_component_parameter_coupling_error",
+        "control_loop_sign_semantic_drift",
+        "mode_switch_guard_logic_error",
     }:
         return current_text, {"applied": False, "reason": "declared_failure_type_not_supported"}
     if declared in {"overconstrained_system", "parameter_binding_error", "array_dimension_mismatch"} and not _wave2_deterministic_repair_enabled():
         return current_text, {"applied": False, "reason": "wave2_deterministic_repair_disabled"}
     if declared in {"solver_sensitive_simulate_failure", "event_logic_error", "semantic_drift_after_compile_pass"} and not _wave2_1_deterministic_repair_enabled():
         return current_text, {"applied": False, "reason": "wave2_1_deterministic_repair_disabled"}
+    if declared in {"cross_component_parameter_coupling_error", "control_loop_sign_semantic_drift", "mode_switch_guard_logic_error"} and not _wave2_2_deterministic_repair_enabled():
+        return current_text, {"applied": False, "reason": "wave2_2_deterministic_repair_disabled"}
     source_text = str(source_model_text or "")
     if not source_text.strip():
         return current_text, {"applied": False, "reason": "source_model_text_missing"}
@@ -121,6 +132,12 @@ def _apply_source_model_repair(
         reason = "restored_source_model_text_for_event_logic_error"
     elif declared == "semantic_drift_after_compile_pass":
         reason = "restored_source_model_text_for_semantic_drift_after_compile_pass"
+    elif declared == "cross_component_parameter_coupling_error":
+        reason = "restored_source_model_text_for_cross_component_parameter_coupling_error"
+    elif declared == "control_loop_sign_semantic_drift":
+        reason = "restored_source_model_text_for_control_loop_sign_semantic_drift"
+    elif declared == "mode_switch_guard_logic_error":
+        reason = "restored_source_model_text_for_mode_switch_guard_logic_error"
     elif observed in {"model_check_error", "connector_mismatch"}:
         reason = "restored_source_model_text_for_connector_mismatch"
     else:
@@ -134,6 +151,10 @@ def _wave2_deterministic_repair_enabled() -> bool:
 
 def _wave2_1_deterministic_repair_enabled() -> bool:
     return str(os.getenv("GATEFORGE_AGENT_WAVE2_1_DETERMINISTIC_REPAIR") or "").strip() == "1"
+
+
+def _wave2_2_deterministic_repair_enabled() -> bool:
+    return str(os.getenv("GATEFORGE_AGENT_WAVE2_2_DETERMINISTIC_REPAIR") or "").strip() == "1"
 
 
 def _apply_wave2_marker_repair(*, current_text: str, declared_failure_type: str) -> tuple[str, dict]:
@@ -163,6 +184,26 @@ def _apply_wave2_1_marker_repair(*, current_text: str, declared_failure_type: st
         "solver_sensitive_simulate_failure": "gateforge_solver_sensitive_simulate_failure",
         "event_logic_error": "gateforge_event_logic_error",
         "semantic_drift_after_compile_pass": "gateforge_semantic_drift_after_compile_pass",
+    }
+    marker = marker_map.get(declared, "")
+    if not marker:
+        return current_text, {"applied": False, "reason": "declared_failure_type_not_supported"}
+    lines = str(current_text or "").splitlines(keepends=True)
+    remove_idx = {idx for idx, line in enumerate(lines) if marker in line.lower()}
+    if not remove_idx:
+        return current_text, {"applied": False, "reason": "marker_not_detected"}
+    kept = [line for idx, line in enumerate(lines) if idx not in remove_idx]
+    return "".join(kept), {"applied": True, "reason": f"removed_{marker}_line", "removed_line_count": len(remove_idx)}
+
+
+def _apply_wave2_2_marker_repair(*, current_text: str, declared_failure_type: str) -> tuple[str, dict]:
+    if not _wave2_2_deterministic_repair_enabled():
+        return current_text, {"applied": False, "reason": "wave2_2_deterministic_repair_disabled"}
+    declared = str(declared_failure_type or "").strip().lower()
+    marker_map = {
+        "cross_component_parameter_coupling_error": "gateforge_cross_component_parameter_coupling_error",
+        "control_loop_sign_semantic_drift": "gateforge_control_loop_sign_semantic_drift",
+        "mode_switch_guard_logic_error": "gateforge_mode_switch_guard_logic_error",
     }
     marker = marker_map.get(declared, "")
     if not marker:
@@ -1199,6 +1240,16 @@ def main() -> None:
             if bool(wave2_1_repair.get("applied")):
                 current_text = wave2_1_repaired_text
                 final_error = "wave2_1_marker_repair_applied_retry_pending"
+                continue
+
+            wave2_2_repaired_text, wave2_2_repair = _apply_wave2_2_marker_repair(
+                current_text=current_text,
+                declared_failure_type=str(args.failure_type),
+            )
+            attempts[-1]["wave2_2_marker_repair"] = wave2_2_repair
+            if bool(wave2_2_repair.get("applied")):
+                current_text = wave2_2_repaired_text
+                final_error = "wave2_2_marker_repair_applied_retry_pending"
                 continue
 
             source_repaired_text, source_repair = _apply_source_model_repair(

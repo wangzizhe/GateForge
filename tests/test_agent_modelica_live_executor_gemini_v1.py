@@ -12,6 +12,7 @@ from gateforge.agent_modelica_live_executor_gemini_v1 import (
     _apply_parse_error_pre_repair,
     _apply_source_model_repair,
     _apply_wave2_1_marker_repair,
+    _apply_wave2_2_marker_repair,
     _bootstrap_env_from_repo,
     _diagnostic_context_hints_from_model,
     _extract_om_success_flags,
@@ -65,6 +66,15 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
         )
         self.assertIn("event_logic_error", hints)
         self.assertIn("semantic_drift_after_compile_pass", hints)
+
+    def test_diagnostic_context_hints_include_wave2_2_markers(self) -> None:
+        hints = _diagnostic_context_hints_from_model(
+            failure_type="mode_switch_guard_logic_error",
+            expected_stage="simulate",
+            model_text="model A\n  Real x;\nequation\n  der(x)=1; // gateforge_cross_component_parameter_coupling_error\n  assert(false, \"gateforge_mode_switch_guard_logic_error\");\nend A;\n",
+        )
+        self.assertIn("cross_component_parameter_coupling_error", hints)
+        self.assertIn("mode_switch_guard_logic_error", hints)
 
     def test_run_check_and_simulate_loads_modelica_library(self) -> None:
         with tempfile.TemporaryDirectory(prefix="gf_live_exec_modelica_") as td:
@@ -429,6 +439,46 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
                 os.environ.pop("GATEFORGE_AGENT_WAVE2_1_DETERMINISTIC_REPAIR", None)
             else:
                 os.environ["GATEFORGE_AGENT_WAVE2_1_DETERMINISTIC_REPAIR"] = prev
+
+    def test_apply_wave2_2_marker_repair_removes_coupled_hard_marker_lines(self) -> None:
+        prev = os.environ.get("GATEFORGE_AGENT_WAVE2_2_DETERMINISTIC_REPAIR")
+        os.environ["GATEFORGE_AGENT_WAVE2_2_DETERMINISTIC_REPAIR"] = "1"
+        try:
+            model_text = (
+                "model A\n"
+                "  Real x;\n"
+                "equation\n"
+                "  der(x) = 1.0; // gateforge_mode_switch_guard_logic_error\n"
+                '  when x > 0.1 then assert(false, "gateforge_mode_switch_guard_logic_error"); end when;\n'
+                "end A;\n"
+            )
+            patched, audit = _apply_wave2_2_marker_repair(current_text=model_text, declared_failure_type="mode_switch_guard_logic_error")
+            self.assertTrue(bool(audit.get("applied")))
+            self.assertNotIn("gateforge_mode_switch_guard_logic_error", patched)
+        finally:
+            if prev is None:
+                os.environ.pop("GATEFORGE_AGENT_WAVE2_2_DETERMINISTIC_REPAIR", None)
+            else:
+                os.environ["GATEFORGE_AGENT_WAVE2_2_DETERMINISTIC_REPAIR"] = prev
+
+    def test_apply_source_model_repair_supports_wave2_2_failure_types(self) -> None:
+        prev = os.environ.get("GATEFORGE_AGENT_WAVE2_2_DETERMINISTIC_REPAIR")
+        os.environ["GATEFORGE_AGENT_WAVE2_2_DETERMINISTIC_REPAIR"] = "1"
+        try:
+            patched, audit = _apply_source_model_repair(
+                current_text="model A\n  Real x;\nend A;\n",
+                source_model_text="model A\n  Real y;\nend A;\n",
+                declared_failure_type="cross_component_parameter_coupling_error",
+                observed_failure_type="semantic_regression",
+            )
+            self.assertTrue(bool(audit.get("applied")))
+            self.assertIn("cross_component_parameter_coupling_error", str(audit.get("reason") or ""))
+            self.assertIn("Real y;", patched)
+        finally:
+            if prev is None:
+                os.environ.pop("GATEFORGE_AGENT_WAVE2_2_DETERMINISTIC_REPAIR", None)
+            else:
+                os.environ["GATEFORGE_AGENT_WAVE2_2_DETERMINISTIC_REPAIR"] = prev
 
     def test_parse_env_assignment_supports_export_and_quotes(self) -> None:
         self.assertEqual(_parse_env_assignment("export GOOGLE_API_KEY=abc"), ("GOOGLE_API_KEY", "abc"))
