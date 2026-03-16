@@ -42,6 +42,21 @@ DEFAULT_RULES = {
         "avoid broad topology edits when the drift is localized to injected dynamics",
         "rerun simulate and compare semantic behavior before accepting the patch",
     ],
+    "cross_component_parameter_coupling_error": [
+        "restore source cross-component parameter relationships before broad edits",
+        "limit repair to injected coupled states and wrong gain bindings first",
+        "rerun simulate and inspect the coupled response before accepting the patch",
+    ],
+    "control_loop_sign_semantic_drift": [
+        "restore source control-loop sign or direction before topology edits",
+        "limit control-loop repair to injected sign drift and gain inversion first",
+        "rerun simulate and compare loop stability before accepting the patch",
+    ],
+    "mode_switch_guard_logic_error": [
+        "restore source guard thresholds and mode switch conditions first",
+        "limit guard repair to the injected when/assert block before wider edits",
+        "rerun simulate and inspect the mode transition timing before accepting the patch",
+    ],
 }
 
 

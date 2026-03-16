@@ -447,6 +447,57 @@ def _normalize_declared_dynamic_failure_type(
     return error_type, error_subtype, reason
 
 
+def _normalize_declared_coupled_hard_failure_type(
+    *,
+    error_type: str,
+    error_subtype: str,
+    reason: str,
+    lower: str,
+    declared_failure_type: str,
+    declared_context_hints: list[str] | None = None,
+) -> tuple[str, str, str]:
+    declared = str(declared_failure_type or "").strip().lower()
+    context = {str(x or "").strip().lower() for x in (declared_context_hints or []) if str(x or "").strip()}
+
+    if declared == "cross_component_parameter_coupling_error":
+        if _contains_any(
+            lower,
+            (
+                "gateforge_cross_component_parameter_coupling_error",
+                "cross_component_parameter_coupling_error",
+                "parameter coupling",
+                "assertion",
+            ),
+        ) or "cross_component_parameter_coupling_error" in context:
+            return "semantic_regression", "cross_component_parameter_coupling_error", "cross-component parameter coupling error"
+
+    if declared == "control_loop_sign_semantic_drift":
+        if _contains_any(
+            lower,
+            (
+                "gateforge_control_loop_sign_semantic_drift",
+                "control_loop_sign_semantic_drift",
+                "semantic drift",
+                "assertion",
+            ),
+        ) or "control_loop_sign_semantic_drift" in context:
+            return "semantic_regression", "control_loop_sign_semantic_drift", "control-loop sign semantic drift"
+
+    if declared == "mode_switch_guard_logic_error":
+        if _contains_any(
+            lower,
+            (
+                "gateforge_mode_switch_guard_logic_error",
+                "mode_switch_guard_logic_error",
+                "when ",
+                "assertion",
+            ),
+        ) or "mode_switch_guard_logic_error" in context:
+            return "simulate_error", "mode_switch_guard_logic_error", "mode-switch guard logic error"
+
+    return error_type, error_subtype, reason
+
+
 def build_diagnostic_ir_v0(
     *,
     output: str,
@@ -498,6 +549,14 @@ def build_diagnostic_ir_v0(
         declared_context_hints=declared_context_hints,
     )
     err_type, err_subtype, reason = _normalize_declared_dynamic_failure_type(
+        error_type=err_type,
+        error_subtype=err_subtype,
+        reason=reason,
+        lower=lower,
+        declared_failure_type=str(declared_failure_type or ""),
+        declared_context_hints=declared_context_hints,
+    )
+    err_type, err_subtype, reason = _normalize_declared_coupled_hard_failure_type(
         error_type=err_type,
         error_subtype=err_subtype,
         reason=reason,
