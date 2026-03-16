@@ -11,6 +11,7 @@ from gateforge.agent_modelica_live_executor_gemini_v1 import (
     _apply_initialization_marker_repair,
     _apply_parse_error_pre_repair,
     _apply_source_model_repair,
+    _apply_wave2_1_marker_repair,
     _bootstrap_env_from_repo,
     _diagnostic_context_hints_from_model,
     _extract_om_success_flags,
@@ -55,6 +56,15 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
         ):
             with _temporary_workspace(prefix="gf_live_exec_test_tmp_perm_") as td:
                 self.assertTrue(Path(td).exists())
+
+    def test_diagnostic_context_hints_include_wave2_1_markers(self) -> None:
+        hints = _diagnostic_context_hints_from_model(
+            failure_type="event_logic_error",
+            expected_stage="simulate",
+            model_text="model A\n  Real x;\nequation\n  der(x)=1; // gateforge_event_logic_error\n  assert(false, \"gateforge_semantic_drift_after_compile_pass\");\nend A;\n",
+        )
+        self.assertIn("event_logic_error", hints)
+        self.assertIn("semantic_drift_after_compile_pass", hints)
 
     def test_run_check_and_simulate_loads_modelica_library(self) -> None:
         with tempfile.TemporaryDirectory(prefix="gf_live_exec_modelica_") as td:
@@ -379,6 +389,46 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
         self.assertFalse(bool(audit.get("applied")))
         self.assertEqual(str(audit.get("reason") or ""), "initialization_marker_not_detected")
         self.assertEqual(patched, model_text)
+
+    def test_apply_wave2_1_marker_repair_removes_dynamic_marker_lines(self) -> None:
+        prev = os.environ.get("GATEFORGE_AGENT_WAVE2_1_DETERMINISTIC_REPAIR")
+        os.environ["GATEFORGE_AGENT_WAVE2_1_DETERMINISTIC_REPAIR"] = "1"
+        try:
+            model_text = (
+                "model A\n"
+                "  Real x;\n"
+                "equation\n"
+                "  der(x) = 1.0; // gateforge_event_logic_error\n"
+                '  when sample(0, 1e-9) then assert(false, "gateforge_event_logic_error"); end when;\n'
+                "end A;\n"
+            )
+            patched, audit = _apply_wave2_1_marker_repair(current_text=model_text, declared_failure_type="event_logic_error")
+            self.assertTrue(bool(audit.get("applied")))
+            self.assertNotIn("gateforge_event_logic_error", patched)
+        finally:
+            if prev is None:
+                os.environ.pop("GATEFORGE_AGENT_WAVE2_1_DETERMINISTIC_REPAIR", None)
+            else:
+                os.environ["GATEFORGE_AGENT_WAVE2_1_DETERMINISTIC_REPAIR"] = prev
+
+    def test_apply_source_model_repair_supports_wave2_1_failure_types(self) -> None:
+        prev = os.environ.get("GATEFORGE_AGENT_WAVE2_1_DETERMINISTIC_REPAIR")
+        os.environ["GATEFORGE_AGENT_WAVE2_1_DETERMINISTIC_REPAIR"] = "1"
+        try:
+            patched, audit = _apply_source_model_repair(
+                current_text="model A\n  Real x;\nend A;\n",
+                source_model_text="model A\n  Real y;\nend A;\n",
+                declared_failure_type="solver_sensitive_simulate_failure",
+                observed_failure_type="numerical_instability",
+            )
+            self.assertTrue(bool(audit.get("applied")))
+            self.assertIn("solver_sensitive_simulate_failure", str(audit.get("reason") or ""))
+            self.assertIn("Real y;", patched)
+        finally:
+            if prev is None:
+                os.environ.pop("GATEFORGE_AGENT_WAVE2_1_DETERMINISTIC_REPAIR", None)
+            else:
+                os.environ["GATEFORGE_AGENT_WAVE2_1_DETERMINISTIC_REPAIR"] = prev
 
     def test_parse_env_assignment_supports_export_and_quotes(self) -> None:
         self.assertEqual(_parse_env_assignment("export GOOGLE_API_KEY=abc"), ("GOOGLE_API_KEY", "abc"))
