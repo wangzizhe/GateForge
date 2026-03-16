@@ -42,6 +42,10 @@ MIN_RETRIEVAL_COVERAGE_PCT="${GATEFORGE_AGENT_UNKNOWN_LIBRARY_MIN_RETRIEVAL_COVE
 MIN_DIAGNOSTIC_PARSE_COVERAGE_PCT="${GATEFORGE_AGENT_UNKNOWN_LIBRARY_MIN_DIAGNOSTIC_PARSE_COVERAGE_PCT:-95.0}"
 MIN_RETRIEVAL_ON_SUCCESS_AT_K_PCT="${GATEFORGE_AGENT_UNKNOWN_LIBRARY_MIN_RETRIEVAL_ON_SUCCESS_AT_K_PCT:-1.0}"
 STORE_MEMORY_AFTER_RUN="${GATEFORGE_AGENT_UNKNOWN_LIBRARY_STORE_MEMORY_AFTER_RUN:-0}"
+TASKSET_MODULE="${GATEFORGE_AGENT_UNKNOWN_LIBRARY_TASKSET_MODULE:-gateforge.agent_modelica_unknown_library_taskset_v1}"
+CURATED_RETRIEVAL_MODULE="${GATEFORGE_AGENT_UNKNOWN_LIBRARY_CURATED_RETRIEVAL_MODULE:-gateforge.agent_modelica_unknown_library_curated_retrieval_v1}"
+RETRIEVAL_SUMMARY_MODULE="${GATEFORGE_AGENT_UNKNOWN_LIBRARY_RETRIEVAL_SUMMARY_MODULE:-gateforge.agent_modelica_unknown_library_retrieval_summary_v1}"
+EVIDENCE_MODULE="${GATEFORGE_AGENT_UNKNOWN_LIBRARY_EVIDENCE_MODULE:-gateforge.agent_modelica_unknown_library_evidence_v1}"
 
 DEFAULT_LIVE_EXECUTOR_CMD="python3 -m gateforge.agent_modelica_live_executor_gemini_v1 --task-id \"__TASK_ID__\" --failure-type \"__FAILURE_TYPE__\" --expected-stage \"__EXPECTED_STAGE__\" --source-model-path \"__SOURCE_MODEL_PATH__\" --mutated-model-path \"__MUTATED_MODEL_PATH__\" --source-library-path \"__SOURCE_LIBRARY_PATH__\" --source-package-name \"__SOURCE_PACKAGE_NAME__\" --source-library-model-path \"__SOURCE_LIBRARY_MODEL_PATH__\" --source-qualified-model-name \"__SOURCE_QUALIFIED_MODEL_NAME__\" --repair-actions __REPAIR_ACTIONS_SHQ__ --max-rounds \"__MAX_ROUNDS__\" --timeout-sec \"__MAX_TIME_SEC__\" --planner-backend \"${PLANNER_BACKEND}\" --backend \"${OM_BACKEND}\" --docker-image \"${OM_DOCKER_IMAGE}\""
 LIVE_EXECUTOR_CMD="${GATEFORGE_AGENT_LIVE_EXECUTOR_CMD:-$DEFAULT_LIVE_EXECUTOR_CMD}"
@@ -394,7 +398,7 @@ PY
 
 run_challenge_stage() {
   local args=(
-    python3 -m gateforge.agent_modelica_unknown_library_taskset_v1
+    python3 -m "$TASKSET_MODULE"
     --manifest "$MANIFEST_PATH" \
     --out-dir "$CHALLENGE_DIR" \
     --failure-types "$FAILURE_TYPES" \
@@ -408,7 +412,7 @@ run_challenge_stage() {
 }
 
 run_curated_retrieval_stage() {
-  python3 -m gateforge.agent_modelica_unknown_library_curated_retrieval_v1 \
+  python3 -m "$CURATED_RETRIEVAL_MODULE" \
     --manifest "$MANIFEST_PATH" \
     --failure-types "$FAILURE_TYPES" \
     --history-out "$CURATED_DIR/history.json" \
@@ -502,14 +506,14 @@ run_diagnostic_quality_stage() {
 }
 
 run_retrieval_summary_stage() {
-  python3 -m gateforge.agent_modelica_unknown_library_retrieval_summary_v1 \
+  python3 -m "$RETRIEVAL_SUMMARY_MODULE" \
     --taskset "$CHALLENGE_DIR/taskset_frozen.json" \
     --results "$RETRIEVAL_DIR/results.json" \
     --out "$RETRIEVAL_SUMMARY_PATH"
 }
 
 run_evidence_stage() {
-  python3 -m gateforge.agent_modelica_unknown_library_evidence_v1 \
+  python3 -m "$EVIDENCE_MODULE" \
     --challenge-summary "$CHALLENGE_DIR/summary.json" \
     --baseline-off-summary "$BASELINE_DIR/summary.json" \
     --baseline-off-results "$BASELINE_DIR/results.json" \

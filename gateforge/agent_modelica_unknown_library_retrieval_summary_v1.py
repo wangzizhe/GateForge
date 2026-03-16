@@ -57,6 +57,10 @@ def _mean(total: int | float, count: int) -> float:
     return round(float(total) / float(count), 2)
 
 
+def _task_source_meta(task: dict) -> dict:
+    return task.get("source_meta") if isinstance(task.get("source_meta"), dict) else {}
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Summarize unknown-library retrieval coverage from run-contract outputs")
     parser.add_argument("--taskset", required=True)
@@ -79,11 +83,16 @@ def main() -> None:
     component_match_total = 0
     connector_match_total = 0
     counts_by_library: dict[str, dict] = {}
+    counts_by_seen_risk_band: dict[str, dict] = {}
+    counts_by_source_type: dict[str, dict] = {}
 
     for record in records:
         task_id = str(record.get("task_id") or "")
         task = task_index.get(task_id, {})
-        library_id = str(((task.get("source_meta") or {}) if isinstance(task.get("source_meta"), dict) else {}).get("library_id") or task.get("source_library") or "unknown").lower()
+        source_meta = _task_source_meta(task)
+        library_id = str(source_meta.get("library_id") or task.get("source_library") or "unknown").lower()
+        seen_risk_band = str(task.get("seen_risk_band") or source_meta.get("seen_risk_band") or "unknown").strip().lower()
+        source_type = str(task.get("source_type") or source_meta.get("source_type") or "unknown").strip().lower()
         per_library = counts_by_library.setdefault(
             library_id,
             {
@@ -93,7 +102,27 @@ def main() -> None:
                 "fallback_count": 0,
             },
         )
+        per_seen = counts_by_seen_risk_band.setdefault(
+            seen_risk_band,
+            {
+                "task_count": 0,
+                "retrieved_task_count": 0,
+                "match_signal_task_count": 0,
+                "fallback_count": 0,
+            },
+        )
+        per_source = counts_by_source_type.setdefault(
+            source_type,
+            {
+                "task_count": 0,
+                "retrieved_task_count": 0,
+                "match_signal_task_count": 0,
+                "fallback_count": 0,
+            },
+        )
         per_library["task_count"] += 1
+        per_seen["task_count"] += 1
+        per_source["task_count"] += 1
 
         audit = record.get("repair_audit") if isinstance(record.get("repair_audit"), dict) else {}
         retrieved_examples = int(audit.get("retrieved_example_count", 0) or 0)
@@ -106,12 +135,18 @@ def main() -> None:
         if retrieved_examples > 0:
             retrieval_task_count += 1
             per_library["retrieved_task_count"] += 1
+            per_seen["retrieved_task_count"] += 1
+            per_source["retrieved_task_count"] += 1
         if any(value > 0 for value in (library_match_count, component_match_count, connector_match_count)):
             match_signal_task_count += 1
             per_library["match_signal_task_count"] += 1
+            per_seen["match_signal_task_count"] += 1
+            per_source["match_signal_task_count"] += 1
         if fallback_used:
             fallback_count += 1
             per_library["fallback_count"] += 1
+            per_seen["fallback_count"] += 1
+            per_source["fallback_count"] += 1
         if diagnostic_error_type:
             diagnostic_parse_count += 1
 
@@ -124,6 +159,12 @@ def main() -> None:
         value["retrieval_coverage_pct"] = _ratio(int(value.get("retrieved_task_count") or 0), task_count)
         value["match_signal_coverage_pct"] = _ratio(int(value.get("match_signal_task_count") or 0), task_count)
         value["fallback_ratio_pct"] = _ratio(int(value.get("fallback_count") or 0), task_count)
+    for bucket in (counts_by_seen_risk_band, counts_by_source_type):
+        for value in bucket.values():
+            task_count = int(value.get("task_count") or 0)
+            value["retrieval_coverage_pct"] = _ratio(int(value.get("retrieved_task_count") or 0), task_count)
+            value["match_signal_coverage_pct"] = _ratio(int(value.get("match_signal_task_count") or 0), task_count)
+            value["fallback_ratio_pct"] = _ratio(int(value.get("fallback_count") or 0), task_count)
 
     summary = {
         "schema_version": SCHEMA_VERSION,
@@ -142,6 +183,8 @@ def main() -> None:
         "avg_component_match_count": _mean(component_match_total, len(records)),
         "avg_connector_match_count": _mean(connector_match_total, len(records)),
         "counts_by_library": counts_by_library,
+        "counts_by_seen_risk_band": counts_by_seen_risk_band,
+        "counts_by_source_type": counts_by_source_type,
         "sources": {
             "taskset": args.taskset,
             "results": args.results,
@@ -157,4 +200,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
