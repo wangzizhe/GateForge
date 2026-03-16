@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT_DIR"
+
+OUT_DIR="${GATEFORGE_AGENT_CURATED_HARD_UNSEEN_LIVE_EVIDENCE_OUT_DIR:-artifacts/agent_modelica_curated_hard_unseen_live_evidence_v1}"
+RUN_ID="${GATEFORGE_AGENT_CURATED_HARD_UNSEEN_RUN_ID:-$(python3 - <<'PY'
+from datetime import datetime, timezone
+print(datetime.now(timezone.utc).strftime("hardunseen_live_%Y%m%dT%H%M%SZ"))
+PY
+)}"
+RUN_ROOT="${GATEFORGE_AGENT_CURATED_HARD_UNSEEN_RUN_ROOT:-$OUT_DIR/runs/$RUN_ID}"
+MANIFEST_PATH="${GATEFORGE_AGENT_CURATED_HARD_UNSEEN_MANIFEST:-assets_private/agent_modelica_curated_hard_unseen_pool_v1/manifest.json}"
+EXCLUDE_MODELS_JSON="${GATEFORGE_AGENT_CURATED_HARD_UNSEEN_EXCLUDE_MODELS_JSON:-}"
+
+export GATEFORGE_AGENT_UNKNOWN_LIBRARY_LIVE_EVIDENCE_OUT_DIR="$OUT_DIR"
+export GATEFORGE_AGENT_UNKNOWN_LIBRARY_RUN_ID="$RUN_ID"
+export GATEFORGE_AGENT_UNKNOWN_LIBRARY_RUN_ROOT="$RUN_ROOT"
+export GATEFORGE_AGENT_UNKNOWN_LIBRARY_MANIFEST="$MANIFEST_PATH"
+export GATEFORGE_AGENT_UNKNOWN_LIBRARY_EXCLUDE_MODELS_JSON="$EXCLUDE_MODELS_JSON"
+export GATEFORGE_AGENT_UNKNOWN_LIBRARY_FAILURE_TYPES="${GATEFORGE_AGENT_CURATED_HARD_UNSEEN_FAILURE_TYPES:-underconstrained_system,connector_mismatch,initialization_infeasible}"
+export GATEFORGE_AGENT_UNKNOWN_LIBRARY_HOLDOUT_RATIO="${GATEFORGE_AGENT_CURATED_HARD_UNSEEN_HOLDOUT_RATIO:-0.15}"
+export GATEFORGE_AGENT_UNKNOWN_LIBRARY_SPLIT_SEED="${GATEFORGE_AGENT_CURATED_HARD_UNSEEN_SPLIT_SEED:-agent_modelica_curated_hard_unseen_taskset_v1}"
+export GATEFORGE_AGENT_UNKNOWN_LIBRARY_MAX_ROUNDS="${GATEFORGE_AGENT_CURATED_HARD_UNSEEN_MAX_ROUNDS:-2}"
+export GATEFORGE_AGENT_UNKNOWN_LIBRARY_MAX_TIME_SEC="${GATEFORGE_AGENT_CURATED_HARD_UNSEEN_MAX_TIME_SEC:-180}"
+export GATEFORGE_AGENT_UNKNOWN_LIBRARY_RUNTIME_THRESHOLD="${GATEFORGE_AGENT_CURATED_HARD_UNSEEN_RUNTIME_THRESHOLD:-0.2}"
+export GATEFORGE_AGENT_UNKNOWN_LIBRARY_LIVE_TIMEOUT_SEC="${GATEFORGE_AGENT_CURATED_HARD_UNSEEN_LIVE_TIMEOUT_SEC:-180}"
+export GATEFORGE_AGENT_UNKNOWN_LIBRARY_LIVE_MAX_OUTPUT_CHARS="${GATEFORGE_AGENT_CURATED_HARD_UNSEEN_LIVE_MAX_OUTPUT_CHARS:-2400}"
+export GATEFORGE_AGENT_UNKNOWN_LIBRARY_MIN_RETRIEVAL_COVERAGE_PCT="${GATEFORGE_AGENT_CURATED_HARD_UNSEEN_MIN_RETRIEVAL_COVERAGE_PCT:-50.0}"
+export GATEFORGE_AGENT_UNKNOWN_LIBRARY_MIN_DIAGNOSTIC_PARSE_COVERAGE_PCT="${GATEFORGE_AGENT_CURATED_HARD_UNSEEN_MIN_DIAGNOSTIC_PARSE_COVERAGE_PCT:-95.0}"
+export GATEFORGE_AGENT_UNKNOWN_LIBRARY_MIN_RETRIEVAL_ON_SUCCESS_AT_K_PCT="${GATEFORGE_AGENT_CURATED_HARD_UNSEEN_MIN_RETRIEVAL_ON_SUCCESS_AT_K_PCT:-1.0}"
+export GATEFORGE_AGENT_UNKNOWN_LIBRARY_TASKSET_MODULE="gateforge.agent_modelica_curated_hard_unseen_taskset_v1"
+export GATEFORGE_AGENT_UNKNOWN_LIBRARY_CURATED_RETRIEVAL_MODULE="gateforge.agent_modelica_curated_hard_unseen_curated_retrieval_v1"
+
+bash scripts/run_agent_modelica_unknown_library_live_evidence_v1.sh
+
+if [ -f "$RUN_ROOT/challenge/summary.json" ] && [ -f "$RUN_ROOT/baseline_off_live/summary.json" ] && [ -f "$RUN_ROOT/baseline_off_live/results.json" ]; then
+  python3 -m gateforge.agent_modelica_curated_hard_unseen_baseline_summary_v1 \
+    --challenge-summary "$RUN_ROOT/challenge/summary.json" \
+    --baseline-summary "$RUN_ROOT/baseline_off_live/summary.json" \
+    --baseline-results "$RUN_ROOT/baseline_off_live/results.json" \
+    --out "$RUN_ROOT/hard_unseen_baseline_summary.json" \
+    --source-unstable-exclusions-out "$RUN_ROOT/source_unstable_exclusions.json"
+fi

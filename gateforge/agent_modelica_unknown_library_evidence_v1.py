@@ -182,6 +182,15 @@ def _detect_source_unstable_models(taskset_payload: dict, *results_payloads: dic
     }
 
 
+def _task_bucket_value(task: dict, bucket: str) -> str:
+    source_meta = task.get("source_meta") if isinstance(task.get("source_meta"), dict) else {}
+    if bucket == "seen_risk_band":
+        return str(task.get("seen_risk_band") or source_meta.get("seen_risk_band") or "unknown").strip().lower()
+    if bucket == "source_type":
+        return str(task.get("source_type") or source_meta.get("source_type") or "unknown").strip().lower()
+    return "unknown"
+
+
 def _success_by_library(taskset_payload: dict, results_payload: dict, excluded_model_keys: set[str] | None = None) -> dict[str, dict]:
     tasks = [row for row in (taskset_payload.get("tasks") or []) if isinstance(row, dict)]
     records = [row for row in (results_payload.get("records") or []) if isinstance(row, dict)]
@@ -201,6 +210,30 @@ def _success_by_library(taskset_payload: dict, results_payload: dict, excluded_m
         task_id = str(record.get("task_id") or "").strip()
         library_id = task_to_library.get(task_id, "unknown")
         row = counts.setdefault(library_id, {"task_count": 0, "success_count": 0})
+        row["task_count"] = int(row.get("task_count") or 0) + 1
+        if bool(record.get("passed")):
+            row["success_count"] = int(row.get("success_count") or 0) + 1
+    for row in counts.values():
+        row["success_at_k_pct"] = _ratio(int(row.get("success_count") or 0), int(row.get("task_count") or 0))
+    return counts
+
+
+def _success_by_bucket(taskset_payload: dict, results_payload: dict, bucket: str, excluded_model_keys: set[str] | None = None) -> dict[str, dict]:
+    tasks = [row for row in (taskset_payload.get("tasks") or []) if isinstance(row, dict)]
+    records = [row for row in (results_payload.get("records") or []) if isinstance(row, dict)]
+    task_to_bucket: dict[str, str] = {}
+    excluded = set([str(item or "").strip() for item in (excluded_model_keys or set()) if str(item or "").strip()])
+    for task in tasks:
+        if _model_key(task) in excluded:
+            continue
+        task_id = str(task.get("task_id") or "").strip()
+        if task_id:
+            task_to_bucket[task_id] = _task_bucket_value(task, bucket)
+    counts: dict[str, dict] = {}
+    for record in records:
+        task_id = str(record.get("task_id") or "").strip()
+        bucket_value = task_to_bucket.get(task_id, "unknown")
+        row = counts.setdefault(bucket_value, {"task_count": 0, "success_count": 0})
         row["task_count"] = int(row.get("task_count") or 0) + 1
         if bool(record.get("passed")):
             row["success_count"] = int(row.get("success_count") or 0) + 1
@@ -264,6 +297,10 @@ def main() -> None:
     success_by_library_on = _success_by_library(taskset_payload, retrieval_on_results)
     success_by_library_off_adjusted = _success_by_library(taskset_payload, baseline_off_results, excluded_model_keys=excluded_model_keys)
     success_by_library_on_adjusted = _success_by_library(taskset_payload, retrieval_on_results, excluded_model_keys=excluded_model_keys)
+    success_by_seen_risk_band_off = _success_by_bucket(taskset_payload, baseline_off_results, "seen_risk_band")
+    success_by_seen_risk_band_on = _success_by_bucket(taskset_payload, retrieval_on_results, "seen_risk_band")
+    success_by_source_type_off = _success_by_bucket(taskset_payload, baseline_off_results, "source_type")
+    success_by_source_type_on = _success_by_bucket(taskset_payload, retrieval_on_results, "source_type")
     success_by_library: dict[str, dict] = {}
     for library_id in sorted(set(success_by_library_off.keys()) | set(success_by_library_on.keys()) | set(counts_by_library.keys())):
         off_row = success_by_library_off.get(library_id, {})
@@ -295,6 +332,47 @@ def main() -> None:
             "retrieval_on_success_at_k_pct": retrieval_pct,
             "delta_pp": round(retrieval_pct - baseline_pct, 2),
         }
+    counts_by_seen_risk_band = retrieval_summary.get("counts_by_seen_risk_band") if isinstance(retrieval_summary.get("counts_by_seen_risk_band"), dict) else {}
+    counts_by_source_type = retrieval_summary.get("counts_by_source_type") if isinstance(retrieval_summary.get("counts_by_source_type"), dict) else {}
+    baseline_vs_retrieval_by_seen_risk_band: dict[str, dict] = {}
+    for bucket_value in sorted(set(success_by_seen_risk_band_off.keys()) | set(success_by_seen_risk_band_on.keys()) | set(counts_by_seen_risk_band.keys())):
+        off_row = success_by_seen_risk_band_off.get(bucket_value, {})
+        on_row = success_by_seen_risk_band_on.get(bucket_value, {})
+        baseline_pct = float(off_row.get("success_at_k_pct", 0.0) or 0.0)
+        retrieval_pct = float(on_row.get("success_at_k_pct", 0.0) or 0.0)
+        baseline_vs_retrieval_by_seen_risk_band[bucket_value] = {
+            "task_count": int(on_row.get("task_count") or off_row.get("task_count") or counts_by_seen_risk_band.get(bucket_value, {}).get("task_count") or 0),
+            "baseline_off_success_at_k_pct": baseline_pct,
+            "retrieval_on_success_at_k_pct": retrieval_pct,
+            "delta_pp": round(retrieval_pct - baseline_pct, 2),
+        }
+    success_by_source_type: dict[str, dict] = {}
+    for bucket_value in sorted(set(success_by_source_type_off.keys()) | set(success_by_source_type_on.keys()) | set(counts_by_source_type.keys())):
+        off_row = success_by_source_type_off.get(bucket_value, {})
+        on_row = success_by_source_type_on.get(bucket_value, {})
+        baseline_pct = float(off_row.get("success_at_k_pct", 0.0) or 0.0)
+        retrieval_pct = float(on_row.get("success_at_k_pct", 0.0) or 0.0)
+        success_by_source_type[bucket_value] = {
+            "task_count": int(on_row.get("task_count") or off_row.get("task_count") or counts_by_source_type.get(bucket_value, {}).get("task_count") or 0),
+            "baseline_off_success_at_k_pct": baseline_pct,
+            "retrieval_on_success_at_k_pct": retrieval_pct,
+            "delta_pp": round(retrieval_pct - baseline_pct, 2),
+        }
+    if on_success > off_success:
+        retrieval_uplift_status = "retrieval_uplift_observed"
+    elif off_success >= 100.0:
+        retrieval_uplift_status = "baseline_already_saturated"
+    else:
+        retrieval_uplift_status = "coverage_high_uplift_zero"
+    baseline_saturation_status = "saturated" if off_success >= 100.0 else "headroom_remaining"
+    if int(source_unstable.get("task_count") or 0) > 0:
+        next_priority_gap_family = "simulate/init stabilization"
+    elif int(failure_breakdown.get("retrieval_miss_count") or 0) > 0:
+        next_priority_gap_family = "connector semantics"
+    elif int(failure_breakdown.get("model_fix_fail_count") or 0) > 0:
+        next_priority_gap_family = "deterministic repair policy"
+    else:
+        next_priority_gap_family = "none"
 
     evidence_status = "PASS" if not missing else "FAIL"
     primary_reason = "none"
@@ -356,6 +434,8 @@ def main() -> None:
         "match_signal_coverage_pct": match_signal_coverage,
         "diagnostic_parse_coverage_pct": diagnostic_parse_coverage,
         "non_regression_status": non_regression_status,
+        "counts_by_seen_risk_band": counts_by_seen_risk_band,
+        "counts_by_source_type": counts_by_source_type,
         "failure_breakdown": {
             **failure_breakdown,
             "provenance_incomplete_count": provenance_incomplete_count,
@@ -371,6 +451,10 @@ def main() -> None:
             "non_regression_status": adjusted_non_regression_status,
             "success_by_library": adjusted_success_by_library,
         },
+        "success_by_seen_risk_band": baseline_vs_retrieval_by_seen_risk_band,
+        "success_by_source_type": success_by_source_type,
+        "retrieval_uplift_status": retrieval_uplift_status,
+        "baseline_saturation_status": baseline_saturation_status,
         "success_by_library": success_by_library,
         "sources": {
             "challenge_summary": args.challenge_summary,
@@ -395,6 +479,10 @@ def main() -> None:
         "source_unstable_task_count": int(source_unstable.get("task_count") or 0),
         "adjusted_non_regression_status": adjusted_non_regression_status,
         "adjusted_success_at_k": evidence_summary.get("adjusted_excluding_source_unstable", {}).get("success_at_k"),
+        "retrieval_uplift_status": retrieval_uplift_status,
+        "baseline_saturation_status": baseline_saturation_status,
+        "success_by_seen_risk_band": baseline_vs_retrieval_by_seen_risk_band,
+        "success_by_source_type": success_by_source_type,
         "thresholds": {
             "min_retrieval_on_success_at_k_pct": float(args.min_retrieval_on_success_at_k_pct),
             "min_retrieval_coverage_pct": float(args.min_retrieval_coverage_pct),
@@ -413,12 +501,17 @@ def main() -> None:
         "non_regression_status": non_regression_status,
         "source_unstable_summary": source_unstable,
         "adjusted_excluding_source_unstable": evidence_summary.get("adjusted_excluding_source_unstable"),
+        "baseline_vs_retrieval_by_seen_risk_band": baseline_vs_retrieval_by_seen_risk_band,
+        "success_by_source_type": success_by_source_type,
+        "retrieval_uplift_status": retrieval_uplift_status,
+        "baseline_saturation_status": baseline_saturation_status,
         "libraries_with_transferability_signal": [key for key, value in transferability_by_library.items() if value == "transferability_signal"],
         "libraries_with_generic_fallback": [key for key, value in transferability_by_library.items() if value != "transferability_signal"],
         "library_transferability": transferability_by_library,
         "success_by_library": success_by_library,
         "next_priority_knowledge_gap": knowledge_gap_candidates[0] if knowledge_gap_candidates else "none",
         "failure_breakdown": evidence_summary.get("failure_breakdown"),
+        "next_priority_gap_family": next_priority_gap_family,
     }
 
     _write_json(args.out, evidence_summary)
