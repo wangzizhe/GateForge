@@ -43,6 +43,18 @@ def _diagnostic_context_hints_from_model(*, failure_type: str, expected_stage: s
         hints.extend(["initialization_trigger", "forced_initialization_failure"])
     if "when initial()" in lower:
         hints.append("when_initial_assert")
+    if "gateforge_overconstrained_system" in lower:
+        hints.extend(["duplicate_equation", "overconstrained_system"])
+    if "gateforge_parameter_binding_error" in lower:
+        hints.extend(["parameter_binding_error", "invalid_parameter_binding"])
+    if "gateforge_array_dimension_mismatch" in lower:
+        hints.extend(["array_dimension_mismatch", "invalid_array_binding"])
+    if "gateforge_solver_sensitive_simulate_failure" in lower:
+        hints.extend(["solver_sensitive_simulate_failure", "stiff_solver_dynamics"])
+    if "gateforge_event_logic_error" in lower:
+        hints.extend(["event_logic_error", "event_threshold_chattering"])
+    if "gateforge_semantic_drift_after_compile_pass" in lower:
+        hints.extend(["semantic_drift_after_compile_pass", "dynamic_sign_drift"])
     return hints
 
 
@@ -76,8 +88,20 @@ def _apply_source_model_repair(
     observed_failure_type: str,
 ) -> tuple[str, dict]:
     declared = str(declared_failure_type or "").strip().lower()
-    if declared != "connector_mismatch":
+    if declared not in {
+        "connector_mismatch",
+        "overconstrained_system",
+        "parameter_binding_error",
+        "array_dimension_mismatch",
+        "solver_sensitive_simulate_failure",
+        "event_logic_error",
+        "semantic_drift_after_compile_pass",
+    }:
         return current_text, {"applied": False, "reason": "declared_failure_type_not_supported"}
+    if declared in {"overconstrained_system", "parameter_binding_error", "array_dimension_mismatch"} and not _wave2_deterministic_repair_enabled():
+        return current_text, {"applied": False, "reason": "wave2_deterministic_repair_disabled"}
+    if declared in {"solver_sensitive_simulate_failure", "event_logic_error", "semantic_drift_after_compile_pass"} and not _wave2_1_deterministic_repair_enabled():
+        return current_text, {"applied": False, "reason": "wave2_1_deterministic_repair_disabled"}
     source_text = str(source_model_text or "")
     if not source_text.strip():
         return current_text, {"applied": False, "reason": "source_model_text_missing"}
@@ -85,11 +109,70 @@ def _apply_source_model_repair(
         return current_text, {"applied": False, "reason": "current_text_matches_source"}
     observed = str(observed_failure_type or "").strip().lower()
     reason = "restored_source_model_text"
-    if observed in {"model_check_error", "connector_mismatch"}:
+    if declared == "parameter_binding_error":
+        reason = "restored_source_model_text_for_parameter_binding_error"
+    elif declared == "overconstrained_system":
+        reason = "restored_source_model_text_for_overconstrained_system"
+    elif declared == "array_dimension_mismatch":
+        reason = "restored_source_model_text_for_array_dimension_mismatch"
+    elif declared == "solver_sensitive_simulate_failure":
+        reason = "restored_source_model_text_for_solver_sensitive_simulate_failure"
+    elif declared == "event_logic_error":
+        reason = "restored_source_model_text_for_event_logic_error"
+    elif declared == "semantic_drift_after_compile_pass":
+        reason = "restored_source_model_text_for_semantic_drift_after_compile_pass"
+    elif observed in {"model_check_error", "connector_mismatch"}:
         reason = "restored_source_model_text_for_connector_mismatch"
     else:
         reason = "restored_source_model_text_from_declared_connector_mismatch"
     return source_text, {"applied": True, "reason": reason}
+
+
+def _wave2_deterministic_repair_enabled() -> bool:
+    return str(os.getenv("GATEFORGE_AGENT_WAVE2_DETERMINISTIC_REPAIR") or "").strip() == "1"
+
+
+def _wave2_1_deterministic_repair_enabled() -> bool:
+    return str(os.getenv("GATEFORGE_AGENT_WAVE2_1_DETERMINISTIC_REPAIR") or "").strip() == "1"
+
+
+def _apply_wave2_marker_repair(*, current_text: str, declared_failure_type: str) -> tuple[str, dict]:
+    if not _wave2_deterministic_repair_enabled():
+        return current_text, {"applied": False, "reason": "wave2_deterministic_repair_disabled"}
+    declared = str(declared_failure_type or "").strip().lower()
+    marker_map = {
+        "overconstrained_system": "gateforge_overconstrained_system",
+        "array_dimension_mismatch": "gateforge_array_dimension_mismatch",
+    }
+    marker = marker_map.get(declared, "")
+    if not marker:
+        return current_text, {"applied": False, "reason": "declared_failure_type_not_supported"}
+    lines = str(current_text or "").splitlines(keepends=True)
+    remove_idx = {idx for idx, line in enumerate(lines) if marker in line.lower()}
+    if not remove_idx:
+        return current_text, {"applied": False, "reason": "marker_not_detected"}
+    kept = [line for idx, line in enumerate(lines) if idx not in remove_idx]
+    return "".join(kept), {"applied": True, "reason": f"removed_{marker}_line", "removed_line_count": len(remove_idx)}
+
+
+def _apply_wave2_1_marker_repair(*, current_text: str, declared_failure_type: str) -> tuple[str, dict]:
+    if not _wave2_1_deterministic_repair_enabled():
+        return current_text, {"applied": False, "reason": "wave2_1_deterministic_repair_disabled"}
+    declared = str(declared_failure_type or "").strip().lower()
+    marker_map = {
+        "solver_sensitive_simulate_failure": "gateforge_solver_sensitive_simulate_failure",
+        "event_logic_error": "gateforge_event_logic_error",
+        "semantic_drift_after_compile_pass": "gateforge_semantic_drift_after_compile_pass",
+    }
+    marker = marker_map.get(declared, "")
+    if not marker:
+        return current_text, {"applied": False, "reason": "declared_failure_type_not_supported"}
+    lines = str(current_text or "").splitlines(keepends=True)
+    remove_idx = {idx for idx, line in enumerate(lines) if marker in line.lower()}
+    if not remove_idx:
+        return current_text, {"applied": False, "reason": "marker_not_detected"}
+    kept = [line for idx, line in enumerate(lines) if idx not in remove_idx]
+    return "".join(kept), {"applied": True, "reason": f"removed_{marker}_line", "removed_line_count": len(remove_idx)}
 
 
 def _apply_initialization_marker_repair(
@@ -1096,6 +1179,26 @@ def main() -> None:
             if bool(init_repair.get("applied")):
                 current_text = init_repaired_text
                 final_error = "initialization_marker_repair_applied_retry_pending"
+                continue
+
+            wave2_repaired_text, wave2_repair = _apply_wave2_marker_repair(
+                current_text=current_text,
+                declared_failure_type=str(args.failure_type),
+            )
+            attempts[-1]["wave2_marker_repair"] = wave2_repair
+            if bool(wave2_repair.get("applied")):
+                current_text = wave2_repaired_text
+                final_error = "wave2_marker_repair_applied_retry_pending"
+                continue
+
+            wave2_1_repaired_text, wave2_1_repair = _apply_wave2_1_marker_repair(
+                current_text=current_text,
+                declared_failure_type=str(args.failure_type),
+            )
+            attempts[-1]["wave2_1_marker_repair"] = wave2_1_repair
+            if bool(wave2_1_repair.get("applied")):
+                current_text = wave2_1_repaired_text
+                final_error = "wave2_1_marker_repair_applied_retry_pending"
                 continue
 
             source_repaired_text, source_repair = _apply_source_model_repair(

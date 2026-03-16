@@ -27,6 +27,21 @@ DEFAULT_RULES = {
         "re-check behavioral metrics against baseline before merge",
         "enforce no-regression guard before final accept",
     ],
+    "solver_sensitive_simulate_failure": [
+        "restore source solver-facing parameters before broad edits",
+        "reduce stiff or chattering dynamics before another simulate retry",
+        "rerun simulate with conservative settings after localized repair",
+    ],
+    "event_logic_error": [
+        "restore source event thresholds and reinit conditions first",
+        "limit event logic repair to the injected when/assert block before wider edits",
+        "rerun simulate and inspect event timing before accepting the patch",
+    ],
+    "semantic_drift_after_compile_pass": [
+        "restore sign-sensitive dynamic equations to source-local behavior",
+        "avoid broad topology edits when the drift is localized to injected dynamics",
+        "rerun simulate and compare semantic behavior before accepting the patch",
+    ],
 }
 
 
