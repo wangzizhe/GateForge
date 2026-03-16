@@ -147,9 +147,17 @@ def _classify_check_failure(lower: str) -> tuple[str, str, str, str]:
         equations, variables = structural_mismatch
         if equations < variables:
             return "model_check_error", "underconstrained_system", "structural balance failed", "model_check_error"
+        if equations > variables:
+            return "constraint_violation", "overconstrained_system", "structural balance failed", "constraint_violation"
 
     if _contains_any(lower, ("type mismatch", "incompatible connector", "connector")) and "connect" in lower:
         return "model_check_error", "connector_mismatch", "connector mismatch", "model_check_error"
+
+    if _contains_any(lower, ("array dimension", "dimension mismatch", "subscript", "wrong number of elements", "size mismatch", "gateforge_array_dimension_mismatch")):
+        return "model_check_error", "array_dimension_mismatch", "array dimension mismatch", "model_check_error"
+
+    if _contains_any(lower, ("binding", "modifier", "modification", "gateforge_parameter_binding_error")) and _contains_any(lower, ("type mismatch", "wrong type", "cannot", "string")):
+        return "model_check_error", "parameter_binding_error", "parameter binding failed", "model_check_error"
 
     if _contains_any(lower, ("unit", "dimension", "inconsistent")):
         return "constraint_violation", "unit_inconsistency", "constraint/unit mismatch", "constraint_violation"
@@ -212,10 +220,25 @@ def _suggest_actions(error_type: str, error_subtype: str) -> list[str]:
             "align connector types and endpoint port names",
             "rerun checkModel before simulation",
         ]
+    if et == "model_check_error" and sub == "parameter_binding_error":
+        return [
+            "restore invalid parameter bindings to source-compatible values",
+            "rerun checkModel before planner edits widen scope",
+        ]
+    if et == "model_check_error" and sub == "array_dimension_mismatch":
+        return [
+            "restore source array sizes or injected dimension declarations",
+            "rerun checkModel after dimension repair",
+        ]
     if et == "model_check_error" and sub == "underconstrained_system":
         return [
             "restore dropped connects and structural balance before simulate",
             "rerun checkModel and verify the model is square before repair rollout",
+        ]
+    if et == "constraint_violation" and sub == "overconstrained_system":
+        return [
+            "remove duplicated equations or conflicting injected constraints",
+            "rerun checkModel and verify the model is square before simulation",
         ]
     if et == "model_check_error":
         return [
@@ -255,7 +278,7 @@ def _confidence(error_type: str, error_subtype: str, expected_stage: str, stage:
         return 1.0
 
     conf = 0.88
-    if sub in {"parse_lexer_error", "undefined_symbol", "connector_mismatch", "solver_divergence", "timeout", "assertion_violation"}:
+    if sub in {"parse_lexer_error", "undefined_symbol", "connector_mismatch", "parameter_binding_error", "array_dimension_mismatch", "overconstrained_system", "solver_divergence", "timeout", "assertion_violation"}:
         conf = 0.94
     elif sub in {"compile_failure_unknown", "simulation_failure_unknown"}:
         conf = 0.78
@@ -379,6 +402,51 @@ def _normalize_declared_connector_mismatch_drift(
     return error_type, error_subtype, reason
 
 
+def _normalize_declared_dynamic_failure_type(
+    *,
+    error_type: str,
+    error_subtype: str,
+    reason: str,
+    lower: str,
+    declared_failure_type: str,
+    declared_context_hints: list[str] | None = None,
+) -> tuple[str, str, str]:
+    declared = str(declared_failure_type or "").strip().lower()
+    context = {str(x or "").strip().lower() for x in (declared_context_hints or []) if str(x or "").strip()}
+
+    if declared == "solver_sensitive_simulate_failure":
+        if _contains_any(
+            lower,
+            (
+                "gateforge_solver_sensitive_simulate_failure",
+                "stiff",
+                "integrator failed",
+                "step size",
+                "solver",
+                "timeoutexpired",
+            ),
+        ) or "solver_sensitive_simulate_failure" in context:
+            return "numerical_instability", "solver_sensitive_simulate_failure", "solver-sensitive simulate failure"
+
+    if declared == "event_logic_error":
+        if _contains_any(lower, ("gateforge_event_logic_error", "sample(", "reinit(", "assertion", "assert false")) or "event_logic_error" in context:
+            return "simulate_error", "event_logic_error", "event logic error"
+
+    if declared == "semantic_drift_after_compile_pass":
+        if _contains_any(
+            lower,
+            (
+                "gateforge_semantic_drift_after_compile_pass",
+                "semantic drift",
+                "sign inversion",
+                "assertion",
+            ),
+        ) or "semantic_drift_after_compile_pass" in context:
+            return "semantic_regression", "semantic_drift_after_compile_pass", "semantic drift after compile pass"
+
+    return error_type, error_subtype, reason
+
+
 def build_diagnostic_ir_v0(
     *,
     output: str,
@@ -427,6 +495,14 @@ def build_diagnostic_ir_v0(
         observed_phase=observed_phase,
         declared_failure_type=str(declared_failure_type or ""),
         expected_stage=str(expected_stage or ""),
+        declared_context_hints=declared_context_hints,
+    )
+    err_type, err_subtype, reason = _normalize_declared_dynamic_failure_type(
+        error_type=err_type,
+        error_subtype=err_subtype,
+        reason=reason,
+        lower=lower,
+        declared_failure_type=str(declared_failure_type or ""),
         declared_context_hints=declared_context_hints,
     )
 
