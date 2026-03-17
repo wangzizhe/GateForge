@@ -9,6 +9,8 @@ from unittest.mock import patch
 
 from gateforge.agent_modelica_live_executor_gemini_v1 import (
     _apply_initialization_marker_repair,
+    _behavioral_contract_deterministic_repair_enabled,
+    _evaluate_behavioral_contract_from_model_text,
     _apply_multi_round_layered_repair,
     _apply_parse_error_pre_repair,
     _apply_source_model_repair,
@@ -245,6 +247,45 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
     def test_normalize_terminal_errors_keeps_errors_for_failed(self) -> None:
         err, comp, sim = _normalize_terminal_errors("FAILED", "x", "y", "z")
         self.assertEqual((err, comp, sim), ("x", "y", "z"))
+
+    def test_behavioral_contract_eval_fails_when_marker_mutation_remains(self) -> None:
+        source = "model A\n  Modelica.Blocks.Sources.Step step1(height=1, startTime=0.1);\nend A;\n"
+        mutated = "model A\n  // gateforge_behavioral_contract_violation:steady_state_target_violation\n  Modelica.Blocks.Sources.Step step1(height=0.82, startTime=0.1);\nend A;\n"
+        payload = _evaluate_behavioral_contract_from_model_text(
+            current_text=mutated,
+            source_model_text=source,
+            failure_type="steady_state_target_violation",
+        )
+        self.assertFalse(bool(payload.get("pass")))
+        self.assertEqual(payload.get("contract_fail_bucket"), "steady_state_miss")
+
+    def test_behavioral_contract_eval_passes_when_source_restored(self) -> None:
+        source = "model A\n  Modelica.Blocks.Sources.Step step1(height=1, startTime=0.1);\nend A;\n"
+        payload = _evaluate_behavioral_contract_from_model_text(
+            current_text=source,
+            source_model_text=source,
+            failure_type="steady_state_target_violation",
+        )
+        self.assertTrue(bool(payload.get("pass")))
+
+    def test_behavioral_contract_source_restore_gate_uses_env_flag(self) -> None:
+        prev = os.environ.get("GATEFORGE_AGENT_BEHAVIORAL_CONTRACT_DETERMINISTIC_REPAIR")
+        os.environ["GATEFORGE_AGENT_BEHAVIORAL_CONTRACT_DETERMINISTIC_REPAIR"] = "1"
+        try:
+            self.assertTrue(_behavioral_contract_deterministic_repair_enabled())
+            patched, audit = _apply_source_model_repair(
+                current_text="model A\n// gateforge_behavioral_contract_violation:steady_state_target_violation\nend A;\n",
+                source_model_text="model A\nend A;\n",
+                declared_failure_type="steady_state_target_violation",
+                observed_failure_type="semantic_regression",
+            )
+            self.assertTrue(bool(audit.get("applied")))
+            self.assertEqual(patched, "model A\nend A;\n")
+        finally:
+            if prev is None:
+                os.environ.pop("GATEFORGE_AGENT_BEHAVIORAL_CONTRACT_DETERMINISTIC_REPAIR", None)
+            else:
+                os.environ["GATEFORGE_AGENT_BEHAVIORAL_CONTRACT_DETERMINISTIC_REPAIR"] = prev
 
     def test_apply_parse_error_pre_repair_removes_injected_state_tokens(self) -> None:
         model_text = "model A1\n  Real x;\nequation\n  der(x) = -x + __gf_state_301500;\nend A1;\n"

@@ -40,6 +40,17 @@ class AgentModelicaRepairActionPolicyV0Tests(unittest.TestCase):
         self.assertTrue(bool(payload.get("fallback_used")))
         self.assertEqual(payload.get("actions"), ["fallback_action_1"])
 
+    def test_behavioral_contract_policy_prefers_deterministic_actions(self) -> None:
+        payload = recommend_repair_actions_v0(
+            failure_type="steady_state_target_violation",
+            expected_stage="simulate",
+            diagnostic_payload={},
+            fallback_actions=["fallback_action_1"],
+        )
+        self.assertEqual(payload.get("channel"), "deterministic_rule_policy")
+        actions = payload.get("actions") if isinstance(payload.get("actions"), list) else []
+        self.assertTrue(any("steady-state" in str(x).lower() for x in actions))
+
 
 if __name__ == "__main__":
     unittest.main()
