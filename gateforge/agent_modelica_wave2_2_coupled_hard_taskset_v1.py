@@ -184,38 +184,72 @@ def _replace_first(model_text: str, old: str, new: str) -> tuple[str, bool]:
     return model_text.replace(old, new, 1), True
 
 
+def _apply_rewrite_group(
+    model_text: str,
+    rewrites: list[tuple[str, str]],
+) -> tuple[str, list[tuple[str, str]], bool]:
+    patched = model_text
+    changed_rules: list[tuple[str, str]] = []
+    for old, new in rewrites:
+        patched, changed = _replace_first(patched, old, new)
+        if not changed:
+            return model_text, [], False
+        changed_rules.append((old, new))
+    return patched, changed_rules, True
+
+
 def _mutate_cross_component_parameter_coupling_error(model_text: str, token: str, dependency_endpoints: list[str]) -> tuple[str, list[dict], str, list[str], float]:
-    line_rewrite_candidates = [
+    rewrite_groups = [
         (
-            "connect(load.terminal, network.terminal[2])",
-            "connect(load.terminal, network.terminal[1])",
-            ["load.terminal", "network.terminal[2]", "network.terminal[1]"],
+            [
+                ("connect(load.terminal, network.terminal[2])", "connect(load.terminal, network.terminal[1])"),
+                ("connect(load_inputs.y, load.Pow2)", "connect(load_inputs.y, load.Pow1)"),
+                ("height=5000", "height=9000"),
+            ],
+            ["load.terminal", "network.terminal[2]", "network.terminal[1]", "load_inputs.y", "load.Pow2", "load.Pow1", "height"],
+            0.65,
         ),
         (
-            "connect(ph_23.y, loaR.Pow2)",
-            "connect(ph_1.y, loaR.Pow2)",
-            ["ph_23.y", "ph_1.y", "loaR.Pow2"],
+            [
+                ("connect(ph_23.y, loaR.Pow2)", "connect(ph_1.y, loaR.Pow2)"),
+                ("connect(ph_23.y, loaR.Pow3)", "connect(ph_1.y, loaR.Pow3)"),
+                ("amplitude=2000", "amplitude=3200"),
+            ],
+            ["ph_23.y", "ph_1.y", "loaR.Pow2", "loaR.Pow3", "amplitude"],
+            0.75,
         ),
         (
-            "connect(cons.y, intWitRes2.u)",
-            "connect(ramp.y, intWitRes2.u)",
-            ["cons.y", "ramp.y", "intWitRes2.u"],
+            [
+                ("connect(cons.y, intWitRes2.u)", "connect(ramp.y, intWitRes2.u)"),
+                ("connect(booleanPulse.y, intWitRes2.trigger)", "connect(sampleTrigger.y, intWitRes2.trigger)"),
+                ("connect(cons.y, intWitRes1.u)", "connect(ramp.y, intWitRes1.u)"),
+            ],
+            ["cons.y", "ramp.y", "intWitRes1.u", "intWitRes2.u", "booleanPulse.y", "sampleTrigger.y", "intWitRes2.trigger"],
+            0.85,
         ),
         (
-            "connect(trapezoid.y, battery.W_setpoint)",
-            "connect(trapezoid.y, boundary.f)",
-            ["trapezoid.y", "battery.W_setpoint", "boundary.f"],
+            [
+                ("connect(trapezoid.y, battery.W_setpoint)", "connect(trapezoid.y, boundary.f)"),
+                ("startTime=1000", "startTime=0"),
+                ("period=4000", "period=250"),
+            ],
+            ["trapezoid.y", "battery.W_setpoint", "boundary.f", "startTime", "period"],
+            0.85,
         ),
     ]
-    for old, new, deps in line_rewrite_candidates:
-        patched, changed = _replace_first(model_text, old, new)
+    for rewrites, deps, delay in rewrite_groups:
+        patched, changed_rules, changed = _apply_rewrite_group(model_text, rewrites)
         if changed:
             objects = [
-                {"kind": "source_relation_rewrite", "effect": "cross_component_parameter_coupling_error", "name": old},
-                {"kind": "source_relation_rewrite", "effect": "cross_component_parameter_coupling_error", "name": new},
+                {"kind": "source_relation_rewrite", "effect": "cross_component_parameter_coupling_error", "name": old}
+                for old, _ in changed_rules
             ]
+            objects.extend(
+                {"kind": "source_relation_rewrite", "effect": "cross_component_parameter_coupling_error", "name": new}
+                for _, new in changed_rules
+            )
             objects.extend({"kind": "source_dependency", "effect": "cross_component_parameter_coupling_error", "name": dep} for dep in deps)
-            return patched, objects, "gateforge_cross_component_parameter_coupling_error", deps, 0.25
+            return patched, objects, "gateforge_cross_component_parameter_coupling_error", deps, delay
 
     dep_a = dependency_endpoints[0] if len(dependency_endpoints) > 0 else "time"
     dep_b = dependency_endpoints[1] if len(dependency_endpoints) > 1 else dep_a
@@ -243,37 +277,57 @@ def _mutate_cross_component_parameter_coupling_error(model_text: str, token: str
 
 
 def _mutate_control_loop_sign_semantic_drift(model_text: str, token: str, dependency_endpoints: list[str]) -> tuple[str, list[dict], str, list[str], float]:
-    parameter_rewrite_candidates = [
+    rewrite_groups = [
         (
-            "height=5000",
-            "height=-5000",
-            ["load_inputs.y", "load.Pow1"],
+            [
+                ("height=5000", "height=-5000"),
+                ("duration=0.5", "duration=0.05"),
+                ("connect(load_inputs.y, load.Pow2)", "connect(load_inputs.y, load.Pow1)"),
+            ],
+            ["load_inputs.y", "load.Pow1", "load.Pow2", "height", "duration"],
+            0.85,
         ),
         (
-            "amplitude=2000",
-            "amplitude=-2000",
-            ["ph_1.y", "loaR.Pow1"],
+            [
+                ("amplitude=2000", "amplitude=-2000"),
+                ("k=0)", "k=1.57079632679)"),
+                ("connect(ph_23.y, loaR.Pow3)", "connect(ph_1.y, loaR.Pow3)"),
+            ],
+            ["ph_23.y", "ph_1.y", "loaR.Pow2", "loaR.Pow3", "amplitude"],
+            0.95,
         ),
         (
-            "k=0.5",
-            "k=-0.5",
-            ["cons.y", "intWitRes1.u"],
+            [
+                ("k=0.5", "k=-0.5"),
+                ("k=0.5", "k=-0.5"),
+                ("connect(cons.y, intWitRes2.u)", "connect(ramp.y, intWitRes2.u)"),
+            ],
+            ["cons.y", "ramp.y", "intWitRes1.u", "intWitRes2.u", "k"],
+            1.05,
         ),
         (
-            "amplitude=1e6",
-            "amplitude=-1e6",
-            ["trapezoid.y", "battery.W_setpoint"],
+            [
+                ("amplitude=1e6", "amplitude=-1e6"),
+                ("width=1000", "width=100"),
+                ("startTime=1000", "startTime=0"),
+            ],
+            ["trapezoid.y", "battery.W_setpoint", "amplitude", "width", "startTime"],
+            1.05,
         ),
     ]
-    for old, new, deps in parameter_rewrite_candidates:
-        patched, changed = _replace_first(model_text, old, new)
+    for rewrites, deps, delay in rewrite_groups:
+        patched, changed_rules, changed = _apply_rewrite_group(model_text, rewrites)
         if changed:
             objects = [
-                {"kind": "source_parameter_rewrite", "effect": "control_loop_sign_semantic_drift", "name": old},
-                {"kind": "source_parameter_rewrite", "effect": "control_loop_sign_semantic_drift", "name": new},
+                {"kind": "source_parameter_rewrite", "effect": "control_loop_sign_semantic_drift", "name": old}
+                for old, _ in changed_rules
             ]
+            objects.extend(
+                {"kind": "source_parameter_rewrite", "effect": "control_loop_sign_semantic_drift", "name": new}
+                for _, new in changed_rules
+            )
             objects.extend({"kind": "source_dependency", "effect": "control_loop_sign_semantic_drift", "name": dep} for dep in deps)
-            return patched, objects, "gateforge_control_loop_sign_semantic_drift", deps, 0.55
+            return patched, objects, "gateforge_control_loop_sign_semantic_drift", deps, delay
 
     dep_drive = dependency_endpoints[0] if len(dependency_endpoints) > 0 else "time"
     dep_feedback = dependency_endpoints[1] if len(dependency_endpoints) > 1 else dep_drive
@@ -348,7 +402,7 @@ def _mutate_mode_switch_guard_logic_error(model_text: str, token: str, dependenc
             for dep in deps:
                 if dep not in used_deps:
                     used_deps.append(dep)
-    if changed_count >= 1:
+    if changed_count >= 2:
         objects = []
         for old, new in changed_rules:
             objects.append({"kind": "source_guard_rewrite", "effect": "mode_switch_guard_logic_error", "name": old})
@@ -357,7 +411,7 @@ def _mutate_mode_switch_guard_logic_error(model_text: str, token: str, dependenc
             {"kind": "source_dependency", "effect": "mode_switch_guard_logic_error", "name": dep}
             for dep in used_deps
         )
-        return patched, objects, "gateforge_mode_switch_guard_logic_error", used_deps, 0.35 if changed_count == 1 else 0.55
+        return patched, objects, "gateforge_mode_switch_guard_logic_error", used_deps, 0.55
 
     dep_guard = dependency_endpoints[0] if len(dependency_endpoints) > 0 else "time"
     dep_ref = dependency_endpoints[1] if len(dependency_endpoints) > 1 else dep_guard

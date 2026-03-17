@@ -57,6 +57,21 @@ DEFAULT_RULES = {
         "limit guard repair to the injected when/assert block before wider edits",
         "rerun simulate and inspect the mode transition timing before accepting the patch",
     ],
+    "cascading_structural_failure": [
+        "repair the first exposed structural fault conservatively before widening edits",
+        "expect a second failure layer after the first repair and rerun checkModel/simulate immediately",
+        "preserve source relationships while addressing cascading faults in sequence",
+    ],
+    "coupled_conflict_failure": [
+        "identify paired source rewrites that must be repaired together",
+        "avoid fixing only one side of a coupled conflict before rerunning simulate",
+        "rerun simulate after each grouped repair step and inspect the next exposed conflict",
+    ],
+    "false_friend_patch_trap": [
+        "avoid the most local-looking patch if it does not restore the original source relation",
+        "prefer grouped source-aligned repairs over isolated trap-friendly edits",
+        "rerun simulate after each patch and inspect whether a second-layer failure emerged",
+    ],
 }
 
 

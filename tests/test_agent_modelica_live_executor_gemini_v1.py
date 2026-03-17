@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 from gateforge.agent_modelica_live_executor_gemini_v1 import (
     _apply_initialization_marker_repair,
+    _apply_multi_round_layered_repair,
     _apply_parse_error_pre_repair,
     _apply_source_model_repair,
     _apply_wave2_1_marker_repair,
@@ -17,6 +18,7 @@ from gateforge.agent_modelica_live_executor_gemini_v1 import (
     _diagnostic_context_hints_from_model,
     _extract_om_success_flags,
     _extract_json_object,
+    _llm_round_constraints,
     _llm_request_timeout_sec,
     _live_budget_config,
     _normalize_terminal_errors,
@@ -480,6 +482,86 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
             else:
                 os.environ["GATEFORGE_AGENT_WAVE2_2_DETERMINISTIC_REPAIR"] = prev
 
+    def test_apply_source_model_repair_supports_multi_round_failure_types(self) -> None:
+        prev = os.environ.get("GATEFORGE_AGENT_MULTI_ROUND_DETERMINISTIC_REPAIR")
+        os.environ["GATEFORGE_AGENT_MULTI_ROUND_DETERMINISTIC_REPAIR"] = "1"
+        try:
+            patched, audit = _apply_source_model_repair(
+                current_text="model A\n  Real x;\nend A;\n",
+                source_model_text="model A\n  Real y;\nend A;\n",
+                declared_failure_type="cascading_structural_failure",
+                observed_failure_type="simulate_error",
+            )
+            self.assertTrue(bool(audit.get("applied")))
+            self.assertIn("cascading_structural_failure", str(audit.get("reason") or ""))
+            self.assertIn("Real y;", patched)
+        finally:
+            if prev is None:
+                os.environ.pop("GATEFORGE_AGENT_MULTI_ROUND_DETERMINISTIC_REPAIR", None)
+            else:
+                os.environ["GATEFORGE_AGENT_MULTI_ROUND_DETERMINISTIC_REPAIR"] = prev
+
+    def test_apply_multi_round_layered_repair_removes_overconstrained_layer(self) -> None:
+        prev = os.environ.get("GATEFORGE_AGENT_MULTI_ROUND_DETERMINISTIC_REPAIR")
+        os.environ["GATEFORGE_AGENT_MULTI_ROUND_DETERMINISTIC_REPAIR"] = "1"
+        try:
+            current = "model A\n equation\n  x = y; // gateforge_overconstrained_system\nend A;\n"
+            patched, audit = _apply_multi_round_layered_repair(
+                current_text=current,
+                source_model_text="model A\n equation\nend A;\n",
+                declared_failure_type="cascading_structural_failure",
+                current_round=2,
+            )
+            self.assertTrue(bool(audit.get("applied")))
+            self.assertIn("overconstrained", str(audit.get("reason") or ""))
+            self.assertNotIn("gateforge_overconstrained_system", patched)
+        finally:
+            if prev is None:
+                os.environ.pop("GATEFORGE_AGENT_MULTI_ROUND_DETERMINISTIC_REPAIR", None)
+            else:
+                os.environ["GATEFORGE_AGENT_MULTI_ROUND_DETERMINISTIC_REPAIR"] = prev
+
+    def test_apply_multi_round_layered_repair_restores_parameter_binding_from_source(self) -> None:
+        prev = os.environ.get("GATEFORGE_AGENT_MULTI_ROUND_DETERMINISTIC_REPAIR")
+        os.environ["GATEFORGE_AGENT_MULTI_ROUND_DETERMINISTIC_REPAIR"] = "1"
+        try:
+            current = "model A\n  Batteries.SimpleBattery battery(capacity_max = \"gateforge_bad_binding\" /* gateforge_parameter_binding_error */)\nend A;\n"
+            source = "model A\n  Batteries.SimpleBattery battery(capacity_max=1e5)\nend A;\n"
+            patched, audit = _apply_multi_round_layered_repair(
+                current_text=current,
+                source_model_text=source,
+                declared_failure_type="coupled_conflict_failure",
+                current_round=2,
+            )
+            self.assertTrue(bool(audit.get("applied")))
+            self.assertIn("parameter_binding", str(audit.get("reason") or ""))
+            self.assertIn("capacity_max=1e5", patched)
+        finally:
+            if prev is None:
+                os.environ.pop("GATEFORGE_AGENT_MULTI_ROUND_DETERMINISTIC_REPAIR", None)
+            else:
+                os.environ["GATEFORGE_AGENT_MULTI_ROUND_DETERMINISTIC_REPAIR"] = prev
+
+    def test_apply_multi_round_layered_repair_defers_until_round_two(self) -> None:
+        prev = os.environ.get("GATEFORGE_AGENT_MULTI_ROUND_DETERMINISTIC_REPAIR")
+        os.environ["GATEFORGE_AGENT_MULTI_ROUND_DETERMINISTIC_REPAIR"] = "1"
+        try:
+            current = "model A\n equation\n  x = y; // gateforge_overconstrained_system\nend A;\n"
+            patched, audit = _apply_multi_round_layered_repair(
+                current_text=current,
+                source_model_text="model A\n equation\nend A;\n",
+                declared_failure_type="cascading_structural_failure",
+                current_round=1,
+            )
+            self.assertFalse(bool(audit.get("applied")))
+            self.assertEqual(audit.get("reason"), "multi_round_layered_repair_deferred_until_round_2")
+            self.assertEqual(patched, current)
+        finally:
+            if prev is None:
+                os.environ.pop("GATEFORGE_AGENT_MULTI_ROUND_DETERMINISTIC_REPAIR", None)
+            else:
+                os.environ["GATEFORGE_AGENT_MULTI_ROUND_DETERMINISTIC_REPAIR"] = prev
+
     def test_parse_env_assignment_supports_export_and_quotes(self) -> None:
         self.assertEqual(_parse_env_assignment("export GOOGLE_API_KEY=abc"), ("GOOGLE_API_KEY", "abc"))
         self.assertEqual(_parse_env_assignment('GOOGLE_API_KEY="abc-123"'), ("GOOGLE_API_KEY", "abc-123"))
@@ -660,6 +742,19 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
                     os.environ.pop(key, None)
                 else:
                     os.environ[key] = value
+
+    def test_llm_round_constraints_tightens_first_round_multi_round_repairs(self) -> None:
+        constrained = _llm_round_constraints(
+            failure_type="cascading_structural_failure",
+            current_round=1,
+        )
+        self.assertIn("fix only the first exposed failure layer", constrained)
+        self.assertIn("Do not rewrite the whole model", constrained)
+        unconstrained = _llm_round_constraints(
+            failure_type="cascading_structural_failure",
+            current_round=2,
+        )
+        self.assertEqual(unconstrained, "")
 
     def test_parse_repair_actions_supports_json_and_pipe_formats(self) -> None:
         self.assertEqual(_parse_repair_actions('["a","b"]'), ["a", "b"])

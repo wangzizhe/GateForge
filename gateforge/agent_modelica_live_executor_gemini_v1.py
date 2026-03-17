@@ -61,6 +61,12 @@ def _diagnostic_context_hints_from_model(*, failure_type: str, expected_stage: s
         hints.extend(["control_loop_sign_semantic_drift", "control_loop_positive_feedback"])
     if "gateforge_mode_switch_guard_logic_error" in lower:
         hints.extend(["mode_switch_guard_logic_error", "mode_switch_threshold_guard"])
+    if "gateforge_cascading_structural_failure" in lower:
+        hints.extend(["cascading_structural_failure", "cascading_failure"])
+    if "gateforge_coupled_conflict_failure" in lower:
+        hints.extend(["coupled_conflict_failure", "paired_conflict"])
+    if "gateforge_false_friend_patch_trap" in lower:
+        hints.extend(["false_friend_patch_trap", "false_friend_trap"])
     return hints
 
 
@@ -105,6 +111,9 @@ def _apply_source_model_repair(
         "cross_component_parameter_coupling_error",
         "control_loop_sign_semantic_drift",
         "mode_switch_guard_logic_error",
+        "cascading_structural_failure",
+        "coupled_conflict_failure",
+        "false_friend_patch_trap",
     }:
         return current_text, {"applied": False, "reason": "declared_failure_type_not_supported"}
     if declared in {"overconstrained_system", "parameter_binding_error", "array_dimension_mismatch"} and not _wave2_deterministic_repair_enabled():
@@ -113,6 +122,8 @@ def _apply_source_model_repair(
         return current_text, {"applied": False, "reason": "wave2_1_deterministic_repair_disabled"}
     if declared in {"cross_component_parameter_coupling_error", "control_loop_sign_semantic_drift", "mode_switch_guard_logic_error"} and not _wave2_2_deterministic_repair_enabled():
         return current_text, {"applied": False, "reason": "wave2_2_deterministic_repair_disabled"}
+    if declared in {"cascading_structural_failure", "coupled_conflict_failure", "false_friend_patch_trap"} and not _multi_round_deterministic_repair_enabled():
+        return current_text, {"applied": False, "reason": "multi_round_deterministic_repair_disabled"}
     source_text = str(source_model_text or "")
     if not source_text.strip():
         return current_text, {"applied": False, "reason": "source_model_text_missing"}
@@ -138,6 +149,12 @@ def _apply_source_model_repair(
         reason = "restored_source_model_text_for_control_loop_sign_semantic_drift"
     elif declared == "mode_switch_guard_logic_error":
         reason = "restored_source_model_text_for_mode_switch_guard_logic_error"
+    elif declared == "cascading_structural_failure":
+        reason = "restored_source_model_text_for_cascading_structural_failure"
+    elif declared == "coupled_conflict_failure":
+        reason = "restored_source_model_text_for_coupled_conflict_failure"
+    elif declared == "false_friend_patch_trap":
+        reason = "restored_source_model_text_for_false_friend_patch_trap"
     elif observed in {"model_check_error", "connector_mismatch"}:
         reason = "restored_source_model_text_for_connector_mismatch"
     else:
@@ -155,6 +172,10 @@ def _wave2_1_deterministic_repair_enabled() -> bool:
 
 def _wave2_2_deterministic_repair_enabled() -> bool:
     return str(os.getenv("GATEFORGE_AGENT_WAVE2_2_DETERMINISTIC_REPAIR") or "").strip() == "1"
+
+
+def _multi_round_deterministic_repair_enabled() -> bool:
+    return str(os.getenv("GATEFORGE_AGENT_MULTI_ROUND_DETERMINISTIC_REPAIR") or "").strip() == "1"
 
 
 def _apply_wave2_marker_repair(*, current_text: str, declared_failure_type: str) -> tuple[str, dict]:
@@ -214,6 +235,109 @@ def _apply_wave2_2_marker_repair(*, current_text: str, declared_failure_type: st
         return current_text, {"applied": False, "reason": "marker_not_detected"}
     kept = [line for idx, line in enumerate(lines) if idx not in remove_idx]
     return "".join(kept), {"applied": True, "reason": f"removed_{marker}_line", "removed_line_count": len(remove_idx)}
+
+
+def _restore_parameter_binding_from_source(*, current_text: str, source_model_text: str) -> tuple[str, dict]:
+    current_lines = str(current_text or "").splitlines(keepends=True)
+    source_lines = str(source_model_text or "").splitlines(keepends=True)
+    if not current_lines or not source_lines:
+        return current_text, {"applied": False, "reason": "source_or_current_text_missing"}
+    updated = list(current_lines)
+    replaced = 0
+    for idx, line in enumerate(current_lines):
+        lower = line.lower()
+        if "gateforge_parameter_binding_error" not in lower:
+            continue
+        match = re.search(r"\b([A-Za-z_][A-Za-z0-9_]*)\s*\(", line)
+        instance_name = str(match.group(1) or "").strip() if match else ""
+        replacement = ""
+        if instance_name:
+            for source_line in source_lines:
+                if "gateforge_parameter_binding_error" in source_line.lower():
+                    continue
+                if f"{instance_name}(" in source_line:
+                    replacement = source_line
+                    break
+        if not replacement:
+            continue
+        updated[idx] = replacement
+        replaced += 1
+    if replaced <= 0:
+        return current_text, {"applied": False, "reason": "parameter_binding_source_line_not_found"}
+    return "".join(updated), {"applied": True, "reason": "restored_parameter_binding_from_source", "replaced_line_count": replaced}
+
+
+def _remove_lines_with_marker(*, current_text: str, marker: str) -> tuple[str, dict]:
+    lines = str(current_text or "").splitlines(keepends=True)
+    remove_idx = {idx for idx, line in enumerate(lines) if marker in line.lower()}
+    if not remove_idx:
+        return current_text, {"applied": False, "reason": f"{marker}_not_detected"}
+    kept = [line for idx, line in enumerate(lines) if idx not in remove_idx]
+    return "".join(kept), {"applied": True, "reason": f"removed_{marker}_line", "removed_line_count": len(remove_idx)}
+
+
+def _apply_multi_round_layered_repair(
+    *,
+    current_text: str,
+    source_model_text: str,
+    declared_failure_type: str,
+    current_round: int,
+) -> tuple[str, dict]:
+    if not _multi_round_deterministic_repair_enabled():
+        return current_text, {"applied": False, "reason": "multi_round_deterministic_repair_disabled"}
+    try:
+        round_idx = max(1, int(current_round))
+    except Exception:
+        round_idx = 1
+    if round_idx < 2:
+        return current_text, {"applied": False, "reason": "multi_round_layered_repair_deferred_until_round_2"}
+    declared = str(declared_failure_type or "").strip().lower()
+    lower = str(current_text or "").lower()
+    if declared == "cascading_structural_failure":
+        if "gateforge_overconstrained_system" in lower:
+            patched, audit = _remove_lines_with_marker(
+                current_text=current_text,
+                marker="gateforge_overconstrained_system",
+            )
+            if bool(audit.get("applied")):
+                audit["reason"] = "multi_round_removed_overconstrained_layer"
+                return patched, audit
+        if "gateforge_solver_sensitive_simulate_failure" in lower:
+            patched, audit = _remove_lines_with_marker(
+                current_text=current_text,
+                marker="gateforge_solver_sensitive_simulate_failure",
+            )
+            if bool(audit.get("applied")):
+                audit["reason"] = "multi_round_removed_solver_sensitive_layer"
+                return patched, audit
+        return current_text, {"applied": False, "reason": "multi_round_cascade_no_supported_layer_detected"}
+    if declared == "coupled_conflict_failure":
+        if "gateforge_parameter_binding_error" in lower:
+            patched, audit = _restore_parameter_binding_from_source(
+                current_text=current_text,
+                source_model_text=source_model_text,
+            )
+            if bool(audit.get("applied")):
+                audit["reason"] = "multi_round_restored_parameter_binding_layer"
+                return patched, audit
+        if "gateforge_control_loop_sign_semantic_drift" in lower:
+            patched, audit = _remove_lines_with_marker(
+                current_text=current_text,
+                marker="gateforge_control_loop_sign_semantic_drift",
+            )
+            if bool(audit.get("applied")):
+                audit["reason"] = "multi_round_removed_control_loop_layer"
+                return patched, audit
+        if "gateforge_cross_component_parameter_coupling_error" in lower:
+            patched, audit = _remove_lines_with_marker(
+                current_text=current_text,
+                marker="gateforge_cross_component_parameter_coupling_error",
+            )
+            if bool(audit.get("applied")):
+                audit["reason"] = "multi_round_removed_cross_component_layer"
+                return patched, audit
+        return current_text, {"applied": False, "reason": "multi_round_conflict_no_supported_layer_detected"}
+    return current_text, {"applied": False, "reason": "declared_failure_type_not_supported"}
 
 
 def _apply_initialization_marker_repair(
@@ -667,6 +791,7 @@ def _gemini_repair_model_text(
     error_excerpt: str,
     repair_actions: list[str],
     model_name: str,
+    current_round: int = 1,
 ) -> tuple[str | None, str]:
     api_key = os.getenv("GOOGLE_API_KEY")
     if not api_key:
@@ -677,6 +802,10 @@ def _gemini_repair_model_text(
     model = os.getenv("LLM_MODEL") or os.getenv("GATEFORGE_GEMINI_MODEL") or os.getenv("GEMINI_MODEL")
     if not model:
         return None, "LLM_MODEL or GATEFORGE_GEMINI_MODEL or GEMINI_MODEL missing"
+    prompt_constraints = _llm_round_constraints(
+        failure_type=failure_type,
+        current_round=current_round,
+    )
     prompt = (
         "You are fixing a Modelica model.\n"
         "Return ONLY JSON object with keys: patched_model_text, rationale.\n"
@@ -684,6 +813,7 @@ def _gemini_repair_model_text(
         "- Keep model name unchanged.\n"
         "- Keep edits minimal and compile-oriented.\n"
         "- Do not output markdown.\n"
+        f"{prompt_constraints}"
         f"- model_name: {model_name}\n"
         f"- failure_type: {failure_type}\n"
         f"- expected_stage: {expected_stage}\n"
@@ -752,6 +882,7 @@ def _openai_repair_model_text(
     error_excerpt: str,
     repair_actions: list[str],
     model_name: str,
+    current_round: int = 1,
 ) -> tuple[str | None, str]:
     provider, model, api_key = _resolve_llm_provider("openai")
     if provider != "openai":
@@ -760,6 +891,10 @@ def _openai_repair_model_text(
         return None, "OPENAI_API_KEY missing"
     if not model:
         return None, "LLM_MODEL or OPENAI_MODEL missing"
+    prompt_constraints = _llm_round_constraints(
+        failure_type=failure_type,
+        current_round=current_round,
+    )
     prompt = (
         "You are fixing a Modelica model.\n"
         "Return ONLY JSON object with keys: patched_model_text, rationale.\n"
@@ -767,6 +902,7 @@ def _openai_repair_model_text(
         "- Keep model name unchanged.\n"
         "- Keep edits minimal and compile-oriented.\n"
         "- Do not output markdown.\n"
+        f"{prompt_constraints}"
         f"- model_name: {model_name}\n"
         f"- failure_type: {failure_type}\n"
         f"- expected_stage: {expected_stage}\n"
@@ -831,6 +967,7 @@ def _llm_repair_model_text(
     error_excerpt: str,
     repair_actions: list[str],
     model_name: str,
+    current_round: int = 1,
 ) -> tuple[str | None, str, str]:
     provider, _model, _key = _resolve_llm_provider(planner_backend)
     if provider == "openai":
@@ -841,6 +978,7 @@ def _llm_repair_model_text(
             error_excerpt=error_excerpt,
             repair_actions=repair_actions,
             model_name=model_name,
+            current_round=current_round,
         )
         return patched, err, provider
     if provider == "gemini":
@@ -851,9 +989,28 @@ def _llm_repair_model_text(
             error_excerpt=error_excerpt,
             repair_actions=repair_actions,
             model_name=model_name,
+            current_round=current_round,
         )
         return patched, err, provider
     return None, "rule_backend_selected", "rule"
+
+
+def _llm_round_constraints(*, failure_type: str, current_round: int) -> str:
+    failure = str(failure_type or "").strip().lower()
+    try:
+        round_idx = max(1, int(current_round))
+    except Exception:
+        round_idx = 1
+    if failure not in {"cascading_structural_failure", "coupled_conflict_failure", "false_friend_patch_trap"}:
+        return ""
+    if round_idx != 1:
+        return ""
+    return (
+        "- This is a multi-round repair task; in round 1 fix only the first exposed failure layer.\n"
+        "- Do not rewrite the whole model or restore all suspicious changes at once.\n"
+        "- Limit the patch to one localized repair cluster and preserve other suspicious edits for later rounds.\n"
+        "- Do not perform broad cleanup, broad source restoration, or multi-site semantic normalization in round 1.\n"
+    )
 
 
 def _parse_repair_actions(raw: str) -> list[str]:
@@ -1252,6 +1409,18 @@ def main() -> None:
                 final_error = "wave2_2_marker_repair_applied_retry_pending"
                 continue
 
+            multi_round_repaired_text, multi_round_repair = _apply_multi_round_layered_repair(
+                current_text=current_text,
+                source_model_text=source_model_text,
+                declared_failure_type=str(args.failure_type),
+                current_round=round_idx,
+            )
+            attempts[-1]["multi_round_layered_repair"] = multi_round_repair
+            if bool(multi_round_repair.get("applied")):
+                current_text = multi_round_repaired_text
+                final_error = "multi_round_layered_repair_applied_retry_pending"
+                continue
+
             source_repaired_text, source_repair = _apply_source_model_repair(
                 current_text=current_text,
                 source_model_text=source_model_text,
@@ -1273,6 +1442,7 @@ def main() -> None:
                     error_excerpt=str(output or "")[-1800:],
                     repair_actions=repair_actions,
                     model_name=model_name,
+                    current_round=round_idx,
                 )
                 if isinstance(patched, str) and patched.strip():
                     current_text = patched
