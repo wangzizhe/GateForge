@@ -33,7 +33,7 @@ def _task_index(taskset_payload: dict) -> dict[str, dict]:
     return {str(task.get("task_id") or "").strip(): task for task in tasks if str(task.get("task_id") or "").strip()}
 
 
-def _record_buckets(taskset_payload: dict, results_payload: dict) -> tuple[dict[str, dict], dict[str, dict], dict[str, dict], dict[str, dict], int, list[str], int]:
+def _record_buckets(taskset_payload: dict, results_payload: dict) -> tuple[dict[str, dict], dict[str, dict], dict[str, dict], dict[str, dict], int, list[str], int, list[str]]:
     task_map = _task_index(taskset_payload)
     success_by_failure_type: dict[str, dict] = {}
     failure_breakdown_by_failure_type: dict[str, dict] = {}
@@ -42,6 +42,7 @@ def _record_buckets(taskset_payload: dict, results_payload: dict) -> tuple[dict[
     trivial_restore_suspected_count = 0
     trivial_restore_suspected_task_ids: list[str] = []
     t0_failure_suspected_count = 0
+    first_round_pass_task_ids: list[str] = []
     for record in [row for row in (results_payload.get("records") or []) if isinstance(row, dict)]:
         task = task_map.get(str(record.get("task_id") or "").strip(), {})
         task_id = str(record.get("task_id") or "").strip()
@@ -54,6 +55,8 @@ def _record_buckets(taskset_payload: dict, results_payload: dict) -> tuple[dict[
         if bool(record.get("passed")):
             success_row["success_count"] += 1
             coupling_row["success_count"] += 1
+            if int(record.get("rounds_used") or 0) <= 1:
+                first_round_pass_task_ids.append(task_id)
         parse_row = diagnostic_parse_coverage_by_failure_type.setdefault(failure_type, {"task_count": 0, "diagnostic_parse_count": 0})
         parse_row["task_count"] += 1
         audit = record.get("repair_audit") if isinstance(record.get("repair_audit"), dict) else {}
@@ -104,7 +107,7 @@ def _record_buckets(taskset_payload: dict, results_payload: dict) -> tuple[dict[
         bucket["success_at_k_pct"] = _ratio(int(bucket.get("success_count") or 0), int(bucket.get("task_count") or 0))
     for bucket in diagnostic_parse_coverage_by_failure_type.values():
         bucket["diagnostic_parse_coverage_pct"] = _ratio(int(bucket.get("diagnostic_parse_count") or 0), int(bucket.get("task_count") or 0))
-    return success_by_failure_type, failure_breakdown_by_failure_type, diagnostic_parse_coverage_by_failure_type, success_by_coupling_span, trivial_restore_suspected_count, trivial_restore_suspected_task_ids, t0_failure_suspected_count
+    return success_by_failure_type, failure_breakdown_by_failure_type, diagnostic_parse_coverage_by_failure_type, success_by_coupling_span, trivial_restore_suspected_count, trivial_restore_suspected_task_ids, t0_failure_suspected_count, first_round_pass_task_ids
 
 
 def main() -> None:
@@ -118,7 +121,7 @@ def main() -> None:
     baseline_summary = _load_json(args.baseline_summary)
     baseline_results = _load_json(args.baseline_results)
     taskset = _load_json(str(challenge.get("taskset_frozen_path") or ""))
-    success_by_failure_type, failure_breakdown_by_failure_type, diagnostic_parse_coverage_by_failure_type, success_by_coupling_span, trivial_restore_suspected_count, trivial_restore_suspected_task_ids, t0_failure_suspected_count = _record_buckets(taskset, baseline_results)
+    success_by_failure_type, failure_breakdown_by_failure_type, diagnostic_parse_coverage_by_failure_type, success_by_coupling_span, trivial_restore_suspected_count, trivial_restore_suspected_task_ids, t0_failure_suspected_count, first_round_pass_task_ids = _record_buckets(taskset, baseline_results)
     total_tasks = int(challenge.get("total_tasks") or 0)
     first_round_pass_count = len(
         [
@@ -157,7 +160,10 @@ def main() -> None:
         "trivial_restore_suspected_count": trivial_restore_suspected_count,
         "trivial_restore_suspected_pct": _ratio(trivial_restore_suspected_count, total_tasks),
         "trivial_restore_suspected_task_ids": trivial_restore_suspected_task_ids,
+        "first_round_pass_count": first_round_pass_count,
         "first_round_pass_pct": _ratio(first_round_pass_count, total_tasks),
+        "first_round_pass_task_ids": first_round_pass_task_ids,
+        "median_repair_rounds": float(baseline_summary.get("median_repair_rounds") or 0.0),
         "t0_failure_suspected_count": t0_failure_suspected_count,
         "source_dependency_backed_task_pct": _ratio(source_dependency_backed_count, total_tasks),
         "delayed_failure_signal_pct": _ratio(delayed_failure_signal_count, total_tasks),

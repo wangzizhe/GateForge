@@ -495,6 +495,44 @@ def _normalize_declared_coupled_hard_failure_type(
         ) or "mode_switch_guard_logic_error" in context:
             return "simulate_error", "mode_switch_guard_logic_error", "mode-switch guard logic error"
 
+    if declared == "cascading_structural_failure":
+        if _contains_any(
+            lower,
+            (
+                "cascading_structural_failure",
+                "too few equations",
+                "structurally singular",
+                "initialization failed",
+                "under-determined",
+            ),
+        ) or "cascading_structural_failure" in context:
+            return "simulate_error", "cascading_structural_failure", "cascading structural failure"
+
+    if declared == "coupled_conflict_failure":
+        if _contains_any(
+            lower,
+            (
+                "coupled_conflict_failure",
+                "semantic regression",
+                "regression_fail",
+                "physics_contract_fail",
+                "assertion",
+            ),
+        ) or "coupled_conflict_failure" in context:
+            return "semantic_regression", "coupled_conflict_failure", "coupled conflict failure"
+
+    if declared == "false_friend_patch_trap":
+        if _contains_any(
+            lower,
+            (
+                "false_friend_patch_trap",
+                "semantic regression",
+                "simulation failed",
+                "assertion",
+            ),
+        ) or "false_friend_patch_trap" in context:
+            return "semantic_regression", "false_friend_patch_trap", "false-friend patch trap"
+
     return error_type, error_subtype, reason
 
 

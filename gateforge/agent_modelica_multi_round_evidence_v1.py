@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 
-SCHEMA_VERSION = "agent_modelica_wave2_2_evidence_v1"
+SCHEMA_VERSION = "agent_modelica_multi_round_evidence_v1"
 
 
 def _load_json(path: str) -> dict:
@@ -16,7 +16,7 @@ def _load_json(path: str) -> dict:
     return json.loads(p.read_text(encoding="utf-8"))
 
 
-def _write_json(path: str, payload: object) -> None:
+def _write_json(path: str, payload: dict) -> None:
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(json.dumps(payload, indent=2), encoding="utf-8")
@@ -54,22 +54,21 @@ def _decision_status(
     deterministic_pct: float,
     retrieval_pct: float,
     first_round_pass_pct: float,
-) -> tuple[str, str, str]:
-    if baseline_pct < 100.0:
-        if retrieval_pct > deterministic_pct:
-            return "retrieval_uplift_observed", "promote", "none"
-        if deterministic_pct > baseline_pct:
-            return "deterministic_uplift_observed", "promote", "none"
-        return "headroom_remaining", "needs_review", "headroom_remaining"
-    if baseline_pct >= 100.0 and first_round_pass_pct > 85.0:
-        return "task_construction_still_too_easy", "hold", "task_construction_still_too_easy"
+    median_repair_rounds: float,
+) -> tuple[str, str, str, str]:
+    if baseline_pct >= 100.0 and (first_round_pass_pct > 85.0 or median_repair_rounds < 2.0):
+        return "not_observed", "not_observed", "hold", "task_construction_still_too_easy"
     if baseline_pct >= 100.0:
-        return "baseline_already_saturated", "needs_review", "baseline_already_saturated"
-    return "coverage_high_uplift_zero", "needs_review", "uplift_not_observed"
+        return "not_observed", "not_observed", "needs_review", "baseline_already_saturated_but_nontrivial"
+    deterministic_status = "observed" if deterministic_pct > baseline_pct else "not_observed"
+    retrieval_status = "retrieval_uplift_observed" if retrieval_pct > max(baseline_pct, deterministic_pct) else "not_observed"
+    if deterministic_status == "observed" or retrieval_status == "retrieval_uplift_observed":
+        return retrieval_status, deterministic_status, "promote", "none"
+    return retrieval_status, deterministic_status, "needs_review", "multi_round_headroom_present"
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Summarize wave2.2 coupled-hard evidence")
+    parser = argparse.ArgumentParser(description="Summarize multi-round evidence")
     parser.add_argument("--challenge-summary", required=True)
     parser.add_argument("--baseline-summary", required=True)
     parser.add_argument("--baseline-results", required=True)
@@ -78,9 +77,9 @@ def main() -> None:
     parser.add_argument("--retrieval-summary", required=True)
     parser.add_argument("--retrieval-results", required=True)
     parser.add_argument("--retrieval-audit-summary", required=True)
-    parser.add_argument("--out", default="artifacts/agent_modelica_wave2_2_coupled_hard_live_evidence_v1/evidence_summary.json")
-    parser.add_argument("--gate-out", default="artifacts/agent_modelica_wave2_2_coupled_hard_live_evidence_v1/gate_summary.json")
-    parser.add_argument("--decision-out", default="artifacts/agent_modelica_wave2_2_coupled_hard_live_evidence_v1/decision_summary.json")
+    parser.add_argument("--out", default="artifacts/agent_modelica_multi_round_failure_live_evidence_v1/evidence_summary.json")
+    parser.add_argument("--gate-out", default="artifacts/agent_modelica_multi_round_failure_live_evidence_v1/gate_summary.json")
+    parser.add_argument("--decision-out", default="artifacts/agent_modelica_multi_round_failure_live_evidence_v1/decision_summary.json")
     args = parser.parse_args()
 
     challenge = _load_json(args.challenge_summary)
@@ -96,14 +95,23 @@ def main() -> None:
     baseline_pct = float(baseline_summary.get("success_at_k_pct") or 0.0)
     deterministic_pct = float(deterministic_summary.get("success_at_k_pct") or baseline_pct)
     retrieval_pct = float(retrieval_summary.get("success_at_k_pct") or deterministic_pct)
-    first_round_pass_pct = float(baseline_summary.get("first_round_pass_pct") or 0.0)
-    retrieval_uplift_status, decision, primary_reason = _decision_status(
+    first_round_pass_pct = float(
+        baseline_summary.get("executor_first_attempt_pass_pct")
+        or baseline_summary.get("first_round_pass_pct")
+        or 0.0
+    )
+    median_repair_rounds = float(
+        baseline_summary.get("median_executor_attempts")
+        or baseline_summary.get("median_repair_rounds")
+        or 0.0
+    )
+    retrieval_uplift_status, deterministic_uplift_status, decision, primary_reason = _decision_status(
         baseline_pct=baseline_pct,
         deterministic_pct=deterministic_pct,
         retrieval_pct=retrieval_pct,
         first_round_pass_pct=first_round_pass_pct,
+        median_repair_rounds=median_repair_rounds,
     )
-    trivial_restore_suspected_pct = float(baseline_summary.get("trivial_restore_suspected_pct") or 0.0)
     gate_status = "PASS" if decision == "promote" else ("NEEDS_REVIEW" if decision in {"needs_review", "hold"} else "FAIL")
 
     baseline_by_failure = _success_by_failure_type(taskset, baseline_results)
@@ -111,16 +119,16 @@ def main() -> None:
     retrieval_by_failure = _success_by_failure_type(taskset, retrieval_results)
     success_by_failure_type: dict[str, dict] = {}
     for failure_type in sorted(set(baseline_by_failure.keys()) | set(deterministic_by_failure.keys()) | set(retrieval_by_failure.keys())):
-        base_row = baseline_by_failure.get(failure_type, {})
-        det_row = deterministic_by_failure.get(failure_type, {})
-        ret_row = retrieval_by_failure.get(failure_type, {})
+        base = baseline_by_failure.get(failure_type, {})
+        det = deterministic_by_failure.get(failure_type, {})
+        ret = retrieval_by_failure.get(failure_type, {})
         success_by_failure_type[failure_type] = {
-            "task_count": int(ret_row.get("task_count") or det_row.get("task_count") or base_row.get("task_count") or 0),
-            "baseline_off_success_at_k_pct": float(base_row.get("success_at_k_pct") or 0.0),
-            "deterministic_on_success_at_k_pct": float(det_row.get("success_at_k_pct") or 0.0),
-            "retrieval_on_success_at_k_pct": float(ret_row.get("success_at_k_pct") or 0.0),
-            "deterministic_delta_pp": round(float(det_row.get("success_at_k_pct") or 0.0) - float(base_row.get("success_at_k_pct") or 0.0), 2),
-            "retrieval_delta_pp": round(float(ret_row.get("success_at_k_pct") or 0.0) - float(det_row.get("success_at_k_pct") or 0.0), 2),
+            "task_count": int(ret.get("task_count") or det.get("task_count") or base.get("task_count") or 0),
+            "baseline_off_success_at_k_pct": float(base.get("success_at_k_pct") or 0.0),
+            "deterministic_on_success_at_k_pct": float(det.get("success_at_k_pct") or 0.0),
+            "retrieval_on_success_at_k_pct": float(ret.get("success_at_k_pct") or 0.0),
+            "deterministic_delta_pp": round(float(det.get("success_at_k_pct") or 0.0) - float(base.get("success_at_k_pct") or 0.0), 2),
+            "retrieval_delta_pp": round(float(ret.get("success_at_k_pct") or 0.0) - float(det.get("success_at_k_pct") or 0.0), 2),
         }
 
     evidence = {
@@ -129,7 +137,9 @@ def main() -> None:
         "status": gate_status,
         "counts_by_library": challenge.get("counts_by_library") if isinstance(challenge.get("counts_by_library"), dict) else {},
         "counts_by_failure_type": challenge.get("counts_by_failure_type") if isinstance(challenge.get("counts_by_failure_type"), dict) else {},
-        "counts_by_coupling_span": challenge.get("counts_by_coupling_span") if isinstance(challenge.get("counts_by_coupling_span"), dict) else {},
+        "counts_by_multi_round_family": challenge.get("counts_by_multi_round_family") if isinstance(challenge.get("counts_by_multi_round_family"), dict) else {},
+        "counts_by_expected_rounds_min": challenge.get("counts_by_expected_rounds_min") if isinstance(challenge.get("counts_by_expected_rounds_min"), dict) else {},
+        "cascade_depth_distribution": challenge.get("cascade_depth_distribution") if isinstance(challenge.get("cascade_depth_distribution"), dict) else {},
         "success_at_k": {
             "baseline_off_pct": baseline_pct,
             "deterministic_on_pct": deterministic_pct,
@@ -138,23 +148,27 @@ def main() -> None:
             "retrieval_delta_pp": round(retrieval_pct - deterministic_pct, 2),
         },
         "success_by_failure_type": success_by_failure_type,
-        "success_by_coupling_span": baseline_summary.get("success_by_coupling_span") if isinstance(baseline_summary.get("success_by_coupling_span"), dict) else {},
-        "failure_breakdown_by_failure_type": baseline_summary.get("failure_breakdown_by_failure_type") if isinstance(baseline_summary.get("failure_breakdown_by_failure_type"), dict) else {},
-        "diagnostic_parse_coverage_by_failure_type": baseline_summary.get("diagnostic_parse_coverage_by_failure_type") if isinstance(baseline_summary.get("diagnostic_parse_coverage_by_failure_type"), dict) else {},
-        "trivial_restore_suspected_count": int(baseline_summary.get("trivial_restore_suspected_count") or 0),
-        "trivial_restore_suspected_pct": trivial_restore_suspected_pct,
-        "first_round_pass_count": int(baseline_summary.get("first_round_pass_count") or 0),
+        "round_histogram": baseline_summary.get("round_histogram") if isinstance(baseline_summary.get("round_histogram"), dict) else {},
+        "executor_attempt_histogram": baseline_summary.get("executor_attempt_histogram") if isinstance(baseline_summary.get("executor_attempt_histogram"), dict) else {},
+        "rounds_by_failure_type": baseline_summary.get("rounds_by_failure_type") if isinstance(baseline_summary.get("rounds_by_failure_type"), dict) else {},
         "first_round_pass_pct": first_round_pass_pct,
-        "median_repair_rounds": float(baseline_summary.get("median_repair_rounds") or 0.0),
-        "t0_failure_suspected_count": int(baseline_summary.get("t0_failure_suspected_count") or 0),
-        "source_dependency_backed_task_pct": float(baseline_summary.get("source_dependency_backed_task_pct") or 0.0),
-        "delayed_failure_signal_pct": float(baseline_summary.get("delayed_failure_signal_pct") or 0.0),
+        "second_round_pass_pct": float(baseline_summary.get("second_round_pass_pct") or 0.0),
+        "third_round_pass_pct": float(baseline_summary.get("third_round_pass_pct") or 0.0),
+        "median_repair_rounds": median_repair_rounds,
+        "executor_first_attempt_pass_pct": float(baseline_summary.get("executor_first_attempt_pass_pct") or 0.0),
+        "executor_second_attempt_pass_pct": float(baseline_summary.get("executor_second_attempt_pass_pct") or 0.0),
+        "executor_third_attempt_pass_pct": float(baseline_summary.get("executor_third_attempt_pass_pct") or 0.0),
+        "median_executor_attempts": float(baseline_summary.get("median_executor_attempts") or 0.0),
         "retrieval_coverage_pct": float(retrieval_audit.get("retrieval_coverage_pct") or 0.0),
         "match_signal_coverage_pct": float(retrieval_audit.get("match_signal_coverage_pct") or 0.0),
         "retrieval_uplift_status": retrieval_uplift_status,
-        "deterministic_uplift_status": "observed" if deterministic_pct > baseline_pct else "not_observed",
+        "deterministic_uplift_status": deterministic_uplift_status,
         "baseline_saturation_status": "saturated" if baseline_pct >= 100.0 else "headroom_remaining",
-        "next_priority_gap_family": "task_construction" if baseline_pct >= 100.0 else "deterministic repair policy",
+        "next_priority_gap_family": (
+            "task_construction"
+            if baseline_pct >= 100.0
+            else ("retrieval policy" if deterministic_uplift_status == "observed" and retrieval_uplift_status != "retrieval_uplift_observed" else "deterministic repair policy")
+        ),
     }
     gate = {
         "schema_version": SCHEMA_VERSION,
@@ -166,6 +180,8 @@ def main() -> None:
         "retrieval_uplift_status": retrieval_uplift_status,
         "baseline_saturation_status": evidence["baseline_saturation_status"],
         "retrieval_coverage_pct": evidence["retrieval_coverage_pct"],
+        "executor_first_attempt_pass_pct": evidence["executor_first_attempt_pass_pct"],
+        "median_executor_attempts": evidence["median_executor_attempts"],
     }
     decision_summary = {
         "schema_version": SCHEMA_VERSION,
@@ -173,7 +189,7 @@ def main() -> None:
         "status": gate_status,
         "decision": decision,
         "primary_reason": primary_reason,
-        "counts_by_library": evidence.get("counts_by_library"),
+        "counts_by_library": evidence["counts_by_library"],
         "success_by_failure_type": success_by_failure_type,
         "baseline_vs_deterministic_by_failure_type": {k: {"baseline_off_success_at_k_pct": v["baseline_off_success_at_k_pct"], "deterministic_on_success_at_k_pct": v["deterministic_on_success_at_k_pct"], "delta_pp": v["deterministic_delta_pp"]} for k, v in success_by_failure_type.items()},
         "baseline_vs_retrieval_by_failure_type": {k: {"baseline_off_success_at_k_pct": v["baseline_off_success_at_k_pct"], "retrieval_on_success_at_k_pct": v["retrieval_on_success_at_k_pct"], "delta_pp": round(v["retrieval_on_success_at_k_pct"] - v["baseline_off_success_at_k_pct"], 2)} for k, v in success_by_failure_type.items()},
@@ -181,6 +197,8 @@ def main() -> None:
         "deterministic_uplift_status": evidence["deterministic_uplift_status"],
         "baseline_saturation_status": evidence["baseline_saturation_status"],
         "retrieval_coverage_pct": evidence["retrieval_coverage_pct"],
+        "executor_first_attempt_pass_pct": evidence["executor_first_attempt_pass_pct"],
+        "median_executor_attempts": evidence["median_executor_attempts"],
         "next_priority_gap_family": evidence["next_priority_gap_family"],
     }
     _write_json(args.out, evidence)
