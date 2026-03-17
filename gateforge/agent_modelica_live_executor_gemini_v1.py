@@ -21,6 +21,7 @@ DEFAULT_DOCKER_IMAGE = "openmodelica/openmodelica:v1.26.1-minimal"
 ENV_KEY_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 LIVE_LEDGER_SCHEMA_VERSION = "agent_modelica_live_request_ledger_v1"
 OPENAI_MODEL_HINT_PATTERN = re.compile(r"^(gpt|o[0-9]|chatgpt|gpt-5)", re.IGNORECASE)
+BEHAVIORAL_MARKER_PREFIX = "gateforge_behavioral_contract_violation"
 
 
 def _read_text(path: Path) -> str:
@@ -67,6 +68,14 @@ def _diagnostic_context_hints_from_model(*, failure_type: str, expected_stage: s
         hints.extend(["coupled_conflict_failure", "paired_conflict"])
     if "gateforge_false_friend_patch_trap" in lower:
         hints.extend(["false_friend_patch_trap", "false_friend_trap"])
+    if BEHAVIORAL_MARKER_PREFIX in lower:
+        hints.append("behavioral_contract_violation")
+    if "steady_state_target_violation" in lower:
+        hints.extend(["steady_state_target_violation", "steady_state_contract_miss"])
+    if "transient_response_contract_violation" in lower:
+        hints.extend(["transient_response_contract_violation", "transient_contract_miss"])
+    if "mode_transition_contract_violation" in lower:
+        hints.extend(["mode_transition_contract_violation", "mode_transition_contract_miss"])
     return hints
 
 
@@ -114,6 +123,9 @@ def _apply_source_model_repair(
         "cascading_structural_failure",
         "coupled_conflict_failure",
         "false_friend_patch_trap",
+        "steady_state_target_violation",
+        "transient_response_contract_violation",
+        "mode_transition_contract_violation",
     }:
         return current_text, {"applied": False, "reason": "declared_failure_type_not_supported"}
     if declared in {"overconstrained_system", "parameter_binding_error", "array_dimension_mismatch"} and not _wave2_deterministic_repair_enabled():
@@ -124,6 +136,8 @@ def _apply_source_model_repair(
         return current_text, {"applied": False, "reason": "wave2_2_deterministic_repair_disabled"}
     if declared in {"cascading_structural_failure", "coupled_conflict_failure", "false_friend_patch_trap"} and not _multi_round_deterministic_repair_enabled():
         return current_text, {"applied": False, "reason": "multi_round_deterministic_repair_disabled"}
+    if declared in {"steady_state_target_violation", "transient_response_contract_violation", "mode_transition_contract_violation"} and not _behavioral_contract_deterministic_repair_enabled():
+        return current_text, {"applied": False, "reason": "behavioral_contract_deterministic_repair_disabled"}
     source_text = str(source_model_text or "")
     if not source_text.strip():
         return current_text, {"applied": False, "reason": "source_model_text_missing"}
@@ -155,6 +169,12 @@ def _apply_source_model_repair(
         reason = "restored_source_model_text_for_coupled_conflict_failure"
     elif declared == "false_friend_patch_trap":
         reason = "restored_source_model_text_for_false_friend_patch_trap"
+    elif declared == "steady_state_target_violation":
+        reason = "restored_source_model_text_for_steady_state_target_violation"
+    elif declared == "transient_response_contract_violation":
+        reason = "restored_source_model_text_for_transient_response_contract_violation"
+    elif declared == "mode_transition_contract_violation":
+        reason = "restored_source_model_text_for_mode_transition_contract_violation"
     elif observed in {"model_check_error", "connector_mismatch"}:
         reason = "restored_source_model_text_for_connector_mismatch"
     else:
@@ -176,6 +196,10 @@ def _wave2_2_deterministic_repair_enabled() -> bool:
 
 def _multi_round_deterministic_repair_enabled() -> bool:
     return str(os.getenv("GATEFORGE_AGENT_MULTI_ROUND_DETERMINISTIC_REPAIR") or "").strip() == "1"
+
+
+def _behavioral_contract_deterministic_repair_enabled() -> bool:
+    return str(os.getenv("GATEFORGE_AGENT_BEHAVIORAL_CONTRACT_DETERMINISTIC_REPAIR") or "").strip() == "1"
 
 
 def _apply_wave2_marker_repair(*, current_text: str, declared_failure_type: str) -> tuple[str, dict]:
@@ -338,6 +362,42 @@ def _apply_multi_round_layered_repair(
                 return patched, audit
         return current_text, {"applied": False, "reason": "multi_round_conflict_no_supported_layer_detected"}
     return current_text, {"applied": False, "reason": "declared_failure_type_not_supported"}
+
+
+def _normalize_behavioral_contract_text(text: str) -> str:
+    rows: list[str] = []
+    for line in str(text or "").splitlines():
+        lowered = line.strip().lower()
+        if lowered.startswith(f"// {BEHAVIORAL_MARKER_PREFIX}".lower()):
+            continue
+        rows.append(" ".join(line.split()))
+    return "\n".join([row for row in rows if row])
+
+
+def _behavioral_contract_bucket(failure_type: str) -> str:
+    mapping = {
+        "steady_state_target_violation": "steady_state_miss",
+        "transient_response_contract_violation": "overshoot_or_settling_violation",
+        "mode_transition_contract_violation": "mode_transition_miss",
+    }
+    return mapping.get(str(failure_type or "").strip().lower(), "behavioral_contract_fail")
+
+
+def _evaluate_behavioral_contract_from_model_text(*, current_text: str, source_model_text: str, failure_type: str) -> dict | None:
+    declared = str(failure_type or "").strip().lower()
+    if declared not in {
+        "steady_state_target_violation",
+        "transient_response_contract_violation",
+        "mode_transition_contract_violation",
+    }:
+        return None
+    passed = _normalize_behavioral_contract_text(current_text) == _normalize_behavioral_contract_text(source_model_text)
+    bucket = _behavioral_contract_bucket(declared)
+    return {
+        "pass": passed,
+        "reasons": [] if passed else [bucket],
+        "contract_fail_bucket": "" if passed else bucket,
+    }
 
 
 def _apply_initialization_marker_repair(
@@ -1342,18 +1402,35 @@ def main() -> None:
                 }
             )
             if check_ok and simulate_ok:
-                final_check_ok = True
-                final_simulate_ok = True
-                executor_status = "PASS"
+                behavioral_eval = _evaluate_behavioral_contract_from_model_text(
+                    current_text=current_text,
+                    source_model_text=source_model_text,
+                    failure_type=str(args.failure_type),
+                )
+                if isinstance(behavioral_eval, dict):
+                    attempts[-1]["physics_contract_pass"] = bool(behavioral_eval.get("pass"))
+                    attempts[-1]["physics_contract_reasons"] = [
+                        str(x) for x in (behavioral_eval.get("reasons") or []) if str(x).strip()
+                    ]
+                    attempts[-1]["contract_pass"] = bool(behavioral_eval.get("pass"))
+                    attempts[-1]["contract_fail_bucket"] = str(behavioral_eval.get("contract_fail_bucket") or "")
+                if not isinstance(behavioral_eval, dict) or bool(behavioral_eval.get("pass")):
+                    final_check_ok = True
+                    final_simulate_ok = True
+                    executor_status = "PASS"
+                    final_stderr = str(output or "")[-1200:]
+                    break
+                final_error = str(behavioral_eval.get("contract_fail_bucket") or "behavioral_contract_fail")
+                final_sim_error = final_error
                 final_stderr = str(output or "")[-1200:]
-                break
 
-            final_error = reason or "repair_round_failed"
+            if not (check_ok and simulate_ok):
+                final_error = reason or "repair_round_failed"
             if not check_ok:
                 final_compile_error = reason or "compile_failed"
             if check_ok and not simulate_ok:
                 final_sim_error = reason or "simulate_failed"
-            final_stderr = str(output or "")[-1200:]
+                final_stderr = str(output or "")[-1200:]
 
             if round_idx >= max(1, int(args.max_rounds)):
                 break
@@ -1460,6 +1537,20 @@ def main() -> None:
         compile_error=final_compile_error,
         simulate_error=final_sim_error,
     )
+    behavioral_eval = None
+    if bool(final_check_ok and final_simulate_ok):
+        behavioral_eval = _evaluate_behavioral_contract_from_model_text(
+            current_text=current_text,
+            source_model_text=source_model_text,
+            failure_type=str(args.failure_type),
+        )
+    physics_contract_pass = bool(final_check_ok and final_simulate_ok)
+    physics_contract_reasons: list[str] = []
+    contract_fail_bucket = ""
+    if isinstance(behavioral_eval, dict):
+        physics_contract_pass = bool(behavioral_eval.get("pass"))
+        physics_contract_reasons = [str(x) for x in (behavioral_eval.get("reasons") or []) if str(x).strip()]
+        contract_fail_bucket = str(behavioral_eval.get("contract_fail_bucket") or "")
     payload = {
         "task_id": str(args.task_id),
         "failure_type": str(args.failure_type),
@@ -1470,7 +1561,10 @@ def main() -> None:
         "uses_external_library": bool(layout.uses_external_library) if "layout" in locals() else False,
         "check_model_pass": bool(final_check_ok),
         "simulate_pass": bool(final_simulate_ok),
-        "physics_contract_pass": bool(final_check_ok and final_simulate_ok),
+        "physics_contract_pass": bool(physics_contract_pass),
+        "physics_contract_reasons": physics_contract_reasons,
+        "contract_pass": bool(physics_contract_pass),
+        "contract_fail_bucket": contract_fail_bucket,
         "regression_pass": bool(final_check_ok and final_simulate_ok),
         "elapsed_sec": elapsed,
         "error_message": final_error,

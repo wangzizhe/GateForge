@@ -72,6 +72,21 @@ DEFAULT_RULES = {
         "prefer grouped source-aligned repairs over isolated trap-friendly edits",
         "rerun simulate after each patch and inspect whether a second-layer failure emerged",
     ],
+    "steady_state_target_violation": [
+        "restore source gain, height, or steady-state scaling before broader edits",
+        "prefer source-aligned parameter repair over topology or declaration changes",
+        "rerun simulate and re-check the steady-state target before accepting the patch",
+    ],
+    "transient_response_contract_violation": [
+        "restore source transient-shaping parameters such as width, period, damping, or gain first",
+        "prefer localized timing and response repair over broad structural edits",
+        "rerun simulate and inspect overshoot and settling behavior before accepting the patch",
+    ],
+    "mode_transition_contract_violation": [
+        "restore source transition timing, threshold, and recovery parameters first",
+        "avoid broad edits when the mismatch is localized to mode-transition behavior",
+        "rerun simulate and check post-transition recovery before accepting the patch",
+    ],
 }
 
 
