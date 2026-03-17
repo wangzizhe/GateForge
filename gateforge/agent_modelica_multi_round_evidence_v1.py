@@ -97,6 +97,54 @@ def _result_medians(results_payload: dict) -> tuple[float, float]:
     return round(_median(attempt_values), 2), round(_median(time_values), 2)
 
 
+def _result_medians_by_failure_type(taskset_payload: dict, results_payload: dict) -> dict[str, dict]:
+    task_map = _task_index(taskset_payload)
+    grouped: dict[str, dict[str, list[float]]] = {}
+    for record in [row for row in (results_payload.get("records") or []) if isinstance(row, dict) and bool(row.get("passed"))]:
+        task = task_map.get(str(record.get("task_id") or "").strip(), {})
+        failure_type = str(task.get("failure_type") or "unknown").strip().lower()
+        bucket = grouped.setdefault(failure_type, {"attempts": [], "time_to_pass_sec": []})
+        bucket["attempts"].append(float(_executor_attempt_count(record)))
+        try:
+            bucket["time_to_pass_sec"].append(float(record.get("time_to_pass_sec") or 0.0))
+        except Exception:
+            pass
+    return {
+        key: {
+            "median_executor_attempts": round(_median(value.get("attempts") or []), 2),
+            "median_time_to_pass_sec": round(_median(value.get("time_to_pass_sec") or []), 2),
+        }
+        for key, value in grouped.items()
+    }
+
+
+def _retrieval_status(
+    *,
+    baseline_pct: float,
+    deterministic_pct: float,
+    retrieval_pct: float,
+    deterministic_attempts: float,
+    retrieval_attempts: float,
+    deterministic_time_sec: float,
+    retrieval_time_sec: float,
+) -> str:
+    if retrieval_pct > max(baseline_pct, deterministic_pct):
+        return "retrieval_uplift_observed"
+    if retrieval_pct >= deterministic_pct and deterministic_pct > baseline_pct:
+        if (
+            retrieval_attempts > 0.0
+            and deterministic_attempts > 0.0
+            and retrieval_attempts < deterministic_attempts
+        ) or (
+            retrieval_time_sec > 0.0
+            and deterministic_time_sec > 0.0
+            and retrieval_time_sec + 0.05 < deterministic_time_sec
+        ):
+            return "retrieval_uplift_observed"
+        return "retrieval_hold_the_floor"
+    return "not_observed"
+
+
 def _decision_status(
     *,
     baseline_pct: float,
@@ -104,18 +152,25 @@ def _decision_status(
     retrieval_pct: float,
     first_round_pass_pct: float,
     median_repair_rounds: float,
+    deterministic_attempts: float,
+    retrieval_attempts: float,
+    deterministic_time_sec: float,
+    retrieval_time_sec: float,
 ) -> tuple[str, str, str, str]:
     if baseline_pct >= 100.0 and (first_round_pass_pct > 85.0 or median_repair_rounds < 2.0):
         return "not_observed", "not_observed", "hold", "task_construction_still_too_easy"
     if baseline_pct >= 100.0:
         return "not_observed", "not_observed", "needs_review", "baseline_already_saturated_but_nontrivial"
     deterministic_status = "observed" if deterministic_pct > baseline_pct else "not_observed"
-    if retrieval_pct > max(baseline_pct, deterministic_pct):
-        retrieval_status = "retrieval_uplift_observed"
-    elif deterministic_status == "observed" and retrieval_pct >= deterministic_pct:
-        retrieval_status = "retrieval_hold_the_floor"
-    else:
-        retrieval_status = "not_observed"
+    retrieval_status = _retrieval_status(
+        baseline_pct=baseline_pct,
+        deterministic_pct=deterministic_pct,
+        retrieval_pct=retrieval_pct,
+        deterministic_attempts=deterministic_attempts,
+        retrieval_attempts=retrieval_attempts,
+        deterministic_time_sec=deterministic_time_sec,
+        retrieval_time_sec=retrieval_time_sec,
+    )
     if deterministic_status == "observed" or retrieval_status == "retrieval_uplift_observed":
         return retrieval_status, deterministic_status, "promote", "none"
     return retrieval_status, deterministic_status, "needs_review", "multi_round_headroom_present"
@@ -147,6 +202,8 @@ def main() -> None:
     taskset = _load_json(str(challenge.get("taskset_frozen_path") or ""))
     deterministic_executor_median_attempts, deterministic_median_time_to_pass_sec = _result_medians(deterministic_results)
     retrieval_executor_median_attempts, retrieval_median_time_to_pass_sec = _result_medians(retrieval_results)
+    deterministic_medians_by_failure_type = _result_medians_by_failure_type(taskset, deterministic_results)
+    retrieval_medians_by_failure_type = _result_medians_by_failure_type(taskset, retrieval_results)
 
     baseline_pct = float(baseline_summary.get("success_at_k_pct") or 0.0)
     deterministic_pct = float(deterministic_summary.get("success_at_k_pct") or baseline_pct)
@@ -167,6 +224,10 @@ def main() -> None:
         retrieval_pct=retrieval_pct,
         first_round_pass_pct=first_round_pass_pct,
         median_repair_rounds=median_repair_rounds,
+        deterministic_attempts=deterministic_executor_median_attempts,
+        retrieval_attempts=retrieval_executor_median_attempts,
+        deterministic_time_sec=deterministic_median_time_to_pass_sec,
+        retrieval_time_sec=retrieval_median_time_to_pass_sec,
     )
     gate_status = "PASS" if decision == "promote" else ("NEEDS_REVIEW" if decision in {"needs_review", "hold"} else "FAIL")
 
@@ -185,12 +246,40 @@ def main() -> None:
             "retrieval_on_success_at_k_pct": float(ret.get("success_at_k_pct") or 0.0),
             "deterministic_delta_pp": round(float(det.get("success_at_k_pct") or 0.0) - float(base.get("success_at_k_pct") or 0.0), 2),
             "retrieval_delta_pp": round(float(ret.get("success_at_k_pct") or 0.0) - float(det.get("success_at_k_pct") or 0.0), 2),
-            "retrieval_uplift_status": (
-                "retrieval_uplift_observed"
-                if float(ret.get("success_at_k_pct") or 0.0) > float(det.get("success_at_k_pct") or 0.0)
-                else ("retrieval_hold_the_floor" if float(ret.get("success_at_k_pct") or 0.0) >= float(det.get("success_at_k_pct") or 0.0) and float(det.get("success_at_k_pct") or 0.0) > float(base.get("success_at_k_pct") or 0.0) else "not_observed")
+            "deterministic_median_executor_attempts": float((deterministic_medians_by_failure_type.get(failure_type) or {}).get("median_executor_attempts") or 0.0),
+            "retrieval_median_executor_attempts": float((retrieval_medians_by_failure_type.get(failure_type) or {}).get("median_executor_attempts") or 0.0),
+            "deterministic_median_time_to_pass_sec": float((deterministic_medians_by_failure_type.get(failure_type) or {}).get("median_time_to_pass_sec") or 0.0),
+            "retrieval_median_time_to_pass_sec": float((retrieval_medians_by_failure_type.get(failure_type) or {}).get("median_time_to_pass_sec") or 0.0),
+            "retrieval_executor_attempt_delta": round(
+                float((retrieval_medians_by_failure_type.get(failure_type) or {}).get("median_executor_attempts") or 0.0)
+                - float((deterministic_medians_by_failure_type.get(failure_type) or {}).get("median_executor_attempts") or 0.0),
+                2,
+            ),
+            "retrieval_time_delta_sec": round(
+                float((retrieval_medians_by_failure_type.get(failure_type) or {}).get("median_time_to_pass_sec") or 0.0)
+                - float((deterministic_medians_by_failure_type.get(failure_type) or {}).get("median_time_to_pass_sec") or 0.0),
+                2,
             ),
         }
+        success_by_failure_type[failure_type]["retrieval_uplift_status"] = _retrieval_status(
+            baseline_pct=success_by_failure_type[failure_type]["baseline_off_success_at_k_pct"],
+            deterministic_pct=success_by_failure_type[failure_type]["deterministic_on_success_at_k_pct"],
+            retrieval_pct=success_by_failure_type[failure_type]["retrieval_on_success_at_k_pct"],
+            deterministic_attempts=success_by_failure_type[failure_type]["deterministic_median_executor_attempts"],
+            retrieval_attempts=success_by_failure_type[failure_type]["retrieval_median_executor_attempts"],
+            deterministic_time_sec=success_by_failure_type[failure_type]["deterministic_median_time_to_pass_sec"],
+            retrieval_time_sec=success_by_failure_type[failure_type]["retrieval_median_time_to_pass_sec"],
+        )
+
+    family_uplift_present = any(
+        str(row.get("retrieval_uplift_status") or "") == "retrieval_uplift_observed"
+        for row in success_by_failure_type.values()
+    )
+    retrieval_limit_status = (
+        "retrieval_limit_reached"
+        if deterministic_uplift_status == "observed" and not family_uplift_present and retrieval_uplift_status != "retrieval_uplift_observed"
+        else "headroom_remaining"
+    )
 
     evidence = {
         "schema_version": SCHEMA_VERSION,
@@ -232,11 +321,12 @@ def main() -> None:
         "match_signal_coverage_pct": float(retrieval_audit.get("match_signal_coverage_pct") or 0.0),
         "retrieval_uplift_status": retrieval_uplift_status,
         "deterministic_uplift_status": deterministic_uplift_status,
+        "retrieval_limit_status": retrieval_limit_status,
         "baseline_saturation_status": "saturated" if baseline_pct >= 100.0 else "headroom_remaining",
         "next_priority_gap_family": (
             "task_construction"
             if baseline_pct >= 100.0
-            else ("retrieval policy" if deterministic_uplift_status == "observed" and retrieval_uplift_status != "retrieval_uplift_observed" else "deterministic repair policy")
+            else ("retrieval_limit_reached" if retrieval_limit_status == "retrieval_limit_reached" else ("retrieval policy" if deterministic_uplift_status == "observed" and retrieval_uplift_status != "retrieval_uplift_observed" else "deterministic repair policy"))
         ),
     }
     gate = {
@@ -248,6 +338,7 @@ def main() -> None:
         "success_by_failure_type": success_by_failure_type,
         "retrieval_uplift_status": retrieval_uplift_status,
         "deterministic_uplift_status": deterministic_uplift_status,
+        "retrieval_limit_status": retrieval_limit_status,
         "retrieval_vs_deterministic_delta_pp": evidence["success_at_k"]["retrieval_vs_deterministic_delta_pp"],
         "retrieval_executor_attempt_delta": evidence["retrieval_executor_attempt_delta"],
         "retrieval_time_delta_sec": evidence["retrieval_time_delta_sec"],
@@ -269,6 +360,7 @@ def main() -> None:
         "retrieval_vs_deterministic_by_failure_type": {k: {"deterministic_on_success_at_k_pct": v["deterministic_on_success_at_k_pct"], "retrieval_on_success_at_k_pct": v["retrieval_on_success_at_k_pct"], "delta_pp": v["retrieval_delta_pp"], "retrieval_uplift_status": v["retrieval_uplift_status"]} for k, v in success_by_failure_type.items()},
         "retrieval_uplift_status": retrieval_uplift_status,
         "deterministic_uplift_status": evidence["deterministic_uplift_status"],
+        "retrieval_limit_status": evidence["retrieval_limit_status"],
         "retrieval_vs_deterministic_delta_pp": evidence["success_at_k"]["retrieval_vs_deterministic_delta_pp"],
         "retrieval_executor_attempt_delta": evidence["retrieval_executor_attempt_delta"],
         "retrieval_time_delta_sec": evidence["retrieval_time_delta_sec"],

@@ -239,6 +239,8 @@ def _augment_repair_strategy(
         retrieval_family_guard = [
             "treat coupled parameter and topology conflicts as a paired repair cluster and verify both sides before rerun",
             "avoid one-sided rollback when the retrieved case indicates conflicting bindings must be restored together",
+            "rank paired binding and paired topology restores ahead of any single-edge or single-parameter fix",
+            "reject a candidate repair if it only resolves one side of the coupled conflict and leaves the paired source rewrite untouched",
         ]
         retrieval_pairing_hint = "paired_conflict_repair_required"
     elif multi_round_family == "false_friend_patch_trap":
