@@ -226,7 +226,28 @@ def _augment_repair_strategy(
     mapped_actions = [str(x) for x in (mapped.get("actions") or []) if isinstance(x, str)]
     retrieved_actions = [str(x) for x in (retrieval.get("suggested_actions") or []) if isinstance(x, str)]
     retrieval_audit = retrieval.get("audit") if isinstance(retrieval.get("audit"), dict) else {}
-    merged_actions = _merge_actions(policy_actions, template_actions, mapped_actions, retrieved_actions)
+    retrieval_family_guard: list[str] = []
+    retrieval_pairing_hint = ""
+    retrieval_trap_avoidance_hint = ""
+    multi_round_family = str(task.get("multi_round_family") or "").strip().lower()
+    if multi_round_family == "cascading_structural_failure":
+        retrieval_family_guard = [
+            "repair only the currently exposed structural layer first, then rerun to surface any downstream simulate-layer defect",
+            "do not collapse structure-layer and solver-layer fixes into one broad patch when a staged repair can preserve the cascade signal",
+        ]
+    elif multi_round_family == "coupled_conflict_failure":
+        retrieval_family_guard = [
+            "treat coupled parameter and topology conflicts as a paired repair cluster and verify both sides before rerun",
+            "avoid one-sided rollback when the retrieved case indicates conflicting bindings must be restored together",
+        ]
+        retrieval_pairing_hint = "paired_conflict_repair_required"
+    elif multi_round_family == "false_friend_patch_trap":
+        retrieval_family_guard = [
+            "screen the most tempting local patch against retrieved false-friend cases before applying it",
+            "prefer the smallest repair that preserves current evidence and avoids masking a deeper follow-up defect",
+        ]
+        retrieval_trap_avoidance_hint = "avoid_local_false_friend_patch"
+    merged_actions = _merge_actions(retrieval_family_guard, policy_actions, template_actions, mapped_actions, retrieved_actions)
     prioritized_actions = prioritize_repair_actions_v0(merged_actions, expected_stage=expected_stage)
 
     signal_count = 0
@@ -267,6 +288,11 @@ def _augment_repair_strategy(
         "retrieved_example_count": int(retrieval.get("retrieved_count", 0) or 0),
         "retrieval_effective_top_k": int(retrieval.get("effective_top_k", 0) or 0),
         "retrieved_suggested_action_count": len(retrieved_actions),
+        "retrieval_family_guard": retrieval_family_guard,
+        "retrieval_family_guard_count": len(retrieval_family_guard),
+        "retrieval_pairing_hint": retrieval_pairing_hint,
+        "retrieval_trap_avoidance_hint": retrieval_trap_avoidance_hint,
+        "multi_round_family": multi_round_family,
         "matched_library_hints": [str(x) for x in (retrieval_audit.get("matched_library_hints") or []) if isinstance(x, str)],
         "matched_component_hints": [str(x) for x in (retrieval_audit.get("matched_component_hints") or []) if isinstance(x, str)],
         "matched_connector_hints": [str(x) for x in (retrieval_audit.get("matched_connector_hints") or []) if isinstance(x, str)],
