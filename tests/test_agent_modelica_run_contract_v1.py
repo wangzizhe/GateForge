@@ -569,6 +569,70 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
             self.assertEqual(int(audit.get("patch_template_adaptation_actions_count", 0)), 1)
             self.assertEqual(int(audit.get("retrieval_effective_top_k", 0)), 1)
 
+    def test_run_contract_adds_multi_round_family_specific_retrieval_guards(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            taskset = root / "taskset.json"
+            history = root / "history.json"
+            results = root / "results.json"
+            summary = root / "summary.json"
+            taskset.write_text(
+                json.dumps(
+                    {
+                        "tasks": [
+                            {
+                                "task_id": "t_multi_round_retrieval",
+                                "scale": "small",
+                                "failure_type": "simulate_error",
+                                "multi_round_family": "coupled_conflict_failure",
+                                "source_model_path": "ACSimpleGrid.mo",
+                                "component_hints": ["ACSimpleGrid"],
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            history.write_text(
+                json.dumps(
+                    {
+                        "rows": [
+                            {
+                                "failure_type": "simulate_error",
+                                "model_id": "ACSimpleGrid",
+                                "used_strategy": "paired_conflict_restore",
+                                "action_trace": ["restore the conflicting paired binding before simulate"],
+                                "status": "PASS",
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.agent_modelica_run_contract_v1",
+                    "--taskset",
+                    str(taskset),
+                    "--repair-history",
+                    str(history),
+                    "--results-out",
+                    str(results),
+                    "--out",
+                    str(summary),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            rec = (json.loads(results.read_text(encoding="utf-8")).get("records") or [])[0]
+            audit = rec.get("repair_audit") if isinstance(rec.get("repair_audit"), dict) else {}
+            self.assertGreaterEqual(int(audit.get("retrieval_family_guard_count", 0)), 1)
+            self.assertEqual(str(audit.get("retrieval_pairing_hint") or ""), "paired_conflict_repair_required")
+
     def test_run_contract_live_mode_executes_external_executor_command(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
