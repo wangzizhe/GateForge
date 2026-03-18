@@ -103,6 +103,48 @@ def _rewrite_line_once(line: str, *, pattern: str, replacement: str, failure_typ
 
 
 def _mutate_behavioral_model(source_text: str, failure_type: str) -> str:
+    lower_source = str(source_text or "").lower()
+    if "model switchb" in lower_source and "modelica.blocks.logical.switch" in lower_source:
+        switch_patterns = {
+            "steady_state_target_violation": [
+                (r"\bk\s*=\s*0\.5(?:0+)?", "k=0.82"),
+                (r"startTime\s*=\s*0\.3(?:0+)?", "startTime=0.45"),
+            ],
+            "transient_response_contract_violation": [
+                (r"freqHz\s*=\s*1(?:\.0+)?", "freqHz=2.5"),
+                (r"\bk\s*=\s*0\.5(?:0+)?", "k=1.25"),
+            ],
+            "mode_transition_contract_violation": [
+                (r"startTime\s*=\s*0\.3(?:0+)?", "startTime=0.6"),
+                (r"\bk\s*=\s*0\.5(?:0+)?", "k=0.4"),
+            ],
+        }
+        patterns = switch_patterns.get(str(failure_type or "").strip().lower())
+        if patterns:
+            lines = str(source_text or "").splitlines(keepends=True)
+            applied = 0
+            seen_patterns: set[str] = set()
+            updated_lines: list[str] = []
+            for line in lines:
+                updated_line = line
+                for pattern, replacement in patterns:
+                    if pattern in seen_patterns:
+                        continue
+                    candidate, changed = _rewrite_line_once(
+                        updated_line,
+                        pattern=pattern,
+                        replacement=replacement,
+                        failure_type=failure_type,
+                    )
+                    if changed:
+                        updated_line = candidate
+                        seen_patterns.add(pattern)
+                        applied += 1
+                        break
+                updated_lines.append(updated_line)
+            mutated = "".join(updated_lines)
+            if applied > 0:
+                return mutated
     patterns_by_failure = {
         "steady_state_target_violation": [
             (r"height\s*=\s*1(?:\.0+)?", "height=0.82"),

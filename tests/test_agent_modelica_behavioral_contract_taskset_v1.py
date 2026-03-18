@@ -5,6 +5,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from gateforge.agent_modelica_behavioral_contract_taskset_v1 import _mutate_behavioral_model
+
 
 def _write_model(path: Path, model_name: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -80,6 +82,31 @@ def _manifest_payload(root: Path) -> dict:
 
 
 class AgentModelicaBehavioralContractTasksetV1Tests(unittest.TestCase):
+    def test_switch_b_mutations_touch_real_source_parameters(self) -> None:
+        source_text = "\n".join(
+            [
+                "model SwitchB",
+                "  Modelica.Blocks.Sources.BooleanStep step1(startTime=0.3);",
+                "  Modelica.Blocks.Sources.Sine sine1(freqHz=1);",
+                "  Modelica.Blocks.Sources.Constant ref1(k=0.5);",
+                "  Modelica.Blocks.Logical.Switch sw1;",
+                "equation",
+                "  connect(sine1.y, sw1.u1);",
+                "  connect(step1.y, sw1.u2);",
+                "  connect(ref1.y, sw1.u3);",
+                "end SwitchB;",
+                "",
+            ]
+        )
+        steady = _mutate_behavioral_model(source_text, "steady_state_target_violation")
+        transient = _mutate_behavioral_model(source_text, "transient_response_contract_violation")
+        mode = _mutate_behavioral_model(source_text, "mode_transition_contract_violation")
+        self.assertIn("k=0.82", steady)
+        self.assertIn("freqHz=2.5", transient)
+        self.assertIn("k=1.25", transient)
+        self.assertIn("startTime=0.6", mode)
+        self.assertIn("k=0.4", mode)
+
     def test_builder_produces_behavioral_contract_metadata(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
