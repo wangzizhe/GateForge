@@ -368,6 +368,45 @@ def _as_str_list(value: object) -> list[str]:
     return [str(x) for x in value if isinstance(x, str)]
 
 
+def _as_dict_list(value: object) -> list[dict]:
+    if not isinstance(value, list):
+        return []
+    return [dict(x) for x in value if isinstance(x, dict)]
+
+
+def _extract_contract_fields(payload: dict, live_attempt: dict, *, physics_ok: bool) -> tuple[bool, str, list[dict]]:
+    contract_pass = _as_bool(payload.get("contract_pass"))
+    if contract_pass is None:
+        contract_pass = _as_bool(live_attempt.get("contract_pass"))
+    contract_fail_bucket = str(
+        payload.get("contract_fail_bucket")
+        or live_attempt.get("contract_fail_bucket")
+        or ""
+    ).strip()
+    scenario_results = _as_dict_list(payload.get("scenario_results"))
+    if not scenario_results:
+        scenario_results = _as_dict_list(live_attempt.get("scenario_results"))
+    return (bool(contract_pass) if contract_pass is not None else bool(physics_ok), contract_fail_bucket, scenario_results)
+
+
+def _pick_best_contract_attempt(attempts: list[dict]) -> dict:
+    rows = [x for x in attempts if isinstance(x, dict)]
+    if not rows:
+        return {}
+
+    def _score(row: dict) -> tuple[int, int, int]:
+        scenario_results = _as_dict_list(row.get("scenario_results"))
+        contract_fail_bucket = str(row.get("contract_fail_bucket") or "").strip()
+        contract_pass = _as_bool(row.get("contract_pass"))
+        has_partial = 1 if scenario_results and any(bool(x.get("pass")) for x in scenario_results) and not all(bool(x.get("pass")) for x in scenario_results) else 0
+        has_scenarios = 1 if scenario_results else 0
+        has_contract_signal = 1 if (contract_fail_bucket or contract_pass is not None) else 0
+        return (has_partial, has_scenarios, has_contract_signal)
+
+    ranked = max(enumerate(rows), key=lambda item: (_score(item[1]), item[0]))
+    return ranked[1]
+
+
 def _last_nonempty_line(text: str) -> str:
     lines = [x.strip() for x in str(text or "").splitlines() if str(x).strip()]
     if not lines:
@@ -975,6 +1014,7 @@ def _run_task_evidence(
     ]
     passed = check_ok and simulate_ok and physics_ok and regression_ok and not time_budget_exceeded
 
+    best_contract_attempt = _pick_best_contract_attempt(attempts)
     return {
         "task_id": str(task.get("task_id") or ""),
         "scale": scale,
@@ -1327,6 +1367,11 @@ def _run_task_live_l4(
         )
         if not live_attempt and live_attempts:
             live_attempt = live_attempts[-1]
+        contract_pass, contract_fail_bucket, scenario_results = _extract_contract_fields(
+            live_payload,
+            live_attempt,
+            physics_ok=physics_ok,
+        )
         observed_failure_type = str(
             live_attempt.get("observed_failure_type")
             or live_payload.get("observed_failure_type")
@@ -1377,6 +1422,9 @@ def _run_task_live_l4(
             "check_model_pass": bool(check_ok),
             "simulate_pass": bool(simulate_ok),
             "physics_contract_pass": bool(physics_ok),
+            "contract_pass": bool(contract_pass),
+            "contract_fail_bucket": contract_fail_bucket,
+            "scenario_results": scenario_results,
             "physics_contract_reasons": physics_reasons,
             "physics_contract_invariant_count": len(task_invariants),
             "regression_pass": bool(regression_ok),
@@ -1434,6 +1482,10 @@ def _run_task_live_l4(
         compile_error = str(last.get("compile_error") or "")
         simulate_error_message = str(last.get("simulate_error_message") or "")
         stderr_snippet = str(last.get("stderr_snippet") or "")
+    best_contract_attempt = _pick_best_contract_attempt(attempts)
+    contract_pass = bool(best_contract_attempt.get("contract_pass")) if best_contract_attempt else False
+    contract_fail_bucket = str(best_contract_attempt.get("contract_fail_bucket") or "") if best_contract_attempt else ""
+    scenario_results = _as_dict_list(best_contract_attempt.get("scenario_results") if best_contract_attempt else [])
     if not error_message and not bool(orchestrator.get("passed")):
         error_message = str(orchestrator.get("stop_reason") or "l4_failed")
 
@@ -1451,6 +1503,9 @@ def _run_task_live_l4(
             "physics_contract_pass": False,
             "regression_pass": False,
         },
+        "contract_pass": contract_pass,
+        "contract_fail_bucket": contract_fail_bucket,
+        "scenario_results": scenario_results,
         "repair_strategy": repair_strategy,
         "repair_audit": {
             **strategy_audit,
@@ -1767,6 +1822,11 @@ def _run_task_live(
         )
         if not live_attempt and live_attempts:
             live_attempt = live_attempts[-1]
+        contract_pass, contract_fail_bucket, scenario_results = _extract_contract_fields(
+            live_payload,
+            live_attempt,
+            physics_ok=physics_ok,
+        )
         observed_failure_type = str(
             live_attempt.get("observed_failure_type")
             or live_payload.get("observed_failure_type")
@@ -1820,6 +1880,9 @@ def _run_task_live(
                 "check_model_pass": bool(check_ok),
                 "simulate_pass": bool(simulate_ok),
                 "physics_contract_pass": bool(physics_ok),
+                "contract_pass": bool(contract_pass),
+                "contract_fail_bucket": contract_fail_bucket,
+                "scenario_results": scenario_results,
                 "physics_contract_reasons": physics_contract_reasons,
                 "physics_contract_invariant_count": int(physics_eval.get("invariant_count") or 0),
                 "regression_pass": bool(regression_ok),
@@ -1857,6 +1920,7 @@ def _run_task_live(
                 compile_error = "no_progress_stop"
             break
 
+    best_contract_attempt = _pick_best_contract_attempt(attempts)
     return {
         "task_id": str(task.get("task_id") or ""),
         "scale": scale,
@@ -1866,6 +1930,9 @@ def _run_task_live(
         "time_to_pass_sec": round(total_time_sec, 4) if passed else None,
         "elapsed_sec": round(total_time_sec, 4),
         "hard_checks": hard,
+        "contract_pass": bool(best_contract_attempt.get("contract_pass")) if best_contract_attempt else False,
+        "contract_fail_bucket": str(best_contract_attempt.get("contract_fail_bucket") or "") if best_contract_attempt else "",
+        "scenario_results": _as_dict_list(best_contract_attempt.get("scenario_results") if best_contract_attempt else []),
         "repair_strategy": repair_strategy,
         "repair_audit": {
             **strategy_audit,

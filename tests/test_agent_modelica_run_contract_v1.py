@@ -767,6 +767,90 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
             first_attempt = attempts[0] if isinstance(attempts[0], dict) else {}
             self.assertEqual(str(first_attempt.get("observed_failure_type") or ""), "script_parse_error")
 
+    def test_run_contract_live_mode_preserves_contract_fields_on_top_level_record(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            taskset = root / "taskset.json"
+            results = root / "results.json"
+            summary = root / "summary.json"
+            taskset.write_text(
+                json.dumps(
+                    {
+                        "tasks": [
+                            {
+                                "task_id": "t_live_contract_fields",
+                                "scale": "small",
+                                "failure_type": "param_perturbation_robustness_violation",
+                                "expected_stage": "simulate",
+                                "source_model_path": "assets_private/modelica/Minimal.mo",
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            live_cmd = (
+                "python3 -c 'import json; "
+                "print(json.dumps({"
+                "\"check_model_pass\": True, "
+                "\"simulate_pass\": True, "
+                "\"physics_contract_pass\": False, "
+                "\"contract_pass\": False, "
+                "\"contract_fail_bucket\": \"param_sensitivity_miss\", "
+                "\"scenario_results\": ["
+                "{\"scenario_id\": \"nominal\", \"pass\": True}, "
+                "{\"scenario_id\": \"neighbor_a\", \"pass\": False}, "
+                "{\"scenario_id\": \"neighbor_b\", \"pass\": False}"
+                "], "
+                "\"regression_pass\": True, "
+                "\"elapsed_sec\": 1.1, "
+                "\"error_message\": \"param_sensitivity_miss\", "
+                "\"attempts\": [{"
+                "\"observed_failure_type\": \"none\", "
+                "\"reason\": \"param_sensitivity_miss\", "
+                "\"contract_pass\": False, "
+                "\"contract_fail_bucket\": \"param_sensitivity_miss\", "
+                "\"scenario_results\": ["
+                "{\"scenario_id\": \"nominal\", \"pass\": True}, "
+                "{\"scenario_id\": \"neighbor_a\", \"pass\": False}, "
+                "{\"scenario_id\": \"neighbor_b\", \"pass\": False}"
+                "]"
+                "}]"
+                "}))'"
+            )
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.agent_modelica_run_contract_v1",
+                    "--taskset",
+                    str(taskset),
+                    "--mode",
+                    "live",
+                    "--max-rounds",
+                    "1",
+                    "--live-executor-cmd",
+                    live_cmd,
+                    "--results-out",
+                    str(results),
+                    "--out",
+                    str(summary),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            rec = (json.loads(results.read_text(encoding="utf-8")).get("records") or [])[0]
+            self.assertFalse(bool(rec.get("contract_pass")))
+            self.assertEqual(str(rec.get("contract_fail_bucket") or ""), "param_sensitivity_miss")
+            scenario_results = rec.get("scenario_results") if isinstance(rec.get("scenario_results"), list) else []
+            self.assertEqual(len(scenario_results), 3)
+            self.assertEqual([bool(x.get("pass")) for x in scenario_results], [True, False, False])
+            attempts = rec.get("attempts") if isinstance(rec.get("attempts"), list) else []
+            self.assertTrue(attempts)
+            self.assertEqual(str(attempts[0].get("contract_fail_bucket") or ""), "param_sensitivity_miss")
+
     def test_run_contract_live_mode_persists_manifestation_attempts_when_final_attempt_passes(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
@@ -1096,6 +1180,98 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
             self.assertFalse(bool(rec.get("passed")))
             self.assertEqual(str(rec.get("error_message") or ""), "no_progress_stop")
             self.assertLessEqual(int(rec.get("rounds_used") or 0), 2)
+
+    def test_run_contract_live_mode_preserves_best_contract_evidence_after_late_timeout(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            taskset = root / "taskset.json"
+            results = root / "results.json"
+            summary = root / "summary.json"
+            counter = root / "count.txt"
+            taskset.write_text(
+                json.dumps(
+                    {
+                        "tasks": [
+                            {
+                                "task_id": "t_live_best_contract_evidence",
+                                "scale": "small",
+                                "failure_type": "param_perturbation_robustness_violation",
+                                "expected_stage": "simulate",
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            code = """
+import json
+from pathlib import Path
+
+counter = Path("__COUNTER__")
+count = int(counter.read_text() or "0") if counter.exists() else 0
+count += 1
+counter.write_text(str(count))
+if count == 1:
+    payload = {
+      "check_model_pass": True,
+      "simulate_pass": True,
+      "physics_contract_pass": False,
+      "contract_pass": False,
+      "contract_fail_bucket": "param_sensitivity_miss",
+      "scenario_results": [
+        {"scenario_id": "nominal", "pass": True},
+        {"scenario_id": "neighbor_a", "pass": False},
+        {"scenario_id": "neighbor_b", "pass": False},
+      ],
+      "regression_pass": True,
+      "elapsed_sec": 1.0,
+      "error_message": "param_sensitivity_miss"
+    }
+else:
+    payload = {
+      "_executor_return_code": None,
+      "_executor_stdout_tail": "",
+      "_executor_stderr_tail": "TimeoutExpired",
+      "error_message": "live_executor_timeout",
+      "elapsed_sec": 1.0
+    }
+print(json.dumps(payload))
+""".strip().replace("__COUNTER__", str(counter))
+            live_cmd = f"python3 -c {shlex.quote(code)}"
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.agent_modelica_run_contract_v1",
+                    "--taskset",
+                    str(taskset),
+                    "--mode",
+                    "live",
+                    "--max-rounds",
+                    "3",
+                    "--max-time-sec",
+                    "30",
+                    "--live-timeout-sec",
+                    "5",
+                    "--live-executor-cmd",
+                    live_cmd,
+                    "--results-out",
+                    str(results),
+                    "--out",
+                    str(summary),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            rec = (json.loads(results.read_text(encoding="utf-8")).get("records") or [])[0]
+            self.assertFalse(bool(rec.get("passed")))
+            self.assertEqual(str(rec.get("error_message") or ""), "no_progress_stop")
+            self.assertFalse(bool(rec.get("contract_pass")))
+            self.assertEqual(str(rec.get("contract_fail_bucket") or ""), "param_sensitivity_miss")
+            scenario_results = rec.get("scenario_results") if isinstance(rec.get("scenario_results"), list) else []
+            self.assertEqual([bool(x.get("pass")) for x in scenario_results], [True, False, False])
 
     def test_run_contract_live_mode_supports_l4_closed_loop_flags(self) -> None:
         with tempfile.TemporaryDirectory() as d:
