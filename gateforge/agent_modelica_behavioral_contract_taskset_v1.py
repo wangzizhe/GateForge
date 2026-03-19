@@ -68,6 +68,14 @@ FAILURE_METADATA = {
 BEHAVIORAL_MARKER_PREFIX = "gateforge_behavioral_contract_violation"
 
 
+def _normalize_behavioral_source_model_text(source_text: str) -> str:
+    text = str(source_text or "")
+    # OpenModelica in our live lane rejects `freqHz` on this Sine source variant.
+    # Normalize to `f` before copying the source model so source-restore remains valid.
+    text = text.replace("Sine sine1(freqHz=", "Sine sine1(f=")
+    return text
+
+
 def _build_contract(invariants: list[dict]) -> dict:
     contract = default_physics_contract_v0()
     contract["physical_invariants"] = [dict(item) for item in invariants if isinstance(item, dict)]
@@ -230,11 +238,13 @@ def build_behavioral_contract_taskset(
                 library_id = _norm(library.get("library_id")).lower()
                 model_id = _norm(model.get("model_id")).lower()
                 copied_source_path = source_models_dir / library_id / f"{model_id}.mo"
+                source_text = _normalize_behavioral_source_model_text(
+                    model_path.read_text(encoding="utf-8", errors="ignore")
+                )
                 if str(model_path) not in copied_source_paths:
-                    _copy_source_model(model_path, copied_source_path)
+                    _write_text(copied_source_path, source_text)
                     copied_source_paths[str(model_path)] = str(copied_source_path.resolve())
                 mutated_path = mutants_dir / failure_type / f"{library_id}_{model_id}_{failure_type}.mo"
-                source_text = model_path.read_text(encoding="utf-8", errors="ignore")
                 mutated_text = _mutate_behavioral_model(source_text, failure_type)
                 _write_text(mutated_path, mutated_text)
                 baseline_metrics, candidate_metrics, evaluation = _task_contract_details(failure_type)
