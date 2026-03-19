@@ -5,7 +5,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from gateforge.agent_modelica_behavioral_contract_taskset_v1 import _mutate_behavioral_model
+from gateforge.agent_modelica_behavioral_contract_taskset_v1 import (
+    _mutate_behavioral_model,
+    _normalize_behavioral_source_model_text,
+)
 
 
 def _write_model(path: Path, model_name: str) -> None:
@@ -82,6 +85,19 @@ def _manifest_payload(root: Path) -> dict:
 
 
 class AgentModelicaBehavioralContractTasksetV1Tests(unittest.TestCase):
+    def test_normalize_switch_b_source_model_text(self) -> None:
+        source_text = "\n".join(
+            [
+                "model SwitchB",
+                "  Modelica.Blocks.Sources.Sine sine1(freqHz=1);",
+                "end SwitchB;",
+                "",
+            ]
+        )
+        normalized = _normalize_behavioral_source_model_text(source_text)
+        self.assertIn("Sine sine1(f=1)", normalized)
+        self.assertNotIn("freqHz=", normalized)
+
     def test_switch_b_mutations_touch_real_source_parameters(self) -> None:
         source_text = "\n".join(
             [
