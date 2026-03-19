@@ -11,6 +11,7 @@ from gateforge.agent_modelica_live_executor_gemini_v1 import (
     _apply_initialization_marker_repair,
     _behavioral_contract_deterministic_repair_enabled,
     _evaluate_behavioral_contract_from_model_text,
+    _guard_robustness_patch,
     _apply_multi_round_layered_repair,
     _apply_parse_error_pre_repair,
     _apply_source_model_repair,
@@ -258,6 +259,53 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
         )
         self.assertFalse(bool(payload.get("pass")))
         self.assertEqual(payload.get("contract_fail_bucket"), "steady_state_miss")
+
+    def test_guard_robustness_patch_rejects_invented_switch_threshold(self) -> None:
+        original = "model SwitchA\n  Modelica.Blocks.Logical.Switch sw1;\nend SwitchA;\n"
+        patched = "model SwitchA\n  Modelica.Blocks.Logical.Switch sw1(threshold=0.2);\nend SwitchA;\n"
+        guarded, audit = _guard_robustness_patch(
+            original_text=original,
+            patched_text=patched,
+            failure_type="initial_condition_robustness_violation",
+        )
+        self.assertIsNone(guarded)
+        self.assertEqual(audit.get("reason"), "invented_switch_threshold_parameter")
+
+    def test_guard_robustness_patch_allows_existing_parameter_adjustment(self) -> None:
+        original = "model A\n  Modelica.Blocks.Sources.BooleanPulse pulse1(width=40, period=0.5);\nend A;\n"
+        patched = "model A\n  Modelica.Blocks.Sources.BooleanPulse pulse1(width=18, period=0.28);\nend A;\n"
+        guarded, audit = _guard_robustness_patch(
+            original_text=original,
+            patched_text=patched,
+            failure_type="initial_condition_robustness_violation",
+        )
+        self.assertEqual(guarded, patched)
+        self.assertTrue(bool(audit.get("accepted")))
+
+    def test_guard_robustness_patch_rejects_structure_drift(self) -> None:
+        original = (
+            "model A\n"
+            "  Modelica.Blocks.Sources.BooleanPulse pulse1(width=40, period=0.5);\n"
+            "  Modelica.Blocks.Logical.Switch sw1;\n"
+            "equation\n"
+            "  connect(pulse1.y, sw1.u2);\n"
+            "end A;\n"
+        )
+        patched = (
+            "model A\n"
+            "  Modelica.Blocks.Sources.BooleanPulse pulse1(width=18, period=0.28);\n"
+            "  Modelica.Blocks.Logical.Switch sw1;\n"
+            "equation\n"
+            "  connect(pulse1.y, sw1.u1);\n"
+            "end A;\n"
+        )
+        guarded, audit = _guard_robustness_patch(
+            original_text=original,
+            patched_text=patched,
+            failure_type="scenario_switch_robustness_violation",
+        )
+        self.assertIsNone(guarded)
+        self.assertEqual(audit.get("reason"), "robustness_structure_drift_detected")
 
     def test_behavioral_contract_eval_passes_when_source_restored(self) -> None:
         source = "model A\n  Modelica.Blocks.Sources.Step step1(height=1, startTime=0.1);\nend A;\n"
@@ -796,6 +844,16 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
             current_round=2,
         )
         self.assertEqual(unconstrained, "")
+
+    def test_llm_round_constraints_restricts_robustness_repairs_to_parameters(self) -> None:
+        constrained = _llm_round_constraints(
+            failure_type="param_perturbation_robustness_violation",
+            current_round=1,
+        )
+        self.assertIn("preserve the existing component declarations and connect structure", constrained)
+        self.assertIn("Restrict edits to existing numeric parameters", constrained)
+        self.assertIn("patch only one localized parameter cluster", constrained)
+        self.assertIn("Do not invent new parameter names", constrained)
 
     def test_parse_repair_actions_supports_json_and_pipe_formats(self) -> None:
         self.assertEqual(_parse_repair_actions('["a","b"]'), ["a", "b"])

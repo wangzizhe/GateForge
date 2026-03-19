@@ -87,6 +87,21 @@ DEFAULT_RULES = {
         "avoid broad edits when the mismatch is localized to mode-transition behavior",
         "rerun simulate and check post-transition recovery before accepting the patch",
     ],
+    "param_perturbation_robustness_violation": [
+        "restore source gain, scaling, and neighboring parameter values before broader edits",
+        "prefer robust parameter repair that remains aligned with the source model across nearby perturbations",
+        "rerun simulate against adjacent parameter scenarios before accepting the patch",
+    ],
+    "initial_condition_robustness_violation": [
+        "restore source start-time, offset, and initial-condition shaping parameters first",
+        "prefer localized recovery of initial-condition behavior over broad structural edits",
+        "rerun simulate against neighboring initial conditions before accepting the patch",
+    ],
+    "scenario_switch_robustness_violation": [
+        "restore source switch timing, width, and recovery parameters first",
+        "prefer fixes that remain valid across adjacent scenario variants, not just the nominal case",
+        "rerun simulate across the scenario set before accepting the patch",
+    ],
 }
 
 

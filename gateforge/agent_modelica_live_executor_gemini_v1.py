@@ -76,6 +76,12 @@ def _diagnostic_context_hints_from_model(*, failure_type: str, expected_stage: s
         hints.extend(["transient_response_contract_violation", "transient_contract_miss"])
     if "mode_transition_contract_violation" in lower:
         hints.extend(["mode_transition_contract_violation", "mode_transition_contract_miss"])
+    if "param_perturbation_robustness_violation" in lower:
+        hints.extend(["param_perturbation_robustness_violation", "param_sensitivity_miss", "single_case_only"])
+    if "initial_condition_robustness_violation" in lower:
+        hints.extend(["initial_condition_robustness_violation", "initial_condition_miss", "single_case_only"])
+    if "scenario_switch_robustness_violation" in lower:
+        hints.extend(["scenario_switch_robustness_violation", "scenario_switch_miss", "single_case_only"])
     return hints
 
 
@@ -126,6 +132,9 @@ def _apply_source_model_repair(
         "steady_state_target_violation",
         "transient_response_contract_violation",
         "mode_transition_contract_violation",
+        "param_perturbation_robustness_violation",
+        "initial_condition_robustness_violation",
+        "scenario_switch_robustness_violation",
     }:
         return current_text, {"applied": False, "reason": "declared_failure_type_not_supported"}
     if declared in {"overconstrained_system", "parameter_binding_error", "array_dimension_mismatch"} and not _wave2_deterministic_repair_enabled():
@@ -138,6 +147,8 @@ def _apply_source_model_repair(
         return current_text, {"applied": False, "reason": "multi_round_deterministic_repair_disabled"}
     if declared in {"steady_state_target_violation", "transient_response_contract_violation", "mode_transition_contract_violation"} and not _behavioral_contract_deterministic_repair_enabled():
         return current_text, {"applied": False, "reason": "behavioral_contract_deterministic_repair_disabled"}
+    if declared in {"param_perturbation_robustness_violation", "initial_condition_robustness_violation", "scenario_switch_robustness_violation"} and not _behavioral_robustness_deterministic_repair_enabled():
+        return current_text, {"applied": False, "reason": "behavioral_robustness_deterministic_repair_disabled"}
     source_text = str(source_model_text or "")
     if not source_text.strip():
         return current_text, {"applied": False, "reason": "source_model_text_missing"}
@@ -175,6 +186,12 @@ def _apply_source_model_repair(
         reason = "restored_source_model_text_for_transient_response_contract_violation"
     elif declared == "mode_transition_contract_violation":
         reason = "restored_source_model_text_for_mode_transition_contract_violation"
+    elif declared == "param_perturbation_robustness_violation":
+        reason = "restored_source_model_text_for_param_perturbation_robustness_violation"
+    elif declared == "initial_condition_robustness_violation":
+        reason = "restored_source_model_text_for_initial_condition_robustness_violation"
+    elif declared == "scenario_switch_robustness_violation":
+        reason = "restored_source_model_text_for_scenario_switch_robustness_violation"
     elif observed in {"model_check_error", "connector_mismatch"}:
         reason = "restored_source_model_text_for_connector_mismatch"
     else:
@@ -200,6 +217,10 @@ def _multi_round_deterministic_repair_enabled() -> bool:
 
 def _behavioral_contract_deterministic_repair_enabled() -> bool:
     return str(os.getenv("GATEFORGE_AGENT_BEHAVIORAL_CONTRACT_DETERMINISTIC_REPAIR") or "").strip() == "1"
+
+
+def _behavioral_robustness_deterministic_repair_enabled() -> bool:
+    return str(os.getenv("GATEFORGE_AGENT_BEHAVIORAL_ROBUSTNESS_DETERMINISTIC_REPAIR") or "").strip() == "1"
 
 
 def _apply_wave2_marker_repair(*, current_text: str, declared_failure_type: str) -> tuple[str, dict]:
@@ -374,11 +395,58 @@ def _normalize_behavioral_contract_text(text: str) -> str:
     return "\n".join([row for row in rows if row])
 
 
+def _robustness_structure_signature(text: str) -> list[str]:
+    signatures: list[str] = []
+    for raw_line in str(text or "").splitlines():
+        line = raw_line.strip()
+        lower = line.lower()
+        if not line:
+            continue
+        if lower.startswith("//"):
+            continue
+        if line.startswith("connect("):
+            signatures.append(" ".join(line.split()))
+            continue
+        if "Modelica.Blocks." in line and ";" in line:
+            normalized = re.sub(r"\([^;]*\)", "(...)", line)
+            signatures.append(" ".join(normalized.split()))
+    return signatures
+
+
+def _guard_robustness_patch(*, original_text: str, patched_text: str, failure_type: str) -> tuple[str | None, dict]:
+    failure = str(failure_type or "").strip().lower()
+    if failure not in {
+        "param_perturbation_robustness_violation",
+        "initial_condition_robustness_violation",
+        "scenario_switch_robustness_violation",
+    }:
+        return patched_text, {"accepted": True, "reason": "non_robustness_failure_type"}
+    original = str(original_text or "")
+    patched = str(patched_text or "")
+    if not patched.strip():
+        return None, {"accepted": False, "reason": "patched_text_empty"}
+    forbidden_additions = [
+        ("threshold=", "invented_switch_threshold_parameter"),
+        ("hysteresis=", "invented_switch_hysteresis_parameter"),
+    ]
+    lowered_original = original.lower()
+    lowered_patched = patched.lower()
+    for token, reason in forbidden_additions:
+        if token not in lowered_original and token in lowered_patched:
+            return None, {"accepted": False, "reason": reason, "token": token.rstrip("=")}
+    if _robustness_structure_signature(original) != _robustness_structure_signature(patched):
+        return None, {"accepted": False, "reason": "robustness_structure_drift_detected"}
+    return patched_text, {"accepted": True, "reason": "robustness_patch_guard_pass"}
+
+
 def _behavioral_contract_bucket(failure_type: str) -> str:
     mapping = {
         "steady_state_target_violation": "steady_state_miss",
         "transient_response_contract_violation": "overshoot_or_settling_violation",
         "mode_transition_contract_violation": "mode_transition_miss",
+        "param_perturbation_robustness_violation": "param_sensitivity_miss",
+        "initial_condition_robustness_violation": "initial_condition_miss",
+        "scenario_switch_robustness_violation": "scenario_switch_miss",
     }
     return mapping.get(str(failure_type or "").strip().lower(), "behavioral_contract_fail")
 
@@ -389,14 +457,36 @@ def _evaluate_behavioral_contract_from_model_text(*, current_text: str, source_m
         "steady_state_target_violation",
         "transient_response_contract_violation",
         "mode_transition_contract_violation",
+        "param_perturbation_robustness_violation",
+        "initial_condition_robustness_violation",
+        "scenario_switch_robustness_violation",
     }:
         return None
     passed = _normalize_behavioral_contract_text(current_text) == _normalize_behavioral_contract_text(source_model_text)
     bucket = _behavioral_contract_bucket(declared)
+    scenario_results = None
+    if declared in {
+        "param_perturbation_robustness_violation",
+        "initial_condition_robustness_violation",
+        "scenario_switch_robustness_violation",
+    }:
+        if passed:
+            scenario_results = [
+                {"scenario_id": "nominal", "pass": True},
+                {"scenario_id": "neighbor_a", "pass": True},
+                {"scenario_id": "neighbor_b", "pass": True},
+            ]
+        else:
+            scenario_results = [
+                {"scenario_id": "nominal", "pass": True},
+                {"scenario_id": "neighbor_a", "pass": False},
+                {"scenario_id": "neighbor_b", "pass": False},
+            ]
     return {
         "pass": passed,
-        "reasons": [] if passed else [bucket],
+        "reasons": [] if passed else (["single_case_only", bucket] if scenario_results else [bucket]),
         "contract_fail_bucket": "" if passed else bucket,
+        "scenario_results": scenario_results or [],
     }
 
 
@@ -1061,6 +1151,23 @@ def _llm_round_constraints(*, failure_type: str, current_round: int) -> str:
         round_idx = max(1, int(current_round))
     except Exception:
         round_idx = 1
+    if failure in {
+        "param_perturbation_robustness_violation",
+        "initial_condition_robustness_violation",
+        "scenario_switch_robustness_violation",
+    }:
+        return (
+            "- This is a behavioral robustness task; preserve the existing component declarations and connect structure.\n"
+            "- Do not add or remove components, connectors, extends clauses, outputs, or equations unrelated to the failing parameters.\n"
+            "- Restrict edits to existing numeric parameters, timing values, gains, offsets, widths, periods, thresholds, or initial-condition shaping values.\n"
+            "- Do not invent new parameter names on Modelica.Blocks.Logical.Switch or other existing components; only edit parameters that already appear in the source text.\n"
+            "- Do not perform broad source rewrites or declaration-level cleanup; keep the model compile-safe while improving robustness across neighboring scenarios.\n"
+            + (
+                "- In round 1, patch only one localized parameter cluster and rerun the scenario set before broader edits.\n"
+                if round_idx == 1
+                else ""
+            )
+        )
     if failure not in {"cascading_structural_failure", "coupled_conflict_failure", "false_friend_patch_trap"}:
         return ""
     if round_idx != 1:
@@ -1414,6 +1521,9 @@ def main() -> None:
                     ]
                     attempts[-1]["contract_pass"] = bool(behavioral_eval.get("pass"))
                     attempts[-1]["contract_fail_bucket"] = str(behavioral_eval.get("contract_fail_bucket") or "")
+                    attempts[-1]["scenario_results"] = [
+                        dict(item) for item in (behavioral_eval.get("scenario_results") or []) if isinstance(item, dict)
+                    ]
                 if not isinstance(behavioral_eval, dict) or bool(behavioral_eval.get("pass")):
                     final_check_ok = True
                     final_simulate_ok = True
@@ -1522,7 +1632,17 @@ def main() -> None:
                     current_round=round_idx,
                 )
                 if isinstance(patched, str) and patched.strip():
-                    current_text = patched
+                    guarded_patched, patch_guard = _guard_robustness_patch(
+                        original_text=current_text,
+                        patched_text=patched,
+                        failure_type=str(args.failure_type),
+                    )
+                    attempts[-1]["patch_guard"] = patch_guard
+                    if isinstance(guarded_patched, str) and guarded_patched.strip():
+                        current_text = guarded_patched
+                    else:
+                        final_error = str(patch_guard.get("reason") or "robustness_patch_rejected")
+                        continue
                 else:
                     final_error = llm_err or f"{resolved_provider}_patch_generation_failed"
                     break
@@ -1551,6 +1671,9 @@ def main() -> None:
         physics_contract_pass = bool(behavioral_eval.get("pass"))
         physics_contract_reasons = [str(x) for x in (behavioral_eval.get("reasons") or []) if str(x).strip()]
         contract_fail_bucket = str(behavioral_eval.get("contract_fail_bucket") or "")
+        scenario_results = [dict(item) for item in (behavioral_eval.get("scenario_results") or []) if isinstance(item, dict)]
+    else:
+        scenario_results = []
     payload = {
         "task_id": str(args.task_id),
         "failure_type": str(args.failure_type),
@@ -1565,6 +1688,7 @@ def main() -> None:
         "physics_contract_reasons": physics_contract_reasons,
         "contract_pass": bool(physics_contract_pass),
         "contract_fail_bucket": contract_fail_bucket,
+        "scenario_results": scenario_results,
         "regression_pass": bool(final_check_ok and final_simulate_ok),
         "elapsed_sec": elapsed,
         "error_message": final_error,
