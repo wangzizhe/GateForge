@@ -2,6 +2,24 @@
 
 All notable changes to this project are documented in this file.
 
+## [v0.1.3] - 2026-03-20
+### Added
+- Added a source-blind behavioral-robustness evaluation mode.
+- Added a source-blind multistep evaluation lane for staged failure exposure and stage-aware control.
+
+### Changed
+- Improved autonomous repair behavior on behavioral-robustness tasks without relying on source-model rollback.
+- Improved Agent control flow so it can unlock a second failure stage and shift repair focus instead of repeatedly revisiting the first stage.
+
+### Fixed
+- Fixed robustness result aggregation and release-facing summary cleanliness.
+- Fixed release preflight so `v0.1.3` checks both source-blind robustness evidence and multistep stage-aware evidence.
+
+### Validation
+- Source-blind behavioral-robustness baseline: `2/18 PASS`
+- Source-blind deterministic repair: `18/18 PASS`
+- Source-blind multistep authority baseline: `stage_2_unlock_pct = 83.33`, `stage_1_revisit_after_unlock_count = 0`
+
 ## [v0.1.2] - 2026-03-13
 ### Added
 - Added short-latency fast checks for structural and connector repair validation.

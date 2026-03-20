@@ -15,6 +15,86 @@ class RunAgentModelicaReleasePreflightV011Tests(unittest.TestCase):
         self.assertIn('GATEFORGE_AGENT_RELEASE_OUT_DIR="${GATEFORGE_AGENT_RELEASE_OUT_DIR:-artifacts/release_v0_1_2}"', script)
         self.assertIn("exec bash scripts/run_agent_modelica_release_preflight_v0_1_1.sh", script)
 
+    def test_v013_wrapper_sets_release_artifact_dir(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        script = (repo_root / "scripts" / "run_agent_modelica_release_preflight_v0_1_3.sh").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('GATEFORGE_AGENT_RELEASE_OUT_DIR="${GATEFORGE_AGENT_RELEASE_OUT_DIR:-artifacts/release_v0_1_3}"', script)
+        self.assertIn("bash scripts/run_agent_modelica_release_preflight_v0_1_1.sh", script)
+        self.assertIn("python3 -m gateforge.agent_modelica_release_preflight_v0_1_3_evidence", script)
+
+    def test_v013_evidence_module_augments_summary(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            summary_path = tmp / "release_preflight_summary.json"
+            robustness_baseline = tmp / "robustness_baseline.json"
+            robustness_deterministic = tmp / "robustness_deterministic.json"
+            multistep_baseline = tmp / "multistep_baseline.json"
+
+            summary_path.write_text(
+                json.dumps(
+                    {
+                        "status": "PASS",
+                        "reasons": [],
+                        "live_smoke_status": "PASS",
+                    },
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+            robustness_baseline.write_text(
+                json.dumps({"all_scenarios_pass_pct": 11.11}, indent=2),
+                encoding="utf-8",
+            )
+            robustness_deterministic.write_text(
+                json.dumps({"success_at_k_pct": 100.0}, indent=2),
+                encoding="utf-8",
+            )
+            multistep_baseline.write_text(
+                json.dumps(
+                    {
+                        "stage_2_unlock_pct": 100.0,
+                        "stage_2_focus_pct": 100.0,
+                        "stage_1_revisit_after_unlock_count": 0,
+                        "stage_2_resolution_count": 1,
+                        "scenario_fail_breakdown": {"infra": 0, "llm_patch_drift": 0},
+                    },
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+
+            proc = subprocess.run(
+                [
+                    os.environ.get("PYTHON", "python3"),
+                    "-m",
+                    "gateforge.agent_modelica_release_preflight_v0_1_3_evidence",
+                    "--summary",
+                    str(summary_path),
+                    "--robustness-baseline-summary",
+                    str(robustness_baseline),
+                    "--robustness-deterministic-summary",
+                    str(robustness_deterministic),
+                    "--multistep-baseline-summary",
+                    str(multistep_baseline),
+                ],
+                cwd=str(repo_root),
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=30,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+
+            payload = json.loads(summary_path.read_text(encoding="utf-8"))
+            self.assertEqual(payload.get("status"), "PASS")
+            self.assertEqual(payload.get("v013_source_blind_robustness_status"), "PASS")
+            self.assertEqual(payload.get("v013_source_blind_multistep_status"), "PASS")
+            self.assertEqual(float(payload.get("v013_multistep_stage_2_unlock_pct") or 0.0), 100.0)
+            self.assertEqual(float(payload.get("v013_multistep_stage_2_focus_pct") or 0.0), 100.0)
+
     def test_fallback_mutant_generation_uses_real_newlines(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
         script = (repo_root / "scripts" / "run_agent_modelica_release_preflight_v0_1_1.sh").read_text(
