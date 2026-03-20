@@ -145,6 +145,12 @@ def main() -> None:
     stage_2_focus_count = 0
     stage_1_revisit_after_unlock_count = 0
     stage_2_resolution_count = 0
+    stage_plan_generated_count = 0
+    stage_plan_followed_count = 0
+    stage_2_plan_generated_count = 0
+    stage_2_plan_followed_count = 0
+    stage_2_plan_resolution_count = 0
+    plan_conflict_rejected_count = 0
     repair_action_sequence: dict[str, int] = {}
     stage_transition_action_sequence: dict[str, int] = {}
 
@@ -162,6 +168,10 @@ def main() -> None:
         unlocked_rounds: list[int] = []
         stage_2_focus_seen = False
         stage_1_revisit_seen = False
+        stage_plan_generated_seen = False
+        stage_plan_followed_seen = False
+        stage_2_plan_generated_seen = False
+        stage_2_plan_followed_seen = False
         transition_focuses: list[str] = []
         for attempt in [row for row in (record.get("attempts") or []) if isinstance(row, dict)]:
             signature = _attempt_signature(attempt, task)
@@ -182,11 +192,31 @@ def main() -> None:
                     stage_2_focus_seen = True
                 if bool(attempt.get("stage_1_revisit_after_unlock")):
                     stage_1_revisit_seen = True
+            if bool(attempt.get("stage_plan_generated")):
+                stage_plan_generated_seen = True
+            if bool(attempt.get("stage_plan_followed")) or bool(attempt.get("plan_followed")):
+                stage_plan_followed_seen = True
+            if str(attempt.get("plan_stage") or "").strip().lower() == "stage_2":
+                stage_2_plan_generated_seen = True
+                if bool(attempt.get("stage_plan_followed")) or bool(attempt.get("plan_followed")):
+                    stage_2_plan_followed_seen = True
+            try:
+                plan_conflict_rejected_count += max(0, int(attempt.get("plan_conflict_rejected_count") or 0))
+            except Exception:
+                pass
         if len(set(signatures)) > 1:
             failure_transition_count += 1
         distinct_failure_stages_seen_values.append(float(len(set(signatures or []))))
         if second_failure_round is not None:
             round_to_second_failure_values.append(float(second_failure_round))
+        if stage_plan_generated_seen:
+            stage_plan_generated_count += 1
+        if stage_plan_followed_seen:
+            stage_plan_followed_count += 1
+        if stage_2_plan_generated_seen:
+            stage_2_plan_generated_count += 1
+        if stage_2_plan_followed_seen:
+            stage_2_plan_followed_count += 1
         if unlocked_rounds:
             stage_2_unlock_count += 1
             first_unlock = min(x for x in unlocked_rounds if x > 0) if any(x > 0 for x in unlocked_rounds) else 0
@@ -204,6 +234,8 @@ def main() -> None:
             if bool(record.get("multi_step_stage_2_unlocked")) or unlocked_rounds:
                 stage_2_then_pass_count += 1
                 stage_2_resolution_count += 1
+                if stage_2_plan_followed_seen:
+                    stage_2_plan_resolution_count += 1
                 first_unlock = min(x for x in unlocked_rounds if x > 0) if any(x > 0 for x in unlocked_rounds) else 0
                 if first_unlock > 0:
                     rounds_used = int(record.get("rounds_used") or len([row for row in (record.get("attempts") or []) if isinstance(row, dict)]) or 0)
@@ -267,12 +299,22 @@ def main() -> None:
         "stage_2_focus_pct": _ratio(stage_2_focus_count, total_tasks),
         "stage_1_revisit_after_unlock_count": stage_1_revisit_after_unlock_count,
         "stage_2_resolution_count": stage_2_resolution_count,
+        "stage_plan_generated_count": stage_plan_generated_count,
+        "stage_plan_generated_pct": _ratio(stage_plan_generated_count, total_tasks),
+        "stage_plan_followed_count": stage_plan_followed_count,
+        "stage_plan_followed_pct": _ratio(stage_plan_followed_count, total_tasks),
+        "stage_2_plan_generated_count": stage_2_plan_generated_count,
+        "stage_2_plan_generated_pct": _ratio(stage_2_plan_generated_count, total_tasks),
+        "stage_2_plan_followed_count": stage_2_plan_followed_count,
+        "stage_2_plan_followed_pct": _ratio(stage_2_plan_followed_count, total_tasks),
+        "stage_2_plan_resolution_count": stage_2_plan_resolution_count,
+        "plan_conflict_rejected_count": plan_conflict_rejected_count,
         "median_round_from_stage_2_to_resolution": round(_median(round_from_stage_2_to_resolution_values), 2),
         "repair_action_sequence": dict(sorted(repair_action_sequence.items(), key=lambda item: (-item[1], item[0]))[:10]),
         "stage_transition_action_sequence": dict(sorted(stage_transition_action_sequence.items(), key=lambda item: (-item[1], item[0]))[:10]),
         "multi_step_headroom_status": (
             "stage_aware_control_observed"
-            if stage_2_focus_count > 0
+            if stage_2_plan_followed_count > 0
             else ("stage_aware_control_not_yet_effective" if stage_2_unlock_count > 0 else "task_construction_still_too_shallow")
         ),
         "sources": {

@@ -41,8 +41,8 @@ class AgentModelicaSourceBlindMultistepBaselineSummaryV1Tests(unittest.TestCase)
                         "scenario_results": [{"pass": True}, {"pass": True}, {"pass": True}],
                         "attempts": [
                             {"round": 1, "contract_fail_bucket": "stability_margin_miss", "multi_step_stage": "stage_1"},
-                            {"round": 2, "contract_fail_bucket": "behavior_contract_miss", "scenario_results": [{"pass": True}, {"pass": False}, {"pass": False}], "multi_step_stage": "stage_2", "multi_step_stage_2_unlocked": True, "multi_step_transition_seen": True, "multi_step_transition_round": 2, "multi_step_transition_reason": "stability_restored_behavior_gate_exposed", "source_blind_local_repair": {"applied": True, "cluster_name": "stability_cluster"}, "next_focus": "resolve_stage_2_behavior_contract", "stage_aware_control_applied": True},
-                            {"round": 3, "contract_pass": True, "scenario_results": [{"pass": True}, {"pass": True}, {"pass": True}], "multi_step_stage": "passed", "multi_step_stage_2_unlocked": True, "multi_step_transition_seen": True, "multi_step_transition_round": 2, "multi_step_transition_reason": "stability_restored_behavior_gate_exposed", "next_focus": "stop_editing", "stage_aware_control_applied": True},
+                            {"round": 2, "contract_fail_bucket": "behavior_contract_miss", "scenario_results": [{"pass": True}, {"pass": False}, {"pass": False}], "multi_step_stage": "stage_2", "multi_step_stage_2_unlocked": True, "multi_step_transition_seen": True, "multi_step_transition_round": 2, "multi_step_transition_reason": "stability_restored_behavior_gate_exposed", "source_blind_local_repair": {"applied": True, "cluster_name": "stability_cluster"}, "next_focus": "resolve_stage_2_behavior_contract", "stage_aware_control_applied": True, "stage_plan_generated": True, "stage_plan_followed": True, "plan_stage": "stage_2", "plan_followed": True, "executed_plan_action": "resolve_stage_2_behavior_contract"},
+                            {"round": 3, "contract_pass": True, "scenario_results": [{"pass": True}, {"pass": True}, {"pass": True}], "multi_step_stage": "passed", "multi_step_stage_2_unlocked": True, "multi_step_transition_seen": True, "multi_step_transition_round": 2, "multi_step_transition_reason": "stability_restored_behavior_gate_exposed", "next_focus": "stop_editing", "stage_aware_control_applied": True, "stage_plan_generated": True, "stage_plan_followed": True, "plan_stage": "stage_2", "plan_followed": True, "executed_plan_action": "stop_editing"},
                         ],
                     },
                     {
@@ -52,7 +52,7 @@ class AgentModelicaSourceBlindMultistepBaselineSummaryV1Tests(unittest.TestCase)
                         "scenario_results": [{"pass": True}, {"pass": False}, {"pass": False}],
                         "attempts": [
                             {"round": 1, "contract_fail_bucket": "behavior_contract_miss", "multi_step_stage": "stage_1"},
-                            {"round": 2, "contract_fail_bucket": "single_case_only", "scenario_results": [{"pass": True}, {"pass": False}, {"pass": False}], "multi_step_stage": "stage_2", "multi_step_stage_2_unlocked": True, "multi_step_transition_seen": True, "multi_step_transition_round": 2, "multi_step_transition_reason": "nominal_behavior_restored_neighbor_robustness_exposed", "next_focus": "resolve_stage_2_neighbor_robustness", "stage_aware_control_applied": True},
+                            {"round": 2, "contract_fail_bucket": "single_case_only", "scenario_results": [{"pass": True}, {"pass": False}, {"pass": False}], "multi_step_stage": "stage_2", "multi_step_stage_2_unlocked": True, "multi_step_transition_seen": True, "multi_step_transition_round": 2, "multi_step_transition_reason": "nominal_behavior_restored_neighbor_robustness_exposed", "next_focus": "resolve_stage_2_neighbor_robustness", "stage_aware_control_applied": True, "stage_plan_generated": True, "stage_plan_followed": True, "plan_stage": "stage_2", "plan_followed": True, "executed_plan_action": "resolve_stage_2_neighbor_robustness", "plan_conflict_rejected_count": 1},
                         ],
                     },
                     {
@@ -102,6 +102,12 @@ class AgentModelicaSourceBlindMultistepBaselineSummaryV1Tests(unittest.TestCase)
             self.assertEqual(payload.get("stage_2_focus_count"), 2)
             self.assertEqual(payload.get("stage_1_revisit_after_unlock_count"), 0)
             self.assertEqual(payload.get("stage_2_resolution_count"), 1)
+            self.assertEqual(payload.get("stage_plan_generated_count"), 2)
+            self.assertEqual(payload.get("stage_plan_followed_count"), 2)
+            self.assertEqual(payload.get("stage_2_plan_generated_count"), 2)
+            self.assertEqual(payload.get("stage_2_plan_followed_count"), 2)
+            self.assertEqual(payload.get("stage_2_plan_resolution_count"), 1)
+            self.assertEqual(payload.get("plan_conflict_rejected_count"), 1)
             self.assertEqual(payload.get("multi_step_completion_count"), 1)
             self.assertEqual(payload.get("multi_step_headroom_status"), "stage_aware_control_observed")
             self.assertTrue(

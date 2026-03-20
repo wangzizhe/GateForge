@@ -201,6 +201,87 @@ def _multistep_stage_actions(*, failure_type: str, current_stage: str, next_focu
     return []
 
 
+def _looks_like_multistep_stage_1_action(*, failure_type: str, action: str) -> bool:
+    ftype = str(failure_type or "").strip().lower()
+    lower = str(action or "").strip().lower()
+    if any(
+        token in lower
+        for token in (
+            "stop revisiting",
+            "do not reopen",
+            "reject edits that reopen",
+            "reintroduce stage-1",
+            "after stage_2 unlock",
+            "rank second-layer repair above",
+        )
+    ):
+        return False
+    signatures = {
+        "stability_then_behavior": ("stability", "startup timing", "unlock step"),
+        "behavior_then_robustness": ("nominal behavior", "unlock step", "primary scenario"),
+        "switch_then_recovery": ("switch timing", "trigger", "unlock step"),
+    }
+    return any(token in lower for token in signatures.get(ftype, ()))
+
+
+def build_multistep_repair_plan_v0(
+    *,
+    failure_type: str,
+    current_stage: str,
+    current_fail_bucket: str,
+    plan_actions: list[str] | None = None,
+) -> dict:
+    ftype = str(failure_type or "").strip().lower()
+    stage = str(current_stage or "").strip().lower()
+    fail_bucket = str(current_fail_bucket or "").strip().lower()
+    next_focus = _multistep_next_focus(
+        failure_type=ftype,
+        current_stage=stage,
+        current_fail_bucket=fail_bucket,
+    )
+    actions = _as_actions(plan_actions or [])
+    if stage in {"", "stage_1"}:
+        goal = {
+            "stability_then_behavior": "unlock the second behavior layer by restoring stage-1 stability only",
+            "behavior_then_robustness": "unlock the second robustness layer by restoring nominal behavior only",
+            "switch_then_recovery": "unlock the second recovery layer by restoring switch timing only",
+        }.get(ftype, "unlock stage_2 only")
+        constraints = [
+            "only edit existing numeric parameters tied to the stage-1 unlock gate",
+            "do not spend this round on second-layer cleanup before stage_2 is unlocked",
+            "do not change structure, declarations, connectors, or add new parameters",
+        ]
+        stop_condition = "stop this plan when stage_2_unlocked becomes true"
+    elif stage == "stage_2":
+        goal = {
+            "stability_then_behavior": "resolve the exposed second-stage behavior contract without reopening stage-1 stability",
+            "behavior_then_robustness": "resolve the exposed second-stage neighbor robustness layer without reopening stage-1 nominal behavior",
+            "switch_then_recovery": "resolve the exposed second-stage post-switch recovery layer without reopening stage-1 switch timing",
+        }.get(ftype, "resolve the exposed second layer only")
+        constraints = [
+            "do not reopen stage-1 parameter clusters unless the task regresses back to stage_1",
+            "prioritize the exposed second-layer fail bucket over any first-layer cleanup",
+            "do not change structure, declarations, connectors, or add new parameters",
+        ]
+        stop_condition = "stop this plan when all scenarios pass or the task regresses back to stage_1"
+    elif stage == "passed":
+        goal = "stop editing because all active stages are cleared"
+        constraints = ["do not edit further"]
+        stop_condition = "stop immediately"
+    else:
+        goal = "inspect current stage before editing"
+        constraints = ["do not change structure or add new parameters"]
+        stop_condition = "stop when stage intent is clarified"
+    return {
+        "plan_stage": stage,
+        "plan_goal": goal,
+        "plan_actions": actions,
+        "plan_constraints": constraints,
+        "plan_stop_condition": stop_condition,
+        "next_focus": next_focus,
+    }
+
+
 def recommend_repair_actions_v0(
     *,
     failure_type: str,
@@ -243,6 +324,23 @@ def recommend_repair_actions_v0(
 
     deterministic_actions = _as_actions(rules + suggested + stage_guard)
     fallback = _as_actions(fallback_actions or [])
+    conflict_rejected_count = 0
+    if current_stage == "stage_2" and deterministic_actions:
+        filtered_actions: list[str] = []
+        for action in deterministic_actions:
+            if _looks_like_multistep_stage_1_action(failure_type=ftype, action=action):
+                conflict_rejected_count += 1
+                continue
+            filtered_actions.append(action)
+        deterministic_actions = _as_actions(filtered_actions)
+    chosen_actions = deterministic_actions if deterministic_actions else fallback
+    plan = build_multistep_repair_plan_v0(
+        failure_type=ftype,
+        current_stage=current_stage,
+        current_fail_bucket=current_fail_bucket,
+        plan_actions=chosen_actions,
+    ) if current_stage else {}
+    plan_followed = bool(current_stage) and bool(chosen_actions)
 
     if deterministic_actions:
         return {
@@ -254,6 +352,12 @@ def recommend_repair_actions_v0(
             "current_stage": current_stage,
             "next_focus": next_focus,
             "stage_aware": bool(current_stage),
+            "plan": plan,
+            "plan_generated": bool(current_stage),
+            "plan_followed": plan_followed,
+            "plan_conflict_rejected": conflict_rejected_count > 0,
+            "plan_conflict_rejected_count": conflict_rejected_count,
+            "executed_plan_action": chosen_actions[0] if chosen_actions else "",
         }
     return {
         "channel": "fallback_planner_actions",
@@ -264,6 +368,12 @@ def recommend_repair_actions_v0(
         "current_stage": current_stage,
         "next_focus": next_focus,
         "stage_aware": bool(current_stage),
+        "plan": plan,
+        "plan_generated": bool(current_stage),
+        "plan_followed": plan_followed,
+        "plan_conflict_rejected": conflict_rejected_count > 0,
+        "plan_conflict_rejected_count": conflict_rejected_count,
+        "executed_plan_action": chosen_actions[0] if chosen_actions else "",
     }
 
 

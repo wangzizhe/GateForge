@@ -33,6 +33,16 @@ class AgentModelicaSourceBlindMultistepEvidenceV1Tests(unittest.TestCase):
                 "stage_2_focus_pct": 100.0,
                 "stage_1_revisit_after_unlock_count": 0,
                 "stage_2_resolution_count": 0,
+                "stage_plan_generated_count": 2,
+                "stage_plan_generated_pct": 100.0,
+                "stage_plan_followed_count": 2,
+                "stage_plan_followed_pct": 100.0,
+                "stage_2_plan_generated_count": 2,
+                "stage_2_plan_generated_pct": 100.0,
+                "stage_2_plan_followed_count": 2,
+                "stage_2_plan_followed_pct": 100.0,
+                "stage_2_plan_resolution_count": 0,
+                "plan_conflict_rejected_count": 1,
                 "median_round_from_stage_2_to_resolution": 0.0,
                 "multi_step_completion_count": 0,
                 "median_round_to_second_failure": 2.0,
@@ -95,6 +105,9 @@ class AgentModelicaSourceBlindMultistepEvidenceV1Tests(unittest.TestCase):
             self.assertEqual(payload.get("deterministic_partial_to_full_count"), 2)
             self.assertEqual(payload.get("deterministic_uplift_status"), "observed")
             self.assertEqual(payload.get("stage_aware_control_status"), "stage_aware_control_observed")
+            self.assertEqual(payload.get("stage_plan_followed_count"), 2)
+            self.assertEqual(payload.get("stage_2_plan_followed_count"), 2)
+            self.assertEqual(payload.get("plan_conflict_rejected_count"), 1)
 
 
 if __name__ == "__main__":
