@@ -64,6 +64,19 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
                 "stage_2_first_fail_bucket": "single_case_only",
                 "stage_aware_control_applied": True,
                 "stage_1_revisit_after_unlock": False,
+                "plan_stage": "stage_2",
+                "plan_goal": "resolve the exposed second-stage neighbor robustness layer without reopening stage-1 nominal behavior",
+                "plan_actions": ["resolve_stage_2_neighbor_robustness"],
+                "plan_constraints": ["do_not_reopen_stage_1"],
+                "plan_stop_condition": "all_neighbor_scenarios_pass",
+                "stage_plan_generated": True,
+                "stage_plan_followed": True,
+                "executed_plan_stage": "stage_2",
+                "executed_plan_action": "resolve_stage_2_neighbor_robustness",
+                "plan_followed": True,
+                "plan_conflict_rejected": False,
+                "plan_conflict_rejected_count": 0,
+                "last_successful_stage_action": "unlock_stage_2_neighbor_robustness",
             },
             physics_ok=False,
         )
@@ -74,6 +87,10 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
         self.assertEqual(int(multistep.get("multi_step_transition_round") or 0), 2)
         self.assertEqual(str(multistep.get("next_focus") or ""), "resolve_stage_2_neighbor_robustness")
         self.assertTrue(bool(multistep.get("stage_aware_control_applied")))
+        self.assertEqual(str(multistep.get("plan_stage") or ""), "stage_2")
+        self.assertTrue(bool(multistep.get("stage_plan_generated")))
+        self.assertTrue(bool(multistep.get("stage_plan_followed")))
+        self.assertEqual(str(multistep.get("executed_plan_action") or ""), "resolve_stage_2_neighbor_robustness")
 
     def test_build_live_template_context_exposes_unknown_library_source_meta(self) -> None:
         context = _build_live_template_context(

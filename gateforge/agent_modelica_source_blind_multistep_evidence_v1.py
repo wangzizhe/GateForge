@@ -95,11 +95,17 @@ def main() -> None:
     stage_2_focus_count = int(baseline_summary.get("stage_2_focus_count") or 0)
     stage_1_revisit_after_unlock_count = int(baseline_summary.get("stage_1_revisit_after_unlock_count") or 0)
     stage_2_resolution_count = int(baseline_summary.get("stage_2_resolution_count") or 0)
+    stage_plan_generated_count = int(baseline_summary.get("stage_plan_generated_count") or 0)
+    stage_plan_followed_count = int(baseline_summary.get("stage_plan_followed_count") or 0)
+    stage_2_plan_generated_count = int(baseline_summary.get("stage_2_plan_generated_count") or 0)
+    stage_2_plan_followed_count = int(baseline_summary.get("stage_2_plan_followed_count") or 0)
+    stage_2_plan_resolution_count = int(baseline_summary.get("stage_2_plan_resolution_count") or 0)
+    plan_conflict_rejected_count = int(baseline_summary.get("plan_conflict_rejected_count") or 0)
     partial_to_full_count, partial_to_full_by_failure = _partial_to_full(taskset, baseline_results, deterministic_results)
     task_total = int(challenge.get("total_tasks") or 0)
     partial_to_full_pct = round((partial_to_full_count / task_total) * 100.0, 2) if task_total > 0 else 0.0
     deterministic_uplift_status = "observed" if deterministic_pct > baseline_pct or partial_to_full_count > 0 else "not_observed"
-    stage_aware_control_status = "stage_aware_control_observed" if stage_2_focus_count > 0 else "stage_aware_control_not_yet_effective"
+    stage_aware_control_status = "stage_aware_control_observed" if stage_2_plan_followed_count > 0 else "stage_aware_control_not_yet_effective"
     primary_reason = "deterministic_uplift_observed" if deterministic_uplift_status == "observed" else stage_aware_control_status
     decision = "promote" if deterministic_uplift_status == "observed" else "needs_review"
 
@@ -123,6 +129,16 @@ def main() -> None:
         "stage_2_focus_pct": float(baseline_summary.get("stage_2_focus_pct") or 0.0),
         "stage_1_revisit_after_unlock_count": stage_1_revisit_after_unlock_count,
         "stage_2_resolution_count": stage_2_resolution_count,
+        "stage_plan_generated_count": stage_plan_generated_count,
+        "stage_plan_generated_pct": float(baseline_summary.get("stage_plan_generated_pct") or 0.0),
+        "stage_plan_followed_count": stage_plan_followed_count,
+        "stage_plan_followed_pct": float(baseline_summary.get("stage_plan_followed_pct") or 0.0),
+        "stage_2_plan_generated_count": stage_2_plan_generated_count,
+        "stage_2_plan_generated_pct": float(baseline_summary.get("stage_2_plan_generated_pct") or 0.0),
+        "stage_2_plan_followed_count": stage_2_plan_followed_count,
+        "stage_2_plan_followed_pct": float(baseline_summary.get("stage_2_plan_followed_pct") or 0.0),
+        "stage_2_plan_resolution_count": stage_2_plan_resolution_count,
+        "plan_conflict_rejected_count": plan_conflict_rejected_count,
         "median_round_from_stage_2_to_resolution": float(baseline_summary.get("median_round_from_stage_2_to_resolution") or 0.0),
         "multi_step_completion_count": int(baseline_summary.get("multi_step_completion_count") or 0),
         "median_round_to_second_failure": float(baseline_summary.get("median_round_to_second_failure") or 0.0),
@@ -145,6 +161,8 @@ def main() -> None:
         "failure_transition_count": transition_count,
         "stage_2_unlock_count": stage_2_unlock_count,
         "stage_2_focus_count": stage_2_focus_count,
+        "stage_plan_followed_count": stage_plan_followed_count,
+        "stage_2_plan_followed_count": stage_2_plan_followed_count,
         "stage_aware_control_status": stage_aware_control_status,
     }
     decision_summary = {
@@ -160,6 +178,12 @@ def main() -> None:
         "stage_2_unlock_pct": float(baseline_summary.get("stage_2_unlock_pct") or 0.0),
         "stage_2_focus_count": stage_2_focus_count,
         "stage_2_focus_pct": float(baseline_summary.get("stage_2_focus_pct") or 0.0),
+        "stage_plan_followed_count": stage_plan_followed_count,
+        "stage_plan_followed_pct": float(baseline_summary.get("stage_plan_followed_pct") or 0.0),
+        "stage_2_plan_followed_count": stage_2_plan_followed_count,
+        "stage_2_plan_followed_pct": float(baseline_summary.get("stage_2_plan_followed_pct") or 0.0),
+        "stage_2_plan_resolution_count": stage_2_plan_resolution_count,
+        "plan_conflict_rejected_count": plan_conflict_rejected_count,
         "stage_1_revisit_after_unlock_count": stage_1_revisit_after_unlock_count,
         "stage_aware_control_status": stage_aware_control_status,
         "deterministic_partial_to_full_count": partial_to_full_count,

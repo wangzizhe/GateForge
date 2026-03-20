@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .agent_modelica_diagnostic_ir_v0 import build_diagnostic_ir_v0
-from .agent_modelica_repair_action_policy_v0 import recommend_repair_actions_v0
+from .agent_modelica_repair_action_policy_v0 import build_multistep_repair_plan_v0, recommend_repair_actions_v0
 
 DEFAULT_DOCKER_IMAGE = "openmodelica/openmodelica:v1.26.1-minimal"
 ENV_KEY_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
@@ -796,6 +796,24 @@ def _build_multistep_stage_context(
         "next_focus": next_focus,
         "stage_1_unlock_cluster": str(memory.get("stage_1_unlock_cluster") or ""),
         "stage_2_first_fail_bucket": stage_2_first_fail_bucket,
+    }
+
+
+def _stage_plan_fields(*, plan: dict | None, generated: bool, followed: bool, conflict_rejected: bool, conflict_rejected_count: int, executed_action: str) -> dict:
+    payload = plan if isinstance(plan, dict) else {}
+    return {
+        "plan_stage": str(payload.get("plan_stage") or ""),
+        "plan_goal": str(payload.get("plan_goal") or ""),
+        "plan_actions": [str(x) for x in (payload.get("plan_actions") or []) if isinstance(x, str)],
+        "plan_constraints": [str(x) for x in (payload.get("plan_constraints") or []) if isinstance(x, str)],
+        "plan_stop_condition": str(payload.get("plan_stop_condition") or ""),
+        "stage_plan_generated": bool(generated),
+        "stage_plan_followed": bool(followed),
+        "executed_plan_stage": str(payload.get("plan_stage") or ""),
+        "executed_plan_action": str(executed_action or ""),
+        "plan_followed": bool(followed),
+        "plan_conflict_rejected": bool(conflict_rejected),
+        "plan_conflict_rejected_count": max(0, int(conflict_rejected_count or 0)),
     }
 
 
@@ -2057,6 +2075,18 @@ def main() -> None:
         "stage_2_transition_reason": "",
         "stage_aware_focus_applied": False,
         "stage_1_revisit_after_unlock": False,
+        "last_plan_stage": "",
+        "last_plan_goal": "",
+        "last_plan_actions": [],
+        "last_plan_constraints": [],
+        "last_plan_stop_condition": "",
+        "stage_plan_generated": False,
+        "stage_plan_followed": False,
+        "executed_plan_stage": "",
+        "executed_plan_action": "",
+        "plan_conflict_rejected": False,
+        "plan_conflict_rejected_count": 0,
+        "last_successful_stage_action": "",
     }
     final_check_ok = False
     final_simulate_ok = False
@@ -2162,6 +2192,34 @@ def main() -> None:
                     attempts[-1]["next_focus"] = str(stage_context.get("next_focus") or "")
                     attempts[-1]["stage_1_unlock_cluster"] = str(stage_context.get("stage_1_unlock_cluster") or "")
                     attempts[-1]["stage_2_first_fail_bucket"] = str(stage_context.get("stage_2_first_fail_bucket") or "")
+                    stage_plan = build_multistep_repair_plan_v0(
+                        failure_type=str(args.failure_type),
+                        current_stage=str(stage_context.get("current_stage") or ""),
+                        current_fail_bucket=str(stage_context.get("current_fail_bucket") or ""),
+                        plan_actions=[],
+                    )
+                    stage_plan_fields = _stage_plan_fields(
+                        plan=stage_plan,
+                        generated=bool(stage_context.get("current_stage")),
+                        followed=str(stage_context.get("current_stage") or "") == "passed",
+                        conflict_rejected=False,
+                        conflict_rejected_count=0,
+                        executed_action="stop_editing" if str(stage_context.get("current_stage") or "") == "passed" else "",
+                    )
+                    attempts[-1].update(stage_plan_fields)
+                    multistep_memory["last_plan_stage"] = str(stage_plan_fields.get("plan_stage") or "")
+                    multistep_memory["last_plan_goal"] = str(stage_plan_fields.get("plan_goal") or "")
+                    multistep_memory["last_plan_actions"] = list(stage_plan_fields.get("plan_actions") or [])
+                    multistep_memory["last_plan_constraints"] = list(stage_plan_fields.get("plan_constraints") or [])
+                    multistep_memory["last_plan_stop_condition"] = str(stage_plan_fields.get("plan_stop_condition") or "")
+                    multistep_memory["stage_plan_generated"] = bool(stage_plan_fields.get("stage_plan_generated"))
+                    multistep_memory["stage_plan_followed"] = bool(stage_plan_fields.get("stage_plan_followed"))
+                    multistep_memory["executed_plan_stage"] = str(stage_plan_fields.get("executed_plan_stage") or "")
+                    multistep_memory["executed_plan_action"] = str(stage_plan_fields.get("executed_plan_action") or "")
+                    multistep_memory["plan_conflict_rejected"] = bool(stage_plan_fields.get("plan_conflict_rejected"))
+                    multistep_memory["plan_conflict_rejected_count"] = int(stage_plan_fields.get("plan_conflict_rejected_count") or 0)
+                    if str(stage_context.get("current_stage") or "") == "passed":
+                        multistep_memory["last_successful_stage_action"] = "stop_editing"
                 if not isinstance(behavioral_eval, dict) or bool(behavioral_eval.get("pass")):
                     final_check_ok = True
                     final_simulate_ok = True
@@ -2297,6 +2355,7 @@ def main() -> None:
                     multistep_context=stage_context,
                 )
                 stage_repair_actions = [str(x) for x in (stage_policy.get("actions") or []) if isinstance(x, str)]
+                stage_plan = stage_policy.get("plan") if isinstance(stage_policy.get("plan"), dict) else {}
                 stage_aware_control_applied = bool(stage_policy.get("stage_aware")) and bool(stage_repair_actions)
                 stage_1_revisit_after_unlock = False
                 if bool(stage_context.get("stage_2_unlocked")):
@@ -2310,8 +2369,27 @@ def main() -> None:
                         for action in stage_repair_actions
                     ):
                         stage_1_revisit_after_unlock = True
+                stage_plan_fields = _stage_plan_fields(
+                    plan=stage_plan,
+                    generated=bool(stage_policy.get("plan_generated")),
+                    followed=bool(stage_policy.get("plan_followed")),
+                    conflict_rejected=bool(stage_policy.get("plan_conflict_rejected")),
+                    conflict_rejected_count=int(stage_policy.get("plan_conflict_rejected_count") or 0),
+                    executed_action=str(stage_policy.get("executed_plan_action") or ""),
+                )
                 multistep_memory["stage_aware_focus_applied"] = bool(multistep_memory.get("stage_aware_focus_applied")) or stage_aware_control_applied
                 multistep_memory["stage_1_revisit_after_unlock"] = bool(multistep_memory.get("stage_1_revisit_after_unlock")) or stage_1_revisit_after_unlock
+                multistep_memory["last_plan_stage"] = str(stage_plan_fields.get("plan_stage") or "")
+                multistep_memory["last_plan_goal"] = str(stage_plan_fields.get("plan_goal") or "")
+                multistep_memory["last_plan_actions"] = list(stage_plan_fields.get("plan_actions") or [])
+                multistep_memory["last_plan_constraints"] = list(stage_plan_fields.get("plan_constraints") or [])
+                multistep_memory["last_plan_stop_condition"] = str(stage_plan_fields.get("plan_stop_condition") or "")
+                multistep_memory["stage_plan_generated"] = bool(stage_plan_fields.get("stage_plan_generated"))
+                multistep_memory["stage_plan_followed"] = bool(stage_plan_fields.get("stage_plan_followed"))
+                multistep_memory["executed_plan_stage"] = str(stage_plan_fields.get("executed_plan_stage") or "")
+                multistep_memory["executed_plan_action"] = str(stage_plan_fields.get("executed_plan_action") or "")
+                multistep_memory["plan_conflict_rejected"] = bool(stage_plan_fields.get("plan_conflict_rejected"))
+                multistep_memory["plan_conflict_rejected_count"] = int(stage_plan_fields.get("plan_conflict_rejected_count") or 0)
                 attempts[-1]["current_stage"] = str(stage_context.get("current_stage") or "")
                 attempts[-1]["stage_2_unlocked"] = bool(stage_context.get("stage_2_unlocked"))
                 attempts[-1]["transition_round"] = int(stage_context.get("transition_round") or 0)
@@ -2323,6 +2401,7 @@ def main() -> None:
                 attempts[-1]["stage_aware_repair_actions"] = stage_repair_actions
                 attempts[-1]["stage_aware_control_applied"] = stage_aware_control_applied
                 attempts[-1]["stage_1_revisit_after_unlock"] = stage_1_revisit_after_unlock
+                attempts[-1].update(stage_plan_fields)
                 patched, llm_err, resolved_provider = _llm_repair_model_text(
                     planner_backend=str(args.planner_backend),
                     original_text=current_text,
@@ -2342,6 +2421,8 @@ def main() -> None:
                     attempts[-1]["patch_guard"] = patch_guard
                     if isinstance(guarded_patched, str) and guarded_patched.strip():
                         current_text = guarded_patched
+                        if str(stage_plan_fields.get("executed_plan_action") or ""):
+                            multistep_memory["last_successful_stage_action"] = str(stage_plan_fields.get("executed_plan_action") or "")
                     else:
                         final_error = str(patch_guard.get("reason") or "robustness_patch_rejected")
                         continue
@@ -2420,6 +2501,19 @@ def main() -> None:
         "stage_2_first_fail_bucket": str(multistep_memory.get("stage_2_first_fail_bucket") or ""),
         "stage_aware_control_applied": bool(multistep_memory.get("stage_aware_focus_applied")),
         "stage_1_revisit_after_unlock": bool(multistep_memory.get("stage_1_revisit_after_unlock")),
+        "plan_stage": str(multistep_memory.get("last_plan_stage") or ""),
+        "plan_goal": str(multistep_memory.get("last_plan_goal") or ""),
+        "plan_actions": [str(x) for x in (multistep_memory.get("last_plan_actions") or []) if isinstance(x, str)],
+        "plan_constraints": [str(x) for x in (multistep_memory.get("last_plan_constraints") or []) if isinstance(x, str)],
+        "plan_stop_condition": str(multistep_memory.get("last_plan_stop_condition") or ""),
+        "stage_plan_generated": bool(multistep_memory.get("stage_plan_generated")),
+        "stage_plan_followed": bool(multistep_memory.get("stage_plan_followed")),
+        "executed_plan_stage": str(multistep_memory.get("executed_plan_stage") or ""),
+        "executed_plan_action": str(multistep_memory.get("executed_plan_action") or ""),
+        "plan_followed": bool(multistep_memory.get("stage_plan_followed")),
+        "plan_conflict_rejected": bool(multistep_memory.get("plan_conflict_rejected")),
+        "plan_conflict_rejected_count": int(multistep_memory.get("plan_conflict_rejected_count") or 0),
+        "last_successful_stage_action": str(multistep_memory.get("last_successful_stage_action") or ""),
         "regression_pass": bool(final_check_ok and final_simulate_ok),
         "elapsed_sec": elapsed,
         "error_message": final_error,

@@ -391,6 +391,19 @@ def _extract_multistep_fields(payload: dict, live_attempt: dict) -> dict:
         "stage_2_first_fail_bucket": "",
         "stage_aware_control_applied": False,
         "stage_1_revisit_after_unlock": False,
+        "plan_stage": "",
+        "plan_goal": "",
+        "plan_actions": [],
+        "plan_constraints": [],
+        "plan_stop_condition": "",
+        "stage_plan_generated": False,
+        "stage_plan_followed": False,
+        "executed_plan_stage": "",
+        "executed_plan_action": "",
+        "plan_followed": False,
+        "plan_conflict_rejected": False,
+        "plan_conflict_rejected_count": 0,
+        "last_successful_stage_action": "",
     }
     stage = str(live_attempt.get("multi_step_stage") or payload.get("multi_step_stage") or "").strip().lower()
     out["multi_step_stage"] = stage
@@ -447,6 +460,46 @@ def _extract_multistep_fields(payload: dict, live_attempt: dict) -> dict:
     revisit_payload = _as_bool(payload.get("stage_1_revisit_after_unlock"))
     revisit_live = _as_bool(live_attempt.get("stage_1_revisit_after_unlock"))
     out["stage_1_revisit_after_unlock"] = bool(revisit_live) or bool(revisit_payload)
+    out["plan_stage"] = str(live_attempt.get("plan_stage") or payload.get("plan_stage") or "").strip().lower()
+    out["plan_goal"] = str(live_attempt.get("plan_goal") or payload.get("plan_goal") or "").strip()
+    out["plan_actions"] = _as_str_list(live_attempt.get("plan_actions")) or _as_str_list(payload.get("plan_actions"))
+    out["plan_constraints"] = _as_str_list(live_attempt.get("plan_constraints")) or _as_str_list(payload.get("plan_constraints"))
+    out["plan_stop_condition"] = str(
+        live_attempt.get("plan_stop_condition")
+        or payload.get("plan_stop_condition")
+        or ""
+    ).strip()
+    out["stage_plan_generated"] = bool(_as_bool(live_attempt.get("stage_plan_generated"))) or bool(_as_bool(payload.get("stage_plan_generated")))
+    out["stage_plan_followed"] = bool(_as_bool(live_attempt.get("stage_plan_followed"))) or bool(_as_bool(payload.get("stage_plan_followed")))
+    out["executed_plan_stage"] = str(
+        live_attempt.get("executed_plan_stage")
+        or payload.get("executed_plan_stage")
+        or out["plan_stage"]
+        or ""
+    ).strip().lower()
+    out["executed_plan_action"] = str(
+        live_attempt.get("executed_plan_action")
+        or payload.get("executed_plan_action")
+        or ""
+    ).strip()
+    out["plan_followed"] = bool(_as_bool(live_attempt.get("plan_followed"))) or bool(_as_bool(payload.get("plan_followed"))) or bool(out["stage_plan_followed"])
+    out["plan_conflict_rejected"] = bool(_as_bool(live_attempt.get("plan_conflict_rejected"))) or bool(_as_bool(payload.get("plan_conflict_rejected")))
+    try:
+        out["plan_conflict_rejected_count"] = max(
+            0,
+            int(
+                live_attempt.get("plan_conflict_rejected_count")
+                or payload.get("plan_conflict_rejected_count")
+                or 0
+            ),
+        )
+    except Exception:
+        out["plan_conflict_rejected_count"] = 0
+    out["last_successful_stage_action"] = str(
+        live_attempt.get("last_successful_stage_action")
+        or payload.get("last_successful_stage_action")
+        or ""
+    ).strip()
     return out
 
 
@@ -1532,6 +1585,19 @@ def _run_task_live_l4(
             "stage_2_first_fail_bucket": str(multistep_fields.get("stage_2_first_fail_bucket") or ""),
             "stage_aware_control_applied": bool(multistep_fields.get("stage_aware_control_applied")),
             "stage_1_revisit_after_unlock": bool(multistep_fields.get("stage_1_revisit_after_unlock")),
+            "plan_stage": str(multistep_fields.get("plan_stage") or ""),
+            "plan_goal": str(multistep_fields.get("plan_goal") or ""),
+            "plan_actions": [str(x) for x in (multistep_fields.get("plan_actions") or []) if isinstance(x, str)],
+            "plan_constraints": [str(x) for x in (multistep_fields.get("plan_constraints") or []) if isinstance(x, str)],
+            "plan_stop_condition": str(multistep_fields.get("plan_stop_condition") or ""),
+            "stage_plan_generated": bool(multistep_fields.get("stage_plan_generated")),
+            "stage_plan_followed": bool(multistep_fields.get("stage_plan_followed")),
+            "executed_plan_stage": str(multistep_fields.get("executed_plan_stage") or ""),
+            "executed_plan_action": str(multistep_fields.get("executed_plan_action") or ""),
+            "plan_followed": bool(multistep_fields.get("plan_followed")),
+            "plan_conflict_rejected": bool(multistep_fields.get("plan_conflict_rejected")),
+            "plan_conflict_rejected_count": int(multistep_fields.get("plan_conflict_rejected_count") or 0),
+            "last_successful_stage_action": str(multistep_fields.get("last_successful_stage_action") or ""),
             "physics_contract_reasons": physics_reasons,
             "physics_contract_invariant_count": len(task_invariants),
             "regression_pass": bool(regression_ok),
@@ -1628,6 +1694,19 @@ def _run_task_live_l4(
         "stage_2_first_fail_bucket": str(best_contract_attempt.get("stage_2_first_fail_bucket") or "") if best_contract_attempt else "",
         "stage_aware_control_applied": bool(best_contract_attempt.get("stage_aware_control_applied")) if best_contract_attempt else False,
         "stage_1_revisit_after_unlock": bool(best_contract_attempt.get("stage_1_revisit_after_unlock")) if best_contract_attempt else False,
+        "plan_stage": str(best_contract_attempt.get("plan_stage") or "") if best_contract_attempt else "",
+        "plan_goal": str(best_contract_attempt.get("plan_goal") or "") if best_contract_attempt else "",
+        "plan_actions": [str(x) for x in (best_contract_attempt.get("plan_actions") or []) if isinstance(x, str)] if best_contract_attempt else [],
+        "plan_constraints": [str(x) for x in (best_contract_attempt.get("plan_constraints") or []) if isinstance(x, str)] if best_contract_attempt else [],
+        "plan_stop_condition": str(best_contract_attempt.get("plan_stop_condition") or "") if best_contract_attempt else "",
+        "stage_plan_generated": bool(best_contract_attempt.get("stage_plan_generated")) if best_contract_attempt else False,
+        "stage_plan_followed": bool(best_contract_attempt.get("stage_plan_followed")) if best_contract_attempt else False,
+        "executed_plan_stage": str(best_contract_attempt.get("executed_plan_stage") or "") if best_contract_attempt else "",
+        "executed_plan_action": str(best_contract_attempt.get("executed_plan_action") or "") if best_contract_attempt else "",
+        "plan_followed": bool(best_contract_attempt.get("plan_followed")) if best_contract_attempt else False,
+        "plan_conflict_rejected": bool(best_contract_attempt.get("plan_conflict_rejected")) if best_contract_attempt else False,
+        "plan_conflict_rejected_count": int(best_contract_attempt.get("plan_conflict_rejected_count") or 0) if best_contract_attempt else 0,
+        "last_successful_stage_action": str(best_contract_attempt.get("last_successful_stage_action") or "") if best_contract_attempt else "",
         "repair_strategy": repair_strategy,
         "repair_audit": {
             **strategy_audit,
@@ -2020,6 +2099,19 @@ def _run_task_live(
                 "stage_2_first_fail_bucket": str(multistep_fields.get("stage_2_first_fail_bucket") or ""),
                 "stage_aware_control_applied": bool(multistep_fields.get("stage_aware_control_applied")),
                 "stage_1_revisit_after_unlock": bool(multistep_fields.get("stage_1_revisit_after_unlock")),
+                "plan_stage": str(multistep_fields.get("plan_stage") or ""),
+                "plan_goal": str(multistep_fields.get("plan_goal") or ""),
+                "plan_actions": [str(x) for x in (multistep_fields.get("plan_actions") or []) if isinstance(x, str)],
+                "plan_constraints": [str(x) for x in (multistep_fields.get("plan_constraints") or []) if isinstance(x, str)],
+                "plan_stop_condition": str(multistep_fields.get("plan_stop_condition") or ""),
+                "stage_plan_generated": bool(multistep_fields.get("stage_plan_generated")),
+                "stage_plan_followed": bool(multistep_fields.get("stage_plan_followed")),
+                "executed_plan_stage": str(multistep_fields.get("executed_plan_stage") or ""),
+                "executed_plan_action": str(multistep_fields.get("executed_plan_action") or ""),
+                "plan_followed": bool(multistep_fields.get("plan_followed")),
+                "plan_conflict_rejected": bool(multistep_fields.get("plan_conflict_rejected")),
+                "plan_conflict_rejected_count": int(multistep_fields.get("plan_conflict_rejected_count") or 0),
+                "last_successful_stage_action": str(multistep_fields.get("last_successful_stage_action") or ""),
                 "physics_contract_reasons": physics_contract_reasons,
                 "physics_contract_invariant_count": int(physics_eval.get("invariant_count") or 0),
                 "regression_pass": bool(regression_ok),
@@ -2085,6 +2177,19 @@ def _run_task_live(
         "stage_2_first_fail_bucket": str(best_contract_attempt.get("stage_2_first_fail_bucket") or "") if best_contract_attempt else "",
         "stage_aware_control_applied": bool(best_contract_attempt.get("stage_aware_control_applied")) if best_contract_attempt else False,
         "stage_1_revisit_after_unlock": bool(best_contract_attempt.get("stage_1_revisit_after_unlock")) if best_contract_attempt else False,
+        "plan_stage": str(best_contract_attempt.get("plan_stage") or "") if best_contract_attempt else "",
+        "plan_goal": str(best_contract_attempt.get("plan_goal") or "") if best_contract_attempt else "",
+        "plan_actions": [str(x) for x in (best_contract_attempt.get("plan_actions") or []) if isinstance(x, str)] if best_contract_attempt else [],
+        "plan_constraints": [str(x) for x in (best_contract_attempt.get("plan_constraints") or []) if isinstance(x, str)] if best_contract_attempt else [],
+        "plan_stop_condition": str(best_contract_attempt.get("plan_stop_condition") or "") if best_contract_attempt else "",
+        "stage_plan_generated": bool(best_contract_attempt.get("stage_plan_generated")) if best_contract_attempt else False,
+        "stage_plan_followed": bool(best_contract_attempt.get("stage_plan_followed")) if best_contract_attempt else False,
+        "executed_plan_stage": str(best_contract_attempt.get("executed_plan_stage") or "") if best_contract_attempt else "",
+        "executed_plan_action": str(best_contract_attempt.get("executed_plan_action") or "") if best_contract_attempt else "",
+        "plan_followed": bool(best_contract_attempt.get("plan_followed")) if best_contract_attempt else False,
+        "plan_conflict_rejected": bool(best_contract_attempt.get("plan_conflict_rejected")) if best_contract_attempt else False,
+        "plan_conflict_rejected_count": int(best_contract_attempt.get("plan_conflict_rejected_count") or 0) if best_contract_attempt else 0,
+        "last_successful_stage_action": str(best_contract_attempt.get("last_successful_stage_action") or "") if best_contract_attempt else "",
         "repair_strategy": repair_strategy,
         "repair_audit": {
             **strategy_audit,
