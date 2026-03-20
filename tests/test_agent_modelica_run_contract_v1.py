@@ -6,10 +6,28 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from gateforge.agent_modelica_run_contract_v1 import _build_live_template_context
+from gateforge.agent_modelica_run_contract_v1 import _build_live_template_context, _extract_contract_fields
 
 
 class AgentModelicaRunContractV1Tests(unittest.TestCase):
+    def test_extract_contract_fields_clears_fail_bucket_on_contract_pass(self) -> None:
+        contract_pass, contract_fail_bucket, scenario_results = _extract_contract_fields(
+            {
+                "contract_pass": True,
+                "contract_fail_bucket": "initial_condition_miss",
+                "scenario_results": [
+                    {"scenario_id": "nominal", "pass": True},
+                    {"scenario_id": "neighbor_a", "pass": True},
+                    {"scenario_id": "neighbor_b", "pass": True},
+                ],
+            },
+            {},
+            physics_ok=True,
+        )
+        self.assertTrue(contract_pass)
+        self.assertEqual(contract_fail_bucket, "")
+        self.assertEqual([bool(x.get("pass")) for x in scenario_results], [True, True, True])
+
     def test_build_live_template_context_exposes_unknown_library_source_meta(self) -> None:
         context = _build_live_template_context(
             task={

@@ -386,7 +386,10 @@ def _extract_contract_fields(payload: dict, live_attempt: dict, *, physics_ok: b
     scenario_results = _as_dict_list(payload.get("scenario_results"))
     if not scenario_results:
         scenario_results = _as_dict_list(live_attempt.get("scenario_results"))
-    return (bool(contract_pass) if contract_pass is not None else bool(physics_ok), contract_fail_bucket, scenario_results)
+    contract_pass_value = bool(contract_pass) if contract_pass is not None else bool(physics_ok)
+    if contract_pass_value:
+        contract_fail_bucket = ""
+    return (contract_pass_value, contract_fail_bucket, scenario_results)
 
 
 def _pick_best_contract_attempt(attempts: list[dict]) -> dict:

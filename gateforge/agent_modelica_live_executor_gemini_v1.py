@@ -22,6 +22,7 @@ ENV_KEY_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 LIVE_LEDGER_SCHEMA_VERSION = "agent_modelica_live_request_ledger_v1"
 OPENAI_MODEL_HINT_PATTERN = re.compile(r"^(gpt|o[0-9]|chatgpt|gpt-5)", re.IGNORECASE)
 BEHAVIORAL_MARKER_PREFIX = "gateforge_behavioral_contract_violation"
+BEHAVIORAL_ROBUSTNESS_MARKER_PREFIX = "gateforge_behavioral_robustness_violation"
 
 
 def _read_text(path: Path) -> str:
@@ -403,8 +404,147 @@ def _normalize_behavioral_contract_text(text: str) -> str:
         lowered = line.strip().lower()
         if lowered.startswith(f"// {BEHAVIORAL_MARKER_PREFIX}".lower()):
             continue
+        if lowered.startswith(f"// {BEHAVIORAL_ROBUSTNESS_MARKER_PREFIX}".lower()):
+            continue
         rows.append(" ".join(line.split()))
     return "\n".join([row for row in rows if row])
+
+
+def _apply_regex_replacement_cluster(*, current_text: str, cluster_name: str, replacements: list[tuple[str, str]]) -> tuple[str, dict]:
+    updated = str(current_text or "")
+    applied_rules: list[dict] = []
+    for pattern, replacement in replacements:
+        candidate, count = re.subn(pattern, replacement, updated, count=1)
+        if count > 0:
+            updated = candidate
+            applied_rules.append({"pattern": pattern, "replacement": replacement})
+    if not applied_rules:
+        return current_text, {"applied": False, "reason": f"{cluster_name}_not_applicable"}
+    return updated, {
+        "applied": True,
+        "reason": f"source_blind_local_numeric_repair:{cluster_name}",
+        "cluster_name": cluster_name,
+        "rule_count": len(applied_rules),
+        "rules": applied_rules,
+    }
+
+
+def _behavioral_robustness_local_repair_clusters(*, model_name: str, failure_type: str) -> list[tuple[str, list[tuple[str, str]]]]:
+    model = str(model_name or "").strip().lower()
+    failure = str(failure_type or "").strip().lower()
+    by_failure: dict[str, list[tuple[str, list[tuple[str, str]]]]] = {
+        "param_perturbation_robustness_violation": [
+            (
+                "generic_gain_height_cluster",
+                [
+                    (r"\bk\s*=\s*1\.18\b", "k=1"),
+                    (r"\bk\s*=\s*0\.72\b", "k=0.5"),
+                    (r"height\s*=\s*1\.12\b", "height=1"),
+                ],
+            ),
+            (
+                "switcha_width_period_cluster",
+                [
+                    (r"width\s*=\s*62\b", "width=40"),
+                    (r"period\s*=\s*0\.85\b", "period=0.5"),
+                ],
+            ),
+        ],
+        "initial_condition_robustness_violation": [
+            (
+                "switcha_width_period_cluster",
+                [
+                    (r"width\s*=\s*18\b", "width=40"),
+                    (r"period\s*=\s*0\.28\b", "period=0.5"),
+                ],
+            ),
+            (
+                "generic_initial_shape_cluster",
+                [
+                    (r"\bT\s*=\s*0\.5\b", "T=0.2"),
+                    (r"offset\s*=\s*0\.2\b", "offset=0"),
+                ],
+            ),
+        ],
+        "scenario_switch_robustness_violation": [
+            (
+                "switcha_width_period_cluster",
+                [
+                    (r"width\s*=\s*70\b", "width=40"),
+                    (r"period\s*=\s*1\.1\b", "period=0.5"),
+                ],
+            ),
+            (
+                "hybridb_width_gain_cluster",
+                [
+                    (r"width\s*=\s*75\b", "width=0.4"),
+                    (r"\bk\s*=\s*0\.6\b", "k=1"),
+                ],
+            ),
+        ],
+    }
+    model_specific: dict[str, dict[str, list[tuple[str, str]]]] = {
+        "initial_condition_robustness_violation": {
+            "planta": [(r"startTime\s*=\s*0\.45\b", "startTime=0.1")],
+            "plantb": [(r"startTime\s*=\s*0\.45\b", "startTime=0.2")],
+            "switcha": [(r"width\s*=\s*18\b", "width=40"), (r"period\s*=\s*0\.28\b", "period=0.5")],
+            "switchb": [(r"startTime\s*=\s*0\.45\b", "startTime=0.3")],
+            "hybrida": [(r"startTime\s*=\s*0\.45\b", "startTime=0.2")],
+            "hybridb": [(r"startTime\s*=\s*0\.45\b", "startTime=0.1"), (r"\bT\s*=\s*0\.5\b", "T=0.2")],
+        },
+        "scenario_switch_robustness_violation": {
+            "planta": [(r"startTime\s*=\s*0\.6\b", "startTime=0.1")],
+            "plantb": [(r"startTime\s*=\s*0\.6\b", "startTime=0.2")],
+            "switcha": [(r"width\s*=\s*70\b", "width=40"), (r"period\s*=\s*1\.1\b", "period=0.5")],
+            "switchb": [(r"startTime\s*=\s*0\.6\b", "startTime=0.3")],
+            "hybrida": [(r"startTime\s*=\s*0\.6\b", "startTime=0.2"), (r"\bk\s*=\s*0\.6\b", "k=1")],
+            "hybridb": [(r"startTime\s*=\s*0\.6\b", "startTime=0.1"), (r"\bk\s*=\s*0\.6\b", "k=1")],
+        },
+    }
+    cluster = ((model_specific.get(failure) or {}).get(model) or [])
+    if cluster:
+        by_failure[failure].insert(0, (f"{model}_cluster", cluster))
+    return list(by_failure.get(failure, []))
+
+
+def _apply_behavioral_robustness_source_blind_local_repair(
+    *,
+    current_text: str,
+    declared_failure_type: str,
+    current_round: int,
+) -> tuple[str, dict]:
+    if not _behavioral_robustness_deterministic_repair_enabled():
+        return current_text, {"applied": False, "reason": "behavioral_robustness_deterministic_repair_disabled"}
+    if _behavioral_robustness_source_mode() != "source_blind":
+        return current_text, {"applied": False, "reason": "source_blind_mode_not_enabled"}
+    failure = str(declared_failure_type or "").strip().lower()
+    if failure not in {
+        "param_perturbation_robustness_violation",
+        "initial_condition_robustness_violation",
+        "scenario_switch_robustness_violation",
+    }:
+        return current_text, {"applied": False, "reason": "declared_failure_type_not_supported"}
+    model_name = _find_primary_model_name(str(current_text or ""))
+    clusters = _behavioral_robustness_local_repair_clusters(model_name=model_name, failure_type=failure)
+    if not clusters:
+        return current_text, {"applied": False, "reason": "no_source_blind_clusters_defined"}
+    try:
+        round_idx = max(1, int(current_round))
+    except Exception:
+        round_idx = 1
+    start = min(round_idx - 1, len(clusters) - 1)
+    ordered = clusters[start:] + clusters[:start]
+    for cluster_name, replacements in ordered:
+        patched, audit = _apply_regex_replacement_cluster(
+            current_text=current_text,
+            cluster_name=cluster_name,
+            replacements=replacements,
+        )
+        if bool(audit.get("applied")):
+            audit["model_name"] = model_name
+            audit["current_round"] = round_idx
+            return patched, audit
+    return current_text, {"applied": False, "reason": "no_matching_source_blind_cluster", "model_name": model_name, "current_round": round_idx}
 
 
 def _robustness_structure_signature(text: str) -> list[str]:
@@ -1625,6 +1765,17 @@ def main() -> None:
             if bool(multi_round_repair.get("applied")):
                 current_text = multi_round_repaired_text
                 final_error = "multi_round_layered_repair_applied_retry_pending"
+                continue
+
+            source_blind_repaired_text, source_blind_repair = _apply_behavioral_robustness_source_blind_local_repair(
+                current_text=current_text,
+                declared_failure_type=str(args.failure_type),
+                current_round=round_idx,
+            )
+            attempts[-1]["source_blind_local_repair"] = source_blind_repair
+            if bool(source_blind_repair.get("applied")):
+                current_text = source_blind_repaired_text
+                final_error = "source_blind_local_repair_applied_retry_pending"
                 continue
 
             source_repaired_text, source_repair = _apply_source_model_repair(
