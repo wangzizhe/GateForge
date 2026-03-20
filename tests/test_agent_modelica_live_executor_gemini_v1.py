@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 from gateforge.agent_modelica_live_executor_gemini_v1 import (
     _apply_source_blind_multistep_exposure_repair,
+    _apply_source_blind_multistep_stage2_local_repair,
     _apply_behavioral_robustness_source_blind_local_repair,
     _apply_initialization_marker_repair,
     _behavioral_contract_deterministic_repair_enabled,
@@ -681,6 +682,60 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
         self.assertEqual(patched, current)
         self.assertFalse(bool(audit.get("applied")))
         self.assertEqual(str(audit.get("reason") or ""), "exposure_repair_only_runs_in_round_1")
+
+    def test_source_blind_multistep_stage2_local_repair_resolves_plantb_behavior_layer(self) -> None:
+        current = (
+            "model PlantB\n"
+            "  Modelica.Blocks.Sources.Trapezoid trap1(amplitude=1, rising=0.1, width=0.5, falling=0.1, period=1.0, startTime=0.8);\n"
+            "  Modelica.Blocks.Math.Gain gain1(k=1);\n"
+            "end PlantB;\n"
+        )
+        patched, audit = _apply_source_blind_multistep_stage2_local_repair(
+            current_text=current,
+            declared_failure_type="stability_then_behavior",
+            current_stage="stage_2",
+            current_fail_bucket="behavior_contract_miss",
+            current_round=2,
+        )
+        self.assertTrue(bool(audit.get("applied")))
+        self.assertIn("source_blind_multistep_stage2_local_repair", str(audit.get("reason") or ""))
+        self.assertIn("startTime=0.2", patched)
+
+    def test_source_blind_multistep_stage2_local_repair_resolves_switchb_neighbor_layer(self) -> None:
+        current = (
+            "model SwitchB\n"
+            "  Modelica.Blocks.Sources.BooleanStep step1(startTime=0.3);\n"
+            "  Modelica.Blocks.Sources.Sine sine1(freqHz=1);\n"
+            "  Modelica.Blocks.Sources.Constant ref1(k=0.82);\n"
+            "end SwitchB;\n"
+        )
+        patched, audit = _apply_source_blind_multistep_stage2_local_repair(
+            current_text=current,
+            declared_failure_type="behavior_then_robustness",
+            current_stage="stage_2",
+            current_fail_bucket="single_case_only",
+            current_round=2,
+        )
+        self.assertTrue(bool(audit.get("applied")))
+        self.assertIn("k=0.5", patched)
+
+    def test_source_blind_multistep_stage2_local_repair_resolves_hybridb_recovery_layer(self) -> None:
+        current = (
+            "model HybridB\n"
+            "  Modelica.Blocks.Sources.Trapezoid trap1(amplitude=1, width=0.75, period=1.0, startTime=0.1);\n"
+            "  Modelica.Blocks.Continuous.FirstOrder first1(T=0.5, k=1);\n"
+            "end HybridB;\n"
+        )
+        patched, audit = _apply_source_blind_multistep_stage2_local_repair(
+            current_text=current,
+            declared_failure_type="switch_then_recovery",
+            current_stage="stage_2",
+            current_fail_bucket="post_switch_recovery_miss",
+            current_round=2,
+        )
+        self.assertTrue(bool(audit.get("applied")))
+        self.assertIn("width=0.4", patched)
+        self.assertIn("T=0.2", patched)
 
     def test_apply_parse_error_pre_repair_removes_injected_state_tokens(self) -> None:
         model_text = "model A1\n  Real x;\nequation\n  der(x) = -x + __gf_state_301500;\nend A1;\n"
