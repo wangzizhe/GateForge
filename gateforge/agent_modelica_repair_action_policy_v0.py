@@ -88,18 +88,18 @@ DEFAULT_RULES = {
         "rerun simulate and check post-transition recovery before accepting the patch",
     ],
     "param_perturbation_robustness_violation": [
-        "restore source gain, scaling, and neighboring parameter values before broader edits",
-        "prefer robust parameter repair that remains aligned with the source model across nearby perturbations",
+        "shrink over-aggressive gain, scaling, and amplitude values toward a conservative mid-range before broader edits",
+        "prefer localized numeric stabilization that remains valid across nearby perturbations",
         "rerun simulate against adjacent parameter scenarios before accepting the patch",
     ],
     "initial_condition_robustness_violation": [
-        "restore source start-time, offset, and initial-condition shaping parameters first",
-        "prefer localized recovery of initial-condition behavior over broad structural edits",
+        "smooth start-time, offset, width, period, and initial-condition shaping values toward gentler timings first",
+        "prefer localized recovery of initial-condition behavior over broad structural edits or source rollback",
         "rerun simulate against neighboring initial conditions before accepting the patch",
     ],
     "scenario_switch_robustness_violation": [
-        "restore source switch timing, width, and recovery parameters first",
-        "prefer fixes that remain valid across adjacent scenario variants, not just the nominal case",
+        "widen the switch timing margin and reduce over-aggressive transition parameters first",
+        "prefer fixes that remain valid across adjacent scenario variants, not just the nominal case or a source-text restore",
         "rerun simulate across the scenario set before accepting the patch",
     ],
 }

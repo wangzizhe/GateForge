@@ -8,9 +8,11 @@ from pathlib import Path
 from unittest.mock import patch
 
 from gateforge.agent_modelica_live_executor_gemini_v1 import (
+    _apply_behavioral_robustness_source_blind_local_repair,
     _apply_initialization_marker_repair,
     _behavioral_contract_deterministic_repair_enabled,
     _behavioral_robustness_source_mode,
+    _normalize_behavioral_contract_text,
     _evaluate_behavioral_contract_from_model_text,
     _guard_robustness_patch,
     _apply_multi_round_layered_repair,
@@ -371,6 +373,124 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
                 os.environ.pop("GATEFORGE_AGENT_BEHAVIORAL_ROBUSTNESS_SOURCE_MODE", None)
             else:
                 os.environ["GATEFORGE_AGENT_BEHAVIORAL_ROBUSTNESS_SOURCE_MODE"] = prev_mode
+
+    def test_behavioral_robustness_source_blind_local_repair_restores_switcha_initial_cluster(self) -> None:
+        prev_det = os.environ.get("GATEFORGE_AGENT_BEHAVIORAL_ROBUSTNESS_DETERMINISTIC_REPAIR")
+        prev_mode = os.environ.get("GATEFORGE_AGENT_BEHAVIORAL_ROBUSTNESS_SOURCE_MODE")
+        os.environ["GATEFORGE_AGENT_BEHAVIORAL_ROBUSTNESS_DETERMINISTIC_REPAIR"] = "1"
+        os.environ["GATEFORGE_AGENT_BEHAVIORAL_ROBUSTNESS_SOURCE_MODE"] = "source_blind"
+        try:
+            current = (
+                "model SwitchA\n"
+                "  Modelica.Blocks.Sources.BooleanPulse pulse1(width=18, period=0.28);\n"
+                "  Modelica.Blocks.Sources.Constant c1(k=1);\n"
+                "  Modelica.Blocks.Sources.Constant c0(k=0);\n"
+                "  Modelica.Blocks.Logical.Switch sw1;\n"
+                "equation\n"
+                "  connect(c1.y, sw1.u1);\n"
+                "  connect(pulse1.y, sw1.u2);\n"
+                "  connect(c0.y, sw1.u3);\n"
+                "end SwitchA;\n"
+            )
+            patched, audit = _apply_behavioral_robustness_source_blind_local_repair(
+                current_text=current,
+                declared_failure_type="initial_condition_robustness_violation",
+                current_round=1,
+            )
+            self.assertTrue(bool(audit.get("applied")))
+            self.assertIn("width=40", patched)
+            self.assertIn("period=0.5", patched)
+        finally:
+            if prev_det is None:
+                os.environ.pop("GATEFORGE_AGENT_BEHAVIORAL_ROBUSTNESS_DETERMINISTIC_REPAIR", None)
+            else:
+                os.environ["GATEFORGE_AGENT_BEHAVIORAL_ROBUSTNESS_DETERMINISTIC_REPAIR"] = prev_det
+            if prev_mode is None:
+                os.environ.pop("GATEFORGE_AGENT_BEHAVIORAL_ROBUSTNESS_SOURCE_MODE", None)
+            else:
+                os.environ["GATEFORGE_AGENT_BEHAVIORAL_ROBUSTNESS_SOURCE_MODE"] = prev_mode
+
+    def test_behavioral_robustness_source_blind_local_repair_restores_hybrida_scenario_cluster(self) -> None:
+        prev_det = os.environ.get("GATEFORGE_AGENT_BEHAVIORAL_ROBUSTNESS_DETERMINISTIC_REPAIR")
+        prev_mode = os.environ.get("GATEFORGE_AGENT_BEHAVIORAL_ROBUSTNESS_SOURCE_MODE")
+        os.environ["GATEFORGE_AGENT_BEHAVIORAL_ROBUSTNESS_DETERMINISTIC_REPAIR"] = "1"
+        os.environ["GATEFORGE_AGENT_BEHAVIORAL_ROBUSTNESS_SOURCE_MODE"] = "source_blind"
+        try:
+            current = (
+                "model HybridA\n"
+                "  Modelica.Blocks.Sources.Step step1(height=1, startTime=0.6);\n"
+                "  Modelica.Blocks.Continuous.Integrator int1(k=0.6);\n"
+                "equation\n"
+                "  connect(step1.y, int1.u);\n"
+                "end HybridA;\n"
+            )
+            patched, audit = _apply_behavioral_robustness_source_blind_local_repair(
+                current_text=current,
+                declared_failure_type="scenario_switch_robustness_violation",
+                current_round=1,
+            )
+            self.assertTrue(bool(audit.get("applied")))
+            self.assertIn("startTime=0.2", patched)
+            self.assertIn("k=1", patched)
+            self.assertNotIn("connect(", str(audit))
+        finally:
+            if prev_det is None:
+                os.environ.pop("GATEFORGE_AGENT_BEHAVIORAL_ROBUSTNESS_DETERMINISTIC_REPAIR", None)
+            else:
+                os.environ["GATEFORGE_AGENT_BEHAVIORAL_ROBUSTNESS_DETERMINISTIC_REPAIR"] = prev_det
+            if prev_mode is None:
+                os.environ.pop("GATEFORGE_AGENT_BEHAVIORAL_ROBUSTNESS_SOURCE_MODE", None)
+            else:
+                os.environ["GATEFORGE_AGENT_BEHAVIORAL_ROBUSTNESS_SOURCE_MODE"] = prev_mode
+
+    def test_behavioral_robustness_source_blind_local_repair_restores_hybridb_scenario_cluster(self) -> None:
+        prev_det = os.environ.get("GATEFORGE_AGENT_BEHAVIORAL_ROBUSTNESS_DETERMINISTIC_REPAIR")
+        prev_mode = os.environ.get("GATEFORGE_AGENT_BEHAVIORAL_ROBUSTNESS_SOURCE_MODE")
+        os.environ["GATEFORGE_AGENT_BEHAVIORAL_ROBUSTNESS_DETERMINISTIC_REPAIR"] = "1"
+        os.environ["GATEFORGE_AGENT_BEHAVIORAL_ROBUSTNESS_SOURCE_MODE"] = "source_blind"
+        try:
+            current = (
+                "model HybridB\n"
+                "  Modelica.Blocks.Sources.Trapezoid trap1(amplitude=1, width=0.4, period=1.0, startTime=0.6);\n"
+                "  Modelica.Blocks.Continuous.FirstOrder first1(T=0.2, k=0.6);\n"
+                "equation\n"
+                "  connect(trap1.y, first1.u);\n"
+                "end HybridB;\n"
+            )
+            patched, audit = _apply_behavioral_robustness_source_blind_local_repair(
+                current_text=current,
+                declared_failure_type="scenario_switch_robustness_violation",
+                current_round=1,
+            )
+            self.assertTrue(bool(audit.get("applied")))
+            self.assertIn("startTime=0.1", patched)
+            self.assertIn("k=1", patched)
+        finally:
+            if prev_det is None:
+                os.environ.pop("GATEFORGE_AGENT_BEHAVIORAL_ROBUSTNESS_DETERMINISTIC_REPAIR", None)
+            else:
+                os.environ["GATEFORGE_AGENT_BEHAVIORAL_ROBUSTNESS_DETERMINISTIC_REPAIR"] = prev_det
+            if prev_mode is None:
+                os.environ.pop("GATEFORGE_AGENT_BEHAVIORAL_ROBUSTNESS_SOURCE_MODE", None)
+            else:
+                os.environ["GATEFORGE_AGENT_BEHAVIORAL_ROBUSTNESS_SOURCE_MODE"] = prev_mode
+
+    def test_normalize_behavioral_contract_text_ignores_robustness_markers(self) -> None:
+        source = (
+            "model PlantA\n"
+            "  Modelica.Blocks.Sources.Step step1(height=1, startTime=0.1);\n"
+            "end PlantA;\n"
+        )
+        candidate = (
+            "model PlantA\n"
+            "  // gateforge_behavioral_robustness_violation:param_perturbation_robustness_violation\n"
+            "  Modelica.Blocks.Sources.Step step1(height=1, startTime=0.1);\n"
+            "end PlantA;\n"
+        )
+        self.assertEqual(
+            _normalize_behavioral_contract_text(candidate),
+            _normalize_behavioral_contract_text(source),
+        )
 
     def test_apply_parse_error_pre_repair_removes_injected_state_tokens(self) -> None:
         model_text = "model A1\n  Real x;\nequation\n  der(x) = -x + __gf_state_301500;\nend A1;\n"
