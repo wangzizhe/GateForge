@@ -5,6 +5,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from gateforge.agent_modelica_source_blind_multistep_taskset_v1 import _mutate_source_blind_multistep_model
+
 
 def _write_model(path: Path, model_name: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -80,6 +82,28 @@ def _manifest_payload(root: Path) -> dict:
 
 
 class AgentModelicaSourceBlindMultistepTasksetV1Tests(unittest.TestCase):
+    def test_mutate_source_blind_multistep_model_adds_switcha_stage2_behavior_layer(self) -> None:
+        source = (
+            "model SwitchA\n"
+            "  Modelica.Blocks.Sources.BooleanPulse pulse1(width=40, period=0.5);\n"
+            "  Modelica.Blocks.Sources.Constant c1(k=1);\n"
+            "end SwitchA;\n"
+        )
+        mutated = _mutate_source_blind_multistep_model(source, "stability_then_behavior")
+        self.assertIn("width=62", mutated)
+        self.assertIn("period=0.85", mutated)
+        self.assertIn("k=1.18", mutated)
+
+    def test_mutate_source_blind_multistep_model_adds_plantb_recovery_second_layer(self) -> None:
+        source = (
+            "model PlantB\n"
+            "  Modelica.Blocks.Sources.Ramp ramp1(height=1, duration=0.5, startTime=0.2);\n"
+            "end PlantB;\n"
+        )
+        mutated = _mutate_source_blind_multistep_model(source, "switch_then_recovery")
+        self.assertIn("duration=1.1", mutated)
+        self.assertIn("startTime=0.6", mutated)
+
     def test_builder_produces_multistep_metadata(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)

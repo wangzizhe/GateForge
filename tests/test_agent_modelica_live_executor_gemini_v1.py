@@ -592,6 +592,71 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
         self.assertEqual(str(eval2.get("multi_step_stage") or ""), "stage_2")
         self.assertEqual(str(eval2.get("multi_step_transition_reason") or ""), "switch_segment_restored_recovery_gate_exposed")
 
+    def test_source_blind_multistep_contract_eval_handles_switcha_stability_two_stage_path(self) -> None:
+        source = (
+            "model SwitchA\n"
+            "  Modelica.Blocks.Sources.BooleanPulse pulse1(width=40, period=0.5);\n"
+            "  Modelica.Blocks.Sources.Constant c1(k=1);\n"
+            "end SwitchA;\n"
+        )
+        stage1 = (
+            "model SwitchA\n"
+            "  Modelica.Blocks.Sources.BooleanPulse pulse1(width=62, period=0.85);\n"
+            "  Modelica.Blocks.Sources.Constant c1(k=1.18);\n"
+            "end SwitchA;\n"
+        )
+        stage2 = (
+            "model SwitchA\n"
+            "  Modelica.Blocks.Sources.BooleanPulse pulse1(width=62, period=0.85);\n"
+            "  Modelica.Blocks.Sources.Constant c1(k=1);\n"
+            "end SwitchA;\n"
+        )
+        eval1 = _evaluate_behavioral_contract_from_model_text(
+            current_text=stage1,
+            source_model_text=source,
+            failure_type="stability_then_behavior",
+        )
+        eval2 = _evaluate_behavioral_contract_from_model_text(
+            current_text=stage2,
+            source_model_text=source,
+            failure_type="stability_then_behavior",
+        )
+        self.assertEqual(str(eval1.get("contract_fail_bucket") or ""), "stability_margin_miss")
+        self.assertEqual(str(eval2.get("contract_fail_bucket") or ""), "behavior_contract_miss")
+        self.assertEqual(str(eval1.get("multi_step_stage") or ""), "stage_1")
+        self.assertEqual(str(eval2.get("multi_step_stage") or ""), "stage_2")
+
+    def test_source_blind_multistep_contract_eval_handles_plantb_switch_recovery_two_stage_path(self) -> None:
+        source = (
+            "model PlantB\n"
+            "  Modelica.Blocks.Sources.Ramp ramp1(height=1, duration=0.5, startTime=0.2);\n"
+            "end PlantB;\n"
+        )
+        stage1 = (
+            "model PlantB\n"
+            "  Modelica.Blocks.Sources.Ramp ramp1(height=1, duration=1.1, startTime=0.6);\n"
+            "end PlantB;\n"
+        )
+        stage2 = (
+            "model PlantB\n"
+            "  Modelica.Blocks.Sources.Ramp ramp1(height=1, duration=1.1, startTime=0.2);\n"
+            "end PlantB;\n"
+        )
+        eval1 = _evaluate_behavioral_contract_from_model_text(
+            current_text=stage1,
+            source_model_text=source,
+            failure_type="switch_then_recovery",
+        )
+        eval2 = _evaluate_behavioral_contract_from_model_text(
+            current_text=stage2,
+            source_model_text=source,
+            failure_type="switch_then_recovery",
+        )
+        self.assertEqual(str(eval1.get("contract_fail_bucket") or ""), "scenario_switch_miss")
+        self.assertEqual(str(eval2.get("contract_fail_bucket") or ""), "post_switch_recovery_miss")
+        self.assertEqual(str(eval1.get("multi_step_stage") or ""), "stage_1")
+        self.assertEqual(str(eval2.get("multi_step_stage") or ""), "stage_2")
+
     def test_build_multistep_stage_context_prefers_stage_2_focus_and_memory(self) -> None:
         context = _build_multistep_stage_context(
             failure_type="behavior_then_robustness",
@@ -672,6 +737,37 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
         self.assertIn("freqHz=1", patched)
         self.assertIn("k=0.82", patched)
 
+    def test_source_blind_multistep_exposure_repair_unlocks_switcha_stability_path(self) -> None:
+        current = (
+            "model SwitchA\n"
+            "  Modelica.Blocks.Sources.BooleanPulse pulse1(width=62, period=0.85);\n"
+            "  Modelica.Blocks.Sources.Constant c1(k=1.18);\n"
+            "end SwitchA;\n"
+        )
+        patched, audit = _apply_source_blind_multistep_exposure_repair(
+            current_text=current,
+            declared_failure_type="stability_then_behavior",
+            current_round=1,
+        )
+        self.assertTrue(bool(audit.get("applied")))
+        self.assertIn("k=1", patched)
+        self.assertIn("width=62", patched)
+
+    def test_source_blind_multistep_exposure_repair_unlocks_plantb_switch_path(self) -> None:
+        current = (
+            "model PlantB\n"
+            "  Modelica.Blocks.Sources.Ramp ramp1(height=1, duration=1.1, startTime=0.6);\n"
+            "end PlantB;\n"
+        )
+        patched, audit = _apply_source_blind_multistep_exposure_repair(
+            current_text=current,
+            declared_failure_type="switch_then_recovery",
+            current_round=1,
+        )
+        self.assertTrue(bool(audit.get("applied")))
+        self.assertIn("startTime=0.2", patched)
+        self.assertIn("duration=1.1", patched)
+
     def test_source_blind_multistep_exposure_repair_only_runs_in_first_round(self) -> None:
         current = "model HybridB\n  Modelica.Blocks.Sources.Trapezoid trap1(amplitude=1, width=0.75, period=1.0, startTime=0.6);\n  Modelica.Blocks.Continuous.FirstOrder first1(T=0.5, k=0.6);\nend HybridB;\n"
         patched, audit = _apply_source_blind_multistep_exposure_repair(
@@ -736,6 +832,40 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
         self.assertTrue(bool(audit.get("applied")))
         self.assertIn("width=0.4", patched)
         self.assertIn("T=0.2", patched)
+
+    def test_source_blind_multistep_stage2_local_repair_resolves_switcha_behavior_layer(self) -> None:
+        current = (
+            "model SwitchA\n"
+            "  Modelica.Blocks.Sources.BooleanPulse pulse1(width=62, period=0.85);\n"
+            "  Modelica.Blocks.Sources.Constant c1(k=1);\n"
+            "end SwitchA;\n"
+        )
+        patched, audit = _apply_source_blind_multistep_stage2_local_repair(
+            current_text=current,
+            declared_failure_type="stability_then_behavior",
+            current_stage="stage_2",
+            current_fail_bucket="behavior_contract_miss",
+            current_round=2,
+        )
+        self.assertTrue(bool(audit.get("applied")))
+        self.assertIn("width=40", patched)
+        self.assertIn("period=0.5", patched)
+
+    def test_source_blind_multistep_stage2_local_repair_resolves_plantb_recovery_layer(self) -> None:
+        current = (
+            "model PlantB\n"
+            "  Modelica.Blocks.Sources.Ramp ramp1(height=1, duration=1.1, startTime=0.2);\n"
+            "end PlantB;\n"
+        )
+        patched, audit = _apply_source_blind_multistep_stage2_local_repair(
+            current_text=current,
+            declared_failure_type="switch_then_recovery",
+            current_stage="stage_2",
+            current_fail_bucket="post_switch_recovery_miss",
+            current_round=2,
+        )
+        self.assertTrue(bool(audit.get("applied")))
+        self.assertIn("duration=0.5", patched)
 
     def test_apply_parse_error_pre_repair_removes_injected_state_tokens(self) -> None:
         model_text = "model A1\n  Real x;\nequation\n  der(x) = -x + __gf_state_301500;\nend A1;\n"

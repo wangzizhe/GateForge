@@ -563,6 +563,13 @@ def _source_blind_multistep_exposure_clusters(*, model_name: str, failure_type: 
                 (r"height\s*=\s*1\.2\b", "height=1"),
                 (r"duration\s*=\s*1\.1\b", "duration=0.5"),
             ],
+            "switcha": [
+                (r"\bk\s*=\s*1\.18\b", "k=1"),
+            ],
+            "hybrida": [
+                (r"\bk\s*=\s*1\.18\b", "k=1"),
+                (r"height\s*=\s*1\.12\b", "height=1"),
+            ],
             "planta": [
                 (r"\bk\s*=\s*1\.18\b", "k=1"),
                 (r"height\s*=\s*1\.12\b", "height=1"),
@@ -579,6 +586,12 @@ def _source_blind_multistep_exposure_clusters(*, model_name: str, failure_type: 
             ],
         },
         "switch_then_recovery": {
+            "plantb": [
+                (r"startTime\s*=\s*0\.6\b", "startTime=0.2"),
+            ],
+            "switcha": [
+                (r"\bk\s*=\s*0\.6\b", "k=1"),
+            ],
             "hybridb": [
                 (r"startTime\s*=\s*0\.6\b", "startTime=0.1"),
                 (r"\bk\s*=\s*0\.6\b", "k=1"),
@@ -641,12 +654,16 @@ def _source_blind_multistep_stage2_resolution_clusters(
         ("stability_then_behavior", "behavior_contract_miss"): {
             "planta": [(r"startTime\s*=\s*0\.45\b", "startTime=0.1")],
             "plantb": [(r"startTime\s*=\s*0\.8\b", "startTime=0.2")],
+            "switcha": [(r"width\s*=\s*62\b", "width=40"), (r"period\s*=\s*0\.85\b", "period=0.5")],
+            "hybrida": [(r"startTime\s*=\s*0\.45\b", "startTime=0.2")],
         },
         ("behavior_then_robustness", "single_case_only"): {
             "switcha": [(r"offset\s*=\s*0\.2\b", "offset=0")],
             "switchb": [(r"\bk\s*=\s*0\.82\b", "k=0.5")],
         },
         ("switch_then_recovery", "post_switch_recovery_miss"): {
+            "plantb": [(r"duration\s*=\s*1\.1\b", "duration=0.5")],
+            "switcha": [(r"width\s*=\s*75\b", "width=40"), (r"period\s*=\s*1\.4\b", "period=0.5")],
             "hybrida": [(r"width\s*=\s*75\b", "width=40"), (r"period\s*=\s*1\.4\b", "period=1.0")],
             "hybridb": [(r"width\s*=\s*0\.75\b", "width=0.4"), (r"\bT\s*=\s*0\.5\b", "T=0.2")],
         },
@@ -975,6 +992,86 @@ def _evaluate_behavioral_contract_from_model_text(*, current_text: str, source_m
                         {"scenario_id": "neighbor_b", "pass": True},
                     ],
                 )
+        elif "model switcha" in lower_current:
+            if re.search(r"\bk\s*=\s*1\.18\b", current_text or ""):
+                return _build_multistep_eval(
+                    stage="stage_1",
+                    transition_reason="stability_constraints_still_violated",
+                    transition_seen=False,
+                    pass_all=False,
+                    bucket="stability_margin_miss",
+                    scenario_results=[
+                        {"scenario_id": "nominal", "pass": False},
+                        {"scenario_id": "neighbor_a", "pass": False},
+                        {"scenario_id": "neighbor_b", "pass": False},
+                    ],
+                )
+            elif re.search(r"width\s*=\s*62\b", current_text or "") or re.search(r"period\s*=\s*0\.85\b", current_text or ""):
+                return _build_multistep_eval(
+                    stage="stage_2",
+                    transition_reason="stability_restored_behavior_gate_exposed",
+                    transition_seen=True,
+                    pass_all=False,
+                    bucket="behavior_contract_miss",
+                    scenario_results=[
+                        {"scenario_id": "nominal", "pass": True},
+                        {"scenario_id": "neighbor_a", "pass": False},
+                        {"scenario_id": "neighbor_b", "pass": False},
+                    ],
+                )
+            else:
+                return _build_multistep_eval(
+                    stage="passed",
+                    transition_reason="all_multistep_contracts_cleared",
+                    transition_seen=True,
+                    pass_all=True,
+                    bucket="",
+                    scenario_results=[
+                        {"scenario_id": "nominal", "pass": True},
+                        {"scenario_id": "neighbor_a", "pass": True},
+                        {"scenario_id": "neighbor_b", "pass": True},
+                    ],
+                )
+        elif "model hybrida" in lower_current:
+            if re.search(r"\bk\s*=\s*1\.18\b", current_text or "") or re.search(r"height\s*=\s*1\.12\b", current_text or ""):
+                return _build_multistep_eval(
+                    stage="stage_1",
+                    transition_reason="stability_constraints_still_violated",
+                    transition_seen=False,
+                    pass_all=False,
+                    bucket="stability_margin_miss",
+                    scenario_results=[
+                        {"scenario_id": "nominal", "pass": False},
+                        {"scenario_id": "neighbor_a", "pass": False},
+                        {"scenario_id": "neighbor_b", "pass": False},
+                    ],
+                )
+            elif re.search(r"startTime\s*=\s*0\.45\b", current_text or ""):
+                return _build_multistep_eval(
+                    stage="stage_2",
+                    transition_reason="stability_restored_behavior_gate_exposed",
+                    transition_seen=True,
+                    pass_all=False,
+                    bucket="behavior_contract_miss",
+                    scenario_results=[
+                        {"scenario_id": "nominal", "pass": True},
+                        {"scenario_id": "neighbor_a", "pass": False},
+                        {"scenario_id": "neighbor_b", "pass": False},
+                    ],
+                )
+            else:
+                return _build_multistep_eval(
+                    stage="passed",
+                    transition_reason="all_multistep_contracts_cleared",
+                    transition_seen=True,
+                    pass_all=True,
+                    bucket="",
+                    scenario_results=[
+                        {"scenario_id": "nominal", "pass": True},
+                        {"scenario_id": "neighbor_a", "pass": True},
+                        {"scenario_id": "neighbor_b", "pass": True},
+                    ],
+                )
         elif re.search(r"\bk\s*=\s*1\.18\b", current_text or "") or re.search(r"height\s*=\s*1\.12\b", current_text or ""):
             return _build_multistep_eval(
                 stage="stage_1",
@@ -1097,7 +1194,87 @@ def _evaluate_behavioral_contract_from_model_text(*, current_text: str, source_m
             )
     elif declared == "switch_then_recovery":
         lower_current = str(current_text or "").lower()
-        if "model hybridb" in lower_current:
+        if "model plantb" in lower_current:
+            if re.search(r"startTime\s*=\s*0\.6\b", current_text or ""):
+                return _build_multistep_eval(
+                    stage="stage_1",
+                    transition_reason="switch_window_still_unstable",
+                    transition_seen=False,
+                    pass_all=False,
+                    bucket="scenario_switch_miss",
+                    scenario_results=[
+                        {"scenario_id": "nominal", "pass": False},
+                        {"scenario_id": "neighbor_a", "pass": False},
+                        {"scenario_id": "neighbor_b", "pass": False},
+                    ],
+                )
+            elif re.search(r"duration\s*=\s*1\.1\b", current_text or ""):
+                return _build_multistep_eval(
+                    stage="stage_2",
+                    transition_reason="switch_segment_restored_recovery_gate_exposed",
+                    transition_seen=True,
+                    pass_all=False,
+                    bucket="post_switch_recovery_miss",
+                    scenario_results=[
+                        {"scenario_id": "nominal", "pass": True},
+                        {"scenario_id": "neighbor_a", "pass": False},
+                        {"scenario_id": "neighbor_b", "pass": False},
+                    ],
+                )
+            else:
+                return _build_multistep_eval(
+                    stage="passed",
+                    transition_reason="all_multistep_contracts_cleared",
+                    transition_seen=True,
+                    pass_all=True,
+                    bucket="",
+                    scenario_results=[
+                        {"scenario_id": "nominal", "pass": True},
+                        {"scenario_id": "neighbor_a", "pass": True},
+                        {"scenario_id": "neighbor_b", "pass": True},
+                    ],
+                )
+        elif "model switcha" in lower_current:
+            if re.search(r"\bk\s*=\s*0\.6\b", current_text or ""):
+                return _build_multistep_eval(
+                    stage="stage_1",
+                    transition_reason="switch_window_still_unstable",
+                    transition_seen=False,
+                    pass_all=False,
+                    bucket="scenario_switch_miss",
+                    scenario_results=[
+                        {"scenario_id": "nominal", "pass": False},
+                        {"scenario_id": "neighbor_a", "pass": False},
+                        {"scenario_id": "neighbor_b", "pass": False},
+                    ],
+                )
+            elif re.search(r"width\s*=\s*75\b", current_text or "") or re.search(r"period\s*=\s*1\.4\b", current_text or ""):
+                return _build_multistep_eval(
+                    stage="stage_2",
+                    transition_reason="switch_segment_restored_recovery_gate_exposed",
+                    transition_seen=True,
+                    pass_all=False,
+                    bucket="post_switch_recovery_miss",
+                    scenario_results=[
+                        {"scenario_id": "nominal", "pass": True},
+                        {"scenario_id": "neighbor_a", "pass": False},
+                        {"scenario_id": "neighbor_b", "pass": False},
+                    ],
+                )
+            else:
+                return _build_multistep_eval(
+                    stage="passed",
+                    transition_reason="all_multistep_contracts_cleared",
+                    transition_seen=True,
+                    pass_all=True,
+                    bucket="",
+                    scenario_results=[
+                        {"scenario_id": "nominal", "pass": True},
+                        {"scenario_id": "neighbor_a", "pass": True},
+                        {"scenario_id": "neighbor_b", "pass": True},
+                    ],
+                )
+        elif "model hybridb" in lower_current:
             if re.search(r"startTime\s*=\s*0\.6\b", current_text or "") or re.search(r"\bk\s*=\s*0\.6\b", current_text or ""):
                 return _build_multistep_eval(
                     stage="stage_1",
