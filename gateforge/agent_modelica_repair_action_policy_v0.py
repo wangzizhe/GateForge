@@ -102,6 +102,21 @@ DEFAULT_RULES = {
         "prefer fixes that remain valid across adjacent scenario variants, not just the nominal case or a source-text restore",
         "rerun simulate across the scenario set before accepting the patch",
     ],
+    "stability_then_behavior": [
+        "stabilize gain, height, and timing parameters before broader edits",
+        "expect a second behavior-layer failure after the first stabilization step",
+        "rerun simulate after each localized numeric repair and inspect the newly exposed stage",
+    ],
+    "behavior_then_robustness": [
+        "restore nominal behavior first using localized numeric changes only",
+        "after nominal behavior is restored, re-check neighboring scenarios before accepting the patch",
+        "prefer staged parameter repair over one-shot broad edits",
+    ],
+    "switch_then_recovery": [
+        "repair switch timing and trigger parameters before post-switch recovery tuning",
+        "expect a second recovery-layer failure once the switch gate is repaired",
+        "rerun simulate after each staged repair and inspect the next exposed phase",
+    ],
 }
 
 
@@ -116,18 +131,103 @@ def _as_actions(rows: list[object]) -> list[str]:
     return out
 
 
+def _multistep_next_focus(*, failure_type: str, current_stage: str, current_fail_bucket: str) -> str:
+    ftype = str(failure_type or "").strip().lower()
+    stage = str(current_stage or "").strip().lower()
+    bucket = str(current_fail_bucket or "").strip().lower()
+    if stage in {"", "stage_1"}:
+        mapping = {
+            "stability_then_behavior": "unlock_stage_2_behavior_gate",
+            "behavior_then_robustness": "unlock_stage_2_neighbor_robustness_gate",
+            "switch_then_recovery": "unlock_stage_2_recovery_gate",
+        }
+        return mapping.get(ftype, "unlock_stage_2")
+    if stage == "stage_2":
+        mapping = {
+            "behavior_contract_miss": "resolve_stage_2_behavior_contract",
+            "single_case_only": "resolve_stage_2_neighbor_robustness",
+            "post_switch_recovery_miss": "resolve_stage_2_post_switch_recovery",
+        }
+        return mapping.get(bucket, "resolve_stage_2_exposed_failure")
+    if stage == "passed":
+        return "stop_editing"
+    return "inspect_current_stage"
+
+
+def _multistep_stage_actions(*, failure_type: str, current_stage: str, next_focus: str) -> list[str]:
+    ftype = str(failure_type or "").strip().lower()
+    stage = str(current_stage or "").strip().lower()
+    focus = str(next_focus or "").strip().lower()
+    if stage in {"", "stage_1"}:
+        mapping = {
+            "stability_then_behavior": [
+                "focus only on restoring stability margin and startup timing so the behavior layer can unlock",
+                "treat this round as a stage-1 unlock step, not a full behavior repair",
+                "avoid behavior-only tuning until the stability gate is cleared",
+            ],
+            "behavior_then_robustness": [
+                "focus only on restoring nominal behavior for the primary scenario first",
+                "treat this round as a stage-1 unlock step, not a robustness sweep",
+                "avoid neighboring-scenario tuning until nominal behavior is restored",
+            ],
+            "switch_then_recovery": [
+                "focus only on switch timing and trigger recovery so the post-switch layer can unlock",
+                "treat this round as a stage-1 unlock step, not a recovery-tail repair",
+                "avoid recovery-tail tuning until the switch gate is cleared",
+            ],
+        }
+        return mapping.get(ftype, [f"focus on {focus.replace('_', ' ')}"])
+    if stage == "stage_2":
+        mapping = {
+            "stability_then_behavior": [
+                "stage_2 is unlocked: focus only on behavior-layer repair and stop revisiting stability parameters first",
+                "prioritize neighboring-scenario behavior consistency over reopening the stage-1 margin fix",
+                "reject edits that reintroduce stage-1 instability while addressing the exposed behavior layer",
+            ],
+            "behavior_then_robustness": [
+                "stage_2 is unlocked: focus only on neighbor robustness and stop revisiting nominal-behavior unlock parameters",
+                "prioritize adjacent-scenario consistency over further stage-1 tuning",
+                "reject edits that reopen stage-1 nominal behavior while addressing the exposed robustness layer",
+            ],
+            "switch_then_recovery": [
+                "stage_2 is unlocked: focus only on post-switch recovery and stop revisiting switch-gate unlock parameters",
+                "prioritize recovery-tail consistency after the switch segment is restored",
+                "reject edits that reopen stage-1 switch timing while addressing the exposed recovery layer",
+            ],
+        }
+        return mapping.get(ftype, [f"focus on {focus.replace('_', ' ')}"])
+    if stage == "passed":
+        return ["all active stages are cleared; do not edit further"]
+    return []
+
+
 def recommend_repair_actions_v0(
     *,
     failure_type: str,
     expected_stage: str,
     diagnostic_payload: dict | None = None,
     fallback_actions: list[str] | None = None,
+    multistep_context: dict | None = None,
 ) -> dict:
     ftype = str(failure_type or "").strip().lower()
     stage = str(expected_stage or "").strip().lower()
     diagnostic = diagnostic_payload if isinstance(diagnostic_payload, dict) else {}
+    multistep = multistep_context if isinstance(multistep_context, dict) else {}
     suggested = [str(x) for x in (diagnostic.get("suggested_actions") or []) if isinstance(x, str)]
     rules = [str(x) for x in (DEFAULT_RULES.get(ftype) or []) if isinstance(x, str)]
+    current_stage = str(multistep.get("current_stage") or "").strip().lower()
+    current_fail_bucket = str(multistep.get("current_fail_bucket") or "").strip().lower()
+    next_focus = _multistep_next_focus(
+        failure_type=ftype,
+        current_stage=current_stage,
+        current_fail_bucket=current_fail_bucket,
+    )
+    if ftype in {"stability_then_behavior", "behavior_then_robustness", "switch_then_recovery"} and current_stage:
+        rules = _multistep_stage_actions(
+            failure_type=ftype,
+            current_stage=current_stage,
+            next_focus=next_focus,
+        )
 
     stage_guard: list[str] = []
     if rules or suggested:
@@ -137,6 +237,9 @@ def recommend_repair_actions_v0(
                 stage_guard.append("do not replace topology restore with broad equation rewrite while checkModel still reports underconstraint")
         elif stage == "simulate":
             stage_guard.append("compile/checkModel must pass before any simulate retry")
+    if current_stage == "stage_2":
+        stage_guard.append("stage_2 is already unlocked, so do not reopen stage_1 unless the model regresses back to stage_1")
+        stage_guard.append("after stage_2 unlock, rank second-layer repair above any first-layer cleanup")
 
     deterministic_actions = _as_actions(rules + suggested + stage_guard)
     fallback = _as_actions(fallback_actions or [])
@@ -148,6 +251,9 @@ def recommend_repair_actions_v0(
             "fallback_used": False,
             "deterministic_action_count": len(deterministic_actions),
             "fallback_action_count": len(fallback),
+            "current_stage": current_stage,
+            "next_focus": next_focus,
+            "stage_aware": bool(current_stage),
         }
     return {
         "channel": "fallback_planner_actions",
@@ -155,6 +261,9 @@ def recommend_repair_actions_v0(
         "fallback_used": True,
         "deterministic_action_count": 0,
         "fallback_action_count": len(fallback),
+        "current_stage": current_stage,
+        "next_focus": next_focus,
+        "stage_aware": bool(current_stage),
     }
 
 

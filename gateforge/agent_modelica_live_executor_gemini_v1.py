@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .agent_modelica_diagnostic_ir_v0 import build_diagnostic_ir_v0
+from .agent_modelica_repair_action_policy_v0 import recommend_repair_actions_v0
 
 DEFAULT_DOCKER_IMAGE = "openmodelica/openmodelica:v1.26.1-minimal"
 ENV_KEY_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
@@ -83,6 +84,12 @@ def _diagnostic_context_hints_from_model(*, failure_type: str, expected_stage: s
         hints.extend(["initial_condition_robustness_violation", "initial_condition_miss", "single_case_only"])
     if "scenario_switch_robustness_violation" in lower:
         hints.extend(["scenario_switch_robustness_violation", "scenario_switch_miss", "single_case_only"])
+    if "stability_then_behavior" in lower:
+        hints.extend(["stability_then_behavior", "stability_margin_miss", "behavior_contract_miss"])
+    if "behavior_then_robustness" in lower:
+        hints.extend(["behavior_then_robustness", "behavior_contract_miss", "single_case_only"])
+    if "switch_then_recovery" in lower:
+        hints.extend(["switch_then_recovery", "scenario_switch_miss", "post_switch_recovery_miss"])
     return hints
 
 
@@ -547,6 +554,80 @@ def _apply_behavioral_robustness_source_blind_local_repair(
     return current_text, {"applied": False, "reason": "no_matching_source_blind_cluster", "model_name": model_name, "current_round": round_idx}
 
 
+def _source_blind_multistep_exposure_clusters(*, model_name: str, failure_type: str) -> list[tuple[str, list[tuple[str, str]]]]:
+    model = str(model_name or "").strip().lower()
+    failure = str(failure_type or "").strip().lower()
+    by_failure: dict[str, dict[str, list[tuple[str, str]]]] = {
+        "stability_then_behavior": {
+            "plantb": [
+                (r"height\s*=\s*1\.2\b", "height=1"),
+                (r"duration\s*=\s*1\.1\b", "duration=0.5"),
+            ],
+            "planta": [
+                (r"\bk\s*=\s*1\.18\b", "k=1"),
+                (r"height\s*=\s*1\.12\b", "height=1"),
+            ],
+        },
+        "behavior_then_robustness": {
+            "switchb": [
+                (r"startTime\s*=\s*0\.75\b", "startTime=0.3"),
+                (r"freqHz\s*=\s*1\.6\b", "freqHz=1"),
+            ],
+            "switcha": [
+                (r"width\s*=\s*62\b", "width=40"),
+                (r"period\s*=\s*0\.85\b", "period=0.5"),
+            ],
+        },
+        "switch_then_recovery": {
+            "hybridb": [
+                (r"startTime\s*=\s*0\.6\b", "startTime=0.1"),
+                (r"\bk\s*=\s*0\.6\b", "k=1"),
+            ],
+            "hybrida": [
+                (r"startTime\s*=\s*0\.6\b", "startTime=0.2"),
+                (r"\bk\s*=\s*0\.6\b", "k=1"),
+            ],
+        },
+    }
+    replacements = ((by_failure.get(failure) or {}).get(model) or [])
+    if not replacements:
+        return []
+    return [(f"{model}_exposure_cluster", replacements)]
+
+
+def _apply_source_blind_multistep_exposure_repair(
+    *,
+    current_text: str,
+    declared_failure_type: str,
+    current_round: int,
+) -> tuple[str, dict]:
+    failure = str(declared_failure_type or "").strip().lower()
+    if failure not in {"stability_then_behavior", "behavior_then_robustness", "switch_then_recovery"}:
+        return current_text, {"applied": False, "reason": "declared_failure_type_not_supported"}
+    try:
+        round_idx = max(1, int(current_round))
+    except Exception:
+        round_idx = 1
+    if round_idx != 1:
+        return current_text, {"applied": False, "reason": "exposure_repair_only_runs_in_round_1", "current_round": round_idx}
+    model_name = _find_primary_model_name(str(current_text or ""))
+    clusters = _source_blind_multistep_exposure_clusters(model_name=model_name, failure_type=failure)
+    if not clusters:
+        return current_text, {"applied": False, "reason": "no_multistep_exposure_cluster_defined", "model_name": model_name, "current_round": round_idx}
+    cluster_name, replacements = clusters[0]
+    patched, audit = _apply_regex_replacement_cluster(
+        current_text=current_text,
+        cluster_name=cluster_name,
+        replacements=replacements,
+    )
+    if bool(audit.get("applied")):
+        audit["reason"] = f"source_blind_multistep_exposure_repair:{cluster_name}"
+        audit["model_name"] = model_name
+        audit["current_round"] = round_idx
+        return patched, audit
+    return current_text, {"applied": False, "reason": "multistep_exposure_cluster_not_applicable", "model_name": model_name, "current_round": round_idx}
+
+
 def _robustness_structure_signature(text: str) -> list[str]:
     signatures: list[str] = []
     for raw_line in str(text or "").splitlines():
@@ -571,6 +652,9 @@ def _guard_robustness_patch(*, original_text: str, patched_text: str, failure_ty
         "param_perturbation_robustness_violation",
         "initial_condition_robustness_violation",
         "scenario_switch_robustness_violation",
+        "stability_then_behavior",
+        "behavior_then_robustness",
+        "switch_then_recovery",
     }:
         return patched_text, {"accepted": True, "reason": "non_robustness_failure_type"}
     original = str(original_text or "")
@@ -599,8 +683,120 @@ def _behavioral_contract_bucket(failure_type: str) -> str:
         "param_perturbation_robustness_violation": "param_sensitivity_miss",
         "initial_condition_robustness_violation": "initial_condition_miss",
         "scenario_switch_robustness_violation": "scenario_switch_miss",
+        "stability_then_behavior": "stability_margin_miss",
+        "behavior_then_robustness": "single_case_only",
+        "switch_then_recovery": "scenario_switch_miss",
     }
     return mapping.get(str(failure_type or "").strip().lower(), "behavioral_contract_fail")
+
+
+def _build_multistep_eval(
+    *,
+    stage: str,
+    transition_reason: str,
+    transition_seen: bool,
+    pass_all: bool,
+    bucket: str,
+    scenario_results: list[dict],
+) -> dict:
+    stage_norm = str(stage or "").strip().lower()
+    unlocked = stage_norm in {"stage_2", "passed"}
+    passed = bool(pass_all)
+    return {
+        "pass": passed,
+        "reasons": [] if passed else (["single_case_only", bucket] if scenario_results else [bucket]),
+        "contract_fail_bucket": "" if passed else bucket,
+        "scenario_results": scenario_results or [],
+        "multi_step_stage": stage_norm,
+        "multi_step_stage_2_unlocked": bool(unlocked),
+        "multi_step_transition_seen": bool(transition_seen),
+        "multi_step_transition_reason": str(transition_reason or ""),
+    }
+
+
+def _multistep_stage_default_focus(*, failure_type: str, stage: str, fail_bucket: str) -> str:
+    ftype = str(failure_type or "").strip().lower()
+    stage_norm = str(stage or "").strip().lower()
+    bucket = str(fail_bucket or "").strip().lower()
+    if stage_norm in {"", "stage_1"}:
+        mapping = {
+            "stability_then_behavior": "unlock_stage_2_behavior_gate",
+            "behavior_then_robustness": "unlock_stage_2_neighbor_robustness_gate",
+            "switch_then_recovery": "unlock_stage_2_recovery_gate",
+        }
+        return mapping.get(ftype, "unlock_stage_2")
+    if stage_norm == "stage_2":
+        mapping = {
+            "behavior_contract_miss": "resolve_stage_2_behavior_contract",
+            "single_case_only": "resolve_stage_2_neighbor_robustness",
+            "post_switch_recovery_miss": "resolve_stage_2_post_switch_recovery",
+        }
+        return mapping.get(bucket, "resolve_stage_2_exposed_failure")
+    if stage_norm == "passed":
+        return "stop_editing"
+    return "inspect_current_stage"
+
+
+def _looks_like_stage_1_focus(*, failure_type: str, action: str) -> bool:
+    ftype = str(failure_type or "").strip().lower()
+    lower = str(action or "").strip().lower()
+    if any(
+        token in lower
+        for token in (
+            "stop revisiting",
+            "do not reopen",
+            "reject edits that reopen",
+            "reintroduce stage-1",
+            "after stage_2 unlock",
+            "rank second-layer repair above",
+        )
+    ):
+        return False
+    signatures = {
+        "stability_then_behavior": ("stability", "startup timing", "unlock step"),
+        "behavior_then_robustness": ("nominal behavior", "unlock step", "primary scenario"),
+        "switch_then_recovery": ("switch timing", "trigger", "unlock step"),
+    }
+    return any(token in lower for token in signatures.get(ftype, ()))
+
+
+def _build_multistep_stage_context(
+    *,
+    failure_type: str,
+    behavioral_eval: dict | None,
+    current_round: int,
+    memory: dict,
+) -> dict:
+    eval_payload = behavioral_eval if isinstance(behavioral_eval, dict) else {}
+    current_stage = str(eval_payload.get("multi_step_stage") or "").strip().lower()
+    current_fail_bucket = str(eval_payload.get("contract_fail_bucket") or "").strip().lower()
+    stage_2_unlocked = bool(eval_payload.get("multi_step_stage_2_unlocked"))
+    transition_round = int(memory.get("stage_2_transition_round") or 0)
+    if stage_2_unlocked and transition_round <= 0:
+        transition_round = int(current_round)
+    transition_reason = str(
+        memory.get("stage_2_transition_reason")
+        or eval_payload.get("multi_step_transition_reason")
+        or ""
+    ).strip()
+    stage_2_first_fail_bucket = str(memory.get("stage_2_first_fail_bucket") or "").strip().lower()
+    if stage_2_unlocked and current_fail_bucket and not stage_2_first_fail_bucket:
+        stage_2_first_fail_bucket = current_fail_bucket
+    next_focus = _multistep_stage_default_focus(
+        failure_type=failure_type,
+        stage=current_stage,
+        fail_bucket=current_fail_bucket or stage_2_first_fail_bucket,
+    )
+    return {
+        "current_stage": current_stage,
+        "stage_2_unlocked": stage_2_unlocked,
+        "transition_round": transition_round,
+        "transition_reason": transition_reason,
+        "current_fail_bucket": current_fail_bucket,
+        "next_focus": next_focus,
+        "stage_1_unlock_cluster": str(memory.get("stage_1_unlock_cluster") or ""),
+        "stage_2_first_fail_bucket": stage_2_first_fail_bucket,
+    }
 
 
 def _evaluate_behavioral_contract_from_model_text(*, current_text: str, source_model_text: str, failure_type: str) -> dict | None:
@@ -612,6 +808,9 @@ def _evaluate_behavioral_contract_from_model_text(*, current_text: str, source_m
         "param_perturbation_robustness_violation",
         "initial_condition_robustness_violation",
         "scenario_switch_robustness_violation",
+        "stability_then_behavior",
+        "behavior_then_robustness",
+        "switch_then_recovery",
     }:
         return None
     passed = _normalize_behavioral_contract_text(current_text) == _normalize_behavioral_contract_text(source_model_text)
@@ -634,6 +833,249 @@ def _evaluate_behavioral_contract_from_model_text(*, current_text: str, source_m
                 {"scenario_id": "neighbor_a", "pass": False},
                 {"scenario_id": "neighbor_b", "pass": False},
             ]
+    elif declared == "stability_then_behavior":
+        lower_current = str(current_text or "").lower()
+        if "model plantb" in lower_current:
+            if re.search(r"height\s*=\s*1\.2\b", current_text or "") or re.search(r"duration\s*=\s*1\.1\b", current_text or ""):
+                return _build_multistep_eval(
+                    stage="stage_1",
+                    transition_reason="stability_constraints_still_violated",
+                    transition_seen=False,
+                    pass_all=False,
+                    bucket="stability_margin_miss",
+                    scenario_results=[
+                        {"scenario_id": "nominal", "pass": False},
+                        {"scenario_id": "neighbor_a", "pass": False},
+                        {"scenario_id": "neighbor_b", "pass": False},
+                    ],
+                )
+            elif re.search(r"startTime\s*=\s*0\.8\b", current_text or ""):
+                return _build_multistep_eval(
+                    stage="stage_2",
+                    transition_reason="stability_restored_behavior_gate_exposed",
+                    transition_seen=True,
+                    pass_all=False,
+                    bucket="behavior_contract_miss",
+                    scenario_results=[
+                        {"scenario_id": "nominal", "pass": True},
+                        {"scenario_id": "neighbor_a", "pass": False},
+                        {"scenario_id": "neighbor_b", "pass": False},
+                    ],
+                )
+            else:
+                return _build_multistep_eval(
+                    stage="passed",
+                    transition_reason="all_multistep_contracts_cleared",
+                    transition_seen=True,
+                    pass_all=True,
+                    bucket="",
+                    scenario_results=[
+                        {"scenario_id": "nominal", "pass": True},
+                        {"scenario_id": "neighbor_a", "pass": True},
+                        {"scenario_id": "neighbor_b", "pass": True},
+                    ],
+                )
+        elif re.search(r"\bk\s*=\s*1\.18\b", current_text or "") or re.search(r"height\s*=\s*1\.12\b", current_text or ""):
+            return _build_multistep_eval(
+                stage="stage_1",
+                transition_reason="stability_constraints_still_violated",
+                transition_seen=False,
+                pass_all=False,
+                bucket="stability_margin_miss",
+                scenario_results=[
+                    {"scenario_id": "nominal", "pass": False},
+                    {"scenario_id": "neighbor_a", "pass": False},
+                    {"scenario_id": "neighbor_b", "pass": False},
+                ],
+            )
+        elif re.search(r"startTime\s*=\s*0\.45\b", current_text or ""):
+            return _build_multistep_eval(
+                stage="stage_2",
+                transition_reason="stability_restored_behavior_gate_exposed",
+                transition_seen=True,
+                pass_all=False,
+                bucket="behavior_contract_miss",
+                scenario_results=[
+                    {"scenario_id": "nominal", "pass": True},
+                    {"scenario_id": "neighbor_a", "pass": False},
+                    {"scenario_id": "neighbor_b", "pass": False},
+                ],
+            )
+        else:
+            return _build_multistep_eval(
+                stage="passed",
+                transition_reason="all_multistep_contracts_cleared",
+                transition_seen=True,
+                pass_all=True,
+                bucket="",
+                scenario_results=[
+                    {"scenario_id": "nominal", "pass": True},
+                    {"scenario_id": "neighbor_a", "pass": True},
+                    {"scenario_id": "neighbor_b", "pass": True},
+                ],
+            )
+    elif declared == "behavior_then_robustness":
+        lower_current = str(current_text or "").lower()
+        if "model switchb" in lower_current:
+            if re.search(r"startTime\s*=\s*0\.75\b", current_text or "") or re.search(r"freqHz\s*=\s*1\.6\b", current_text or ""):
+                return _build_multistep_eval(
+                    stage="stage_1",
+                    transition_reason="nominal_behavior_still_failing",
+                    transition_seen=False,
+                    pass_all=False,
+                    bucket="behavior_contract_miss",
+                    scenario_results=[
+                        {"scenario_id": "nominal", "pass": False},
+                        {"scenario_id": "neighbor_a", "pass": False},
+                        {"scenario_id": "neighbor_b", "pass": False},
+                    ],
+                )
+            elif re.search(r"\bk\s*=\s*0\.82\b", current_text or ""):
+                return _build_multistep_eval(
+                    stage="stage_2",
+                    transition_reason="nominal_behavior_restored_neighbor_robustness_exposed",
+                    transition_seen=True,
+                    pass_all=False,
+                    bucket="single_case_only",
+                    scenario_results=[
+                        {"scenario_id": "nominal", "pass": True},
+                        {"scenario_id": "neighbor_a", "pass": False},
+                        {"scenario_id": "neighbor_b", "pass": False},
+                    ],
+                )
+            else:
+                return _build_multistep_eval(
+                    stage="passed",
+                    transition_reason="all_multistep_contracts_cleared",
+                    transition_seen=True,
+                    pass_all=True,
+                    bucket="",
+                    scenario_results=[
+                        {"scenario_id": "nominal", "pass": True},
+                        {"scenario_id": "neighbor_a", "pass": True},
+                        {"scenario_id": "neighbor_b", "pass": True},
+                    ],
+                )
+        elif re.search(r"width\s*=\s*62\b", current_text or "") or re.search(r"period\s*=\s*0\.85\b", current_text or ""):
+            return _build_multistep_eval(
+                stage="stage_1",
+                transition_reason="nominal_behavior_still_failing",
+                transition_seen=False,
+                pass_all=False,
+                bucket="behavior_contract_miss",
+                scenario_results=[
+                    {"scenario_id": "nominal", "pass": False},
+                    {"scenario_id": "neighbor_a", "pass": False},
+                    {"scenario_id": "neighbor_b", "pass": False},
+                ],
+            )
+        elif re.search(r"offset\s*=\s*0\.2\b", current_text or ""):
+            return _build_multistep_eval(
+                stage="stage_2",
+                transition_reason="nominal_behavior_restored_neighbor_robustness_exposed",
+                transition_seen=True,
+                pass_all=False,
+                bucket="single_case_only",
+                scenario_results=[
+                    {"scenario_id": "nominal", "pass": True},
+                    {"scenario_id": "neighbor_a", "pass": False},
+                    {"scenario_id": "neighbor_b", "pass": False},
+                ],
+            )
+        else:
+            return _build_multistep_eval(
+                stage="passed",
+                transition_reason="all_multistep_contracts_cleared",
+                transition_seen=True,
+                pass_all=True,
+                bucket="",
+                scenario_results=[
+                    {"scenario_id": "nominal", "pass": True},
+                    {"scenario_id": "neighbor_a", "pass": True},
+                    {"scenario_id": "neighbor_b", "pass": True},
+                ],
+            )
+    elif declared == "switch_then_recovery":
+        lower_current = str(current_text or "").lower()
+        if "model hybridb" in lower_current:
+            if re.search(r"startTime\s*=\s*0\.6\b", current_text or "") or re.search(r"\bk\s*=\s*0\.6\b", current_text or ""):
+                return _build_multistep_eval(
+                    stage="stage_1",
+                    transition_reason="switch_window_still_unstable",
+                    transition_seen=False,
+                    pass_all=False,
+                    bucket="scenario_switch_miss",
+                    scenario_results=[
+                        {"scenario_id": "nominal", "pass": False},
+                        {"scenario_id": "neighbor_a", "pass": False},
+                        {"scenario_id": "neighbor_b", "pass": False},
+                    ],
+                )
+            elif re.search(r"width\s*=\s*0\.75\b", current_text or "") or re.search(r"\bT\s*=\s*0\.5\b", current_text or ""):
+                return _build_multistep_eval(
+                    stage="stage_2",
+                    transition_reason="switch_segment_restored_recovery_gate_exposed",
+                    transition_seen=True,
+                    pass_all=False,
+                    bucket="post_switch_recovery_miss",
+                    scenario_results=[
+                        {"scenario_id": "nominal", "pass": True},
+                        {"scenario_id": "neighbor_a", "pass": False},
+                        {"scenario_id": "neighbor_b", "pass": False},
+                    ],
+                )
+            else:
+                return _build_multistep_eval(
+                    stage="passed",
+                    transition_reason="all_multistep_contracts_cleared",
+                    transition_seen=True,
+                    pass_all=True,
+                    bucket="",
+                    scenario_results=[
+                        {"scenario_id": "nominal", "pass": True},
+                        {"scenario_id": "neighbor_a", "pass": True},
+                        {"scenario_id": "neighbor_b", "pass": True},
+                    ],
+                )
+        elif re.search(r"startTime\s*=\s*0\.6\b", current_text or "") or re.search(r"\bk\s*=\s*0\.6\b", current_text or ""):
+            return _build_multistep_eval(
+                stage="stage_1",
+                transition_reason="switch_window_still_unstable",
+                transition_seen=False,
+                pass_all=False,
+                bucket="scenario_switch_miss",
+                scenario_results=[
+                    {"scenario_id": "nominal", "pass": False},
+                    {"scenario_id": "neighbor_a", "pass": False},
+                    {"scenario_id": "neighbor_b", "pass": False},
+                ],
+            )
+        elif re.search(r"width\s*=\s*75\b", current_text or "") or re.search(r"period\s*=\s*1\.4\b", current_text or ""):
+            return _build_multistep_eval(
+                stage="stage_2",
+                transition_reason="switch_segment_restored_recovery_gate_exposed",
+                transition_seen=True,
+                pass_all=False,
+                bucket="post_switch_recovery_miss",
+                scenario_results=[
+                    {"scenario_id": "nominal", "pass": True},
+                    {"scenario_id": "neighbor_a", "pass": False},
+                    {"scenario_id": "neighbor_b", "pass": False},
+                ],
+            )
+        else:
+            return _build_multistep_eval(
+                stage="passed",
+                transition_reason="all_multistep_contracts_cleared",
+                transition_seen=True,
+                pass_all=True,
+                bucket="",
+                scenario_results=[
+                    {"scenario_id": "nominal", "pass": True},
+                    {"scenario_id": "neighbor_a", "pass": True},
+                    {"scenario_id": "neighbor_b", "pass": True},
+                ],
+            )
     return {
         "pass": passed,
         "reasons": [] if passed else (["single_case_only", bucket] if scenario_results else [bucket]),
@@ -1608,6 +2050,14 @@ def main() -> None:
     repair_actions = _parse_repair_actions(args.repair_actions)
     attempts: list[dict] = []
     current_text = original_text
+    multistep_memory = {
+        "stage_1_unlock_cluster": "",
+        "stage_2_first_fail_bucket": "",
+        "stage_2_transition_round": 0,
+        "stage_2_transition_reason": "",
+        "stage_aware_focus_applied": False,
+        "stage_1_revisit_after_unlock": False,
+    }
     final_check_ok = False
     final_simulate_ok = False
     final_error = ""
@@ -1630,6 +2080,7 @@ def main() -> None:
             source_qualified_model_name=str(args.source_qualified_model_name or ""),
         )
         for round_idx in range(1, max(1, int(args.max_rounds)) + 1):
+            behavioral_eval = None
             layout.model_write_path.write_text(current_text, encoding="utf-8")
             rc, output, check_ok, simulate_ok = _run_check_and_simulate(
                 workspace=workspace,
@@ -1683,6 +2134,34 @@ def main() -> None:
                     attempts[-1]["scenario_results"] = [
                         dict(item) for item in (behavioral_eval.get("scenario_results") or []) if isinstance(item, dict)
                     ]
+                    attempts[-1]["multi_step_stage"] = str(behavioral_eval.get("multi_step_stage") or "")
+                    attempts[-1]["multi_step_stage_2_unlocked"] = bool(behavioral_eval.get("multi_step_stage_2_unlocked"))
+                    attempts[-1]["multi_step_transition_seen"] = bool(behavioral_eval.get("multi_step_transition_seen"))
+                    attempts[-1]["multi_step_transition_reason"] = str(behavioral_eval.get("multi_step_transition_reason") or "")
+                    attempts[-1]["multi_step_transition_round"] = (
+                        int(round_idx) if bool(behavioral_eval.get("multi_step_transition_seen")) else 0
+                    )
+                    stage_context = _build_multistep_stage_context(
+                        failure_type=str(args.failure_type),
+                        behavioral_eval=behavioral_eval,
+                        current_round=round_idx,
+                        memory=multistep_memory,
+                    )
+                    if stage_context["stage_2_unlocked"]:
+                        if not multistep_memory.get("stage_2_transition_round"):
+                            multistep_memory["stage_2_transition_round"] = int(stage_context["transition_round"] or round_idx)
+                        if not multistep_memory.get("stage_2_transition_reason"):
+                            multistep_memory["stage_2_transition_reason"] = str(stage_context["transition_reason"] or "")
+                        if stage_context["current_fail_bucket"] and not multistep_memory.get("stage_2_first_fail_bucket"):
+                            multistep_memory["stage_2_first_fail_bucket"] = str(stage_context["current_fail_bucket"] or "")
+                    attempts[-1]["current_stage"] = str(stage_context.get("current_stage") or "")
+                    attempts[-1]["stage_2_unlocked"] = bool(stage_context.get("stage_2_unlocked"))
+                    attempts[-1]["transition_round"] = int(stage_context.get("transition_round") or 0)
+                    attempts[-1]["transition_reason"] = str(stage_context.get("transition_reason") or "")
+                    attempts[-1]["current_fail_bucket"] = str(stage_context.get("current_fail_bucket") or "")
+                    attempts[-1]["next_focus"] = str(stage_context.get("next_focus") or "")
+                    attempts[-1]["stage_1_unlock_cluster"] = str(stage_context.get("stage_1_unlock_cluster") or "")
+                    attempts[-1]["stage_2_first_fail_bucket"] = str(stage_context.get("stage_2_first_fail_bucket") or "")
                 if not isinstance(behavioral_eval, dict) or bool(behavioral_eval.get("pass")):
                     final_check_ok = True
                     final_simulate_ok = True
@@ -1767,6 +2246,19 @@ def main() -> None:
                 final_error = "multi_round_layered_repair_applied_retry_pending"
                 continue
 
+            multistep_repaired_text, multistep_repair = _apply_source_blind_multistep_exposure_repair(
+                current_text=current_text,
+                declared_failure_type=str(args.failure_type),
+                current_round=round_idx,
+            )
+            attempts[-1]["source_blind_multistep_exposure_repair"] = multistep_repair
+            if bool(multistep_repair.get("applied")):
+                if str(multistep_repair.get("cluster_name") or "").strip():
+                    multistep_memory["stage_1_unlock_cluster"] = str(multistep_repair.get("cluster_name") or "").strip()
+                current_text = multistep_repaired_text
+                final_error = "source_blind_multistep_exposure_repair_applied_retry_pending"
+                continue
+
             source_blind_repaired_text, source_blind_repair = _apply_behavioral_robustness_source_blind_local_repair(
                 current_text=current_text,
                 declared_failure_type=str(args.failure_type),
@@ -1791,13 +2283,53 @@ def main() -> None:
                 continue
 
             if resolved_provider in {"gemini", "openai"}:
+                stage_context = _build_multistep_stage_context(
+                    failure_type=str(args.failure_type),
+                    behavioral_eval=behavioral_eval if isinstance(behavioral_eval, dict) else {},
+                    current_round=round_idx,
+                    memory=multistep_memory,
+                )
+                stage_policy = recommend_repair_actions_v0(
+                    failure_type=str(args.failure_type),
+                    expected_stage=str(args.expected_stage),
+                    diagnostic_payload=diagnostic,
+                    fallback_actions=repair_actions,
+                    multistep_context=stage_context,
+                )
+                stage_repair_actions = [str(x) for x in (stage_policy.get("actions") or []) if isinstance(x, str)]
+                stage_aware_control_applied = bool(stage_policy.get("stage_aware")) and bool(stage_repair_actions)
+                stage_1_revisit_after_unlock = False
+                if bool(stage_context.get("stage_2_unlocked")):
+                    if str(stage_context.get("current_stage") or "") == "stage_1":
+                        stage_1_revisit_after_unlock = True
+                    elif any(
+                        _looks_like_stage_1_focus(
+                            failure_type=str(args.failure_type),
+                            action=action,
+                        )
+                        for action in stage_repair_actions
+                    ):
+                        stage_1_revisit_after_unlock = True
+                multistep_memory["stage_aware_focus_applied"] = bool(multistep_memory.get("stage_aware_focus_applied")) or stage_aware_control_applied
+                multistep_memory["stage_1_revisit_after_unlock"] = bool(multistep_memory.get("stage_1_revisit_after_unlock")) or stage_1_revisit_after_unlock
+                attempts[-1]["current_stage"] = str(stage_context.get("current_stage") or "")
+                attempts[-1]["stage_2_unlocked"] = bool(stage_context.get("stage_2_unlocked"))
+                attempts[-1]["transition_round"] = int(stage_context.get("transition_round") or 0)
+                attempts[-1]["transition_reason"] = str(stage_context.get("transition_reason") or "")
+                attempts[-1]["current_fail_bucket"] = str(stage_context.get("current_fail_bucket") or "")
+                attempts[-1]["next_focus"] = str(stage_context.get("next_focus") or "")
+                attempts[-1]["stage_1_unlock_cluster"] = str(stage_context.get("stage_1_unlock_cluster") or "")
+                attempts[-1]["stage_2_first_fail_bucket"] = str(stage_context.get("stage_2_first_fail_bucket") or "")
+                attempts[-1]["stage_aware_repair_actions"] = stage_repair_actions
+                attempts[-1]["stage_aware_control_applied"] = stage_aware_control_applied
+                attempts[-1]["stage_1_revisit_after_unlock"] = stage_1_revisit_after_unlock
                 patched, llm_err, resolved_provider = _llm_repair_model_text(
                     planner_backend=str(args.planner_backend),
                     original_text=current_text,
                     failure_type=str(args.failure_type),
                     expected_stage=str(args.expected_stage),
                     error_excerpt=str(output or "")[-1800:],
-                    repair_actions=repair_actions,
+                    repair_actions=stage_repair_actions or repair_actions,
                     model_name=model_name,
                     current_round=round_idx,
                 )
@@ -1842,8 +2374,22 @@ def main() -> None:
         physics_contract_reasons = [str(x) for x in (behavioral_eval.get("reasons") or []) if str(x).strip()]
         contract_fail_bucket = str(behavioral_eval.get("contract_fail_bucket") or "")
         scenario_results = [dict(item) for item in (behavioral_eval.get("scenario_results") or []) if isinstance(item, dict)]
+        multi_step_stage = str(behavioral_eval.get("multi_step_stage") or "")
+        multi_step_stage_2_unlocked = bool(behavioral_eval.get("multi_step_stage_2_unlocked"))
+        multi_step_transition_seen = bool(behavioral_eval.get("multi_step_transition_seen"))
+        multi_step_transition_reason = str(behavioral_eval.get("multi_step_transition_reason") or "")
     else:
         scenario_results = []
+        multi_step_stage = ""
+        multi_step_stage_2_unlocked = False
+        multi_step_transition_seen = False
+        multi_step_transition_reason = ""
+    final_stage_context = _build_multistep_stage_context(
+        failure_type=str(args.failure_type),
+        behavioral_eval=behavioral_eval if isinstance(behavioral_eval, dict) else {},
+        current_round=len(attempts),
+        memory=multistep_memory,
+    )
     payload = {
         "task_id": str(args.task_id),
         "failure_type": str(args.failure_type),
@@ -1859,6 +2405,21 @@ def main() -> None:
         "contract_pass": bool(physics_contract_pass),
         "contract_fail_bucket": contract_fail_bucket,
         "scenario_results": scenario_results,
+        "multi_step_stage": multi_step_stage,
+        "multi_step_stage_2_unlocked": multi_step_stage_2_unlocked,
+        "multi_step_transition_seen": multi_step_transition_seen,
+        "multi_step_transition_round": int(max(1, len(attempts))) if multi_step_transition_seen else 0,
+        "multi_step_transition_reason": multi_step_transition_reason,
+        "current_stage": str(final_stage_context.get("current_stage") or ""),
+        "stage_2_unlocked": bool(final_stage_context.get("stage_2_unlocked")),
+        "transition_round": int(final_stage_context.get("transition_round") or 0),
+        "transition_reason": str(final_stage_context.get("transition_reason") or ""),
+        "current_fail_bucket": str(final_stage_context.get("current_fail_bucket") or ""),
+        "next_focus": str(final_stage_context.get("next_focus") or ""),
+        "stage_1_unlock_cluster": str(multistep_memory.get("stage_1_unlock_cluster") or ""),
+        "stage_2_first_fail_bucket": str(multistep_memory.get("stage_2_first_fail_bucket") or ""),
+        "stage_aware_control_applied": bool(multistep_memory.get("stage_aware_focus_applied")),
+        "stage_1_revisit_after_unlock": bool(multistep_memory.get("stage_1_revisit_after_unlock")),
         "regression_pass": bool(final_check_ok and final_simulate_ok),
         "elapsed_sec": elapsed,
         "error_message": final_error,

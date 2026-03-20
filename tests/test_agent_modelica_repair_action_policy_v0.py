@@ -64,6 +64,24 @@ class AgentModelicaRepairActionPolicyV0Tests(unittest.TestCase):
         self.assertIn("conservative", joined)
         self.assertNotIn("restore source", joined)
 
+    def test_multistep_policy_switches_focus_after_stage_2_unlock(self) -> None:
+        payload = recommend_repair_actions_v0(
+            failure_type="behavior_then_robustness",
+            expected_stage="simulate",
+            diagnostic_payload={},
+            fallback_actions=["fallback_action_1"],
+            multistep_context={
+                "current_stage": "stage_2",
+                "current_fail_bucket": "single_case_only",
+            },
+        )
+        self.assertEqual(payload.get("channel"), "deterministic_rule_policy")
+        self.assertEqual(payload.get("next_focus"), "resolve_stage_2_neighbor_robustness")
+        actions = payload.get("actions") if isinstance(payload.get("actions"), list) else []
+        joined = "\n".join([str(x) for x in actions]).lower()
+        self.assertIn("neighbor robustness", joined)
+        self.assertNotIn("nominal behavior first", joined)
+
 
 if __name__ == "__main__":
     unittest.main()
