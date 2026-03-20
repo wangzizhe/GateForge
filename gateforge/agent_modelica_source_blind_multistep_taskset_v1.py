@@ -117,6 +117,10 @@ def _mutate_source_blind_multistep_model(source_text: str, failure_type: str) ->
                 (r"duration\s*=\s*0\.5(?:0+)?", "duration=1.1"),
                 (r"startTime\s*=\s*0\.2(?:0+)?", "startTime=0.8"),
             ],
+            "switch_then_recovery": [
+                (r"duration\s*=\s*0\.5(?:0+)?", "duration=1.1"),
+                (r"startTime\s*=\s*0\.2(?:0+)?", "startTime=0.6"),
+            ],
         }
         patterns = plantb_patterns.get(str(failure_type or "").strip().lower())
         if patterns:
@@ -148,6 +152,35 @@ def _mutate_source_blind_multistep_model(source_text: str, failure_type: str) ->
             ],
         }
         patterns = switchb_patterns.get(str(failure_type or "").strip().lower())
+        if patterns:
+            lines = str(source_text or "").splitlines(keepends=True)
+            seen_patterns: set[str] = set()
+            updated_lines: list[str] = []
+            for line in lines:
+                updated_line = line
+                for pattern, replacement in patterns:
+                    if pattern in seen_patterns:
+                        continue
+                    candidate, changed = _rewrite_line_once(
+                        updated_line,
+                        pattern=pattern,
+                        replacement=replacement,
+                        failure_type=failure_type,
+                    )
+                    if changed:
+                        updated_line = candidate
+                        seen_patterns.add(pattern)
+                updated_lines.append(updated_line)
+            return "".join(updated_lines)
+    if "model switcha" in lower_source:
+        switcha_patterns = {
+            "stability_then_behavior": [
+                (r"\bk\s*=\s*1(?:\.0+)?", "k=1.18"),
+                (r"width\s*=\s*40(?:\.0+)?", "width=62"),
+                (r"period\s*=\s*0\.5(?:0+)?", "period=0.85"),
+            ],
+        }
+        patterns = switcha_patterns.get(str(failure_type or "").strip().lower())
         if patterns:
             lines = str(source_text or "").splitlines(keepends=True)
             seen_patterns: set[str] = set()
