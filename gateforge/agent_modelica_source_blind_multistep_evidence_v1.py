@@ -95,6 +95,12 @@ def main() -> None:
     stage_2_focus_count = int(baseline_summary.get("stage_2_focus_count") or 0)
     stage_1_revisit_after_unlock_count = int(baseline_summary.get("stage_1_revisit_after_unlock_count") or 0)
     stage_2_resolution_count = int(baseline_summary.get("stage_2_resolution_count") or 0)
+    stage_2_resolution_pct = float(baseline_summary.get("stage_2_resolution_pct") or 0.0)
+    stage_2_resolution_by_failure_type = (
+        baseline_summary.get("stage_2_resolution_by_failure_type")
+        if isinstance(baseline_summary.get("stage_2_resolution_by_failure_type"), dict)
+        else {}
+    )
     stage_plan_generated_count = int(baseline_summary.get("stage_plan_generated_count") or 0)
     stage_plan_followed_count = int(baseline_summary.get("stage_plan_followed_count") or 0)
     stage_2_plan_generated_count = int(baseline_summary.get("stage_2_plan_generated_count") or 0)
@@ -129,6 +135,8 @@ def main() -> None:
         "stage_2_focus_pct": float(baseline_summary.get("stage_2_focus_pct") or 0.0),
         "stage_1_revisit_after_unlock_count": stage_1_revisit_after_unlock_count,
         "stage_2_resolution_count": stage_2_resolution_count,
+        "stage_2_resolution_pct": stage_2_resolution_pct,
+        "stage_2_resolution_by_failure_type": stage_2_resolution_by_failure_type,
         "stage_plan_generated_count": stage_plan_generated_count,
         "stage_plan_generated_pct": float(baseline_summary.get("stage_plan_generated_pct") or 0.0),
         "stage_plan_followed_count": stage_plan_followed_count,
@@ -163,6 +171,7 @@ def main() -> None:
         "stage_2_focus_count": stage_2_focus_count,
         "stage_plan_followed_count": stage_plan_followed_count,
         "stage_2_plan_followed_count": stage_2_plan_followed_count,
+        "stage_2_resolution_count": stage_2_resolution_count,
         "stage_aware_control_status": stage_aware_control_status,
     }
     decision_summary = {
@@ -178,6 +187,8 @@ def main() -> None:
         "stage_2_unlock_pct": float(baseline_summary.get("stage_2_unlock_pct") or 0.0),
         "stage_2_focus_count": stage_2_focus_count,
         "stage_2_focus_pct": float(baseline_summary.get("stage_2_focus_pct") or 0.0),
+        "stage_2_resolution_count": stage_2_resolution_count,
+        "stage_2_resolution_pct": stage_2_resolution_pct,
         "stage_plan_followed_count": stage_plan_followed_count,
         "stage_plan_followed_pct": float(baseline_summary.get("stage_plan_followed_pct") or 0.0),
         "stage_2_plan_followed_count": stage_2_plan_followed_count,

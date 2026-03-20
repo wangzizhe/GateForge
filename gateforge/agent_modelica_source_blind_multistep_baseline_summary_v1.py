@@ -145,6 +145,7 @@ def main() -> None:
     stage_2_focus_count = 0
     stage_1_revisit_after_unlock_count = 0
     stage_2_resolution_count = 0
+    stage_2_resolution_by_failure_type: dict[str, dict] = {}
     stage_plan_generated_count = 0
     stage_plan_followed_count = 0
     stage_2_plan_generated_count = 0
@@ -160,8 +161,10 @@ def main() -> None:
         failure_type = str(task.get("failure_type") or "unknown").strip().lower()
         success_row = success_by_failure_type.setdefault(failure_type, {"task_count": 0, "success_count": 0})
         fail_row = scenario_fail_by_failure_type.setdefault(failure_type, {"task_count": 0, "scenario_fail_count": 0})
+        stage2_row = stage_2_resolution_by_failure_type.setdefault(failure_type, {"task_count": 0, "stage_2_resolution_count": 0})
         success_row["task_count"] += 1
         fail_row["task_count"] += 1
+        stage2_row["task_count"] += 1
         executor_attempt_values.append(float(_executor_attempt_count(record)))
         signatures: list[str] = []
         second_failure_round: int | None = None
@@ -234,6 +237,7 @@ def main() -> None:
             if bool(record.get("multi_step_stage_2_unlocked")) or unlocked_rounds:
                 stage_2_then_pass_count += 1
                 stage_2_resolution_count += 1
+                stage2_row["stage_2_resolution_count"] += 1
                 if stage_2_plan_followed_seen:
                     stage_2_plan_resolution_count += 1
                 first_unlock = min(x for x in unlocked_rounds if x > 0) if any(x > 0 for x in unlocked_rounds) else 0
@@ -263,6 +267,8 @@ def main() -> None:
         row["success_at_k_pct"] = _ratio(int(row.get("success_count") or 0), int(row.get("task_count") or 0))
     for row in scenario_fail_by_failure_type.values():
         row["scenario_fail_pct"] = _ratio(int(row.get("scenario_fail_count") or 0), int(row.get("task_count") or 0))
+    for row in stage_2_resolution_by_failure_type.values():
+        row["stage_2_resolution_pct"] = _ratio(int(row.get("stage_2_resolution_count") or 0), int(row.get("task_count") or 0))
 
     summary = {
         "schema_version": SCHEMA_VERSION,
@@ -299,6 +305,8 @@ def main() -> None:
         "stage_2_focus_pct": _ratio(stage_2_focus_count, total_tasks),
         "stage_1_revisit_after_unlock_count": stage_1_revisit_after_unlock_count,
         "stage_2_resolution_count": stage_2_resolution_count,
+        "stage_2_resolution_pct": _ratio(stage_2_resolution_count, total_tasks),
+        "stage_2_resolution_by_failure_type": stage_2_resolution_by_failure_type,
         "stage_plan_generated_count": stage_plan_generated_count,
         "stage_plan_generated_pct": _ratio(stage_plan_generated_count, total_tasks),
         "stage_plan_followed_count": stage_plan_followed_count,

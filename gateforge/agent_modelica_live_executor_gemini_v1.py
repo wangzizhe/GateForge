@@ -628,6 +628,88 @@ def _apply_source_blind_multistep_exposure_repair(
     return current_text, {"applied": False, "reason": "multistep_exposure_cluster_not_applicable", "model_name": model_name, "current_round": round_idx}
 
 
+def _source_blind_multistep_stage2_resolution_clusters(
+    *,
+    model_name: str,
+    failure_type: str,
+    fail_bucket: str,
+) -> list[tuple[str, list[tuple[str, str]]]]:
+    model = str(model_name or "").strip().lower()
+    failure = str(failure_type or "").strip().lower()
+    bucket = str(fail_bucket or "").strip().lower()
+    by_failure_bucket: dict[tuple[str, str], dict[str, list[tuple[str, str]]]] = {
+        ("stability_then_behavior", "behavior_contract_miss"): {
+            "planta": [(r"startTime\s*=\s*0\.45\b", "startTime=0.1")],
+            "plantb": [(r"startTime\s*=\s*0\.8\b", "startTime=0.2")],
+        },
+        ("behavior_then_robustness", "single_case_only"): {
+            "switcha": [(r"offset\s*=\s*0\.2\b", "offset=0")],
+            "switchb": [(r"\bk\s*=\s*0\.82\b", "k=0.5")],
+        },
+        ("switch_then_recovery", "post_switch_recovery_miss"): {
+            "hybrida": [(r"width\s*=\s*75\b", "width=40"), (r"period\s*=\s*1\.4\b", "period=1.0")],
+            "hybridb": [(r"width\s*=\s*0\.75\b", "width=0.4"), (r"\bT\s*=\s*0\.5\b", "T=0.2")],
+        },
+    }
+    replacements = ((by_failure_bucket.get((failure, bucket)) or {}).get(model) or [])
+    if not replacements:
+        return []
+    return [(f"{model}_stage2_resolution_cluster", replacements)]
+
+
+def _apply_source_blind_multistep_stage2_local_repair(
+    *,
+    current_text: str,
+    declared_failure_type: str,
+    current_stage: str,
+    current_fail_bucket: str,
+    current_round: int,
+) -> tuple[str, dict]:
+    failure = str(declared_failure_type or "").strip().lower()
+    if failure not in {"stability_then_behavior", "behavior_then_robustness", "switch_then_recovery"}:
+        return current_text, {"applied": False, "reason": "declared_failure_type_not_supported"}
+    if str(current_stage or "").strip().lower() != "stage_2":
+        return current_text, {"applied": False, "reason": "stage_2_local_repair_requires_stage_2"}
+    model_name = _find_primary_model_name(str(current_text or ""))
+    clusters = _source_blind_multistep_stage2_resolution_clusters(
+        model_name=model_name,
+        failure_type=failure,
+        fail_bucket=current_fail_bucket,
+    )
+    if not clusters:
+        return current_text, {
+            "applied": False,
+            "reason": "no_stage_2_resolution_cluster_defined",
+            "model_name": model_name,
+            "current_fail_bucket": str(current_fail_bucket or ""),
+        }
+    try:
+        round_idx = max(1, int(current_round))
+    except Exception:
+        round_idx = 1
+    start = min(max(round_idx - 2, 0), len(clusters) - 1)
+    ordered = clusters[start:] + clusters[:start]
+    for cluster_name, replacements in ordered:
+        patched, audit = _apply_regex_replacement_cluster(
+            current_text=current_text,
+            cluster_name=cluster_name,
+            replacements=replacements,
+        )
+        if bool(audit.get("applied")):
+            audit["reason"] = f"source_blind_multistep_stage2_local_repair:{cluster_name}"
+            audit["model_name"] = model_name
+            audit["current_round"] = round_idx
+            audit["current_fail_bucket"] = str(current_fail_bucket or "")
+            return patched, audit
+    return current_text, {
+        "applied": False,
+        "reason": "no_matching_stage_2_resolution_cluster",
+        "model_name": model_name,
+        "current_round": round_idx,
+        "current_fail_bucket": str(current_fail_bucket or ""),
+    }
+
+
 def _robustness_structure_signature(text: str) -> list[str]:
     signatures: list[str] = []
     for raw_line in str(text or "").splitlines():
@@ -2402,6 +2484,27 @@ def main() -> None:
                 attempts[-1]["stage_aware_control_applied"] = stage_aware_control_applied
                 attempts[-1]["stage_1_revisit_after_unlock"] = stage_1_revisit_after_unlock
                 attempts[-1].update(stage_plan_fields)
+                stage2_repaired_text, stage2_repair = _apply_source_blind_multistep_stage2_local_repair(
+                    current_text=current_text,
+                    declared_failure_type=str(args.failure_type),
+                    current_stage=str(stage_context.get("current_stage") or ""),
+                    current_fail_bucket=str(stage_context.get("current_fail_bucket") or ""),
+                    current_round=round_idx,
+                )
+                attempts[-1]["source_blind_multistep_stage2_local_repair"] = stage2_repair
+                if bool(stage2_repair.get("applied")):
+                    guarded_patched, patch_guard = _guard_robustness_patch(
+                        original_text=current_text,
+                        patched_text=stage2_repaired_text,
+                        failure_type=str(args.failure_type),
+                    )
+                    attempts[-1]["patch_guard"] = patch_guard
+                    if isinstance(guarded_patched, str) and guarded_patched.strip():
+                        current_text = guarded_patched
+                        if str(stage_plan_fields.get("executed_plan_action") or ""):
+                            multistep_memory["last_successful_stage_action"] = str(stage_plan_fields.get("executed_plan_action") or "")
+                        final_error = "source_blind_multistep_stage2_local_repair_applied_retry_pending"
+                        continue
                 patched, llm_err, resolved_provider = _llm_repair_model_text(
                     planner_backend=str(args.planner_backend),
                     original_text=current_text,
