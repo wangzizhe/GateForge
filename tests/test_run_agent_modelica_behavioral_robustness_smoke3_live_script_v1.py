@@ -11,6 +11,9 @@ class RunAgentModelicaBehavioralRobustnessSmoke3LiveScriptV1Tests(unittest.TestC
         self.assertIn("initial_condition_robustness_violation", content)
         self.assertIn("scenario_switch_robustness_violation", content)
         self.assertIn("agent_modelica_behavioral_robustness_taskset_v1", content)
+        self.assertIn("GATEFORGE_AGENT_BEHAVIORAL_ROBUSTNESS_SOURCE_MODE", content)
+        self.assertIn("GATEFORGE_AGENT_BEHAVIORAL_ROBUSTNESS_SMOKE3_DETERMINISTIC_REPAIR", content)
+        self.assertIn("GATEFORGE_AGENT_BEHAVIORAL_ROBUSTNESS_DETERMINISTIC_REPAIR=1", content)
 
 
 if __name__ == "__main__":

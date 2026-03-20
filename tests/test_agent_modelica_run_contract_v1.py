@@ -1273,6 +1273,105 @@ print(json.dumps(payload))
             scenario_results = rec.get("scenario_results") if isinstance(rec.get("scenario_results"), list) else []
             self.assertEqual([bool(x.get("pass")) for x in scenario_results], [True, False, False])
 
+    def test_run_contract_live_mode_prefers_later_full_contract_pass_over_earlier_partial(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            taskset = root / "taskset.json"
+            results = root / "results.json"
+            summary = root / "summary.json"
+            counter = root / "count.txt"
+            taskset.write_text(
+                json.dumps(
+                    {
+                        "tasks": [
+                            {
+                                "task_id": "t_live_full_beats_partial",
+                                "scale": "small",
+                                "failure_type": "param_perturbation_robustness_violation",
+                                "expected_stage": "simulate",
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            code = """
+import json
+from pathlib import Path
+
+counter = Path("__COUNTER__")
+count = int(counter.read_text() or "0") if counter.exists() else 0
+count += 1
+counter.write_text(str(count))
+if count == 1:
+    payload = {
+      "check_model_pass": True,
+      "simulate_pass": True,
+      "physics_contract_pass": False,
+      "contract_pass": False,
+      "contract_fail_bucket": "param_sensitivity_miss",
+      "scenario_results": [
+        {"scenario_id": "nominal", "pass": True},
+        {"scenario_id": "neighbor_a", "pass": False},
+        {"scenario_id": "neighbor_b", "pass": False}
+      ],
+      "regression_pass": True,
+      "elapsed_sec": 1.0,
+      "error_message": "param_sensitivity_miss"
+    }
+else:
+    payload = {
+      "check_model_pass": True,
+      "simulate_pass": True,
+      "physics_contract_pass": True,
+      "contract_pass": True,
+      "contract_fail_bucket": "",
+      "scenario_results": [
+        {"scenario_id": "nominal", "pass": True},
+        {"scenario_id": "neighbor_a", "pass": True},
+        {"scenario_id": "neighbor_b", "pass": True}
+      ],
+      "regression_pass": True,
+      "elapsed_sec": 1.0,
+      "error_message": ""
+    }
+print(json.dumps(payload))
+""".strip().replace("__COUNTER__", str(counter))
+            live_cmd = f"python3 -c {shlex.quote(code)}"
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.agent_modelica_run_contract_v1",
+                    "--taskset",
+                    str(taskset),
+                    "--mode",
+                    "live",
+                    "--max-rounds",
+                    "3",
+                    "--max-time-sec",
+                    "30",
+                    "--live-timeout-sec",
+                    "5",
+                    "--live-executor-cmd",
+                    live_cmd,
+                    "--results-out",
+                    str(results),
+                    "--out",
+                    str(summary),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            rec = (json.loads(results.read_text(encoding="utf-8")).get("records") or [])[0]
+            self.assertTrue(bool(rec.get("passed")))
+            self.assertTrue(bool(rec.get("contract_pass")))
+            self.assertEqual(str(rec.get("contract_fail_bucket") or ""), "")
+            scenario_results = rec.get("scenario_results") if isinstance(rec.get("scenario_results"), list) else []
+            self.assertEqual([bool(x.get("pass")) for x in scenario_results], [True, True, True])
+
     def test_run_contract_live_mode_supports_l4_closed_loop_flags(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)

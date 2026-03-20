@@ -10,6 +10,7 @@ from unittest.mock import patch
 from gateforge.agent_modelica_live_executor_gemini_v1 import (
     _apply_initialization_marker_repair,
     _behavioral_contract_deterministic_repair_enabled,
+    _behavioral_robustness_source_mode,
     _evaluate_behavioral_contract_from_model_text,
     _guard_robustness_patch,
     _apply_multi_round_layered_repair,
@@ -334,6 +335,42 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
                 os.environ.pop("GATEFORGE_AGENT_BEHAVIORAL_CONTRACT_DETERMINISTIC_REPAIR", None)
             else:
                 os.environ["GATEFORGE_AGENT_BEHAVIORAL_CONTRACT_DETERMINISTIC_REPAIR"] = prev
+
+    def test_behavioral_robustness_source_mode_defaults_to_source_aware(self) -> None:
+        prev = os.environ.get("GATEFORGE_AGENT_BEHAVIORAL_ROBUSTNESS_SOURCE_MODE")
+        try:
+            os.environ.pop("GATEFORGE_AGENT_BEHAVIORAL_ROBUSTNESS_SOURCE_MODE", None)
+            self.assertEqual(_behavioral_robustness_source_mode(), "source_aware")
+        finally:
+            if prev is None:
+                os.environ.pop("GATEFORGE_AGENT_BEHAVIORAL_ROBUSTNESS_SOURCE_MODE", None)
+            else:
+                os.environ["GATEFORGE_AGENT_BEHAVIORAL_ROBUSTNESS_SOURCE_MODE"] = prev
+
+    def test_behavioral_robustness_source_blind_disables_source_repair(self) -> None:
+        prev_det = os.environ.get("GATEFORGE_AGENT_BEHAVIORAL_ROBUSTNESS_DETERMINISTIC_REPAIR")
+        prev_mode = os.environ.get("GATEFORGE_AGENT_BEHAVIORAL_ROBUSTNESS_SOURCE_MODE")
+        os.environ["GATEFORGE_AGENT_BEHAVIORAL_ROBUSTNESS_DETERMINISTIC_REPAIR"] = "1"
+        os.environ["GATEFORGE_AGENT_BEHAVIORAL_ROBUSTNESS_SOURCE_MODE"] = "source_blind"
+        try:
+            patched, audit = _apply_source_model_repair(
+                current_text="model A\n  parameter Real k=0.8;\nend A;\n",
+                source_model_text="model A\n  parameter Real k=1.0;\nend A;\n",
+                declared_failure_type="param_perturbation_robustness_violation",
+                observed_failure_type="single_case_only",
+            )
+            self.assertFalse(bool(audit.get("applied")))
+            self.assertEqual(str(audit.get("reason") or ""), "behavioral_robustness_source_blind_disables_source_repair")
+            self.assertIn("k=0.8", patched)
+        finally:
+            if prev_det is None:
+                os.environ.pop("GATEFORGE_AGENT_BEHAVIORAL_ROBUSTNESS_DETERMINISTIC_REPAIR", None)
+            else:
+                os.environ["GATEFORGE_AGENT_BEHAVIORAL_ROBUSTNESS_DETERMINISTIC_REPAIR"] = prev_det
+            if prev_mode is None:
+                os.environ.pop("GATEFORGE_AGENT_BEHAVIORAL_ROBUSTNESS_SOURCE_MODE", None)
+            else:
+                os.environ["GATEFORGE_AGENT_BEHAVIORAL_ROBUSTNESS_SOURCE_MODE"] = prev_mode
 
     def test_apply_parse_error_pre_repair_removes_injected_state_tokens(self) -> None:
         model_text = "model A1\n  Real x;\nequation\n  der(x) = -x + __gf_state_301500;\nend A1;\n"

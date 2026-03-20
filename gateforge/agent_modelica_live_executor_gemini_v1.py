@@ -149,6 +149,11 @@ def _apply_source_model_repair(
         return current_text, {"applied": False, "reason": "behavioral_contract_deterministic_repair_disabled"}
     if declared in {"param_perturbation_robustness_violation", "initial_condition_robustness_violation", "scenario_switch_robustness_violation"} and not _behavioral_robustness_deterministic_repair_enabled():
         return current_text, {"applied": False, "reason": "behavioral_robustness_deterministic_repair_disabled"}
+    if (
+        declared in {"param_perturbation_robustness_violation", "initial_condition_robustness_violation", "scenario_switch_robustness_violation"}
+        and _behavioral_robustness_source_mode() != "source_aware"
+    ):
+        return current_text, {"applied": False, "reason": "behavioral_robustness_source_blind_disables_source_repair"}
     source_text = str(source_model_text or "")
     if not source_text.strip():
         return current_text, {"applied": False, "reason": "source_model_text_missing"}
@@ -221,6 +226,13 @@ def _behavioral_contract_deterministic_repair_enabled() -> bool:
 
 def _behavioral_robustness_deterministic_repair_enabled() -> bool:
     return str(os.getenv("GATEFORGE_AGENT_BEHAVIORAL_ROBUSTNESS_DETERMINISTIC_REPAIR") or "").strip() == "1"
+
+
+def _behavioral_robustness_source_mode() -> str:
+    mode = str(os.getenv("GATEFORGE_AGENT_BEHAVIORAL_ROBUSTNESS_SOURCE_MODE") or "").strip().lower()
+    if mode in {"blind", "source_blind", "source-blind"}:
+        return "source_blind"
+    return "source_aware"
 
 
 def _apply_wave2_marker_repair(*, current_text: str, declared_failure_type: str) -> tuple[str, dict]:
@@ -1156,12 +1168,19 @@ def _llm_round_constraints(*, failure_type: str, current_round: int) -> str:
         "initial_condition_robustness_violation",
         "scenario_switch_robustness_violation",
     }:
+        source_mode_constraints = ""
+        if _behavioral_robustness_source_mode() != "source_aware":
+            source_mode_constraints = (
+                "- This run is source-blind; do not restore the model to the source version and do not copy source text verbatim.\n"
+                "- Infer a localized numeric repair from the current model and observed robustness miss only.\n"
+            )
         return (
             "- This is a behavioral robustness task; preserve the existing component declarations and connect structure.\n"
             "- Do not add or remove components, connectors, extends clauses, outputs, or equations unrelated to the failing parameters.\n"
             "- Restrict edits to existing numeric parameters, timing values, gains, offsets, widths, periods, thresholds, or initial-condition shaping values.\n"
             "- Do not invent new parameter names on Modelica.Blocks.Logical.Switch or other existing components; only edit parameters that already appear in the source text.\n"
             "- Do not perform broad source rewrites or declaration-level cleanup; keep the model compile-safe while improving robustness across neighboring scenarios.\n"
+            + source_mode_constraints
             + (
                 "- In round 1, patch only one localized parameter cluster and rerun the scenario set before broader edits.\n"
                 if round_idx == 1

@@ -14,6 +14,7 @@ RUN_ROOT="${GATEFORGE_AGENT_BEHAVIORAL_ROBUSTNESS_RUN_ROOT:-$OUT_DIR/runs/$RUN_I
 RESUME="${GATEFORGE_AGENT_BEHAVIORAL_ROBUSTNESS_RESUME:-0}"
 STOP_AFTER_STAGE="${GATEFORGE_AGENT_BEHAVIORAL_ROBUSTNESS_STOP_AFTER_STAGE:-}"
 UPDATE_LATEST="${GATEFORGE_AGENT_BEHAVIORAL_ROBUSTNESS_UPDATE_LATEST:-1}"
+SOURCE_MODE="${GATEFORGE_AGENT_BEHAVIORAL_ROBUSTNESS_SOURCE_MODE:-source_aware}"
 
 MANIFEST_PATH="${GATEFORGE_AGENT_BEHAVIORAL_ROBUSTNESS_MANIFEST:-assets_private/agent_modelica_behavioral_robustness_pack_v1/manifest.json}"
 FAILURE_TYPES="${GATEFORGE_AGENT_BEHAVIORAL_ROBUSTNESS_FAILURE_TYPES:-param_perturbation_robustness_violation,initial_condition_robustness_violation,scenario_switch_robustness_violation}"
@@ -31,10 +32,10 @@ OM_BACKEND="${GATEFORGE_AGENT_LIVE_OM_BACKEND:-openmodelica_docker}"
 OM_DOCKER_IMAGE="${GATEFORGE_AGENT_LIVE_OM_DOCKER_IMAGE:-openmodelica/openmodelica:v1.26.1-minimal}"
 REPAIR_MEMORY_PATH="${GATEFORGE_AGENT_REPAIR_MEMORY_PATH:-data/private_failure_corpus/agent_modelica_repair_memory_v1.json}"
 
-DEFAULT_LIVE_EXECUTOR_CMD="python3 -m gateforge.agent_modelica_live_executor_gemini_v1 --task-id \"__TASK_ID__\" --failure-type \"__FAILURE_TYPE__\" --expected-stage \"__EXPECTED_STAGE__\" --source-model-path \"__SOURCE_MODEL_PATH__\" --mutated-model-path \"__MUTATED_MODEL_PATH__\" --source-library-path \"__SOURCE_LIBRARY_PATH__\" --source-package-name \"__SOURCE_PACKAGE_NAME__\" --source-library-model-path \"__SOURCE_LIBRARY_MODEL_PATH__\" --source-qualified-model-name \"__SOURCE_QUALIFIED_MODEL_NAME__\" --repair-actions __REPAIR_ACTIONS_SHQ__ --max-rounds \"__MAX_ROUNDS__\" --timeout-sec \"__MAX_TIME_SEC__\" --planner-backend \"${PLANNER_BACKEND}\" --backend \"${OM_BACKEND}\" --docker-image \"${OM_DOCKER_IMAGE}\""
+DEFAULT_LIVE_EXECUTOR_CMD="env GATEFORGE_AGENT_BEHAVIORAL_ROBUSTNESS_SOURCE_MODE=${SOURCE_MODE} python3 -m gateforge.agent_modelica_live_executor_gemini_v1 --task-id \"__TASK_ID__\" --failure-type \"__FAILURE_TYPE__\" --expected-stage \"__EXPECTED_STAGE__\" --source-model-path \"__SOURCE_MODEL_PATH__\" --mutated-model-path \"__MUTATED_MODEL_PATH__\" --source-library-path \"__SOURCE_LIBRARY_PATH__\" --source-package-name \"__SOURCE_PACKAGE_NAME__\" --source-library-model-path \"__SOURCE_LIBRARY_MODEL_PATH__\" --source-qualified-model-name \"__SOURCE_QUALIFIED_MODEL_NAME__\" --repair-actions __REPAIR_ACTIONS_SHQ__ --max-rounds \"__MAX_ROUNDS__\" --timeout-sec \"__MAX_TIME_SEC__\" --planner-backend \"${PLANNER_BACKEND}\" --backend \"${OM_BACKEND}\" --docker-image \"${OM_DOCKER_IMAGE}\""
 LIVE_EXECUTOR_CMD="${GATEFORGE_AGENT_LIVE_EXECUTOR_CMD:-$DEFAULT_LIVE_EXECUTOR_CMD}"
-DETERMINISTIC_EXECUTOR_CMD="${GATEFORGE_AGENT_BEHAVIORAL_ROBUSTNESS_DETERMINISTIC_EXECUTOR_CMD:-env GATEFORGE_AGENT_BEHAVIORAL_ROBUSTNESS_DETERMINISTIC_REPAIR=1 $LIVE_EXECUTOR_CMD}"
-RETRIEVAL_EXECUTOR_CMD="${GATEFORGE_AGENT_BEHAVIORAL_ROBUSTNESS_RETRIEVAL_EXECUTOR_CMD:-env GATEFORGE_AGENT_BEHAVIORAL_ROBUSTNESS_DETERMINISTIC_REPAIR=1 $LIVE_EXECUTOR_CMD}"
+DETERMINISTIC_EXECUTOR_CMD="${GATEFORGE_AGENT_BEHAVIORAL_ROBUSTNESS_DETERMINISTIC_EXECUTOR_CMD:-env GATEFORGE_AGENT_BEHAVIORAL_ROBUSTNESS_SOURCE_MODE=${SOURCE_MODE} GATEFORGE_AGENT_BEHAVIORAL_ROBUSTNESS_DETERMINISTIC_REPAIR=1 python3 -m gateforge.agent_modelica_live_executor_gemini_v1 --task-id \"__TASK_ID__\" --failure-type \"__FAILURE_TYPE__\" --expected-stage \"__EXPECTED_STAGE__\" --source-model-path \"__SOURCE_MODEL_PATH__\" --mutated-model-path \"__MUTATED_MODEL_PATH__\" --source-library-path \"__SOURCE_LIBRARY_PATH__\" --source-package-name \"__SOURCE_PACKAGE_NAME__\" --source-library-model-path \"__SOURCE_LIBRARY_MODEL_PATH__\" --source-qualified-model-name \"__SOURCE_QUALIFIED_MODEL_NAME__\" --repair-actions __REPAIR_ACTIONS_SHQ__ --max-rounds \"__MAX_ROUNDS__\" --timeout-sec \"__MAX_TIME_SEC__\" --planner-backend \"${PLANNER_BACKEND}\" --backend \"${OM_BACKEND}\" --docker-image \"${OM_DOCKER_IMAGE}\"}"
+RETRIEVAL_EXECUTOR_CMD="${GATEFORGE_AGENT_BEHAVIORAL_ROBUSTNESS_RETRIEVAL_EXECUTOR_CMD:-env GATEFORGE_AGENT_BEHAVIORAL_ROBUSTNESS_SOURCE_MODE=${SOURCE_MODE} GATEFORGE_AGENT_BEHAVIORAL_ROBUSTNESS_DETERMINISTIC_REPAIR=1 python3 -m gateforge.agent_modelica_live_executor_gemini_v1 --task-id \"__TASK_ID__\" --failure-type \"__FAILURE_TYPE__\" --expected-stage \"__EXPECTED_STAGE__\" --source-model-path \"__SOURCE_MODEL_PATH__\" --mutated-model-path \"__MUTATED_MODEL_PATH__\" --source-library-path \"__SOURCE_LIBRARY_PATH__\" --source-package-name \"__SOURCE_PACKAGE_NAME__\" --source-library-model-path \"__SOURCE_LIBRARY_MODEL_PATH__\" --source-qualified-model-name \"__SOURCE_QUALIFIED_MODEL_NAME__\" --repair-actions __REPAIR_ACTIONS_SHQ__ --max-rounds \"__MAX_ROUNDS__\" --timeout-sec \"__MAX_TIME_SEC__\" --planner-backend \"${PLANNER_BACKEND}\" --backend \"${OM_BACKEND}\" --docker-image \"${OM_DOCKER_IMAGE}\"}"
 
 CHALLENGE_DIR="$RUN_ROOT/challenge"
 BASELINE_DIR="$RUN_ROOT/baseline_off_live"
@@ -93,18 +94,19 @@ run_stage() {
   return $rc
 }
 
-python3 - "$RUN_MANIFEST_PATH" "$RUN_ID" "$RUN_ROOT" "$MANIFEST_PATH" <<'PY'
+python3 - "$RUN_MANIFEST_PATH" "$RUN_ID" "$RUN_ROOT" "$MANIFEST_PATH" "$SOURCE_MODE" <<'PY'
 import json
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-path, run_id, run_root, manifest = sys.argv[1:]
+path, run_id, run_root, manifest, source_mode = sys.argv[1:]
 Path(path).write_text(json.dumps({
     "schema_version": "agent_modelica_behavioral_robustness_live_run_manifest_v1",
     "generated_at_utc": datetime.now(timezone.utc).isoformat(),
     "run_id": run_id,
     "run_root": run_root,
     "manifest_path": manifest,
+    "source_mode": source_mode,
 }, indent=2), encoding="utf-8")
 PY
 
@@ -201,6 +203,35 @@ else
       --results-out "$DETERMINISTIC_DIR/results.json" \
       --out "$DETERMINISTIC_DIR/summary.json"
 
+  if [ "$STOP_AFTER_STAGE" = "deterministic_on_live" ]; then
+    echo "Stopped after stage: deterministic_on_live"
+    exit 0
+  fi
+
+  DETERMINISTIC_CHECK="$(python3 - <<'PY' "$DETERMINISTIC_DIR/summary.json" "$RUN_ROOT/behavioral_robustness_baseline_summary.json"
+import json
+import sys
+from pathlib import Path
+det = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+base = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
+print(json.dumps({
+    "baseline_all_scenarios_pass_pct": float(base.get("all_scenarios_pass_pct") or 0.0),
+    "deterministic_all_scenarios_pass_pct": float(det.get("all_scenarios_pass_pct") or det.get("contract_pass_pct") or det.get("success_at_k_pct") or 0.0),
+}))
+PY
+)"
+
+  if python3 - <<'PY' "$DETERMINISTIC_CHECK"
+import json, sys
+payload = json.loads(sys.argv[1])
+raise SystemExit(0 if payload["deterministic_all_scenarios_pass_pct"] <= payload["baseline_all_scenarios_pass_pct"] else 1)
+PY
+  then
+    printf '{\n  "status": "SKIPPED",\n  "success_count": 0,\n  "success_at_k_pct": 0.0,\n  "all_scenarios_pass_pct": 0.0\n}\n' > "$RETRIEVAL_DIR/summary.json"
+    printf '{\n  "records": []\n}\n' > "$RETRIEVAL_DIR/results.json"
+    stage_update "retrieval_on_live" "SKIPPED" 0 "$RETRIEVAL_DIR/summary.json"
+  else
+
   python3 - "$REPAIR_MEMORY_PATH" "$REPAIR_HISTORY_PATH" <<'PY'
 import json
 import sys
@@ -232,6 +263,7 @@ PY
       --live-max-output-chars "$LIVE_MAX_OUTPUT_CHARS" \
       --results-out "$RETRIEVAL_DIR/results.json" \
       --out "$RETRIEVAL_DIR/summary.json"
+  fi
 fi
 
 run_stage "evidence" "$RUN_ROOT/evidence_summary.json" \
@@ -243,16 +275,17 @@ run_stage "evidence" "$RUN_ROOT/evidence_summary.json" \
     --deterministic-results "$DETERMINISTIC_DIR/results.json" \
     --retrieval-summary "$RETRIEVAL_DIR/summary.json" \
     --retrieval-results "$RETRIEVAL_DIR/results.json" \
+    --source-mode "$SOURCE_MODE" \
     --out "$RUN_ROOT/evidence_summary.json" \
     --gate-out "$RUN_ROOT/gate_summary.json" \
     --decision-out "$RUN_ROOT/decision_summary.json"
 
-python3 - "$FINAL_RUN_SUMMARY_PATH" "$RUN_ID" "$RUN_ROOT" "$UPDATE_LATEST" <<'PY'
+python3 - "$FINAL_RUN_SUMMARY_PATH" "$RUN_ID" "$RUN_ROOT" "$UPDATE_LATEST" "$SOURCE_MODE" <<'PY'
 import json
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-final_path, run_id, run_root, update_latest = sys.argv[1:]
+final_path, run_id, run_root, update_latest, source_mode = sys.argv[1:]
 decision = json.loads((Path(run_root) / "decision_summary.json").read_text(encoding="utf-8"))
 summary = {
     "schema_version": "agent_modelica_behavioral_robustness_final_run_summary_v1",
@@ -263,6 +296,7 @@ summary = {
     "decision": str(decision.get("decision") or ""),
     "primary_reason": str(decision.get("primary_reason") or ""),
     "hardest_robustness_family": str(decision.get("hardest_robustness_family") or ""),
+    "source_mode": source_mode,
 }
 Path(final_path).write_text(json.dumps(summary, indent=2), encoding="utf-8")
 if str(update_latest) == "1":
