@@ -6,12 +6,12 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from gateforge.agent_modelica_run_contract_v1 import _build_live_template_context, _extract_contract_fields
+from gateforge.agent_modelica_run_contract_v1 import _build_live_template_context, _extract_contract_fields, _pick_manifestation_live_attempt
 
 
 class AgentModelicaRunContractV1Tests(unittest.TestCase):
     def test_extract_contract_fields_clears_fail_bucket_on_contract_pass(self) -> None:
-        contract_pass, contract_fail_bucket, scenario_results = _extract_contract_fields(
+        contract_pass, contract_fail_bucket, scenario_results, multistep = _extract_contract_fields(
             {
                 "contract_pass": True,
                 "contract_fail_bucket": "initial_condition_miss",
@@ -27,6 +27,53 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
         self.assertTrue(contract_pass)
         self.assertEqual(contract_fail_bucket, "")
         self.assertEqual([bool(x.get("pass")) for x in scenario_results], [True, True, True])
+        self.assertFalse(bool(multistep.get("multi_step_stage_2_unlocked")))
+
+    def test_extract_contract_fields_prefers_live_attempt_multistep_state(self) -> None:
+        contract_pass, contract_fail_bucket, scenario_results, multistep = _extract_contract_fields(
+            {
+                "contract_pass": False,
+                "contract_fail_bucket": "",
+                "scenario_results": [],
+                "multi_step_stage": "",
+                "multi_step_stage_2_unlocked": False,
+                "multi_step_transition_seen": False,
+                "multi_step_transition_round": 0,
+                "multi_step_transition_reason": "",
+            },
+            {
+                "contract_pass": False,
+                "contract_fail_bucket": "single_case_only",
+                "scenario_results": [
+                    {"scenario_id": "nominal", "pass": True},
+                    {"scenario_id": "neighbor_a", "pass": False},
+                    {"scenario_id": "neighbor_b", "pass": False},
+                ],
+                "multi_step_stage": "stage_2",
+                "multi_step_stage_2_unlocked": True,
+                "multi_step_transition_seen": True,
+                "multi_step_transition_round": 2,
+                "multi_step_transition_reason": "nominal_behavior_restored_neighbor_robustness_exposed",
+                "current_stage": "stage_2",
+                "stage_2_unlocked": True,
+                "transition_round": 2,
+                "transition_reason": "nominal_behavior_restored_neighbor_robustness_exposed",
+                "current_fail_bucket": "single_case_only",
+                "next_focus": "resolve_stage_2_neighbor_robustness",
+                "stage_1_unlock_cluster": "switchb_unlock_cluster",
+                "stage_2_first_fail_bucket": "single_case_only",
+                "stage_aware_control_applied": True,
+                "stage_1_revisit_after_unlock": False,
+            },
+            physics_ok=False,
+        )
+        self.assertFalse(contract_pass)
+        self.assertEqual(contract_fail_bucket, "single_case_only")
+        self.assertEqual(str(multistep.get("multi_step_stage") or ""), "stage_2")
+        self.assertTrue(bool(multistep.get("multi_step_stage_2_unlocked")))
+        self.assertEqual(int(multistep.get("multi_step_transition_round") or 0), 2)
+        self.assertEqual(str(multistep.get("next_focus") or ""), "resolve_stage_2_neighbor_robustness")
+        self.assertTrue(bool(multistep.get("stage_aware_control_applied")))
 
     def test_build_live_template_context_exposes_unknown_library_source_meta(self) -> None:
         context = _build_live_template_context(
@@ -55,6 +102,33 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
         self.assertEqual(context["source_library_model_path"], "/repo/AixLib/Systems/Examples/Demo.mo")
         self.assertEqual(context["source_qualified_model_name"], "AixLib.Systems.Examples.Demo")
         self.assertEqual(context["source_domain"], "building_hvac")
+
+    def test_pick_manifestation_live_attempt_prefers_multistep_unlock(self) -> None:
+        attempt = _pick_manifestation_live_attempt(
+            [
+                {
+                    "round": 1,
+                    "observed_failure_type": "none",
+                    "contract_fail_bucket": "behavior_contract_miss",
+                    "scenario_results": [{"scenario_id": "nominal", "pass": False}],
+                    "multi_step_stage": "stage_1",
+                    "multi_step_stage_2_unlocked": False,
+                    "multi_step_transition_seen": False,
+                },
+                {
+                    "round": 2,
+                    "observed_failure_type": "none",
+                    "contract_fail_bucket": "single_case_only",
+                    "scenario_results": [{"scenario_id": "nominal", "pass": True}, {"scenario_id": "neighbor_a", "pass": False}],
+                    "multi_step_stage": "stage_2",
+                    "multi_step_stage_2_unlocked": True,
+                    "multi_step_transition_seen": True,
+                },
+            ],
+            failure_type="behavior_then_robustness",
+            expected_stage="simulate",
+        )
+        self.assertEqual(int(attempt.get("round") or 0), 2)
 
     def test_run_contract_mock_produces_metrics(self) -> None:
         with tempfile.TemporaryDirectory() as d:

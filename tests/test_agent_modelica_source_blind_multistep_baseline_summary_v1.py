@@ -1,0 +1,118 @@
+import json
+import subprocess
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+
+class AgentModelicaSourceBlindMultistepBaselineSummaryV1Tests(unittest.TestCase):
+    def test_summary_reports_failure_transitions(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            challenge = {
+                "total_tasks": 3,
+                "taskset_frozen_path": str(root / "taskset.json"),
+                "counts_by_failure_type": {
+                    "stability_then_behavior": 1,
+                    "behavior_then_robustness": 1,
+                    "switch_then_recovery": 1,
+                },
+                "counts_by_multistep_family": {
+                    "stability_then_behavior": 1,
+                    "behavior_then_robustness": 1,
+                    "switch_then_recovery": 1,
+                },
+            }
+            taskset = {
+                "tasks": [
+                    {"task_id": "t1", "failure_type": "stability_then_behavior"},
+                    {"task_id": "t2", "failure_type": "behavior_then_robustness"},
+                    {"task_id": "t3", "failure_type": "switch_then_recovery"},
+                ]
+            }
+            baseline_summary = {"status": "NEEDS_REVIEW", "success_count": 1, "success_at_k_pct": 33.33}
+            baseline_results = {
+                "records": [
+                    {
+                        "task_id": "t1",
+                        "passed": True,
+                        "multi_step_stage_2_unlocked": True,
+                        "scenario_results": [{"pass": True}, {"pass": True}, {"pass": True}],
+                        "attempts": [
+                            {"round": 1, "contract_fail_bucket": "stability_margin_miss", "multi_step_stage": "stage_1"},
+                            {"round": 2, "contract_fail_bucket": "behavior_contract_miss", "scenario_results": [{"pass": True}, {"pass": False}, {"pass": False}], "multi_step_stage": "stage_2", "multi_step_stage_2_unlocked": True, "multi_step_transition_seen": True, "multi_step_transition_round": 2, "multi_step_transition_reason": "stability_restored_behavior_gate_exposed", "source_blind_local_repair": {"applied": True, "cluster_name": "stability_cluster"}, "next_focus": "resolve_stage_2_behavior_contract", "stage_aware_control_applied": True},
+                            {"round": 3, "contract_pass": True, "scenario_results": [{"pass": True}, {"pass": True}, {"pass": True}], "multi_step_stage": "passed", "multi_step_stage_2_unlocked": True, "multi_step_transition_seen": True, "multi_step_transition_round": 2, "multi_step_transition_reason": "stability_restored_behavior_gate_exposed", "next_focus": "stop_editing", "stage_aware_control_applied": True},
+                        ],
+                    },
+                    {
+                        "task_id": "t2",
+                        "passed": False,
+                        "multi_step_stage_2_unlocked": True,
+                        "scenario_results": [{"pass": True}, {"pass": False}, {"pass": False}],
+                        "attempts": [
+                            {"round": 1, "contract_fail_bucket": "behavior_contract_miss", "multi_step_stage": "stage_1"},
+                            {"round": 2, "contract_fail_bucket": "single_case_only", "scenario_results": [{"pass": True}, {"pass": False}, {"pass": False}], "multi_step_stage": "stage_2", "multi_step_stage_2_unlocked": True, "multi_step_transition_seen": True, "multi_step_transition_round": 2, "multi_step_transition_reason": "nominal_behavior_restored_neighbor_robustness_exposed", "next_focus": "resolve_stage_2_neighbor_robustness", "stage_aware_control_applied": True},
+                        ],
+                    },
+                    {
+                        "task_id": "t3",
+                        "passed": False,
+                        "multi_step_stage_2_unlocked": False,
+                        "contract_fail_bucket": "scenario_switch_miss",
+                        "scenario_results": [{"pass": False}, {"pass": False}, {"pass": False}],
+                        "attempts": [
+                            {"round": 1, "contract_fail_bucket": "scenario_switch_miss", "multi_step_stage": "stage_1"},
+                            {"round": 2, "contract_fail_bucket": "scenario_switch_miss", "multi_step_stage": "stage_1", "reason": "post_switch_recovery_miss"},
+                        ],
+                    },
+                ]
+            }
+            (root / "challenge.json").write_text(json.dumps(challenge), encoding="utf-8")
+            (root / "taskset.json").write_text(json.dumps(taskset), encoding="utf-8")
+            (root / "baseline_summary.json").write_text(json.dumps(baseline_summary), encoding="utf-8")
+            (root / "baseline_results.json").write_text(json.dumps(baseline_results), encoding="utf-8")
+            out = root / "out.json"
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.agent_modelica_source_blind_multistep_baseline_summary_v1",
+                    "--challenge-summary",
+                    str(root / "challenge.json"),
+                    "--baseline-summary",
+                    str(root / "baseline_summary.json"),
+                    "--baseline-results",
+                    str(root / "baseline_results.json"),
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            payload = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(payload.get("all_scenarios_pass_count"), 1)
+            self.assertEqual(payload.get("partial_pass_count"), 1)
+            self.assertEqual(payload.get("failure_transition_count"), 2)
+            self.assertEqual(payload.get("stage_2_unlock_count"), 2)
+            self.assertEqual(payload.get("stage_2_then_pass_count"), 1)
+            self.assertEqual(payload.get("stage_2_then_fail_count"), 1)
+            self.assertEqual(payload.get("stage_2_focus_count"), 2)
+            self.assertEqual(payload.get("stage_1_revisit_after_unlock_count"), 0)
+            self.assertEqual(payload.get("stage_2_resolution_count"), 1)
+            self.assertEqual(payload.get("multi_step_completion_count"), 1)
+            self.assertEqual(payload.get("multi_step_headroom_status"), "stage_aware_control_observed")
+            self.assertTrue(
+                any("stability_cluster" in key for key in (payload.get("repair_action_sequence", {}) or {})),
+                msg=str(payload.get("repair_action_sequence", {})),
+            )
+            self.assertTrue(
+                any("resolve_stage_2" in key for key in (payload.get("stage_transition_action_sequence", {}) or {})),
+                msg=str(payload.get("stage_transition_action_sequence", {})),
+            )
+
+
+if __name__ == "__main__":
+    unittest.main()

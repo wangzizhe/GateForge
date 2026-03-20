@@ -374,7 +374,83 @@ def _as_dict_list(value: object) -> list[dict]:
     return [dict(x) for x in value if isinstance(x, dict)]
 
 
-def _extract_contract_fields(payload: dict, live_attempt: dict, *, physics_ok: bool) -> tuple[bool, str, list[dict]]:
+def _extract_multistep_fields(payload: dict, live_attempt: dict) -> dict:
+    out = {
+        "multi_step_stage": "",
+        "multi_step_stage_2_unlocked": False,
+        "multi_step_transition_seen": False,
+        "multi_step_transition_round": 0,
+        "multi_step_transition_reason": "",
+        "current_stage": "",
+        "stage_2_unlocked": False,
+        "transition_round": 0,
+        "transition_reason": "",
+        "current_fail_bucket": "",
+        "next_focus": "",
+        "stage_1_unlock_cluster": "",
+        "stage_2_first_fail_bucket": "",
+        "stage_aware_control_applied": False,
+        "stage_1_revisit_after_unlock": False,
+    }
+    stage = str(live_attempt.get("multi_step_stage") or payload.get("multi_step_stage") or "").strip().lower()
+    out["multi_step_stage"] = stage
+    payload_unlocked = _as_bool(payload.get("multi_step_stage_2_unlocked"))
+    live_unlocked = _as_bool(live_attempt.get("multi_step_stage_2_unlocked"))
+    out["multi_step_stage_2_unlocked"] = bool(live_unlocked) or bool(payload_unlocked)
+    payload_seen = _as_bool(payload.get("multi_step_transition_seen"))
+    live_seen = _as_bool(live_attempt.get("multi_step_transition_seen"))
+    out["multi_step_transition_seen"] = bool(live_seen) or bool(payload_seen)
+    transition_round = live_attempt.get("multi_step_transition_round") or live_attempt.get("round") or payload.get("multi_step_transition_round") or 0
+    try:
+        out["multi_step_transition_round"] = max(0, int(transition_round or 0))
+    except Exception:
+        out["multi_step_transition_round"] = 0
+    out["multi_step_transition_reason"] = str(
+        live_attempt.get("multi_step_transition_reason")
+        or payload.get("multi_step_transition_reason")
+        or ""
+    ).strip()
+    out["current_stage"] = str(live_attempt.get("current_stage") or payload.get("current_stage") or stage).strip().lower()
+    stage2_unlocked_payload = _as_bool(payload.get("stage_2_unlocked"))
+    stage2_unlocked_live = _as_bool(live_attempt.get("stage_2_unlocked"))
+    out["stage_2_unlocked"] = bool(stage2_unlocked_live) or bool(stage2_unlocked_payload) or bool(out["multi_step_stage_2_unlocked"])
+    transition_round = live_attempt.get("transition_round") or payload.get("transition_round") or out["multi_step_transition_round"]
+    try:
+        out["transition_round"] = max(0, int(transition_round or 0))
+    except Exception:
+        out["transition_round"] = int(out["multi_step_transition_round"] or 0)
+    out["transition_reason"] = str(
+        live_attempt.get("transition_reason")
+        or payload.get("transition_reason")
+        or out["multi_step_transition_reason"]
+        or ""
+    ).strip()
+    out["current_fail_bucket"] = str(
+        live_attempt.get("current_fail_bucket")
+        or payload.get("current_fail_bucket")
+        or ""
+    ).strip().lower()
+    out["next_focus"] = str(live_attempt.get("next_focus") or payload.get("next_focus") or "").strip().lower()
+    out["stage_1_unlock_cluster"] = str(
+        live_attempt.get("stage_1_unlock_cluster")
+        or payload.get("stage_1_unlock_cluster")
+        or ""
+    ).strip()
+    out["stage_2_first_fail_bucket"] = str(
+        live_attempt.get("stage_2_first_fail_bucket")
+        or payload.get("stage_2_first_fail_bucket")
+        or ""
+    ).strip().lower()
+    stage_aware_payload = _as_bool(payload.get("stage_aware_control_applied"))
+    stage_aware_live = _as_bool(live_attempt.get("stage_aware_control_applied"))
+    out["stage_aware_control_applied"] = bool(stage_aware_live) or bool(stage_aware_payload)
+    revisit_payload = _as_bool(payload.get("stage_1_revisit_after_unlock"))
+    revisit_live = _as_bool(live_attempt.get("stage_1_revisit_after_unlock"))
+    out["stage_1_revisit_after_unlock"] = bool(revisit_live) or bool(revisit_payload)
+    return out
+
+
+def _extract_contract_fields(payload: dict, live_attempt: dict, *, physics_ok: bool) -> tuple[bool, str, list[dict], dict]:
     contract_pass = _as_bool(payload.get("contract_pass"))
     if contract_pass is None:
         contract_pass = _as_bool(live_attempt.get("contract_pass"))
@@ -389,7 +465,8 @@ def _extract_contract_fields(payload: dict, live_attempt: dict, *, physics_ok: b
     contract_pass_value = bool(contract_pass) if contract_pass is not None else bool(physics_ok)
     if contract_pass_value:
         contract_fail_bucket = ""
-    return (contract_pass_value, contract_fail_bucket, scenario_results)
+    multistep = _extract_multistep_fields(payload, live_attempt)
+    return (contract_pass_value, contract_fail_bucket, scenario_results, multistep)
 
 
 def _pick_best_contract_attempt(attempts: list[dict]) -> dict:
@@ -636,10 +713,21 @@ def _pick_manifestation_live_attempt(live_attempts: list[dict], *, failure_type:
             diagnostic_ir=diagnostic,
         )
         observed_stage = str(diagnostic.get("stage") or "").strip().lower()
+        multi_step_transition_seen = 1 if bool(attempt.get("multi_step_transition_seen")) else 0
+        multi_step_stage_2_unlocked = 1 if bool(attempt.get("multi_step_stage_2_unlocked")) else 0
+        scenario_results = _as_dict_list(attempt.get("scenario_results"))
+        has_contract_signal = 1 if (attempt.get("contract_pass") is not None or str(attempt.get("contract_fail_bucket") or "").strip() or scenario_results) else 0
         non_wrapper = 0 if observed_failure_type in {"executor_runtime_error", "executor_invocation_error", "none"} else 1
         canonical_match = 1 if observed_failure_type == expected_canonical else 0
         stage_match = 1 if expected_stage_norm and observed_stage == expected_stage_norm else 0
-        return (canonical_match, stage_match, non_wrapper), attempt
+        return (
+            multi_step_transition_seen,
+            multi_step_stage_2_unlocked,
+            has_contract_signal,
+            canonical_match,
+            stage_match,
+            non_wrapper,
+        ), attempt
 
     ranked = max(enumerate(attempts), key=lambda item: (_row(item[1])[0], -item[0]))
     return ranked[1]
@@ -1371,7 +1459,7 @@ def _run_task_live_l4(
         )
         if not live_attempt and live_attempts:
             live_attempt = live_attempts[-1]
-        contract_pass, contract_fail_bucket, scenario_results = _extract_contract_fields(
+        contract_pass, contract_fail_bucket, scenario_results, multistep_fields = _extract_contract_fields(
             live_payload,
             live_attempt,
             physics_ok=physics_ok,
@@ -1429,6 +1517,21 @@ def _run_task_live_l4(
             "contract_pass": bool(contract_pass),
             "contract_fail_bucket": contract_fail_bucket,
             "scenario_results": scenario_results,
+            "multi_step_stage": str(multistep_fields.get("multi_step_stage") or ""),
+            "multi_step_stage_2_unlocked": bool(multistep_fields.get("multi_step_stage_2_unlocked")),
+            "multi_step_transition_seen": bool(multistep_fields.get("multi_step_transition_seen")),
+            "multi_step_transition_round": int(multistep_fields.get("multi_step_transition_round") or 0),
+            "multi_step_transition_reason": str(multistep_fields.get("multi_step_transition_reason") or ""),
+            "current_stage": str(multistep_fields.get("current_stage") or ""),
+            "stage_2_unlocked": bool(multistep_fields.get("stage_2_unlocked")),
+            "transition_round": int(multistep_fields.get("transition_round") or 0),
+            "transition_reason": str(multistep_fields.get("transition_reason") or ""),
+            "current_fail_bucket": str(multistep_fields.get("current_fail_bucket") or ""),
+            "next_focus": str(multistep_fields.get("next_focus") or ""),
+            "stage_1_unlock_cluster": str(multistep_fields.get("stage_1_unlock_cluster") or ""),
+            "stage_2_first_fail_bucket": str(multistep_fields.get("stage_2_first_fail_bucket") or ""),
+            "stage_aware_control_applied": bool(multistep_fields.get("stage_aware_control_applied")),
+            "stage_1_revisit_after_unlock": bool(multistep_fields.get("stage_1_revisit_after_unlock")),
             "physics_contract_reasons": physics_reasons,
             "physics_contract_invariant_count": len(task_invariants),
             "regression_pass": bool(regression_ok),
@@ -1510,6 +1613,21 @@ def _run_task_live_l4(
         "contract_pass": contract_pass,
         "contract_fail_bucket": contract_fail_bucket,
         "scenario_results": scenario_results,
+        "multi_step_stage": str(best_contract_attempt.get("multi_step_stage") or "") if best_contract_attempt else "",
+        "multi_step_stage_2_unlocked": bool(best_contract_attempt.get("multi_step_stage_2_unlocked")) if best_contract_attempt else False,
+        "multi_step_transition_seen": bool(best_contract_attempt.get("multi_step_transition_seen")) if best_contract_attempt else False,
+        "multi_step_transition_round": int(best_contract_attempt.get("multi_step_transition_round") or 0) if best_contract_attempt else 0,
+        "multi_step_transition_reason": str(best_contract_attempt.get("multi_step_transition_reason") or "") if best_contract_attempt else "",
+        "current_stage": str(best_contract_attempt.get("current_stage") or "") if best_contract_attempt else "",
+        "stage_2_unlocked": bool(best_contract_attempt.get("stage_2_unlocked")) if best_contract_attempt else False,
+        "transition_round": int(best_contract_attempt.get("transition_round") or 0) if best_contract_attempt else 0,
+        "transition_reason": str(best_contract_attempt.get("transition_reason") or "") if best_contract_attempt else "",
+        "current_fail_bucket": str(best_contract_attempt.get("current_fail_bucket") or "") if best_contract_attempt else "",
+        "next_focus": str(best_contract_attempt.get("next_focus") or "") if best_contract_attempt else "",
+        "stage_1_unlock_cluster": str(best_contract_attempt.get("stage_1_unlock_cluster") or "") if best_contract_attempt else "",
+        "stage_2_first_fail_bucket": str(best_contract_attempt.get("stage_2_first_fail_bucket") or "") if best_contract_attempt else "",
+        "stage_aware_control_applied": bool(best_contract_attempt.get("stage_aware_control_applied")) if best_contract_attempt else False,
+        "stage_1_revisit_after_unlock": bool(best_contract_attempt.get("stage_1_revisit_after_unlock")) if best_contract_attempt else False,
         "repair_strategy": repair_strategy,
         "repair_audit": {
             **strategy_audit,
@@ -1826,7 +1944,7 @@ def _run_task_live(
         )
         if not live_attempt and live_attempts:
             live_attempt = live_attempts[-1]
-        contract_pass, contract_fail_bucket, scenario_results = _extract_contract_fields(
+        contract_pass, contract_fail_bucket, scenario_results, multistep_fields = _extract_contract_fields(
             live_payload,
             live_attempt,
             physics_ok=physics_ok,
@@ -1887,6 +2005,21 @@ def _run_task_live(
                 "contract_pass": bool(contract_pass),
                 "contract_fail_bucket": contract_fail_bucket,
                 "scenario_results": scenario_results,
+                "multi_step_stage": str(multistep_fields.get("multi_step_stage") or ""),
+                "multi_step_stage_2_unlocked": bool(multistep_fields.get("multi_step_stage_2_unlocked")),
+                "multi_step_transition_seen": bool(multistep_fields.get("multi_step_transition_seen")),
+                "multi_step_transition_round": int(multistep_fields.get("multi_step_transition_round") or 0),
+                "multi_step_transition_reason": str(multistep_fields.get("multi_step_transition_reason") or ""),
+                "current_stage": str(multistep_fields.get("current_stage") or ""),
+                "stage_2_unlocked": bool(multistep_fields.get("stage_2_unlocked")),
+                "transition_round": int(multistep_fields.get("transition_round") or 0),
+                "transition_reason": str(multistep_fields.get("transition_reason") or ""),
+                "current_fail_bucket": str(multistep_fields.get("current_fail_bucket") or ""),
+                "next_focus": str(multistep_fields.get("next_focus") or ""),
+                "stage_1_unlock_cluster": str(multistep_fields.get("stage_1_unlock_cluster") or ""),
+                "stage_2_first_fail_bucket": str(multistep_fields.get("stage_2_first_fail_bucket") or ""),
+                "stage_aware_control_applied": bool(multistep_fields.get("stage_aware_control_applied")),
+                "stage_1_revisit_after_unlock": bool(multistep_fields.get("stage_1_revisit_after_unlock")),
                 "physics_contract_reasons": physics_contract_reasons,
                 "physics_contract_invariant_count": int(physics_eval.get("invariant_count") or 0),
                 "regression_pass": bool(regression_ok),
@@ -1937,6 +2070,21 @@ def _run_task_live(
         "contract_pass": bool(best_contract_attempt.get("contract_pass")) if best_contract_attempt else False,
         "contract_fail_bucket": str(best_contract_attempt.get("contract_fail_bucket") or "") if best_contract_attempt else "",
         "scenario_results": _as_dict_list(best_contract_attempt.get("scenario_results") if best_contract_attempt else []),
+        "multi_step_stage": str(best_contract_attempt.get("multi_step_stage") or "") if best_contract_attempt else "",
+        "multi_step_stage_2_unlocked": bool(best_contract_attempt.get("multi_step_stage_2_unlocked")) if best_contract_attempt else False,
+        "multi_step_transition_seen": bool(best_contract_attempt.get("multi_step_transition_seen")) if best_contract_attempt else False,
+        "multi_step_transition_round": int(best_contract_attempt.get("multi_step_transition_round") or 0) if best_contract_attempt else 0,
+        "multi_step_transition_reason": str(best_contract_attempt.get("multi_step_transition_reason") or "") if best_contract_attempt else "",
+        "current_stage": str(best_contract_attempt.get("current_stage") or "") if best_contract_attempt else "",
+        "stage_2_unlocked": bool(best_contract_attempt.get("stage_2_unlocked")) if best_contract_attempt else False,
+        "transition_round": int(best_contract_attempt.get("transition_round") or 0) if best_contract_attempt else 0,
+        "transition_reason": str(best_contract_attempt.get("transition_reason") or "") if best_contract_attempt else "",
+        "current_fail_bucket": str(best_contract_attempt.get("current_fail_bucket") or "") if best_contract_attempt else "",
+        "next_focus": str(best_contract_attempt.get("next_focus") or "") if best_contract_attempt else "",
+        "stage_1_unlock_cluster": str(best_contract_attempt.get("stage_1_unlock_cluster") or "") if best_contract_attempt else "",
+        "stage_2_first_fail_bucket": str(best_contract_attempt.get("stage_2_first_fail_bucket") or "") if best_contract_attempt else "",
+        "stage_aware_control_applied": bool(best_contract_attempt.get("stage_aware_control_applied")) if best_contract_attempt else False,
+        "stage_1_revisit_after_unlock": bool(best_contract_attempt.get("stage_1_revisit_after_unlock")) if best_contract_attempt else False,
         "repair_strategy": repair_strategy,
         "repair_audit": {
             **strategy_audit,
