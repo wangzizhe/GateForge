@@ -56,7 +56,7 @@ fi
 
 if [ "$cmd" = "preflight" ]; then
   GATEFORGE_AGENT_RELEASE_RUN_LIVE_SMOKE="${GATEFORGE_AGENT_RELEASE_RUN_LIVE_SMOKE:-1}" \
-    bash scripts/run_agent_modelica_release_preflight_v0_1_2.sh
+    bash scripts/run_agent_modelica_release_preflight_v0_1_3.sh
   exit 0
 fi
 
