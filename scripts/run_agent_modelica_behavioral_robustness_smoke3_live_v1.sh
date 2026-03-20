@@ -12,6 +12,8 @@ PY
 )}"
 RUN_ROOT="${GATEFORGE_AGENT_BEHAVIORAL_ROBUSTNESS_SMOKE3_RUN_ROOT:-$OUT_DIR/runs/$RUN_ID}"
 UPDATE_LATEST="${GATEFORGE_AGENT_BEHAVIORAL_ROBUSTNESS_SMOKE3_UPDATE_LATEST:-1}"
+SMOKE_DETERMINISTIC_REPAIR="${GATEFORGE_AGENT_BEHAVIORAL_ROBUSTNESS_SMOKE3_DETERMINISTIC_REPAIR:-0}"
+SOURCE_MODE="${GATEFORGE_AGENT_BEHAVIORAL_ROBUSTNESS_SOURCE_MODE:-source_aware}"
 
 MANIFEST_PATH="${GATEFORGE_AGENT_BEHAVIORAL_ROBUSTNESS_MANIFEST:-assets_private/agent_modelica_behavioral_robustness_pack_v1/manifest.json}"
 SMOKE_TASK_IDS="${GATEFORGE_AGENT_BEHAVIORAL_ROBUSTNESS_SMOKE_TASK_IDS:-}"
@@ -29,8 +31,12 @@ PLANNER_BACKEND="${GATEFORGE_AGENT_LIVE_PLANNER_BACKEND:-gemini}"
 OM_BACKEND="${GATEFORGE_AGENT_LIVE_OM_BACKEND:-openmodelica_docker}"
 OM_DOCKER_IMAGE="${GATEFORGE_AGENT_LIVE_OM_DOCKER_IMAGE:-openmodelica/openmodelica:v1.26.1-minimal}"
 
-DEFAULT_LIVE_EXECUTOR_CMD="python3 -m gateforge.agent_modelica_live_executor_gemini_v1 --task-id \"__TASK_ID__\" --failure-type \"__FAILURE_TYPE__\" --expected-stage \"__EXPECTED_STAGE__\" --source-model-path \"__SOURCE_MODEL_PATH__\" --mutated-model-path \"__MUTATED_MODEL_PATH__\" --source-library-path \"__SOURCE_LIBRARY_PATH__\" --source-package-name \"__SOURCE_PACKAGE_NAME__\" --source-library-model-path \"__SOURCE_LIBRARY_MODEL_PATH__\" --source-qualified-model-name \"__SOURCE_QUALIFIED_MODEL_NAME__\" --repair-actions __REPAIR_ACTIONS_SHQ__ --max-rounds \"__MAX_ROUNDS__\" --timeout-sec \"__MAX_TIME_SEC__\" --planner-backend \"${PLANNER_BACKEND}\" --backend \"${OM_BACKEND}\" --docker-image \"${OM_DOCKER_IMAGE}\""
-LIVE_EXECUTOR_CMD="${GATEFORGE_AGENT_LIVE_EXECUTOR_CMD:-$DEFAULT_LIVE_EXECUTOR_CMD}"
+DEFAULT_LIVE_EXECUTOR_CMD="env GATEFORGE_AGENT_BEHAVIORAL_ROBUSTNESS_SOURCE_MODE=${SOURCE_MODE} python3 -m gateforge.agent_modelica_live_executor_gemini_v1 --task-id \"__TASK_ID__\" --failure-type \"__FAILURE_TYPE__\" --expected-stage \"__EXPECTED_STAGE__\" --source-model-path \"__SOURCE_MODEL_PATH__\" --mutated-model-path \"__MUTATED_MODEL_PATH__\" --source-library-path \"__SOURCE_LIBRARY_PATH__\" --source-package-name \"__SOURCE_PACKAGE_NAME__\" --source-library-model-path \"__SOURCE_LIBRARY_MODEL_PATH__\" --source-qualified-model-name \"__SOURCE_QUALIFIED_MODEL_NAME__\" --repair-actions __REPAIR_ACTIONS_SHQ__ --max-rounds \"__MAX_ROUNDS__\" --timeout-sec \"__MAX_TIME_SEC__\" --planner-backend \"${PLANNER_BACKEND}\" --backend \"${OM_BACKEND}\" --docker-image \"${OM_DOCKER_IMAGE}\""
+DEFAULT_SMOKE_LIVE_EXECUTOR_CMD="$DEFAULT_LIVE_EXECUTOR_CMD"
+if [ "$SMOKE_DETERMINISTIC_REPAIR" = "1" ]; then
+  DEFAULT_SMOKE_LIVE_EXECUTOR_CMD="env GATEFORGE_AGENT_BEHAVIORAL_ROBUSTNESS_SOURCE_MODE=${SOURCE_MODE} GATEFORGE_AGENT_BEHAVIORAL_ROBUSTNESS_DETERMINISTIC_REPAIR=1 python3 -m gateforge.agent_modelica_live_executor_gemini_v1 --task-id \"__TASK_ID__\" --failure-type \"__FAILURE_TYPE__\" --expected-stage \"__EXPECTED_STAGE__\" --source-model-path \"__SOURCE_MODEL_PATH__\" --mutated-model-path \"__MUTATED_MODEL_PATH__\" --source-library-path \"__SOURCE_LIBRARY_PATH__\" --source-package-name \"__SOURCE_PACKAGE_NAME__\" --source-library-model-path \"__SOURCE_LIBRARY_MODEL_PATH__\" --source-qualified-model-name \"__SOURCE_QUALIFIED_MODEL_NAME__\" --repair-actions __REPAIR_ACTIONS_SHQ__ --max-rounds \"__MAX_ROUNDS__\" --timeout-sec \"__MAX_TIME_SEC__\" --planner-backend \"${PLANNER_BACKEND}\" --backend \"${OM_BACKEND}\" --docker-image \"${OM_DOCKER_IMAGE}\""
+fi
+LIVE_EXECUTOR_CMD="${GATEFORGE_AGENT_BEHAVIORAL_ROBUSTNESS_SMOKE3_LIVE_EXECUTOR_CMD:-${GATEFORGE_AGENT_LIVE_EXECUTOR_CMD:-$DEFAULT_SMOKE_LIVE_EXECUTOR_CMD}}"
 
 CHALLENGE_DIR="$RUN_ROOT/challenge"
 SMOKE_TASKSET_DIR="$RUN_ROOT/smoke_taskset"
@@ -42,18 +48,19 @@ FINAL_RUN_SUMMARY_PATH="$RUN_ROOT/final_run_summary.json"
 
 mkdir -p "$OUT_DIR" "$OUT_DIR/runs" "$RUN_ROOT" "$CHALLENGE_DIR" "$SMOKE_TASKSET_DIR" "$BASELINE_DIR"
 
-python3 - "$RUN_ROOT/run_manifest.json" "$RUN_ID" "$RUN_ROOT" "$MANIFEST_PATH" <<'PY'
+python3 - "$RUN_ROOT/run_manifest.json" "$RUN_ID" "$RUN_ROOT" "$MANIFEST_PATH" "$SOURCE_MODE" <<'PY'
 import json
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-path, run_id, run_root, manifest = sys.argv[1:]
+path, run_id, run_root, manifest, source_mode = sys.argv[1:]
 Path(path).write_text(json.dumps({
     "schema_version": "agent_modelica_behavioral_robustness_smoke3_run_manifest_v1",
     "generated_at_utc": datetime.now(timezone.utc).isoformat(),
     "run_id": run_id,
     "run_root": run_root,
     "manifest_path": manifest,
+    "source_mode": source_mode,
 }, indent=2), encoding="utf-8")
 PY
 
@@ -180,12 +187,12 @@ python3 -m gateforge.agent_modelica_unknown_library_smoke3_summary_v1 \
   --min-tasks-within-budget "$MIN_TASKS_WITHIN_BUDGET" \
   --out "$SMOKE_SUMMARY_PATH"
 
-python3 - "$FINAL_RUN_SUMMARY_PATH" "$SMOKE_SUMMARY_PATH" "$RUN_ID" "$RUN_ROOT" "$OUT_DIR" "$UPDATE_LATEST" <<'PY'
+python3 - "$FINAL_RUN_SUMMARY_PATH" "$SMOKE_SUMMARY_PATH" "$RUN_ID" "$RUN_ROOT" "$OUT_DIR" "$UPDATE_LATEST" "$SOURCE_MODE" <<'PY'
 import json
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-final_path, smoke_summary_path, run_id, run_root, out_dir, update_latest = sys.argv[1:]
+final_path, smoke_summary_path, run_id, run_root, out_dir, update_latest, source_mode = sys.argv[1:]
 smoke = json.loads(Path(smoke_summary_path).read_text(encoding="utf-8"))
 summary = {
     "schema_version": "agent_modelica_behavioral_robustness_smoke3_final_run_summary_v1",
@@ -196,6 +203,7 @@ summary = {
     "success_count": int(smoke.get("success_count") or 0),
     "total_tasks": int(smoke.get("total_tasks") or 0),
     "counts_by_library": smoke.get("counts_by_library") if isinstance(smoke.get("counts_by_library"), dict) else {},
+    "source_mode": source_mode,
     "paths": {
         "smoke_summary": smoke_summary_path,
         "behavioral_robustness_baseline_summary": str(Path(run_root) / "behavioral_robustness_baseline_summary.json"),

@@ -44,7 +44,13 @@ class AgentModelicaBehavioralRobustnessEvidenceV1Tests(unittest.TestCase):
             }
             deterministic_summary = {"all_scenarios_pass_pct": 100.0}
             retrieval_summary = {"all_scenarios_pass_pct": 100.0}
-            baseline_results = {"records": [{"task_id": "t1", "contract_pass": False}, {"task_id": "t2", "contract_pass": False}, {"task_id": "t3", "contract_pass": True}]}
+            baseline_results = {
+                "records": [
+                    {"task_id": "t1", "contract_pass": False, "scenario_results": [{"pass": True}, {"pass": False}, {"pass": False}]},
+                    {"task_id": "t2", "contract_pass": False, "scenario_results": [{"pass": False}, {"pass": False}, {"pass": False}]},
+                    {"task_id": "t3", "contract_pass": True, "scenario_results": [{"pass": True}, {"pass": True}, {"pass": True}]},
+                ]
+            }
             deterministic_results = {"records": [{"task_id": "t1", "contract_pass": True, "attempts": [{"round": 1}]}, {"task_id": "t2", "contract_pass": True, "attempts": [{"round": 1}]}, {"task_id": "t3", "contract_pass": True, "attempts": [{"round": 1}]}]}
             retrieval_results = {"records": [{"task_id": "t1", "contract_pass": True, "attempts": [{"round": 1}]}, {"task_id": "t2", "contract_pass": True, "attempts": [{"round": 1}]}, {"task_id": "t3", "contract_pass": True, "attempts": [{"round": 1}]}]}
             for name, payload in {
@@ -80,6 +86,8 @@ class AgentModelicaBehavioralRobustnessEvidenceV1Tests(unittest.TestCase):
                     str(root / "ret_summary.json"),
                     "--retrieval-results",
                     str(root / "ret_results.json"),
+                    "--source-mode",
+                    "source_blind",
                     "--out",
                     str(out),
                     "--gate-out",
@@ -93,8 +101,15 @@ class AgentModelicaBehavioralRobustnessEvidenceV1Tests(unittest.TestCase):
             )
             self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
             payload = json.loads(decision.read_text(encoding="utf-8"))
+            self.assertEqual(payload.get("source_mode"), "source_blind")
             self.assertEqual(payload.get("deterministic_uplift_status"), "observed")
             self.assertEqual(payload.get("retrieval_uplift_status"), "retrieval_hold_the_floor")
+            evidence_payload = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(evidence_payload.get("source_mode"), "source_blind")
+            self.assertEqual(int(evidence_payload.get("deterministic_partial_to_full_count") or 0), 1)
+            by_failure = evidence_payload.get("deterministic_by_failure_type") if isinstance(evidence_payload.get("deterministic_by_failure_type"), dict) else {}
+            self.assertEqual(int((by_failure.get("param_perturbation_robustness_violation") or {}).get("deterministic_partial_to_full_count") or 0), 1)
+            self.assertEqual(int((by_failure.get("initial_condition_robustness_violation") or {}).get("deterministic_partial_to_full_count") or 0), 0)
 
 
 if __name__ == "__main__":

@@ -394,14 +394,15 @@ def _pick_best_contract_attempt(attempts: list[dict]) -> dict:
     if not rows:
         return {}
 
-    def _score(row: dict) -> tuple[int, int, int]:
+    def _score(row: dict) -> tuple[int, int, int, int]:
         scenario_results = _as_dict_list(row.get("scenario_results"))
         contract_fail_bucket = str(row.get("contract_fail_bucket") or "").strip()
         contract_pass = _as_bool(row.get("contract_pass"))
+        has_full = 1 if scenario_results and all(bool(x.get("pass")) for x in scenario_results) else 0
         has_partial = 1 if scenario_results and any(bool(x.get("pass")) for x in scenario_results) and not all(bool(x.get("pass")) for x in scenario_results) else 0
         has_scenarios = 1 if scenario_results else 0
         has_contract_signal = 1 if (contract_fail_bucket or contract_pass is not None) else 0
-        return (has_partial, has_scenarios, has_contract_signal)
+        return (has_full, has_partial, has_scenarios, has_contract_signal)
 
     ranked = max(enumerate(rows), key=lambda item: (_score(item[1]), item[0]))
     return ranked[1]
