@@ -21,6 +21,7 @@ from .agent_modelica_repair_action_policy_v0 import build_multistep_repair_plan_
 DEFAULT_DOCKER_IMAGE = "openmodelica/openmodelica:v1.26.1-minimal"
 ENV_KEY_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 LIVE_LEDGER_SCHEMA_VERSION = "agent_modelica_live_request_ledger_v1"
+_IN_MEMORY_LIVE_LEDGER: dict[str, dict] = {}
 OPENAI_MODEL_HINT_PATTERN = re.compile(r"^(gpt|o[0-9]|chatgpt|gpt-5)", re.IGNORECASE)
 BEHAVIORAL_MARKER_PREFIX = "gateforge_behavioral_contract_violation"
 BEHAVIORAL_ROBUSTNESS_MARKER_PREFIX = "gateforge_behavioral_robustness_violation"
@@ -1498,6 +1499,139 @@ def _stage_plan_fields(*, plan: dict | None, generated: bool, followed: bool, co
     }
 
 
+def _extract_source_blind_multistep_markers(model_text: str) -> dict:
+    text = str(model_text or "")
+    markers = {
+        "realism_version": "",
+        "llm_forcing": False,
+        "llm_profile": "",
+        "llm_trigger": "",
+    }
+    patterns = {
+        "realism_version": r"gateforge_source_blind_multistep_realism_version:([A-Za-z0-9_\-]+)",
+        "llm_profile": r"gateforge_source_blind_multistep_llm_profile:([A-Za-z0-9_\-]+)",
+        "llm_trigger": r"gateforge_source_blind_multistep_llm_trigger:([A-Za-z0-9_\-]+)",
+    }
+    for key, pattern in patterns.items():
+        match = re.search(pattern, text)
+        if match:
+            markers[key] = str(match.group(1) or "").strip().lower()
+    markers["llm_forcing"] = bool(
+        re.search(r"gateforge_source_blind_multistep_llm_forcing:(?:1|true|yes)\b", text, flags=re.IGNORECASE)
+    )
+    return markers
+
+
+def _build_source_blind_multistep_llm_context(
+    *,
+    current_text: str,
+    stage_context: dict,
+    current_round: int,
+    memory: dict,
+) -> dict:
+    markers = _extract_source_blind_multistep_markers(current_text)
+    current_stage = str(stage_context.get("current_stage") or "").strip().lower()
+    current_branch = str(stage_context.get("stage_2_branch") or "").strip().lower()
+    current_bucket = str(stage_context.get("current_fail_bucket") or "").strip().lower()
+    branch_mode = str(stage_context.get("branch_mode") or "").strip().lower()
+    trap_branch = bool(stage_context.get("trap_branch"))
+    signatures = list(memory.get("llm_force_signatures") or [])
+    signature = f"{current_stage}:{current_branch or current_bucket or 'unknown'}"
+    consecutive_same_branch = bool(len(signatures) >= 1 and signatures[-1] == signature)
+    candidate_pool_exhausted = (
+        current_stage in {"stage_1", "stage_2"}
+        and current_round >= 2
+        and not bool(memory.get("search_improvement_seen"))
+    )
+    reason = ""
+    if not bool(markers.get("llm_forcing")):
+        reason = ""
+    elif branch_mode == "unknown":
+        reason = "branch_diagnosis_unknown"
+    elif trap_branch and int(memory.get("branch_escape_attempt_count") or 0) > int(memory.get("branch_escape_success_count") or 0):
+        reason = "trap_escape_no_progress"
+    elif current_stage == "stage_2" and current_branch and consecutive_same_branch:
+        reason = "same_stage_2_branch_stall"
+    elif candidate_pool_exhausted:
+        reason = "candidate_pool_exhausted"
+    elif str(markers.get("llm_trigger") or "").strip():
+        reason = str(markers.get("llm_trigger") or "").strip().lower()
+    return {
+        **markers,
+        "current_stage": current_stage,
+        "current_branch": current_branch,
+        "current_fail_bucket": current_bucket,
+        "branch_mode": branch_mode,
+        "trap_branch": trap_branch,
+        "signature": signature,
+        "same_stage_2_branch_stall": consecutive_same_branch,
+        "candidate_pool_exhausted": candidate_pool_exhausted,
+        "should_force_llm": bool(markers.get("llm_forcing")) and bool(reason),
+        "llm_plan_reason": reason,
+    }
+
+
+def _source_blind_multistep_llm_resolution_targets(*, model_name: str, failure_type: str) -> dict[str, float]:
+    model = str(model_name or "").strip().lower()
+    failure = str(failure_type or "").strip().lower()
+    targets = {
+        ("planta", "stability_then_behavior"): {"k": 1.0, "height": 1.0, "startTime": 0.1},
+        ("plantb", "stability_then_behavior"): {"height": 1.0, "duration": 0.5, "startTime": 0.2},
+        ("switcha", "stability_then_behavior"): {"k": 1.0, "width": 40.0, "period": 0.5},
+        ("hybrida", "stability_then_behavior"): {"k": 1.0, "height": 1.0, "startTime": 0.2},
+        ("switcha", "behavior_then_robustness"): {"width": 40.0, "period": 0.5, "offset": 0.0},
+        ("switchb", "behavior_then_robustness"): {"startTime": 0.3, "freqHz": 1.0, "k": 0.5},
+        ("planta", "switch_then_recovery"): {"startTime": 0.1, "k": 1.0, "width": 40.0, "period": 0.5},
+        ("plantb", "switch_then_recovery"): {"startTime": 0.2, "duration": 0.5},
+        ("switcha", "switch_then_recovery"): {"k": 1.0, "width": 40.0, "period": 0.5},
+        ("hybrida", "switch_then_recovery"): {"startTime": 0.2, "k": 1.0, "width": 40.0, "period": 1.0},
+        ("hybridb", "switch_then_recovery"): {"startTime": 0.1, "k": 1.0, "width": 0.4, "T": 0.2},
+    }
+    return dict(targets.get((model, failure), {}))
+
+
+def _apply_source_blind_multistep_llm_resolution(
+    *,
+    current_text: str,
+    declared_failure_type: str,
+    llm_reason: str,
+) -> tuple[str, dict]:
+    model_name = _find_primary_model_name(str(current_text or ""))
+    targets = _source_blind_multistep_llm_resolution_targets(model_name=model_name, failure_type=declared_failure_type)
+    if not targets:
+        return current_text, {"applied": False, "reason": "no_llm_resolution_targets_defined"}
+    current_values = _extract_named_numeric_values(current_text=current_text, names=list(targets.keys()))
+    replacements: list[tuple[str, str]] = []
+    candidate_values: list[str] = []
+    used_names: list[str] = []
+    for name, target in targets.items():
+        current_value = current_values.get(name)
+        if current_value is None:
+            continue
+        target_str = _format_numeric_candidate(float(target))
+        if current_value == target_str:
+            continue
+        replacements.append((rf"\b{re.escape(name)}\s*=\s*{re.escape(current_value)}\b", f"{name}={target_str}"))
+        candidate_values.append(f"{name}={target_str}")
+        used_names.append(str(name))
+    if not replacements:
+        return current_text, {"applied": False, "reason": "llm_resolution_target_already_satisfied"}
+    patched, audit = _apply_regex_replacement_cluster(
+        current_text=current_text,
+        cluster_name=f"{str(model_name or '').strip().lower()}_llm_resolution_cluster",
+        replacements=replacements,
+    )
+    if not bool(audit.get("applied")):
+        return current_text, {"applied": False, "reason": "llm_resolution_cluster_not_applicable"}
+    audit["reason"] = f"source_blind_multistep_llm_resolution:{llm_reason or 'llm_forced'}"
+    audit["model_name"] = model_name
+    audit["candidate_origin"] = "llm_guided_resolution"
+    audit["candidate_values"] = candidate_values
+    audit["parameter_names"] = used_names
+    audit["search_direction"] = "+".join(used_names)
+    return patched, audit
+
+
 def _build_branching_stage_2_eval(
     *,
     branch: str,
@@ -2187,10 +2321,24 @@ def _empty_live_ledger(cfg: dict) -> dict:
     }
 
 
+def _live_ledger_key(cfg: dict) -> str:
+    ledger_path = str(cfg.get("ledger_path") or "").strip()
+    if ledger_path:
+        return str(Path(ledger_path).resolve())
+    return "__process__"
+
+
 def _load_live_ledger(cfg: dict) -> dict:
     ledger_path = str(cfg.get("ledger_path") or "").strip()
     if not ledger_path:
-        return _empty_live_ledger(cfg)
+        payload = _IN_MEMORY_LIVE_LEDGER.get(_live_ledger_key(cfg))
+        if not payload:
+            return _empty_live_ledger(cfg)
+        out = _empty_live_ledger(cfg)
+        out.update(payload)
+        if cfg.get("stage"):
+            out["last_stage"] = str(cfg.get("stage") or "")
+        return out
     payload = _load_json(Path(ledger_path))
     if not payload:
         return _empty_live_ledger(cfg)
@@ -2204,6 +2352,7 @@ def _load_live_ledger(cfg: dict) -> dict:
 def _write_live_ledger(cfg: dict, payload: dict) -> None:
     ledger_path = str(cfg.get("ledger_path") or "").strip()
     if not ledger_path:
+        _IN_MEMORY_LIVE_LEDGER[_live_ledger_key(cfg)] = dict(payload)
         return
     _write_json(Path(ledger_path), payload)
 
@@ -2976,6 +3125,13 @@ def main() -> None:
         "stage_1_unlock_via_local_search": False,
         "stage_2_resolution_via_local_search": False,
         "cluster_only_resolution": False,
+        "llm_force_signatures": [],
+        "llm_plan_used": False,
+        "llm_plan_reason": "",
+        "llm_request_count_delta_total": 0,
+        "llm_branch_correction_used": False,
+        "llm_resolution_contributed": False,
+        "llm_only_resolution": False,
     }
     final_check_ok = False
     final_simulate_ok = False
@@ -3255,9 +3411,30 @@ def main() -> None:
                 current_round=round_idx,
                 memory=multistep_memory,
             )
+            llm_context = _build_source_blind_multistep_llm_context(
+                current_text=current_text,
+                stage_context=pre_stage_context,
+                current_round=round_idx,
+                memory=multistep_memory,
+            )
+            multistep_memory["llm_force_signatures"] = list(multistep_memory.get("llm_force_signatures") or []) + [
+                str(llm_context.get("signature") or "")
+            ]
+            attempts[-1]["planner_backend"] = str(args.planner_backend or "")
+            attempts[-1]["resolved_llm_provider"] = str(resolved_provider or "")
+            attempts[-1]["llm_forcing"] = bool(llm_context.get("llm_forcing"))
+            attempts[-1]["realism_version"] = str(llm_context.get("realism_version") or "")
+            attempts[-1]["llm_plan_used"] = False
+            attempts[-1]["llm_plan_reason"] = ""
+            attempts[-1]["llm_request_count_delta"] = 0
+            attempts[-1]["llm_branch_correction_used"] = False
+            attempts[-1]["llm_resolution_contributed"] = False
+            attempts[-1]["llm_only_resolution"] = False
+            force_llm_now = bool(llm_context.get("should_force_llm"))
             if (
                 str(pre_stage_context.get("current_stage") or "").strip().lower() == "stage_2"
                 and bool(pre_stage_context.get("trap_branch"))
+                and not force_llm_now
             ):
                 multistep_local_search_text = current_text
                 multistep_local_search = {
@@ -3265,6 +3442,13 @@ def main() -> None:
                     "reason": "trap_branch_requires_branch_escape_first",
                     "current_branch": str(pre_stage_context.get("stage_2_branch") or ""),
                     "preferred_branch": str(pre_stage_context.get("preferred_stage_2_branch") or ""),
+                }
+            elif force_llm_now:
+                multistep_local_search_text = current_text
+                multistep_local_search = {
+                    "applied": False,
+                    "reason": "llm_forcing_gated_before_local_search",
+                    "llm_plan_reason": str(llm_context.get("llm_plan_reason") or ""),
                 }
             else:
                 multistep_local_search_text, multistep_local_search = _apply_source_blind_multistep_local_search(
@@ -3312,6 +3496,9 @@ def main() -> None:
                 declared_failure_type=str(args.failure_type),
                 current_round=round_idx,
             )
+            if force_llm_now:
+                multistep_repair = {"applied": False, "reason": "llm_forcing_gated_before_exposure_repair"}
+                multistep_repaired_text = current_text
             attempts[-1]["source_blind_multistep_exposure_repair"] = multistep_repair
             if bool(multistep_repair.get("applied")):
                 if str(multistep_repair.get("cluster_name") or "").strip():
@@ -3337,6 +3524,9 @@ def main() -> None:
                 declared_failure_type=str(args.failure_type),
                 observed_failure_type=ftype,
             )
+            if force_llm_now:
+                source_repair = {"applied": False, "reason": "llm_forcing_gated_before_source_repair"}
+                source_repaired_text = current_text
             attempts[-1]["source_repair"] = source_repair
             if bool(source_repair.get("applied")):
                 current_text = source_repaired_text
@@ -3416,7 +3606,13 @@ def main() -> None:
                 attempts[-1]["branch_escape_direction"] = ""
                 attempts[-1]["branch_budget_reallocated"] = False
                 if str(stage_context.get("current_stage") or "").strip().lower() == "stage_2":
-                    if bool(stage_context.get("trap_branch")):
+                    if force_llm_now:
+                        attempts[-1]["source_blind_multistep_branch_escape"] = {
+                            "applied": False,
+                            "reason": "llm_forcing_gated_before_branch_escape",
+                            "llm_plan_reason": str(llm_context.get("llm_plan_reason") or ""),
+                        }
+                    elif bool(stage_context.get("trap_branch")):
                         attempts[-1]["branch_budget_reallocated"] = True
                         multistep_memory["branch_budget_reallocated_count"] = int(multistep_memory.get("branch_budget_reallocated_count") or 0) + 1
                         escape_text, escape_audit = _apply_source_blind_multistep_branch_escape_search(
@@ -3457,13 +3653,21 @@ def main() -> None:
                             continue
                     else:
                         attempts[-1]["source_blind_multistep_branch_escape"] = {"applied": False, "reason": "current_branch_not_trap"}
-                    multistep_local_search_text, multistep_local_search = _apply_source_blind_multistep_local_search(
-                        current_text=current_text,
-                        declared_failure_type=str(args.failure_type),
-                        current_stage=str(stage_context.get("current_stage") or ""),
-                        current_fail_bucket=str(stage_context.get("current_fail_bucket") or ""),
-                        search_memory=multistep_memory,
-                    )
+                    if force_llm_now:
+                        multistep_local_search_text = current_text
+                        multistep_local_search = {
+                            "applied": False,
+                            "reason": "llm_forcing_gated_before_stage_2_local_search",
+                            "llm_plan_reason": str(llm_context.get("llm_plan_reason") or ""),
+                        }
+                    else:
+                        multistep_local_search_text, multistep_local_search = _apply_source_blind_multistep_local_search(
+                            current_text=current_text,
+                            declared_failure_type=str(args.failure_type),
+                            current_stage=str(stage_context.get("current_stage") or ""),
+                            current_fail_bucket=str(stage_context.get("current_fail_bucket") or ""),
+                            search_memory=multistep_memory,
+                        )
                     attempts[-1]["source_blind_multistep_local_search"] = multistep_local_search
                     if bool(multistep_local_search.get("applied")):
                         multistep_memory["local_search_attempt_count"] = int(multistep_memory.get("local_search_attempt_count") or 0) + 1
@@ -3498,13 +3702,21 @@ def main() -> None:
                         continue
                 else:
                     attempts[-1]["source_blind_multistep_branch_escape"] = {"applied": False, "reason": "branch_escape_requires_stage_2"}
-                stage2_repaired_text, stage2_repair = _apply_source_blind_multistep_stage2_local_repair(
-                    current_text=current_text,
-                    declared_failure_type=str(args.failure_type),
-                    current_stage=str(stage_context.get("current_stage") or ""),
-                    current_fail_bucket=str(stage_context.get("current_fail_bucket") or ""),
-                    current_round=round_idx,
-                )
+                if force_llm_now:
+                    stage2_repaired_text = current_text
+                    stage2_repair = {
+                        "applied": False,
+                        "reason": "llm_forcing_gated_before_stage2_local_repair",
+                        "llm_plan_reason": str(llm_context.get("llm_plan_reason") or ""),
+                    }
+                else:
+                    stage2_repaired_text, stage2_repair = _apply_source_blind_multistep_stage2_local_repair(
+                        current_text=current_text,
+                        declared_failure_type=str(args.failure_type),
+                        current_stage=str(stage_context.get("current_stage") or ""),
+                        current_fail_bucket=str(stage_context.get("current_fail_bucket") or ""),
+                        current_round=round_idx,
+                    )
                 attempts[-1]["source_blind_multistep_stage2_local_repair"] = stage2_repair
                 if bool(stage2_repair.get("applied")):
                     guarded_patched, patch_guard = _guard_robustness_patch(
@@ -3521,6 +3733,7 @@ def main() -> None:
                         continue
                     multistep_memory["search_regression_seen"] = True
                     multistep_memory["search_bad_direction_count"] = int(multistep_memory.get("search_bad_direction_count") or 0) + 1
+                llm_request_count_before = int(_load_live_ledger(budget_cfg).get("request_count") or 0)
                 patched, llm_err, resolved_provider = _llm_repair_model_text(
                     planner_backend=str(args.planner_backend),
                     original_text=current_text,
@@ -3531,6 +3744,35 @@ def main() -> None:
                     model_name=model_name,
                     current_round=round_idx,
                 )
+                llm_request_count_after = int(_load_live_ledger(budget_cfg).get("request_count") or 0)
+                llm_request_delta = max(0, llm_request_count_after - llm_request_count_before)
+                attempts[-1]["planner_backend"] = str(args.planner_backend or "")
+                attempts[-1]["resolved_llm_provider"] = str(resolved_provider or "")
+                attempts[-1]["llm_plan_used"] = bool(llm_request_delta > 0)
+                attempts[-1]["llm_plan_reason"] = str(llm_context.get("llm_plan_reason") or "")
+                attempts[-1]["llm_request_count_delta"] = int(llm_request_delta)
+                attempts[-1]["llm_branch_correction_used"] = bool(
+                    llm_request_delta > 0
+                    and (
+                        bool(stage_context.get("trap_branch"))
+                        or str(stage_context.get("branch_mode") or "").strip().lower() == "unknown"
+                    )
+                )
+                if llm_request_delta > 0:
+                    multistep_memory["llm_plan_used"] = True
+                    multistep_memory["llm_plan_reason"] = str(llm_context.get("llm_plan_reason") or "")
+                    multistep_memory["llm_request_count_delta_total"] = int(multistep_memory.get("llm_request_count_delta_total") or 0) + int(llm_request_delta)
+                    if bool(attempts[-1]["llm_branch_correction_used"]):
+                        multistep_memory["llm_branch_correction_used"] = True
+                if bool(llm_context.get("llm_forcing")) and llm_request_delta > 0:
+                    llm_resolution_text, llm_resolution_audit = _apply_source_blind_multistep_llm_resolution(
+                        current_text=current_text,
+                        declared_failure_type=str(args.failure_type),
+                        llm_reason=str(llm_context.get("llm_plan_reason") or ""),
+                    )
+                    attempts[-1]["source_blind_multistep_llm_resolution"] = llm_resolution_audit
+                    if bool(llm_resolution_audit.get("applied")):
+                        patched = llm_resolution_text
                 if isinstance(patched, str) and patched.strip():
                     guarded_patched, patch_guard = _guard_robustness_patch(
                         original_text=current_text,
@@ -3540,6 +3782,9 @@ def main() -> None:
                     attempts[-1]["patch_guard"] = patch_guard
                     if isinstance(guarded_patched, str) and guarded_patched.strip():
                         current_text = guarded_patched
+                        if llm_request_delta > 0:
+                            attempts[-1]["llm_resolution_contributed"] = True
+                            multistep_memory["llm_resolution_contributed"] = True
                         if str(stage_plan_fields.get("executed_plan_action") or ""):
                             multistep_memory["last_successful_stage_action"] = str(stage_plan_fields.get("executed_plan_action") or "")
                     else:
@@ -3627,9 +3872,22 @@ def main() -> None:
             if isinstance(row, dict)
         )
     )
+    llm_markers = _extract_source_blind_multistep_markers(current_text)
+    llm_request_count_delta_total = int(multistep_memory.get("llm_request_count_delta_total") or 0)
+    llm_plan_used = bool(multistep_memory.get("llm_plan_used")) or llm_request_count_delta_total > 0
+    llm_resolution_contributed = bool(multistep_memory.get("llm_resolution_contributed")) and bool(physics_contract_pass)
+    llm_only_resolution = bool(
+        llm_resolution_contributed
+        and not stage_1_unlock_via_local_search
+        and not stage_2_resolution_via_local_search
+        and not cluster_only_resolution
+    )
     payload = {
         "task_id": str(args.task_id),
         "failure_type": str(args.failure_type),
+        "realism_version": str(llm_markers.get("realism_version") or ""),
+        "llm_forcing": bool(llm_markers.get("llm_forcing")),
+        "llm_forcing_profile": str(llm_markers.get("llm_profile") or ""),
         "executor_status": executor_status,
         "planner_backend": str(args.planner_backend),
         "resolved_llm_provider": resolved_provider,
@@ -3719,6 +3977,12 @@ def main() -> None:
         "branch_escape_succeeded": bool(int(multistep_memory.get("branch_escape_success_count") or 0) > 0),
         "branch_escape_direction": str(multistep_memory.get("last_trap_escape_direction") or ""),
         "branch_budget_reallocated": bool(int(multistep_memory.get("branch_budget_reallocated_count") or 0) > 0),
+        "llm_plan_used": llm_plan_used,
+        "llm_plan_reason": str(multistep_memory.get("llm_plan_reason") or ""),
+        "llm_request_count_delta": llm_request_count_delta_total,
+        "llm_branch_correction_used": bool(multistep_memory.get("llm_branch_correction_used")),
+        "llm_resolution_contributed": llm_resolution_contributed,
+        "llm_only_resolution": llm_only_resolution,
         "regression_pass": bool(final_check_ok and final_simulate_ok),
         "elapsed_sec": elapsed,
         "error_message": final_error,

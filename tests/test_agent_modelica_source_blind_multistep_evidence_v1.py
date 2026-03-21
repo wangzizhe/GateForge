@@ -71,6 +71,22 @@ class AgentModelicaSourceBlindMultistepEvidenceV1Tests(unittest.TestCase):
                 "good_branch_resolution_count": 0,
                 "trap_branch_enter_count": 1,
                 "trap_branch_recovery_count": 0,
+                "trap_branch_resolution_count": 0,
+                "trap_branch_resolution_pct": 0.0,
+                "preferred_branch_resolution_count": 0,
+                "branch_escape_attempt_count": 1,
+                "branch_escape_success_count": 0,
+                "branch_escape_success_pct": 0.0,
+                "branch_budget_reallocated_count": 1,
+                "repeated_trap_branch_count": 0,
+                "llm_request_count_total": 2,
+                "llm_task_count": 2,
+                "llm_resolution_count": 1,
+                "llm_only_resolution_count": 0,
+                "llm_branch_correction_count": 1,
+                "llm_usage_by_failure_type": {"stability_then_behavior": 1, "switch_then_recovery": 1},
+                "llm_usage_by_branch": {"behavior_timing_branch": 1},
+                "deterministic_vs_llm_resolution_split": {"adaptive_search": 1, "template_only": 0, "llm_contributed": 1, "llm_only": 0},
                 "median_round_to_correct_branch": 2.0,
                 "hard_case_remaining_buckets": {"post_switch_recovery_miss": 1},
                 "median_round_from_stage_2_to_resolution": 0.0,
@@ -150,6 +166,11 @@ class AgentModelicaSourceBlindMultistepEvidenceV1Tests(unittest.TestCase):
             self.assertEqual(payload.get("stage_2_branch_count"), 2)
             self.assertEqual(payload.get("branch_selection_error_count"), 1)
             self.assertEqual(payload.get("trap_branch_enter_count"), 1)
+            self.assertEqual(payload.get("llm_request_count_total"), 2)
+            self.assertEqual(payload.get("llm_task_count"), 2)
+            self.assertEqual(payload.get("llm_resolution_count"), 1)
+            self.assertEqual(payload.get("llm_branch_correction_count"), 1)
+            self.assertEqual(payload.get("deterministic_vs_llm_resolution_split"), {"adaptive_search": 1, "template_only": 0, "llm_contributed": 1, "llm_only": 0})
             self.assertEqual(payload.get("median_round_to_correct_branch"), 2.0)
             self.assertEqual(payload.get("hard_case_remaining_buckets"), {"post_switch_recovery_miss": 1})
 

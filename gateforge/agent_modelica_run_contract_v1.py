@@ -672,6 +672,45 @@ def _extract_multistep_fields(payload: dict, live_attempt: dict) -> dict:
     return out
 
 
+def _extract_live_usage_fields(payload: dict, live_attempt: dict) -> dict:
+    out = {
+        "planner_backend": "",
+        "resolved_llm_provider": "",
+        "live_request_count": 0,
+        "rate_limit_429_count": 0,
+        "budget_stop_triggered": False,
+        "llm_plan_used": False,
+        "llm_plan_reason": "",
+        "llm_request_count_delta": 0,
+        "llm_branch_correction_used": False,
+        "llm_resolution_contributed": False,
+        "llm_only_resolution": False,
+    }
+    out["planner_backend"] = str(live_attempt.get("planner_backend") or payload.get("planner_backend") or "").strip().lower()
+    out["resolved_llm_provider"] = str(
+        live_attempt.get("resolved_llm_provider") or payload.get("resolved_llm_provider") or ""
+    ).strip().lower()
+    try:
+        out["live_request_count"] = max(0, int(live_attempt.get("live_request_count") or payload.get("live_request_count") or 0))
+    except Exception:
+        out["live_request_count"] = 0
+    try:
+        out["rate_limit_429_count"] = max(0, int(live_attempt.get("rate_limit_429_count") or payload.get("rate_limit_429_count") or 0))
+    except Exception:
+        out["rate_limit_429_count"] = 0
+    out["budget_stop_triggered"] = bool(_as_bool(live_attempt.get("budget_stop_triggered"))) or bool(_as_bool(payload.get("budget_stop_triggered")))
+    out["llm_plan_used"] = bool(_as_bool(live_attempt.get("llm_plan_used"))) or bool(_as_bool(payload.get("llm_plan_used")))
+    out["llm_plan_reason"] = str(live_attempt.get("llm_plan_reason") or payload.get("llm_plan_reason") or "").strip()
+    try:
+        out["llm_request_count_delta"] = max(0, int(live_attempt.get("llm_request_count_delta") or payload.get("llm_request_count_delta") or 0))
+    except Exception:
+        out["llm_request_count_delta"] = 0
+    out["llm_branch_correction_used"] = bool(_as_bool(live_attempt.get("llm_branch_correction_used"))) or bool(_as_bool(payload.get("llm_branch_correction_used")))
+    out["llm_resolution_contributed"] = bool(_as_bool(live_attempt.get("llm_resolution_contributed"))) or bool(_as_bool(payload.get("llm_resolution_contributed")))
+    out["llm_only_resolution"] = bool(_as_bool(live_attempt.get("llm_only_resolution"))) or bool(_as_bool(payload.get("llm_only_resolution")))
+    return out
+
+
 def _extract_contract_fields(payload: dict, live_attempt: dict, *, physics_ok: bool) -> tuple[bool, str, list[dict], dict]:
     contract_pass = _as_bool(payload.get("contract_pass"))
     if contract_pass is None:
@@ -1329,6 +1368,7 @@ def _run_task_evidence(
     passed = check_ok and simulate_ok and physics_ok and regression_ok and not time_budget_exceeded
 
     best_contract_attempt = _pick_best_contract_attempt(attempts)
+    best_live_usage_fields = _extract_live_usage_fields(best_contract_attempt or {}, best_contract_attempt or {})
     return {
         "task_id": str(task.get("task_id") or ""),
         "scale": scale,
@@ -1718,6 +1758,7 @@ def _run_task_live_l4(
         )
         pre_repair = live_attempt.get("pre_repair") if isinstance(live_attempt.get("pre_repair"), dict) else {}
         diagnostic_ir = live_attempt.get("diagnostic_ir") if isinstance(live_attempt.get("diagnostic_ir"), dict) else {}
+        live_usage_fields = _extract_live_usage_fields(live_payload, live_attempt)
         if _should_refresh_diagnostic_ir(task, diagnostic_ir):
             diagnostic_ir = build_diagnostic_ir_v0(
                 output=attempt_log_excerpt or stderr_snippet or error_message or compile_error or simulate_error_message,
@@ -1731,6 +1772,7 @@ def _run_task_live_l4(
             observed_failure_type=observed_failure_type,
             diagnostic_ir=diagnostic_ir,
         )
+        live_usage_fields = _extract_live_usage_fields(live_payload, live_attempt)
         return {
             "round": int(round_idx),
             "check_model_pass": bool(check_ok),
@@ -1817,6 +1859,17 @@ def _run_task_live_l4(
             "branch_escape_succeeded": bool(multistep_fields.get("branch_escape_succeeded")),
             "branch_escape_direction": str(multistep_fields.get("branch_escape_direction") or ""),
             "branch_budget_reallocated": bool(multistep_fields.get("branch_budget_reallocated")),
+            "planner_backend": str(live_usage_fields.get("planner_backend") or ""),
+            "resolved_llm_provider": str(live_usage_fields.get("resolved_llm_provider") or ""),
+            "live_request_count": int(live_usage_fields.get("live_request_count") or 0),
+            "rate_limit_429_count": int(live_usage_fields.get("rate_limit_429_count") or 0),
+            "budget_stop_triggered": bool(live_usage_fields.get("budget_stop_triggered")),
+            "llm_plan_used": bool(live_usage_fields.get("llm_plan_used")),
+            "llm_plan_reason": str(live_usage_fields.get("llm_plan_reason") or ""),
+            "llm_request_count_delta": int(live_usage_fields.get("llm_request_count_delta") or 0),
+            "llm_branch_correction_used": bool(live_usage_fields.get("llm_branch_correction_used")),
+            "llm_resolution_contributed": bool(live_usage_fields.get("llm_resolution_contributed")),
+            "llm_only_resolution": bool(live_usage_fields.get("llm_only_resolution")),
             "physics_contract_reasons": physics_reasons,
             "physics_contract_invariant_count": len(task_invariants),
             "regression_pass": bool(regression_ok),
@@ -1875,6 +1928,7 @@ def _run_task_live_l4(
         simulate_error_message = str(last.get("simulate_error_message") or "")
         stderr_snippet = str(last.get("stderr_snippet") or "")
     best_contract_attempt = _pick_best_contract_attempt(attempts)
+    best_live_usage_fields = _extract_live_usage_fields(best_contract_attempt or {}, best_contract_attempt or {})
     contract_pass = bool(best_contract_attempt.get("contract_pass")) if best_contract_attempt else False
     contract_fail_bucket = str(best_contract_attempt.get("contract_fail_bucket") or "") if best_contract_attempt else ""
     scenario_results = _as_dict_list(best_contract_attempt.get("scenario_results") if best_contract_attempt else [])
@@ -1976,6 +2030,17 @@ def _run_task_live_l4(
         "branch_escape_succeeded": bool(best_contract_attempt.get("branch_escape_succeeded")) if best_contract_attempt else False,
         "branch_escape_direction": str(best_contract_attempt.get("branch_escape_direction") or "") if best_contract_attempt else "",
         "branch_budget_reallocated": bool(best_contract_attempt.get("branch_budget_reallocated")) if best_contract_attempt else False,
+        "planner_backend": str(best_live_usage_fields.get("planner_backend") or ""),
+        "resolved_llm_provider": str(best_live_usage_fields.get("resolved_llm_provider") or ""),
+        "live_request_count": int(best_live_usage_fields.get("live_request_count") or 0),
+        "rate_limit_429_count": int(best_live_usage_fields.get("rate_limit_429_count") or 0),
+        "budget_stop_triggered": bool(best_live_usage_fields.get("budget_stop_triggered")),
+        "llm_plan_used": bool(best_live_usage_fields.get("llm_plan_used")),
+        "llm_plan_reason": str(best_live_usage_fields.get("llm_plan_reason") or ""),
+        "llm_request_count_delta": int(best_live_usage_fields.get("llm_request_count_delta") or 0),
+        "llm_branch_correction_used": bool(best_live_usage_fields.get("llm_branch_correction_used")),
+        "llm_resolution_contributed": bool(best_live_usage_fields.get("llm_resolution_contributed")),
+        "llm_only_resolution": bool(best_live_usage_fields.get("llm_only_resolution")),
         "repair_strategy": repair_strategy,
         "repair_audit": {
             **strategy_audit,
@@ -2342,6 +2407,7 @@ def _run_task_live(
             observed_failure_type=observed_failure_type,
             diagnostic_ir=diagnostic_ir,
         )
+        live_usage_fields = _extract_live_usage_fields(live_payload, live_attempt)
 
         attempts.append(
             {
@@ -2431,6 +2497,17 @@ def _run_task_live(
                 "branch_escape_succeeded": bool(multistep_fields.get("branch_escape_succeeded")),
                 "branch_escape_direction": str(multistep_fields.get("branch_escape_direction") or ""),
                 "branch_budget_reallocated": bool(multistep_fields.get("branch_budget_reallocated")),
+                "planner_backend": str(live_usage_fields.get("planner_backend") or ""),
+                "resolved_llm_provider": str(live_usage_fields.get("resolved_llm_provider") or ""),
+                "live_request_count": int(live_usage_fields.get("live_request_count") or 0),
+                "rate_limit_429_count": int(live_usage_fields.get("rate_limit_429_count") or 0),
+                "budget_stop_triggered": bool(live_usage_fields.get("budget_stop_triggered")),
+                "llm_plan_used": bool(live_usage_fields.get("llm_plan_used")),
+                "llm_plan_reason": str(live_usage_fields.get("llm_plan_reason") or ""),
+                "llm_request_count_delta": int(live_usage_fields.get("llm_request_count_delta") or 0),
+                "llm_branch_correction_used": bool(live_usage_fields.get("llm_branch_correction_used")),
+                "llm_resolution_contributed": bool(live_usage_fields.get("llm_resolution_contributed")),
+                "llm_only_resolution": bool(live_usage_fields.get("llm_only_resolution")),
                 "physics_contract_reasons": physics_contract_reasons,
                 "physics_contract_invariant_count": int(physics_eval.get("invariant_count") or 0),
                 "regression_pass": bool(regression_ok),
@@ -2469,6 +2546,7 @@ def _run_task_live(
             break
 
     best_contract_attempt = _pick_best_contract_attempt(attempts)
+    best_live_usage_fields = _extract_live_usage_fields(best_contract_attempt or {}, best_contract_attempt or {})
     return {
         "task_id": str(task.get("task_id") or ""),
         "scale": scale,
@@ -2559,6 +2637,17 @@ def _run_task_live(
         "branch_escape_succeeded": bool(best_contract_attempt.get("branch_escape_succeeded")) if best_contract_attempt else False,
         "branch_escape_direction": str(best_contract_attempt.get("branch_escape_direction") or "") if best_contract_attempt else "",
         "branch_budget_reallocated": bool(best_contract_attempt.get("branch_budget_reallocated")) if best_contract_attempt else False,
+        "planner_backend": str(best_live_usage_fields.get("planner_backend") or ""),
+        "resolved_llm_provider": str(best_live_usage_fields.get("resolved_llm_provider") or ""),
+        "live_request_count": int(best_live_usage_fields.get("live_request_count") or 0),
+        "rate_limit_429_count": int(best_live_usage_fields.get("rate_limit_429_count") or 0),
+        "budget_stop_triggered": bool(best_live_usage_fields.get("budget_stop_triggered")),
+        "llm_plan_used": bool(best_live_usage_fields.get("llm_plan_used")),
+        "llm_plan_reason": str(best_live_usage_fields.get("llm_plan_reason") or ""),
+        "llm_request_count_delta": int(best_live_usage_fields.get("llm_request_count_delta") or 0),
+        "llm_branch_correction_used": bool(best_live_usage_fields.get("llm_branch_correction_used")),
+        "llm_resolution_contributed": bool(best_live_usage_fields.get("llm_resolution_contributed")),
+        "llm_only_resolution": bool(best_live_usage_fields.get("llm_only_resolution")),
         "repair_strategy": repair_strategy,
         "repair_audit": {
             **strategy_audit,

@@ -26,6 +26,7 @@ from .physics_contract_v0 import default_physics_contract_v0, evaluate_physics_c
 
 SCHEMA_VERSION = "agent_modelica_source_blind_multistep_taskset_v1"
 MULTISTEP_MARKER_PREFIX = "gateforge_source_blind_multistep_violation"
+DEFAULT_REALISM_VERSION = "v3"
 DEFAULT_FAILURE_TYPES = ALLOWED_FAILURE_TYPES
 FAILURE_METADATA = {
     "stability_then_behavior": {
@@ -105,6 +106,22 @@ FAILURE_METADATA = {
     },
 }
 
+V4_ALLOWED_MODELS_BY_FAILURE = {
+    "stability_then_behavior": {"planta", "plant_a", "plantb", "plant_b"},
+    "behavior_then_robustness": {"switcha", "switch_a", "switchb", "switch_b"},
+    "switch_then_recovery": {"hybrida", "hybrid_a", "hybridb", "hybrid_b"},
+}
+V4_LLM_FORCING_PROFILES = {
+    "stability_then_behavior": "coupled_stage_unlock_then_behavior_branch",
+    "behavior_then_robustness": "branch_ambiguity_then_neighbor_robustness",
+    "switch_then_recovery": "trap_escape_then_recovery_resolution",
+}
+V4_LLM_TRIGGER_REASONS = {
+    "stability_then_behavior": "same_stage_2_branch_stall",
+    "behavior_then_robustness": "branch_diagnosis_unknown_or_candidate_pool_exhausted",
+    "switch_then_recovery": "trap_escape_no_progress",
+}
+
 
 def _build_contract(invariants: list[dict]) -> dict:
     contract = default_physics_contract_v0()
@@ -129,7 +146,33 @@ def _task_contract_details(failure_type: str) -> tuple[dict, dict, dict]:
     return baseline_metrics, candidate_metrics, evaluation
 
 
-def _mutate_source_blind_multistep_model(source_text: str, failure_type: str) -> str:
+def _prepend_multistep_markers(
+    source_text: str,
+    *,
+    failure_type: str,
+    realism_version: str,
+    llm_forcing: bool,
+    llm_forcing_profile: str,
+    llm_trigger_reason: str,
+) -> str:
+    prefix_lines = [f"// {MULTISTEP_MARKER_PREFIX}:{failure_type}"]
+    if str(realism_version or "").strip():
+        prefix_lines.append(f"// gateforge_source_blind_multistep_realism_version:{realism_version}")
+    if llm_forcing:
+        prefix_lines.append("// gateforge_source_blind_multistep_llm_forcing:1")
+        if str(llm_forcing_profile or "").strip():
+            prefix_lines.append(f"// gateforge_source_blind_multistep_llm_profile:{llm_forcing_profile}")
+        if str(llm_trigger_reason or "").strip():
+            prefix_lines.append(f"// gateforge_source_blind_multistep_llm_trigger:{llm_trigger_reason}")
+    return "\n".join(prefix_lines) + "\n" + str(source_text or "").lstrip()
+
+
+def _mutate_source_blind_multistep_model(
+    source_text: str,
+    failure_type: str,
+    *,
+    realism_version: str = DEFAULT_REALISM_VERSION,
+) -> str:
     lower_source = str(source_text or "").lower()
     if "model plantb" in lower_source:
         plantb_patterns = {
@@ -163,7 +206,15 @@ def _mutate_source_blind_multistep_model(source_text: str, failure_type: str) ->
                         updated_line = candidate
                         seen_patterns.add(pattern)
                 updated_lines.append(updated_line)
-            return "".join(updated_lines)
+            mutated = "".join(updated_lines)
+            return _prepend_multistep_markers(
+                mutated,
+                failure_type=failure_type,
+                realism_version=realism_version,
+                llm_forcing=str(realism_version or "").strip().lower() == "v4",
+                llm_forcing_profile=V4_LLM_FORCING_PROFILES.get(str(failure_type or "").strip().lower(), ""),
+                llm_trigger_reason=V4_LLM_TRIGGER_REASONS.get(str(failure_type or "").strip().lower(), ""),
+            )
     if "model switchb" in lower_source:
         switchb_patterns = {
             "behavior_then_robustness": [
@@ -192,7 +243,15 @@ def _mutate_source_blind_multistep_model(source_text: str, failure_type: str) ->
                         updated_line = candidate
                         seen_patterns.add(pattern)
                 updated_lines.append(updated_line)
-            return "".join(updated_lines)
+            mutated = "".join(updated_lines)
+            return _prepend_multistep_markers(
+                mutated,
+                failure_type=failure_type,
+                realism_version=realism_version,
+                llm_forcing=str(realism_version or "").strip().lower() == "v4",
+                llm_forcing_profile=V4_LLM_FORCING_PROFILES.get(str(failure_type or "").strip().lower(), ""),
+                llm_trigger_reason=V4_LLM_TRIGGER_REASONS.get(str(failure_type or "").strip().lower(), ""),
+            )
     if "model switcha" in lower_source:
         switcha_patterns = {
             "stability_then_behavior": [
@@ -221,7 +280,15 @@ def _mutate_source_blind_multistep_model(source_text: str, failure_type: str) ->
                         updated_line = candidate
                         seen_patterns.add(pattern)
                 updated_lines.append(updated_line)
-            return "".join(updated_lines)
+            mutated = "".join(updated_lines)
+            return _prepend_multistep_markers(
+                mutated,
+                failure_type=failure_type,
+                realism_version=realism_version,
+                llm_forcing=str(realism_version or "").strip().lower() == "v4",
+                llm_forcing_profile=V4_LLM_FORCING_PROFILES.get(str(failure_type or "").strip().lower(), ""),
+                llm_trigger_reason=V4_LLM_TRIGGER_REASONS.get(str(failure_type or "").strip().lower(), ""),
+            )
     if "model hybridb" in lower_source:
         hybridb_patterns = {
             "switch_then_recovery": [
@@ -251,7 +318,15 @@ def _mutate_source_blind_multistep_model(source_text: str, failure_type: str) ->
                         updated_line = candidate
                         seen_patterns.add(pattern)
                 updated_lines.append(updated_line)
-            return "".join(updated_lines)
+            mutated = "".join(updated_lines)
+            return _prepend_multistep_markers(
+                mutated,
+                failure_type=failure_type,
+                realism_version=realism_version,
+                llm_forcing=str(realism_version or "").strip().lower() == "v4",
+                llm_forcing_profile=V4_LLM_FORCING_PROFILES.get(str(failure_type or "").strip().lower(), ""),
+                llm_trigger_reason=V4_LLM_TRIGGER_REASONS.get(str(failure_type or "").strip().lower(), ""),
+            )
     patterns_by_failure = {
         "stability_then_behavior": [
             (r"\bk\s*=\s*1(?:\.0+)?", "k=1.18"),
@@ -295,8 +370,15 @@ def _mutate_source_blind_multistep_model(source_text: str, failure_type: str) ->
         updated_lines.append(updated_line)
     mutated = "".join(updated_lines)
     if applied <= 0:
-        return f"// {MULTISTEP_MARKER_PREFIX}:{failure_type}\n{mutated}"
-    return mutated
+        mutated = str(source_text or "")
+    return _prepend_multistep_markers(
+        mutated,
+        failure_type=failure_type,
+        realism_version=realism_version,
+        llm_forcing=str(realism_version or "").strip().lower() == "v4",
+        llm_forcing_profile=V4_LLM_FORCING_PROFILES.get(str(failure_type or "").strip().lower(), ""),
+        llm_trigger_reason=V4_LLM_TRIGGER_REASONS.get(str(failure_type or "").strip().lower(), ""),
+    )
 
 
 def build_source_blind_multistep_taskset(
@@ -306,6 +388,7 @@ def build_source_blind_multistep_taskset(
     failure_types: list[str],
     holdout_ratio: float,
     seed: str,
+    realism_version: str = DEFAULT_REALISM_VERSION,
 ) -> dict:
     payload = load_source_blind_multistep_manifest(manifest_path)
     libraries, manifest_reasons = validate_source_blind_multistep_manifest(payload)
@@ -328,13 +411,21 @@ def build_source_blind_multistep_taskset(
                 model_path = Path(_norm(model.get("model_path")))
                 library_id = _norm(library.get("library_id")).lower()
                 model_id = _norm(model.get("model_id")).lower()
+                if str(realism_version or "").strip().lower() == "v4":
+                    allowed_models = V4_ALLOWED_MODELS_BY_FAILURE.get(failure_type, set())
+                    if allowed_models and model_id not in allowed_models:
+                        continue
                 copied_source_path = source_models_dir / library_id / f"{model_id}.mo"
                 source_text = _normalize_behavioral_source_model_text(model_path.read_text(encoding="utf-8", errors="ignore"))
                 if str(model_path) not in copied_source_paths:
                     _write_text(copied_source_path, source_text)
                     copied_source_paths[str(model_path)] = str(copied_source_path.resolve())
                 mutated_path = mutants_dir / failure_type / f"{library_id}_{model_id}_{failure_type}.mo"
-                mutated_text = _mutate_source_blind_multistep_model(source_text, failure_type)
+                mutated_text = _mutate_source_blind_multistep_model(
+                    source_text,
+                    failure_type,
+                    realism_version=realism_version,
+                )
                 _write_text(mutated_path, mutated_text)
                 baseline_metrics, candidate_metrics, evaluation = _task_contract_details(failure_type)
                 findings = [
@@ -353,7 +444,18 @@ def build_source_blind_multistep_taskset(
                     "failure_type": failure_type,
                     "expected_stage": "simulate",
                     "multi_step_family": meta["multi_step_family"],
-                    "realism_version": str(meta.get("realism_version") or "v1"),
+                    "realism_version": str(realism_version or meta.get("realism_version") or "v1"),
+                    "llm_forcing": bool(str(realism_version or "").strip().lower() == "v4"),
+                    "llm_forcing_profile": (
+                        V4_LLM_FORCING_PROFILES.get(failure_type, "")
+                        if str(realism_version or "").strip().lower() == "v4"
+                        else ""
+                    ),
+                    "llm_trigger_reason": (
+                        V4_LLM_TRIGGER_REASONS.get(failure_type, "")
+                        if str(realism_version or "").strip().lower() == "v4"
+                        else ""
+                    ),
                     "contract_metric_set": list(meta["contract_metric_set"]),
                     "expected_failure_sequence": list(meta["expected_failure_sequence"]),
                     "expected_contract_failures": expected_contract_failures,
@@ -409,6 +511,7 @@ def build_source_blind_multistep_taskset(
         "scenario_count_distribution": scenario_count_distribution,
         "holdout_ratio": holdout_ratio,
         "split_seed": seed,
+        "realism_version": str(realism_version or DEFAULT_REALISM_VERSION),
         "taskset_frozen_path": str((out_root / "taskset_frozen.json").resolve()),
         "reasons": sorted(set(reasons)),
     }
@@ -424,6 +527,7 @@ def main() -> None:
     parser.add_argument("--failure-types", default=",".join(DEFAULT_FAILURE_TYPES))
     parser.add_argument("--holdout-ratio", type=float, default=0.15)
     parser.add_argument("--seed", default="agent_modelica_source_blind_multistep_taskset_v1")
+    parser.add_argument("--realism-version", default=DEFAULT_REALISM_VERSION)
     args = parser.parse_args()
 
     failure_types = [
@@ -439,6 +543,7 @@ def main() -> None:
         failure_types=failure_types,
         holdout_ratio=float(args.holdout_ratio),
         seed=str(args.seed or "agent_modelica_source_blind_multistep_taskset_v1"),
+        realism_version=str(args.realism_version or DEFAULT_REALISM_VERSION),
     )
     print(
         json.dumps(

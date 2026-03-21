@@ -8,8 +8,10 @@ from pathlib import Path
 from unittest.mock import patch
 
 from gateforge.agent_modelica_live_executor_gemini_v1 import (
+    _IN_MEMORY_LIVE_LEDGER,
     _apply_source_blind_multistep_branch_escape_search,
     _apply_source_blind_multistep_exposure_repair,
+    _apply_source_blind_multistep_llm_resolution,
     _apply_source_blind_multistep_local_search,
     _apply_source_blind_multistep_stage2_local_repair,
     _apply_behavioral_robustness_source_blind_local_repair,
@@ -27,6 +29,7 @@ from gateforge.agent_modelica_live_executor_gemini_v1 import (
     _bootstrap_env_from_repo,
     _diagnostic_context_hints_from_model,
     _extract_om_success_flags,
+    _extract_source_blind_multistep_markers,
     _extract_json_object,
     _llm_round_constraints,
     _llm_request_timeout_sec,
@@ -185,6 +188,51 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
         self.assertEqual(audit.get("cluster_name"), "adaptive_combo")
         self.assertIn("width=40", str(audit.get("candidate_key") or ""))
         self.assertIn("period=0.5", patched)
+
+    def test_extract_source_blind_multistep_markers_detects_llm_forcing(self) -> None:
+        markers = _extract_source_blind_multistep_markers(
+            "// gateforge_source_blind_multistep_realism_version:v4\n"
+            "// gateforge_source_blind_multistep_llm_forcing:1\n"
+            "// gateforge_source_blind_multistep_llm_profile:branch_unknown\n"
+            "// gateforge_source_blind_multistep_llm_trigger:same_stage_2_branch_stall\n"
+            "model SwitchB\nend SwitchB;\n"
+        )
+        self.assertEqual(markers.get("realism_version"), "v4")
+        self.assertTrue(bool(markers.get("llm_forcing")))
+        self.assertEqual(markers.get("llm_profile"), "branch_unknown")
+        self.assertEqual(markers.get("llm_trigger"), "same_stage_2_branch_stall")
+
+    def test_source_blind_multistep_llm_resolution_restores_switchb_behavior_bundle(self) -> None:
+        model_text = (
+            "// gateforge_source_blind_multistep_realism_version:v4\n"
+            "// gateforge_source_blind_multistep_llm_forcing:1\n"
+            "model SwitchB\n"
+            "  parameter Real startTime=0.75;\n"
+            "  parameter Real freqHz=1.6;\n"
+            "  parameter Real k=0.82;\n"
+            "end SwitchB;\n"
+        )
+        patched, audit = _apply_source_blind_multistep_llm_resolution(
+            current_text=model_text,
+            declared_failure_type="behavior_then_robustness",
+            llm_reason="branch_diagnosis_unknown",
+        )
+        self.assertTrue(audit.get("applied"))
+        self.assertIn("startTime=0.3", patched)
+        self.assertIn("freqHz=1", patched)
+        self.assertIn("k=0.5", patched)
+
+    def test_live_ledger_uses_in_memory_fallback_without_path(self) -> None:
+        _IN_MEMORY_LIVE_LEDGER.clear()
+        cfg = _live_budget_config()
+        self.assertEqual(str(cfg.get("ledger_path") or ""), "")
+        before = _reserve_live_request(cfg)[1]
+        self.assertEqual(int(before.get("request_count") or 0), 1)
+        after = _record_live_request_429(cfg)[1]
+        self.assertEqual(int(after.get("request_count") or 0), 1)
+        self.assertEqual(int(after.get("rate_limit_429_count") or 0), 1)
+        loaded = _reserve_live_request(cfg)[1]
+        self.assertEqual(int(loaded.get("request_count") or 0), 2)
 
     def test_source_blind_multistep_local_search_prefers_plantb_stage1_unlock_bundle(self) -> None:
         model_text = (
