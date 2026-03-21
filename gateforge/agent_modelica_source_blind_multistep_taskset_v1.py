@@ -30,8 +30,15 @@ DEFAULT_FAILURE_TYPES = ALLOWED_FAILURE_TYPES
 FAILURE_METADATA = {
     "stability_then_behavior": {
         "multi_step_family": "stability_then_behavior",
+        "realism_version": "v3",
         "contract_metric_set": ["stability_margin", "behavior_error", "neighbor_case_error"],
         "expected_failure_sequence": ["stability_margin_miss", "behavior_contract_miss"],
+        "stage_2_branches": [
+            {"branch": "behavior_timing_branch", "fail_bucket": "behavior_contract_miss", "trap": False},
+            {"branch": "neighbor_overfit_trap", "fail_bucket": "single_case_only", "trap": True},
+        ],
+        "preferred_stage_2_branch": "behavior_timing_branch",
+        "trap_stage_2_branch": "neighbor_overfit_trap",
         "expected_rounds_min": 2,
         "scenario_matrix": [
             {"scenario_id": "nominal", "kind": "primary", "mode": "stability_gate"},
@@ -48,8 +55,15 @@ FAILURE_METADATA = {
     },
     "behavior_then_robustness": {
         "multi_step_family": "behavior_then_robustness",
+        "realism_version": "v3",
         "contract_metric_set": ["steady_state_error", "neighbor_case_error", "robustness_error"],
         "expected_failure_sequence": ["behavior_contract_miss", "single_case_only"],
+        "stage_2_branches": [
+            {"branch": "neighbor_robustness_branch", "fail_bucket": "single_case_only", "trap": False},
+            {"branch": "nominal_overfit_trap", "fail_bucket": "behavior_contract_miss", "trap": True},
+        ],
+        "preferred_stage_2_branch": "neighbor_robustness_branch",
+        "trap_stage_2_branch": "nominal_overfit_trap",
         "expected_rounds_min": 2,
         "scenario_matrix": [
             {"scenario_id": "nominal", "kind": "primary", "mode": "behavior_gate"},
@@ -66,8 +80,15 @@ FAILURE_METADATA = {
     },
     "switch_then_recovery": {
         "multi_step_family": "switch_then_recovery",
+        "realism_version": "v3",
         "contract_metric_set": ["scenario_switch_error", "post_switch_recovery", "neighbor_case_error"],
         "expected_failure_sequence": ["scenario_switch_miss", "post_switch_recovery_miss"],
+        "stage_2_branches": [
+            {"branch": "post_switch_recovery_branch", "fail_bucket": "post_switch_recovery_miss", "trap": False},
+            {"branch": "recovery_overfit_trap", "fail_bucket": "single_case_only", "trap": True},
+        ],
+        "preferred_stage_2_branch": "post_switch_recovery_branch",
+        "trap_stage_2_branch": "recovery_overfit_trap",
         "expected_rounds_min": 3,
         "scenario_matrix": [
             {"scenario_id": "nominal", "kind": "primary", "mode": "switch_gate"},
@@ -332,9 +353,13 @@ def build_source_blind_multistep_taskset(
                     "failure_type": failure_type,
                     "expected_stage": "simulate",
                     "multi_step_family": meta["multi_step_family"],
+                    "realism_version": str(meta.get("realism_version") or "v1"),
                     "contract_metric_set": list(meta["contract_metric_set"]),
                     "expected_failure_sequence": list(meta["expected_failure_sequence"]),
                     "expected_contract_failures": expected_contract_failures,
+                    "stage_2_branches": [dict(item) for item in meta.get("stage_2_branches", []) if isinstance(item, dict)],
+                    "preferred_stage_2_branch": str(meta.get("preferred_stage_2_branch") or ""),
+                    "trap_stage_2_branch": str(meta.get("trap_stage_2_branch") or ""),
                     "expected_rounds_min": int(meta["expected_rounds_min"]),
                     "scenario_count": scenario_count,
                     "scenario_matrix": [dict(item) for item in meta["scenario_matrix"]],

@@ -389,6 +389,13 @@ def _extract_multistep_fields(payload: dict, live_attempt: dict) -> dict:
         "next_focus": "",
         "stage_1_unlock_cluster": "",
         "stage_2_first_fail_bucket": "",
+        "stage_2_branch": "",
+        "preferred_stage_2_branch": "",
+        "branch_reason": "",
+        "trap_branch": False,
+        "trap_branch_entered": False,
+        "correct_branch_selected": False,
+        "correct_branch_round": 0,
         "stage_aware_control_applied": False,
         "stage_1_revisit_after_unlock": False,
         "plan_stage": "",
@@ -475,6 +482,34 @@ def _extract_multistep_fields(payload: dict, live_attempt: dict) -> dict:
         or payload.get("stage_2_first_fail_bucket")
         or ""
     ).strip().lower()
+    out["stage_2_branch"] = str(
+        live_attempt.get("stage_2_branch")
+        or payload.get("stage_2_branch")
+        or ""
+    ).strip().lower()
+    out["preferred_stage_2_branch"] = str(
+        live_attempt.get("preferred_stage_2_branch")
+        or payload.get("preferred_stage_2_branch")
+        or ""
+    ).strip().lower()
+    out["branch_reason"] = str(
+        live_attempt.get("branch_reason")
+        or payload.get("branch_reason")
+        or ""
+    ).strip()
+    live_branch = str(live_attempt.get("stage_2_branch") or "").strip().lower()
+    payload_branch = str(payload.get("stage_2_branch") or "").strip().lower()
+    if live_branch:
+        out["trap_branch"] = bool(_as_bool(live_attempt.get("trap_branch")))
+        out["correct_branch_selected"] = bool(_as_bool(live_attempt.get("correct_branch_selected")))
+    else:
+        out["trap_branch"] = bool(_as_bool(payload.get("trap_branch")))
+        out["correct_branch_selected"] = bool(_as_bool(payload.get("correct_branch_selected")))
+    out["trap_branch_entered"] = bool(_as_bool(live_attempt.get("trap_branch_entered"))) or bool(_as_bool(payload.get("trap_branch_entered"))) or bool(out["trap_branch"])
+    try:
+        out["correct_branch_round"] = max(0, int(live_attempt.get("correct_branch_round") or payload.get("correct_branch_round") or 0))
+    except Exception:
+        out["correct_branch_round"] = 0
     stage_aware_payload = _as_bool(payload.get("stage_aware_control_applied"))
     stage_aware_live = _as_bool(live_attempt.get("stage_aware_control_applied"))
     out["stage_aware_control_applied"] = bool(stage_aware_live) or bool(stage_aware_payload)
@@ -1646,6 +1681,13 @@ def _run_task_live_l4(
             "next_focus": str(multistep_fields.get("next_focus") or ""),
             "stage_1_unlock_cluster": str(multistep_fields.get("stage_1_unlock_cluster") or ""),
             "stage_2_first_fail_bucket": str(multistep_fields.get("stage_2_first_fail_bucket") or ""),
+            "stage_2_branch": str(multistep_fields.get("stage_2_branch") or ""),
+            "preferred_stage_2_branch": str(multistep_fields.get("preferred_stage_2_branch") or ""),
+            "branch_reason": str(multistep_fields.get("branch_reason") or ""),
+            "trap_branch": bool(multistep_fields.get("trap_branch")),
+            "trap_branch_entered": bool(multistep_fields.get("trap_branch_entered")),
+            "correct_branch_selected": bool(multistep_fields.get("correct_branch_selected")),
+            "correct_branch_round": int(multistep_fields.get("correct_branch_round") or 0),
             "stage_aware_control_applied": bool(multistep_fields.get("stage_aware_control_applied")),
             "stage_1_revisit_after_unlock": bool(multistep_fields.get("stage_1_revisit_after_unlock")),
             "plan_stage": str(multistep_fields.get("plan_stage") or ""),
@@ -1776,6 +1818,13 @@ def _run_task_live_l4(
         "next_focus": str(best_contract_attempt.get("next_focus") or "") if best_contract_attempt else "",
         "stage_1_unlock_cluster": str(best_contract_attempt.get("stage_1_unlock_cluster") or "") if best_contract_attempt else "",
         "stage_2_first_fail_bucket": str(best_contract_attempt.get("stage_2_first_fail_bucket") or "") if best_contract_attempt else "",
+        "stage_2_branch": str(best_contract_attempt.get("stage_2_branch") or "") if best_contract_attempt else "",
+        "preferred_stage_2_branch": str(best_contract_attempt.get("preferred_stage_2_branch") or "") if best_contract_attempt else "",
+        "branch_reason": str(best_contract_attempt.get("branch_reason") or "") if best_contract_attempt else "",
+        "trap_branch": bool(best_contract_attempt.get("trap_branch")) if best_contract_attempt else False,
+        "trap_branch_entered": bool(best_contract_attempt.get("trap_branch_entered")) if best_contract_attempt else False,
+        "correct_branch_selected": bool(best_contract_attempt.get("correct_branch_selected")) if best_contract_attempt else False,
+        "correct_branch_round": int(best_contract_attempt.get("correct_branch_round") or 0) if best_contract_attempt else 0,
         "stage_aware_control_applied": bool(best_contract_attempt.get("stage_aware_control_applied")) if best_contract_attempt else False,
         "stage_1_revisit_after_unlock": bool(best_contract_attempt.get("stage_1_revisit_after_unlock")) if best_contract_attempt else False,
         "plan_stage": str(best_contract_attempt.get("plan_stage") or "") if best_contract_attempt else "",
@@ -2202,6 +2251,13 @@ def _run_task_live(
                 "next_focus": str(multistep_fields.get("next_focus") or ""),
                 "stage_1_unlock_cluster": str(multistep_fields.get("stage_1_unlock_cluster") or ""),
                 "stage_2_first_fail_bucket": str(multistep_fields.get("stage_2_first_fail_bucket") or ""),
+                "stage_2_branch": str(multistep_fields.get("stage_2_branch") or ""),
+                "preferred_stage_2_branch": str(multistep_fields.get("preferred_stage_2_branch") or ""),
+                "branch_reason": str(multistep_fields.get("branch_reason") or ""),
+                "trap_branch": bool(multistep_fields.get("trap_branch")),
+                "trap_branch_entered": bool(multistep_fields.get("trap_branch_entered")),
+                "correct_branch_selected": bool(multistep_fields.get("correct_branch_selected")),
+                "correct_branch_round": int(multistep_fields.get("correct_branch_round") or 0),
                 "stage_aware_control_applied": bool(multistep_fields.get("stage_aware_control_applied")),
                 "stage_1_revisit_after_unlock": bool(multistep_fields.get("stage_1_revisit_after_unlock")),
                 "plan_stage": str(multistep_fields.get("plan_stage") or ""),
@@ -2301,6 +2357,13 @@ def _run_task_live(
         "next_focus": str(best_contract_attempt.get("next_focus") or "") if best_contract_attempt else "",
         "stage_1_unlock_cluster": str(best_contract_attempt.get("stage_1_unlock_cluster") or "") if best_contract_attempt else "",
         "stage_2_first_fail_bucket": str(best_contract_attempt.get("stage_2_first_fail_bucket") or "") if best_contract_attempt else "",
+        "stage_2_branch": str(best_contract_attempt.get("stage_2_branch") or "") if best_contract_attempt else "",
+        "preferred_stage_2_branch": str(best_contract_attempt.get("preferred_stage_2_branch") or "") if best_contract_attempt else "",
+        "branch_reason": str(best_contract_attempt.get("branch_reason") or "") if best_contract_attempt else "",
+        "trap_branch": bool(best_contract_attempt.get("trap_branch")) if best_contract_attempt else False,
+        "trap_branch_entered": bool(best_contract_attempt.get("trap_branch_entered")) if best_contract_attempt else False,
+        "correct_branch_selected": bool(best_contract_attempt.get("correct_branch_selected")) if best_contract_attempt else False,
+        "correct_branch_round": int(best_contract_attempt.get("correct_branch_round") or 0) if best_contract_attempt else 0,
         "stage_aware_control_applied": bool(best_contract_attempt.get("stage_aware_control_applied")) if best_contract_attempt else False,
         "stage_1_revisit_after_unlock": bool(best_contract_attempt.get("stage_1_revisit_after_unlock")) if best_contract_attempt else False,
         "plan_stage": str(best_contract_attempt.get("plan_stage") or "") if best_contract_attempt else "",

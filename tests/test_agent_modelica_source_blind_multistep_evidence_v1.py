@@ -65,6 +65,13 @@ class AgentModelicaSourceBlindMultistepEvidenceV1Tests(unittest.TestCase):
                 "stage_2_hard_case_resolution_count": 0,
                 "stage_2_hard_case_resolution_pct": 0.0,
                 "search_bad_direction_count": 1,
+                "stage_2_branch_count": 2,
+                "stage_2_branch_pct": 100.0,
+                "branch_selection_error_count": 1,
+                "good_branch_resolution_count": 0,
+                "trap_branch_enter_count": 1,
+                "trap_branch_recovery_count": 0,
+                "median_round_to_correct_branch": 2.0,
                 "hard_case_remaining_buckets": {"post_switch_recovery_miss": 1},
                 "median_round_from_stage_2_to_resolution": 0.0,
                 "multi_step_completion_count": 0,
@@ -140,6 +147,10 @@ class AgentModelicaSourceBlindMultistepEvidenceV1Tests(unittest.TestCase):
             self.assertEqual(payload.get("stage_2_resolution_via_adaptive_search_count"), 1)
             self.assertEqual(payload.get("stage_2_hard_case_count"), 1)
             self.assertEqual(payload.get("search_bad_direction_count"), 1)
+            self.assertEqual(payload.get("stage_2_branch_count"), 2)
+            self.assertEqual(payload.get("branch_selection_error_count"), 1)
+            self.assertEqual(payload.get("trap_branch_enter_count"), 1)
+            self.assertEqual(payload.get("median_round_to_correct_branch"), 2.0)
             self.assertEqual(payload.get("hard_case_remaining_buckets"), {"post_switch_recovery_miss": 1})
 
 

@@ -129,6 +129,10 @@ class AgentModelicaSourceBlindMultistepTasksetV1Tests(unittest.TestCase):
             first = taskset["tasks"][0]
             self.assertEqual(first.get("expected_stage"), "simulate")
             self.assertIn(first.get("multi_step_family"), {"stability_then_behavior", "behavior_then_robustness", "switch_then_recovery"})
+            self.assertEqual(first.get("realism_version"), "v3")
+            self.assertTrue(first.get("stage_2_branches"))
+            self.assertTrue(first.get("preferred_stage_2_branch"))
+            self.assertTrue(first.get("trap_stage_2_branch"))
             self.assertEqual(first.get("pass_requirement"), "all_scenarios")
             self.assertEqual(len(first.get("expected_failure_sequence") or []), 2)
             self.assertEqual(int(first.get("scenario_count") or 0), 3)

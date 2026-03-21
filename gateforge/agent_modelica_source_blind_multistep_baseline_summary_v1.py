@@ -77,6 +77,10 @@ def _infer_fail_bucket(record: dict, task: dict) -> str:
 def _attempt_signature(attempt: dict, task: dict) -> str:
     stage = str(attempt.get("multi_step_stage") or "").strip().lower()
     if stage:
+        if stage == "stage_2":
+            branch = str(attempt.get("stage_2_branch") or "").strip().lower()
+            if branch:
+                return f"{stage}:{branch}"
         return stage
     rows = attempt.get("scenario_results")
     if isinstance(rows, list) and rows:
@@ -165,6 +169,12 @@ def main() -> None:
     stage_2_hard_case_count = 0
     stage_2_hard_case_resolution_count = 0
     search_bad_direction_count = 0
+    stage_2_branch_count = 0
+    branch_selection_error_count = 0
+    good_branch_resolution_count = 0
+    trap_branch_enter_count = 0
+    trap_branch_recovery_count = 0
+    round_to_correct_branch_values: list[float] = []
     hard_case_remaining_buckets: dict[str, int] = {}
     repair_action_sequence: dict[str, int] = {}
     stage_transition_action_sequence: dict[str, int] = {}
@@ -185,6 +195,9 @@ def main() -> None:
         unlocked_rounds: list[int] = []
         stage_2_focus_seen = False
         stage_1_revisit_seen = False
+        branch_seen = False
+        trap_entered = False
+        correct_branch_seen = False
         stage_plan_generated_seen = False
         stage_plan_followed_seen = False
         stage_2_plan_generated_seen = False
@@ -209,6 +222,16 @@ def main() -> None:
                     stage_2_focus_seen = True
                 if bool(attempt.get("stage_1_revisit_after_unlock")):
                     stage_1_revisit_seen = True
+            if str(attempt.get("stage_2_branch") or "").strip():
+                branch_seen = True
+            if bool(attempt.get("trap_branch")) or bool(attempt.get("trap_branch_entered")):
+                trap_entered = True
+            if bool(attempt.get("correct_branch_selected")):
+                correct_branch_seen = True
+                try:
+                    round_to_correct_branch_values.append(float(int(attempt.get("round") or 0)))
+                except Exception:
+                    pass
             if bool(attempt.get("stage_plan_generated")):
                 stage_plan_generated_seen = True
             if bool(attempt.get("stage_plan_followed")) or bool(attempt.get("plan_followed")):
@@ -260,6 +283,12 @@ def main() -> None:
             adaptive_search_success_count += 1
         if unlocked_rounds:
             stage_2_unlock_count += 1
+            if branch_seen or str(record.get("stage_2_branch") or "").strip():
+                stage_2_branch_count += 1
+            if trap_entered or bool(record.get("trap_branch_entered")):
+                trap_branch_enter_count += 1
+            if correct_branch_seen or bool(record.get("correct_branch_selected")):
+                pass
             first_unlock = min(x for x in unlocked_rounds if x > 0) if any(x > 0 for x in unlocked_rounds) else 0
             if first_unlock > 0:
                 round_to_stage_2_values.append(float(first_unlock))
@@ -279,6 +308,10 @@ def main() -> None:
                 stage_2_then_pass_count += 1
                 stage_2_resolution_count += 1
                 stage2_row["stage_2_resolution_count"] += 1
+                if (correct_branch_seen or bool(record.get("correct_branch_selected"))) and not (trap_entered or bool(record.get("trap_branch_entered"))):
+                    good_branch_resolution_count += 1
+                if trap_entered or bool(record.get("trap_branch_entered")):
+                    trap_branch_recovery_count += 1
                 first_stage2_bucket = str(record.get("stage_2_first_fail_bucket") or "").strip().lower()
                 if first_stage2_bucket in {"behavior_contract_miss", "post_switch_recovery_miss"}:
                     stage_2_hard_case_resolution_count += 1
@@ -298,6 +331,8 @@ def main() -> None:
                 partial_pass_count += 1
             if bool(record.get("multi_step_stage_2_unlocked")) or unlocked_rounds:
                 stage_2_then_fail_count += 1
+                if trap_entered or bool(record.get("trap_branch_entered")):
+                    branch_selection_error_count += 1
                 first_stage2_bucket = str(record.get("stage_2_first_fail_bucket") or record.get("contract_fail_bucket") or "").strip().lower()
                 if first_stage2_bucket:
                     hard_case_remaining_buckets[first_stage2_bucket] = int(hard_case_remaining_buckets.get(first_stage2_bucket, 0)) + 1
@@ -384,14 +419,25 @@ def main() -> None:
         "stage_2_hard_case_resolution_count": stage_2_hard_case_resolution_count,
         "stage_2_hard_case_resolution_pct": _ratio(stage_2_hard_case_resolution_count, stage_2_hard_case_count),
         "search_bad_direction_count": search_bad_direction_count,
+        "stage_2_branch_count": stage_2_branch_count,
+        "stage_2_branch_pct": _ratio(stage_2_branch_count, total_tasks),
+        "branch_selection_error_count": branch_selection_error_count,
+        "good_branch_resolution_count": good_branch_resolution_count,
+        "trap_branch_enter_count": trap_branch_enter_count,
+        "trap_branch_recovery_count": trap_branch_recovery_count,
+        "median_round_to_correct_branch": _median(round_to_correct_branch_values),
         "hard_case_remaining_buckets": hard_case_remaining_buckets,
         "median_round_from_stage_2_to_resolution": round(_median(round_from_stage_2_to_resolution_values), 2),
         "repair_action_sequence": dict(sorted(repair_action_sequence.items(), key=lambda item: (-item[1], item[0]))[:10]),
         "stage_transition_action_sequence": dict(sorted(stage_transition_action_sequence.items(), key=lambda item: (-item[1], item[0]))[:10]),
         "multi_step_headroom_status": (
-            "stage_aware_control_observed"
-            if stage_2_plan_followed_count > 0
-            else ("stage_aware_control_not_yet_effective" if stage_2_unlock_count > 0 else "task_construction_still_too_shallow")
+            "branch_selection_headroom_present"
+            if stage_2_branch_count > 0 and branch_selection_error_count > 0
+            else (
+                "stage_aware_control_observed"
+                if stage_2_plan_followed_count > 0
+                else ("stage_aware_control_not_yet_effective" if stage_2_unlock_count > 0 else "task_construction_still_too_shallow")
+            )
         ),
         "sources": {
             "challenge_summary": args.challenge_summary,

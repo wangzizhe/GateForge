@@ -625,9 +625,11 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
         self.assertEqual(str(eval1.get("multi_step_stage") or ""), "stage_1")
         self.assertFalse(bool(eval1.get("multi_step_stage_2_unlocked")))
         self.assertFalse(bool(eval2.get("pass")))
-        self.assertEqual(str(eval2.get("contract_fail_bucket") or ""), "behavior_contract_miss")
+        self.assertEqual(str(eval2.get("contract_fail_bucket") or ""), "single_case_only")
         self.assertEqual(str(eval2.get("multi_step_stage") or ""), "stage_2")
         self.assertTrue(bool(eval2.get("multi_step_stage_2_unlocked")))
+        self.assertEqual(str(eval2.get("stage_2_branch") or ""), "neighbor_overfit_trap")
+        self.assertTrue(bool(eval2.get("trap_branch")))
 
     def test_source_blind_multistep_contract_eval_handles_switchb_two_stage_path(self) -> None:
         source = (
@@ -662,10 +664,12 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
             failure_type="behavior_then_robustness",
         )
         self.assertEqual(str(eval1.get("contract_fail_bucket") or ""), "behavior_contract_miss")
-        self.assertEqual(str(eval2.get("contract_fail_bucket") or ""), "single_case_only")
+        self.assertEqual(str(eval2.get("contract_fail_bucket") or ""), "behavior_contract_miss")
         self.assertEqual(str(eval1.get("multi_step_stage") or ""), "stage_1")
         self.assertEqual(str(eval2.get("multi_step_stage") or ""), "stage_2")
         self.assertTrue(bool(eval2.get("multi_step_transition_seen")))
+        self.assertEqual(str(eval2.get("stage_2_branch") or ""), "nominal_overfit_trap")
+        self.assertTrue(bool(eval2.get("trap_branch")))
 
     def test_source_blind_multistep_contract_eval_handles_hybridb_two_stage_path(self) -> None:
         source = (
@@ -697,10 +701,12 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
             failure_type="switch_then_recovery",
         )
         self.assertEqual(str(eval1.get("contract_fail_bucket") or ""), "scenario_switch_miss")
-        self.assertEqual(str(eval2.get("contract_fail_bucket") or ""), "post_switch_recovery_miss")
+        self.assertEqual(str(eval2.get("contract_fail_bucket") or ""), "single_case_only")
         self.assertEqual(str(eval1.get("multi_step_stage") or ""), "stage_1")
         self.assertEqual(str(eval2.get("multi_step_stage") or ""), "stage_2")
         self.assertEqual(str(eval2.get("multi_step_transition_reason") or ""), "switch_segment_restored_recovery_gate_exposed")
+        self.assertEqual(str(eval2.get("stage_2_branch") or ""), "recovery_overfit_trap")
+        self.assertTrue(bool(eval2.get("trap_branch")))
 
     def test_source_blind_multistep_contract_eval_handles_switcha_stability_two_stage_path(self) -> None:
         source = (
@@ -735,6 +741,8 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
         self.assertEqual(str(eval2.get("contract_fail_bucket") or ""), "behavior_contract_miss")
         self.assertEqual(str(eval1.get("multi_step_stage") or ""), "stage_1")
         self.assertEqual(str(eval2.get("multi_step_stage") or ""), "stage_2")
+        self.assertEqual(str(eval2.get("stage_2_branch") or ""), "behavior_timing_branch")
+        self.assertFalse(bool(eval2.get("trap_branch")))
 
     def test_source_blind_multistep_contract_eval_handles_plantb_switch_recovery_two_stage_path(self) -> None:
         source = (
@@ -763,9 +771,11 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
             failure_type="switch_then_recovery",
         )
         self.assertEqual(str(eval1.get("contract_fail_bucket") or ""), "scenario_switch_miss")
-        self.assertEqual(str(eval2.get("contract_fail_bucket") or ""), "post_switch_recovery_miss")
+        self.assertEqual(str(eval2.get("contract_fail_bucket") or ""), "single_case_only")
         self.assertEqual(str(eval1.get("multi_step_stage") or ""), "stage_1")
         self.assertEqual(str(eval2.get("multi_step_stage") or ""), "stage_2")
+        self.assertEqual(str(eval2.get("stage_2_branch") or ""), "recovery_overfit_trap")
+        self.assertTrue(bool(eval2.get("trap_branch")))
 
     def test_build_multistep_stage_context_prefers_stage_2_focus_and_memory(self) -> None:
         context = _build_multistep_stage_context(
@@ -774,7 +784,10 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
                 "multi_step_stage": "stage_2",
                 "multi_step_stage_2_unlocked": True,
                 "multi_step_transition_reason": "nominal_behavior_restored_neighbor_robustness_exposed",
-                "contract_fail_bucket": "single_case_only",
+                "contract_fail_bucket": "behavior_contract_miss",
+                "stage_2_branch": "nominal_overfit_trap",
+                "preferred_stage_2_branch": "neighbor_robustness_branch",
+                "trap_branch": True,
             },
             current_round=2,
             memory={
@@ -786,9 +799,11 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
         )
         self.assertEqual(context.get("current_stage"), "stage_2")
         self.assertTrue(bool(context.get("stage_2_unlocked")))
-        self.assertEqual(context.get("next_focus"), "resolve_stage_2_neighbor_robustness")
+        self.assertEqual(context.get("next_focus"), "escape_trap_branch_nominal_overfit")
         self.assertEqual(context.get("stage_1_unlock_cluster"), "switchb_unlock_cluster")
-        self.assertEqual(context.get("stage_2_first_fail_bucket"), "single_case_only")
+        self.assertEqual(context.get("stage_2_first_fail_bucket"), "behavior_contract_miss")
+        self.assertEqual(context.get("stage_2_branch"), "nominal_overfit_trap")
+        self.assertTrue(bool(context.get("trap_branch")))
 
     def test_stage_1_focus_detector_ignores_stage_2_guard_language(self) -> None:
         self.assertFalse(

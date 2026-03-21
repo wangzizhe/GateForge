@@ -1169,6 +1169,11 @@ def _build_multistep_eval(
     pass_all: bool,
     bucket: str,
     scenario_results: list[dict],
+    stage_2_branch: str = "",
+    preferred_stage_2_branch: str = "",
+    branch_reason: str = "",
+    trap_branch: bool = False,
+    correct_branch_selected: bool = False,
 ) -> dict:
     stage_norm = str(stage or "").strip().lower()
     unlocked = stage_norm in {"stage_2", "passed"}
@@ -1182,10 +1187,15 @@ def _build_multistep_eval(
         "multi_step_stage_2_unlocked": bool(unlocked),
         "multi_step_transition_seen": bool(transition_seen),
         "multi_step_transition_reason": str(transition_reason or ""),
+        "stage_2_branch": str(stage_2_branch or ""),
+        "preferred_stage_2_branch": str(preferred_stage_2_branch or ""),
+        "branch_reason": str(branch_reason or ""),
+        "trap_branch": bool(trap_branch),
+        "correct_branch_selected": bool(correct_branch_selected),
     }
 
 
-def _multistep_stage_default_focus(*, failure_type: str, stage: str, fail_bucket: str) -> str:
+def _multistep_stage_default_focus(*, failure_type: str, stage: str, fail_bucket: str, stage_2_branch: str = "", trap_branch: bool = False) -> str:
     ftype = str(failure_type or "").strip().lower()
     stage_norm = str(stage or "").strip().lower()
     bucket = str(fail_bucket or "").strip().lower()
@@ -1197,6 +1207,19 @@ def _multistep_stage_default_focus(*, failure_type: str, stage: str, fail_bucket
         }
         return mapping.get(ftype, "unlock_stage_2")
     if stage_norm == "stage_2":
+        branch = str(stage_2_branch or "").strip().lower()
+        if branch:
+            branch_mapping = {
+                "behavior_timing_branch": "resolve_stage_2_behavior_timing",
+                "neighbor_robustness_branch": "resolve_stage_2_neighbor_robustness",
+                "post_switch_recovery_branch": "resolve_stage_2_post_switch_recovery",
+                "neighbor_overfit_trap": "escape_trap_branch_neighbor_overfit",
+                "nominal_overfit_trap": "escape_trap_branch_nominal_overfit",
+                "recovery_overfit_trap": "escape_trap_branch_recovery_overfit",
+            }
+            if trap_branch:
+                return branch_mapping.get(branch, "escape_trap_branch")
+            return branch_mapping.get(branch, "resolve_stage_2_branch_specific_failure")
         mapping = {
             "behavior_contract_miss": "resolve_stage_2_behavior_contract",
             "single_case_only": "resolve_stage_2_neighbor_robustness",
@@ -1253,10 +1276,33 @@ def _build_multistep_stage_context(
     stage_2_first_fail_bucket = str(memory.get("stage_2_first_fail_bucket") or "").strip().lower()
     if stage_2_unlocked and current_fail_bucket and not stage_2_first_fail_bucket:
         stage_2_first_fail_bucket = current_fail_bucket
+    stage_2_branch = str(
+        eval_payload.get("stage_2_branch")
+        or memory.get("stage_2_branch")
+        or ""
+    ).strip().lower()
+    preferred_stage_2_branch = str(
+        eval_payload.get("preferred_stage_2_branch")
+        or memory.get("preferred_stage_2_branch")
+        or ""
+    ).strip().lower()
+    branch_reason = str(
+        eval_payload.get("branch_reason")
+        or memory.get("branch_reason")
+        or ""
+    ).strip()
+    if stage_2_branch:
+        trap_branch = bool(eval_payload.get("trap_branch"))
+        correct_branch_selected = bool(eval_payload.get("correct_branch_selected"))
+    else:
+        trap_branch = bool(memory.get("trap_branch_active"))
+        correct_branch_selected = bool(memory.get("correct_branch_selected"))
     next_focus = _multistep_stage_default_focus(
         failure_type=failure_type,
         stage=current_stage,
         fail_bucket=current_fail_bucket or stage_2_first_fail_bucket,
+        stage_2_branch=stage_2_branch,
+        trap_branch=trap_branch,
     )
     return {
         "current_stage": current_stage,
@@ -1267,6 +1313,11 @@ def _build_multistep_stage_context(
         "next_focus": next_focus,
         "stage_1_unlock_cluster": str(memory.get("stage_1_unlock_cluster") or ""),
         "stage_2_first_fail_bucket": stage_2_first_fail_bucket,
+        "stage_2_branch": stage_2_branch,
+        "preferred_stage_2_branch": preferred_stage_2_branch,
+        "branch_reason": branch_reason,
+        "trap_branch": trap_branch,
+        "correct_branch_selected": correct_branch_selected,
     }
 
 
@@ -1286,6 +1337,34 @@ def _stage_plan_fields(*, plan: dict | None, generated: bool, followed: bool, co
         "plan_conflict_rejected": bool(conflict_rejected),
         "plan_conflict_rejected_count": max(0, int(conflict_rejected_count or 0)),
     }
+
+
+def _build_branching_stage_2_eval(
+    *,
+    branch: str,
+    preferred_branch: str,
+    trap_branch: bool,
+    branch_reason: str,
+    transition_reason: str,
+    bucket: str,
+) -> dict:
+    return _build_multistep_eval(
+        stage="stage_2",
+        transition_reason=transition_reason,
+        transition_seen=True,
+        pass_all=False,
+        bucket=bucket,
+        scenario_results=[
+            {"scenario_id": "nominal", "pass": True},
+            {"scenario_id": "neighbor_a", "pass": False},
+            {"scenario_id": "neighbor_b", "pass": False},
+        ],
+        stage_2_branch=branch,
+        preferred_stage_2_branch=preferred_branch,
+        branch_reason=branch_reason,
+        trap_branch=trap_branch,
+        correct_branch_selected=not trap_branch,
+    )
 
 
 def _evaluate_behavioral_contract_from_model_text(*, current_text: str, source_model_text: str, failure_type: str) -> dict | None:
@@ -1325,7 +1404,7 @@ def _evaluate_behavioral_contract_from_model_text(*, current_text: str, source_m
     elif declared == "stability_then_behavior":
         lower_current = str(current_text or "").lower()
         if "model plantb" in lower_current:
-            if re.search(r"height\s*=\s*1\.2\b", current_text or "") or re.search(r"duration\s*=\s*1\.1\b", current_text or ""):
+            if re.search(r"height\s*=\s*1\.2\b", current_text or "") and re.search(r"duration\s*=\s*1\.1\b", current_text or ""):
                 return _build_multistep_eval(
                     stage="stage_1",
                     transition_reason="stability_constraints_still_violated",
@@ -1339,17 +1418,22 @@ def _evaluate_behavioral_contract_from_model_text(*, current_text: str, source_m
                     ],
                 )
             elif re.search(r"startTime\s*=\s*0\.8\b", current_text or ""):
-                return _build_multistep_eval(
-                    stage="stage_2",
+                if re.search(r"duration\s*=\s*0\.5\b", current_text or ""):
+                    return _build_branching_stage_2_eval(
+                        branch="neighbor_overfit_trap",
+                        preferred_branch="behavior_timing_branch",
+                        trap_branch=True,
+                        branch_reason="duration_reset_too_early_before_timing_repair",
+                        transition_reason="stability_restored_wrong_branch_exposed",
+                        bucket="single_case_only",
+                    )
+                return _build_branching_stage_2_eval(
+                    branch="behavior_timing_branch",
+                    preferred_branch="behavior_timing_branch",
+                    trap_branch=False,
+                    branch_reason="timing_gate_exposed_after_partial_stability_fix",
                     transition_reason="stability_restored_behavior_gate_exposed",
-                    transition_seen=True,
-                    pass_all=False,
                     bucket="behavior_contract_miss",
-                    scenario_results=[
-                        {"scenario_id": "nominal", "pass": True},
-                        {"scenario_id": "neighbor_a", "pass": False},
-                        {"scenario_id": "neighbor_b", "pass": False},
-                    ],
                 )
             else:
                 return _build_multistep_eval(
@@ -1379,17 +1463,14 @@ def _evaluate_behavioral_contract_from_model_text(*, current_text: str, source_m
                     ],
                 )
             elif re.search(r"width\s*=\s*62\b", current_text or "") or re.search(r"period\s*=\s*0\.85\b", current_text or ""):
-                return _build_multistep_eval(
-                    stage="stage_2",
+                trap = re.search(r"width\s*=\s*40\b", current_text or "") or re.search(r"period\s*=\s*0\.5\b", current_text or "")
+                return _build_branching_stage_2_eval(
+                    branch="neighbor_overfit_trap" if trap else "behavior_timing_branch",
+                    preferred_branch="behavior_timing_branch",
+                    trap_branch=bool(trap),
+                    branch_reason="waveform_branch_partially_reset" if trap else "waveform_behavior_gate_exposed",
                     transition_reason="stability_restored_behavior_gate_exposed",
-                    transition_seen=True,
-                    pass_all=False,
-                    bucket="behavior_contract_miss",
-                    scenario_results=[
-                        {"scenario_id": "nominal", "pass": True},
-                        {"scenario_id": "neighbor_a", "pass": False},
-                        {"scenario_id": "neighbor_b", "pass": False},
-                    ],
+                    bucket="single_case_only" if trap else "behavior_contract_miss",
                 )
             else:
                 return _build_multistep_eval(
@@ -1405,7 +1486,7 @@ def _evaluate_behavioral_contract_from_model_text(*, current_text: str, source_m
                     ],
                 )
         elif "model hybrida" in lower_current:
-            if re.search(r"\bk\s*=\s*1\.18\b", current_text or "") or re.search(r"height\s*=\s*1\.12\b", current_text or ""):
+            if re.search(r"\bk\s*=\s*1\.18\b", current_text or "") and re.search(r"height\s*=\s*1\.12\b", current_text or ""):
                 return _build_multistep_eval(
                     stage="stage_1",
                     transition_reason="stability_constraints_still_violated",
@@ -1419,17 +1500,14 @@ def _evaluate_behavioral_contract_from_model_text(*, current_text: str, source_m
                     ],
                 )
             elif re.search(r"startTime\s*=\s*0\.45\b", current_text or ""):
-                return _build_multistep_eval(
-                    stage="stage_2",
+                trap = re.search(r"\bk\s*=\s*1\b", current_text or "") and re.search(r"height\s*=\s*1\b", current_text or "")
+                return _build_branching_stage_2_eval(
+                    branch="neighbor_overfit_trap" if trap else "behavior_timing_branch",
+                    preferred_branch="behavior_timing_branch",
+                    trap_branch=bool(trap),
+                    branch_reason="gain_and_height_reset_before_timing" if trap else "timing_gate_exposed_after_partial_stability_fix",
                     transition_reason="stability_restored_behavior_gate_exposed",
-                    transition_seen=True,
-                    pass_all=False,
-                    bucket="behavior_contract_miss",
-                    scenario_results=[
-                        {"scenario_id": "nominal", "pass": True},
-                        {"scenario_id": "neighbor_a", "pass": False},
-                        {"scenario_id": "neighbor_b", "pass": False},
-                    ],
+                    bucket="single_case_only" if trap else "behavior_contract_miss",
                 )
             else:
                 return _build_multistep_eval(
@@ -1444,7 +1522,7 @@ def _evaluate_behavioral_contract_from_model_text(*, current_text: str, source_m
                         {"scenario_id": "neighbor_b", "pass": True},
                     ],
                 )
-        elif re.search(r"\bk\s*=\s*1\.18\b", current_text or "") or re.search(r"height\s*=\s*1\.12\b", current_text or ""):
+        elif re.search(r"\bk\s*=\s*1\.18\b", current_text or "") and re.search(r"height\s*=\s*1\.12\b", current_text or ""):
             return _build_multistep_eval(
                 stage="stage_1",
                 transition_reason="stability_constraints_still_violated",
@@ -1458,17 +1536,14 @@ def _evaluate_behavioral_contract_from_model_text(*, current_text: str, source_m
                 ],
             )
         elif re.search(r"startTime\s*=\s*0\.45\b", current_text or ""):
-            return _build_multistep_eval(
-                stage="stage_2",
+            trap = re.search(r"\bk\s*=\s*1\b", current_text or "") and re.search(r"height\s*=\s*1\b", current_text or "")
+            return _build_branching_stage_2_eval(
+                branch="neighbor_overfit_trap" if trap else "behavior_timing_branch",
+                preferred_branch="behavior_timing_branch",
+                trap_branch=bool(trap),
+                branch_reason="generic_stability_unlock_path",
                 transition_reason="stability_restored_behavior_gate_exposed",
-                transition_seen=True,
-                pass_all=False,
-                bucket="behavior_contract_miss",
-                scenario_results=[
-                    {"scenario_id": "nominal", "pass": True},
-                    {"scenario_id": "neighbor_a", "pass": False},
-                    {"scenario_id": "neighbor_b", "pass": False},
-                ],
+                bucket="single_case_only" if trap else "behavior_contract_miss",
             )
         else:
             return _build_multistep_eval(
@@ -1486,7 +1561,7 @@ def _evaluate_behavioral_contract_from_model_text(*, current_text: str, source_m
     elif declared == "behavior_then_robustness":
         lower_current = str(current_text or "").lower()
         if "model switchb" in lower_current:
-            if re.search(r"startTime\s*=\s*0\.75\b", current_text or "") or re.search(r"freqHz\s*=\s*1\.6\b", current_text or ""):
+            if re.search(r"startTime\s*=\s*0\.75\b", current_text or "") and re.search(r"freqHz\s*=\s*1\.6\b", current_text or ""):
                 return _build_multistep_eval(
                     stage="stage_1",
                     transition_reason="nominal_behavior_still_failing",
@@ -1500,17 +1575,14 @@ def _evaluate_behavioral_contract_from_model_text(*, current_text: str, source_m
                     ],
                 )
             elif re.search(r"\bk\s*=\s*0\.82\b", current_text or ""):
-                return _build_multistep_eval(
-                    stage="stage_2",
+                trap = re.search(r"startTime\s*=\s*0\.3\b", current_text or "") and re.search(r"freqHz\s*=\s*1\b", current_text or "")
+                return _build_branching_stage_2_eval(
+                    branch="nominal_overfit_trap" if trap else "neighbor_robustness_branch",
+                    preferred_branch="neighbor_robustness_branch",
+                    trap_branch=bool(trap),
+                    branch_reason="nominal_gate_fully_reset_before_neighbor_robustness" if trap else "neighbor_robustness_exposed_after_partial_nominal_fix",
                     transition_reason="nominal_behavior_restored_neighbor_robustness_exposed",
-                    transition_seen=True,
-                    pass_all=False,
-                    bucket="single_case_only",
-                    scenario_results=[
-                        {"scenario_id": "nominal", "pass": True},
-                        {"scenario_id": "neighbor_a", "pass": False},
-                        {"scenario_id": "neighbor_b", "pass": False},
-                    ],
+                    bucket="behavior_contract_miss" if trap else "single_case_only",
                 )
             else:
                 return _build_multistep_eval(
@@ -1526,30 +1598,36 @@ def _evaluate_behavioral_contract_from_model_text(*, current_text: str, source_m
                     ],
                 )
         elif re.search(r"width\s*=\s*62\b", current_text or "") or re.search(r"period\s*=\s*0\.85\b", current_text or ""):
-            return _build_multistep_eval(
-                stage="stage_1",
-                transition_reason="nominal_behavior_still_failing",
-                transition_seen=False,
-                pass_all=False,
-                bucket="behavior_contract_miss",
-                scenario_results=[
-                    {"scenario_id": "nominal", "pass": False},
-                    {"scenario_id": "neighbor_a", "pass": False},
-                    {"scenario_id": "neighbor_b", "pass": False},
-                ],
+            if re.search(r"width\s*=\s*62\b", current_text or "") and re.search(r"period\s*=\s*0\.85\b", current_text or ""):
+                return _build_multistep_eval(
+                    stage="stage_1",
+                    transition_reason="nominal_behavior_still_failing",
+                    transition_seen=False,
+                    pass_all=False,
+                    bucket="behavior_contract_miss",
+                    scenario_results=[
+                        {"scenario_id": "nominal", "pass": False},
+                        {"scenario_id": "neighbor_a", "pass": False},
+                        {"scenario_id": "neighbor_b", "pass": False},
+                    ],
+                )
+            return _build_branching_stage_2_eval(
+                branch="neighbor_robustness_branch",
+                preferred_branch="neighbor_robustness_branch",
+                trap_branch=False,
+                branch_reason="shape_gate_partially_restored",
+                transition_reason="nominal_behavior_restored_neighbor_robustness_exposed",
+                bucket="single_case_only",
             )
         elif re.search(r"offset\s*=\s*0\.2\b", current_text or ""):
-            return _build_multistep_eval(
-                stage="stage_2",
+            trap = re.search(r"width\s*=\s*40\b", current_text or "") and re.search(r"period\s*=\s*0\.5\b", current_text or "")
+            return _build_branching_stage_2_eval(
+                branch="nominal_overfit_trap" if trap else "neighbor_robustness_branch",
+                preferred_branch="neighbor_robustness_branch",
+                trap_branch=bool(trap),
+                branch_reason="shape_gate_fully_reset_before_offset_repair" if trap else "offset_robustness_exposed_after_partial_shape_fix",
                 transition_reason="nominal_behavior_restored_neighbor_robustness_exposed",
-                transition_seen=True,
-                pass_all=False,
-                bucket="single_case_only",
-                scenario_results=[
-                    {"scenario_id": "nominal", "pass": True},
-                    {"scenario_id": "neighbor_a", "pass": False},
-                    {"scenario_id": "neighbor_b", "pass": False},
-                ],
+                bucket="behavior_contract_miss" if trap else "single_case_only",
             )
         else:
             return _build_multistep_eval(
@@ -1567,7 +1645,7 @@ def _evaluate_behavioral_contract_from_model_text(*, current_text: str, source_m
     elif declared == "switch_then_recovery":
         lower_current = str(current_text or "").lower()
         if "model plantb" in lower_current:
-            if re.search(r"startTime\s*=\s*0\.6\b", current_text or ""):
+            if re.search(r"startTime\s*=\s*0\.6\b", current_text or "") and re.search(r"duration\s*=\s*1\.1\b", current_text or ""):
                 return _build_multistep_eval(
                     stage="stage_1",
                     transition_reason="switch_window_still_unstable",
@@ -1581,17 +1659,14 @@ def _evaluate_behavioral_contract_from_model_text(*, current_text: str, source_m
                     ],
                 )
             elif re.search(r"duration\s*=\s*1\.1\b", current_text or ""):
-                return _build_multistep_eval(
-                    stage="stage_2",
+                trap = re.search(r"startTime\s*=\s*0\.2\b", current_text or "")
+                return _build_branching_stage_2_eval(
+                    branch="recovery_overfit_trap" if trap else "post_switch_recovery_branch",
+                    preferred_branch="post_switch_recovery_branch",
+                    trap_branch=bool(trap),
+                    branch_reason="switch_timing_reset_before_recovery_duration" if trap else "recovery_segment_exposed_after_partial_switch_fix",
                     transition_reason="switch_segment_restored_recovery_gate_exposed",
-                    transition_seen=True,
-                    pass_all=False,
-                    bucket="post_switch_recovery_miss",
-                    scenario_results=[
-                        {"scenario_id": "nominal", "pass": True},
-                        {"scenario_id": "neighbor_a", "pass": False},
-                        {"scenario_id": "neighbor_b", "pass": False},
-                    ],
+                    bucket="single_case_only" if trap else "post_switch_recovery_miss",
                 )
             else:
                 return _build_multistep_eval(
@@ -1621,17 +1696,14 @@ def _evaluate_behavioral_contract_from_model_text(*, current_text: str, source_m
                     ],
                 )
             elif re.search(r"width\s*=\s*75\b", current_text or "") or re.search(r"period\s*=\s*1\.4\b", current_text or ""):
-                return _build_multistep_eval(
-                    stage="stage_2",
+                trap = re.search(r"\bk\s*=\s*1\b", current_text or "")
+                return _build_branching_stage_2_eval(
+                    branch="recovery_overfit_trap" if trap else "post_switch_recovery_branch",
+                    preferred_branch="post_switch_recovery_branch",
+                    trap_branch=bool(trap),
+                    branch_reason="switch_gain_reset_before_recovery_window" if trap else "recovery_gate_exposed_after_partial_switch_fix",
                     transition_reason="switch_segment_restored_recovery_gate_exposed",
-                    transition_seen=True,
-                    pass_all=False,
-                    bucket="post_switch_recovery_miss",
-                    scenario_results=[
-                        {"scenario_id": "nominal", "pass": True},
-                        {"scenario_id": "neighbor_a", "pass": False},
-                        {"scenario_id": "neighbor_b", "pass": False},
-                    ],
+                    bucket="single_case_only" if trap else "post_switch_recovery_miss",
                 )
             else:
                 return _build_multistep_eval(
@@ -1647,7 +1719,7 @@ def _evaluate_behavioral_contract_from_model_text(*, current_text: str, source_m
                     ],
                 )
         elif "model hybridb" in lower_current:
-            if re.search(r"startTime\s*=\s*0\.6\b", current_text or "") or re.search(r"\bk\s*=\s*0\.6\b", current_text or ""):
+            if re.search(r"startTime\s*=\s*0\.6\b", current_text or "") and re.search(r"\bk\s*=\s*0\.6\b", current_text or ""):
                 return _build_multistep_eval(
                     stage="stage_1",
                     transition_reason="switch_window_still_unstable",
@@ -1661,17 +1733,14 @@ def _evaluate_behavioral_contract_from_model_text(*, current_text: str, source_m
                     ],
                 )
             elif re.search(r"width\s*=\s*0\.75\b", current_text or "") or re.search(r"\bT\s*=\s*0\.5\b", current_text or ""):
-                return _build_multistep_eval(
-                    stage="stage_2",
+                trap = re.search(r"startTime\s*=\s*0\.1\b", current_text or "") and re.search(r"\bk\s*=\s*1\b", current_text or "")
+                return _build_branching_stage_2_eval(
+                    branch="recovery_overfit_trap" if trap else "post_switch_recovery_branch",
+                    preferred_branch="post_switch_recovery_branch",
+                    trap_branch=bool(trap),
+                    branch_reason="switch_gate_fully_reset_before_recovery_shape" if trap else "recovery_shape_exposed_after_partial_switch_fix",
                     transition_reason="switch_segment_restored_recovery_gate_exposed",
-                    transition_seen=True,
-                    pass_all=False,
-                    bucket="post_switch_recovery_miss",
-                    scenario_results=[
-                        {"scenario_id": "nominal", "pass": True},
-                        {"scenario_id": "neighbor_a", "pass": False},
-                        {"scenario_id": "neighbor_b", "pass": False},
-                    ],
+                    bucket="single_case_only" if trap else "post_switch_recovery_miss",
                 )
             else:
                 return _build_multistep_eval(
@@ -1686,7 +1755,7 @@ def _evaluate_behavioral_contract_from_model_text(*, current_text: str, source_m
                         {"scenario_id": "neighbor_b", "pass": True},
                     ],
                 )
-        elif re.search(r"startTime\s*=\s*0\.6\b", current_text or "") or re.search(r"\bk\s*=\s*0\.6\b", current_text or ""):
+        elif re.search(r"startTime\s*=\s*0\.6\b", current_text or "") and re.search(r"\bk\s*=\s*0\.6\b", current_text or ""):
             return _build_multistep_eval(
                 stage="stage_1",
                 transition_reason="switch_window_still_unstable",
@@ -1700,17 +1769,14 @@ def _evaluate_behavioral_contract_from_model_text(*, current_text: str, source_m
                 ],
             )
         elif re.search(r"width\s*=\s*75\b", current_text or "") or re.search(r"period\s*=\s*1\.4\b", current_text or ""):
-            return _build_multistep_eval(
-                stage="stage_2",
+            trap = re.search(r"\bk\s*=\s*1\b", current_text or "") or re.search(r"startTime\s*=\s*0\.1\b", current_text or "")
+            return _build_branching_stage_2_eval(
+                branch="recovery_overfit_trap" if trap else "post_switch_recovery_branch",
+                preferred_branch="post_switch_recovery_branch",
+                trap_branch=bool(trap),
+                branch_reason="generic_switch_unlock_path",
                 transition_reason="switch_segment_restored_recovery_gate_exposed",
-                transition_seen=True,
-                pass_all=False,
-                bucket="post_switch_recovery_miss",
-                scenario_results=[
-                    {"scenario_id": "nominal", "pass": True},
-                    {"scenario_id": "neighbor_a", "pass": False},
-                    {"scenario_id": "neighbor_b", "pass": False},
-                ],
+                bucket="single_case_only" if trap else "post_switch_recovery_miss",
             )
         else:
             return _build_multistep_eval(
@@ -2702,6 +2768,13 @@ def main() -> None:
     multistep_memory = {
         "stage_1_unlock_cluster": "",
         "stage_2_first_fail_bucket": "",
+        "stage_2_branch": "",
+        "preferred_stage_2_branch": "",
+        "branch_reason": "",
+        "trap_branch_active": False,
+        "trap_branch_entered": False,
+        "correct_branch_selected": False,
+        "correct_branch_round": 0,
         "stage_2_transition_round": 0,
         "stage_2_transition_reason": "",
         "stage_aware_focus_applied": False,
@@ -2836,6 +2909,19 @@ def main() -> None:
                             multistep_memory["best_stage_2_fail_bucket_seen"] = str(stage_context["current_fail_bucket"] or "")
                         if str(stage_context.get("current_stage") or "") == "stage_2":
                             multistep_memory["stage_2_best_progress_seen"] = True
+                        if str(stage_context.get("stage_2_branch") or "").strip():
+                            multistep_memory["stage_2_branch"] = str(stage_context.get("stage_2_branch") or "").strip()
+                        if str(stage_context.get("preferred_stage_2_branch") or "").strip():
+                            multistep_memory["preferred_stage_2_branch"] = str(stage_context.get("preferred_stage_2_branch") or "").strip()
+                        if str(stage_context.get("branch_reason") or "").strip():
+                            multistep_memory["branch_reason"] = str(stage_context.get("branch_reason") or "").strip()
+                        if bool(stage_context.get("trap_branch")):
+                            multistep_memory["trap_branch_active"] = True
+                            multistep_memory["trap_branch_entered"] = True
+                        if bool(stage_context.get("correct_branch_selected")):
+                            multistep_memory["correct_branch_selected"] = True
+                            if not int(multistep_memory.get("correct_branch_round") or 0):
+                                multistep_memory["correct_branch_round"] = int(round_idx)
                     attempts[-1]["current_stage"] = str(stage_context.get("current_stage") or "")
                     attempts[-1]["stage_2_unlocked"] = bool(stage_context.get("stage_2_unlocked"))
                     attempts[-1]["transition_round"] = int(stage_context.get("transition_round") or 0)
@@ -2844,6 +2930,11 @@ def main() -> None:
                     attempts[-1]["next_focus"] = str(stage_context.get("next_focus") or "")
                     attempts[-1]["stage_1_unlock_cluster"] = str(stage_context.get("stage_1_unlock_cluster") or "")
                     attempts[-1]["stage_2_first_fail_bucket"] = str(stage_context.get("stage_2_first_fail_bucket") or "")
+                    attempts[-1]["stage_2_branch"] = str(stage_context.get("stage_2_branch") or "")
+                    attempts[-1]["preferred_stage_2_branch"] = str(stage_context.get("preferred_stage_2_branch") or "")
+                    attempts[-1]["branch_reason"] = str(stage_context.get("branch_reason") or "")
+                    attempts[-1]["trap_branch"] = bool(stage_context.get("trap_branch"))
+                    attempts[-1]["correct_branch_selected"] = bool(stage_context.get("correct_branch_selected"))
                     stage_plan = build_multistep_repair_plan_v0(
                         failure_type=str(args.failure_type),
                         current_stage=str(stage_context.get("current_stage") or ""),
@@ -3096,6 +3187,11 @@ def main() -> None:
                 attempts[-1]["next_focus"] = str(stage_context.get("next_focus") or "")
                 attempts[-1]["stage_1_unlock_cluster"] = str(stage_context.get("stage_1_unlock_cluster") or "")
                 attempts[-1]["stage_2_first_fail_bucket"] = str(stage_context.get("stage_2_first_fail_bucket") or "")
+                attempts[-1]["stage_2_branch"] = str(stage_context.get("stage_2_branch") or "")
+                attempts[-1]["preferred_stage_2_branch"] = str(stage_context.get("preferred_stage_2_branch") or "")
+                attempts[-1]["branch_reason"] = str(stage_context.get("branch_reason") or "")
+                attempts[-1]["trap_branch"] = bool(stage_context.get("trap_branch"))
+                attempts[-1]["correct_branch_selected"] = bool(stage_context.get("correct_branch_selected"))
                 attempts[-1]["stage_aware_repair_actions"] = stage_repair_actions
                 attempts[-1]["stage_aware_control_applied"] = stage_aware_control_applied
                 attempts[-1]["stage_1_revisit_after_unlock"] = stage_1_revisit_after_unlock
@@ -3297,6 +3393,13 @@ def main() -> None:
         "next_focus": str(final_stage_context.get("next_focus") or ""),
         "stage_1_unlock_cluster": str(multistep_memory.get("stage_1_unlock_cluster") or ""),
         "stage_2_first_fail_bucket": str(multistep_memory.get("stage_2_first_fail_bucket") or ""),
+        "stage_2_branch": str(final_stage_context.get("stage_2_branch") or multistep_memory.get("stage_2_branch") or ""),
+        "preferred_stage_2_branch": str(final_stage_context.get("preferred_stage_2_branch") or multistep_memory.get("preferred_stage_2_branch") or ""),
+        "branch_reason": str(final_stage_context.get("branch_reason") or multistep_memory.get("branch_reason") or ""),
+        "trap_branch": bool(final_stage_context.get("trap_branch")) if str(final_stage_context.get("stage_2_branch") or "").strip() else bool(multistep_memory.get("trap_branch_active")),
+        "trap_branch_entered": bool(multistep_memory.get("trap_branch_entered")),
+        "correct_branch_selected": bool(final_stage_context.get("correct_branch_selected")) if str(final_stage_context.get("stage_2_branch") or "").strip() else bool(multistep_memory.get("correct_branch_selected")),
+        "correct_branch_round": int(multistep_memory.get("correct_branch_round") or 0),
         "stage_aware_control_applied": bool(multistep_memory.get("stage_aware_focus_applied")),
         "stage_1_revisit_after_unlock": bool(multistep_memory.get("stage_1_revisit_after_unlock")),
         "plan_stage": str(multistep_memory.get("last_plan_stage") or ""),
