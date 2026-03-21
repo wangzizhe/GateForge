@@ -149,12 +149,19 @@ def main() -> None:
     llm_plan_was_decisive_count = int(baseline_summary.get("llm_plan_was_decisive_count") or 0)
     llm_called_only_count = int(baseline_summary.get("llm_called_only_count") or 0)
     llm_plan_failure_modes = baseline_summary.get("llm_plan_failure_modes") if isinstance(baseline_summary.get("llm_plan_failure_modes"), dict) else {}
+    llm_replan_task_count = int(baseline_summary.get("llm_replan_task_count") or 0)
+    llm_replan_used_count = int(baseline_summary.get("llm_replan_used_count") or 0)
+    llm_replan_resolution_count = int(baseline_summary.get("llm_replan_resolution_count") or 0)
+    first_plan_resolution_count = int(baseline_summary.get("first_plan_resolution_count") or 0)
+    replan_after_branch_miss_count = int(baseline_summary.get("replan_after_branch_miss_count") or 0)
+    backtracking_used_count = int(baseline_summary.get("backtracking_used_count") or 0)
     llm_resolution_count = int(baseline_summary.get("llm_resolution_count") or 0)
     llm_only_resolution_count = int(baseline_summary.get("llm_only_resolution_count") or 0)
     llm_branch_correction_count = int(baseline_summary.get("llm_branch_correction_count") or 0)
     llm_usage_by_failure_type = baseline_summary.get("llm_usage_by_failure_type") if isinstance(baseline_summary.get("llm_usage_by_failure_type"), dict) else {}
     llm_usage_by_branch = baseline_summary.get("llm_usage_by_branch") if isinstance(baseline_summary.get("llm_usage_by_branch"), dict) else {}
     deterministic_vs_llm_resolution_split = baseline_summary.get("deterministic_vs_llm_resolution_split") if isinstance(baseline_summary.get("deterministic_vs_llm_resolution_split"), dict) else {}
+    deterministic_vs_first_plan_vs_replan_split = baseline_summary.get("deterministic_vs_first_plan_vs_replan_split") if isinstance(baseline_summary.get("deterministic_vs_first_plan_vs_replan_split"), dict) else {}
     partial_to_full_count, partial_to_full_by_failure = _partial_to_full(taskset, baseline_results, deterministic_results)
     task_total = int(challenge.get("total_tasks") or 0)
     partial_to_full_pct = round((partial_to_full_count / task_total) * 100.0, 2) if task_total > 0 else 0.0
@@ -238,12 +245,21 @@ def main() -> None:
         "llm_plan_was_decisive_count": llm_plan_was_decisive_count,
         "llm_called_only_count": llm_called_only_count,
         "llm_plan_failure_modes": llm_plan_failure_modes,
+        "llm_replan_task_count": llm_replan_task_count,
+        "llm_replan_used_count": llm_replan_used_count,
+        "llm_replan_used_pct": float(baseline_summary.get("llm_replan_used_pct") or 0.0),
+        "llm_replan_resolution_count": llm_replan_resolution_count,
+        "llm_replan_resolution_pct": float(baseline_summary.get("llm_replan_resolution_pct") or 0.0),
+        "first_plan_resolution_count": first_plan_resolution_count,
+        "replan_after_branch_miss_count": replan_after_branch_miss_count,
+        "backtracking_used_count": backtracking_used_count,
         "llm_resolution_count": llm_resolution_count,
         "llm_only_resolution_count": llm_only_resolution_count,
         "llm_branch_correction_count": llm_branch_correction_count,
         "llm_usage_by_failure_type": llm_usage_by_failure_type,
         "llm_usage_by_branch": llm_usage_by_branch,
         "deterministic_vs_llm_resolution_split": deterministic_vs_llm_resolution_split,
+        "deterministic_vs_first_plan_vs_replan_split": deterministic_vs_first_plan_vs_replan_split,
         "median_round_to_correct_branch": median_round_to_correct_branch,
         "hard_case_remaining_buckets": hard_case_remaining_buckets,
         "median_round_from_stage_2_to_resolution": float(baseline_summary.get("median_round_from_stage_2_to_resolution") or 0.0),
@@ -293,6 +309,12 @@ def main() -> None:
         "llm_plan_helped_resolution_count": llm_plan_helped_resolution_count,
         "llm_plan_was_decisive_count": llm_plan_was_decisive_count,
         "llm_called_only_count": llm_called_only_count,
+        "llm_replan_task_count": llm_replan_task_count,
+        "llm_replan_used_count": llm_replan_used_count,
+        "llm_replan_resolution_count": llm_replan_resolution_count,
+        "first_plan_resolution_count": first_plan_resolution_count,
+        "replan_after_branch_miss_count": replan_after_branch_miss_count,
+        "backtracking_used_count": backtracking_used_count,
         "llm_resolution_count": llm_resolution_count,
         "llm_only_resolution_count": llm_only_resolution_count,
         "llm_branch_correction_count": llm_branch_correction_count,
@@ -350,6 +372,32 @@ def main() -> None:
         "branch_escape_success_pct": branch_escape_success_pct,
         "branch_budget_reallocated_count": branch_budget_reallocated_count,
         "repeated_trap_branch_count": repeated_trap_branch_count,
+        "llm_request_count_total": llm_request_count_total,
+        "llm_task_count": llm_task_count,
+        "llm_plan_task_count": llm_plan_task_count,
+        "llm_plan_followed_count": llm_plan_followed_count,
+        "llm_plan_followed_pct": float(baseline_summary.get("llm_plan_followed_pct") or 0.0),
+        "llm_plan_branch_match_count": llm_plan_branch_match_count,
+        "llm_plan_branch_match_pct": float(baseline_summary.get("llm_plan_branch_match_pct") or 0.0),
+        "llm_plan_helped_resolution_count": llm_plan_helped_resolution_count,
+        "llm_plan_helped_resolution_pct": float(baseline_summary.get("llm_plan_helped_resolution_pct") or 0.0),
+        "llm_plan_was_decisive_count": llm_plan_was_decisive_count,
+        "llm_called_only_count": llm_called_only_count,
+        "llm_replan_task_count": llm_replan_task_count,
+        "llm_replan_used_count": llm_replan_used_count,
+        "llm_replan_used_pct": float(baseline_summary.get("llm_replan_used_pct") or 0.0),
+        "llm_replan_resolution_count": llm_replan_resolution_count,
+        "llm_replan_resolution_pct": float(baseline_summary.get("llm_replan_resolution_pct") or 0.0),
+        "first_plan_resolution_count": first_plan_resolution_count,
+        "replan_after_branch_miss_count": replan_after_branch_miss_count,
+        "backtracking_used_count": backtracking_used_count,
+        "llm_resolution_count": llm_resolution_count,
+        "llm_only_resolution_count": llm_only_resolution_count,
+        "llm_branch_correction_count": llm_branch_correction_count,
+        "llm_usage_by_failure_type": llm_usage_by_failure_type,
+        "llm_usage_by_branch": llm_usage_by_branch,
+        "deterministic_vs_llm_resolution_split": deterministic_vs_llm_resolution_split,
+        "deterministic_vs_first_plan_vs_replan_split": deterministic_vs_first_plan_vs_replan_split,
         "median_round_to_correct_branch": median_round_to_correct_branch,
         "hard_case_remaining_buckets": hard_case_remaining_buckets,
         "stage_1_revisit_after_unlock_count": stage_1_revisit_after_unlock_count,

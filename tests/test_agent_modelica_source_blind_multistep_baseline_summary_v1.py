@@ -48,11 +48,21 @@ class AgentModelicaSourceBlindMultistepBaselineSummaryV1Tests(unittest.TestCase)
                         "cluster_only_resolution": False,
                         "template_only_resolution": False,
                         "llm_plan_used": True,
+                        "llm_plan_generated": True,
+                        "llm_plan_followed": True,
                         "llm_plan_reason": "same_stage_2_branch_stall",
                         "llm_request_count_delta": 1,
                         "llm_branch_correction_used": False,
                         "llm_resolution_contributed": True,
                         "llm_only_resolution": False,
+                        "llm_replan_used": False,
+                        "llm_replan_reason": "",
+                        "llm_replan_count": 0,
+                        "previous_plan_failed_signal": "",
+                        "backtracking_used": False,
+                        "replan_helped_resolution": False,
+                        "llm_first_plan_resolved": True,
+                        "llm_replan_resolved": False,
                         "stage_2_first_fail_bucket": "behavior_contract_miss",
                         "stage_2_branch": "behavior_timing_branch",
                         "preferred_stage_2_branch": "behavior_timing_branch",
@@ -84,11 +94,21 @@ class AgentModelicaSourceBlindMultistepBaselineSummaryV1Tests(unittest.TestCase)
                         "cluster_only_resolution": False,
                         "template_only_resolution": False,
                         "llm_plan_used": True,
+                        "llm_plan_generated": True,
+                        "llm_plan_followed": True,
                         "llm_plan_reason": "trap_escape_no_progress",
                         "llm_request_count_delta": 1,
                         "llm_branch_correction_used": True,
                         "llm_resolution_contributed": False,
                         "llm_only_resolution": False,
+                        "llm_replan_used": True,
+                        "llm_replan_reason": "same_stage_2_branch_stall_after_first_plan",
+                        "llm_replan_count": 1,
+                        "previous_plan_failed_signal": "same_stage_2_branch_stall_after_first_plan",
+                        "backtracking_used": True,
+                        "replan_helped_resolution": True,
+                        "llm_first_plan_resolved": False,
+                        "llm_replan_resolved": True,
                         "stage_2_first_fail_bucket": "single_case_only",
                         "stage_2_branch": "nominal_overfit_trap",
                         "preferred_stage_2_branch": "neighbor_robustness_branch",
@@ -200,11 +220,22 @@ class AgentModelicaSourceBlindMultistepBaselineSummaryV1Tests(unittest.TestCase)
             self.assertEqual(payload.get("repeated_trap_branch_count"), 1)
             self.assertEqual(payload.get("llm_request_count_total"), 2)
             self.assertEqual(payload.get("llm_task_count"), 2)
+            self.assertEqual(payload.get("llm_plan_task_count"), 2)
             self.assertEqual(payload.get("llm_resolution_count"), 1)
             self.assertEqual(payload.get("llm_only_resolution_count"), 0)
             self.assertEqual(payload.get("llm_branch_correction_count"), 1)
+            self.assertEqual(payload.get("llm_replan_task_count"), 1)
+            self.assertEqual(payload.get("llm_replan_used_count"), 1)
+            self.assertEqual(payload.get("llm_replan_resolution_count"), 1)
+            self.assertEqual(payload.get("first_plan_resolution_count"), 1)
+            self.assertEqual(payload.get("replan_after_branch_miss_count"), 1)
+            self.assertEqual(payload.get("backtracking_used_count"), 1)
             self.assertEqual(payload.get("llm_usage_by_failure_type"), {"behavior_then_robustness": 1, "stability_then_behavior": 1})
             self.assertEqual(payload.get("llm_usage_by_branch"), {"behavior_timing_branch": 1, "nominal_overfit_trap": 1})
+            self.assertEqual(
+                payload.get("deterministic_vs_first_plan_vs_replan_split"),
+                {"adaptive_search": 1, "template_only": 1, "llm_first_plan": 1, "llm_replan": 1},
+            )
             self.assertEqual(payload.get("median_round_to_correct_branch"), 2.0)
             self.assertEqual(payload.get("multi_step_completion_count"), 1)
             self.assertEqual(payload.get("multi_step_headroom_status"), "branch_selection_headroom_present")

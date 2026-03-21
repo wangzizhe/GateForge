@@ -698,6 +698,23 @@ def _extract_live_usage_fields(payload: dict, live_attempt: dict) -> dict:
         "llm_plan_candidate_value_directions": [],
         "llm_plan_why_not_other_branch": "",
         "llm_plan_stop_condition": "",
+        "llm_replan_used": False,
+        "llm_replan_reason": "",
+        "llm_replan_count": 0,
+        "previous_plan_failed_signal": "",
+        "previous_branch": "",
+        "new_branch": "",
+        "replan_goal": "",
+        "replan_candidate_parameters": [],
+        "replan_stop_condition": "",
+        "backtracking_used": False,
+        "backtracking_reason": "",
+        "budget_reallocated_after_replan": False,
+        "abandoned_plan_directions": [],
+        "replan_branch_correction_used": False,
+        "replan_helped_resolution": False,
+        "llm_first_plan_resolved": False,
+        "llm_replan_resolved": False,
         "llm_request_count_delta": 0,
         "llm_branch_correction_used": False,
         "llm_resolution_contributed": False,
@@ -743,6 +760,34 @@ def _extract_live_usage_fields(payload: dict, live_attempt: dict) -> dict:
     ]
     out["llm_plan_why_not_other_branch"] = str(live_attempt.get("llm_plan_why_not_other_branch") or payload.get("llm_plan_why_not_other_branch") or "").strip()
     out["llm_plan_stop_condition"] = str(live_attempt.get("llm_plan_stop_condition") or payload.get("llm_plan_stop_condition") or "").strip()
+    out["llm_replan_used"] = bool(_as_bool(live_attempt.get("llm_replan_used"))) or bool(_as_bool(payload.get("llm_replan_used")))
+    out["llm_replan_reason"] = str(live_attempt.get("llm_replan_reason") or payload.get("llm_replan_reason") or "").strip()
+    try:
+        out["llm_replan_count"] = max(0, int(live_attempt.get("llm_replan_count") or payload.get("llm_replan_count") or 0))
+    except Exception:
+        out["llm_replan_count"] = 0
+    out["previous_plan_failed_signal"] = str(live_attempt.get("previous_plan_failed_signal") or payload.get("previous_plan_failed_signal") or "").strip()
+    out["previous_branch"] = str(live_attempt.get("previous_branch") or payload.get("previous_branch") or "").strip()
+    out["new_branch"] = str(live_attempt.get("new_branch") or payload.get("new_branch") or "").strip()
+    out["replan_goal"] = str(live_attempt.get("replan_goal") or payload.get("replan_goal") or "").strip()
+    out["replan_candidate_parameters"] = [
+        str(x)
+        for x in (live_attempt.get("replan_candidate_parameters") or payload.get("replan_candidate_parameters") or [])
+        if isinstance(x, str) and str(x).strip()
+    ]
+    out["replan_stop_condition"] = str(live_attempt.get("replan_stop_condition") or payload.get("replan_stop_condition") or "").strip()
+    out["backtracking_used"] = bool(_as_bool(live_attempt.get("backtracking_used"))) or bool(_as_bool(payload.get("backtracking_used")))
+    out["backtracking_reason"] = str(live_attempt.get("backtracking_reason") or payload.get("backtracking_reason") or "").strip()
+    out["budget_reallocated_after_replan"] = bool(_as_bool(live_attempt.get("budget_reallocated_after_replan"))) or bool(_as_bool(payload.get("budget_reallocated_after_replan")))
+    out["abandoned_plan_directions"] = [
+        str(x)
+        for x in (live_attempt.get("abandoned_plan_directions") or payload.get("abandoned_plan_directions") or [])
+        if isinstance(x, str) and str(x).strip()
+    ]
+    out["replan_branch_correction_used"] = bool(_as_bool(live_attempt.get("replan_branch_correction_used"))) or bool(_as_bool(payload.get("replan_branch_correction_used")))
+    out["replan_helped_resolution"] = bool(_as_bool(live_attempt.get("replan_helped_resolution"))) or bool(_as_bool(payload.get("replan_helped_resolution")))
+    out["llm_first_plan_resolved"] = bool(_as_bool(live_attempt.get("llm_first_plan_resolved"))) or bool(_as_bool(payload.get("llm_first_plan_resolved")))
+    out["llm_replan_resolved"] = bool(_as_bool(live_attempt.get("llm_replan_resolved"))) or bool(_as_bool(payload.get("llm_replan_resolved")))
     try:
         out["llm_request_count_delta"] = max(0, int(live_attempt.get("llm_request_count_delta") or payload.get("llm_request_count_delta") or 0))
     except Exception:
@@ -1925,6 +1970,23 @@ def _run_task_live_l4(
             "llm_plan_candidate_value_directions": list(live_usage_fields.get("llm_plan_candidate_value_directions") or []),
             "llm_plan_why_not_other_branch": str(live_usage_fields.get("llm_plan_why_not_other_branch") or ""),
             "llm_plan_stop_condition": str(live_usage_fields.get("llm_plan_stop_condition") or ""),
+            "llm_replan_used": bool(live_usage_fields.get("llm_replan_used")),
+            "llm_replan_reason": str(live_usage_fields.get("llm_replan_reason") or ""),
+            "llm_replan_count": int(live_usage_fields.get("llm_replan_count") or 0),
+            "previous_plan_failed_signal": str(live_usage_fields.get("previous_plan_failed_signal") or ""),
+            "previous_branch": str(live_usage_fields.get("previous_branch") or ""),
+            "new_branch": str(live_usage_fields.get("new_branch") or ""),
+            "replan_goal": str(live_usage_fields.get("replan_goal") or ""),
+            "replan_candidate_parameters": list(live_usage_fields.get("replan_candidate_parameters") or []),
+            "replan_stop_condition": str(live_usage_fields.get("replan_stop_condition") or ""),
+            "backtracking_used": bool(live_usage_fields.get("backtracking_used")),
+            "backtracking_reason": str(live_usage_fields.get("backtracking_reason") or ""),
+            "budget_reallocated_after_replan": bool(live_usage_fields.get("budget_reallocated_after_replan")),
+            "abandoned_plan_directions": list(live_usage_fields.get("abandoned_plan_directions") or []),
+            "replan_branch_correction_used": bool(live_usage_fields.get("replan_branch_correction_used")),
+            "replan_helped_resolution": bool(live_usage_fields.get("replan_helped_resolution")),
+            "llm_first_plan_resolved": bool(live_usage_fields.get("llm_first_plan_resolved")),
+            "llm_replan_resolved": bool(live_usage_fields.get("llm_replan_resolved")),
             "llm_request_count_delta": int(live_usage_fields.get("llm_request_count_delta") or 0),
             "llm_branch_correction_used": bool(live_usage_fields.get("llm_branch_correction_used")),
             "llm_resolution_contributed": bool(live_usage_fields.get("llm_resolution_contributed")),
@@ -2113,6 +2175,23 @@ def _run_task_live_l4(
         "llm_plan_candidate_value_directions": list(best_live_usage_fields.get("llm_plan_candidate_value_directions") or []),
         "llm_plan_why_not_other_branch": str(best_live_usage_fields.get("llm_plan_why_not_other_branch") or ""),
         "llm_plan_stop_condition": str(best_live_usage_fields.get("llm_plan_stop_condition") or ""),
+        "llm_replan_used": bool(best_live_usage_fields.get("llm_replan_used")),
+        "llm_replan_reason": str(best_live_usage_fields.get("llm_replan_reason") or ""),
+        "llm_replan_count": int(best_live_usage_fields.get("llm_replan_count") or 0),
+        "previous_plan_failed_signal": str(best_live_usage_fields.get("previous_plan_failed_signal") or ""),
+        "previous_branch": str(best_live_usage_fields.get("previous_branch") or ""),
+        "new_branch": str(best_live_usage_fields.get("new_branch") or ""),
+        "replan_goal": str(best_live_usage_fields.get("replan_goal") or ""),
+        "replan_candidate_parameters": list(best_live_usage_fields.get("replan_candidate_parameters") or []),
+        "replan_stop_condition": str(best_live_usage_fields.get("replan_stop_condition") or ""),
+        "backtracking_used": bool(best_live_usage_fields.get("backtracking_used")),
+        "backtracking_reason": str(best_live_usage_fields.get("backtracking_reason") or ""),
+        "budget_reallocated_after_replan": bool(best_live_usage_fields.get("budget_reallocated_after_replan")),
+        "abandoned_plan_directions": list(best_live_usage_fields.get("abandoned_plan_directions") or []),
+        "replan_branch_correction_used": bool(best_live_usage_fields.get("replan_branch_correction_used")),
+        "replan_helped_resolution": bool(best_live_usage_fields.get("replan_helped_resolution")),
+        "llm_first_plan_resolved": bool(best_live_usage_fields.get("llm_first_plan_resolved")),
+        "llm_replan_resolved": bool(best_live_usage_fields.get("llm_replan_resolved")),
         "llm_request_count_delta": int(best_live_usage_fields.get("llm_request_count_delta") or 0),
         "llm_branch_correction_used": bool(best_live_usage_fields.get("llm_branch_correction_used")),
         "llm_resolution_contributed": bool(best_live_usage_fields.get("llm_resolution_contributed")),
@@ -2597,6 +2676,23 @@ def _run_task_live(
                 "llm_plan_candidate_value_directions": list(live_usage_fields.get("llm_plan_candidate_value_directions") or []),
                 "llm_plan_why_not_other_branch": str(live_usage_fields.get("llm_plan_why_not_other_branch") or ""),
                 "llm_plan_stop_condition": str(live_usage_fields.get("llm_plan_stop_condition") or ""),
+                "llm_replan_used": bool(live_usage_fields.get("llm_replan_used")),
+                "llm_replan_reason": str(live_usage_fields.get("llm_replan_reason") or ""),
+                "llm_replan_count": int(live_usage_fields.get("llm_replan_count") or 0),
+                "previous_plan_failed_signal": str(live_usage_fields.get("previous_plan_failed_signal") or ""),
+                "previous_branch": str(live_usage_fields.get("previous_branch") or ""),
+                "new_branch": str(live_usage_fields.get("new_branch") or ""),
+                "replan_goal": str(live_usage_fields.get("replan_goal") or ""),
+                "replan_candidate_parameters": list(live_usage_fields.get("replan_candidate_parameters") or []),
+                "replan_stop_condition": str(live_usage_fields.get("replan_stop_condition") or ""),
+                "backtracking_used": bool(live_usage_fields.get("backtracking_used")),
+                "backtracking_reason": str(live_usage_fields.get("backtracking_reason") or ""),
+                "budget_reallocated_after_replan": bool(live_usage_fields.get("budget_reallocated_after_replan")),
+                "abandoned_plan_directions": list(live_usage_fields.get("abandoned_plan_directions") or []),
+                "replan_branch_correction_used": bool(live_usage_fields.get("replan_branch_correction_used")),
+                "replan_helped_resolution": bool(live_usage_fields.get("replan_helped_resolution")),
+                "llm_first_plan_resolved": bool(live_usage_fields.get("llm_first_plan_resolved")),
+                "llm_replan_resolved": bool(live_usage_fields.get("llm_replan_resolved")),
                 "llm_request_count_delta": int(live_usage_fields.get("llm_request_count_delta") or 0),
                 "llm_branch_correction_used": bool(live_usage_fields.get("llm_branch_correction_used")),
                 "llm_resolution_contributed": bool(live_usage_fields.get("llm_resolution_contributed")),
@@ -2754,6 +2850,23 @@ def _run_task_live(
         "llm_plan_candidate_value_directions": list(best_live_usage_fields.get("llm_plan_candidate_value_directions") or []),
         "llm_plan_why_not_other_branch": str(best_live_usage_fields.get("llm_plan_why_not_other_branch") or ""),
         "llm_plan_stop_condition": str(best_live_usage_fields.get("llm_plan_stop_condition") or ""),
+        "llm_replan_used": bool(best_live_usage_fields.get("llm_replan_used")),
+        "llm_replan_reason": str(best_live_usage_fields.get("llm_replan_reason") or ""),
+        "llm_replan_count": int(best_live_usage_fields.get("llm_replan_count") or 0),
+        "previous_plan_failed_signal": str(best_live_usage_fields.get("previous_plan_failed_signal") or ""),
+        "previous_branch": str(best_live_usage_fields.get("previous_branch") or ""),
+        "new_branch": str(best_live_usage_fields.get("new_branch") or ""),
+        "replan_goal": str(best_live_usage_fields.get("replan_goal") or ""),
+        "replan_candidate_parameters": list(best_live_usage_fields.get("replan_candidate_parameters") or []),
+        "replan_stop_condition": str(best_live_usage_fields.get("replan_stop_condition") or ""),
+        "backtracking_used": bool(best_live_usage_fields.get("backtracking_used")),
+        "backtracking_reason": str(best_live_usage_fields.get("backtracking_reason") or ""),
+        "budget_reallocated_after_replan": bool(best_live_usage_fields.get("budget_reallocated_after_replan")),
+        "abandoned_plan_directions": list(best_live_usage_fields.get("abandoned_plan_directions") or []),
+        "replan_branch_correction_used": bool(best_live_usage_fields.get("replan_branch_correction_used")),
+        "replan_helped_resolution": bool(best_live_usage_fields.get("replan_helped_resolution")),
+        "llm_first_plan_resolved": bool(best_live_usage_fields.get("llm_first_plan_resolved")),
+        "llm_replan_resolved": bool(best_live_usage_fields.get("llm_replan_resolved")),
         "llm_request_count_delta": int(best_live_usage_fields.get("llm_request_count_delta") or 0),
         "llm_branch_correction_used": bool(best_live_usage_fields.get("llm_branch_correction_used")),
         "llm_resolution_contributed": bool(best_live_usage_fields.get("llm_resolution_contributed")),

@@ -192,6 +192,12 @@ def main() -> None:
     llm_plan_helped_resolution_count = 0
     llm_plan_was_decisive_count = 0
     llm_called_only_count = 0
+    llm_replan_task_count = 0
+    llm_replan_used_count = 0
+    llm_replan_resolution_count = 0
+    first_plan_resolution_count = 0
+    replan_after_branch_miss_count = 0
+    backtracking_used_count = 0
     llm_plan_failure_modes: dict[str, int] = {}
     llm_usage_by_failure_type: dict[str, int] = {}
     llm_usage_by_branch: dict[str, int] = {}
@@ -315,6 +321,21 @@ def main() -> None:
             llm_plan_was_decisive_count += 1
         if bool(record.get("llm_called_only")):
             llm_called_only_count += 1
+        if bool(record.get("llm_replan_used")):
+            llm_replan_task_count += 1
+            llm_replan_used_count += 1
+        if bool(record.get("llm_replan_resolved")):
+            llm_replan_resolution_count += 1
+        if bool(record.get("llm_first_plan_resolved")):
+            first_plan_resolution_count += 1
+        if str(record.get("previous_plan_failed_signal") or "").strip().lower() in {
+            "same_stage_2_branch_stall_after_first_plan",
+            "branch_mode_unknown_after_first_plan",
+            "partial_progress_without_preferred_branch",
+        }:
+            replan_after_branch_miss_count += 1
+        if bool(record.get("backtracking_used")):
+            backtracking_used_count += 1
         failure_mode = str(record.get("llm_plan_failure_mode") or "").strip().lower()
         if failure_mode:
             llm_plan_failure_modes[failure_mode] = int(llm_plan_failure_modes.get(failure_mode, 0)) + 1
@@ -512,6 +533,14 @@ def main() -> None:
         "llm_plan_helped_resolution_pct": _ratio(llm_plan_helped_resolution_count, total_tasks),
         "llm_plan_was_decisive_count": llm_plan_was_decisive_count,
         "llm_called_only_count": llm_called_only_count,
+        "llm_replan_task_count": llm_replan_task_count,
+        "llm_replan_used_count": llm_replan_used_count,
+        "llm_replan_used_pct": _ratio(llm_replan_used_count, total_tasks),
+        "llm_replan_resolution_count": llm_replan_resolution_count,
+        "llm_replan_resolution_pct": _ratio(llm_replan_resolution_count, total_tasks),
+        "first_plan_resolution_count": first_plan_resolution_count,
+        "replan_after_branch_miss_count": replan_after_branch_miss_count,
+        "backtracking_used_count": backtracking_used_count,
         "llm_plan_failure_modes": llm_plan_failure_modes,
         "llm_resolution_count": llm_resolution_count,
         "llm_resolution_pct": _ratio(llm_resolution_count, total_tasks),
@@ -520,6 +549,12 @@ def main() -> None:
         "llm_branch_correction_count": llm_branch_correction_count,
         "llm_usage_by_failure_type": llm_usage_by_failure_type,
         "llm_usage_by_branch": llm_usage_by_branch,
+        "deterministic_vs_first_plan_vs_replan_split": {
+            "adaptive_search": stage_2_resolution_via_adaptive_search_count,
+            "template_only": template_only_resolution_count,
+            "llm_first_plan": first_plan_resolution_count,
+            "llm_replan": llm_replan_resolution_count,
+        },
         "deterministic_vs_llm_resolution_split": {
             "adaptive_search": stage_2_resolution_via_adaptive_search_count,
             "template_only": template_only_resolution_count,
