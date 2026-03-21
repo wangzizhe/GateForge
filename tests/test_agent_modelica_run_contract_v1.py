@@ -161,6 +161,23 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
                 "llm_branch_correction_used": True,
                 "llm_resolution_contributed": False,
                 "llm_only_resolution": False,
+                "llm_replan_used": True,
+                "llm_replan_reason": "same_stage_2_branch_stall_after_first_plan",
+                "llm_replan_count": 1,
+                "previous_plan_failed_signal": "same_stage_2_branch_stall_after_first_plan",
+                "previous_branch": "nominal_overfit_trap",
+                "new_branch": "neighbor_robustness_branch",
+                "replan_goal": "abandon nominal overfit and recover the preferred neighbor robustness branch",
+                "replan_candidate_parameters": ["offset", "k"],
+                "replan_stop_condition": "preferred_branch_restored",
+                "backtracking_used": True,
+                "backtracking_reason": "abandon_previous_branch_direction",
+                "budget_reallocated_after_replan": True,
+                "abandoned_plan_directions": ["offset:increase"],
+                "replan_branch_correction_used": True,
+                "replan_helped_resolution": False,
+                "llm_first_plan_resolved": False,
+                "llm_replan_resolved": False,
             },
             physics_ok=False,
         )
@@ -205,6 +222,34 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
         self.assertTrue(bool(multistep.get("branch_budget_reallocated")))
         self.assertEqual((multistep.get("source_blind_multistep_local_search") or {}).get("search_kind"), "stage_2_resolution")
 
+        live_usage = _extract_live_usage_fields(
+            {
+                "planner_backend": "gemini",
+                "resolved_llm_provider": "gemini",
+                "live_request_count": 1,
+            },
+            {
+                "llm_replan_used": True,
+                "llm_replan_reason": "same_stage_2_branch_stall_after_first_plan",
+                "llm_replan_count": 1,
+                "previous_plan_failed_signal": "same_stage_2_branch_stall_after_first_plan",
+                "previous_branch": "nominal_overfit_trap",
+                "new_branch": "neighbor_robustness_branch",
+                "backtracking_used": True,
+                "budget_reallocated_after_replan": True,
+                "abandoned_plan_directions": ["offset:increase"],
+            },
+        )
+        self.assertTrue(bool(live_usage.get("llm_replan_used")))
+        self.assertEqual(str(live_usage.get("llm_replan_reason") or ""), "same_stage_2_branch_stall_after_first_plan")
+        self.assertEqual(int(live_usage.get("llm_replan_count") or 0), 1)
+        self.assertEqual(str(live_usage.get("previous_plan_failed_signal") or ""), "same_stage_2_branch_stall_after_first_plan")
+        self.assertEqual(str(live_usage.get("previous_branch") or ""), "nominal_overfit_trap")
+        self.assertEqual(str(live_usage.get("new_branch") or ""), "neighbor_robustness_branch")
+        self.assertTrue(bool(live_usage.get("backtracking_used")))
+        self.assertTrue(bool(live_usage.get("budget_reallocated_after_replan")))
+        self.assertEqual(live_usage.get("abandoned_plan_directions"), ["offset:increase"])
+
     def test_extract_live_usage_fields_defaults_to_zero_visibility(self) -> None:
         fields = _extract_live_usage_fields({}, {})
         self.assertEqual(fields.get("planner_backend"), "")
@@ -219,6 +264,15 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
         self.assertFalse(bool(fields.get("llm_plan_followed")))
         self.assertEqual(fields.get("llm_plan_candidate_parameters"), [])
         self.assertEqual(fields.get("llm_plan_candidate_value_directions"), [])
+        self.assertFalse(bool(fields.get("llm_replan_used")))
+        self.assertEqual(fields.get("llm_replan_reason"), "")
+        self.assertEqual(int(fields.get("llm_replan_count") or 0), 0)
+        self.assertEqual(fields.get("previous_plan_failed_signal"), "")
+        self.assertEqual(fields.get("previous_branch"), "")
+        self.assertEqual(fields.get("new_branch"), "")
+        self.assertFalse(bool(fields.get("backtracking_used")))
+        self.assertFalse(bool(fields.get("budget_reallocated_after_replan")))
+        self.assertEqual(fields.get("abandoned_plan_directions"), [])
 
     def test_extract_contract_fields_prefers_current_branch_state_over_payload_memory(self) -> None:
         _, _, _, multistep = _extract_contract_fields(

@@ -28,6 +28,7 @@ from gateforge.agent_modelica_live_executor_gemini_v1 import (
     _apply_wave2_1_marker_repair,
     _apply_wave2_2_marker_repair,
     _bootstrap_env_from_repo,
+    _build_source_blind_multistep_llm_replan_context,
     _diagnostic_context_hints_from_model,
     _extract_om_success_flags,
     _extract_source_blind_multistep_markers,
@@ -48,6 +49,7 @@ from gateforge.agent_modelica_live_executor_gemini_v1 import (
     _reserve_live_request,
     _run_omc_script_docker,
     _run_check_and_simulate,
+    _select_initial_llm_plan_parameters,
     _temporary_workspace,
 )
 
@@ -265,6 +267,48 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
         self.assertIn("height=1", patched)
         self.assertIn("duration=0.5", patched)
         self.assertNotIn("startTime=0.2", patched)
+
+    def test_build_source_blind_multistep_llm_replan_context_detects_same_branch_stall(self) -> None:
+        context = _build_source_blind_multistep_llm_replan_context(
+            current_text=(
+                "// gateforge_source_blind_multistep_realism_version:v4\n"
+                "// gateforge_source_blind_multistep_llm_forcing:1\n"
+                "model SwitchB\n"
+                "  parameter Real k=0.82;\n"
+                "end SwitchB;\n"
+            ),
+            stage_context={
+                "current_stage": "stage_2",
+                "stage_2_branch": "neighbor_robustness_branch",
+                "preferred_stage_2_branch": "behavior_timing_branch",
+                "branch_mode": "preferred",
+                "trap_branch": False,
+            },
+            current_round=2,
+            memory={
+                "llm_plan_followed": True,
+                "llm_replan_used": False,
+                "last_llm_plan_branch": "neighbor_robustness_branch",
+                "last_llm_plan_fail_bucket": "single_case_only",
+                "last_llm_plan_pass_count": 1,
+            },
+            contract_fail_bucket="single_case_only",
+            scenario_results=[
+                {"scenario_id": "nominal", "pass": True},
+                {"scenario_id": "neighbor_a", "pass": False},
+                {"scenario_id": "neighbor_b", "pass": False},
+            ],
+        )
+        self.assertTrue(bool(context.get("should_force_replan")))
+        self.assertEqual(str(context.get("previous_plan_failed_signal") or ""), "same_stage_2_branch_stall_after_first_plan")
+        self.assertEqual(str(context.get("previous_branch") or ""), "neighbor_robustness_branch")
+
+    def test_select_initial_llm_plan_parameters_prefers_first_available_parameter(self) -> None:
+        selected = _select_initial_llm_plan_parameters(
+            llm_plan={"candidate_parameters": ["offset", "k", "startTime"]},
+            available_targets={"k": 0.5, "startTime": 0.3},
+        )
+        self.assertEqual(selected, ["k"])
 
     def test_live_ledger_uses_in_memory_fallback_without_path(self) -> None:
         _IN_MEMORY_LIVE_LEDGER.clear()

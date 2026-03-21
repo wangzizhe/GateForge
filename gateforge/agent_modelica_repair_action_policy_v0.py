@@ -189,6 +189,40 @@ def _multistep_branch_mode(*, current_stage: str, stage_2_branch: str, preferred
     return ""
 
 
+def build_multistep_llm_plan_prompt_hints_v1(
+    *,
+    request_kind: str,
+    current_stage: str,
+    current_branch: str = "",
+    preferred_branch: str = "",
+    previous_plan_failed_signal: str = "",
+) -> list[str]:
+    kind = str(request_kind or "").strip().lower()
+    stage = str(current_stage or "").strip().lower()
+    branch = str(current_branch or "").strip().lower()
+    preferred = str(preferred_branch or "").strip().lower()
+    failed_signal = str(previous_plan_failed_signal or "").strip().lower()
+    if kind == "replan":
+        return _as_actions(
+            [
+                "output a new branch-aware repair plan instead of repeating the first-plan parameter direction",
+                f"explain why the previous plan failed using the observed signal '{failed_signal or 'no_progress'}'",
+                f"if the current branch '{branch or 'unknown'}' looks wrong, explicitly move toward '{preferred or 'the preferred branch'}'",
+                "favor a minimal backtracking step and a new parameter subset over repeating the previous patch verbatim",
+                "stop the replan when the preferred branch is restored or when all scenarios pass",
+            ]
+        )
+    return _as_actions(
+        [
+            f"diagnose the current multistep stage '{stage or 'unknown'}' before proposing numeric edits",
+            "output a small parameter-direction plan, not full Modelica code",
+            f"if a preferred branch exists, keep the plan aligned with '{preferred or branch or 'the preferred branch'}'",
+            "use only existing numeric parameters already present in the model text",
+            "stop the plan when the current stage is cleared or the branch diagnosis changes",
+        ]
+    )
+
+
 def _multistep_stage_actions(*, failure_type: str, current_stage: str, next_focus: str) -> list[str]:
     ftype = str(failure_type or "").strip().lower()
     stage = str(current_stage or "").strip().lower()
