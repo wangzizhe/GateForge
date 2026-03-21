@@ -77,6 +77,19 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
                 "plan_conflict_rejected": False,
                 "plan_conflict_rejected_count": 0,
                 "last_successful_stage_action": "unlock_stage_2_neighbor_robustness",
+                "source_blind_multistep_local_search": {
+                    "applied": True,
+                    "search_kind": "stage_2_resolution",
+                    "candidate_key": "stage_2_resolution:stage2_robustness_gain:k=0.5",
+                },
+                "tried_candidate_values": ["stage_1_unlock:stage1_nominal_start_freq:startTime=0.3|freqHz=1"],
+                "local_search_attempt_count": 1,
+                "local_search_success_count": 1,
+                "local_search_kinds": ["stage_2_resolution"],
+                "search_improvement_seen": True,
+                "stage_1_unlock_via_local_search": False,
+                "stage_2_resolution_via_local_search": True,
+                "cluster_only_resolution": False,
             },
             physics_ok=False,
         )
@@ -91,6 +104,9 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
         self.assertTrue(bool(multistep.get("stage_plan_generated")))
         self.assertTrue(bool(multistep.get("stage_plan_followed")))
         self.assertEqual(str(multistep.get("executed_plan_action") or ""), "resolve_stage_2_neighbor_robustness")
+        self.assertEqual(int(multistep.get("local_search_attempt_count") or 0), 1)
+        self.assertTrue(bool(multistep.get("stage_2_resolution_via_local_search")))
+        self.assertEqual((multistep.get("source_blind_multistep_local_search") or {}).get("search_kind"), "stage_2_resolution")
 
     def test_build_live_template_context_exposes_unknown_library_source_meta(self) -> None:
         context = _build_live_template_context(

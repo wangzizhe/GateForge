@@ -152,6 +152,11 @@ def main() -> None:
     stage_2_plan_followed_count = 0
     stage_2_plan_resolution_count = 0
     plan_conflict_rejected_count = 0
+    local_search_attempt_count = 0
+    local_search_success_count = 0
+    stage_1_unlock_via_local_search_count = 0
+    stage_2_resolution_via_local_search_count = 0
+    cluster_only_resolution_count = 0
     repair_action_sequence: dict[str, int] = {}
     stage_transition_action_sequence: dict[str, int] = {}
 
@@ -207,6 +212,9 @@ def main() -> None:
                 plan_conflict_rejected_count += max(0, int(attempt.get("plan_conflict_rejected_count") or 0))
             except Exception:
                 pass
+            local_search = attempt.get("source_blind_multistep_local_search")
+            if isinstance(local_search, dict) and bool(local_search.get("applied")):
+                local_search_attempt_count += 1
         if len(set(signatures)) > 1:
             failure_transition_count += 1
         distinct_failure_stages_seen_values.append(float(len(set(signatures or []))))
@@ -220,6 +228,14 @@ def main() -> None:
             stage_2_plan_generated_count += 1
         if stage_2_plan_followed_seen:
             stage_2_plan_followed_count += 1
+        if bool(record.get("stage_1_unlock_via_local_search")):
+            stage_1_unlock_via_local_search_count += 1
+        if bool(record.get("stage_2_resolution_via_local_search")):
+            stage_2_resolution_via_local_search_count += 1
+        if bool(record.get("cluster_only_resolution")):
+            cluster_only_resolution_count += 1
+        if int(record.get("local_search_success_count") or 0) > 0:
+            local_search_success_count += 1
         if unlocked_rounds:
             stage_2_unlock_count += 1
             first_unlock = min(x for x in unlocked_rounds if x > 0) if any(x > 0 for x in unlocked_rounds) else 0
@@ -317,6 +333,12 @@ def main() -> None:
         "stage_2_plan_followed_pct": _ratio(stage_2_plan_followed_count, total_tasks),
         "stage_2_plan_resolution_count": stage_2_plan_resolution_count,
         "plan_conflict_rejected_count": plan_conflict_rejected_count,
+        "local_search_attempt_count": local_search_attempt_count,
+        "local_search_success_count": local_search_success_count,
+        "local_search_success_pct": _ratio(local_search_success_count, total_tasks),
+        "stage_1_unlock_via_local_search_count": stage_1_unlock_via_local_search_count,
+        "stage_2_resolution_via_local_search_count": stage_2_resolution_via_local_search_count,
+        "cluster_only_resolution_count": cluster_only_resolution_count,
         "median_round_from_stage_2_to_resolution": round(_median(round_from_stage_2_to_resolution_values), 2),
         "repair_action_sequence": dict(sorted(repair_action_sequence.items(), key=lambda item: (-item[1], item[0]))[:10]),
         "stage_transition_action_sequence": dict(sorted(stage_transition_action_sequence.items(), key=lambda item: (-item[1], item[0]))[:10]),

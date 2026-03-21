@@ -436,6 +436,134 @@ def _apply_regex_replacement_cluster(*, current_text: str, cluster_name: str, re
     }
 
 
+def _format_numeric_candidate(value: float) -> str:
+    if abs(value - int(value)) < 1e-9:
+        return str(int(value))
+    out = f"{value:.6f}".rstrip("0").rstrip(".")
+    return out if out else "0"
+
+
+def _extract_named_numeric_values(*, current_text: str, names: list[str]) -> dict[str, str]:
+    found: dict[str, str] = {}
+    for name in names:
+        match = re.search(rf"\b{re.escape(name)}\s*=\s*(-?\d+(?:\.\d+)?)\b", str(current_text or ""))
+        if match:
+            found[str(name)] = str(match.group(1))
+    return found
+
+
+def _source_blind_multistep_local_search_templates(
+    *,
+    failure_type: str,
+    current_stage: str,
+    current_fail_bucket: str,
+) -> list[tuple[str, dict[str, float]]]:
+    failure = str(failure_type or "").strip().lower()
+    stage = str(current_stage or "").strip().lower()
+    bucket = str(current_fail_bucket or "").strip().lower()
+    if stage in {"", "stage_1"}:
+        templates = {
+            "stability_then_behavior": [
+                ("stage1_stability_gain_height", {"k": 1.0, "height": 1.0}),
+                ("stage1_stability_duration", {"duration": 0.5}),
+                ("stage1_stability_gain_only", {"k": 1.0}),
+            ],
+            "behavior_then_robustness": [
+                ("stage1_nominal_start_freq", {"startTime": 0.3, "freqHz": 1.0}),
+                ("stage1_nominal_width_period", {"width": 40.0, "period": 0.5}),
+                ("stage1_nominal_offset", {"offset": 0.0}),
+            ],
+            "switch_then_recovery": [
+                ("stage1_switch_start_gain", {"startTime": 0.2, "k": 1.0}),
+                ("stage1_switch_start", {"startTime": 0.1}),
+                ("stage1_switch_gain", {"k": 1.0}),
+            ],
+        }
+        return templates.get(failure, [])
+    if stage == "stage_2":
+        templates = {
+            "behavior_contract_miss": [
+                ("stage2_behavior_start", {"startTime": 0.2}),
+                ("stage2_behavior_width_period", {"width": 40.0, "period": 0.5}),
+                ("stage2_behavior_height", {"height": 1.0}),
+            ],
+            "single_case_only": [
+                ("stage2_robustness_gain", {"k": 0.5}),
+                ("stage2_robustness_offset", {"offset": 0.0}),
+                ("stage2_robustness_timing", {"startTime": 0.3, "period": 0.5}),
+            ],
+            "post_switch_recovery_miss": [
+                ("stage2_recovery_width_period", {"width": 40.0, "period": 0.5}),
+                ("stage2_recovery_duration", {"duration": 0.5}),
+                ("stage2_recovery_filter", {"T": 0.2}),
+                ("stage2_recovery_width_filter", {"width": 0.4, "T": 0.2}),
+            ],
+        }
+        return templates.get(bucket, [])
+    return []
+
+
+def _apply_source_blind_multistep_local_search(
+    *,
+    current_text: str,
+    declared_failure_type: str,
+    current_stage: str,
+    current_fail_bucket: str,
+    search_memory: dict,
+) -> tuple[str, dict]:
+    failure = str(declared_failure_type or "").strip().lower()
+    stage = str(current_stage or "").strip().lower()
+    bucket = str(current_fail_bucket or "").strip().lower()
+    if failure not in {"stability_then_behavior", "behavior_then_robustness", "switch_then_recovery"}:
+        return current_text, {"applied": False, "reason": "declared_failure_type_not_supported"}
+    templates = _source_blind_multistep_local_search_templates(
+        failure_type=failure,
+        current_stage=stage,
+        current_fail_bucket=bucket,
+    )
+    if not templates:
+        return current_text, {"applied": False, "reason": "no_local_search_templates_defined"}
+    tried_keys = {
+        str(x).strip()
+        for x in (search_memory.get("tried_candidate_values") or [])
+        if str(x).strip()
+    }
+    search_kind = "stage_1_unlock" if stage in {"", "stage_1"} else "stage_2_resolution"
+    for cluster_name, target_values in templates:
+        current_values = _extract_named_numeric_values(current_text=current_text, names=list(target_values.keys()))
+        replacements: list[tuple[str, str]] = []
+        candidate_parts: list[str] = []
+        used_names: list[str] = []
+        for name, target in target_values.items():
+            current_value = current_values.get(name)
+            if current_value is None:
+                continue
+            target_str = _format_numeric_candidate(float(target))
+            if current_value == target_str:
+                continue
+            replacements.append((rf"\b{re.escape(name)}\s*=\s*{re.escape(current_value)}\b", f"{name}={target_str}"))
+            candidate_parts.append(f"{name}={target_str}")
+            used_names.append(name)
+        if not replacements:
+            continue
+        candidate_key = f"{search_kind}:{cluster_name}:" + "|".join(candidate_parts)
+        if candidate_key in tried_keys:
+            continue
+        patched, audit = _apply_regex_replacement_cluster(
+            current_text=current_text,
+            cluster_name=cluster_name,
+            replacements=replacements,
+        )
+        if bool(audit.get("applied")):
+            audit["reason"] = f"source_blind_multistep_local_search:{cluster_name}"
+            audit["search_kind"] = search_kind
+            audit["candidate_key"] = candidate_key
+            audit["parameter_names"] = used_names
+            audit["candidate_values"] = candidate_parts
+            return patched, audit
+    return current_text, {"applied": False, "reason": "no_local_search_candidate_applicable", "search_kind": search_kind}
+
+
 def _behavioral_robustness_local_repair_clusters(*, model_name: str, failure_type: str) -> list[tuple[str, list[tuple[str, str]]]]:
     model = str(model_name or "").strip().lower()
     failure = str(failure_type or "").strip().lower()
@@ -2346,6 +2474,15 @@ def main() -> None:
         "plan_conflict_rejected": False,
         "plan_conflict_rejected_count": 0,
         "last_successful_stage_action": "",
+        "tried_parameters": [],
+        "tried_candidate_values": [],
+        "local_search_attempt_count": 0,
+        "local_search_success_count": 0,
+        "local_search_kinds": [],
+        "search_improvement_seen": False,
+        "stage_1_unlock_via_local_search": False,
+        "stage_2_resolution_via_local_search": False,
+        "cluster_only_resolution": False,
     }
     final_check_ok = False
     final_simulate_ok = False
@@ -2563,6 +2700,46 @@ def main() -> None:
                 final_error = "multi_round_layered_repair_applied_retry_pending"
                 continue
 
+            pre_stage_context = _build_multistep_stage_context(
+                failure_type=str(args.failure_type),
+                behavioral_eval=behavioral_eval if isinstance(behavioral_eval, dict) else {},
+                current_round=round_idx,
+                memory=multistep_memory,
+            )
+            multistep_local_search_text, multistep_local_search = _apply_source_blind_multistep_local_search(
+                current_text=current_text,
+                declared_failure_type=str(args.failure_type),
+                current_stage=str(pre_stage_context.get("current_stage") or ""),
+                current_fail_bucket=str(pre_stage_context.get("current_fail_bucket") or ""),
+                search_memory=multistep_memory,
+            )
+            attempts[-1]["source_blind_multistep_local_search"] = multistep_local_search
+            if bool(multistep_local_search.get("applied")):
+                multistep_memory["local_search_attempt_count"] = int(multistep_memory.get("local_search_attempt_count") or 0) + 1
+                candidate_key = str(multistep_local_search.get("candidate_key") or "").strip()
+                if candidate_key:
+                    multistep_memory["tried_candidate_values"] = list(multistep_memory.get("tried_candidate_values") or []) + [candidate_key]
+                multistep_memory["tried_parameters"] = list(multistep_memory.get("tried_parameters") or []) + [
+                    str(x) for x in (multistep_local_search.get("parameter_names") or []) if isinstance(x, str)
+                ]
+                search_kind = str(multistep_local_search.get("search_kind") or "").strip()
+                if search_kind:
+                    multistep_memory["local_search_kinds"] = list(multistep_memory.get("local_search_kinds") or []) + [search_kind]
+                if search_kind == "stage_1_unlock" and not str(multistep_memory.get("stage_1_unlock_cluster") or "").strip():
+                    multistep_memory["stage_1_unlock_cluster"] = str(multistep_local_search.get("cluster_name") or "").strip()
+                guarded_patched, patch_guard = _guard_robustness_patch(
+                    original_text=current_text,
+                    patched_text=multistep_local_search_text,
+                    failure_type=str(args.failure_type),
+                )
+                attempts[-1]["patch_guard"] = patch_guard
+                if isinstance(guarded_patched, str) and guarded_patched.strip():
+                    current_text = guarded_patched
+                    final_error = "source_blind_multistep_local_search_applied_retry_pending"
+                    continue
+                final_error = str(patch_guard.get("reason") or "robustness_patch_rejected")
+                continue
+
             multistep_repaired_text, multistep_repair = _apply_source_blind_multistep_exposure_repair(
                 current_text=current_text,
                 declared_failure_type=str(args.failure_type),
@@ -2661,6 +2838,40 @@ def main() -> None:
                 attempts[-1]["stage_aware_control_applied"] = stage_aware_control_applied
                 attempts[-1]["stage_1_revisit_after_unlock"] = stage_1_revisit_after_unlock
                 attempts[-1].update(stage_plan_fields)
+                if str(stage_context.get("current_stage") or "").strip().lower() == "stage_2":
+                    multistep_local_search_text, multistep_local_search = _apply_source_blind_multistep_local_search(
+                        current_text=current_text,
+                        declared_failure_type=str(args.failure_type),
+                        current_stage=str(stage_context.get("current_stage") or ""),
+                        current_fail_bucket=str(stage_context.get("current_fail_bucket") or ""),
+                        search_memory=multistep_memory,
+                    )
+                    attempts[-1]["source_blind_multistep_local_search"] = multistep_local_search
+                    if bool(multistep_local_search.get("applied")):
+                        multistep_memory["local_search_attempt_count"] = int(multistep_memory.get("local_search_attempt_count") or 0) + 1
+                        candidate_key = str(multistep_local_search.get("candidate_key") or "").strip()
+                        if candidate_key:
+                            multistep_memory["tried_candidate_values"] = list(multistep_memory.get("tried_candidate_values") or []) + [candidate_key]
+                        multistep_memory["tried_parameters"] = list(multistep_memory.get("tried_parameters") or []) + [
+                            str(x) for x in (multistep_local_search.get("parameter_names") or []) if isinstance(x, str)
+                        ]
+                        search_kind = str(multistep_local_search.get("search_kind") or "").strip()
+                        if search_kind:
+                            multistep_memory["local_search_kinds"] = list(multistep_memory.get("local_search_kinds") or []) + [search_kind]
+                        guarded_patched, patch_guard = _guard_robustness_patch(
+                            original_text=current_text,
+                            patched_text=multistep_local_search_text,
+                            failure_type=str(args.failure_type),
+                        )
+                        attempts[-1]["patch_guard"] = patch_guard
+                        if isinstance(guarded_patched, str) and guarded_patched.strip():
+                            current_text = guarded_patched
+                            if str(stage_plan_fields.get("executed_plan_action") or ""):
+                                multistep_memory["last_successful_stage_action"] = str(stage_plan_fields.get("executed_plan_action") or "")
+                            final_error = "source_blind_multistep_local_search_applied_retry_pending"
+                            continue
+                        final_error = str(patch_guard.get("reason") or "robustness_patch_rejected")
+                        continue
                 stage2_repaired_text, stage2_repair = _apply_source_blind_multistep_stage2_local_repair(
                     current_text=current_text,
                     declared_failure_type=str(args.failure_type),
@@ -2751,6 +2962,36 @@ def main() -> None:
         current_round=len(attempts),
         memory=multistep_memory,
     )
+    local_search_audits = [
+        row.get("source_blind_multistep_local_search")
+        for row in attempts
+        if isinstance(row, dict)
+        and isinstance(row.get("source_blind_multistep_local_search"), dict)
+        and bool((row.get("source_blind_multistep_local_search") or {}).get("applied"))
+    ]
+    local_search_kinds = [
+        str((row or {}).get("search_kind") or "").strip()
+        for row in local_search_audits
+        if str((row or {}).get("search_kind") or "").strip()
+    ]
+    stage_1_unlock_via_local_search = bool(
+        multi_step_stage_2_unlocked and any(kind == "stage_1_unlock" for kind in local_search_kinds)
+    )
+    stage_2_resolution_via_local_search = bool(
+        physics_contract_pass and any(kind == "stage_2_resolution" for kind in local_search_kinds)
+    )
+    local_search_success_count = 1 if bool(physics_contract_pass and local_search_audits) else 0
+    search_improvement_seen = bool(stage_1_unlock_via_local_search or stage_2_resolution_via_local_search)
+    cluster_only_resolution = bool(
+        physics_contract_pass
+        and not local_search_audits
+        and any(
+            bool(((row.get("source_blind_multistep_exposure_repair") or {}) if isinstance(row, dict) else {}).get("applied"))
+            or bool(((row.get("source_blind_multistep_stage2_local_repair") or {}) if isinstance(row, dict) else {}).get("applied"))
+            for row in attempts
+            if isinstance(row, dict)
+        )
+    )
     payload = {
         "task_id": str(args.task_id),
         "failure_type": str(args.failure_type),
@@ -2794,6 +3035,14 @@ def main() -> None:
         "plan_conflict_rejected": bool(multistep_memory.get("plan_conflict_rejected")),
         "plan_conflict_rejected_count": int(multistep_memory.get("plan_conflict_rejected_count") or 0),
         "last_successful_stage_action": str(multistep_memory.get("last_successful_stage_action") or ""),
+        "tried_candidate_values": [str(x) for x in (multistep_memory.get("tried_candidate_values") or []) if str(x).strip()],
+        "local_search_attempt_count": int(multistep_memory.get("local_search_attempt_count") or 0),
+        "local_search_success_count": local_search_success_count,
+        "local_search_kinds": local_search_kinds,
+        "search_improvement_seen": search_improvement_seen,
+        "stage_1_unlock_via_local_search": stage_1_unlock_via_local_search,
+        "stage_2_resolution_via_local_search": stage_2_resolution_via_local_search,
+        "cluster_only_resolution": cluster_only_resolution,
         "regression_pass": bool(final_check_ok and final_simulate_ok),
         "elapsed_sec": elapsed,
         "error_message": final_error,

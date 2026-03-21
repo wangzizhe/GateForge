@@ -404,6 +404,15 @@ def _extract_multistep_fields(payload: dict, live_attempt: dict) -> dict:
         "plan_conflict_rejected": False,
         "plan_conflict_rejected_count": 0,
         "last_successful_stage_action": "",
+        "source_blind_multistep_local_search": {},
+        "tried_candidate_values": [],
+        "local_search_attempt_count": 0,
+        "local_search_success_count": 0,
+        "local_search_kinds": [],
+        "search_improvement_seen": False,
+        "stage_1_unlock_via_local_search": False,
+        "stage_2_resolution_via_local_search": False,
+        "cluster_only_resolution": False,
     }
     stage = str(live_attempt.get("multi_step_stage") or payload.get("multi_step_stage") or "").strip().lower()
     out["multi_step_stage"] = stage
@@ -500,6 +509,24 @@ def _extract_multistep_fields(payload: dict, live_attempt: dict) -> dict:
         or payload.get("last_successful_stage_action")
         or ""
     ).strip()
+    source_blind_multistep_local_search = live_attempt.get("source_blind_multistep_local_search")
+    if not isinstance(source_blind_multistep_local_search, dict):
+        source_blind_multistep_local_search = payload.get("source_blind_multistep_local_search")
+    out["source_blind_multistep_local_search"] = dict(source_blind_multistep_local_search) if isinstance(source_blind_multistep_local_search, dict) else {}
+    out["tried_candidate_values"] = _as_str_list(live_attempt.get("tried_candidate_values")) or _as_str_list(payload.get("tried_candidate_values"))
+    try:
+        out["local_search_attempt_count"] = max(0, int(live_attempt.get("local_search_attempt_count") or payload.get("local_search_attempt_count") or 0))
+    except Exception:
+        out["local_search_attempt_count"] = 0
+    try:
+        out["local_search_success_count"] = max(0, int(live_attempt.get("local_search_success_count") or payload.get("local_search_success_count") or 0))
+    except Exception:
+        out["local_search_success_count"] = 0
+    out["local_search_kinds"] = _as_str_list(live_attempt.get("local_search_kinds")) or _as_str_list(payload.get("local_search_kinds"))
+    out["search_improvement_seen"] = bool(_as_bool(live_attempt.get("search_improvement_seen"))) or bool(_as_bool(payload.get("search_improvement_seen")))
+    out["stage_1_unlock_via_local_search"] = bool(_as_bool(live_attempt.get("stage_1_unlock_via_local_search"))) or bool(_as_bool(payload.get("stage_1_unlock_via_local_search")))
+    out["stage_2_resolution_via_local_search"] = bool(_as_bool(live_attempt.get("stage_2_resolution_via_local_search"))) or bool(_as_bool(payload.get("stage_2_resolution_via_local_search")))
+    out["cluster_only_resolution"] = bool(_as_bool(live_attempt.get("cluster_only_resolution"))) or bool(_as_bool(payload.get("cluster_only_resolution")))
     return out
 
 
@@ -1598,6 +1625,15 @@ def _run_task_live_l4(
             "plan_conflict_rejected": bool(multistep_fields.get("plan_conflict_rejected")),
             "plan_conflict_rejected_count": int(multistep_fields.get("plan_conflict_rejected_count") or 0),
             "last_successful_stage_action": str(multistep_fields.get("last_successful_stage_action") or ""),
+            "source_blind_multistep_local_search": dict(multistep_fields.get("source_blind_multistep_local_search") or {}),
+            "tried_candidate_values": [str(x) for x in (multistep_fields.get("tried_candidate_values") or []) if isinstance(x, str)],
+            "local_search_attempt_count": int(multistep_fields.get("local_search_attempt_count") or 0),
+            "local_search_success_count": int(multistep_fields.get("local_search_success_count") or 0),
+            "local_search_kinds": [str(x) for x in (multistep_fields.get("local_search_kinds") or []) if isinstance(x, str)],
+            "search_improvement_seen": bool(multistep_fields.get("search_improvement_seen")),
+            "stage_1_unlock_via_local_search": bool(multistep_fields.get("stage_1_unlock_via_local_search")),
+            "stage_2_resolution_via_local_search": bool(multistep_fields.get("stage_2_resolution_via_local_search")),
+            "cluster_only_resolution": bool(multistep_fields.get("cluster_only_resolution")),
             "physics_contract_reasons": physics_reasons,
             "physics_contract_invariant_count": len(task_invariants),
             "regression_pass": bool(regression_ok),
@@ -1707,6 +1743,15 @@ def _run_task_live_l4(
         "plan_conflict_rejected": bool(best_contract_attempt.get("plan_conflict_rejected")) if best_contract_attempt else False,
         "plan_conflict_rejected_count": int(best_contract_attempt.get("plan_conflict_rejected_count") or 0) if best_contract_attempt else 0,
         "last_successful_stage_action": str(best_contract_attempt.get("last_successful_stage_action") or "") if best_contract_attempt else "",
+        "source_blind_multistep_local_search": dict(best_contract_attempt.get("source_blind_multistep_local_search") or {}) if best_contract_attempt else {},
+        "tried_candidate_values": [str(x) for x in (best_contract_attempt.get("tried_candidate_values") or []) if isinstance(x, str)] if best_contract_attempt else [],
+        "local_search_attempt_count": int(best_contract_attempt.get("local_search_attempt_count") or 0) if best_contract_attempt else 0,
+        "local_search_success_count": int(best_contract_attempt.get("local_search_success_count") or 0) if best_contract_attempt else 0,
+        "local_search_kinds": [str(x) for x in (best_contract_attempt.get("local_search_kinds") or []) if isinstance(x, str)] if best_contract_attempt else [],
+        "search_improvement_seen": bool(best_contract_attempt.get("search_improvement_seen")) if best_contract_attempt else False,
+        "stage_1_unlock_via_local_search": bool(best_contract_attempt.get("stage_1_unlock_via_local_search")) if best_contract_attempt else False,
+        "stage_2_resolution_via_local_search": bool(best_contract_attempt.get("stage_2_resolution_via_local_search")) if best_contract_attempt else False,
+        "cluster_only_resolution": bool(best_contract_attempt.get("cluster_only_resolution")) if best_contract_attempt else False,
         "repair_strategy": repair_strategy,
         "repair_audit": {
             **strategy_audit,
@@ -2112,6 +2157,15 @@ def _run_task_live(
                 "plan_conflict_rejected": bool(multistep_fields.get("plan_conflict_rejected")),
                 "plan_conflict_rejected_count": int(multistep_fields.get("plan_conflict_rejected_count") or 0),
                 "last_successful_stage_action": str(multistep_fields.get("last_successful_stage_action") or ""),
+                "source_blind_multistep_local_search": dict(multistep_fields.get("source_blind_multistep_local_search") or {}),
+                "tried_candidate_values": [str(x) for x in (multistep_fields.get("tried_candidate_values") or []) if isinstance(x, str)],
+                "local_search_attempt_count": int(multistep_fields.get("local_search_attempt_count") or 0),
+                "local_search_success_count": int(multistep_fields.get("local_search_success_count") or 0),
+                "local_search_kinds": [str(x) for x in (multistep_fields.get("local_search_kinds") or []) if isinstance(x, str)],
+                "search_improvement_seen": bool(multistep_fields.get("search_improvement_seen")),
+                "stage_1_unlock_via_local_search": bool(multistep_fields.get("stage_1_unlock_via_local_search")),
+                "stage_2_resolution_via_local_search": bool(multistep_fields.get("stage_2_resolution_via_local_search")),
+                "cluster_only_resolution": bool(multistep_fields.get("cluster_only_resolution")),
                 "physics_contract_reasons": physics_contract_reasons,
                 "physics_contract_invariant_count": int(physics_eval.get("invariant_count") or 0),
                 "regression_pass": bool(regression_ok),
@@ -2190,6 +2244,15 @@ def _run_task_live(
         "plan_conflict_rejected": bool(best_contract_attempt.get("plan_conflict_rejected")) if best_contract_attempt else False,
         "plan_conflict_rejected_count": int(best_contract_attempt.get("plan_conflict_rejected_count") or 0) if best_contract_attempt else 0,
         "last_successful_stage_action": str(best_contract_attempt.get("last_successful_stage_action") or "") if best_contract_attempt else "",
+        "source_blind_multistep_local_search": dict(best_contract_attempt.get("source_blind_multistep_local_search") or {}) if best_contract_attempt else {},
+        "tried_candidate_values": [str(x) for x in (best_contract_attempt.get("tried_candidate_values") or []) if isinstance(x, str)] if best_contract_attempt else [],
+        "local_search_attempt_count": int(best_contract_attempt.get("local_search_attempt_count") or 0) if best_contract_attempt else 0,
+        "local_search_success_count": int(best_contract_attempt.get("local_search_success_count") or 0) if best_contract_attempt else 0,
+        "local_search_kinds": [str(x) for x in (best_contract_attempt.get("local_search_kinds") or []) if isinstance(x, str)] if best_contract_attempt else [],
+        "search_improvement_seen": bool(best_contract_attempt.get("search_improvement_seen")) if best_contract_attempt else False,
+        "stage_1_unlock_via_local_search": bool(best_contract_attempt.get("stage_1_unlock_via_local_search")) if best_contract_attempt else False,
+        "stage_2_resolution_via_local_search": bool(best_contract_attempt.get("stage_2_resolution_via_local_search")) if best_contract_attempt else False,
+        "cluster_only_resolution": bool(best_contract_attempt.get("cluster_only_resolution")) if best_contract_attempt else False,
         "repair_strategy": repair_strategy,
         "repair_audit": {
             **strategy_audit,
