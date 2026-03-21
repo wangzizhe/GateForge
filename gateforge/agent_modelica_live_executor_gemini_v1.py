@@ -452,6 +452,194 @@ def _extract_named_numeric_values(*, current_text: str, names: list[str]) -> dic
     return found
 
 
+def _adaptive_parameter_target_pools(
+    *,
+    failure_type: str,
+    current_stage: str,
+    current_fail_bucket: str,
+) -> list[tuple[str, list[float], int]]:
+    failure = str(failure_type or "").strip().lower()
+    stage = str(current_stage or "").strip().lower()
+    bucket = str(current_fail_bucket or "").strip().lower()
+    if stage in {"", "stage_1"}:
+        by_failure = {
+            "stability_then_behavior": [
+                ("duration", [0.5], 1),
+                ("height", [1.0], 2),
+                ("k", [1.0], 3),
+                ("startTime", [0.2, 0.1], 4),
+            ],
+            "behavior_then_robustness": [
+                ("startTime", [0.3, 0.2], 1),
+                ("freqHz", [1.0], 2),
+                ("width", [40.0], 3),
+                ("period", [0.5], 4),
+                ("offset", [0.0], 5),
+                ("k", [0.5, 1.0], 6),
+            ],
+            "switch_then_recovery": [
+                ("startTime", [0.1, 0.2], 1),
+                ("k", [1.0], 2),
+                ("width", [40.0, 0.4], 3),
+                ("period", [0.5, 1.0], 4),
+                ("T", [0.2], 5),
+                ("duration", [0.5], 6),
+            ],
+        }
+        return list(by_failure.get(failure, []))
+    if stage == "stage_2":
+        by_bucket = {
+            "behavior_contract_miss": [
+                ("startTime", [0.2, 0.1], 1),
+                ("height", [1.0], 2),
+                ("duration", [0.5], 3),
+                ("width", [40.0], 4),
+                ("period", [0.5], 5),
+                ("offset", [0.0], 6),
+            ],
+            "single_case_only": [
+                ("k", [0.5, 1.0], 1),
+                ("width", [40.0], 2),
+                ("period", [0.5], 3),
+                ("startTime", [0.3, 0.2, 0.1], 4),
+                ("offset", [0.0], 5),
+                ("freqHz", [1.0], 6),
+            ],
+            "post_switch_recovery_miss": [
+                ("width", [0.4, 40.0], 1),
+                ("T", [0.2], 2),
+                ("startTime", [0.1, 0.2], 3),
+                ("duration", [0.5], 4),
+                ("period", [0.5, 1.0], 5),
+            ],
+        }
+        return list(by_bucket.get(bucket, []))
+    return []
+
+
+def _build_adaptive_search_candidates(
+    *,
+    current_text: str,
+    failure_type: str,
+    current_stage: str,
+    current_fail_bucket: str,
+    search_memory: dict,
+    search_kind: str,
+) -> list[dict]:
+    pools = _adaptive_parameter_target_pools(
+        failure_type=failure_type,
+        current_stage=current_stage,
+        current_fail_bucket=current_fail_bucket,
+    )
+    if not pools:
+        return []
+    current_values = _extract_named_numeric_values(
+        current_text=current_text,
+        names=[str(name) for name, _, _ in pools],
+    )
+    tried_keys = {
+        str(x).strip()
+        for x in (search_memory.get("tried_candidate_values") or [])
+        if str(x).strip()
+    }
+    bad_directions = {
+        str(x).strip()
+        for x in (search_memory.get("bad_directions") or [])
+        if str(x).strip()
+    }
+    successful_directions = {
+        str(x).strip()
+        for x in (search_memory.get("successful_directions") or [])
+        if str(x).strip()
+    }
+
+    prioritized = sorted(pools, key=lambda row: int(row[2]))
+    candidates: list[dict] = []
+
+    combo_replacements: list[tuple[str, str]] = []
+    combo_parts: list[str] = []
+    combo_names: list[str] = []
+    combo_priority = 0
+    combo_candidates: list[tuple[str, list[float], int]] = []
+    for name, targets, priority in prioritized:
+        current_value = current_values.get(name)
+        if current_value is None:
+            continue
+        target_value = _format_numeric_candidate(float(targets[0]))
+        if current_value == target_value:
+            continue
+        combo_candidates.append((name, targets, priority))
+        if len(combo_candidates) >= 2:
+            break
+    for name, targets, priority in combo_candidates:
+        current_value = current_values.get(name)
+        if current_value is None:
+            continue
+        target_value = _format_numeric_candidate(float(targets[0]))
+        if current_value == target_value:
+            continue
+        combo_replacements.append(
+            (rf"\b{re.escape(name)}\s*=\s*{re.escape(current_value)}\b", f"{name}={target_value}")
+        )
+        combo_parts.append(f"{name}={target_value}")
+        combo_names.append(str(name))
+        combo_priority += int(priority)
+    if combo_replacements:
+        direction = "+".join(combo_names)
+        candidate_key = f"{search_kind}:adaptive_combo:" + "|".join(combo_parts)
+        if candidate_key not in tried_keys and direction not in bad_directions:
+            candidates.append(
+                {
+                    "cluster_name": "adaptive_combo",
+                    "candidate_key": candidate_key,
+                    "parameter_names": combo_names,
+                    "candidate_values": combo_parts,
+                    "replacements": combo_replacements,
+                    "search_direction": direction,
+                    "reused_successful_direction": direction in successful_directions,
+                    "priority_score": -1000 + combo_priority - (100 if direction in successful_directions else 0),
+                }
+            )
+
+    for name, targets, priority in prioritized:
+        current_value = current_values.get(name)
+        if current_value is None:
+            continue
+        for target in targets:
+            target_value = _format_numeric_candidate(float(target))
+            if current_value == target_value:
+                continue
+            direction = str(name)
+            candidate_key = f"{search_kind}:adaptive_{name}:{name}={target_value}"
+            if candidate_key in tried_keys or direction in bad_directions:
+                continue
+            candidates.append(
+                {
+                    "cluster_name": f"adaptive_{name}",
+                    "candidate_key": candidate_key,
+                    "parameter_names": [str(name)],
+                    "candidate_values": [f"{name}={target_value}"],
+                    "replacements": [(rf"\b{re.escape(name)}\s*=\s*{re.escape(current_value)}\b", f"{name}={target_value}")],
+                    "search_direction": direction,
+                    "reused_successful_direction": direction in successful_directions,
+                    "priority_score": int(priority) - (100 if direction in successful_directions else 0),
+                }
+            )
+
+    candidates.sort(
+        key=lambda row: (
+            int(row.get("priority_score") or 0),
+            -len(row.get("parameter_names") or []),
+            str(row.get("candidate_key") or ""),
+        )
+    )
+    for idx, row in enumerate(candidates, start=1):
+        row["candidate_rank"] = idx
+        row["candidate_pool_size"] = len(candidates)
+        row["candidate_origin"] = "adaptive_search"
+    return candidates
+
+
 def _source_blind_multistep_local_search_templates(
     *,
     model_name: str,
@@ -533,6 +721,33 @@ def _apply_source_blind_multistep_local_search(
     model_name = _find_primary_model_name(str(current_text or ""))
     if failure not in {"stability_then_behavior", "behavior_then_robustness", "switch_then_recovery"}:
         return current_text, {"applied": False, "reason": "declared_failure_type_not_supported"}
+    adaptive_candidates = _build_adaptive_search_candidates(
+        current_text=current_text,
+        failure_type=failure,
+        current_stage=stage,
+        current_fail_bucket=bucket,
+        search_memory=search_memory,
+        search_kind="stage_1_unlock" if stage in {"", "stage_1"} else "stage_2_resolution",
+    )
+    for candidate in adaptive_candidates:
+        patched, audit = _apply_regex_replacement_cluster(
+            current_text=current_text,
+            cluster_name=str(candidate.get("cluster_name") or "adaptive_candidate"),
+            replacements=[tuple(x) for x in (candidate.get("replacements") or []) if isinstance(x, tuple) and len(x) == 2],
+        )
+        if bool(audit.get("applied")):
+            audit["reason"] = f"source_blind_multistep_local_search:{candidate.get('cluster_name')}"
+            audit["model_name"] = model_name
+            audit["search_kind"] = "stage_1_unlock" if stage in {"", "stage_1"} else "stage_2_resolution"
+            audit["candidate_key"] = str(candidate.get("candidate_key") or "")
+            audit["parameter_names"] = [str(x) for x in (candidate.get("parameter_names") or []) if isinstance(x, str)]
+            audit["candidate_values"] = [str(x) for x in (candidate.get("candidate_values") or []) if isinstance(x, str)]
+            audit["candidate_rank"] = int(candidate.get("candidate_rank") or 0)
+            audit["candidate_pool_size"] = int(candidate.get("candidate_pool_size") or 0)
+            audit["candidate_origin"] = str(candidate.get("candidate_origin") or "adaptive_search")
+            audit["search_direction"] = str(candidate.get("search_direction") or "")
+            audit["search_reused_successful_direction"] = bool(candidate.get("reused_successful_direction"))
+            return patched, audit
     templates = _source_blind_multistep_local_search_templates(
         model_name=model_name,
         failure_type=failure,
@@ -579,6 +794,11 @@ def _apply_source_blind_multistep_local_search(
             audit["candidate_key"] = candidate_key
             audit["parameter_names"] = used_names
             audit["candidate_values"] = candidate_parts
+            audit["candidate_rank"] = 0
+            audit["candidate_pool_size"] = 0
+            audit["candidate_origin"] = "template_fallback"
+            audit["search_direction"] = "+".join(used_names)
+            audit["search_reused_successful_direction"] = False
             return patched, audit
     return current_text, {"applied": False, "reason": "no_local_search_candidate_applicable", "search_kind": search_kind}
 
@@ -2500,9 +2720,13 @@ def main() -> None:
         "last_successful_stage_action": "",
         "tried_parameters": [],
         "tried_candidate_values": [],
+        "bad_directions": [],
+        "successful_directions": [],
         "local_search_attempt_count": 0,
         "local_search_success_count": 0,
         "local_search_kinds": [],
+        "adaptive_search_attempt_count": 0,
+        "adaptive_search_success_count": 0,
         "search_improvement_seen": False,
         "search_regression_seen": False,
         "search_bad_direction_count": 0,
@@ -2748,12 +2972,14 @@ def main() -> None:
             attempts[-1]["source_blind_multistep_local_search"] = multistep_local_search
             if bool(multistep_local_search.get("applied")):
                 multistep_memory["local_search_attempt_count"] = int(multistep_memory.get("local_search_attempt_count") or 0) + 1
+                multistep_memory["adaptive_search_attempt_count"] = int(multistep_memory.get("adaptive_search_attempt_count") or 0) + 1
                 candidate_key = str(multistep_local_search.get("candidate_key") or "").strip()
                 if candidate_key:
                     multistep_memory["tried_candidate_values"] = list(multistep_memory.get("tried_candidate_values") or []) + [candidate_key]
                 multistep_memory["tried_parameters"] = list(multistep_memory.get("tried_parameters") or []) + [
                     str(x) for x in (multistep_local_search.get("parameter_names") or []) if isinstance(x, str)
                 ]
+                direction = str(multistep_local_search.get("search_direction") or "").strip()
                 search_kind = str(multistep_local_search.get("search_kind") or "").strip()
                 if search_kind:
                     multistep_memory["local_search_kinds"] = list(multistep_memory.get("local_search_kinds") or []) + [search_kind]
@@ -2769,6 +2995,8 @@ def main() -> None:
                     current_text = guarded_patched
                     final_error = "source_blind_multistep_local_search_applied_retry_pending"
                     continue
+                if direction:
+                    multistep_memory["bad_directions"] = list(multistep_memory.get("bad_directions") or []) + [direction]
                 multistep_memory["search_regression_seen"] = True
                 multistep_memory["search_bad_direction_count"] = int(multistep_memory.get("search_bad_direction_count") or 0) + 1
                 final_error = str(patch_guard.get("reason") or "robustness_patch_rejected")
@@ -2883,12 +3111,14 @@ def main() -> None:
                     attempts[-1]["source_blind_multistep_local_search"] = multistep_local_search
                     if bool(multistep_local_search.get("applied")):
                         multistep_memory["local_search_attempt_count"] = int(multistep_memory.get("local_search_attempt_count") or 0) + 1
+                        multistep_memory["adaptive_search_attempt_count"] = int(multistep_memory.get("adaptive_search_attempt_count") or 0) + 1
                         candidate_key = str(multistep_local_search.get("candidate_key") or "").strip()
                         if candidate_key:
                             multistep_memory["tried_candidate_values"] = list(multistep_memory.get("tried_candidate_values") or []) + [candidate_key]
                         multistep_memory["tried_parameters"] = list(multistep_memory.get("tried_parameters") or []) + [
                             str(x) for x in (multistep_local_search.get("parameter_names") or []) if isinstance(x, str)
                         ]
+                        direction = str(multistep_local_search.get("search_direction") or "").strip()
                         search_kind = str(multistep_local_search.get("search_kind") or "").strip()
                         if search_kind:
                             multistep_memory["local_search_kinds"] = list(multistep_memory.get("local_search_kinds") or []) + [search_kind]
@@ -2904,6 +3134,8 @@ def main() -> None:
                                 multistep_memory["last_successful_stage_action"] = str(stage_plan_fields.get("executed_plan_action") or "")
                             final_error = "source_blind_multistep_local_search_applied_retry_pending"
                             continue
+                        if direction:
+                            multistep_memory["bad_directions"] = list(multistep_memory.get("bad_directions") or []) + [direction]
                         multistep_memory["search_regression_seen"] = True
                         multistep_memory["search_bad_direction_count"] = int(multistep_memory.get("search_bad_direction_count") or 0) + 1
                         final_error = str(patch_guard.get("reason") or "robustness_patch_rejected")
@@ -3019,6 +3251,13 @@ def main() -> None:
         physics_contract_pass and any(kind == "stage_2_resolution" for kind in local_search_kinds)
     )
     local_search_success_count = 1 if bool(physics_contract_pass and local_search_audits) else 0
+    successful_directions = [
+        str((row or {}).get("search_direction") or "").strip()
+        for row in local_search_audits
+        if str((row or {}).get("search_direction") or "").strip()
+    ]
+    adaptive_search_attempt_count = int(multistep_memory.get("adaptive_search_attempt_count") or len(local_search_audits) or 0)
+    adaptive_search_success_count = 1 if bool(physics_contract_pass and local_search_audits) else 0
     search_improvement_seen = bool(stage_1_unlock_via_local_search or stage_2_resolution_via_local_search)
     cluster_only_resolution = bool(
         physics_contract_pass
@@ -3074,9 +3313,14 @@ def main() -> None:
         "plan_conflict_rejected_count": int(multistep_memory.get("plan_conflict_rejected_count") or 0),
         "last_successful_stage_action": str(multistep_memory.get("last_successful_stage_action") or ""),
         "tried_candidate_values": [str(x) for x in (multistep_memory.get("tried_candidate_values") or []) if str(x).strip()],
+        "bad_directions": [str(x) for x in (multistep_memory.get("bad_directions") or []) if str(x).strip()],
+        "successful_directions": successful_directions,
         "local_search_attempt_count": int(multistep_memory.get("local_search_attempt_count") or 0),
         "local_search_success_count": local_search_success_count,
         "local_search_kinds": local_search_kinds,
+        "adaptive_search_attempt_count": adaptive_search_attempt_count,
+        "adaptive_search_success_count": adaptive_search_success_count,
+        "adaptive_search_success_pct": 100.0 if adaptive_search_success_count > 0 else 0.0,
         "search_improvement_seen": search_improvement_seen,
         "search_regression_seen": bool(multistep_memory.get("search_regression_seen")),
         "search_bad_direction_count": int(multistep_memory.get("search_bad_direction_count") or 0),
@@ -3084,7 +3328,10 @@ def main() -> None:
         "stage_2_best_progress_seen": bool(multistep_memory.get("stage_2_best_progress_seen")),
         "stage_1_unlock_via_local_search": stage_1_unlock_via_local_search,
         "stage_2_resolution_via_local_search": stage_2_resolution_via_local_search,
+        "stage_1_unlock_via_adaptive_search": stage_1_unlock_via_local_search,
+        "stage_2_resolution_via_adaptive_search": stage_2_resolution_via_local_search,
         "cluster_only_resolution": cluster_only_resolution,
+        "template_only_resolution": cluster_only_resolution,
         "regression_pass": bool(final_check_ok and final_simulate_ok),
         "elapsed_sec": elapsed,
         "error_message": final_error,

@@ -83,9 +83,14 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
                     "candidate_key": "stage_2_resolution:stage2_robustness_gain:k=0.5",
                 },
                 "tried_candidate_values": ["stage_1_unlock:stage1_nominal_start_freq:startTime=0.3|freqHz=1"],
+                "bad_directions": ["width"],
+                "successful_directions": ["k"],
                 "local_search_attempt_count": 1,
                 "local_search_success_count": 1,
                 "local_search_kinds": ["stage_2_resolution"],
+                "adaptive_search_attempt_count": 1,
+                "adaptive_search_success_count": 1,
+                "adaptive_search_success_pct": 100.0,
                 "search_improvement_seen": True,
                 "search_regression_seen": False,
                 "search_bad_direction_count": 1,
@@ -94,6 +99,9 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
                 "stage_1_unlock_via_local_search": False,
                 "stage_2_resolution_via_local_search": True,
                 "cluster_only_resolution": False,
+                "stage_1_unlock_via_adaptive_search": False,
+                "stage_2_resolution_via_adaptive_search": True,
+                "template_only_resolution": False,
             },
             physics_ok=False,
         )
@@ -110,6 +118,9 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
         self.assertEqual(str(multistep.get("executed_plan_action") or ""), "resolve_stage_2_neighbor_robustness")
         self.assertEqual(int(multistep.get("local_search_attempt_count") or 0), 1)
         self.assertTrue(bool(multistep.get("stage_2_resolution_via_local_search")))
+        self.assertEqual(int(multistep.get("adaptive_search_attempt_count") or 0), 1)
+        self.assertTrue(bool(multistep.get("stage_2_resolution_via_adaptive_search")))
+        self.assertEqual(multistep.get("bad_directions"), ["width"])
         self.assertEqual(int(multistep.get("search_bad_direction_count") or 0), 1)
         self.assertEqual(str(multistep.get("best_stage_2_fail_bucket_seen") or ""), "single_case_only")
         self.assertTrue(bool(multistep.get("stage_2_best_progress_seen")))

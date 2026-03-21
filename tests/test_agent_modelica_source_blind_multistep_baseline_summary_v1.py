@@ -39,10 +39,14 @@ class AgentModelicaSourceBlindMultistepBaselineSummaryV1Tests(unittest.TestCase)
                         "passed": True,
                         "multi_step_stage_2_unlocked": True,
                         "local_search_success_count": 1,
+                        "adaptive_search_success_count": 1,
                         "search_bad_direction_count": 0,
                         "stage_1_unlock_via_local_search": True,
+                        "stage_1_unlock_via_adaptive_search": True,
                         "stage_2_resolution_via_local_search": True,
+                        "stage_2_resolution_via_adaptive_search": True,
                         "cluster_only_resolution": False,
+                        "template_only_resolution": False,
                         "stage_2_first_fail_bucket": "behavior_contract_miss",
                         "scenario_results": [{"pass": True}, {"pass": True}, {"pass": True}],
                         "attempts": [
@@ -56,10 +60,14 @@ class AgentModelicaSourceBlindMultistepBaselineSummaryV1Tests(unittest.TestCase)
                         "passed": False,
                         "multi_step_stage_2_unlocked": True,
                         "local_search_success_count": 0,
+                        "adaptive_search_success_count": 0,
                         "search_bad_direction_count": 1,
                         "stage_1_unlock_via_local_search": True,
+                        "stage_1_unlock_via_adaptive_search": True,
                         "stage_2_resolution_via_local_search": False,
+                        "stage_2_resolution_via_adaptive_search": False,
                         "cluster_only_resolution": False,
+                        "template_only_resolution": False,
                         "stage_2_first_fail_bucket": "single_case_only",
                         "scenario_results": [{"pass": True}, {"pass": False}, {"pass": False}],
                         "attempts": [
@@ -72,10 +80,14 @@ class AgentModelicaSourceBlindMultistepBaselineSummaryV1Tests(unittest.TestCase)
                         "passed": False,
                         "multi_step_stage_2_unlocked": False,
                         "local_search_success_count": 0,
+                        "adaptive_search_success_count": 0,
                         "search_bad_direction_count": 0,
                         "stage_1_unlock_via_local_search": False,
+                        "stage_1_unlock_via_adaptive_search": False,
                         "stage_2_resolution_via_local_search": False,
+                        "stage_2_resolution_via_adaptive_search": False,
                         "cluster_only_resolution": True,
+                        "template_only_resolution": True,
                         "contract_fail_bucket": "scenario_switch_miss",
                         "scenario_results": [{"pass": False}, {"pass": False}, {"pass": False}],
                         "attempts": [
@@ -130,14 +142,19 @@ class AgentModelicaSourceBlindMultistepBaselineSummaryV1Tests(unittest.TestCase)
             self.assertEqual(payload.get("plan_conflict_rejected_count"), 1)
             self.assertEqual(payload.get("local_search_attempt_count"), 3)
             self.assertEqual(payload.get("local_search_success_count"), 1)
+            self.assertEqual(payload.get("adaptive_search_success_count"), 1)
             self.assertEqual(payload.get("stage_1_unlock_via_local_search_count"), 2)
             self.assertEqual(payload.get("stage_2_resolution_via_local_search_count"), 1)
             self.assertEqual(payload.get("cluster_only_resolution_count"), 1)
+            self.assertEqual(payload.get("stage_1_unlock_via_adaptive_search_count"), 2)
+            self.assertEqual(payload.get("stage_2_resolution_via_adaptive_search_count"), 1)
+            self.assertEqual(payload.get("template_only_resolution_count"), 1)
             self.assertEqual(payload.get("stage_2_hard_case_count"), 1)
             self.assertEqual(payload.get("stage_2_hard_case_resolution_count"), 1)
             self.assertEqual(payload.get("stage_2_hard_case_resolution_pct"), 100.0)
             self.assertEqual(payload.get("search_bad_direction_count"), 1)
             self.assertEqual(payload.get("hard_case_remaining_buckets"), {"single_case_only": 1})
+            self.assertEqual(payload.get("adaptive_vs_template_resolution_split"), {"adaptive_search": 1, "template_only": 1})
             self.assertEqual(payload.get("multi_step_completion_count"), 1)
             self.assertEqual(payload.get("multi_step_headroom_status"), "stage_aware_control_observed")
             self.assertTrue(
