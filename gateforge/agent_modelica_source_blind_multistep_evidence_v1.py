@@ -155,6 +155,13 @@ def main() -> None:
     first_plan_resolution_count = int(baseline_summary.get("first_plan_resolution_count") or 0)
     replan_after_branch_miss_count = int(baseline_summary.get("replan_after_branch_miss_count") or 0)
     backtracking_used_count = int(baseline_summary.get("backtracking_used_count") or 0)
+    llm_replan_budget_consumed_avg = float(baseline_summary.get("llm_replan_budget_consumed_avg") or 0.0)
+    llm_replan_switch_branch_count = int(baseline_summary.get("llm_replan_switch_branch_count") or 0)
+    llm_replan_same_branch_success_count = int(baseline_summary.get("llm_replan_same_branch_success_count") or 0)
+    llm_replan_switch_branch_success_count = int(baseline_summary.get("llm_replan_switch_branch_success_count") or 0)
+    llm_replan_budget_efficiency = float(baseline_summary.get("llm_replan_budget_efficiency") or 0.0)
+    abandoned_branch_count = int(baseline_summary.get("abandoned_branch_count") or 0)
+    budget_wasted_on_bad_branch_count = int(baseline_summary.get("budget_wasted_on_bad_branch_count") or 0)
     llm_resolution_count = int(baseline_summary.get("llm_resolution_count") or 0)
     llm_only_resolution_count = int(baseline_summary.get("llm_only_resolution_count") or 0)
     llm_branch_correction_count = int(baseline_summary.get("llm_branch_correction_count") or 0)
@@ -253,6 +260,13 @@ def main() -> None:
         "first_plan_resolution_count": first_plan_resolution_count,
         "replan_after_branch_miss_count": replan_after_branch_miss_count,
         "backtracking_used_count": backtracking_used_count,
+        "llm_replan_budget_consumed_avg": llm_replan_budget_consumed_avg,
+        "llm_replan_switch_branch_count": llm_replan_switch_branch_count,
+        "llm_replan_same_branch_success_count": llm_replan_same_branch_success_count,
+        "llm_replan_switch_branch_success_count": llm_replan_switch_branch_success_count,
+        "llm_replan_budget_efficiency": llm_replan_budget_efficiency,
+        "abandoned_branch_count": abandoned_branch_count,
+        "budget_wasted_on_bad_branch_count": budget_wasted_on_bad_branch_count,
         "llm_resolution_count": llm_resolution_count,
         "llm_only_resolution_count": llm_only_resolution_count,
         "llm_branch_correction_count": llm_branch_correction_count,
@@ -315,6 +329,13 @@ def main() -> None:
         "first_plan_resolution_count": first_plan_resolution_count,
         "replan_after_branch_miss_count": replan_after_branch_miss_count,
         "backtracking_used_count": backtracking_used_count,
+        "llm_replan_budget_consumed_avg": llm_replan_budget_consumed_avg,
+        "llm_replan_switch_branch_count": llm_replan_switch_branch_count,
+        "llm_replan_same_branch_success_count": llm_replan_same_branch_success_count,
+        "llm_replan_switch_branch_success_count": llm_replan_switch_branch_success_count,
+        "llm_replan_budget_efficiency": llm_replan_budget_efficiency,
+        "abandoned_branch_count": abandoned_branch_count,
+        "budget_wasted_on_bad_branch_count": budget_wasted_on_bad_branch_count,
         "llm_resolution_count": llm_resolution_count,
         "llm_only_resolution_count": llm_only_resolution_count,
         "llm_branch_correction_count": llm_branch_correction_count,
@@ -391,6 +412,13 @@ def main() -> None:
         "first_plan_resolution_count": first_plan_resolution_count,
         "replan_after_branch_miss_count": replan_after_branch_miss_count,
         "backtracking_used_count": backtracking_used_count,
+        "llm_replan_budget_consumed_avg": llm_replan_budget_consumed_avg,
+        "llm_replan_switch_branch_count": llm_replan_switch_branch_count,
+        "llm_replan_same_branch_success_count": llm_replan_same_branch_success_count,
+        "llm_replan_switch_branch_success_count": llm_replan_switch_branch_success_count,
+        "llm_replan_budget_efficiency": llm_replan_budget_efficiency,
+        "abandoned_branch_count": abandoned_branch_count,
+        "budget_wasted_on_bad_branch_count": budget_wasted_on_bad_branch_count,
         "llm_resolution_count": llm_resolution_count,
         "llm_only_resolution_count": llm_only_resolution_count,
         "llm_branch_correction_count": llm_branch_correction_count,

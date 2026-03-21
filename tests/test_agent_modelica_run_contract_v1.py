@@ -170,6 +170,21 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
                 "replan_goal": "abandon nominal overfit and recover the preferred neighbor robustness branch",
                 "replan_candidate_parameters": ["offset", "k"],
                 "replan_stop_condition": "preferred_branch_restored",
+                "branch_choice_reason": "switch to the preferred branch because the nominal branch stalled",
+                "replan_budget_total": 3,
+                "replan_budget_for_branch_diagnosis": 1,
+                "replan_budget_for_branch_escape": 1,
+                "replan_budget_for_resolution": 1,
+                "replan_budget_consumed": 3,
+                "replan_continue_current_branch": False,
+                "replan_switch_branch": True,
+                "replan_history": [{"round": 2, "signal": "same_stage_2_branch_stall_after_first_plan"}],
+                "replan_branch_history": ["nominal_overfit_trap", "neighbor_robustness_branch"],
+                "replan_failed_directions": ["offset:increase"],
+                "replan_successful_directions": ["offset:normalize"],
+                "replan_same_branch_stall_count": 1,
+                "replan_switch_branch_count": 1,
+                "replan_abandoned_branches": ["nominal_overfit_trap"],
                 "backtracking_used": True,
                 "backtracking_reason": "abandon_previous_branch_direction",
                 "budget_reallocated_after_replan": True,
@@ -220,6 +235,11 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
         self.assertFalse(bool(multistep.get("branch_escape_succeeded")))
         self.assertEqual(str(multistep.get("branch_escape_direction") or ""), "offset")
         self.assertTrue(bool(multistep.get("branch_budget_reallocated")))
+        self.assertEqual(str(multistep.get("branch_choice_reason") or ""), "switch to the preferred branch because the nominal branch stalled")
+        self.assertEqual(int(multistep.get("replan_budget_total") or 0), 3)
+        self.assertEqual(int(multistep.get("replan_budget_consumed") or 0), 3)
+        self.assertTrue(bool(multistep.get("replan_switch_branch")))
+        self.assertEqual(multistep.get("replan_abandoned_branches"), ["nominal_overfit_trap"])
         self.assertEqual((multistep.get("source_blind_multistep_local_search") or {}).get("search_kind"), "stage_2_resolution")
 
         live_usage = _extract_live_usage_fields(
@@ -235,6 +255,9 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
                 "previous_plan_failed_signal": "same_stage_2_branch_stall_after_first_plan",
                 "previous_branch": "nominal_overfit_trap",
                 "new_branch": "neighbor_robustness_branch",
+                "branch_choice_reason": "switch to preferred branch",
+                "replan_budget_total": 3,
+                "replan_switch_branch": True,
                 "backtracking_used": True,
                 "budget_reallocated_after_replan": True,
                 "abandoned_plan_directions": ["offset:increase"],
@@ -246,6 +269,9 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
         self.assertEqual(str(live_usage.get("previous_plan_failed_signal") or ""), "same_stage_2_branch_stall_after_first_plan")
         self.assertEqual(str(live_usage.get("previous_branch") or ""), "nominal_overfit_trap")
         self.assertEqual(str(live_usage.get("new_branch") or ""), "neighbor_robustness_branch")
+        self.assertEqual(str(live_usage.get("branch_choice_reason") or ""), "switch to preferred branch")
+        self.assertEqual(int(live_usage.get("replan_budget_total") or 0), 3)
+        self.assertTrue(bool(live_usage.get("replan_switch_branch")))
         self.assertTrue(bool(live_usage.get("backtracking_used")))
         self.assertTrue(bool(live_usage.get("budget_reallocated_after_replan")))
         self.assertEqual(live_usage.get("abandoned_plan_directions"), ["offset:increase"])
@@ -270,6 +296,9 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
         self.assertEqual(fields.get("previous_plan_failed_signal"), "")
         self.assertEqual(fields.get("previous_branch"), "")
         self.assertEqual(fields.get("new_branch"), "")
+        self.assertEqual(fields.get("branch_choice_reason"), "")
+        self.assertEqual(int(fields.get("replan_budget_total") or 0), 0)
+        self.assertFalse(bool(fields.get("replan_switch_branch")))
         self.assertFalse(bool(fields.get("backtracking_used")))
         self.assertFalse(bool(fields.get("budget_reallocated_after_replan")))
         self.assertEqual(fields.get("abandoned_plan_directions"), [])

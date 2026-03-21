@@ -105,6 +105,26 @@ class AgentModelicaSourceBlindMultistepBaselineSummaryV1Tests(unittest.TestCase)
                         "llm_replan_reason": "same_stage_2_branch_stall_after_first_plan",
                         "llm_replan_count": 1,
                         "previous_plan_failed_signal": "same_stage_2_branch_stall_after_first_plan",
+                        "previous_branch": "nominal_overfit_trap",
+                        "new_branch": "neighbor_robustness_branch",
+                        "replan_goal": "switch to the preferred neighbor branch",
+                        "replan_candidate_parameters": ["offset", "k"],
+                        "replan_stop_condition": "preferred_branch_restored",
+                        "branch_choice_reason": "switch to preferred branch after same-branch stall",
+                        "replan_budget_total": 3,
+                        "replan_budget_for_branch_diagnosis": 1,
+                        "replan_budget_for_branch_escape": 1,
+                        "replan_budget_for_resolution": 1,
+                        "replan_budget_consumed": 3,
+                        "replan_continue_current_branch": False,
+                        "replan_switch_branch": True,
+                        "replan_history": [{"round": 2, "signal": "same_stage_2_branch_stall_after_first_plan"}],
+                        "replan_branch_history": ["nominal_overfit_trap", "neighbor_robustness_branch"],
+                        "replan_failed_directions": ["offset:increase"],
+                        "replan_successful_directions": ["offset:normalize"],
+                        "replan_same_branch_stall_count": 1,
+                        "replan_switch_branch_count": 1,
+                        "replan_abandoned_branches": ["nominal_overfit_trap"],
                         "backtracking_used": True,
                         "replan_helped_resolution": True,
                         "llm_first_plan_resolved": False,
@@ -230,6 +250,13 @@ class AgentModelicaSourceBlindMultistepBaselineSummaryV1Tests(unittest.TestCase)
             self.assertEqual(payload.get("first_plan_resolution_count"), 1)
             self.assertEqual(payload.get("replan_after_branch_miss_count"), 1)
             self.assertEqual(payload.get("backtracking_used_count"), 1)
+            self.assertEqual(payload.get("llm_replan_budget_consumed_avg"), 3.0)
+            self.assertEqual(payload.get("llm_replan_switch_branch_count"), 1)
+            self.assertEqual(payload.get("llm_replan_same_branch_success_count"), 0)
+            self.assertEqual(payload.get("llm_replan_switch_branch_success_count"), 1)
+            self.assertEqual(payload.get("llm_replan_budget_efficiency"), 33.33)
+            self.assertEqual(payload.get("abandoned_branch_count"), 1)
+            self.assertEqual(payload.get("budget_wasted_on_bad_branch_count"), 1)
             self.assertEqual(payload.get("llm_usage_by_failure_type"), {"behavior_then_robustness": 1, "stability_then_behavior": 1})
             self.assertEqual(payload.get("llm_usage_by_branch"), {"behavior_timing_branch": 1, "nominal_overfit_trap": 1})
             self.assertEqual(
