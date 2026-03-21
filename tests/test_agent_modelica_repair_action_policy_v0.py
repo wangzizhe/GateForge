@@ -120,6 +120,28 @@ class AgentModelicaRepairActionPolicyV0Tests(unittest.TestCase):
         actions = payload.get("actions") if isinstance(payload.get("actions"), list) else []
         self.assertFalse(any("unlock step" in str(x).lower() for x in actions))
 
+    def test_multistep_policy_generates_trap_branch_plan(self) -> None:
+        payload = recommend_repair_actions_v0(
+            failure_type="switch_then_recovery",
+            expected_stage="simulate",
+            diagnostic_payload={},
+            fallback_actions=["fallback_action_1"],
+            multistep_context={
+                "current_stage": "stage_2",
+                "current_fail_bucket": "single_case_only",
+                "stage_2_branch": "recovery_overfit_trap",
+                "preferred_stage_2_branch": "post_switch_recovery_branch",
+                "trap_branch": True,
+            },
+        )
+        self.assertEqual(payload.get("next_focus"), "escape_trap_branch_recovery_overfit")
+        plan = payload.get("plan") if isinstance(payload.get("plan"), dict) else {}
+        self.assertEqual(plan.get("branch_mode"), "trap")
+        self.assertEqual(plan.get("current_branch"), "recovery_overfit_trap")
+        self.assertEqual(plan.get("preferred_branch"), "post_switch_recovery_branch")
+        self.assertIn("escape", str(plan.get("branch_plan_goal") or "").lower())
+        self.assertTrue(any("trap" in str(x).lower() for x in (plan.get("branch_plan_actions") or [])))
+
 
 if __name__ == "__main__":
     unittest.main()

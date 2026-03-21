@@ -64,6 +64,7 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
                 "stage_2_first_fail_bucket": "single_case_only",
                 "stage_2_branch": "nominal_overfit_trap",
                 "preferred_stage_2_branch": "neighbor_robustness_branch",
+                "branch_mode": "trap",
                 "branch_reason": "nominal_gate_fully_reset_before_neighbor_robustness",
                 "trap_branch": True,
                 "trap_branch_entered": True,
@@ -76,6 +77,9 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
                 "plan_actions": ["resolve_stage_2_neighbor_robustness"],
                 "plan_constraints": ["do_not_reopen_stage_1"],
                 "plan_stop_condition": "all_neighbor_scenarios_pass",
+                "branch_plan_goal": "escape the nominal_overfit_trap and return to neighbor_robustness_branch before resuming resolution",
+                "branch_plan_actions": ["escape_trap_branch_nominal_overfit", "resolve_stage_2_neighbor_robustness"],
+                "branch_plan_stop_condition": "preferred_branch_restored",
                 "stage_plan_generated": True,
                 "stage_plan_followed": True,
                 "executed_plan_stage": "stage_2",
@@ -109,6 +113,21 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
                 "stage_1_unlock_via_adaptive_search": False,
                 "stage_2_resolution_via_adaptive_search": True,
                 "template_only_resolution": False,
+                "branch_history": ["neighbor_robustness_branch", "nominal_overfit_trap"],
+                "trap_branch_history": ["nominal_overfit_trap"],
+                "last_trap_escape_direction": "offset",
+                "last_successful_branch_correction": "",
+                "branch_bad_directions": ["nominal_gain_push"],
+                "branch_reentry_count": 1,
+                "repeated_trap_branch": True,
+                "branch_escape_attempt_count": 1,
+                "branch_escape_success_count": 0,
+                "branch_escape_success_pct": 0.0,
+                "branch_budget_reallocated_count": 1,
+                "branch_escape_attempted": True,
+                "branch_escape_succeeded": False,
+                "branch_escape_direction": "offset",
+                "branch_budget_reallocated": True,
             },
             physics_ok=False,
         )
@@ -120,6 +139,7 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
         self.assertEqual(str(multistep.get("next_focus") or ""), "resolve_stage_2_neighbor_robustness")
         self.assertEqual(str(multistep.get("stage_2_branch") or ""), "nominal_overfit_trap")
         self.assertEqual(str(multistep.get("preferred_stage_2_branch") or ""), "neighbor_robustness_branch")
+        self.assertEqual(str(multistep.get("branch_mode") or ""), "trap")
         self.assertTrue(bool(multistep.get("trap_branch")))
         self.assertTrue(bool(multistep.get("trap_branch_entered")))
         self.assertFalse(bool(multistep.get("correct_branch_selected")))
@@ -128,6 +148,8 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
         self.assertTrue(bool(multistep.get("stage_plan_generated")))
         self.assertTrue(bool(multistep.get("stage_plan_followed")))
         self.assertEqual(str(multistep.get("executed_plan_action") or ""), "resolve_stage_2_neighbor_robustness")
+        self.assertIn("escape", str(multistep.get("branch_plan_goal") or "").lower())
+        self.assertEqual(multistep.get("branch_plan_actions"), ["escape_trap_branch_nominal_overfit", "resolve_stage_2_neighbor_robustness"])
         self.assertEqual(int(multistep.get("local_search_attempt_count") or 0), 1)
         self.assertTrue(bool(multistep.get("stage_2_resolution_via_local_search")))
         self.assertEqual(int(multistep.get("adaptive_search_attempt_count") or 0), 1)
@@ -136,6 +158,18 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
         self.assertEqual(int(multistep.get("search_bad_direction_count") or 0), 1)
         self.assertEqual(str(multistep.get("best_stage_2_fail_bucket_seen") or ""), "single_case_only")
         self.assertTrue(bool(multistep.get("stage_2_best_progress_seen")))
+        self.assertEqual(multistep.get("branch_history"), ["neighbor_robustness_branch", "nominal_overfit_trap"])
+        self.assertEqual(multistep.get("trap_branch_history"), ["nominal_overfit_trap"])
+        self.assertEqual(str(multistep.get("last_trap_escape_direction") or ""), "offset")
+        self.assertEqual(multistep.get("branch_bad_directions"), ["nominal_gain_push"])
+        self.assertEqual(int(multistep.get("branch_reentry_count") or 0), 1)
+        self.assertTrue(bool(multistep.get("repeated_trap_branch")))
+        self.assertEqual(int(multistep.get("branch_escape_attempt_count") or 0), 1)
+        self.assertEqual(int(multistep.get("branch_escape_success_count") or 0), 0)
+        self.assertTrue(bool(multistep.get("branch_escape_attempted")))
+        self.assertFalse(bool(multistep.get("branch_escape_succeeded")))
+        self.assertEqual(str(multistep.get("branch_escape_direction") or ""), "offset")
+        self.assertTrue(bool(multistep.get("branch_budget_reallocated")))
         self.assertEqual((multistep.get("source_blind_multistep_local_search") or {}).get("search_kind"), "stage_2_resolution")
 
     def test_extract_contract_fields_prefers_current_branch_state_over_payload_memory(self) -> None:

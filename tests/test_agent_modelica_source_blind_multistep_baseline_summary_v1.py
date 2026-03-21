@@ -53,6 +53,10 @@ class AgentModelicaSourceBlindMultistepBaselineSummaryV1Tests(unittest.TestCase)
                         "trap_branch_entered": False,
                         "correct_branch_selected": True,
                         "correct_branch_round": 2,
+                        "branch_escape_attempt_count": 0,
+                        "branch_escape_success_count": 0,
+                        "branch_budget_reallocated_count": 0,
+                        "branch_reentry_count": 0,
                         "scenario_results": [{"pass": True}, {"pass": True}, {"pass": True}],
                         "attempts": [
                             {"round": 1, "contract_fail_bucket": "stability_margin_miss", "multi_step_stage": "stage_1", "source_blind_multistep_local_search": {"applied": True, "search_kind": "stage_1_unlock", "candidate_key": "stage_1_unlock:stage1_stability_gain_height:k=1|height=1"}},
@@ -79,6 +83,10 @@ class AgentModelicaSourceBlindMultistepBaselineSummaryV1Tests(unittest.TestCase)
                         "trap_branch_entered": True,
                         "correct_branch_selected": False,
                         "correct_branch_round": 0,
+                        "branch_escape_attempt_count": 1,
+                        "branch_escape_success_count": 1,
+                        "branch_budget_reallocated_count": 1,
+                        "branch_reentry_count": 1,
                         "scenario_results": [{"pass": True}, {"pass": False}, {"pass": False}],
                         "attempts": [
                             {"round": 1, "contract_fail_bucket": "behavior_contract_miss", "multi_step_stage": "stage_1", "source_blind_multistep_local_search": {"applied": True, "search_kind": "stage_1_unlock", "candidate_key": "stage_1_unlock:stage1_nominal_start_freq:startTime=0.3|freqHz=1"}},
@@ -170,6 +178,14 @@ class AgentModelicaSourceBlindMultistepBaselineSummaryV1Tests(unittest.TestCase)
             self.assertEqual(payload.get("good_branch_resolution_count"), 1)
             self.assertEqual(payload.get("trap_branch_enter_count"), 1)
             self.assertEqual(payload.get("trap_branch_recovery_count"), 0)
+            self.assertEqual(payload.get("trap_branch_resolution_count"), 0)
+            self.assertEqual(payload.get("trap_branch_resolution_pct"), 0.0)
+            self.assertEqual(payload.get("preferred_branch_resolution_count"), 1)
+            self.assertEqual(payload.get("branch_escape_attempt_count"), 1)
+            self.assertEqual(payload.get("branch_escape_success_count"), 1)
+            self.assertEqual(payload.get("branch_escape_success_pct"), 100.0)
+            self.assertEqual(payload.get("branch_budget_reallocated_count"), 1)
+            self.assertEqual(payload.get("repeated_trap_branch_count"), 1)
             self.assertEqual(payload.get("median_round_to_correct_branch"), 2.0)
             self.assertEqual(payload.get("multi_step_completion_count"), 1)
             self.assertEqual(payload.get("multi_step_headroom_status"), "branch_selection_headroom_present")

@@ -391,6 +391,7 @@ def _extract_multistep_fields(payload: dict, live_attempt: dict) -> dict:
         "stage_2_first_fail_bucket": "",
         "stage_2_branch": "",
         "preferred_stage_2_branch": "",
+        "branch_mode": "",
         "branch_reason": "",
         "trap_branch": False,
         "trap_branch_entered": False,
@@ -399,10 +400,16 @@ def _extract_multistep_fields(payload: dict, live_attempt: dict) -> dict:
         "stage_aware_control_applied": False,
         "stage_1_revisit_after_unlock": False,
         "plan_stage": "",
+        "branch_stage": "",
+        "current_branch": "",
+        "preferred_branch": "",
         "plan_goal": "",
         "plan_actions": [],
         "plan_constraints": [],
         "plan_stop_condition": "",
+        "branch_plan_goal": "",
+        "branch_plan_actions": [],
+        "branch_plan_stop_condition": "",
         "stage_plan_generated": False,
         "stage_plan_followed": False,
         "executed_plan_stage": "",
@@ -432,6 +439,21 @@ def _extract_multistep_fields(payload: dict, live_attempt: dict) -> dict:
         "stage_1_unlock_via_adaptive_search": False,
         "stage_2_resolution_via_adaptive_search": False,
         "template_only_resolution": False,
+        "branch_history": [],
+        "trap_branch_history": [],
+        "last_trap_escape_direction": "",
+        "last_successful_branch_correction": "",
+        "branch_bad_directions": [],
+        "branch_reentry_count": 0,
+        "repeated_trap_branch": False,
+        "branch_escape_attempt_count": 0,
+        "branch_escape_success_count": 0,
+        "branch_escape_success_pct": 0.0,
+        "branch_budget_reallocated_count": 0,
+        "branch_escape_attempted": False,
+        "branch_escape_succeeded": False,
+        "branch_escape_direction": "",
+        "branch_budget_reallocated": False,
     }
     stage = str(live_attempt.get("multi_step_stage") or payload.get("multi_step_stage") or "").strip().lower()
     out["multi_step_stage"] = stage
@@ -492,6 +514,11 @@ def _extract_multistep_fields(payload: dict, live_attempt: dict) -> dict:
         or payload.get("preferred_stage_2_branch")
         or ""
     ).strip().lower()
+    out["branch_mode"] = str(
+        live_attempt.get("branch_mode")
+        or payload.get("branch_mode")
+        or ""
+    ).strip().lower()
     out["branch_reason"] = str(
         live_attempt.get("branch_reason")
         or payload.get("branch_reason")
@@ -517,12 +544,26 @@ def _extract_multistep_fields(payload: dict, live_attempt: dict) -> dict:
     revisit_live = _as_bool(live_attempt.get("stage_1_revisit_after_unlock"))
     out["stage_1_revisit_after_unlock"] = bool(revisit_live) or bool(revisit_payload)
     out["plan_stage"] = str(live_attempt.get("plan_stage") or payload.get("plan_stage") or "").strip().lower()
+    out["branch_stage"] = str(live_attempt.get("branch_stage") or payload.get("branch_stage") or "").strip().lower()
+    out["current_branch"] = str(live_attempt.get("current_branch") or payload.get("current_branch") or "").strip().lower()
+    out["preferred_branch"] = str(live_attempt.get("preferred_branch") or payload.get("preferred_branch") or "").strip().lower()
     out["plan_goal"] = str(live_attempt.get("plan_goal") or payload.get("plan_goal") or "").strip()
     out["plan_actions"] = _as_str_list(live_attempt.get("plan_actions")) or _as_str_list(payload.get("plan_actions"))
     out["plan_constraints"] = _as_str_list(live_attempt.get("plan_constraints")) or _as_str_list(payload.get("plan_constraints"))
     out["plan_stop_condition"] = str(
         live_attempt.get("plan_stop_condition")
         or payload.get("plan_stop_condition")
+        or ""
+    ).strip()
+    out["branch_plan_goal"] = str(
+        live_attempt.get("branch_plan_goal")
+        or payload.get("branch_plan_goal")
+        or ""
+    ).strip()
+    out["branch_plan_actions"] = _as_str_list(live_attempt.get("branch_plan_actions")) or _as_str_list(payload.get("branch_plan_actions"))
+    out["branch_plan_stop_condition"] = str(
+        live_attempt.get("branch_plan_stop_condition")
+        or payload.get("branch_plan_stop_condition")
         or ""
     ).strip()
     out["stage_plan_generated"] = bool(_as_bool(live_attempt.get("stage_plan_generated"))) or bool(_as_bool(payload.get("stage_plan_generated")))
@@ -598,6 +639,36 @@ def _extract_multistep_fields(payload: dict, live_attempt: dict) -> dict:
     out["stage_1_unlock_via_adaptive_search"] = bool(_as_bool(live_attempt.get("stage_1_unlock_via_adaptive_search"))) or bool(_as_bool(payload.get("stage_1_unlock_via_adaptive_search"))) or bool(out["stage_1_unlock_via_local_search"])
     out["stage_2_resolution_via_adaptive_search"] = bool(_as_bool(live_attempt.get("stage_2_resolution_via_adaptive_search"))) or bool(_as_bool(payload.get("stage_2_resolution_via_adaptive_search"))) or bool(out["stage_2_resolution_via_local_search"])
     out["template_only_resolution"] = bool(_as_bool(live_attempt.get("template_only_resolution"))) or bool(_as_bool(payload.get("template_only_resolution"))) or bool(out["cluster_only_resolution"])
+    out["branch_history"] = _as_str_list(live_attempt.get("branch_history")) or _as_str_list(payload.get("branch_history"))
+    out["trap_branch_history"] = _as_str_list(live_attempt.get("trap_branch_history")) or _as_str_list(payload.get("trap_branch_history"))
+    out["last_trap_escape_direction"] = str(live_attempt.get("last_trap_escape_direction") or payload.get("last_trap_escape_direction") or "").strip()
+    out["last_successful_branch_correction"] = str(live_attempt.get("last_successful_branch_correction") or payload.get("last_successful_branch_correction") or "").strip()
+    out["branch_bad_directions"] = _as_str_list(live_attempt.get("branch_bad_directions")) or _as_str_list(payload.get("branch_bad_directions"))
+    try:
+        out["branch_reentry_count"] = max(0, int(live_attempt.get("branch_reentry_count") or payload.get("branch_reentry_count") or 0))
+    except Exception:
+        out["branch_reentry_count"] = 0
+    out["repeated_trap_branch"] = bool(_as_bool(live_attempt.get("repeated_trap_branch"))) or bool(_as_bool(payload.get("repeated_trap_branch"))) or bool(out["branch_reentry_count"] > 0)
+    try:
+        out["branch_escape_attempt_count"] = max(0, int(live_attempt.get("branch_escape_attempt_count") or payload.get("branch_escape_attempt_count") or 0))
+    except Exception:
+        out["branch_escape_attempt_count"] = 0
+    try:
+        out["branch_escape_success_count"] = max(0, int(live_attempt.get("branch_escape_success_count") or payload.get("branch_escape_success_count") or 0))
+    except Exception:
+        out["branch_escape_success_count"] = 0
+    try:
+        out["branch_escape_success_pct"] = float(live_attempt.get("branch_escape_success_pct") or payload.get("branch_escape_success_pct") or 0.0)
+    except Exception:
+        out["branch_escape_success_pct"] = 0.0
+    try:
+        out["branch_budget_reallocated_count"] = max(0, int(live_attempt.get("branch_budget_reallocated_count") or payload.get("branch_budget_reallocated_count") or 0))
+    except Exception:
+        out["branch_budget_reallocated_count"] = 0
+    out["branch_escape_attempted"] = bool(_as_bool(live_attempt.get("branch_escape_attempted"))) or bool(_as_bool(payload.get("branch_escape_attempted"))) or bool(out["branch_escape_attempt_count"] > 0)
+    out["branch_escape_succeeded"] = bool(_as_bool(live_attempt.get("branch_escape_succeeded"))) or bool(_as_bool(payload.get("branch_escape_succeeded"))) or bool(out["branch_escape_success_count"] > 0)
+    out["branch_escape_direction"] = str(live_attempt.get("branch_escape_direction") or payload.get("branch_escape_direction") or "").strip()
+    out["branch_budget_reallocated"] = bool(_as_bool(live_attempt.get("branch_budget_reallocated"))) or bool(_as_bool(payload.get("branch_budget_reallocated"))) or bool(out["branch_budget_reallocated_count"] > 0)
     return out
 
 
@@ -1683,6 +1754,7 @@ def _run_task_live_l4(
             "stage_2_first_fail_bucket": str(multistep_fields.get("stage_2_first_fail_bucket") or ""),
             "stage_2_branch": str(multistep_fields.get("stage_2_branch") or ""),
             "preferred_stage_2_branch": str(multistep_fields.get("preferred_stage_2_branch") or ""),
+            "branch_mode": str(multistep_fields.get("branch_mode") or ""),
             "branch_reason": str(multistep_fields.get("branch_reason") or ""),
             "trap_branch": bool(multistep_fields.get("trap_branch")),
             "trap_branch_entered": bool(multistep_fields.get("trap_branch_entered")),
@@ -1691,10 +1763,16 @@ def _run_task_live_l4(
             "stage_aware_control_applied": bool(multistep_fields.get("stage_aware_control_applied")),
             "stage_1_revisit_after_unlock": bool(multistep_fields.get("stage_1_revisit_after_unlock")),
             "plan_stage": str(multistep_fields.get("plan_stage") or ""),
+            "branch_stage": str(multistep_fields.get("branch_stage") or ""),
+            "current_branch": str(multistep_fields.get("current_branch") or ""),
+            "preferred_branch": str(multistep_fields.get("preferred_branch") or ""),
             "plan_goal": str(multistep_fields.get("plan_goal") or ""),
             "plan_actions": [str(x) for x in (multistep_fields.get("plan_actions") or []) if isinstance(x, str)],
             "plan_constraints": [str(x) for x in (multistep_fields.get("plan_constraints") or []) if isinstance(x, str)],
             "plan_stop_condition": str(multistep_fields.get("plan_stop_condition") or ""),
+            "branch_plan_goal": str(multistep_fields.get("branch_plan_goal") or ""),
+            "branch_plan_actions": [str(x) for x in (multistep_fields.get("branch_plan_actions") or []) if isinstance(x, str)],
+            "branch_plan_stop_condition": str(multistep_fields.get("branch_plan_stop_condition") or ""),
             "stage_plan_generated": bool(multistep_fields.get("stage_plan_generated")),
             "stage_plan_followed": bool(multistep_fields.get("stage_plan_followed")),
             "executed_plan_stage": str(multistep_fields.get("executed_plan_stage") or ""),
@@ -1724,6 +1802,21 @@ def _run_task_live_l4(
             "stage_1_unlock_via_adaptive_search": bool(multistep_fields.get("stage_1_unlock_via_adaptive_search")),
             "stage_2_resolution_via_adaptive_search": bool(multistep_fields.get("stage_2_resolution_via_adaptive_search")),
             "template_only_resolution": bool(multistep_fields.get("template_only_resolution")),
+            "branch_history": [str(x) for x in (multistep_fields.get("branch_history") or []) if isinstance(x, str)],
+            "trap_branch_history": [str(x) for x in (multistep_fields.get("trap_branch_history") or []) if isinstance(x, str)],
+            "last_trap_escape_direction": str(multistep_fields.get("last_trap_escape_direction") or ""),
+            "last_successful_branch_correction": str(multistep_fields.get("last_successful_branch_correction") or ""),
+            "branch_bad_directions": [str(x) for x in (multistep_fields.get("branch_bad_directions") or []) if isinstance(x, str)],
+            "branch_reentry_count": int(multistep_fields.get("branch_reentry_count") or 0),
+            "repeated_trap_branch": bool(multistep_fields.get("repeated_trap_branch")),
+            "branch_escape_attempt_count": int(multistep_fields.get("branch_escape_attempt_count") or 0),
+            "branch_escape_success_count": int(multistep_fields.get("branch_escape_success_count") or 0),
+            "branch_escape_success_pct": float(multistep_fields.get("branch_escape_success_pct") or 0.0),
+            "branch_budget_reallocated_count": int(multistep_fields.get("branch_budget_reallocated_count") or 0),
+            "branch_escape_attempted": bool(multistep_fields.get("branch_escape_attempted")),
+            "branch_escape_succeeded": bool(multistep_fields.get("branch_escape_succeeded")),
+            "branch_escape_direction": str(multistep_fields.get("branch_escape_direction") or ""),
+            "branch_budget_reallocated": bool(multistep_fields.get("branch_budget_reallocated")),
             "physics_contract_reasons": physics_reasons,
             "physics_contract_invariant_count": len(task_invariants),
             "regression_pass": bool(regression_ok),
@@ -1820,6 +1913,7 @@ def _run_task_live_l4(
         "stage_2_first_fail_bucket": str(best_contract_attempt.get("stage_2_first_fail_bucket") or "") if best_contract_attempt else "",
         "stage_2_branch": str(best_contract_attempt.get("stage_2_branch") or "") if best_contract_attempt else "",
         "preferred_stage_2_branch": str(best_contract_attempt.get("preferred_stage_2_branch") or "") if best_contract_attempt else "",
+        "branch_mode": str(best_contract_attempt.get("branch_mode") or "") if best_contract_attempt else "",
         "branch_reason": str(best_contract_attempt.get("branch_reason") or "") if best_contract_attempt else "",
         "trap_branch": bool(best_contract_attempt.get("trap_branch")) if best_contract_attempt else False,
         "trap_branch_entered": bool(best_contract_attempt.get("trap_branch_entered")) if best_contract_attempt else False,
@@ -1828,10 +1922,16 @@ def _run_task_live_l4(
         "stage_aware_control_applied": bool(best_contract_attempt.get("stage_aware_control_applied")) if best_contract_attempt else False,
         "stage_1_revisit_after_unlock": bool(best_contract_attempt.get("stage_1_revisit_after_unlock")) if best_contract_attempt else False,
         "plan_stage": str(best_contract_attempt.get("plan_stage") or "") if best_contract_attempt else "",
+        "branch_stage": str(best_contract_attempt.get("branch_stage") or "") if best_contract_attempt else "",
+        "current_branch": str(best_contract_attempt.get("current_branch") or "") if best_contract_attempt else "",
+        "preferred_branch": str(best_contract_attempt.get("preferred_branch") or "") if best_contract_attempt else "",
         "plan_goal": str(best_contract_attempt.get("plan_goal") or "") if best_contract_attempt else "",
         "plan_actions": [str(x) for x in (best_contract_attempt.get("plan_actions") or []) if isinstance(x, str)] if best_contract_attempt else [],
         "plan_constraints": [str(x) for x in (best_contract_attempt.get("plan_constraints") or []) if isinstance(x, str)] if best_contract_attempt else [],
         "plan_stop_condition": str(best_contract_attempt.get("plan_stop_condition") or "") if best_contract_attempt else "",
+        "branch_plan_goal": str(best_contract_attempt.get("branch_plan_goal") or "") if best_contract_attempt else "",
+        "branch_plan_actions": [str(x) for x in (best_contract_attempt.get("branch_plan_actions") or []) if isinstance(x, str)] if best_contract_attempt else [],
+        "branch_plan_stop_condition": str(best_contract_attempt.get("branch_plan_stop_condition") or "") if best_contract_attempt else "",
         "stage_plan_generated": bool(best_contract_attempt.get("stage_plan_generated")) if best_contract_attempt else False,
         "stage_plan_followed": bool(best_contract_attempt.get("stage_plan_followed")) if best_contract_attempt else False,
         "executed_plan_stage": str(best_contract_attempt.get("executed_plan_stage") or "") if best_contract_attempt else "",
@@ -1861,6 +1961,21 @@ def _run_task_live_l4(
         "stage_1_unlock_via_adaptive_search": bool(best_contract_attempt.get("stage_1_unlock_via_adaptive_search")) if best_contract_attempt else False,
         "stage_2_resolution_via_adaptive_search": bool(best_contract_attempt.get("stage_2_resolution_via_adaptive_search")) if best_contract_attempt else False,
         "template_only_resolution": bool(best_contract_attempt.get("template_only_resolution")) if best_contract_attempt else False,
+        "branch_history": [str(x) for x in (best_contract_attempt.get("branch_history") or []) if isinstance(x, str)] if best_contract_attempt else [],
+        "trap_branch_history": [str(x) for x in (best_contract_attempt.get("trap_branch_history") or []) if isinstance(x, str)] if best_contract_attempt else [],
+        "last_trap_escape_direction": str(best_contract_attempt.get("last_trap_escape_direction") or "") if best_contract_attempt else "",
+        "last_successful_branch_correction": str(best_contract_attempt.get("last_successful_branch_correction") or "") if best_contract_attempt else "",
+        "branch_bad_directions": [str(x) for x in (best_contract_attempt.get("branch_bad_directions") or []) if isinstance(x, str)] if best_contract_attempt else [],
+        "branch_reentry_count": int(best_contract_attempt.get("branch_reentry_count") or 0) if best_contract_attempt else 0,
+        "repeated_trap_branch": bool(best_contract_attempt.get("repeated_trap_branch")) if best_contract_attempt else False,
+        "branch_escape_attempt_count": int(best_contract_attempt.get("branch_escape_attempt_count") or 0) if best_contract_attempt else 0,
+        "branch_escape_success_count": int(best_contract_attempt.get("branch_escape_success_count") or 0) if best_contract_attempt else 0,
+        "branch_escape_success_pct": float(best_contract_attempt.get("branch_escape_success_pct") or 0.0) if best_contract_attempt else 0.0,
+        "branch_budget_reallocated_count": int(best_contract_attempt.get("branch_budget_reallocated_count") or 0) if best_contract_attempt else 0,
+        "branch_escape_attempted": bool(best_contract_attempt.get("branch_escape_attempted")) if best_contract_attempt else False,
+        "branch_escape_succeeded": bool(best_contract_attempt.get("branch_escape_succeeded")) if best_contract_attempt else False,
+        "branch_escape_direction": str(best_contract_attempt.get("branch_escape_direction") or "") if best_contract_attempt else "",
+        "branch_budget_reallocated": bool(best_contract_attempt.get("branch_budget_reallocated")) if best_contract_attempt else False,
         "repair_strategy": repair_strategy,
         "repair_audit": {
             **strategy_audit,
@@ -2253,6 +2368,7 @@ def _run_task_live(
                 "stage_2_first_fail_bucket": str(multistep_fields.get("stage_2_first_fail_bucket") or ""),
                 "stage_2_branch": str(multistep_fields.get("stage_2_branch") or ""),
                 "preferred_stage_2_branch": str(multistep_fields.get("preferred_stage_2_branch") or ""),
+                "branch_mode": str(multistep_fields.get("branch_mode") or ""),
                 "branch_reason": str(multistep_fields.get("branch_reason") or ""),
                 "trap_branch": bool(multistep_fields.get("trap_branch")),
                 "trap_branch_entered": bool(multistep_fields.get("trap_branch_entered")),
@@ -2261,10 +2377,16 @@ def _run_task_live(
                 "stage_aware_control_applied": bool(multistep_fields.get("stage_aware_control_applied")),
                 "stage_1_revisit_after_unlock": bool(multistep_fields.get("stage_1_revisit_after_unlock")),
                 "plan_stage": str(multistep_fields.get("plan_stage") or ""),
+                "branch_stage": str(multistep_fields.get("branch_stage") or ""),
+                "current_branch": str(multistep_fields.get("current_branch") or ""),
+                "preferred_branch": str(multistep_fields.get("preferred_branch") or ""),
                 "plan_goal": str(multistep_fields.get("plan_goal") or ""),
                 "plan_actions": [str(x) for x in (multistep_fields.get("plan_actions") or []) if isinstance(x, str)],
                 "plan_constraints": [str(x) for x in (multistep_fields.get("plan_constraints") or []) if isinstance(x, str)],
                 "plan_stop_condition": str(multistep_fields.get("plan_stop_condition") or ""),
+                "branch_plan_goal": str(multistep_fields.get("branch_plan_goal") or ""),
+                "branch_plan_actions": [str(x) for x in (multistep_fields.get("branch_plan_actions") or []) if isinstance(x, str)],
+                "branch_plan_stop_condition": str(multistep_fields.get("branch_plan_stop_condition") or ""),
                 "stage_plan_generated": bool(multistep_fields.get("stage_plan_generated")),
                 "stage_plan_followed": bool(multistep_fields.get("stage_plan_followed")),
                 "executed_plan_stage": str(multistep_fields.get("executed_plan_stage") or ""),
@@ -2294,6 +2416,21 @@ def _run_task_live(
                 "stage_1_unlock_via_adaptive_search": bool(multistep_fields.get("stage_1_unlock_via_adaptive_search")),
                 "stage_2_resolution_via_adaptive_search": bool(multistep_fields.get("stage_2_resolution_via_adaptive_search")),
                 "template_only_resolution": bool(multistep_fields.get("template_only_resolution")),
+                "branch_history": [str(x) for x in (multistep_fields.get("branch_history") or []) if isinstance(x, str)],
+                "trap_branch_history": [str(x) for x in (multistep_fields.get("trap_branch_history") or []) if isinstance(x, str)],
+                "last_trap_escape_direction": str(multistep_fields.get("last_trap_escape_direction") or ""),
+                "last_successful_branch_correction": str(multistep_fields.get("last_successful_branch_correction") or ""),
+                "branch_bad_directions": [str(x) for x in (multistep_fields.get("branch_bad_directions") or []) if isinstance(x, str)],
+                "branch_reentry_count": int(multistep_fields.get("branch_reentry_count") or 0),
+                "repeated_trap_branch": bool(multistep_fields.get("repeated_trap_branch")),
+                "branch_escape_attempt_count": int(multistep_fields.get("branch_escape_attempt_count") or 0),
+                "branch_escape_success_count": int(multistep_fields.get("branch_escape_success_count") or 0),
+                "branch_escape_success_pct": float(multistep_fields.get("branch_escape_success_pct") or 0.0),
+                "branch_budget_reallocated_count": int(multistep_fields.get("branch_budget_reallocated_count") or 0),
+                "branch_escape_attempted": bool(multistep_fields.get("branch_escape_attempted")),
+                "branch_escape_succeeded": bool(multistep_fields.get("branch_escape_succeeded")),
+                "branch_escape_direction": str(multistep_fields.get("branch_escape_direction") or ""),
+                "branch_budget_reallocated": bool(multistep_fields.get("branch_budget_reallocated")),
                 "physics_contract_reasons": physics_contract_reasons,
                 "physics_contract_invariant_count": int(physics_eval.get("invariant_count") or 0),
                 "regression_pass": bool(regression_ok),
@@ -2359,6 +2496,7 @@ def _run_task_live(
         "stage_2_first_fail_bucket": str(best_contract_attempt.get("stage_2_first_fail_bucket") or "") if best_contract_attempt else "",
         "stage_2_branch": str(best_contract_attempt.get("stage_2_branch") or "") if best_contract_attempt else "",
         "preferred_stage_2_branch": str(best_contract_attempt.get("preferred_stage_2_branch") or "") if best_contract_attempt else "",
+        "branch_mode": str(best_contract_attempt.get("branch_mode") or "") if best_contract_attempt else "",
         "branch_reason": str(best_contract_attempt.get("branch_reason") or "") if best_contract_attempt else "",
         "trap_branch": bool(best_contract_attempt.get("trap_branch")) if best_contract_attempt else False,
         "trap_branch_entered": bool(best_contract_attempt.get("trap_branch_entered")) if best_contract_attempt else False,
@@ -2367,10 +2505,16 @@ def _run_task_live(
         "stage_aware_control_applied": bool(best_contract_attempt.get("stage_aware_control_applied")) if best_contract_attempt else False,
         "stage_1_revisit_after_unlock": bool(best_contract_attempt.get("stage_1_revisit_after_unlock")) if best_contract_attempt else False,
         "plan_stage": str(best_contract_attempt.get("plan_stage") or "") if best_contract_attempt else "",
+        "branch_stage": str(best_contract_attempt.get("branch_stage") or "") if best_contract_attempt else "",
+        "current_branch": str(best_contract_attempt.get("current_branch") or "") if best_contract_attempt else "",
+        "preferred_branch": str(best_contract_attempt.get("preferred_branch") or "") if best_contract_attempt else "",
         "plan_goal": str(best_contract_attempt.get("plan_goal") or "") if best_contract_attempt else "",
         "plan_actions": [str(x) for x in (best_contract_attempt.get("plan_actions") or []) if isinstance(x, str)] if best_contract_attempt else [],
         "plan_constraints": [str(x) for x in (best_contract_attempt.get("plan_constraints") or []) if isinstance(x, str)] if best_contract_attempt else [],
         "plan_stop_condition": str(best_contract_attempt.get("plan_stop_condition") or "") if best_contract_attempt else "",
+        "branch_plan_goal": str(best_contract_attempt.get("branch_plan_goal") or "") if best_contract_attempt else "",
+        "branch_plan_actions": [str(x) for x in (best_contract_attempt.get("branch_plan_actions") or []) if isinstance(x, str)] if best_contract_attempt else [],
+        "branch_plan_stop_condition": str(best_contract_attempt.get("branch_plan_stop_condition") or "") if best_contract_attempt else "",
         "stage_plan_generated": bool(best_contract_attempt.get("stage_plan_generated")) if best_contract_attempt else False,
         "stage_plan_followed": bool(best_contract_attempt.get("stage_plan_followed")) if best_contract_attempt else False,
         "executed_plan_stage": str(best_contract_attempt.get("executed_plan_stage") or "") if best_contract_attempt else "",
@@ -2400,6 +2544,21 @@ def _run_task_live(
         "stage_1_unlock_via_adaptive_search": bool(best_contract_attempt.get("stage_1_unlock_via_adaptive_search")) if best_contract_attempt else False,
         "stage_2_resolution_via_adaptive_search": bool(best_contract_attempt.get("stage_2_resolution_via_adaptive_search")) if best_contract_attempt else False,
         "template_only_resolution": bool(best_contract_attempt.get("template_only_resolution")) if best_contract_attempt else False,
+        "branch_history": [str(x) for x in (best_contract_attempt.get("branch_history") or []) if isinstance(x, str)] if best_contract_attempt else [],
+        "trap_branch_history": [str(x) for x in (best_contract_attempt.get("trap_branch_history") or []) if isinstance(x, str)] if best_contract_attempt else [],
+        "last_trap_escape_direction": str(best_contract_attempt.get("last_trap_escape_direction") or "") if best_contract_attempt else "",
+        "last_successful_branch_correction": str(best_contract_attempt.get("last_successful_branch_correction") or "") if best_contract_attempt else "",
+        "branch_bad_directions": [str(x) for x in (best_contract_attempt.get("branch_bad_directions") or []) if isinstance(x, str)] if best_contract_attempt else [],
+        "branch_reentry_count": int(best_contract_attempt.get("branch_reentry_count") or 0) if best_contract_attempt else 0,
+        "repeated_trap_branch": bool(best_contract_attempt.get("repeated_trap_branch")) if best_contract_attempt else False,
+        "branch_escape_attempt_count": int(best_contract_attempt.get("branch_escape_attempt_count") or 0) if best_contract_attempt else 0,
+        "branch_escape_success_count": int(best_contract_attempt.get("branch_escape_success_count") or 0) if best_contract_attempt else 0,
+        "branch_escape_success_pct": float(best_contract_attempt.get("branch_escape_success_pct") or 0.0) if best_contract_attempt else 0.0,
+        "branch_budget_reallocated_count": int(best_contract_attempt.get("branch_budget_reallocated_count") or 0) if best_contract_attempt else 0,
+        "branch_escape_attempted": bool(best_contract_attempt.get("branch_escape_attempted")) if best_contract_attempt else False,
+        "branch_escape_succeeded": bool(best_contract_attempt.get("branch_escape_succeeded")) if best_contract_attempt else False,
+        "branch_escape_direction": str(best_contract_attempt.get("branch_escape_direction") or "") if best_contract_attempt else "",
+        "branch_budget_reallocated": bool(best_contract_attempt.get("branch_budget_reallocated")) if best_contract_attempt else False,
         "repair_strategy": repair_strategy,
         "repair_audit": {
             **strategy_audit,

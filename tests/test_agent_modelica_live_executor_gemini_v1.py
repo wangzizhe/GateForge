@@ -8,6 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from gateforge.agent_modelica_live_executor_gemini_v1 import (
+    _apply_source_blind_multistep_branch_escape_search,
     _apply_source_blind_multistep_exposure_repair,
     _apply_source_blind_multistep_local_search,
     _apply_source_blind_multistep_stage2_local_repair,
@@ -272,6 +273,28 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
         self.assertTrue(second_audit.get("applied"))
         self.assertNotEqual(second_audit.get("candidate_key"), first_audit.get("candidate_key"))
         self.assertNotEqual(patched, model_text)
+
+    def test_source_blind_multistep_branch_escape_search_restores_hybridb_recovery_branch(self) -> None:
+        model_text = (
+            "model HybridB\n"
+            "  parameter Real width=0.75;\n"
+            "  parameter Real T=0.5;\n"
+            "end HybridB;\n"
+        )
+        patched, audit = _apply_source_blind_multistep_branch_escape_search(
+            current_text=model_text,
+            declared_failure_type="switch_then_recovery",
+            current_branch="recovery_overfit_trap",
+            preferred_branch="post_switch_recovery_branch",
+            search_memory={},
+        )
+        self.assertTrue(audit.get("applied"))
+        self.assertEqual(audit.get("search_kind"), "branch_escape")
+        self.assertEqual(audit.get("cluster_name"), "escape_recovery_overfit_tail")
+        self.assertEqual(audit.get("candidate_origin"), "branch_escape_template")
+        self.assertEqual(audit.get("search_direction"), "width+T")
+        self.assertIn("width=0.4", patched)
+        self.assertIn("T=0.2", patched)
 
     def test_extract_om_success_flags_treats_structural_mismatch_as_check_failure(self) -> None:
         check_ok, simulate_ok = _extract_om_success_flags(
@@ -804,6 +827,7 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
         self.assertEqual(context.get("stage_2_first_fail_bucket"), "behavior_contract_miss")
         self.assertEqual(context.get("stage_2_branch"), "nominal_overfit_trap")
         self.assertTrue(bool(context.get("trap_branch")))
+        self.assertEqual(context.get("branch_mode"), "trap")
 
     def test_stage_1_focus_detector_ignores_stage_2_guard_language(self) -> None:
         self.assertFalse(
