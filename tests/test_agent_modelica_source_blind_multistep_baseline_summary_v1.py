@@ -38,10 +38,14 @@ class AgentModelicaSourceBlindMultistepBaselineSummaryV1Tests(unittest.TestCase)
                         "task_id": "t1",
                         "passed": True,
                         "multi_step_stage_2_unlocked": True,
+                        "local_search_success_count": 1,
+                        "stage_1_unlock_via_local_search": True,
+                        "stage_2_resolution_via_local_search": True,
+                        "cluster_only_resolution": False,
                         "scenario_results": [{"pass": True}, {"pass": True}, {"pass": True}],
                         "attempts": [
-                            {"round": 1, "contract_fail_bucket": "stability_margin_miss", "multi_step_stage": "stage_1"},
-                            {"round": 2, "contract_fail_bucket": "behavior_contract_miss", "scenario_results": [{"pass": True}, {"pass": False}, {"pass": False}], "multi_step_stage": "stage_2", "multi_step_stage_2_unlocked": True, "multi_step_transition_seen": True, "multi_step_transition_round": 2, "multi_step_transition_reason": "stability_restored_behavior_gate_exposed", "source_blind_local_repair": {"applied": True, "cluster_name": "stability_cluster"}, "next_focus": "resolve_stage_2_behavior_contract", "stage_aware_control_applied": True, "stage_plan_generated": True, "stage_plan_followed": True, "plan_stage": "stage_2", "plan_followed": True, "executed_plan_action": "resolve_stage_2_behavior_contract"},
+                            {"round": 1, "contract_fail_bucket": "stability_margin_miss", "multi_step_stage": "stage_1", "source_blind_multistep_local_search": {"applied": True, "search_kind": "stage_1_unlock", "candidate_key": "stage_1_unlock:stage1_stability_gain_height:k=1|height=1"}},
+                            {"round": 2, "contract_fail_bucket": "behavior_contract_miss", "scenario_results": [{"pass": True}, {"pass": False}, {"pass": False}], "multi_step_stage": "stage_2", "multi_step_stage_2_unlocked": True, "multi_step_transition_seen": True, "multi_step_transition_round": 2, "multi_step_transition_reason": "stability_restored_behavior_gate_exposed", "source_blind_local_repair": {"applied": True, "cluster_name": "stability_cluster"}, "source_blind_multistep_local_search": {"applied": True, "search_kind": "stage_2_resolution", "candidate_key": "stage_2_resolution:stage2_behavior_start:startTime=0.2"}, "next_focus": "resolve_stage_2_behavior_contract", "stage_aware_control_applied": True, "stage_plan_generated": True, "stage_plan_followed": True, "plan_stage": "stage_2", "plan_followed": True, "executed_plan_action": "resolve_stage_2_behavior_contract"},
                             {"round": 3, "contract_pass": True, "scenario_results": [{"pass": True}, {"pass": True}, {"pass": True}], "multi_step_stage": "passed", "multi_step_stage_2_unlocked": True, "multi_step_transition_seen": True, "multi_step_transition_round": 2, "multi_step_transition_reason": "stability_restored_behavior_gate_exposed", "next_focus": "stop_editing", "stage_aware_control_applied": True, "stage_plan_generated": True, "stage_plan_followed": True, "plan_stage": "stage_2", "plan_followed": True, "executed_plan_action": "stop_editing"},
                         ],
                     },
@@ -49,9 +53,13 @@ class AgentModelicaSourceBlindMultistepBaselineSummaryV1Tests(unittest.TestCase)
                         "task_id": "t2",
                         "passed": False,
                         "multi_step_stage_2_unlocked": True,
+                        "local_search_success_count": 0,
+                        "stage_1_unlock_via_local_search": True,
+                        "stage_2_resolution_via_local_search": False,
+                        "cluster_only_resolution": False,
                         "scenario_results": [{"pass": True}, {"pass": False}, {"pass": False}],
                         "attempts": [
-                            {"round": 1, "contract_fail_bucket": "behavior_contract_miss", "multi_step_stage": "stage_1"},
+                            {"round": 1, "contract_fail_bucket": "behavior_contract_miss", "multi_step_stage": "stage_1", "source_blind_multistep_local_search": {"applied": True, "search_kind": "stage_1_unlock", "candidate_key": "stage_1_unlock:stage1_nominal_start_freq:startTime=0.3|freqHz=1"}},
                             {"round": 2, "contract_fail_bucket": "single_case_only", "scenario_results": [{"pass": True}, {"pass": False}, {"pass": False}], "multi_step_stage": "stage_2", "multi_step_stage_2_unlocked": True, "multi_step_transition_seen": True, "multi_step_transition_round": 2, "multi_step_transition_reason": "nominal_behavior_restored_neighbor_robustness_exposed", "next_focus": "resolve_stage_2_neighbor_robustness", "stage_aware_control_applied": True, "stage_plan_generated": True, "stage_plan_followed": True, "plan_stage": "stage_2", "plan_followed": True, "executed_plan_action": "resolve_stage_2_neighbor_robustness", "plan_conflict_rejected_count": 1},
                         ],
                     },
@@ -59,6 +67,10 @@ class AgentModelicaSourceBlindMultistepBaselineSummaryV1Tests(unittest.TestCase)
                         "task_id": "t3",
                         "passed": False,
                         "multi_step_stage_2_unlocked": False,
+                        "local_search_success_count": 0,
+                        "stage_1_unlock_via_local_search": False,
+                        "stage_2_resolution_via_local_search": False,
+                        "cluster_only_resolution": True,
                         "contract_fail_bucket": "scenario_switch_miss",
                         "scenario_results": [{"pass": False}, {"pass": False}, {"pass": False}],
                         "attempts": [
@@ -111,6 +123,11 @@ class AgentModelicaSourceBlindMultistepBaselineSummaryV1Tests(unittest.TestCase)
             self.assertEqual(payload.get("stage_2_plan_followed_count"), 2)
             self.assertEqual(payload.get("stage_2_plan_resolution_count"), 1)
             self.assertEqual(payload.get("plan_conflict_rejected_count"), 1)
+            self.assertEqual(payload.get("local_search_attempt_count"), 3)
+            self.assertEqual(payload.get("local_search_success_count"), 1)
+            self.assertEqual(payload.get("stage_1_unlock_via_local_search_count"), 2)
+            self.assertEqual(payload.get("stage_2_resolution_via_local_search_count"), 1)
+            self.assertEqual(payload.get("cluster_only_resolution_count"), 1)
             self.assertEqual(payload.get("multi_step_completion_count"), 1)
             self.assertEqual(payload.get("multi_step_headroom_status"), "stage_aware_control_observed")
             self.assertTrue(

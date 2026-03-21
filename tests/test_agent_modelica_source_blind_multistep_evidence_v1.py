@@ -48,6 +48,12 @@ class AgentModelicaSourceBlindMultistepEvidenceV1Tests(unittest.TestCase):
                 "stage_2_plan_followed_pct": 100.0,
                 "stage_2_plan_resolution_count": 0,
                 "plan_conflict_rejected_count": 1,
+                "local_search_attempt_count": 3,
+                "local_search_success_count": 1,
+                "local_search_success_pct": 50.0,
+                "stage_1_unlock_via_local_search_count": 2,
+                "stage_2_resolution_via_local_search_count": 1,
+                "cluster_only_resolution_count": 0,
                 "median_round_from_stage_2_to_resolution": 0.0,
                 "multi_step_completion_count": 0,
                 "median_round_to_second_failure": 2.0,
@@ -114,6 +120,9 @@ class AgentModelicaSourceBlindMultistepEvidenceV1Tests(unittest.TestCase):
             self.assertEqual(payload.get("stage_plan_followed_count"), 2)
             self.assertEqual(payload.get("stage_2_plan_followed_count"), 2)
             self.assertEqual(payload.get("plan_conflict_rejected_count"), 1)
+            self.assertEqual(payload.get("local_search_attempt_count"), 3)
+            self.assertEqual(payload.get("local_search_success_count"), 1)
+            self.assertEqual(payload.get("stage_2_resolution_via_local_search_count"), 1)
 
 
 if __name__ == "__main__":

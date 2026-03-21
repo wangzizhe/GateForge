@@ -161,16 +161,19 @@ def _multistep_stage_actions(*, failure_type: str, current_stage: str, next_focu
     if stage in {"", "stage_1"}:
         mapping = {
             "stability_then_behavior": [
+                "use a bounded local numeric search over stage-1 stability parameters before broad edits",
                 "focus only on restoring stability margin and startup timing so the behavior layer can unlock",
                 "treat this round as a stage-1 unlock step, not a full behavior repair",
                 "avoid behavior-only tuning until the stability gate is cleared",
             ],
             "behavior_then_robustness": [
+                "use a bounded local numeric search over stage-1 nominal-behavior parameters before broad edits",
                 "focus only on restoring nominal behavior for the primary scenario first",
                 "treat this round as a stage-1 unlock step, not a robustness sweep",
                 "avoid neighboring-scenario tuning until nominal behavior is restored",
             ],
             "switch_then_recovery": [
+                "use a bounded local numeric search over stage-1 switch timing parameters before broad edits",
                 "focus only on switch timing and trigger recovery so the post-switch layer can unlock",
                 "treat this round as a stage-1 unlock step, not a recovery-tail repair",
                 "avoid recovery-tail tuning until the switch gate is cleared",
@@ -180,16 +183,19 @@ def _multistep_stage_actions(*, failure_type: str, current_stage: str, next_focu
     if stage == "stage_2":
         mapping = {
             "stability_then_behavior": [
+                "use a bounded local numeric search over the exposed stage-2 behavior parameters before broader patches",
                 "stage_2 is unlocked: focus only on behavior-layer repair and stop revisiting stability parameters first",
                 "prioritize neighboring-scenario behavior consistency over reopening the stage-1 margin fix",
                 "reject edits that reintroduce stage-1 instability while addressing the exposed behavior layer",
             ],
             "behavior_then_robustness": [
+                "use a bounded local numeric search over the exposed stage-2 robustness parameters before broader patches",
                 "stage_2 is unlocked: focus only on neighbor robustness and stop revisiting nominal-behavior unlock parameters",
                 "prioritize adjacent-scenario consistency over further stage-1 tuning",
                 "reject edits that reopen stage-1 nominal behavior while addressing the exposed robustness layer",
             ],
             "switch_then_recovery": [
+                "use a bounded local numeric search over the exposed stage-2 recovery parameters before broader patches",
                 "stage_2 is unlocked: focus only on post-switch recovery and stop revisiting switch-gate unlock parameters",
                 "prioritize recovery-tail consistency after the switch segment is restored",
                 "reject edits that reopen stage-1 switch timing while addressing the exposed recovery layer",
