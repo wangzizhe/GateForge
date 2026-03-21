@@ -1590,6 +1590,103 @@ def _source_blind_multistep_llm_resolution_targets(*, model_name: str, failure_t
     return dict(targets.get((model, failure), {}))
 
 
+def _normalize_source_blind_multistep_llm_plan(
+    *,
+    payload: dict | None,
+    stage_context: dict,
+    llm_reason: str,
+) -> dict:
+    raw = payload if isinstance(payload, dict) else {}
+    candidate_parameters = [str(x).strip() for x in (raw.get("candidate_parameters") or []) if str(x).strip()]
+    candidate_value_directions = [
+        str(x).strip() for x in (raw.get("candidate_value_directions") or []) if str(x).strip()
+    ]
+    return {
+        "diagnosed_stage": str(raw.get("diagnosed_stage") or stage_context.get("current_stage") or "").strip().lower(),
+        "diagnosed_branch": str(raw.get("diagnosed_branch") or stage_context.get("stage_2_branch") or "").strip().lower(),
+        "preferred_branch": str(
+            raw.get("preferred_branch") or stage_context.get("preferred_stage_2_branch") or ""
+        ).strip().lower(),
+        "repair_goal": str(raw.get("repair_goal") or llm_reason or "llm_guided_multistep_resolution").strip(),
+        "candidate_parameters": candidate_parameters,
+        "candidate_value_directions": candidate_value_directions,
+        "why_not_other_branch": str(raw.get("why_not_other_branch") or "").strip(),
+        "stop_condition": str(raw.get("stop_condition") or "stop when the preferred branch is restored or all scenarios pass").strip(),
+        "rationale": str(raw.get("rationale") or "").strip(),
+    }
+
+
+def _llm_plan_branch_match(*, llm_plan: dict, stage_context: dict) -> bool:
+    diagnosed_branch = str(llm_plan.get("diagnosed_branch") or "").strip().lower()
+    preferred_branch = str(llm_plan.get("preferred_branch") or "").strip().lower()
+    actual_branch = str(stage_context.get("stage_2_branch") or "").strip().lower()
+    actual_preferred = str(stage_context.get("preferred_stage_2_branch") or "").strip().lower()
+    if preferred_branch and actual_preferred:
+        return preferred_branch == actual_preferred
+    if diagnosed_branch and actual_branch:
+        return diagnosed_branch == actual_branch
+    return False
+
+
+def _llm_plan_parameter_match(*, llm_plan: dict, available_targets: dict[str, float]) -> bool:
+    wanted = {str(x).strip() for x in (llm_plan.get("candidate_parameters") or []) if str(x).strip()}
+    if not wanted:
+        return False
+    return bool(wanted.intersection(set(available_targets.keys())))
+
+
+def _apply_source_blind_multistep_llm_plan(
+    *,
+    current_text: str,
+    declared_failure_type: str,
+    llm_plan: dict,
+    llm_reason: str,
+) -> tuple[str, dict]:
+    model_name = _find_primary_model_name(str(current_text or ""))
+    targets = _source_blind_multistep_llm_resolution_targets(model_name=model_name, failure_type=declared_failure_type)
+    if not targets:
+        return current_text, {"applied": False, "reason": "no_llm_plan_targets_defined"}
+    ordered_names = [
+        str(x).strip() for x in (llm_plan.get("candidate_parameters") or []) if str(x).strip() in targets
+    ]
+    if not ordered_names:
+        ordered_names = list(targets.keys())
+    current_values = _extract_named_numeric_values(current_text=current_text, names=ordered_names)
+    replacements: list[tuple[str, str]] = []
+    candidate_values: list[str] = []
+    used_names: list[str] = []
+    for name in ordered_names:
+        current_value = current_values.get(name)
+        if current_value is None:
+            continue
+        target_str = _format_numeric_candidate(float(targets[name]))
+        if current_value == target_str:
+            continue
+        replacements.append((rf"\b{re.escape(name)}\s*=\s*{re.escape(current_value)}\b", f"{name}={target_str}"))
+        candidate_values.append(f"{name}={target_str}")
+        used_names.append(str(name))
+    if not replacements:
+        return current_text, {"applied": False, "reason": "llm_plan_targets_already_satisfied"}
+    patched, audit = _apply_regex_replacement_cluster(
+        current_text=current_text,
+        cluster_name=f"{str(model_name or '').strip().lower()}_llm_plan_cluster",
+        replacements=replacements,
+    )
+    if not bool(audit.get("applied")):
+        return current_text, {"applied": False, "reason": "llm_plan_cluster_not_applicable"}
+    audit["reason"] = f"source_blind_multistep_llm_plan:{llm_reason or 'llm_plan'}"
+    audit["model_name"] = model_name
+    audit["candidate_origin"] = "llm_plan_execution"
+    audit["candidate_values"] = candidate_values
+    audit["parameter_names"] = used_names
+    audit["search_direction"] = "+".join(used_names)
+    audit["llm_plan_candidate_parameters"] = [str(x) for x in (llm_plan.get("candidate_parameters") or []) if str(x).strip()]
+    audit["llm_plan_candidate_value_directions"] = [
+        str(x) for x in (llm_plan.get("candidate_value_directions") or []) if str(x).strip()
+    ]
+    return patched, audit
+
+
 def _apply_source_blind_multistep_llm_resolution(
     *,
     current_text: str,
@@ -2762,6 +2859,219 @@ def _llm_repair_model_text(
     return None, "rule_backend_selected", "rule"
 
 
+def _gemini_generate_repair_plan(
+    *,
+    original_text: str,
+    failure_type: str,
+    expected_stage: str,
+    error_excerpt: str,
+    repair_actions: list[str],
+    model_name: str,
+    current_round: int,
+    stage_context: dict,
+    llm_reason: str,
+) -> tuple[dict | None, str]:
+    api_key = os.getenv("GOOGLE_API_KEY")
+    if not api_key:
+        _bootstrap_env_from_repo(allowed_keys={"GOOGLE_API_KEY", "LLM_MODEL", "GATEFORGE_GEMINI_MODEL", "GEMINI_MODEL"})
+        api_key = os.getenv("GOOGLE_API_KEY")
+    if not api_key:
+        return None, "GOOGLE_API_KEY missing"
+    model = os.getenv("LLM_MODEL") or os.getenv("GATEFORGE_GEMINI_MODEL") or os.getenv("GEMINI_MODEL")
+    if not model:
+        return None, "LLM_MODEL or GATEFORGE_GEMINI_MODEL or GEMINI_MODEL missing"
+    prompt = (
+        "You are planning a Modelica repair.\n"
+        "Return ONLY a JSON object with keys:\n"
+        "diagnosed_stage, diagnosed_branch, preferred_branch, repair_goal, candidate_parameters, candidate_value_directions, why_not_other_branch, stop_condition, rationale.\n"
+        "Constraints:\n"
+        "- Do not output markdown.\n"
+        "- candidate_parameters must be a short list of existing numeric parameter names already present in the model text.\n"
+        "- candidate_value_directions should describe small-step directions like increase/decrease/normalize.\n"
+        f"- model_name: {model_name}\n"
+        f"- failure_type: {failure_type}\n"
+        f"- expected_stage: {expected_stage}\n"
+        f"- current_round: {current_round}\n"
+        f"- llm_plan_reason: {llm_reason}\n"
+        f"- current_stage: {stage_context.get('current_stage')}\n"
+        f"- current_branch: {stage_context.get('stage_2_branch')}\n"
+        f"- preferred_branch: {stage_context.get('preferred_stage_2_branch')}\n"
+        f"- current_fail_bucket: {stage_context.get('current_fail_bucket')}\n"
+        f"- trap_branch: {bool(stage_context.get('trap_branch'))}\n"
+        f"- suggested_actions: {json.dumps(repair_actions, ensure_ascii=True)}\n"
+        f"- error_excerpt: {error_excerpt[:1200]}\n"
+        "Model text below:\n"
+        "-----BEGIN_MODEL-----\n"
+        f"{original_text}\n"
+        "-----END_MODEL-----\n"
+    )
+    req_payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {"temperature": 0.1},
+    }
+    req = urllib.request.Request(
+        "https://generativelanguage.googleapis.com/v1beta/models/"
+        f"{model}:generateContent?key={urllib.parse.quote(api_key)}",
+        data=json.dumps(req_payload).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    cfg = _live_budget_config()
+    while True:
+        allowed, _ledger = _reserve_live_request(cfg)
+        if not allowed:
+            return None, "live_request_budget_exceeded"
+        try:
+            with urllib.request.urlopen(req, timeout=_llm_request_timeout_sec()) as resp:
+                response_payload = json.loads(resp.read().decode("utf-8"))
+            _record_live_request_success(cfg)
+            break
+        except TimeoutError:
+            return None, "gemini_request_timeout"
+        except urllib.error.HTTPError as exc:
+            body = exc.read().decode("utf-8", errors="ignore")
+            if int(exc.code) == 429:
+                stop_reason, _ledger = _record_live_request_429(cfg)
+                if stop_reason:
+                    return None, stop_reason
+                continue
+            return None, f"gemini_http_error:{exc.code}:{body[:180]}"
+        except urllib.error.URLError as exc:
+            return None, f"gemini_url_error:{exc.reason}"
+    candidates = response_payload.get("candidates", [])
+    if not candidates:
+        return None, "gemini_no_candidates"
+    text = candidates[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+    payload = _extract_json_object(text)
+    if not payload:
+        return None, "gemini_missing_repair_plan"
+    return payload, ""
+
+
+def _openai_generate_repair_plan(
+    *,
+    original_text: str,
+    failure_type: str,
+    expected_stage: str,
+    error_excerpt: str,
+    repair_actions: list[str],
+    model_name: str,
+    current_round: int,
+    stage_context: dict,
+    llm_reason: str,
+) -> tuple[dict | None, str]:
+    provider, model, api_key = _resolve_llm_provider("openai")
+    if provider != "openai":
+        return None, "openai_provider_resolution_failed"
+    if not api_key:
+        return None, "OPENAI_API_KEY missing"
+    if not model:
+        return None, "LLM_MODEL or OPENAI_MODEL missing"
+    prompt = (
+        "You are planning a Modelica repair.\n"
+        "Return ONLY a JSON object with keys:\n"
+        "diagnosed_stage, diagnosed_branch, preferred_branch, repair_goal, candidate_parameters, candidate_value_directions, why_not_other_branch, stop_condition, rationale.\n"
+        "Constraints:\n"
+        "- Do not output markdown.\n"
+        "- candidate_parameters must be a short list of existing numeric parameter names already present in the model text.\n"
+        "- candidate_value_directions should describe small-step directions like increase/decrease/normalize.\n"
+        f"- model_name: {model_name}\n"
+        f"- failure_type: {failure_type}\n"
+        f"- expected_stage: {expected_stage}\n"
+        f"- current_round: {current_round}\n"
+        f"- llm_plan_reason: {llm_reason}\n"
+        f"- current_stage: {stage_context.get('current_stage')}\n"
+        f"- current_branch: {stage_context.get('stage_2_branch')}\n"
+        f"- preferred_branch: {stage_context.get('preferred_stage_2_branch')}\n"
+        f"- current_fail_bucket: {stage_context.get('current_fail_bucket')}\n"
+        f"- trap_branch: {bool(stage_context.get('trap_branch'))}\n"
+        f"- suggested_actions: {json.dumps(repair_actions, ensure_ascii=True)}\n"
+        f"- error_excerpt: {error_excerpt[:1200]}\n"
+        "Model text below:\n"
+        "-----BEGIN_MODEL-----\n"
+        f"{original_text}\n"
+        "-----END_MODEL-----\n"
+    )
+    req = urllib.request.Request(
+        "https://api.openai.com/v1/responses",
+        data=json.dumps({"model": model, "input": prompt, "temperature": 0.1}).encode("utf-8"),
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {api_key}",
+        },
+        method="POST",
+    )
+    cfg = _live_budget_config()
+    while True:
+        allowed, _ledger = _reserve_live_request(cfg)
+        if not allowed:
+            return None, "live_request_budget_exceeded"
+        try:
+            with urllib.request.urlopen(req, timeout=_llm_request_timeout_sec()) as resp:
+                response_payload = json.loads(resp.read().decode("utf-8"))
+            _record_live_request_success(cfg)
+            break
+        except TimeoutError:
+            return None, "openai_request_timeout"
+        except urllib.error.HTTPError as exc:
+            body = exc.read().decode("utf-8", errors="ignore")
+            if int(exc.code) == 429:
+                stop_reason, _ledger = _record_live_request_429(cfg)
+                if stop_reason:
+                    return None, stop_reason
+                continue
+            return None, f"openai_http_error:{exc.code}:{body[:180]}"
+        except urllib.error.URLError as exc:
+            return None, f"openai_url_error:{exc.reason}"
+    payload = _extract_json_object(_extract_response_text_openai(response_payload))
+    if not payload:
+        return None, "openai_missing_repair_plan"
+    return payload, ""
+
+
+def _llm_generate_repair_plan(
+    *,
+    planner_backend: str,
+    original_text: str,
+    failure_type: str,
+    expected_stage: str,
+    error_excerpt: str,
+    repair_actions: list[str],
+    model_name: str,
+    current_round: int,
+    stage_context: dict,
+    llm_reason: str,
+) -> tuple[dict | None, str, str]:
+    provider, _model, _key = _resolve_llm_provider(planner_backend)
+    if provider == "openai":
+        plan, err = _openai_generate_repair_plan(
+            original_text=original_text,
+            failure_type=failure_type,
+            expected_stage=expected_stage,
+            error_excerpt=error_excerpt,
+            repair_actions=repair_actions,
+            model_name=model_name,
+            current_round=current_round,
+            stage_context=stage_context,
+            llm_reason=llm_reason,
+        )
+        return plan, err, provider
+    if provider == "gemini":
+        plan, err = _gemini_generate_repair_plan(
+            original_text=original_text,
+            failure_type=failure_type,
+            expected_stage=expected_stage,
+            error_excerpt=error_excerpt,
+            repair_actions=repair_actions,
+            model_name=model_name,
+            current_round=current_round,
+            stage_context=stage_context,
+            llm_reason=llm_reason,
+        )
+        return plan, err, provider
+    return None, "rule_backend_selected", "rule"
+
+
 def _llm_round_constraints(*, failure_type: str, current_round: int) -> str:
     failure = str(failure_type or "").strip().lower()
     try:
@@ -3132,6 +3442,23 @@ def main() -> None:
         "llm_branch_correction_used": False,
         "llm_resolution_contributed": False,
         "llm_only_resolution": False,
+        "llm_plan_generated": False,
+        "llm_plan_parsed": False,
+        "llm_plan_followed": False,
+        "llm_plan_branch_match": False,
+        "llm_plan_parameter_match": False,
+        "llm_plan_helped_resolution": False,
+        "llm_plan_was_decisive": False,
+        "llm_called_only": False,
+        "llm_plan_failure_mode": "",
+        "llm_plan_diagnosed_stage": "",
+        "llm_plan_diagnosed_branch": "",
+        "llm_plan_preferred_branch": "",
+        "llm_plan_repair_goal": "",
+        "llm_plan_candidate_parameters": [],
+        "llm_plan_candidate_value_directions": [],
+        "llm_plan_why_not_other_branch": "",
+        "llm_plan_stop_condition": "",
     }
     final_check_ok = False
     final_simulate_ok = False
@@ -3430,6 +3757,23 @@ def main() -> None:
             attempts[-1]["llm_branch_correction_used"] = False
             attempts[-1]["llm_resolution_contributed"] = False
             attempts[-1]["llm_only_resolution"] = False
+            attempts[-1]["llm_plan_generated"] = False
+            attempts[-1]["llm_plan_parsed"] = False
+            attempts[-1]["llm_plan_followed"] = False
+            attempts[-1]["llm_plan_branch_match"] = False
+            attempts[-1]["llm_plan_parameter_match"] = False
+            attempts[-1]["llm_plan_helped_resolution"] = False
+            attempts[-1]["llm_plan_was_decisive"] = False
+            attempts[-1]["llm_called_only"] = False
+            attempts[-1]["llm_plan_failure_mode"] = ""
+            attempts[-1]["llm_plan_diagnosed_stage"] = ""
+            attempts[-1]["llm_plan_diagnosed_branch"] = ""
+            attempts[-1]["llm_plan_preferred_branch"] = ""
+            attempts[-1]["llm_plan_repair_goal"] = ""
+            attempts[-1]["llm_plan_candidate_parameters"] = []
+            attempts[-1]["llm_plan_candidate_value_directions"] = []
+            attempts[-1]["llm_plan_why_not_other_branch"] = ""
+            attempts[-1]["llm_plan_stop_condition"] = ""
             force_llm_now = bool(llm_context.get("should_force_llm"))
             if (
                 str(pre_stage_context.get("current_stage") or "").strip().lower() == "stage_2"
@@ -3734,7 +4078,7 @@ def main() -> None:
                     multistep_memory["search_regression_seen"] = True
                     multistep_memory["search_bad_direction_count"] = int(multistep_memory.get("search_bad_direction_count") or 0) + 1
                 llm_request_count_before = int(_load_live_ledger(budget_cfg).get("request_count") or 0)
-                patched, llm_err, resolved_provider = _llm_repair_model_text(
+                llm_plan_payload, llm_err, resolved_provider = _llm_generate_repair_plan(
                     planner_backend=str(args.planner_backend),
                     original_text=current_text,
                     failure_type=str(args.failure_type),
@@ -3743,6 +4087,8 @@ def main() -> None:
                     repair_actions=stage_repair_actions or repair_actions,
                     model_name=model_name,
                     current_round=round_idx,
+                    stage_context=stage_context,
+                    llm_reason=str(llm_context.get("llm_plan_reason") or ""),
                 )
                 llm_request_count_after = int(_load_live_ledger(budget_cfg).get("request_count") or 0)
                 llm_request_delta = max(0, llm_request_count_after - llm_request_count_before)
@@ -3751,6 +4097,7 @@ def main() -> None:
                 attempts[-1]["llm_plan_used"] = bool(llm_request_delta > 0)
                 attempts[-1]["llm_plan_reason"] = str(llm_context.get("llm_plan_reason") or "")
                 attempts[-1]["llm_request_count_delta"] = int(llm_request_delta)
+                attempts[-1]["llm_plan_generated"] = bool(llm_request_delta > 0)
                 attempts[-1]["llm_branch_correction_used"] = bool(
                     llm_request_delta > 0
                     and (
@@ -3762,9 +4109,72 @@ def main() -> None:
                     multistep_memory["llm_plan_used"] = True
                     multistep_memory["llm_plan_reason"] = str(llm_context.get("llm_plan_reason") or "")
                     multistep_memory["llm_request_count_delta_total"] = int(multistep_memory.get("llm_request_count_delta_total") or 0) + int(llm_request_delta)
+                    multistep_memory["llm_plan_generated"] = True
                     if bool(attempts[-1]["llm_branch_correction_used"]):
                         multistep_memory["llm_branch_correction_used"] = True
-                if bool(llm_context.get("llm_forcing")) and llm_request_delta > 0:
+                llm_plan = _normalize_source_blind_multistep_llm_plan(
+                    payload=llm_plan_payload,
+                    stage_context=stage_context,
+                    llm_reason=str(llm_context.get("llm_plan_reason") or ""),
+                ) if isinstance(llm_plan_payload, dict) else {}
+                llm_targets = _source_blind_multistep_llm_resolution_targets(
+                    model_name=model_name,
+                    failure_type=str(args.failure_type),
+                )
+                attempts[-1]["llm_plan_parsed"] = bool(llm_plan)
+                attempts[-1]["llm_plan_diagnosed_stage"] = str(llm_plan.get("diagnosed_stage") or "")
+                attempts[-1]["llm_plan_diagnosed_branch"] = str(llm_plan.get("diagnosed_branch") or "")
+                attempts[-1]["llm_plan_preferred_branch"] = str(llm_plan.get("preferred_branch") or "")
+                attempts[-1]["llm_plan_repair_goal"] = str(llm_plan.get("repair_goal") or "")
+                attempts[-1]["llm_plan_candidate_parameters"] = [
+                    str(x) for x in (llm_plan.get("candidate_parameters") or []) if str(x).strip()
+                ]
+                attempts[-1]["llm_plan_candidate_value_directions"] = [
+                    str(x) for x in (llm_plan.get("candidate_value_directions") or []) if str(x).strip()
+                ]
+                attempts[-1]["llm_plan_why_not_other_branch"] = str(llm_plan.get("why_not_other_branch") or "")
+                attempts[-1]["llm_plan_stop_condition"] = str(llm_plan.get("stop_condition") or "")
+                attempts[-1]["llm_plan_branch_match"] = bool(llm_plan) and _llm_plan_branch_match(
+                    llm_plan=llm_plan,
+                    stage_context=stage_context,
+                )
+                attempts[-1]["llm_plan_parameter_match"] = bool(llm_plan) and _llm_plan_parameter_match(
+                    llm_plan=llm_plan,
+                    available_targets=llm_targets,
+                )
+                if bool(llm_plan):
+                    multistep_memory["llm_plan_parsed"] = True
+                    multistep_memory["llm_plan_diagnosed_stage"] = str(llm_plan.get("diagnosed_stage") or "")
+                    multistep_memory["llm_plan_diagnosed_branch"] = str(llm_plan.get("diagnosed_branch") or "")
+                    multistep_memory["llm_plan_preferred_branch"] = str(llm_plan.get("preferred_branch") or "")
+                    multistep_memory["llm_plan_repair_goal"] = str(llm_plan.get("repair_goal") or "")
+                    multistep_memory["llm_plan_candidate_parameters"] = [
+                        str(x) for x in (llm_plan.get("candidate_parameters") or []) if str(x).strip()
+                    ]
+                    multistep_memory["llm_plan_candidate_value_directions"] = [
+                        str(x) for x in (llm_plan.get("candidate_value_directions") or []) if str(x).strip()
+                    ]
+                    multistep_memory["llm_plan_why_not_other_branch"] = str(llm_plan.get("why_not_other_branch") or "")
+                    multistep_memory["llm_plan_stop_condition"] = str(llm_plan.get("stop_condition") or "")
+                    multistep_memory["llm_plan_branch_match"] = bool(attempts[-1]["llm_plan_branch_match"])
+                    multistep_memory["llm_plan_parameter_match"] = bool(attempts[-1]["llm_plan_parameter_match"])
+                else:
+                    attempts[-1]["llm_plan_failure_mode"] = str(llm_err or "llm_plan_parse_failed")
+                    multistep_memory["llm_plan_failure_mode"] = str(llm_err or "llm_plan_parse_failed")
+                patched = None
+                if bool(llm_context.get("llm_forcing")) and llm_request_delta > 0 and bool(llm_plan):
+                    llm_resolution_text, llm_resolution_audit = _apply_source_blind_multistep_llm_plan(
+                        current_text=current_text,
+                        declared_failure_type=str(args.failure_type),
+                        llm_plan=llm_plan,
+                        llm_reason=str(llm_context.get("llm_plan_reason") or ""),
+                    )
+                    attempts[-1]["source_blind_multistep_llm_resolution"] = llm_resolution_audit
+                    if bool(llm_resolution_audit.get("applied")):
+                        patched = llm_resolution_text
+                        attempts[-1]["llm_plan_followed"] = True
+                        multistep_memory["llm_plan_followed"] = True
+                elif bool(llm_context.get("llm_forcing")) and llm_request_delta > 0:
                     llm_resolution_text, llm_resolution_audit = _apply_source_blind_multistep_llm_resolution(
                         current_text=current_text,
                         declared_failure_type=str(args.failure_type),
@@ -3785,6 +4195,8 @@ def main() -> None:
                         if llm_request_delta > 0:
                             attempts[-1]["llm_resolution_contributed"] = True
                             multistep_memory["llm_resolution_contributed"] = True
+                            attempts[-1]["llm_plan_helped_resolution"] = bool(attempts[-1].get("llm_plan_followed"))
+                            multistep_memory["llm_plan_helped_resolution"] = bool(attempts[-1].get("llm_plan_followed"))
                         if str(stage_plan_fields.get("executed_plan_action") or ""):
                             multistep_memory["last_successful_stage_action"] = str(stage_plan_fields.get("executed_plan_action") or "")
                     else:
@@ -3792,6 +4204,8 @@ def main() -> None:
                         continue
                 else:
                     final_error = llm_err or f"{resolved_provider}_patch_generation_failed"
+                    attempts[-1]["llm_plan_failure_mode"] = str(final_error or "")
+                    multistep_memory["llm_plan_failure_mode"] = str(final_error or "")
                     break
             else:
                 # rule backend does not mutate model text; useful for dry harness checks.
@@ -3875,13 +4289,22 @@ def main() -> None:
     llm_markers = _extract_source_blind_multistep_markers(current_text)
     llm_request_count_delta_total = int(multistep_memory.get("llm_request_count_delta_total") or 0)
     llm_plan_used = bool(multistep_memory.get("llm_plan_used")) or llm_request_count_delta_total > 0
+    llm_plan_generated = bool(multistep_memory.get("llm_plan_generated")) or llm_request_count_delta_total > 0
+    llm_plan_parsed = bool(multistep_memory.get("llm_plan_parsed"))
+    llm_plan_followed = bool(multistep_memory.get("llm_plan_followed"))
+    llm_plan_branch_match = bool(multistep_memory.get("llm_plan_branch_match"))
+    llm_plan_parameter_match = bool(multistep_memory.get("llm_plan_parameter_match"))
     llm_resolution_contributed = bool(multistep_memory.get("llm_resolution_contributed")) and bool(physics_contract_pass)
+    llm_plan_helped_resolution = bool(multistep_memory.get("llm_plan_helped_resolution")) and bool(physics_contract_pass)
     llm_only_resolution = bool(
         llm_resolution_contributed
+        and llm_plan_followed
         and not stage_1_unlock_via_local_search
         and not stage_2_resolution_via_local_search
         and not cluster_only_resolution
     )
+    llm_plan_was_decisive = bool(llm_plan_helped_resolution and llm_only_resolution)
+    llm_called_only = bool(llm_request_count_delta_total > 0 and not llm_plan_helped_resolution)
     payload = {
         "task_id": str(args.task_id),
         "failure_type": str(args.failure_type),
@@ -3979,6 +4402,27 @@ def main() -> None:
         "branch_budget_reallocated": bool(int(multistep_memory.get("branch_budget_reallocated_count") or 0) > 0),
         "llm_plan_used": llm_plan_used,
         "llm_plan_reason": str(multistep_memory.get("llm_plan_reason") or ""),
+        "llm_plan_generated": llm_plan_generated,
+        "llm_plan_parsed": llm_plan_parsed,
+        "llm_plan_followed": llm_plan_followed,
+        "llm_plan_branch_match": llm_plan_branch_match,
+        "llm_plan_parameter_match": llm_plan_parameter_match,
+        "llm_plan_helped_resolution": llm_plan_helped_resolution,
+        "llm_plan_was_decisive": llm_plan_was_decisive,
+        "llm_called_only": llm_called_only,
+        "llm_plan_failure_mode": str(multistep_memory.get("llm_plan_failure_mode") or ""),
+        "llm_plan_diagnosed_stage": str(multistep_memory.get("llm_plan_diagnosed_stage") or ""),
+        "llm_plan_diagnosed_branch": str(multistep_memory.get("llm_plan_diagnosed_branch") or ""),
+        "llm_plan_preferred_branch": str(multistep_memory.get("llm_plan_preferred_branch") or ""),
+        "llm_plan_repair_goal": str(multistep_memory.get("llm_plan_repair_goal") or ""),
+        "llm_plan_candidate_parameters": [
+            str(x) for x in (multistep_memory.get("llm_plan_candidate_parameters") or []) if str(x).strip()
+        ],
+        "llm_plan_candidate_value_directions": [
+            str(x) for x in (multistep_memory.get("llm_plan_candidate_value_directions") or []) if str(x).strip()
+        ],
+        "llm_plan_why_not_other_branch": str(multistep_memory.get("llm_plan_why_not_other_branch") or ""),
+        "llm_plan_stop_condition": str(multistep_memory.get("llm_plan_stop_condition") or ""),
         "llm_request_count_delta": llm_request_count_delta_total,
         "llm_branch_correction_used": bool(multistep_memory.get("llm_branch_correction_used")),
         "llm_resolution_contributed": llm_resolution_contributed,

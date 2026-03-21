@@ -140,6 +140,23 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
                 "budget_stop_triggered": False,
                 "llm_plan_used": True,
                 "llm_plan_reason": "branch_diagnosis_unknown",
+                "llm_plan_generated": True,
+                "llm_plan_parsed": True,
+                "llm_plan_followed": True,
+                "llm_plan_branch_match": True,
+                "llm_plan_parameter_match": True,
+                "llm_plan_helped_resolution": False,
+                "llm_plan_was_decisive": False,
+                "llm_called_only": False,
+                "llm_plan_failure_mode": "",
+                "llm_plan_diagnosed_stage": "stage_2",
+                "llm_plan_diagnosed_branch": "nominal_overfit_trap",
+                "llm_plan_preferred_branch": "neighbor_robustness_branch",
+                "llm_plan_repair_goal": "escape trap and restore neighbor robustness",
+                "llm_plan_candidate_parameters": ["offset", "k"],
+                "llm_plan_candidate_value_directions": ["offset:normalize", "k:decrease"],
+                "llm_plan_why_not_other_branch": "nominal-only branch overfits",
+                "llm_plan_stop_condition": "stop when preferred branch is restored",
                 "llm_request_count_delta": 1,
                 "llm_branch_correction_used": True,
                 "llm_resolution_contributed": False,
@@ -197,6 +214,11 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
         self.assertFalse(bool(fields.get("budget_stop_triggered")))
         self.assertFalse(bool(fields.get("llm_plan_used")))
         self.assertEqual(int(fields.get("llm_request_count_delta") or 0), 0)
+        self.assertFalse(bool(fields.get("llm_plan_generated")))
+        self.assertFalse(bool(fields.get("llm_plan_parsed")))
+        self.assertFalse(bool(fields.get("llm_plan_followed")))
+        self.assertEqual(fields.get("llm_plan_candidate_parameters"), [])
+        self.assertEqual(fields.get("llm_plan_candidate_value_directions"), [])
 
     def test_extract_contract_fields_prefers_current_branch_state_over_payload_memory(self) -> None:
         _, _, _, multistep = _extract_contract_fields(

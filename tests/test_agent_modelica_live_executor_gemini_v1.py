@@ -10,6 +10,7 @@ from unittest.mock import patch
 from gateforge.agent_modelica_live_executor_gemini_v1 import (
     _IN_MEMORY_LIVE_LEDGER,
     _apply_source_blind_multistep_branch_escape_search,
+    _apply_source_blind_multistep_llm_plan,
     _apply_source_blind_multistep_exposure_repair,
     _apply_source_blind_multistep_llm_resolution,
     _apply_source_blind_multistep_local_search,
@@ -33,6 +34,7 @@ from gateforge.agent_modelica_live_executor_gemini_v1 import (
     _extract_json_object,
     _llm_round_constraints,
     _llm_request_timeout_sec,
+    _normalize_source_blind_multistep_llm_plan,
     _looks_like_stage_1_focus,
     _live_budget_config,
     _normalize_terminal_errors,
@@ -221,6 +223,48 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
         self.assertIn("startTime=0.3", patched)
         self.assertIn("freqHz=1", patched)
         self.assertIn("k=0.5", patched)
+
+    def test_normalize_source_blind_multistep_llm_plan_preserves_branch_and_parameters(self) -> None:
+        plan = _normalize_source_blind_multistep_llm_plan(
+            payload={
+                "diagnosed_stage": "stage_2",
+                "diagnosed_branch": "neighbor_overfit_trap",
+                "preferred_branch": "behavior_timing_branch",
+                "repair_goal": "escape trap and restore timing behavior",
+                "candidate_parameters": ["startTime", "height"],
+                "candidate_value_directions": ["startTime:decrease", "height:normalize"],
+                "why_not_other_branch": "nominal fit is overfitting neighbors",
+                "stop_condition": "stop when preferred branch is restored",
+            },
+            stage_context={"current_stage": "stage_2", "stage_2_branch": "neighbor_overfit_trap", "preferred_stage_2_branch": "behavior_timing_branch"},
+            llm_reason="trap_escape_no_progress",
+        )
+        self.assertEqual(plan.get("diagnosed_stage"), "stage_2")
+        self.assertEqual(plan.get("diagnosed_branch"), "neighbor_overfit_trap")
+        self.assertEqual(plan.get("preferred_branch"), "behavior_timing_branch")
+        self.assertEqual(plan.get("candidate_parameters"), ["startTime", "height"])
+
+    def test_source_blind_multistep_llm_plan_executes_requested_parameter_subset(self) -> None:
+        model_text = (
+            "model PlantB\n"
+            "  parameter Real height=1.2;\n"
+            "  parameter Real duration=1.1;\n"
+            "  parameter Real startTime=0.8;\n"
+            "end PlantB;\n"
+        )
+        patched, audit = _apply_source_blind_multistep_llm_plan(
+            current_text=model_text,
+            declared_failure_type="stability_then_behavior",
+            llm_plan={
+                "candidate_parameters": ["height", "duration"],
+                "candidate_value_directions": ["height:normalize", "duration:decrease"],
+            },
+            llm_reason="same_stage_2_branch_stall",
+        )
+        self.assertTrue(audit.get("applied"))
+        self.assertIn("height=1", patched)
+        self.assertIn("duration=0.5", patched)
+        self.assertNotIn("startTime=0.2", patched)
 
     def test_live_ledger_uses_in_memory_fallback_without_path(self) -> None:
         _IN_MEMORY_LIVE_LEDGER.clear()
