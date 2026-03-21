@@ -681,6 +681,23 @@ def _extract_live_usage_fields(payload: dict, live_attempt: dict) -> dict:
         "budget_stop_triggered": False,
         "llm_plan_used": False,
         "llm_plan_reason": "",
+        "llm_plan_generated": False,
+        "llm_plan_parsed": False,
+        "llm_plan_followed": False,
+        "llm_plan_branch_match": False,
+        "llm_plan_parameter_match": False,
+        "llm_plan_helped_resolution": False,
+        "llm_plan_was_decisive": False,
+        "llm_called_only": False,
+        "llm_plan_failure_mode": "",
+        "llm_plan_diagnosed_stage": "",
+        "llm_plan_diagnosed_branch": "",
+        "llm_plan_preferred_branch": "",
+        "llm_plan_repair_goal": "",
+        "llm_plan_candidate_parameters": [],
+        "llm_plan_candidate_value_directions": [],
+        "llm_plan_why_not_other_branch": "",
+        "llm_plan_stop_condition": "",
         "llm_request_count_delta": 0,
         "llm_branch_correction_used": False,
         "llm_resolution_contributed": False,
@@ -701,6 +718,31 @@ def _extract_live_usage_fields(payload: dict, live_attempt: dict) -> dict:
     out["budget_stop_triggered"] = bool(_as_bool(live_attempt.get("budget_stop_triggered"))) or bool(_as_bool(payload.get("budget_stop_triggered")))
     out["llm_plan_used"] = bool(_as_bool(live_attempt.get("llm_plan_used"))) or bool(_as_bool(payload.get("llm_plan_used")))
     out["llm_plan_reason"] = str(live_attempt.get("llm_plan_reason") or payload.get("llm_plan_reason") or "").strip()
+    out["llm_plan_generated"] = bool(_as_bool(live_attempt.get("llm_plan_generated"))) or bool(_as_bool(payload.get("llm_plan_generated")))
+    out["llm_plan_parsed"] = bool(_as_bool(live_attempt.get("llm_plan_parsed"))) or bool(_as_bool(payload.get("llm_plan_parsed")))
+    out["llm_plan_followed"] = bool(_as_bool(live_attempt.get("llm_plan_followed"))) or bool(_as_bool(payload.get("llm_plan_followed")))
+    out["llm_plan_branch_match"] = bool(_as_bool(live_attempt.get("llm_plan_branch_match"))) or bool(_as_bool(payload.get("llm_plan_branch_match")))
+    out["llm_plan_parameter_match"] = bool(_as_bool(live_attempt.get("llm_plan_parameter_match"))) or bool(_as_bool(payload.get("llm_plan_parameter_match")))
+    out["llm_plan_helped_resolution"] = bool(_as_bool(live_attempt.get("llm_plan_helped_resolution"))) or bool(_as_bool(payload.get("llm_plan_helped_resolution")))
+    out["llm_plan_was_decisive"] = bool(_as_bool(live_attempt.get("llm_plan_was_decisive"))) or bool(_as_bool(payload.get("llm_plan_was_decisive")))
+    out["llm_called_only"] = bool(_as_bool(live_attempt.get("llm_called_only"))) or bool(_as_bool(payload.get("llm_called_only")))
+    out["llm_plan_failure_mode"] = str(live_attempt.get("llm_plan_failure_mode") or payload.get("llm_plan_failure_mode") or "").strip()
+    out["llm_plan_diagnosed_stage"] = str(live_attempt.get("llm_plan_diagnosed_stage") or payload.get("llm_plan_diagnosed_stage") or "").strip()
+    out["llm_plan_diagnosed_branch"] = str(live_attempt.get("llm_plan_diagnosed_branch") or payload.get("llm_plan_diagnosed_branch") or "").strip()
+    out["llm_plan_preferred_branch"] = str(live_attempt.get("llm_plan_preferred_branch") or payload.get("llm_plan_preferred_branch") or "").strip()
+    out["llm_plan_repair_goal"] = str(live_attempt.get("llm_plan_repair_goal") or payload.get("llm_plan_repair_goal") or "").strip()
+    out["llm_plan_candidate_parameters"] = [
+        str(x)
+        for x in (live_attempt.get("llm_plan_candidate_parameters") or payload.get("llm_plan_candidate_parameters") or [])
+        if isinstance(x, str) and str(x).strip()
+    ]
+    out["llm_plan_candidate_value_directions"] = [
+        str(x)
+        for x in (live_attempt.get("llm_plan_candidate_value_directions") or payload.get("llm_plan_candidate_value_directions") or [])
+        if isinstance(x, str) and str(x).strip()
+    ]
+    out["llm_plan_why_not_other_branch"] = str(live_attempt.get("llm_plan_why_not_other_branch") or payload.get("llm_plan_why_not_other_branch") or "").strip()
+    out["llm_plan_stop_condition"] = str(live_attempt.get("llm_plan_stop_condition") or payload.get("llm_plan_stop_condition") or "").strip()
     try:
         out["llm_request_count_delta"] = max(0, int(live_attempt.get("llm_request_count_delta") or payload.get("llm_request_count_delta") or 0))
     except Exception:
@@ -1866,6 +1908,23 @@ def _run_task_live_l4(
             "budget_stop_triggered": bool(live_usage_fields.get("budget_stop_triggered")),
             "llm_plan_used": bool(live_usage_fields.get("llm_plan_used")),
             "llm_plan_reason": str(live_usage_fields.get("llm_plan_reason") or ""),
+            "llm_plan_generated": bool(live_usage_fields.get("llm_plan_generated")),
+            "llm_plan_parsed": bool(live_usage_fields.get("llm_plan_parsed")),
+            "llm_plan_followed": bool(live_usage_fields.get("llm_plan_followed")),
+            "llm_plan_branch_match": bool(live_usage_fields.get("llm_plan_branch_match")),
+            "llm_plan_parameter_match": bool(live_usage_fields.get("llm_plan_parameter_match")),
+            "llm_plan_helped_resolution": bool(live_usage_fields.get("llm_plan_helped_resolution")),
+            "llm_plan_was_decisive": bool(live_usage_fields.get("llm_plan_was_decisive")),
+            "llm_called_only": bool(live_usage_fields.get("llm_called_only")),
+            "llm_plan_failure_mode": str(live_usage_fields.get("llm_plan_failure_mode") or ""),
+            "llm_plan_diagnosed_stage": str(live_usage_fields.get("llm_plan_diagnosed_stage") or ""),
+            "llm_plan_diagnosed_branch": str(live_usage_fields.get("llm_plan_diagnosed_branch") or ""),
+            "llm_plan_preferred_branch": str(live_usage_fields.get("llm_plan_preferred_branch") or ""),
+            "llm_plan_repair_goal": str(live_usage_fields.get("llm_plan_repair_goal") or ""),
+            "llm_plan_candidate_parameters": list(live_usage_fields.get("llm_plan_candidate_parameters") or []),
+            "llm_plan_candidate_value_directions": list(live_usage_fields.get("llm_plan_candidate_value_directions") or []),
+            "llm_plan_why_not_other_branch": str(live_usage_fields.get("llm_plan_why_not_other_branch") or ""),
+            "llm_plan_stop_condition": str(live_usage_fields.get("llm_plan_stop_condition") or ""),
             "llm_request_count_delta": int(live_usage_fields.get("llm_request_count_delta") or 0),
             "llm_branch_correction_used": bool(live_usage_fields.get("llm_branch_correction_used")),
             "llm_resolution_contributed": bool(live_usage_fields.get("llm_resolution_contributed")),
@@ -2037,6 +2096,23 @@ def _run_task_live_l4(
         "budget_stop_triggered": bool(best_live_usage_fields.get("budget_stop_triggered")),
         "llm_plan_used": bool(best_live_usage_fields.get("llm_plan_used")),
         "llm_plan_reason": str(best_live_usage_fields.get("llm_plan_reason") or ""),
+        "llm_plan_generated": bool(best_live_usage_fields.get("llm_plan_generated")),
+        "llm_plan_parsed": bool(best_live_usage_fields.get("llm_plan_parsed")),
+        "llm_plan_followed": bool(best_live_usage_fields.get("llm_plan_followed")),
+        "llm_plan_branch_match": bool(best_live_usage_fields.get("llm_plan_branch_match")),
+        "llm_plan_parameter_match": bool(best_live_usage_fields.get("llm_plan_parameter_match")),
+        "llm_plan_helped_resolution": bool(best_live_usage_fields.get("llm_plan_helped_resolution")),
+        "llm_plan_was_decisive": bool(best_live_usage_fields.get("llm_plan_was_decisive")),
+        "llm_called_only": bool(best_live_usage_fields.get("llm_called_only")),
+        "llm_plan_failure_mode": str(best_live_usage_fields.get("llm_plan_failure_mode") or ""),
+        "llm_plan_diagnosed_stage": str(best_live_usage_fields.get("llm_plan_diagnosed_stage") or ""),
+        "llm_plan_diagnosed_branch": str(best_live_usage_fields.get("llm_plan_diagnosed_branch") or ""),
+        "llm_plan_preferred_branch": str(best_live_usage_fields.get("llm_plan_preferred_branch") or ""),
+        "llm_plan_repair_goal": str(best_live_usage_fields.get("llm_plan_repair_goal") or ""),
+        "llm_plan_candidate_parameters": list(best_live_usage_fields.get("llm_plan_candidate_parameters") or []),
+        "llm_plan_candidate_value_directions": list(best_live_usage_fields.get("llm_plan_candidate_value_directions") or []),
+        "llm_plan_why_not_other_branch": str(best_live_usage_fields.get("llm_plan_why_not_other_branch") or ""),
+        "llm_plan_stop_condition": str(best_live_usage_fields.get("llm_plan_stop_condition") or ""),
         "llm_request_count_delta": int(best_live_usage_fields.get("llm_request_count_delta") or 0),
         "llm_branch_correction_used": bool(best_live_usage_fields.get("llm_branch_correction_used")),
         "llm_resolution_contributed": bool(best_live_usage_fields.get("llm_resolution_contributed")),
@@ -2504,6 +2580,23 @@ def _run_task_live(
                 "budget_stop_triggered": bool(live_usage_fields.get("budget_stop_triggered")),
                 "llm_plan_used": bool(live_usage_fields.get("llm_plan_used")),
                 "llm_plan_reason": str(live_usage_fields.get("llm_plan_reason") or ""),
+                "llm_plan_generated": bool(live_usage_fields.get("llm_plan_generated")),
+                "llm_plan_parsed": bool(live_usage_fields.get("llm_plan_parsed")),
+                "llm_plan_followed": bool(live_usage_fields.get("llm_plan_followed")),
+                "llm_plan_branch_match": bool(live_usage_fields.get("llm_plan_branch_match")),
+                "llm_plan_parameter_match": bool(live_usage_fields.get("llm_plan_parameter_match")),
+                "llm_plan_helped_resolution": bool(live_usage_fields.get("llm_plan_helped_resolution")),
+                "llm_plan_was_decisive": bool(live_usage_fields.get("llm_plan_was_decisive")),
+                "llm_called_only": bool(live_usage_fields.get("llm_called_only")),
+                "llm_plan_failure_mode": str(live_usage_fields.get("llm_plan_failure_mode") or ""),
+                "llm_plan_diagnosed_stage": str(live_usage_fields.get("llm_plan_diagnosed_stage") or ""),
+                "llm_plan_diagnosed_branch": str(live_usage_fields.get("llm_plan_diagnosed_branch") or ""),
+                "llm_plan_preferred_branch": str(live_usage_fields.get("llm_plan_preferred_branch") or ""),
+                "llm_plan_repair_goal": str(live_usage_fields.get("llm_plan_repair_goal") or ""),
+                "llm_plan_candidate_parameters": list(live_usage_fields.get("llm_plan_candidate_parameters") or []),
+                "llm_plan_candidate_value_directions": list(live_usage_fields.get("llm_plan_candidate_value_directions") or []),
+                "llm_plan_why_not_other_branch": str(live_usage_fields.get("llm_plan_why_not_other_branch") or ""),
+                "llm_plan_stop_condition": str(live_usage_fields.get("llm_plan_stop_condition") or ""),
                 "llm_request_count_delta": int(live_usage_fields.get("llm_request_count_delta") or 0),
                 "llm_branch_correction_used": bool(live_usage_fields.get("llm_branch_correction_used")),
                 "llm_resolution_contributed": bool(live_usage_fields.get("llm_resolution_contributed")),
@@ -2644,6 +2737,23 @@ def _run_task_live(
         "budget_stop_triggered": bool(best_live_usage_fields.get("budget_stop_triggered")),
         "llm_plan_used": bool(best_live_usage_fields.get("llm_plan_used")),
         "llm_plan_reason": str(best_live_usage_fields.get("llm_plan_reason") or ""),
+        "llm_plan_generated": bool(best_live_usage_fields.get("llm_plan_generated")),
+        "llm_plan_parsed": bool(best_live_usage_fields.get("llm_plan_parsed")),
+        "llm_plan_followed": bool(best_live_usage_fields.get("llm_plan_followed")),
+        "llm_plan_branch_match": bool(best_live_usage_fields.get("llm_plan_branch_match")),
+        "llm_plan_parameter_match": bool(best_live_usage_fields.get("llm_plan_parameter_match")),
+        "llm_plan_helped_resolution": bool(best_live_usage_fields.get("llm_plan_helped_resolution")),
+        "llm_plan_was_decisive": bool(best_live_usage_fields.get("llm_plan_was_decisive")),
+        "llm_called_only": bool(best_live_usage_fields.get("llm_called_only")),
+        "llm_plan_failure_mode": str(best_live_usage_fields.get("llm_plan_failure_mode") or ""),
+        "llm_plan_diagnosed_stage": str(best_live_usage_fields.get("llm_plan_diagnosed_stage") or ""),
+        "llm_plan_diagnosed_branch": str(best_live_usage_fields.get("llm_plan_diagnosed_branch") or ""),
+        "llm_plan_preferred_branch": str(best_live_usage_fields.get("llm_plan_preferred_branch") or ""),
+        "llm_plan_repair_goal": str(best_live_usage_fields.get("llm_plan_repair_goal") or ""),
+        "llm_plan_candidate_parameters": list(best_live_usage_fields.get("llm_plan_candidate_parameters") or []),
+        "llm_plan_candidate_value_directions": list(best_live_usage_fields.get("llm_plan_candidate_value_directions") or []),
+        "llm_plan_why_not_other_branch": str(best_live_usage_fields.get("llm_plan_why_not_other_branch") or ""),
+        "llm_plan_stop_condition": str(best_live_usage_fields.get("llm_plan_stop_condition") or ""),
         "llm_request_count_delta": int(best_live_usage_fields.get("llm_request_count_delta") or 0),
         "llm_branch_correction_used": bool(best_live_usage_fields.get("llm_branch_correction_used")),
         "llm_resolution_contributed": bool(best_live_usage_fields.get("llm_resolution_contributed")),

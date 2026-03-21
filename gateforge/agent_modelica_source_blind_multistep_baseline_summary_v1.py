@@ -186,6 +186,13 @@ def main() -> None:
     llm_resolution_count = 0
     llm_only_resolution_count = 0
     llm_branch_correction_count = 0
+    llm_plan_task_count = 0
+    llm_plan_followed_count = 0
+    llm_plan_branch_match_count = 0
+    llm_plan_helped_resolution_count = 0
+    llm_plan_was_decisive_count = 0
+    llm_called_only_count = 0
+    llm_plan_failure_modes: dict[str, int] = {}
     llm_usage_by_failure_type: dict[str, int] = {}
     llm_usage_by_branch: dict[str, int] = {}
     hard_case_remaining_buckets: dict[str, int] = {}
@@ -296,6 +303,21 @@ def main() -> None:
             branch_key = str(record.get("stage_2_branch") or "").strip().lower()
             if branch_key:
                 llm_usage_by_branch[branch_key] = int(llm_usage_by_branch.get(branch_key, 0)) + 1
+        if bool(record.get("llm_plan_generated")):
+            llm_plan_task_count += 1
+        if bool(record.get("llm_plan_followed")):
+            llm_plan_followed_count += 1
+        if bool(record.get("llm_plan_branch_match")):
+            llm_plan_branch_match_count += 1
+        if bool(record.get("llm_plan_helped_resolution")):
+            llm_plan_helped_resolution_count += 1
+        if bool(record.get("llm_plan_was_decisive")):
+            llm_plan_was_decisive_count += 1
+        if bool(record.get("llm_called_only")):
+            llm_called_only_count += 1
+        failure_mode = str(record.get("llm_plan_failure_mode") or "").strip().lower()
+        if failure_mode:
+            llm_plan_failure_modes[failure_mode] = int(llm_plan_failure_modes.get(failure_mode, 0)) + 1
         if bool(record.get("llm_resolution_contributed")):
             llm_resolution_count += 1
         if bool(record.get("llm_only_resolution")):
@@ -481,6 +503,16 @@ def main() -> None:
         "llm_request_count_total": llm_request_count_total,
         "llm_task_count": llm_task_count,
         "llm_task_pct": _ratio(llm_task_count, total_tasks),
+        "llm_plan_task_count": llm_plan_task_count,
+        "llm_plan_followed_count": llm_plan_followed_count,
+        "llm_plan_followed_pct": _ratio(llm_plan_followed_count, total_tasks),
+        "llm_plan_branch_match_count": llm_plan_branch_match_count,
+        "llm_plan_branch_match_pct": _ratio(llm_plan_branch_match_count, total_tasks),
+        "llm_plan_helped_resolution_count": llm_plan_helped_resolution_count,
+        "llm_plan_helped_resolution_pct": _ratio(llm_plan_helped_resolution_count, total_tasks),
+        "llm_plan_was_decisive_count": llm_plan_was_decisive_count,
+        "llm_called_only_count": llm_called_only_count,
+        "llm_plan_failure_modes": llm_plan_failure_modes,
         "llm_resolution_count": llm_resolution_count,
         "llm_resolution_pct": _ratio(llm_resolution_count, total_tasks),
         "llm_only_resolution_count": llm_only_resolution_count,

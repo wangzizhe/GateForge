@@ -142,6 +142,13 @@ def main() -> None:
     hard_case_remaining_buckets = baseline_summary.get("hard_case_remaining_buckets") if isinstance(baseline_summary.get("hard_case_remaining_buckets"), dict) else {}
     llm_request_count_total = int(baseline_summary.get("llm_request_count_total") or 0)
     llm_task_count = int(baseline_summary.get("llm_task_count") or 0)
+    llm_plan_task_count = int(baseline_summary.get("llm_plan_task_count") or 0)
+    llm_plan_followed_count = int(baseline_summary.get("llm_plan_followed_count") or 0)
+    llm_plan_branch_match_count = int(baseline_summary.get("llm_plan_branch_match_count") or 0)
+    llm_plan_helped_resolution_count = int(baseline_summary.get("llm_plan_helped_resolution_count") or 0)
+    llm_plan_was_decisive_count = int(baseline_summary.get("llm_plan_was_decisive_count") or 0)
+    llm_called_only_count = int(baseline_summary.get("llm_called_only_count") or 0)
+    llm_plan_failure_modes = baseline_summary.get("llm_plan_failure_modes") if isinstance(baseline_summary.get("llm_plan_failure_modes"), dict) else {}
     llm_resolution_count = int(baseline_summary.get("llm_resolution_count") or 0)
     llm_only_resolution_count = int(baseline_summary.get("llm_only_resolution_count") or 0)
     llm_branch_correction_count = int(baseline_summary.get("llm_branch_correction_count") or 0)
@@ -221,6 +228,16 @@ def main() -> None:
         "repeated_trap_branch_count": repeated_trap_branch_count,
         "llm_request_count_total": llm_request_count_total,
         "llm_task_count": llm_task_count,
+        "llm_plan_task_count": llm_plan_task_count,
+        "llm_plan_followed_count": llm_plan_followed_count,
+        "llm_plan_followed_pct": float(baseline_summary.get("llm_plan_followed_pct") or 0.0),
+        "llm_plan_branch_match_count": llm_plan_branch_match_count,
+        "llm_plan_branch_match_pct": float(baseline_summary.get("llm_plan_branch_match_pct") or 0.0),
+        "llm_plan_helped_resolution_count": llm_plan_helped_resolution_count,
+        "llm_plan_helped_resolution_pct": float(baseline_summary.get("llm_plan_helped_resolution_pct") or 0.0),
+        "llm_plan_was_decisive_count": llm_plan_was_decisive_count,
+        "llm_called_only_count": llm_called_only_count,
+        "llm_plan_failure_modes": llm_plan_failure_modes,
         "llm_resolution_count": llm_resolution_count,
         "llm_only_resolution_count": llm_only_resolution_count,
         "llm_branch_correction_count": llm_branch_correction_count,
@@ -271,6 +288,11 @@ def main() -> None:
         "repeated_trap_branch_count": repeated_trap_branch_count,
         "llm_request_count_total": llm_request_count_total,
         "llm_task_count": llm_task_count,
+        "llm_plan_task_count": llm_plan_task_count,
+        "llm_plan_followed_count": llm_plan_followed_count,
+        "llm_plan_helped_resolution_count": llm_plan_helped_resolution_count,
+        "llm_plan_was_decisive_count": llm_plan_was_decisive_count,
+        "llm_called_only_count": llm_called_only_count,
         "llm_resolution_count": llm_resolution_count,
         "llm_only_resolution_count": llm_only_resolution_count,
         "llm_branch_correction_count": llm_branch_correction_count,
