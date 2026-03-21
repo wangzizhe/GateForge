@@ -124,6 +124,13 @@ def main() -> None:
     stage_2_hard_case_resolution_count = int(baseline_summary.get("stage_2_hard_case_resolution_count") or 0)
     stage_2_hard_case_resolution_pct = float(baseline_summary.get("stage_2_hard_case_resolution_pct") or 0.0)
     search_bad_direction_count = int(baseline_summary.get("search_bad_direction_count") or 0)
+    stage_2_branch_count = int(baseline_summary.get("stage_2_branch_count") or 0)
+    stage_2_branch_pct = float(baseline_summary.get("stage_2_branch_pct") or 0.0)
+    branch_selection_error_count = int(baseline_summary.get("branch_selection_error_count") or 0)
+    good_branch_resolution_count = int(baseline_summary.get("good_branch_resolution_count") or 0)
+    trap_branch_enter_count = int(baseline_summary.get("trap_branch_enter_count") or 0)
+    trap_branch_recovery_count = int(baseline_summary.get("trap_branch_recovery_count") or 0)
+    median_round_to_correct_branch = float(baseline_summary.get("median_round_to_correct_branch") or 0.0)
     hard_case_remaining_buckets = baseline_summary.get("hard_case_remaining_buckets") if isinstance(baseline_summary.get("hard_case_remaining_buckets"), dict) else {}
     partial_to_full_count, partial_to_full_by_failure = _partial_to_full(taskset, baseline_results, deterministic_results)
     task_total = int(challenge.get("total_tasks") or 0)
@@ -182,6 +189,13 @@ def main() -> None:
         "stage_2_hard_case_resolution_count": stage_2_hard_case_resolution_count,
         "stage_2_hard_case_resolution_pct": stage_2_hard_case_resolution_pct,
         "search_bad_direction_count": search_bad_direction_count,
+        "stage_2_branch_count": stage_2_branch_count,
+        "stage_2_branch_pct": stage_2_branch_pct,
+        "branch_selection_error_count": branch_selection_error_count,
+        "good_branch_resolution_count": good_branch_resolution_count,
+        "trap_branch_enter_count": trap_branch_enter_count,
+        "trap_branch_recovery_count": trap_branch_recovery_count,
+        "median_round_to_correct_branch": median_round_to_correct_branch,
         "hard_case_remaining_buckets": hard_case_remaining_buckets,
         "median_round_from_stage_2_to_resolution": float(baseline_summary.get("median_round_from_stage_2_to_resolution") or 0.0),
         "multi_step_completion_count": int(baseline_summary.get("multi_step_completion_count") or 0),
@@ -212,6 +226,11 @@ def main() -> None:
         "adaptive_search_success_count": adaptive_search_success_count,
         "stage_2_hard_case_resolution_count": stage_2_hard_case_resolution_count,
         "search_bad_direction_count": search_bad_direction_count,
+        "stage_2_branch_count": stage_2_branch_count,
+        "branch_selection_error_count": branch_selection_error_count,
+        "good_branch_resolution_count": good_branch_resolution_count,
+        "trap_branch_enter_count": trap_branch_enter_count,
+        "trap_branch_recovery_count": trap_branch_recovery_count,
         "stage_aware_control_status": stage_aware_control_status,
     }
     decision_summary = {
@@ -252,6 +271,13 @@ def main() -> None:
         "stage_2_hard_case_resolution_count": stage_2_hard_case_resolution_count,
         "stage_2_hard_case_resolution_pct": stage_2_hard_case_resolution_pct,
         "search_bad_direction_count": search_bad_direction_count,
+        "stage_2_branch_count": stage_2_branch_count,
+        "stage_2_branch_pct": stage_2_branch_pct,
+        "branch_selection_error_count": branch_selection_error_count,
+        "good_branch_resolution_count": good_branch_resolution_count,
+        "trap_branch_enter_count": trap_branch_enter_count,
+        "trap_branch_recovery_count": trap_branch_recovery_count,
+        "median_round_to_correct_branch": median_round_to_correct_branch,
         "hard_case_remaining_buckets": hard_case_remaining_buckets,
         "stage_1_revisit_after_unlock_count": stage_1_revisit_after_unlock_count,
         "stage_aware_control_status": stage_aware_control_status,

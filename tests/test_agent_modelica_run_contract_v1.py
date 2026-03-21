@@ -62,6 +62,13 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
                 "next_focus": "resolve_stage_2_neighbor_robustness",
                 "stage_1_unlock_cluster": "switchb_unlock_cluster",
                 "stage_2_first_fail_bucket": "single_case_only",
+                "stage_2_branch": "nominal_overfit_trap",
+                "preferred_stage_2_branch": "neighbor_robustness_branch",
+                "branch_reason": "nominal_gate_fully_reset_before_neighbor_robustness",
+                "trap_branch": True,
+                "trap_branch_entered": True,
+                "correct_branch_selected": False,
+                "correct_branch_round": 0,
                 "stage_aware_control_applied": True,
                 "stage_1_revisit_after_unlock": False,
                 "plan_stage": "stage_2",
@@ -111,6 +118,11 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
         self.assertTrue(bool(multistep.get("multi_step_stage_2_unlocked")))
         self.assertEqual(int(multistep.get("multi_step_transition_round") or 0), 2)
         self.assertEqual(str(multistep.get("next_focus") or ""), "resolve_stage_2_neighbor_robustness")
+        self.assertEqual(str(multistep.get("stage_2_branch") or ""), "nominal_overfit_trap")
+        self.assertEqual(str(multistep.get("preferred_stage_2_branch") or ""), "neighbor_robustness_branch")
+        self.assertTrue(bool(multistep.get("trap_branch")))
+        self.assertTrue(bool(multistep.get("trap_branch_entered")))
+        self.assertFalse(bool(multistep.get("correct_branch_selected")))
         self.assertTrue(bool(multistep.get("stage_aware_control_applied")))
         self.assertEqual(str(multistep.get("plan_stage") or ""), "stage_2")
         self.assertTrue(bool(multistep.get("stage_plan_generated")))
@@ -125,6 +137,45 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
         self.assertEqual(str(multistep.get("best_stage_2_fail_bucket_seen") or ""), "single_case_only")
         self.assertTrue(bool(multistep.get("stage_2_best_progress_seen")))
         self.assertEqual((multistep.get("source_blind_multistep_local_search") or {}).get("search_kind"), "stage_2_resolution")
+
+    def test_extract_contract_fields_prefers_current_branch_state_over_payload_memory(self) -> None:
+        _, _, _, multistep = _extract_contract_fields(
+            {
+                "contract_pass": False,
+                "contract_fail_bucket": "single_case_only",
+                "scenario_results": [
+                    {"scenario_id": "nominal", "pass": True},
+                    {"scenario_id": "neighbor_a", "pass": False},
+                    {"scenario_id": "neighbor_b", "pass": False},
+                ],
+                "stage_2_branch": "post_switch_recovery_branch",
+                "preferred_stage_2_branch": "post_switch_recovery_branch",
+                "trap_branch": False,
+                "correct_branch_selected": True,
+                "correct_branch_round": 3,
+            },
+            {
+                "contract_pass": False,
+                "contract_fail_bucket": "single_case_only",
+                "scenario_results": [
+                    {"scenario_id": "nominal", "pass": True},
+                    {"scenario_id": "neighbor_a", "pass": False},
+                    {"scenario_id": "neighbor_b", "pass": False},
+                ],
+                "multi_step_stage": "stage_2",
+                "multi_step_stage_2_unlocked": True,
+                "stage_2_branch": "recovery_overfit_trap",
+                "preferred_stage_2_branch": "post_switch_recovery_branch",
+                "trap_branch": True,
+                "trap_branch_entered": True,
+                "correct_branch_selected": False,
+                "correct_branch_round": 0,
+            },
+            physics_ok=False,
+        )
+        self.assertEqual(str(multistep.get("stage_2_branch") or ""), "recovery_overfit_trap")
+        self.assertTrue(bool(multistep.get("trap_branch")))
+        self.assertFalse(bool(multistep.get("correct_branch_selected")))
 
     def test_build_live_template_context_exposes_unknown_library_source_meta(self) -> None:
         context = _build_live_template_context(
