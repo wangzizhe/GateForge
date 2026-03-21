@@ -110,9 +110,16 @@ def main() -> None:
     local_search_attempt_count = int(baseline_summary.get("local_search_attempt_count") or 0)
     local_search_success_count = int(baseline_summary.get("local_search_success_count") or 0)
     local_search_success_pct = float(baseline_summary.get("local_search_success_pct") or 0.0)
+    adaptive_search_attempt_count = int(baseline_summary.get("adaptive_search_attempt_count") or 0)
+    adaptive_search_success_count = int(baseline_summary.get("adaptive_search_success_count") or 0)
+    adaptive_search_success_pct = float(baseline_summary.get("adaptive_search_success_pct") or 0.0)
     stage_1_unlock_via_local_search_count = int(baseline_summary.get("stage_1_unlock_via_local_search_count") or 0)
     stage_2_resolution_via_local_search_count = int(baseline_summary.get("stage_2_resolution_via_local_search_count") or 0)
     cluster_only_resolution_count = int(baseline_summary.get("cluster_only_resolution_count") or 0)
+    stage_1_unlock_via_adaptive_search_count = int(baseline_summary.get("stage_1_unlock_via_adaptive_search_count") or 0)
+    stage_2_resolution_via_adaptive_search_count = int(baseline_summary.get("stage_2_resolution_via_adaptive_search_count") or 0)
+    template_only_resolution_count = int(baseline_summary.get("template_only_resolution_count") or 0)
+    adaptive_vs_template_resolution_split = baseline_summary.get("adaptive_vs_template_resolution_split") if isinstance(baseline_summary.get("adaptive_vs_template_resolution_split"), dict) else {}
     stage_2_hard_case_count = int(baseline_summary.get("stage_2_hard_case_count") or 0)
     stage_2_hard_case_resolution_count = int(baseline_summary.get("stage_2_hard_case_resolution_count") or 0)
     stage_2_hard_case_resolution_pct = float(baseline_summary.get("stage_2_hard_case_resolution_pct") or 0.0)
@@ -161,9 +168,16 @@ def main() -> None:
         "local_search_attempt_count": local_search_attempt_count,
         "local_search_success_count": local_search_success_count,
         "local_search_success_pct": local_search_success_pct,
+        "adaptive_search_attempt_count": adaptive_search_attempt_count,
+        "adaptive_search_success_count": adaptive_search_success_count,
+        "adaptive_search_success_pct": adaptive_search_success_pct,
         "stage_1_unlock_via_local_search_count": stage_1_unlock_via_local_search_count,
         "stage_2_resolution_via_local_search_count": stage_2_resolution_via_local_search_count,
         "cluster_only_resolution_count": cluster_only_resolution_count,
+        "stage_1_unlock_via_adaptive_search_count": stage_1_unlock_via_adaptive_search_count,
+        "stage_2_resolution_via_adaptive_search_count": stage_2_resolution_via_adaptive_search_count,
+        "template_only_resolution_count": template_only_resolution_count,
+        "adaptive_vs_template_resolution_split": adaptive_vs_template_resolution_split,
         "stage_2_hard_case_count": stage_2_hard_case_count,
         "stage_2_hard_case_resolution_count": stage_2_hard_case_resolution_count,
         "stage_2_hard_case_resolution_pct": stage_2_hard_case_resolution_pct,
@@ -195,6 +209,7 @@ def main() -> None:
         "stage_2_plan_followed_count": stage_2_plan_followed_count,
         "stage_2_resolution_count": stage_2_resolution_count,
         "local_search_success_count": local_search_success_count,
+        "adaptive_search_success_count": adaptive_search_success_count,
         "stage_2_hard_case_resolution_count": stage_2_hard_case_resolution_count,
         "search_bad_direction_count": search_bad_direction_count,
         "stage_aware_control_status": stage_aware_control_status,
@@ -223,9 +238,16 @@ def main() -> None:
         "local_search_attempt_count": local_search_attempt_count,
         "local_search_success_count": local_search_success_count,
         "local_search_success_pct": local_search_success_pct,
+        "adaptive_search_attempt_count": adaptive_search_attempt_count,
+        "adaptive_search_success_count": adaptive_search_success_count,
+        "adaptive_search_success_pct": adaptive_search_success_pct,
         "stage_1_unlock_via_local_search_count": stage_1_unlock_via_local_search_count,
         "stage_2_resolution_via_local_search_count": stage_2_resolution_via_local_search_count,
         "cluster_only_resolution_count": cluster_only_resolution_count,
+        "stage_1_unlock_via_adaptive_search_count": stage_1_unlock_via_adaptive_search_count,
+        "stage_2_resolution_via_adaptive_search_count": stage_2_resolution_via_adaptive_search_count,
+        "template_only_resolution_count": template_only_resolution_count,
+        "adaptive_vs_template_resolution_split": adaptive_vs_template_resolution_split,
         "stage_2_hard_case_count": stage_2_hard_case_count,
         "stage_2_hard_case_resolution_count": stage_2_hard_case_resolution_count,
         "stage_2_hard_case_resolution_pct": stage_2_hard_case_resolution_pct,

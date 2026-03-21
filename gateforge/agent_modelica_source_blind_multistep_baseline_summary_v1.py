@@ -154,9 +154,14 @@ def main() -> None:
     plan_conflict_rejected_count = 0
     local_search_attempt_count = 0
     local_search_success_count = 0
+    adaptive_search_attempt_count = 0
+    adaptive_search_success_count = 0
     stage_1_unlock_via_local_search_count = 0
     stage_2_resolution_via_local_search_count = 0
     cluster_only_resolution_count = 0
+    stage_1_unlock_via_adaptive_search_count = 0
+    stage_2_resolution_via_adaptive_search_count = 0
+    template_only_resolution_count = 0
     stage_2_hard_case_count = 0
     stage_2_hard_case_resolution_count = 0
     search_bad_direction_count = 0
@@ -219,6 +224,7 @@ def main() -> None:
             local_search = attempt.get("source_blind_multistep_local_search")
             if isinstance(local_search, dict) and bool(local_search.get("applied")):
                 local_search_attempt_count += 1
+                adaptive_search_attempt_count += 1
         if len(set(signatures)) > 1:
             failure_transition_count += 1
         distinct_failure_stages_seen_values.append(float(len(set(signatures or []))))
@@ -234,16 +240,24 @@ def main() -> None:
             stage_2_plan_followed_count += 1
         if bool(record.get("stage_1_unlock_via_local_search")):
             stage_1_unlock_via_local_search_count += 1
+        if bool(record.get("stage_1_unlock_via_adaptive_search")):
+            stage_1_unlock_via_adaptive_search_count += 1
         if bool(record.get("stage_2_resolution_via_local_search")):
             stage_2_resolution_via_local_search_count += 1
+        if bool(record.get("stage_2_resolution_via_adaptive_search")):
+            stage_2_resolution_via_adaptive_search_count += 1
         if bool(record.get("cluster_only_resolution")):
             cluster_only_resolution_count += 1
+        if bool(record.get("template_only_resolution")):
+            template_only_resolution_count += 1
         try:
             search_bad_direction_count += max(0, int(record.get("search_bad_direction_count") or 0))
         except Exception:
             pass
         if int(record.get("local_search_success_count") or 0) > 0:
             local_search_success_count += 1
+        if int(record.get("adaptive_search_success_count") or 0) > 0:
+            adaptive_search_success_count += 1
         if unlocked_rounds:
             stage_2_unlock_count += 1
             first_unlock = min(x for x in unlocked_rounds if x > 0) if any(x > 0 for x in unlocked_rounds) else 0
@@ -353,9 +367,19 @@ def main() -> None:
         "local_search_attempt_count": local_search_attempt_count,
         "local_search_success_count": local_search_success_count,
         "local_search_success_pct": _ratio(local_search_success_count, total_tasks),
+        "adaptive_search_attempt_count": adaptive_search_attempt_count,
+        "adaptive_search_success_count": adaptive_search_success_count,
+        "adaptive_search_success_pct": _ratio(adaptive_search_success_count, total_tasks),
         "stage_1_unlock_via_local_search_count": stage_1_unlock_via_local_search_count,
         "stage_2_resolution_via_local_search_count": stage_2_resolution_via_local_search_count,
         "cluster_only_resolution_count": cluster_only_resolution_count,
+        "stage_1_unlock_via_adaptive_search_count": stage_1_unlock_via_adaptive_search_count,
+        "stage_2_resolution_via_adaptive_search_count": stage_2_resolution_via_adaptive_search_count,
+        "template_only_resolution_count": template_only_resolution_count,
+        "adaptive_vs_template_resolution_split": {
+            "adaptive_search": stage_2_resolution_via_adaptive_search_count,
+            "template_only": template_only_resolution_count,
+        },
         "stage_2_hard_case_count": stage_2_hard_case_count,
         "stage_2_hard_case_resolution_count": stage_2_hard_case_resolution_count,
         "stage_2_hard_case_resolution_pct": _ratio(stage_2_hard_case_resolution_count, stage_2_hard_case_count),

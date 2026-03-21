@@ -181,6 +181,7 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
         )
         self.assertTrue(audit.get("applied"))
         self.assertEqual(audit.get("search_kind"), "stage_1_unlock")
+        self.assertEqual(audit.get("cluster_name"), "adaptive_combo")
         self.assertIn("width=40", str(audit.get("candidate_key") or ""))
         self.assertIn("period=0.5", patched)
 
@@ -200,9 +201,11 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
             search_memory={},
         )
         self.assertTrue(audit.get("applied"))
-        self.assertEqual(audit.get("cluster_name"), "stage1_stability_behavior_unlock")
+        self.assertEqual(audit.get("cluster_name"), "adaptive_combo")
         self.assertIn("height=1", patched)
         self.assertIn("duration=0.5", patched)
+        self.assertEqual(audit.get("candidate_origin"), "adaptive_search")
+        self.assertGreaterEqual(int(audit.get("candidate_pool_size") or 0), 1)
 
     def test_source_blind_multistep_local_search_generates_stage2_candidate(self) -> None:
         model_text = (
@@ -239,9 +242,11 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
             search_memory={},
         )
         self.assertTrue(audit.get("applied"))
-        self.assertEqual(audit.get("cluster_name"), "stage2_recovery_hybridb_full")
-        self.assertIn("startTime=0.1", patched)
+        self.assertEqual(audit.get("cluster_name"), "adaptive_combo")
+        self.assertIn("width=0.4", patched)
         self.assertIn("T=0.2", patched)
+        self.assertEqual(audit.get("candidate_origin"), "adaptive_search")
+        self.assertEqual(audit.get("search_direction"), "width+T")
 
     def test_source_blind_multistep_local_search_skips_tried_candidate(self) -> None:
         model_text = (
