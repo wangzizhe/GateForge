@@ -196,12 +196,19 @@ def build_multistep_llm_plan_prompt_hints_v1(
     current_branch: str = "",
     preferred_branch: str = "",
     previous_plan_failed_signal: str = "",
+    realism_version: str = "",
+    replan_count: int = 0,
 ) -> list[str]:
     kind = str(request_kind or "").strip().lower()
     stage = str(current_stage or "").strip().lower()
     branch = str(current_branch or "").strip().lower()
     preferred = str(preferred_branch or "").strip().lower()
     failed_signal = str(previous_plan_failed_signal or "").strip().lower()
+    realism = str(realism_version or "").strip().lower()
+    try:
+        replan_idx = max(0, int(replan_count))
+    except Exception:
+        replan_idx = 0
     if kind == "replan":
         return _as_actions(
             [
@@ -210,8 +217,21 @@ def build_multistep_llm_plan_prompt_hints_v1(
                 f"if the current branch '{branch or 'unknown'}' looks wrong, explicitly move toward '{preferred or 'the preferred branch'}'",
                 "make branch choice explicit: say whether to continue the current branch or switch to a new branch",
                 "allocate a small integer budget across branch diagnosis, branch escape, and final resolution",
+                "make the budget explicit enough that execution can follow it without guessing",
                 "favor a minimal backtracking step and a new parameter subset over repeating the previous patch verbatim",
+                "name the parameter directions that should be abandoned from the previous failed plan",
                 "stop the replan when the preferred branch is restored or when all scenarios pass",
+                (
+                    "this is a deeper v5-style replan, so compare the current branch against at least one alternative branch "
+                    "before keeping the same direction"
+                    if realism == "v5" or replan_idx >= 1
+                    else ""
+                ),
+                (
+                    "if this is not the first replan, explain why the remaining budget should stay on the current branch or switch away again"
+                    if replan_idx >= 1
+                    else ""
+                ),
             ]
         )
     return _as_actions(
@@ -221,6 +241,11 @@ def build_multistep_llm_plan_prompt_hints_v1(
             f"if a preferred branch exists, keep the plan aligned with '{preferred or branch or 'the preferred branch'}'",
             "use only existing numeric parameters already present in the model text",
             "stop the plan when the current stage is cleared or the branch diagnosis changes",
+            (
+                "for v5 realism, prefer branch-diagnostic parameter choices that separate competing stage_2 branches instead of immediately spending the full budget on one narrow patch"
+                if realism == "v5"
+                else ""
+            ),
         ]
     )
 

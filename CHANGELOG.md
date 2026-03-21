@@ -2,6 +2,20 @@
 
 All notable changes to this project are documented in this file.
 
+## [v0.1.4] - 2026-03-21
+### Added
+- Added a harder `source-blind multistep` v5 realism lane with branch-sensitive failure exposure.
+- Added LLM branch-quality and budgeted-replanning accounting for multistep repair runs.
+- Added `v0.1.4` release preflight checks for v4 LLM replanning and v5 branch-decision evidence.
+
+### Changed
+- Improved Gemini-guided multistep repair so the planner can replan, switch branch, and allocate budget across branch diagnosis, trap escape, and resolution.
+- Improved release-facing evidence so LLM plan, replan, branch-correction, and guided-search contributions are explicitly separated.
+
+### Validation
+- `v4` LLM-replan authority target: stabilized to `6/6 PASS` with non-zero switch-branch replan success.
+- `v5` authority establishes new headroom while preserving real Gemini contribution signals.
+
 ## [v0.1.3] - 2026-03-20
 ### Added
 - Added a source-blind behavioral-robustness evaluation mode.

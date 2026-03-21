@@ -121,6 +121,45 @@ V4_LLM_TRIGGER_REASONS = {
     "behavior_then_robustness": "branch_diagnosis_unknown_or_candidate_pool_exhausted",
     "switch_then_recovery": "trap_escape_no_progress",
 }
+V5_ALLOWED_MODELS_BY_FAILURE = {
+    "stability_then_behavior": {"planta", "plant_a", "plantb", "plant_b"},
+    "behavior_then_robustness": {"switcha", "switch_a", "switchb", "switch_b"},
+    "switch_then_recovery": {"hybrida", "hybrid_a", "hybridb", "hybrid_b"},
+}
+V5_LLM_FORCING_PROFILES = {
+    "stability_then_behavior": "coupled_unlock_then_branch_retry_v5",
+    "behavior_then_robustness": "branch_ambiguity_then_second_replan_v5",
+    "switch_then_recovery": "trap_escape_then_second_replan_v5",
+}
+V5_LLM_TRIGGER_REASONS = {
+    "stability_then_behavior": "same_stage_2_branch_stall_or_wrong_branch",
+    "behavior_then_robustness": "branch_diagnosis_unknown_or_replan_depth_required",
+    "switch_then_recovery": "trap_escape_or_replan_depth_required",
+}
+
+
+def _is_llm_forcing_realism(realism_version: str) -> bool:
+    return str(realism_version or "").strip().lower() in {"v4", "v5"}
+
+
+def _llm_forcing_profile_for_realism(*, failure_type: str, realism_version: str) -> str:
+    failure = str(failure_type or "").strip().lower()
+    realism = str(realism_version or "").strip().lower()
+    if realism == "v5":
+        return V5_LLM_FORCING_PROFILES.get(failure, "")
+    if realism == "v4":
+        return V4_LLM_FORCING_PROFILES.get(failure, "")
+    return ""
+
+
+def _llm_trigger_reason_for_realism(*, failure_type: str, realism_version: str) -> str:
+    failure = str(failure_type or "").strip().lower()
+    realism = str(realism_version or "").strip().lower()
+    if realism == "v5":
+        return V5_LLM_TRIGGER_REASONS.get(failure, "")
+    if realism == "v4":
+        return V4_LLM_TRIGGER_REASONS.get(failure, "")
+    return ""
 
 
 def _build_contract(invariants: list[dict]) -> dict:
@@ -187,6 +226,19 @@ def _mutate_source_blind_multistep_model(
             ],
         }
         patterns = plantb_patterns.get(str(failure_type or "").strip().lower())
+        if str(realism_version or "").strip().lower() == "v5":
+            v5_patterns = {
+                "stability_then_behavior": [
+                    (r"height\s*=\s*1(?:\.0+)?", "height=1.26"),
+                    (r"duration\s*=\s*0\.5(?:0+)?", "duration=1.35"),
+                    (r"startTime\s*=\s*0\.2(?:0+)?", "startTime=0.92"),
+                ],
+                "switch_then_recovery": [
+                    (r"duration\s*=\s*0\.5(?:0+)?", "duration=1.35"),
+                    (r"startTime\s*=\s*0\.2(?:0+)?", "startTime=0.74"),
+                ],
+            }
+            patterns = v5_patterns.get(str(failure_type or "").strip().lower(), patterns)
         if patterns:
             lines = str(source_text or "").splitlines(keepends=True)
             seen_patterns: set[str] = set()
@@ -211,9 +263,9 @@ def _mutate_source_blind_multistep_model(
                 mutated,
                 failure_type=failure_type,
                 realism_version=realism_version,
-                llm_forcing=str(realism_version or "").strip().lower() == "v4",
-                llm_forcing_profile=V4_LLM_FORCING_PROFILES.get(str(failure_type or "").strip().lower(), ""),
-                llm_trigger_reason=V4_LLM_TRIGGER_REASONS.get(str(failure_type or "").strip().lower(), ""),
+                llm_forcing=_is_llm_forcing_realism(realism_version),
+                llm_forcing_profile=_llm_forcing_profile_for_realism(failure_type=failure_type, realism_version=realism_version),
+                llm_trigger_reason=_llm_trigger_reason_for_realism(failure_type=failure_type, realism_version=realism_version),
             )
     if "model switchb" in lower_source:
         switchb_patterns = {
@@ -224,6 +276,15 @@ def _mutate_source_blind_multistep_model(
             ],
         }
         patterns = switchb_patterns.get(str(failure_type or "").strip().lower())
+        if str(realism_version or "").strip().lower() == "v5":
+            v5_patterns = {
+                "behavior_then_robustness": [
+                    (r"startTime\s*=\s*0\.3(?:0+)?", "startTime=0.92"),
+                    (r"freqHz\s*=\s*1(?:\.0+)?", "freqHz=1.9"),
+                    (r"\bk\s*=\s*0\.5(?:0+)?", "k=0.88"),
+                ],
+            }
+            patterns = v5_patterns.get(str(failure_type or "").strip().lower(), patterns)
         if patterns:
             lines = str(source_text or "").splitlines(keepends=True)
             seen_patterns: set[str] = set()
@@ -248,9 +309,9 @@ def _mutate_source_blind_multistep_model(
                 mutated,
                 failure_type=failure_type,
                 realism_version=realism_version,
-                llm_forcing=str(realism_version or "").strip().lower() == "v4",
-                llm_forcing_profile=V4_LLM_FORCING_PROFILES.get(str(failure_type or "").strip().lower(), ""),
-                llm_trigger_reason=V4_LLM_TRIGGER_REASONS.get(str(failure_type or "").strip().lower(), ""),
+                llm_forcing=_is_llm_forcing_realism(realism_version),
+                llm_forcing_profile=_llm_forcing_profile_for_realism(failure_type=failure_type, realism_version=realism_version),
+                llm_trigger_reason=_llm_trigger_reason_for_realism(failure_type=failure_type, realism_version=realism_version),
             )
     if "model switcha" in lower_source:
         switcha_patterns = {
@@ -261,6 +322,20 @@ def _mutate_source_blind_multistep_model(
             ],
         }
         patterns = switcha_patterns.get(str(failure_type or "").strip().lower())
+        if str(realism_version or "").strip().lower() == "v5":
+            v5_patterns = {
+                "stability_then_behavior": [
+                    (r"\bk\s*=\s*1(?:\.0+)?", "k=1.24"),
+                    (r"width\s*=\s*40(?:\.0+)?", "width=68"),
+                    (r"period\s*=\s*0\.5(?:0+)?", "period=1.05"),
+                ],
+                "behavior_then_robustness": [
+                    (r"width\s*=\s*40(?:\.0+)?", "width=68"),
+                    (r"period\s*=\s*0\.5(?:0+)?", "period=1.05"),
+                    (r"offset\s*=\s*0(?:\.0+)?", "offset=0.28"),
+                ],
+            }
+            patterns = v5_patterns.get(str(failure_type or "").strip().lower(), patterns)
         if patterns:
             lines = str(source_text or "").splitlines(keepends=True)
             seen_patterns: set[str] = set()
@@ -285,9 +360,9 @@ def _mutate_source_blind_multistep_model(
                 mutated,
                 failure_type=failure_type,
                 realism_version=realism_version,
-                llm_forcing=str(realism_version or "").strip().lower() == "v4",
-                llm_forcing_profile=V4_LLM_FORCING_PROFILES.get(str(failure_type or "").strip().lower(), ""),
-                llm_trigger_reason=V4_LLM_TRIGGER_REASONS.get(str(failure_type or "").strip().lower(), ""),
+                llm_forcing=_is_llm_forcing_realism(realism_version),
+                llm_forcing_profile=_llm_forcing_profile_for_realism(failure_type=failure_type, realism_version=realism_version),
+                llm_trigger_reason=_llm_trigger_reason_for_realism(failure_type=failure_type, realism_version=realism_version),
             )
     if "model hybridb" in lower_source:
         hybridb_patterns = {
@@ -299,6 +374,16 @@ def _mutate_source_blind_multistep_model(
             ],
         }
         patterns = hybridb_patterns.get(str(failure_type or "").strip().lower())
+        if str(realism_version or "").strip().lower() == "v5":
+            v5_patterns = {
+                "switch_then_recovery": [
+                    (r"width\s*=\s*0\.4(?:0+)?", "width=0.9"),
+                    (r"startTime\s*=\s*0\.1(?:0+)?", "startTime=0.72"),
+                    (r"\bT\s*=\s*0\.2(?:0+)?", "T=0.62"),
+                    (r"\bk\s*=\s*1(?:\.0+)?", "k=0.55"),
+                ],
+            }
+            patterns = v5_patterns.get(str(failure_type or "").strip().lower(), patterns)
         if patterns:
             lines = str(source_text or "").splitlines(keepends=True)
             seen_patterns: set[str] = set()
@@ -323,9 +408,9 @@ def _mutate_source_blind_multistep_model(
                 mutated,
                 failure_type=failure_type,
                 realism_version=realism_version,
-                llm_forcing=str(realism_version or "").strip().lower() == "v4",
-                llm_forcing_profile=V4_LLM_FORCING_PROFILES.get(str(failure_type or "").strip().lower(), ""),
-                llm_trigger_reason=V4_LLM_TRIGGER_REASONS.get(str(failure_type or "").strip().lower(), ""),
+                llm_forcing=_is_llm_forcing_realism(realism_version),
+                llm_forcing_profile=_llm_forcing_profile_for_realism(failure_type=failure_type, realism_version=realism_version),
+                llm_trigger_reason=_llm_trigger_reason_for_realism(failure_type=failure_type, realism_version=realism_version),
             )
     patterns_by_failure = {
         "stability_then_behavior": [
@@ -375,9 +460,9 @@ def _mutate_source_blind_multistep_model(
         mutated,
         failure_type=failure_type,
         realism_version=realism_version,
-        llm_forcing=str(realism_version or "").strip().lower() == "v4",
-        llm_forcing_profile=V4_LLM_FORCING_PROFILES.get(str(failure_type or "").strip().lower(), ""),
-        llm_trigger_reason=V4_LLM_TRIGGER_REASONS.get(str(failure_type or "").strip().lower(), ""),
+        llm_forcing=_is_llm_forcing_realism(realism_version),
+        llm_forcing_profile=_llm_forcing_profile_for_realism(failure_type=failure_type, realism_version=realism_version),
+        llm_trigger_reason=_llm_trigger_reason_for_realism(failure_type=failure_type, realism_version=realism_version),
     )
 
 
@@ -411,8 +496,9 @@ def build_source_blind_multistep_taskset(
                 model_path = Path(_norm(model.get("model_path")))
                 library_id = _norm(library.get("library_id")).lower()
                 model_id = _norm(model.get("model_id")).lower()
-                if str(realism_version or "").strip().lower() == "v4":
-                    allowed_models = V4_ALLOWED_MODELS_BY_FAILURE.get(failure_type, set())
+                realism_key = str(realism_version or "").strip().lower()
+                if realism_key in {"v4", "v5"}:
+                    allowed_models = V5_ALLOWED_MODELS_BY_FAILURE.get(failure_type, set()) if realism_key == "v5" else V4_ALLOWED_MODELS_BY_FAILURE.get(failure_type, set())
                     if allowed_models and model_id not in allowed_models:
                         continue
                 copied_source_path = source_models_dir / library_id / f"{model_id}.mo"
@@ -445,17 +531,9 @@ def build_source_blind_multistep_taskset(
                     "expected_stage": "simulate",
                     "multi_step_family": meta["multi_step_family"],
                     "realism_version": str(realism_version or meta.get("realism_version") or "v1"),
-                    "llm_forcing": bool(str(realism_version or "").strip().lower() == "v4"),
-                    "llm_forcing_profile": (
-                        V4_LLM_FORCING_PROFILES.get(failure_type, "")
-                        if str(realism_version or "").strip().lower() == "v4"
-                        else ""
-                    ),
-                    "llm_trigger_reason": (
-                        V4_LLM_TRIGGER_REASONS.get(failure_type, "")
-                        if str(realism_version or "").strip().lower() == "v4"
-                        else ""
-                    ),
+                    "llm_forcing": bool(_is_llm_forcing_realism(realism_version)),
+                    "llm_forcing_profile": _llm_forcing_profile_for_realism(failure_type=failure_type, realism_version=realism_version),
+                    "llm_trigger_reason": _llm_trigger_reason_for_realism(failure_type=failure_type, realism_version=realism_version),
                     "contract_metric_set": list(meta["contract_metric_set"]),
                     "expected_failure_sequence": list(meta["expected_failure_sequence"]),
                     "expected_contract_failures": expected_contract_failures,

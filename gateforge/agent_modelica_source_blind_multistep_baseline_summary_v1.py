@@ -174,6 +174,7 @@ def main() -> None:
     good_branch_resolution_count = 0
     trap_branch_enter_count = 0
     trap_branch_recovery_count = 0
+    trap_escape_success_count = 0
     round_to_correct_branch_values: list[float] = []
     trap_branch_resolution_count = 0
     preferred_branch_resolution_count = 0
@@ -183,21 +184,30 @@ def main() -> None:
     repeated_trap_branch_count = 0
     llm_request_count_total = 0
     llm_task_count = 0
+    realism_version_counts: dict[str, int] = {}
     llm_resolution_count = 0
     llm_only_resolution_count = 0
     llm_branch_correction_count = 0
     llm_plan_task_count = 0
     llm_plan_followed_count = 0
     llm_plan_branch_match_count = 0
+    first_plan_branch_match_count = 0
+    replan_branch_match_count = 0
     llm_plan_helped_resolution_count = 0
     llm_plan_was_decisive_count = 0
     llm_called_only_count = 0
     llm_replan_task_count = 0
     llm_replan_used_count = 0
     llm_replan_resolution_count = 0
+    llm_second_replan_used_count = 0
+    llm_second_replan_resolution_count = 0
     first_plan_resolution_count = 0
     replan_after_branch_miss_count = 0
     backtracking_used_count = 0
+    llm_guided_search_used_count = 0
+    search_budget_from_llm_plan_total = 0
+    search_budget_followed_count = 0
+    llm_budget_helped_resolution_count = 0
     llm_replan_budget_consumed_total = 0
     llm_replan_switch_branch_count = 0
     llm_replan_same_branch_success_count = 0
@@ -222,6 +232,9 @@ def main() -> None:
         fail_row["task_count"] += 1
         stage2_row["task_count"] += 1
         executor_attempt_values.append(float(_executor_attempt_count(record)))
+        realism_key = str(record.get("realism_version") or "").strip().lower()
+        if realism_key:
+            realism_version_counts[realism_key] = int(realism_version_counts.get(realism_key, 0)) + 1
         signatures: list[str] = []
         second_failure_round: int | None = None
         unlocked_rounds: list[int] = []
@@ -321,6 +334,10 @@ def main() -> None:
             llm_plan_followed_count += 1
         if bool(record.get("llm_plan_branch_match")):
             llm_plan_branch_match_count += 1
+        if bool(record.get("first_plan_branch_match")):
+            first_plan_branch_match_count += 1
+        if bool(record.get("replan_branch_match")):
+            replan_branch_match_count += 1
         if bool(record.get("llm_plan_helped_resolution")):
             llm_plan_helped_resolution_count += 1
         if bool(record.get("llm_plan_was_decisive")):
@@ -336,8 +353,12 @@ def main() -> None:
                 pass
             if bool(record.get("replan_switch_branch")):
                 llm_replan_switch_branch_count += 1
+        if bool(record.get("llm_second_replan_used")):
+            llm_second_replan_used_count += 1
         if bool(record.get("llm_replan_resolved")):
             llm_replan_resolution_count += 1
+            if bool(record.get("llm_second_replan_used")):
+                llm_second_replan_resolution_count += 1
             if bool(record.get("replan_switch_branch")):
                 llm_replan_switch_branch_success_count += 1
             else:
@@ -352,6 +373,18 @@ def main() -> None:
             replan_after_branch_miss_count += 1
         if bool(record.get("backtracking_used")):
             backtracking_used_count += 1
+        if bool(record.get("llm_guided_search_used")):
+            llm_guided_search_used_count += 1
+        try:
+            search_budget_from_llm_plan_total += max(0, int(record.get("search_budget_from_llm_plan") or 0))
+        except Exception:
+            pass
+        if bool(record.get("search_budget_followed")):
+            search_budget_followed_count += 1
+        if bool(record.get("llm_budget_helped_resolution")):
+            llm_budget_helped_resolution_count += 1
+        if bool(record.get("trap_escape_success")):
+            trap_escape_success_count += 1
         abandoned_branches = [x for x in (record.get("replan_abandoned_branches") or []) if str(x).strip()]
         abandoned_branch_count += len(abandoned_branches)
         if (bool(record.get("budget_reallocated_after_replan")) or int(record.get("branch_budget_reallocated_count") or 0) > 0) and abandoned_branches:
@@ -478,6 +511,7 @@ def main() -> None:
         "counts_by_failure_type": challenge.get("counts_by_failure_type") if isinstance(challenge.get("counts_by_failure_type"), dict) else {},
         "counts_by_multistep_family": challenge.get("counts_by_multistep_family") if isinstance(challenge.get("counts_by_multistep_family"), dict) else {},
         "counts_by_library": challenge.get("counts_by_library") if isinstance(challenge.get("counts_by_library"), dict) else {},
+        "realism_version_counts": realism_version_counts,
         "scenario_count_distribution": challenge.get("scenario_count_distribution") if isinstance(challenge.get("scenario_count_distribution"), dict) else {},
         "median_executor_attempts": round(_median(executor_attempt_values), 2),
         "failure_transition_count": failure_transition_count,
@@ -533,9 +567,12 @@ def main() -> None:
         "good_branch_resolution_count": good_branch_resolution_count,
         "trap_branch_enter_count": trap_branch_enter_count,
         "trap_branch_recovery_count": trap_branch_recovery_count,
+        "trap_escape_success_count": trap_escape_success_count,
         "trap_branch_resolution_count": trap_branch_resolution_count,
         "trap_branch_resolution_pct": _ratio(trap_branch_resolution_count, trap_branch_enter_count),
         "preferred_branch_resolution_count": preferred_branch_resolution_count,
+        "wrong_branch_enter_count": trap_branch_enter_count,
+        "wrong_branch_recovery_count": trap_branch_recovery_count,
         "branch_escape_attempt_count": branch_escape_attempt_count,
         "branch_escape_success_count": branch_escape_success_count,
         "branch_escape_success_pct": _ratio(branch_escape_success_count, branch_escape_attempt_count),
@@ -549,6 +586,10 @@ def main() -> None:
         "llm_plan_followed_pct": _ratio(llm_plan_followed_count, total_tasks),
         "llm_plan_branch_match_count": llm_plan_branch_match_count,
         "llm_plan_branch_match_pct": _ratio(llm_plan_branch_match_count, total_tasks),
+        "first_plan_branch_match_count": first_plan_branch_match_count,
+        "first_plan_branch_match_pct": _ratio(first_plan_branch_match_count, total_tasks),
+        "replan_branch_match_count": replan_branch_match_count,
+        "replan_branch_match_pct": _ratio(replan_branch_match_count, total_tasks),
         "llm_plan_helped_resolution_count": llm_plan_helped_resolution_count,
         "llm_plan_helped_resolution_pct": _ratio(llm_plan_helped_resolution_count, total_tasks),
         "llm_plan_was_decisive_count": llm_plan_was_decisive_count,
@@ -558,9 +599,20 @@ def main() -> None:
         "llm_replan_used_pct": _ratio(llm_replan_used_count, total_tasks),
         "llm_replan_resolution_count": llm_replan_resolution_count,
         "llm_replan_resolution_pct": _ratio(llm_replan_resolution_count, total_tasks),
+        "llm_second_replan_used_count": llm_second_replan_used_count,
+        "llm_second_replan_used_pct": _ratio(llm_second_replan_used_count, total_tasks),
+        "llm_second_replan_resolution_count": llm_second_replan_resolution_count,
+        "llm_second_replan_resolution_pct": _ratio(llm_second_replan_resolution_count, total_tasks),
         "first_plan_resolution_count": first_plan_resolution_count,
         "replan_after_branch_miss_count": replan_after_branch_miss_count,
         "backtracking_used_count": backtracking_used_count,
+        "llm_guided_search_used_count": llm_guided_search_used_count,
+        "llm_guided_search_used_pct": _ratio(llm_guided_search_used_count, total_tasks),
+        "search_budget_from_llm_plan_avg": round((search_budget_from_llm_plan_total / llm_guided_search_used_count), 2) if llm_guided_search_used_count > 0 else 0.0,
+        "search_budget_followed_count": search_budget_followed_count,
+        "search_budget_followed_pct": _ratio(search_budget_followed_count, total_tasks),
+        "llm_budget_helped_resolution_count": llm_budget_helped_resolution_count,
+        "llm_budget_helped_resolution_pct": _ratio(llm_budget_helped_resolution_count, total_tasks),
         "llm_replan_budget_consumed_avg": round((llm_replan_budget_consumed_total / llm_replan_used_count), 2) if llm_replan_used_count > 0 else 0.0,
         "llm_replan_switch_branch_count": llm_replan_switch_branch_count,
         "llm_replan_same_branch_success_count": llm_replan_same_branch_success_count,
@@ -581,6 +633,7 @@ def main() -> None:
             "template_only": template_only_resolution_count,
             "llm_first_plan": first_plan_resolution_count,
             "llm_replan": llm_replan_resolution_count,
+            "llm_second_replan": llm_second_replan_resolution_count,
         },
         "deterministic_vs_llm_resolution_split": {
             "adaptive_search": stage_2_resolution_via_adaptive_search_count,
