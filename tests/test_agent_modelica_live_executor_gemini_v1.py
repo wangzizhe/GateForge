@@ -184,6 +184,26 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
         self.assertIn("width=40", str(audit.get("candidate_key") or ""))
         self.assertIn("period=0.5", patched)
 
+    def test_source_blind_multistep_local_search_prefers_plantb_stage1_unlock_bundle(self) -> None:
+        model_text = (
+            "model PlantB\n"
+            "  parameter Real height=1.2;\n"
+            "  parameter Real duration=1.1;\n"
+            "  parameter Real startTime=0.8;\n"
+            "end PlantB;\n"
+        )
+        patched, audit = _apply_source_blind_multistep_local_search(
+            current_text=model_text,
+            declared_failure_type="stability_then_behavior",
+            current_stage="stage_1",
+            current_fail_bucket="",
+            search_memory={},
+        )
+        self.assertTrue(audit.get("applied"))
+        self.assertEqual(audit.get("cluster_name"), "stage1_stability_behavior_unlock")
+        self.assertIn("height=1", patched)
+        self.assertIn("duration=0.5", patched)
+
     def test_source_blind_multistep_local_search_generates_stage2_candidate(self) -> None:
         model_text = (
             "model HybridB\n"
@@ -202,6 +222,26 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
         self.assertEqual(audit.get("search_kind"), "stage_2_resolution")
         self.assertIn("width=", str(audit.get("candidate_key") or ""))
         self.assertNotEqual(patched, model_text)
+
+    def test_source_blind_multistep_local_search_prefers_hybridb_stage2_full_candidate(self) -> None:
+        model_text = (
+            "model HybridB\n"
+            "  parameter Real width=0.75;\n"
+            "  parameter Real T=0.5;\n"
+            "  parameter Real startTime=0.2;\n"
+            "end HybridB;\n"
+        )
+        patched, audit = _apply_source_blind_multistep_local_search(
+            current_text=model_text,
+            declared_failure_type="switch_then_recovery",
+            current_stage="stage_2",
+            current_fail_bucket="post_switch_recovery_miss",
+            search_memory={},
+        )
+        self.assertTrue(audit.get("applied"))
+        self.assertEqual(audit.get("cluster_name"), "stage2_recovery_hybridb_full")
+        self.assertIn("startTime=0.1", patched)
+        self.assertIn("T=0.2", patched)
 
     def test_source_blind_multistep_local_search_skips_tried_candidate(self) -> None:
         model_text = (

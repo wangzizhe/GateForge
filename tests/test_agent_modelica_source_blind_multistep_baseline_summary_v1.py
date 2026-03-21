@@ -39,9 +39,11 @@ class AgentModelicaSourceBlindMultistepBaselineSummaryV1Tests(unittest.TestCase)
                         "passed": True,
                         "multi_step_stage_2_unlocked": True,
                         "local_search_success_count": 1,
+                        "search_bad_direction_count": 0,
                         "stage_1_unlock_via_local_search": True,
                         "stage_2_resolution_via_local_search": True,
                         "cluster_only_resolution": False,
+                        "stage_2_first_fail_bucket": "behavior_contract_miss",
                         "scenario_results": [{"pass": True}, {"pass": True}, {"pass": True}],
                         "attempts": [
                             {"round": 1, "contract_fail_bucket": "stability_margin_miss", "multi_step_stage": "stage_1", "source_blind_multistep_local_search": {"applied": True, "search_kind": "stage_1_unlock", "candidate_key": "stage_1_unlock:stage1_stability_gain_height:k=1|height=1"}},
@@ -54,9 +56,11 @@ class AgentModelicaSourceBlindMultistepBaselineSummaryV1Tests(unittest.TestCase)
                         "passed": False,
                         "multi_step_stage_2_unlocked": True,
                         "local_search_success_count": 0,
+                        "search_bad_direction_count": 1,
                         "stage_1_unlock_via_local_search": True,
                         "stage_2_resolution_via_local_search": False,
                         "cluster_only_resolution": False,
+                        "stage_2_first_fail_bucket": "single_case_only",
                         "scenario_results": [{"pass": True}, {"pass": False}, {"pass": False}],
                         "attempts": [
                             {"round": 1, "contract_fail_bucket": "behavior_contract_miss", "multi_step_stage": "stage_1", "source_blind_multistep_local_search": {"applied": True, "search_kind": "stage_1_unlock", "candidate_key": "stage_1_unlock:stage1_nominal_start_freq:startTime=0.3|freqHz=1"}},
@@ -68,6 +72,7 @@ class AgentModelicaSourceBlindMultistepBaselineSummaryV1Tests(unittest.TestCase)
                         "passed": False,
                         "multi_step_stage_2_unlocked": False,
                         "local_search_success_count": 0,
+                        "search_bad_direction_count": 0,
                         "stage_1_unlock_via_local_search": False,
                         "stage_2_resolution_via_local_search": False,
                         "cluster_only_resolution": True,
@@ -128,6 +133,11 @@ class AgentModelicaSourceBlindMultistepBaselineSummaryV1Tests(unittest.TestCase)
             self.assertEqual(payload.get("stage_1_unlock_via_local_search_count"), 2)
             self.assertEqual(payload.get("stage_2_resolution_via_local_search_count"), 1)
             self.assertEqual(payload.get("cluster_only_resolution_count"), 1)
+            self.assertEqual(payload.get("stage_2_hard_case_count"), 1)
+            self.assertEqual(payload.get("stage_2_hard_case_resolution_count"), 1)
+            self.assertEqual(payload.get("stage_2_hard_case_resolution_pct"), 100.0)
+            self.assertEqual(payload.get("search_bad_direction_count"), 1)
+            self.assertEqual(payload.get("hard_case_remaining_buckets"), {"single_case_only": 1})
             self.assertEqual(payload.get("multi_step_completion_count"), 1)
             self.assertEqual(payload.get("multi_step_headroom_status"), "stage_aware_control_observed")
             self.assertTrue(

@@ -410,6 +410,10 @@ def _extract_multistep_fields(payload: dict, live_attempt: dict) -> dict:
         "local_search_success_count": 0,
         "local_search_kinds": [],
         "search_improvement_seen": False,
+        "search_regression_seen": False,
+        "search_bad_direction_count": 0,
+        "best_stage_2_fail_bucket_seen": "",
+        "stage_2_best_progress_seen": False,
         "stage_1_unlock_via_local_search": False,
         "stage_2_resolution_via_local_search": False,
         "cluster_only_resolution": False,
@@ -524,6 +528,13 @@ def _extract_multistep_fields(payload: dict, live_attempt: dict) -> dict:
         out["local_search_success_count"] = 0
     out["local_search_kinds"] = _as_str_list(live_attempt.get("local_search_kinds")) or _as_str_list(payload.get("local_search_kinds"))
     out["search_improvement_seen"] = bool(_as_bool(live_attempt.get("search_improvement_seen"))) or bool(_as_bool(payload.get("search_improvement_seen")))
+    out["search_regression_seen"] = bool(_as_bool(live_attempt.get("search_regression_seen"))) or bool(_as_bool(payload.get("search_regression_seen")))
+    try:
+        out["search_bad_direction_count"] = max(0, int(live_attempt.get("search_bad_direction_count") or payload.get("search_bad_direction_count") or 0))
+    except Exception:
+        out["search_bad_direction_count"] = 0
+    out["best_stage_2_fail_bucket_seen"] = str(live_attempt.get("best_stage_2_fail_bucket_seen") or payload.get("best_stage_2_fail_bucket_seen") or "").strip().lower()
+    out["stage_2_best_progress_seen"] = bool(_as_bool(live_attempt.get("stage_2_best_progress_seen"))) or bool(_as_bool(payload.get("stage_2_best_progress_seen")))
     out["stage_1_unlock_via_local_search"] = bool(_as_bool(live_attempt.get("stage_1_unlock_via_local_search"))) or bool(_as_bool(payload.get("stage_1_unlock_via_local_search")))
     out["stage_2_resolution_via_local_search"] = bool(_as_bool(live_attempt.get("stage_2_resolution_via_local_search"))) or bool(_as_bool(payload.get("stage_2_resolution_via_local_search")))
     out["cluster_only_resolution"] = bool(_as_bool(live_attempt.get("cluster_only_resolution"))) or bool(_as_bool(payload.get("cluster_only_resolution")))
@@ -1631,6 +1642,10 @@ def _run_task_live_l4(
             "local_search_success_count": int(multistep_fields.get("local_search_success_count") or 0),
             "local_search_kinds": [str(x) for x in (multistep_fields.get("local_search_kinds") or []) if isinstance(x, str)],
             "search_improvement_seen": bool(multistep_fields.get("search_improvement_seen")),
+            "search_regression_seen": bool(multistep_fields.get("search_regression_seen")),
+            "search_bad_direction_count": int(multistep_fields.get("search_bad_direction_count") or 0),
+            "best_stage_2_fail_bucket_seen": str(multistep_fields.get("best_stage_2_fail_bucket_seen") or ""),
+            "stage_2_best_progress_seen": bool(multistep_fields.get("stage_2_best_progress_seen")),
             "stage_1_unlock_via_local_search": bool(multistep_fields.get("stage_1_unlock_via_local_search")),
             "stage_2_resolution_via_local_search": bool(multistep_fields.get("stage_2_resolution_via_local_search")),
             "cluster_only_resolution": bool(multistep_fields.get("cluster_only_resolution")),
@@ -1749,6 +1764,10 @@ def _run_task_live_l4(
         "local_search_success_count": int(best_contract_attempt.get("local_search_success_count") or 0) if best_contract_attempt else 0,
         "local_search_kinds": [str(x) for x in (best_contract_attempt.get("local_search_kinds") or []) if isinstance(x, str)] if best_contract_attempt else [],
         "search_improvement_seen": bool(best_contract_attempt.get("search_improvement_seen")) if best_contract_attempt else False,
+        "search_regression_seen": bool(best_contract_attempt.get("search_regression_seen")) if best_contract_attempt else False,
+        "search_bad_direction_count": int(best_contract_attempt.get("search_bad_direction_count") or 0) if best_contract_attempt else 0,
+        "best_stage_2_fail_bucket_seen": str(best_contract_attempt.get("best_stage_2_fail_bucket_seen") or "") if best_contract_attempt else "",
+        "stage_2_best_progress_seen": bool(best_contract_attempt.get("stage_2_best_progress_seen")) if best_contract_attempt else False,
         "stage_1_unlock_via_local_search": bool(best_contract_attempt.get("stage_1_unlock_via_local_search")) if best_contract_attempt else False,
         "stage_2_resolution_via_local_search": bool(best_contract_attempt.get("stage_2_resolution_via_local_search")) if best_contract_attempt else False,
         "cluster_only_resolution": bool(best_contract_attempt.get("cluster_only_resolution")) if best_contract_attempt else False,
@@ -2163,6 +2182,10 @@ def _run_task_live(
                 "local_search_success_count": int(multistep_fields.get("local_search_success_count") or 0),
                 "local_search_kinds": [str(x) for x in (multistep_fields.get("local_search_kinds") or []) if isinstance(x, str)],
                 "search_improvement_seen": bool(multistep_fields.get("search_improvement_seen")),
+                "search_regression_seen": bool(multistep_fields.get("search_regression_seen")),
+                "search_bad_direction_count": int(multistep_fields.get("search_bad_direction_count") or 0),
+                "best_stage_2_fail_bucket_seen": str(multistep_fields.get("best_stage_2_fail_bucket_seen") or ""),
+                "stage_2_best_progress_seen": bool(multistep_fields.get("stage_2_best_progress_seen")),
                 "stage_1_unlock_via_local_search": bool(multistep_fields.get("stage_1_unlock_via_local_search")),
                 "stage_2_resolution_via_local_search": bool(multistep_fields.get("stage_2_resolution_via_local_search")),
                 "cluster_only_resolution": bool(multistep_fields.get("cluster_only_resolution")),
@@ -2250,6 +2273,10 @@ def _run_task_live(
         "local_search_success_count": int(best_contract_attempt.get("local_search_success_count") or 0) if best_contract_attempt else 0,
         "local_search_kinds": [str(x) for x in (best_contract_attempt.get("local_search_kinds") or []) if isinstance(x, str)] if best_contract_attempt else [],
         "search_improvement_seen": bool(best_contract_attempt.get("search_improvement_seen")) if best_contract_attempt else False,
+        "search_regression_seen": bool(best_contract_attempt.get("search_regression_seen")) if best_contract_attempt else False,
+        "search_bad_direction_count": int(best_contract_attempt.get("search_bad_direction_count") or 0) if best_contract_attempt else 0,
+        "best_stage_2_fail_bucket_seen": str(best_contract_attempt.get("best_stage_2_fail_bucket_seen") or "") if best_contract_attempt else "",
+        "stage_2_best_progress_seen": bool(best_contract_attempt.get("stage_2_best_progress_seen")) if best_contract_attempt else False,
         "stage_1_unlock_via_local_search": bool(best_contract_attempt.get("stage_1_unlock_via_local_search")) if best_contract_attempt else False,
         "stage_2_resolution_via_local_search": bool(best_contract_attempt.get("stage_2_resolution_via_local_search")) if best_contract_attempt else False,
         "cluster_only_resolution": bool(best_contract_attempt.get("cluster_only_resolution")) if best_contract_attempt else False,
