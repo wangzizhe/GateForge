@@ -157,6 +157,10 @@ def main() -> None:
     stage_1_unlock_via_local_search_count = 0
     stage_2_resolution_via_local_search_count = 0
     cluster_only_resolution_count = 0
+    stage_2_hard_case_count = 0
+    stage_2_hard_case_resolution_count = 0
+    search_bad_direction_count = 0
+    hard_case_remaining_buckets: dict[str, int] = {}
     repair_action_sequence: dict[str, int] = {}
     stage_transition_action_sequence: dict[str, int] = {}
 
@@ -234,6 +238,10 @@ def main() -> None:
             stage_2_resolution_via_local_search_count += 1
         if bool(record.get("cluster_only_resolution")):
             cluster_only_resolution_count += 1
+        try:
+            search_bad_direction_count += max(0, int(record.get("search_bad_direction_count") or 0))
+        except Exception:
+            pass
         if int(record.get("local_search_success_count") or 0) > 0:
             local_search_success_count += 1
         if unlocked_rounds:
@@ -248,12 +256,18 @@ def main() -> None:
             if transition_focuses:
                 key = " -> ".join(transition_focuses)
                 stage_transition_action_sequence[key] = int(stage_transition_action_sequence.get(key, 0)) + 1
+            first_stage2_bucket = str(record.get("stage_2_first_fail_bucket") or "").strip().lower()
+            if first_stage2_bucket in {"behavior_contract_miss", "post_switch_recovery_miss"}:
+                stage_2_hard_case_count += 1
         if _all_scenarios_pass(record):
             all_scenarios_pass_count += 1
             if bool(record.get("multi_step_stage_2_unlocked")) or unlocked_rounds:
                 stage_2_then_pass_count += 1
                 stage_2_resolution_count += 1
                 stage2_row["stage_2_resolution_count"] += 1
+                first_stage2_bucket = str(record.get("stage_2_first_fail_bucket") or "").strip().lower()
+                if first_stage2_bucket in {"behavior_contract_miss", "post_switch_recovery_miss"}:
+                    stage_2_hard_case_resolution_count += 1
                 if stage_2_plan_followed_seen:
                     stage_2_plan_resolution_count += 1
                 first_unlock = min(x for x in unlocked_rounds if x > 0) if any(x > 0 for x in unlocked_rounds) else 0
@@ -270,6 +284,9 @@ def main() -> None:
                 partial_pass_count += 1
             if bool(record.get("multi_step_stage_2_unlocked")) or unlocked_rounds:
                 stage_2_then_fail_count += 1
+                first_stage2_bucket = str(record.get("stage_2_first_fail_bucket") or record.get("contract_fail_bucket") or "").strip().lower()
+                if first_stage2_bucket:
+                    hard_case_remaining_buckets[first_stage2_bucket] = int(hard_case_remaining_buckets.get(first_stage2_bucket, 0)) + 1
             fail_row["scenario_fail_count"] += 1
             bucket = _infer_fail_bucket(record, task)
             scenario_fail_breakdown[bucket] = int(scenario_fail_breakdown.get(bucket, 0)) + 1
@@ -339,6 +356,11 @@ def main() -> None:
         "stage_1_unlock_via_local_search_count": stage_1_unlock_via_local_search_count,
         "stage_2_resolution_via_local_search_count": stage_2_resolution_via_local_search_count,
         "cluster_only_resolution_count": cluster_only_resolution_count,
+        "stage_2_hard_case_count": stage_2_hard_case_count,
+        "stage_2_hard_case_resolution_count": stage_2_hard_case_resolution_count,
+        "stage_2_hard_case_resolution_pct": _ratio(stage_2_hard_case_resolution_count, stage_2_hard_case_count),
+        "search_bad_direction_count": search_bad_direction_count,
+        "hard_case_remaining_buckets": hard_case_remaining_buckets,
         "median_round_from_stage_2_to_resolution": round(_median(round_from_stage_2_to_resolution_values), 2),
         "repair_action_sequence": dict(sorted(repair_action_sequence.items(), key=lambda item: (-item[1], item[0]))[:10]),
         "stage_transition_action_sequence": dict(sorted(stage_transition_action_sequence.items(), key=lambda item: (-item[1], item[0]))[:10]),

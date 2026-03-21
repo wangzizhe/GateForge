@@ -113,6 +113,11 @@ def main() -> None:
     stage_1_unlock_via_local_search_count = int(baseline_summary.get("stage_1_unlock_via_local_search_count") or 0)
     stage_2_resolution_via_local_search_count = int(baseline_summary.get("stage_2_resolution_via_local_search_count") or 0)
     cluster_only_resolution_count = int(baseline_summary.get("cluster_only_resolution_count") or 0)
+    stage_2_hard_case_count = int(baseline_summary.get("stage_2_hard_case_count") or 0)
+    stage_2_hard_case_resolution_count = int(baseline_summary.get("stage_2_hard_case_resolution_count") or 0)
+    stage_2_hard_case_resolution_pct = float(baseline_summary.get("stage_2_hard_case_resolution_pct") or 0.0)
+    search_bad_direction_count = int(baseline_summary.get("search_bad_direction_count") or 0)
+    hard_case_remaining_buckets = baseline_summary.get("hard_case_remaining_buckets") if isinstance(baseline_summary.get("hard_case_remaining_buckets"), dict) else {}
     partial_to_full_count, partial_to_full_by_failure = _partial_to_full(taskset, baseline_results, deterministic_results)
     task_total = int(challenge.get("total_tasks") or 0)
     partial_to_full_pct = round((partial_to_full_count / task_total) * 100.0, 2) if task_total > 0 else 0.0
@@ -159,6 +164,11 @@ def main() -> None:
         "stage_1_unlock_via_local_search_count": stage_1_unlock_via_local_search_count,
         "stage_2_resolution_via_local_search_count": stage_2_resolution_via_local_search_count,
         "cluster_only_resolution_count": cluster_only_resolution_count,
+        "stage_2_hard_case_count": stage_2_hard_case_count,
+        "stage_2_hard_case_resolution_count": stage_2_hard_case_resolution_count,
+        "stage_2_hard_case_resolution_pct": stage_2_hard_case_resolution_pct,
+        "search_bad_direction_count": search_bad_direction_count,
+        "hard_case_remaining_buckets": hard_case_remaining_buckets,
         "median_round_from_stage_2_to_resolution": float(baseline_summary.get("median_round_from_stage_2_to_resolution") or 0.0),
         "multi_step_completion_count": int(baseline_summary.get("multi_step_completion_count") or 0),
         "median_round_to_second_failure": float(baseline_summary.get("median_round_to_second_failure") or 0.0),
@@ -185,6 +195,8 @@ def main() -> None:
         "stage_2_plan_followed_count": stage_2_plan_followed_count,
         "stage_2_resolution_count": stage_2_resolution_count,
         "local_search_success_count": local_search_success_count,
+        "stage_2_hard_case_resolution_count": stage_2_hard_case_resolution_count,
+        "search_bad_direction_count": search_bad_direction_count,
         "stage_aware_control_status": stage_aware_control_status,
     }
     decision_summary = {
@@ -214,6 +226,11 @@ def main() -> None:
         "stage_1_unlock_via_local_search_count": stage_1_unlock_via_local_search_count,
         "stage_2_resolution_via_local_search_count": stage_2_resolution_via_local_search_count,
         "cluster_only_resolution_count": cluster_only_resolution_count,
+        "stage_2_hard_case_count": stage_2_hard_case_count,
+        "stage_2_hard_case_resolution_count": stage_2_hard_case_resolution_count,
+        "stage_2_hard_case_resolution_pct": stage_2_hard_case_resolution_pct,
+        "search_bad_direction_count": search_bad_direction_count,
+        "hard_case_remaining_buckets": hard_case_remaining_buckets,
         "stage_1_revisit_after_unlock_count": stage_1_revisit_after_unlock_count,
         "stage_aware_control_status": stage_aware_control_status,
         "deterministic_partial_to_full_count": partial_to_full_count,

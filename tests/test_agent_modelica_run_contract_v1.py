@@ -87,6 +87,10 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
                 "local_search_success_count": 1,
                 "local_search_kinds": ["stage_2_resolution"],
                 "search_improvement_seen": True,
+                "search_regression_seen": False,
+                "search_bad_direction_count": 1,
+                "best_stage_2_fail_bucket_seen": "single_case_only",
+                "stage_2_best_progress_seen": True,
                 "stage_1_unlock_via_local_search": False,
                 "stage_2_resolution_via_local_search": True,
                 "cluster_only_resolution": False,
@@ -106,6 +110,9 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
         self.assertEqual(str(multistep.get("executed_plan_action") or ""), "resolve_stage_2_neighbor_robustness")
         self.assertEqual(int(multistep.get("local_search_attempt_count") or 0), 1)
         self.assertTrue(bool(multistep.get("stage_2_resolution_via_local_search")))
+        self.assertEqual(int(multistep.get("search_bad_direction_count") or 0), 1)
+        self.assertEqual(str(multistep.get("best_stage_2_fail_bucket_seen") or ""), "single_case_only")
+        self.assertTrue(bool(multistep.get("stage_2_best_progress_seen")))
         self.assertEqual((multistep.get("source_blind_multistep_local_search") or {}).get("search_kind"), "stage_2_resolution")
 
     def test_build_live_template_context_exposes_unknown_library_source_meta(self) -> None:
