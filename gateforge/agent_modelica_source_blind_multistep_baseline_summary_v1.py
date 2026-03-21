@@ -181,6 +181,13 @@ def main() -> None:
     branch_escape_success_count = 0
     branch_budget_reallocated_count = 0
     repeated_trap_branch_count = 0
+    llm_request_count_total = 0
+    llm_task_count = 0
+    llm_resolution_count = 0
+    llm_only_resolution_count = 0
+    llm_branch_correction_count = 0
+    llm_usage_by_failure_type: dict[str, int] = {}
+    llm_usage_by_branch: dict[str, int] = {}
     hard_case_remaining_buckets: dict[str, int] = {}
     repair_action_sequence: dict[str, int] = {}
     stage_transition_action_sequence: dict[str, int] = {}
@@ -279,6 +286,22 @@ def main() -> None:
             cluster_only_resolution_count += 1
         if bool(record.get("template_only_resolution")):
             template_only_resolution_count += 1
+        try:
+            llm_request_count_total += max(0, int(record.get("llm_request_count_delta") or 0))
+        except Exception:
+            pass
+        if bool(record.get("llm_plan_used")) or int(record.get("llm_request_count_delta") or 0) > 0:
+            llm_task_count += 1
+            llm_usage_by_failure_type[failure_type] = int(llm_usage_by_failure_type.get(failure_type, 0)) + 1
+            branch_key = str(record.get("stage_2_branch") or "").strip().lower()
+            if branch_key:
+                llm_usage_by_branch[branch_key] = int(llm_usage_by_branch.get(branch_key, 0)) + 1
+        if bool(record.get("llm_resolution_contributed")):
+            llm_resolution_count += 1
+        if bool(record.get("llm_only_resolution")):
+            llm_only_resolution_count += 1
+        if bool(record.get("llm_branch_correction_used")):
+            llm_branch_correction_count += 1
         try:
             branch_escape_attempt_count += max(0, int(record.get("branch_escape_attempt_count") or 0))
         except Exception:
@@ -455,6 +478,22 @@ def main() -> None:
         "branch_escape_success_pct": _ratio(branch_escape_success_count, branch_escape_attempt_count),
         "branch_budget_reallocated_count": branch_budget_reallocated_count,
         "repeated_trap_branch_count": repeated_trap_branch_count,
+        "llm_request_count_total": llm_request_count_total,
+        "llm_task_count": llm_task_count,
+        "llm_task_pct": _ratio(llm_task_count, total_tasks),
+        "llm_resolution_count": llm_resolution_count,
+        "llm_resolution_pct": _ratio(llm_resolution_count, total_tasks),
+        "llm_only_resolution_count": llm_only_resolution_count,
+        "llm_only_resolution_pct": _ratio(llm_only_resolution_count, total_tasks),
+        "llm_branch_correction_count": llm_branch_correction_count,
+        "llm_usage_by_failure_type": llm_usage_by_failure_type,
+        "llm_usage_by_branch": llm_usage_by_branch,
+        "deterministic_vs_llm_resolution_split": {
+            "adaptive_search": stage_2_resolution_via_adaptive_search_count,
+            "template_only": template_only_resolution_count,
+            "llm_contributed": llm_resolution_count,
+            "llm_only": llm_only_resolution_count,
+        },
         "median_round_to_correct_branch": _median(round_to_correct_branch_values),
         "hard_case_remaining_buckets": hard_case_remaining_buckets,
         "median_round_from_stage_2_to_resolution": round(_median(round_from_stage_2_to_resolution_values), 2),

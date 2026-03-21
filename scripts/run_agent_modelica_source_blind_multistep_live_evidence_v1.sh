@@ -19,6 +19,7 @@ MANIFEST_PATH="${GATEFORGE_AGENT_SOURCE_BLIND_MULTISTEP_MANIFEST:-assets_private
 FAILURE_TYPES="${GATEFORGE_AGENT_SOURCE_BLIND_MULTISTEP_FAILURE_TYPES:-stability_then_behavior,behavior_then_robustness,switch_then_recovery}"
 HOLDOUT_RATIO="${GATEFORGE_AGENT_SOURCE_BLIND_MULTISTEP_HOLDOUT_RATIO:-0.15}"
 SPLIT_SEED="${GATEFORGE_AGENT_SOURCE_BLIND_MULTISTEP_SPLIT_SEED:-agent_modelica_source_blind_multistep_taskset_v1}"
+REALISM_VERSION="${GATEFORGE_AGENT_SOURCE_BLIND_MULTISTEP_REALISM_VERSION:-v3}"
 MAX_ROUNDS="${GATEFORGE_AGENT_SOURCE_BLIND_MULTISTEP_MAX_ROUNDS:-3}"
 MAX_TIME_SEC="${GATEFORGE_AGENT_SOURCE_BLIND_MULTISTEP_MAX_TIME_SEC:-300}"
 RUNTIME_THRESHOLD="${GATEFORGE_AGENT_SOURCE_BLIND_MULTISTEP_RUNTIME_THRESHOLD:-0.2}"
@@ -86,12 +87,12 @@ run_stage() {
   return $rc
 }
 
-python3 - "$RUN_MANIFEST_PATH" "$RUN_ID" "$RUN_ROOT" "$MANIFEST_PATH" <<'PY'
+python3 - "$RUN_MANIFEST_PATH" "$RUN_ID" "$RUN_ROOT" "$MANIFEST_PATH" "$REALISM_VERSION" <<'PY'
 import json
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-path, run_id, run_root, manifest = sys.argv[1:]
+path, run_id, run_root, manifest, realism_version = sys.argv[1:]
 Path(path).write_text(json.dumps({
     "schema_version": "agent_modelica_source_blind_multistep_live_run_manifest_v1",
     "generated_at_utc": datetime.now(timezone.utc).isoformat(),
@@ -99,6 +100,7 @@ Path(path).write_text(json.dumps({
     "run_root": run_root,
     "manifest_path": manifest,
     "source_mode": "source_blind",
+    "realism_version": str(realism_version or "v3"),
 }, indent=2), encoding="utf-8")
 PY
 
@@ -108,7 +110,8 @@ run_stage "challenge" "$CHALLENGE_DIR/summary.json" \
     --out-dir "$CHALLENGE_DIR" \
     --failure-types "$FAILURE_TYPES" \
     --holdout-ratio "$HOLDOUT_RATIO" \
-    --seed "$SPLIT_SEED"
+    --seed "$SPLIT_SEED" \
+    --realism-version "$REALISM_VERSION"
 
 if [ "$STOP_AFTER_STAGE" = "challenge" ]; then
   exit 0

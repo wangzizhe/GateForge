@@ -6,7 +6,12 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from gateforge.agent_modelica_run_contract_v1 import _build_live_template_context, _extract_contract_fields, _pick_manifestation_live_attempt
+from gateforge.agent_modelica_run_contract_v1 import (
+    _build_live_template_context,
+    _extract_contract_fields,
+    _extract_live_usage_fields,
+    _pick_manifestation_live_attempt,
+)
 
 
 class AgentModelicaRunContractV1Tests(unittest.TestCase):
@@ -128,6 +133,17 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
                 "branch_escape_succeeded": False,
                 "branch_escape_direction": "offset",
                 "branch_budget_reallocated": True,
+                "planner_backend": "gemini",
+                "resolved_llm_provider": "gemini",
+                "live_request_count": 2,
+                "rate_limit_429_count": 0,
+                "budget_stop_triggered": False,
+                "llm_plan_used": True,
+                "llm_plan_reason": "branch_diagnosis_unknown",
+                "llm_request_count_delta": 1,
+                "llm_branch_correction_used": True,
+                "llm_resolution_contributed": False,
+                "llm_only_resolution": False,
             },
             physics_ok=False,
         )
@@ -171,6 +187,16 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
         self.assertEqual(str(multistep.get("branch_escape_direction") or ""), "offset")
         self.assertTrue(bool(multistep.get("branch_budget_reallocated")))
         self.assertEqual((multistep.get("source_blind_multistep_local_search") or {}).get("search_kind"), "stage_2_resolution")
+
+    def test_extract_live_usage_fields_defaults_to_zero_visibility(self) -> None:
+        fields = _extract_live_usage_fields({}, {})
+        self.assertEqual(fields.get("planner_backend"), "")
+        self.assertEqual(fields.get("resolved_llm_provider"), "")
+        self.assertEqual(int(fields.get("live_request_count") or 0), 0)
+        self.assertEqual(int(fields.get("rate_limit_429_count") or 0), 0)
+        self.assertFalse(bool(fields.get("budget_stop_triggered")))
+        self.assertFalse(bool(fields.get("llm_plan_used")))
+        self.assertEqual(int(fields.get("llm_request_count_delta") or 0), 0)
 
     def test_extract_contract_fields_prefers_current_branch_state_over_payload_memory(self) -> None:
         _, _, _, multistep = _extract_contract_fields(

@@ -140,6 +140,14 @@ def main() -> None:
     repeated_trap_branch_count = int(baseline_summary.get("repeated_trap_branch_count") or 0)
     median_round_to_correct_branch = float(baseline_summary.get("median_round_to_correct_branch") or 0.0)
     hard_case_remaining_buckets = baseline_summary.get("hard_case_remaining_buckets") if isinstance(baseline_summary.get("hard_case_remaining_buckets"), dict) else {}
+    llm_request_count_total = int(baseline_summary.get("llm_request_count_total") or 0)
+    llm_task_count = int(baseline_summary.get("llm_task_count") or 0)
+    llm_resolution_count = int(baseline_summary.get("llm_resolution_count") or 0)
+    llm_only_resolution_count = int(baseline_summary.get("llm_only_resolution_count") or 0)
+    llm_branch_correction_count = int(baseline_summary.get("llm_branch_correction_count") or 0)
+    llm_usage_by_failure_type = baseline_summary.get("llm_usage_by_failure_type") if isinstance(baseline_summary.get("llm_usage_by_failure_type"), dict) else {}
+    llm_usage_by_branch = baseline_summary.get("llm_usage_by_branch") if isinstance(baseline_summary.get("llm_usage_by_branch"), dict) else {}
+    deterministic_vs_llm_resolution_split = baseline_summary.get("deterministic_vs_llm_resolution_split") if isinstance(baseline_summary.get("deterministic_vs_llm_resolution_split"), dict) else {}
     partial_to_full_count, partial_to_full_by_failure = _partial_to_full(taskset, baseline_results, deterministic_results)
     task_total = int(challenge.get("total_tasks") or 0)
     partial_to_full_pct = round((partial_to_full_count / task_total) * 100.0, 2) if task_total > 0 else 0.0
@@ -211,6 +219,14 @@ def main() -> None:
         "branch_escape_success_pct": branch_escape_success_pct,
         "branch_budget_reallocated_count": branch_budget_reallocated_count,
         "repeated_trap_branch_count": repeated_trap_branch_count,
+        "llm_request_count_total": llm_request_count_total,
+        "llm_task_count": llm_task_count,
+        "llm_resolution_count": llm_resolution_count,
+        "llm_only_resolution_count": llm_only_resolution_count,
+        "llm_branch_correction_count": llm_branch_correction_count,
+        "llm_usage_by_failure_type": llm_usage_by_failure_type,
+        "llm_usage_by_branch": llm_usage_by_branch,
+        "deterministic_vs_llm_resolution_split": deterministic_vs_llm_resolution_split,
         "median_round_to_correct_branch": median_round_to_correct_branch,
         "hard_case_remaining_buckets": hard_case_remaining_buckets,
         "median_round_from_stage_2_to_resolution": float(baseline_summary.get("median_round_from_stage_2_to_resolution") or 0.0),
@@ -253,6 +269,11 @@ def main() -> None:
         "branch_escape_success_count": branch_escape_success_count,
         "branch_budget_reallocated_count": branch_budget_reallocated_count,
         "repeated_trap_branch_count": repeated_trap_branch_count,
+        "llm_request_count_total": llm_request_count_total,
+        "llm_task_count": llm_task_count,
+        "llm_resolution_count": llm_resolution_count,
+        "llm_only_resolution_count": llm_only_resolution_count,
+        "llm_branch_correction_count": llm_branch_correction_count,
         "stage_aware_control_status": stage_aware_control_status,
     }
     decision_summary = {

@@ -81,6 +81,48 @@ def _manifest_payload(root: Path) -> dict:
     }
 
 
+def _realistic_manifest_payload(root: Path) -> dict:
+    realistic = [
+        ("behaviorliba", "BehaviorLibA", "plant_a", "PlantA"),
+        ("behaviorliba", "BehaviorLibA", "plant_b", "PlantB"),
+        ("behaviorlibb", "BehaviorLibB", "switch_a", "SwitchA"),
+        ("behaviorlibb", "BehaviorLibB", "switch_b", "SwitchB"),
+        ("behaviorlibc", "BehaviorLibC", "hybrid_a", "HybridA"),
+        ("behaviorlibc", "BehaviorLibC", "hybrid_b", "HybridB"),
+    ]
+    libraries: dict[str, dict] = {}
+    for library_id, package_name, model_id, model_name in realistic:
+        package_dir = root / package_name
+        _write_model(package_dir / f"{model_name}.mo", model_name)
+        row = libraries.setdefault(
+            library_id,
+            {
+                "library_id": library_id,
+                "package_name": package_name,
+                "source_library": package_name,
+                "license_provenance": "MIT",
+                "domain": "controls",
+                "source_type": "public_repo",
+                "selection_reason": package_name,
+                "exposure_notes": package_name,
+                "allowed_models": [],
+            },
+        )
+        row["allowed_models"].append(
+            {
+                "model_id": model_id,
+                "qualified_model_name": f"{package_name}.{model_name}",
+                "model_path": str(package_dir / f"{model_name}.mo"),
+                "selection_reason": model_name,
+                "exposure_notes": model_name,
+            }
+        )
+    return {
+        "schema_version": "agent_modelica_source_blind_multistep_pack_manifest_v1",
+        "libraries": list(libraries.values()),
+    }
+
+
 class AgentModelicaSourceBlindMultistepTasksetV1Tests(unittest.TestCase):
     def test_mutate_source_blind_multistep_model_adds_switcha_stage2_behavior_layer(self) -> None:
         source = (
@@ -141,6 +183,42 @@ class AgentModelicaSourceBlindMultistepTasksetV1Tests(unittest.TestCase):
                 Path(first["source_model_path"]).read_text(encoding="utf-8"),
                 Path(first["mutated_model_path"]).read_text(encoding="utf-8"),
             )
+
+    def test_builder_v4_produces_llm_forcing_subset(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            manifest = root / "manifest.json"
+            manifest.write_text(json.dumps(_realistic_manifest_payload(root), indent=2), encoding="utf-8")
+            out_dir = root / "out"
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.agent_modelica_source_blind_multistep_taskset_v1",
+                    "--manifest",
+                    str(manifest),
+                    "--out-dir",
+                    str(out_dir),
+                    "--realism-version",
+                    "v4",
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            summary = json.loads((out_dir / "summary.json").read_text(encoding="utf-8"))
+            taskset = json.loads((out_dir / "taskset_frozen.json").read_text(encoding="utf-8"))
+            self.assertEqual(summary.get("realism_version"), "v4")
+            self.assertEqual(int(summary.get("total_tasks") or 0), 6)
+            first = taskset["tasks"][0]
+            self.assertEqual(first.get("realism_version"), "v4")
+            self.assertTrue(bool(first.get("llm_forcing")))
+            self.assertTrue(str(first.get("llm_forcing_profile") or "").strip())
+            self.assertTrue(str(first.get("llm_trigger_reason") or "").strip())
+            mutated = Path(first["mutated_model_path"]).read_text(encoding="utf-8")
+            self.assertIn("gateforge_source_blind_multistep_llm_forcing:1", mutated)
+            self.assertIn("gateforge_source_blind_multistep_realism_version:v4", mutated)
 
 
 if __name__ == "__main__":
