@@ -220,6 +220,42 @@ class AgentModelicaSourceBlindMultistepTasksetV1Tests(unittest.TestCase):
             self.assertIn("gateforge_source_blind_multistep_llm_forcing:1", mutated)
             self.assertIn("gateforge_source_blind_multistep_realism_version:v4", mutated)
 
+    def test_builder_v5_produces_harder_llm_forcing_subset(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            manifest = root / "manifest.json"
+            manifest.write_text(json.dumps(_realistic_manifest_payload(root), indent=2), encoding="utf-8")
+            out_dir = root / "out"
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.agent_modelica_source_blind_multistep_taskset_v1",
+                    "--manifest",
+                    str(manifest),
+                    "--out-dir",
+                    str(out_dir),
+                    "--realism-version",
+                    "v5",
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            summary = json.loads((out_dir / "summary.json").read_text(encoding="utf-8"))
+            taskset = json.loads((out_dir / "taskset_frozen.json").read_text(encoding="utf-8"))
+            self.assertEqual(summary.get("realism_version"), "v5")
+            self.assertEqual(int(summary.get("total_tasks") or 0), 6)
+            first = taskset["tasks"][0]
+            self.assertEqual(first.get("realism_version"), "v5")
+            self.assertTrue(bool(first.get("llm_forcing")))
+            self.assertTrue(str(first.get("llm_forcing_profile") or "").strip())
+            self.assertTrue(str(first.get("llm_trigger_reason") or "").strip())
+            mutated = Path(first["mutated_model_path"]).read_text(encoding="utf-8")
+            self.assertIn("gateforge_source_blind_multistep_llm_forcing:1", mutated)
+            self.assertIn("gateforge_source_blind_multistep_realism_version:v5", mutated)
+
 
 if __name__ == "__main__":
     unittest.main()

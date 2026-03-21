@@ -24,6 +24,15 @@ class RunAgentModelicaReleasePreflightV011Tests(unittest.TestCase):
         self.assertIn("bash scripts/run_agent_modelica_release_preflight_v0_1_1.sh", script)
         self.assertIn("python3 -m gateforge.agent_modelica_release_preflight_v0_1_3_evidence", script)
 
+    def test_v014_wrapper_sets_release_artifact_dir(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        script = (repo_root / "scripts" / "run_agent_modelica_release_preflight_v0_1_4.sh").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('GATEFORGE_AGENT_RELEASE_OUT_DIR="${GATEFORGE_AGENT_RELEASE_OUT_DIR:-artifacts/release_v0_1_4}"', script)
+        self.assertIn("bash scripts/run_agent_modelica_release_preflight_v0_1_3.sh", script)
+        self.assertIn("python3 -m gateforge.agent_modelica_release_preflight_v0_1_4_evidence", script)
+
     def test_v013_evidence_module_augments_summary(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
         with tempfile.TemporaryDirectory() as d:
@@ -94,6 +103,75 @@ class RunAgentModelicaReleasePreflightV011Tests(unittest.TestCase):
             self.assertEqual(payload.get("v013_source_blind_multistep_status"), "PASS")
             self.assertEqual(float(payload.get("v013_multistep_stage_2_unlock_pct") or 0.0), 100.0)
             self.assertEqual(float(payload.get("v013_multistep_stage_2_focus_pct") or 0.0), 100.0)
+
+    def test_v014_evidence_module_augments_summary(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            summary_path = tmp / "release_preflight_summary.json"
+            v4_summary = tmp / "v4_replan.json"
+            v5_summary = tmp / "v5_branch.json"
+
+            summary_path.write_text(
+                json.dumps({"status": "PASS", "reasons": [], "live_smoke_status": "PASS"}, indent=2),
+                encoding="utf-8",
+            )
+            v4_summary.write_text(
+                json.dumps(
+                    {
+                        "success_count": 6,
+                        "total_tasks": 6,
+                        "all_scenarios_pass_pct": 100.0,
+                        "llm_replan_used_count": 2,
+                        "llm_replan_switch_branch_success_count": 2,
+                        "branch_selection_error_count": 0,
+                    },
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+            v5_summary.write_text(
+                json.dumps(
+                    {
+                        "total_tasks": 6,
+                        "all_scenarios_pass_pct": 66.67,
+                        "stage_2_branch_pct": 50.0,
+                        "llm_request_count_total": 4,
+                        "llm_replan_used_count": 2,
+                        "first_plan_branch_match_pct": 33.33,
+                        "replan_branch_match_pct": 50.0,
+                    },
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+
+            proc = subprocess.run(
+                [
+                    os.environ.get("PYTHON", "python3"),
+                    "-m",
+                    "gateforge.agent_modelica_release_preflight_v0_1_4_evidence",
+                    "--summary",
+                    str(summary_path),
+                    "--v4-replan-summary",
+                    str(v4_summary),
+                    "--v5-branch-summary",
+                    str(v5_summary),
+                ],
+                cwd=str(repo_root),
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=30,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+
+            payload = json.loads(summary_path.read_text(encoding="utf-8"))
+            self.assertEqual(payload.get("status"), "PASS")
+            self.assertEqual(payload.get("v014_v4_llm_replan_status"), "PASS")
+            self.assertEqual(payload.get("v014_v5_branch_choice_status"), "PASS")
+            self.assertEqual(float(payload.get("v014_v5_stage_2_branch_pct") or 0.0), 50.0)
+            self.assertEqual(int(payload.get("v014_v5_llm_replan_used_count") or 0), 2)
 
     def test_fallback_mutant_generation_uses_real_newlines(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
