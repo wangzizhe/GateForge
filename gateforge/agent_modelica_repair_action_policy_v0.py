@@ -131,7 +131,14 @@ def _as_actions(rows: list[object]) -> list[str]:
     return out
 
 
-def _multistep_next_focus(*, failure_type: str, current_stage: str, current_fail_bucket: str) -> str:
+def _multistep_next_focus(
+    *,
+    failure_type: str,
+    current_stage: str,
+    current_fail_bucket: str,
+    stage_2_branch: str = "",
+    trap_branch: bool = False,
+) -> str:
     ftype = str(failure_type or "").strip().lower()
     stage = str(current_stage or "").strip().lower()
     bucket = str(current_fail_bucket or "").strip().lower()
@@ -143,6 +150,19 @@ def _multistep_next_focus(*, failure_type: str, current_stage: str, current_fail
         }
         return mapping.get(ftype, "unlock_stage_2")
     if stage == "stage_2":
+        branch = str(stage_2_branch or "").strip().lower()
+        if branch:
+            branch_mapping = {
+                "behavior_timing_branch": "resolve_stage_2_behavior_timing",
+                "neighbor_robustness_branch": "resolve_stage_2_neighbor_robustness",
+                "post_switch_recovery_branch": "resolve_stage_2_post_switch_recovery",
+                "neighbor_overfit_trap": "escape_trap_branch_neighbor_overfit",
+                "nominal_overfit_trap": "escape_trap_branch_nominal_overfit",
+                "recovery_overfit_trap": "escape_trap_branch_recovery_overfit",
+            }
+            if trap_branch:
+                return branch_mapping.get(branch, "escape_trap_branch")
+            return branch_mapping.get(branch, "resolve_stage_2_branch_specific_failure")
         mapping = {
             "behavior_contract_miss": "resolve_stage_2_behavior_contract",
             "single_case_only": "resolve_stage_2_neighbor_robustness",
@@ -152,6 +172,21 @@ def _multistep_next_focus(*, failure_type: str, current_stage: str, current_fail
     if stage == "passed":
         return "stop_editing"
     return "inspect_current_stage"
+
+
+def _multistep_branch_mode(*, current_stage: str, stage_2_branch: str, preferred_stage_2_branch: str, trap_branch: bool) -> str:
+    stage = str(current_stage or "").strip().lower()
+    branch = str(stage_2_branch or "").strip().lower()
+    preferred = str(preferred_stage_2_branch or "").strip().lower()
+    if stage != "stage_2":
+        return ""
+    if trap_branch:
+        return "trap"
+    if branch and preferred and branch == preferred:
+        return "preferred"
+    if branch:
+        return "unknown"
+    return ""
 
 
 def _multistep_stage_actions(*, failure_type: str, current_stage: str, next_focus: str) -> list[str]:
@@ -207,6 +242,29 @@ def _multistep_stage_actions(*, failure_type: str, current_stage: str, next_focu
     return []
 
 
+def _multistep_branch_actions(*, branch: str, preferred_branch: str) -> list[str]:
+    branch_norm = str(branch or "").strip().lower()
+    preferred_norm = str(preferred_branch or "").strip().lower()
+    mapping = {
+        "neighbor_overfit_trap": [
+            "treat the current stage-2 branch as a trap and prioritize branch escape before any normal second-layer resolution",
+            "revert the overfit direction that favored neighbor-only timing before resuming behavior-layer repair",
+            f"stay focused on escaping {branch_norm} back to {preferred_norm or 'the preferred branch'} before broader search",
+        ],
+        "nominal_overfit_trap": [
+            "treat the current stage-2 branch as a trap and prioritize branch escape before any normal second-layer resolution",
+            "revert the nominal-only overfit direction before resuming neighbor robustness repair",
+            f"stay focused on escaping {branch_norm} back to {preferred_norm or 'the preferred branch'} before broader search",
+        ],
+        "recovery_overfit_trap": [
+            "treat the current stage-2 branch as a trap and prioritize branch escape before any normal second-layer resolution",
+            "revert the recovery-overfit direction before resuming post-switch recovery repair",
+            f"stay focused on escaping {branch_norm} back to {preferred_norm or 'the preferred branch'} before broader search",
+        ],
+    }
+    return list(mapping.get(branch_norm, []))
+
+
 def _looks_like_multistep_stage_1_action(*, failure_type: str, action: str) -> bool:
     ftype = str(failure_type or "").strip().lower()
     lower = str(action or "").strip().lower()
@@ -235,6 +293,9 @@ def build_multistep_repair_plan_v0(
     failure_type: str,
     current_stage: str,
     current_fail_bucket: str,
+    stage_2_branch: str = "",
+    preferred_stage_2_branch: str = "",
+    trap_branch: bool = False,
     plan_actions: list[str] | None = None,
 ) -> dict:
     ftype = str(failure_type or "").strip().lower()
@@ -244,6 +305,14 @@ def build_multistep_repair_plan_v0(
         failure_type=ftype,
         current_stage=stage,
         current_fail_bucket=fail_bucket,
+        stage_2_branch=stage_2_branch,
+        trap_branch=trap_branch,
+    )
+    branch_mode = _multistep_branch_mode(
+        current_stage=stage,
+        stage_2_branch=stage_2_branch,
+        preferred_stage_2_branch=preferred_stage_2_branch,
+        trap_branch=trap_branch,
     )
     actions = _as_actions(plan_actions or [])
     if stage in {"", "stage_1"}:
@@ -259,17 +328,26 @@ def build_multistep_repair_plan_v0(
         ]
         stop_condition = "stop this plan when stage_2_unlocked becomes true"
     elif stage == "stage_2":
-        goal = {
-            "stability_then_behavior": "resolve the exposed second-stage behavior contract without reopening stage-1 stability",
-            "behavior_then_robustness": "resolve the exposed second-stage neighbor robustness layer without reopening stage-1 nominal behavior",
-            "switch_then_recovery": "resolve the exposed second-stage post-switch recovery layer without reopening stage-1 switch timing",
-        }.get(ftype, "resolve the exposed second layer only")
-        constraints = [
-            "do not reopen stage-1 parameter clusters unless the task regresses back to stage_1",
-            "prioritize the exposed second-layer fail bucket over any first-layer cleanup",
-            "do not change structure, declarations, connectors, or add new parameters",
-        ]
-        stop_condition = "stop this plan when all scenarios pass or the task regresses back to stage_1"
+        if branch_mode == "trap":
+            goal = f"escape trap branch {stage_2_branch or 'stage_2_trap'} and return to {preferred_stage_2_branch or 'the preferred branch'} before normal second-layer resolution"
+            constraints = [
+                "do not reopen stage-1 parameter clusters unless the task regresses back to stage_1",
+                "use trap escape actions before any generic stage_2 resolution search",
+                "do not change structure, declarations, connectors, or add new parameters",
+            ]
+            stop_condition = "stop this branch plan when the task leaves the trap branch, all scenarios pass, or the task regresses back to stage_1"
+        else:
+            goal = {
+                "stability_then_behavior": "resolve the exposed second-stage behavior contract without reopening stage-1 stability",
+                "behavior_then_robustness": "resolve the exposed second-stage neighbor robustness layer without reopening stage-1 nominal behavior",
+                "switch_then_recovery": "resolve the exposed second-stage post-switch recovery layer without reopening stage-1 switch timing",
+            }.get(ftype, "resolve the exposed second layer only")
+            constraints = [
+                "do not reopen stage-1 parameter clusters unless the task regresses back to stage_1",
+                "prioritize the exposed second-layer fail bucket over any first-layer cleanup",
+                "do not change structure, declarations, connectors, or add new parameters",
+            ]
+            stop_condition = "stop this plan when all scenarios pass or the task regresses back to stage_1"
     elif stage == "passed":
         goal = "stop editing because all active stages are cleared"
         constraints = ["do not edit further"]
@@ -280,11 +358,18 @@ def build_multistep_repair_plan_v0(
         stop_condition = "stop when stage intent is clarified"
     return {
         "plan_stage": stage,
+        "branch_stage": stage if stage == "stage_2" else "",
+        "current_branch": str(stage_2_branch or "").strip().lower(),
+        "preferred_branch": str(preferred_stage_2_branch or "").strip().lower(),
+        "branch_mode": branch_mode,
         "plan_goal": goal,
         "plan_actions": actions,
         "plan_constraints": constraints,
         "plan_stop_condition": stop_condition,
         "next_focus": next_focus,
+        "branch_plan_goal": goal if stage == "stage_2" else "",
+        "branch_plan_actions": actions if stage == "stage_2" else [],
+        "branch_plan_stop_condition": stop_condition if stage == "stage_2" else "",
     }
 
 
@@ -304,10 +389,15 @@ def recommend_repair_actions_v0(
     rules = [str(x) for x in (DEFAULT_RULES.get(ftype) or []) if isinstance(x, str)]
     current_stage = str(multistep.get("current_stage") or "").strip().lower()
     current_fail_bucket = str(multistep.get("current_fail_bucket") or "").strip().lower()
+    stage_2_branch = str(multistep.get("stage_2_branch") or "").strip().lower()
+    preferred_stage_2_branch = str(multistep.get("preferred_stage_2_branch") or "").strip().lower()
+    trap_branch = bool(multistep.get("trap_branch"))
     next_focus = _multistep_next_focus(
         failure_type=ftype,
         current_stage=current_stage,
         current_fail_bucket=current_fail_bucket,
+        stage_2_branch=stage_2_branch,
+        trap_branch=trap_branch,
     )
     if ftype in {"stability_then_behavior", "behavior_then_robustness", "switch_then_recovery"} and current_stage:
         rules = _multistep_stage_actions(
@@ -315,6 +405,11 @@ def recommend_repair_actions_v0(
             current_stage=current_stage,
             next_focus=next_focus,
         )
+        if current_stage == "stage_2" and trap_branch:
+            rules = _multistep_branch_actions(
+                branch=stage_2_branch,
+                preferred_branch=preferred_stage_2_branch,
+            ) + rules
 
     stage_guard: list[str] = []
     if rules or suggested:
@@ -327,6 +422,9 @@ def recommend_repair_actions_v0(
     if current_stage == "stage_2":
         stage_guard.append("stage_2 is already unlocked, so do not reopen stage_1 unless the model regresses back to stage_1")
         stage_guard.append("after stage_2 unlock, rank second-layer repair above any first-layer cleanup")
+        if trap_branch:
+            stage_guard.append("the current stage_2 branch is a trap, so spend the first repair budget on escaping the trap before normal resolution")
+            stage_guard.append("do not treat trap escape as optional cleanup; it is the first repair goal for this round")
 
     deterministic_actions = _as_actions(rules + suggested + stage_guard)
     fallback = _as_actions(fallback_actions or [])
@@ -344,6 +442,9 @@ def recommend_repair_actions_v0(
         failure_type=ftype,
         current_stage=current_stage,
         current_fail_bucket=current_fail_bucket,
+        stage_2_branch=stage_2_branch,
+        preferred_stage_2_branch=preferred_stage_2_branch,
+        trap_branch=trap_branch,
         plan_actions=chosen_actions,
     ) if current_stage else {}
     plan_followed = bool(current_stage) and bool(chosen_actions)

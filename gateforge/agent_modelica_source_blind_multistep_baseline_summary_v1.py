@@ -175,6 +175,12 @@ def main() -> None:
     trap_branch_enter_count = 0
     trap_branch_recovery_count = 0
     round_to_correct_branch_values: list[float] = []
+    trap_branch_resolution_count = 0
+    preferred_branch_resolution_count = 0
+    branch_escape_attempt_count = 0
+    branch_escape_success_count = 0
+    branch_budget_reallocated_count = 0
+    repeated_trap_branch_count = 0
     hard_case_remaining_buckets: dict[str, int] = {}
     repair_action_sequence: dict[str, int] = {}
     stage_transition_action_sequence: dict[str, int] = {}
@@ -274,6 +280,20 @@ def main() -> None:
         if bool(record.get("template_only_resolution")):
             template_only_resolution_count += 1
         try:
+            branch_escape_attempt_count += max(0, int(record.get("branch_escape_attempt_count") or 0))
+        except Exception:
+            pass
+        try:
+            branch_escape_success_count += max(0, int(record.get("branch_escape_success_count") or 0))
+        except Exception:
+            pass
+        try:
+            branch_budget_reallocated_count += max(0, int(record.get("branch_budget_reallocated_count") or 0))
+        except Exception:
+            pass
+        if bool(record.get("repeated_trap_branch")) or int(record.get("branch_reentry_count") or 0) > 0:
+            repeated_trap_branch_count += 1
+        try:
             search_bad_direction_count += max(0, int(record.get("search_bad_direction_count") or 0))
         except Exception:
             pass
@@ -310,8 +330,10 @@ def main() -> None:
                 stage2_row["stage_2_resolution_count"] += 1
                 if (correct_branch_seen or bool(record.get("correct_branch_selected"))) and not (trap_entered or bool(record.get("trap_branch_entered"))):
                     good_branch_resolution_count += 1
+                    preferred_branch_resolution_count += 1
                 if trap_entered or bool(record.get("trap_branch_entered")):
                     trap_branch_recovery_count += 1
+                    trap_branch_resolution_count += 1
                 first_stage2_bucket = str(record.get("stage_2_first_fail_bucket") or "").strip().lower()
                 if first_stage2_bucket in {"behavior_contract_miss", "post_switch_recovery_miss"}:
                     stage_2_hard_case_resolution_count += 1
@@ -425,6 +447,14 @@ def main() -> None:
         "good_branch_resolution_count": good_branch_resolution_count,
         "trap_branch_enter_count": trap_branch_enter_count,
         "trap_branch_recovery_count": trap_branch_recovery_count,
+        "trap_branch_resolution_count": trap_branch_resolution_count,
+        "trap_branch_resolution_pct": _ratio(trap_branch_resolution_count, trap_branch_enter_count),
+        "preferred_branch_resolution_count": preferred_branch_resolution_count,
+        "branch_escape_attempt_count": branch_escape_attempt_count,
+        "branch_escape_success_count": branch_escape_success_count,
+        "branch_escape_success_pct": _ratio(branch_escape_success_count, branch_escape_attempt_count),
+        "branch_budget_reallocated_count": branch_budget_reallocated_count,
+        "repeated_trap_branch_count": repeated_trap_branch_count,
         "median_round_to_correct_branch": _median(round_to_correct_branch_values),
         "hard_case_remaining_buckets": hard_case_remaining_buckets,
         "median_round_from_stage_2_to_resolution": round(_median(round_from_stage_2_to_resolution_values), 2),

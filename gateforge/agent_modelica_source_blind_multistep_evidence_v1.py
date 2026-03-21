@@ -130,6 +130,14 @@ def main() -> None:
     good_branch_resolution_count = int(baseline_summary.get("good_branch_resolution_count") or 0)
     trap_branch_enter_count = int(baseline_summary.get("trap_branch_enter_count") or 0)
     trap_branch_recovery_count = int(baseline_summary.get("trap_branch_recovery_count") or 0)
+    trap_branch_resolution_count = int(baseline_summary.get("trap_branch_resolution_count") or 0)
+    trap_branch_resolution_pct = float(baseline_summary.get("trap_branch_resolution_pct") or 0.0)
+    preferred_branch_resolution_count = int(baseline_summary.get("preferred_branch_resolution_count") or 0)
+    branch_escape_attempt_count = int(baseline_summary.get("branch_escape_attempt_count") or 0)
+    branch_escape_success_count = int(baseline_summary.get("branch_escape_success_count") or 0)
+    branch_escape_success_pct = float(baseline_summary.get("branch_escape_success_pct") or 0.0)
+    branch_budget_reallocated_count = int(baseline_summary.get("branch_budget_reallocated_count") or 0)
+    repeated_trap_branch_count = int(baseline_summary.get("repeated_trap_branch_count") or 0)
     median_round_to_correct_branch = float(baseline_summary.get("median_round_to_correct_branch") or 0.0)
     hard_case_remaining_buckets = baseline_summary.get("hard_case_remaining_buckets") if isinstance(baseline_summary.get("hard_case_remaining_buckets"), dict) else {}
     partial_to_full_count, partial_to_full_by_failure = _partial_to_full(taskset, baseline_results, deterministic_results)
@@ -195,6 +203,14 @@ def main() -> None:
         "good_branch_resolution_count": good_branch_resolution_count,
         "trap_branch_enter_count": trap_branch_enter_count,
         "trap_branch_recovery_count": trap_branch_recovery_count,
+        "trap_branch_resolution_count": trap_branch_resolution_count,
+        "trap_branch_resolution_pct": trap_branch_resolution_pct,
+        "preferred_branch_resolution_count": preferred_branch_resolution_count,
+        "branch_escape_attempt_count": branch_escape_attempt_count,
+        "branch_escape_success_count": branch_escape_success_count,
+        "branch_escape_success_pct": branch_escape_success_pct,
+        "branch_budget_reallocated_count": branch_budget_reallocated_count,
+        "repeated_trap_branch_count": repeated_trap_branch_count,
         "median_round_to_correct_branch": median_round_to_correct_branch,
         "hard_case_remaining_buckets": hard_case_remaining_buckets,
         "median_round_from_stage_2_to_resolution": float(baseline_summary.get("median_round_from_stage_2_to_resolution") or 0.0),
@@ -231,6 +247,12 @@ def main() -> None:
         "good_branch_resolution_count": good_branch_resolution_count,
         "trap_branch_enter_count": trap_branch_enter_count,
         "trap_branch_recovery_count": trap_branch_recovery_count,
+        "trap_branch_resolution_count": trap_branch_resolution_count,
+        "preferred_branch_resolution_count": preferred_branch_resolution_count,
+        "branch_escape_attempt_count": branch_escape_attempt_count,
+        "branch_escape_success_count": branch_escape_success_count,
+        "branch_budget_reallocated_count": branch_budget_reallocated_count,
+        "repeated_trap_branch_count": repeated_trap_branch_count,
         "stage_aware_control_status": stage_aware_control_status,
     }
     decision_summary = {
@@ -277,6 +299,14 @@ def main() -> None:
         "good_branch_resolution_count": good_branch_resolution_count,
         "trap_branch_enter_count": trap_branch_enter_count,
         "trap_branch_recovery_count": trap_branch_recovery_count,
+        "trap_branch_resolution_count": trap_branch_resolution_count,
+        "trap_branch_resolution_pct": trap_branch_resolution_pct,
+        "preferred_branch_resolution_count": preferred_branch_resolution_count,
+        "branch_escape_attempt_count": branch_escape_attempt_count,
+        "branch_escape_success_count": branch_escape_success_count,
+        "branch_escape_success_pct": branch_escape_success_pct,
+        "branch_budget_reallocated_count": branch_budget_reallocated_count,
+        "repeated_trap_branch_count": repeated_trap_branch_count,
         "median_round_to_correct_branch": median_round_to_correct_branch,
         "hard_case_remaining_buckets": hard_case_remaining_buckets,
         "stage_1_revisit_after_unlock_count": stage_1_revisit_after_unlock_count,

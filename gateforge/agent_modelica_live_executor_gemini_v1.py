@@ -707,6 +707,136 @@ def _source_blind_multistep_local_search_templates(
     return []
 
 
+def _source_blind_multistep_branch_escape_templates(
+    *,
+    model_name: str,
+    failure_type: str,
+    current_branch: str,
+) -> list[tuple[str, dict[str, float]]]:
+    model = str(model_name or "").strip().lower()
+    failure = str(failure_type or "").strip().lower()
+    branch = str(current_branch or "").strip().lower()
+    templates: dict[tuple[str, str], dict[str, list[tuple[str, dict[str, float]]]]] = {
+        ("stability_then_behavior", "neighbor_overfit_trap"): {
+            "plantb": [
+                ("escape_neighbor_overfit_start", {"startTime": 0.2}),
+            ],
+            "switcha": [
+                ("escape_neighbor_overfit_shape", {"width": 40.0, "period": 0.5}),
+            ],
+            "hybrida": [
+                ("escape_neighbor_overfit_start", {"startTime": 0.2}),
+            ],
+            "planta": [
+                ("escape_neighbor_overfit_start", {"startTime": 0.1}),
+            ],
+        },
+        ("behavior_then_robustness", "nominal_overfit_trap"): {
+            "switchb": [
+                ("escape_nominal_overfit_gain", {"k": 0.5}),
+            ],
+            "switcha": [
+                ("escape_nominal_overfit_offset", {"offset": 0.0}),
+            ],
+        },
+        ("switch_then_recovery", "recovery_overfit_trap"): {
+            "plantb": [
+                ("escape_recovery_overfit_duration", {"duration": 0.5}),
+            ],
+            "switcha": [
+                ("escape_recovery_overfit_shape", {"width": 40.0, "period": 0.5}),
+            ],
+            "hybrida": [
+                ("escape_recovery_overfit_shape", {"width": 40.0, "period": 1.0}),
+            ],
+            "hybridb": [
+                ("escape_recovery_overfit_tail", {"width": 0.4, "T": 0.2}),
+            ],
+        },
+    }
+    return list(((templates.get((failure, branch)) or {}).get(model) or []))
+
+
+def _apply_source_blind_multistep_branch_escape_search(
+    *,
+    current_text: str,
+    declared_failure_type: str,
+    current_branch: str,
+    preferred_branch: str,
+    search_memory: dict,
+) -> tuple[str, dict]:
+    failure = str(declared_failure_type or "").strip().lower()
+    branch = str(current_branch or "").strip().lower()
+    preferred = str(preferred_branch or "").strip().lower()
+    model_name = _find_primary_model_name(str(current_text or ""))
+    if branch not in {"neighbor_overfit_trap", "nominal_overfit_trap", "recovery_overfit_trap"}:
+        return current_text, {"applied": False, "reason": "branch_escape_not_supported"}
+    templates = _source_blind_multistep_branch_escape_templates(
+        model_name=model_name,
+        failure_type=failure,
+        current_branch=branch,
+    )
+    if not templates:
+        return current_text, {"applied": False, "reason": "no_branch_escape_templates_defined", "current_branch": branch}
+    tried_keys = {
+        str(x).strip()
+        for x in (search_memory.get("tried_candidate_values") or [])
+        if str(x).strip()
+    }
+    branch_bad_directions = {
+        str(x).strip()
+        for x in (search_memory.get("branch_bad_directions") or [])
+        if str(x).strip()
+    }
+    successful_direction = str(search_memory.get("last_successful_branch_correction") or "").strip()
+    ordered = sorted(
+        templates,
+        key=lambda row: 0 if "+".join(list(row[1].keys())) == successful_direction and successful_direction else 1,
+    )
+    for cluster_name, target_values in ordered:
+        current_values = _extract_named_numeric_values(current_text=current_text, names=list(target_values.keys()))
+        replacements: list[tuple[str, str]] = []
+        candidate_parts: list[str] = []
+        used_names: list[str] = []
+        for name, target in target_values.items():
+            current_value = current_values.get(name)
+            if current_value is None:
+                continue
+            target_str = _format_numeric_candidate(float(target))
+            if current_value == target_str:
+                continue
+            replacements.append((rf"\b{re.escape(name)}\s*=\s*{re.escape(current_value)}\b", f"{name}={target_str}"))
+            candidate_parts.append(f"{name}={target_str}")
+            used_names.append(str(name))
+        if not replacements:
+            continue
+        direction = "+".join(used_names)
+        candidate_key = f"branch_escape:{branch}:{cluster_name}:" + "|".join(candidate_parts)
+        if candidate_key in tried_keys or direction in branch_bad_directions:
+            continue
+        patched, audit = _apply_regex_replacement_cluster(
+            current_text=current_text,
+            cluster_name=cluster_name,
+            replacements=replacements,
+        )
+        if bool(audit.get("applied")):
+            audit["reason"] = f"source_blind_multistep_branch_escape:{cluster_name}"
+            audit["model_name"] = model_name
+            audit["search_kind"] = "branch_escape"
+            audit["candidate_key"] = candidate_key
+            audit["parameter_names"] = used_names
+            audit["candidate_values"] = candidate_parts
+            audit["candidate_rank"] = 1
+            audit["candidate_pool_size"] = len(ordered)
+            audit["candidate_origin"] = "branch_escape_template"
+            audit["search_direction"] = direction
+            audit["search_reused_successful_direction"] = bool(successful_direction and direction == successful_direction)
+            audit["current_branch"] = branch
+            audit["preferred_branch"] = preferred
+            return patched, audit
+    return current_text, {"applied": False, "reason": "no_branch_escape_candidate_applicable", "current_branch": branch, "preferred_branch": preferred}
+
+
 def _apply_source_blind_multistep_local_search(
     *,
     current_text: str,
@@ -1231,6 +1361,21 @@ def _multistep_stage_default_focus(*, failure_type: str, stage: str, fail_bucket
     return "inspect_current_stage"
 
 
+def _multistep_branch_mode(*, current_stage: str, stage_2_branch: str, preferred_stage_2_branch: str, trap_branch: bool) -> str:
+    stage = str(current_stage or "").strip().lower()
+    branch = str(stage_2_branch or "").strip().lower()
+    preferred = str(preferred_stage_2_branch or "").strip().lower()
+    if stage != "stage_2":
+        return ""
+    if trap_branch:
+        return "trap"
+    if branch and preferred and branch == preferred:
+        return "preferred"
+    if branch:
+        return "unknown"
+    return ""
+
+
 def _looks_like_stage_1_focus(*, failure_type: str, action: str) -> bool:
     ftype = str(failure_type or "").strip().lower()
     lower = str(action or "").strip().lower()
@@ -1304,6 +1449,12 @@ def _build_multistep_stage_context(
         stage_2_branch=stage_2_branch,
         trap_branch=trap_branch,
     )
+    branch_mode = _multistep_branch_mode(
+        current_stage=current_stage,
+        stage_2_branch=stage_2_branch,
+        preferred_stage_2_branch=preferred_stage_2_branch,
+        trap_branch=trap_branch,
+    )
     return {
         "current_stage": current_stage,
         "stage_2_unlocked": stage_2_unlocked,
@@ -1315,6 +1466,7 @@ def _build_multistep_stage_context(
         "stage_2_first_fail_bucket": stage_2_first_fail_bucket,
         "stage_2_branch": stage_2_branch,
         "preferred_stage_2_branch": preferred_stage_2_branch,
+        "branch_mode": branch_mode,
         "branch_reason": branch_reason,
         "trap_branch": trap_branch,
         "correct_branch_selected": correct_branch_selected,
@@ -1325,10 +1477,17 @@ def _stage_plan_fields(*, plan: dict | None, generated: bool, followed: bool, co
     payload = plan if isinstance(plan, dict) else {}
     return {
         "plan_stage": str(payload.get("plan_stage") or ""),
+        "branch_stage": str(payload.get("branch_stage") or ""),
+        "current_branch": str(payload.get("current_branch") or ""),
+        "preferred_branch": str(payload.get("preferred_branch") or ""),
+        "branch_mode": str(payload.get("branch_mode") or ""),
         "plan_goal": str(payload.get("plan_goal") or ""),
         "plan_actions": [str(x) for x in (payload.get("plan_actions") or []) if isinstance(x, str)],
         "plan_constraints": [str(x) for x in (payload.get("plan_constraints") or []) if isinstance(x, str)],
         "plan_stop_condition": str(payload.get("plan_stop_condition") or ""),
+        "branch_plan_goal": str(payload.get("branch_plan_goal") or ""),
+        "branch_plan_actions": [str(x) for x in (payload.get("branch_plan_actions") or []) if isinstance(x, str)],
+        "branch_plan_stop_condition": str(payload.get("branch_plan_stop_condition") or ""),
         "stage_plan_generated": bool(generated),
         "stage_plan_followed": bool(followed),
         "executed_plan_stage": str(payload.get("plan_stage") or ""),
@@ -2770,11 +2929,20 @@ def main() -> None:
         "stage_2_first_fail_bucket": "",
         "stage_2_branch": "",
         "preferred_stage_2_branch": "",
+        "branch_history": [],
+        "trap_branch_history": [],
         "branch_reason": "",
         "trap_branch_active": False,
         "trap_branch_entered": False,
         "correct_branch_selected": False,
         "correct_branch_round": 0,
+        "last_trap_escape_direction": "",
+        "last_successful_branch_correction": "",
+        "branch_bad_directions": [],
+        "branch_reentry_count": 0,
+        "branch_escape_attempt_count": 0,
+        "branch_escape_success_count": 0,
+        "branch_budget_reallocated_count": 0,
         "stage_2_transition_round": 0,
         "stage_2_transition_reason": "",
         "stage_aware_focus_applied": False,
@@ -2915,13 +3083,26 @@ def main() -> None:
                             multistep_memory["preferred_stage_2_branch"] = str(stage_context.get("preferred_stage_2_branch") or "").strip()
                         if str(stage_context.get("branch_reason") or "").strip():
                             multistep_memory["branch_reason"] = str(stage_context.get("branch_reason") or "").strip()
+                        current_branch = str(stage_context.get("stage_2_branch") or "").strip()
+                        if current_branch:
+                            branch_history = list(multistep_memory.get("branch_history") or [])
+                            branch_history.append(current_branch)
+                            multistep_memory["branch_history"] = branch_history
+                        multistep_memory["trap_branch_active"] = bool(stage_context.get("trap_branch"))
                         if bool(stage_context.get("trap_branch")):
-                            multistep_memory["trap_branch_active"] = True
+                            trap_history = list(multistep_memory.get("trap_branch_history") or [])
+                            if current_branch in trap_history:
+                                multistep_memory["branch_reentry_count"] = int(multistep_memory.get("branch_reentry_count") or 0) + 1
+                            trap_history.append(current_branch)
+                            multistep_memory["trap_branch_history"] = trap_history
                             multistep_memory["trap_branch_entered"] = True
-                        if bool(stage_context.get("correct_branch_selected")):
+                        if bool(stage_context.get("correct_branch_selected")) and not bool(stage_context.get("trap_branch")):
                             multistep_memory["correct_branch_selected"] = True
                             if not int(multistep_memory.get("correct_branch_round") or 0):
                                 multistep_memory["correct_branch_round"] = int(round_idx)
+                            if str(multistep_memory.get("last_trap_escape_direction") or "").strip():
+                                multistep_memory["last_successful_branch_correction"] = str(multistep_memory.get("last_trap_escape_direction") or "").strip()
+                                multistep_memory["branch_escape_success_count"] = int(multistep_memory.get("branch_escape_success_count") or 0) + 1
                     attempts[-1]["current_stage"] = str(stage_context.get("current_stage") or "")
                     attempts[-1]["stage_2_unlocked"] = bool(stage_context.get("stage_2_unlocked"))
                     attempts[-1]["transition_round"] = int(stage_context.get("transition_round") or 0)
@@ -2932,6 +3113,7 @@ def main() -> None:
                     attempts[-1]["stage_2_first_fail_bucket"] = str(stage_context.get("stage_2_first_fail_bucket") or "")
                     attempts[-1]["stage_2_branch"] = str(stage_context.get("stage_2_branch") or "")
                     attempts[-1]["preferred_stage_2_branch"] = str(stage_context.get("preferred_stage_2_branch") or "")
+                    attempts[-1]["branch_mode"] = str(stage_context.get("branch_mode") or "")
                     attempts[-1]["branch_reason"] = str(stage_context.get("branch_reason") or "")
                     attempts[-1]["trap_branch"] = bool(stage_context.get("trap_branch"))
                     attempts[-1]["correct_branch_selected"] = bool(stage_context.get("correct_branch_selected"))
@@ -2939,6 +3121,9 @@ def main() -> None:
                         failure_type=str(args.failure_type),
                         current_stage=str(stage_context.get("current_stage") or ""),
                         current_fail_bucket=str(stage_context.get("current_fail_bucket") or ""),
+                        stage_2_branch=str(stage_context.get("stage_2_branch") or ""),
+                        preferred_stage_2_branch=str(stage_context.get("preferred_stage_2_branch") or ""),
+                        trap_branch=bool(stage_context.get("trap_branch")),
                         plan_actions=[],
                     )
                     stage_plan_fields = _stage_plan_fields(
@@ -2964,6 +3149,23 @@ def main() -> None:
                     if str(stage_context.get("current_stage") or "") == "passed":
                         multistep_memory["last_successful_stage_action"] = "stop_editing"
                 if not isinstance(behavioral_eval, dict) or bool(behavioral_eval.get("pass")):
+                    if isinstance(behavioral_eval, dict):
+                        if (
+                            bool(multistep_memory.get("trap_branch_entered"))
+                            and str(multistep_memory.get("last_trap_escape_direction") or "").strip()
+                            and int(multistep_memory.get("branch_escape_attempt_count") or 0)
+                            > int(multistep_memory.get("branch_escape_success_count") or 0)
+                        ):
+                            multistep_memory["branch_escape_success_count"] = int(multistep_memory.get("branch_escape_success_count") or 0) + 1
+                            multistep_memory["last_successful_branch_correction"] = str(multistep_memory.get("last_trap_escape_direction") or "").strip()
+                        if bool(multistep_memory.get("trap_branch_entered")):
+                            multistep_memory["correct_branch_selected"] = True
+                            if not int(multistep_memory.get("correct_branch_round") or 0):
+                                multistep_memory["correct_branch_round"] = int(round_idx)
+                            preferred_branch = str(multistep_memory.get("preferred_stage_2_branch") or "").strip()
+                            if preferred_branch:
+                                multistep_memory["stage_2_branch"] = preferred_branch
+                            multistep_memory["trap_branch_active"] = False
                     final_check_ok = True
                     final_simulate_ok = True
                     executor_status = "PASS"
@@ -3053,13 +3255,25 @@ def main() -> None:
                 current_round=round_idx,
                 memory=multistep_memory,
             )
-            multistep_local_search_text, multistep_local_search = _apply_source_blind_multistep_local_search(
-                current_text=current_text,
-                declared_failure_type=str(args.failure_type),
-                current_stage=str(pre_stage_context.get("current_stage") or ""),
-                current_fail_bucket=str(pre_stage_context.get("current_fail_bucket") or ""),
-                search_memory=multistep_memory,
-            )
+            if (
+                str(pre_stage_context.get("current_stage") or "").strip().lower() == "stage_2"
+                and bool(pre_stage_context.get("trap_branch"))
+            ):
+                multistep_local_search_text = current_text
+                multistep_local_search = {
+                    "applied": False,
+                    "reason": "trap_branch_requires_branch_escape_first",
+                    "current_branch": str(pre_stage_context.get("stage_2_branch") or ""),
+                    "preferred_branch": str(pre_stage_context.get("preferred_stage_2_branch") or ""),
+                }
+            else:
+                multistep_local_search_text, multistep_local_search = _apply_source_blind_multistep_local_search(
+                    current_text=current_text,
+                    declared_failure_type=str(args.failure_type),
+                    current_stage=str(pre_stage_context.get("current_stage") or ""),
+                    current_fail_bucket=str(pre_stage_context.get("current_fail_bucket") or ""),
+                    search_memory=multistep_memory,
+                )
             attempts[-1]["source_blind_multistep_local_search"] = multistep_local_search
             if bool(multistep_local_search.get("applied")):
                 multistep_memory["local_search_attempt_count"] = int(multistep_memory.get("local_search_attempt_count") or 0) + 1
@@ -3189,6 +3403,7 @@ def main() -> None:
                 attempts[-1]["stage_2_first_fail_bucket"] = str(stage_context.get("stage_2_first_fail_bucket") or "")
                 attempts[-1]["stage_2_branch"] = str(stage_context.get("stage_2_branch") or "")
                 attempts[-1]["preferred_stage_2_branch"] = str(stage_context.get("preferred_stage_2_branch") or "")
+                attempts[-1]["branch_mode"] = str(stage_context.get("branch_mode") or "")
                 attempts[-1]["branch_reason"] = str(stage_context.get("branch_reason") or "")
                 attempts[-1]["trap_branch"] = bool(stage_context.get("trap_branch"))
                 attempts[-1]["correct_branch_selected"] = bool(stage_context.get("correct_branch_selected"))
@@ -3196,7 +3411,52 @@ def main() -> None:
                 attempts[-1]["stage_aware_control_applied"] = stage_aware_control_applied
                 attempts[-1]["stage_1_revisit_after_unlock"] = stage_1_revisit_after_unlock
                 attempts[-1].update(stage_plan_fields)
+                attempts[-1]["branch_escape_attempted"] = False
+                attempts[-1]["branch_escape_succeeded"] = False
+                attempts[-1]["branch_escape_direction"] = ""
+                attempts[-1]["branch_budget_reallocated"] = False
                 if str(stage_context.get("current_stage") or "").strip().lower() == "stage_2":
+                    if bool(stage_context.get("trap_branch")):
+                        attempts[-1]["branch_budget_reallocated"] = True
+                        multistep_memory["branch_budget_reallocated_count"] = int(multistep_memory.get("branch_budget_reallocated_count") or 0) + 1
+                        escape_text, escape_audit = _apply_source_blind_multistep_branch_escape_search(
+                            current_text=current_text,
+                            declared_failure_type=str(args.failure_type),
+                            current_branch=str(stage_context.get("stage_2_branch") or ""),
+                            preferred_branch=str(stage_context.get("preferred_stage_2_branch") or ""),
+                            search_memory=multistep_memory,
+                        )
+                        attempts[-1]["source_blind_multistep_branch_escape"] = escape_audit
+                        if bool(escape_audit.get("applied")):
+                            attempts[-1]["branch_escape_attempted"] = True
+                            attempts[-1]["branch_escape_direction"] = str(escape_audit.get("search_direction") or "")
+                            multistep_memory["branch_escape_attempt_count"] = int(multistep_memory.get("branch_escape_attempt_count") or 0) + 1
+                            candidate_key = str(escape_audit.get("candidate_key") or "").strip()
+                            if candidate_key:
+                                multistep_memory["tried_candidate_values"] = list(multistep_memory.get("tried_candidate_values") or []) + [candidate_key]
+                            direction = str(escape_audit.get("search_direction") or "").strip()
+                            if direction:
+                                multistep_memory["last_trap_escape_direction"] = direction
+                            guarded_patched, patch_guard = _guard_robustness_patch(
+                                original_text=current_text,
+                                patched_text=escape_text,
+                                failure_type=str(args.failure_type),
+                            )
+                            attempts[-1]["patch_guard"] = patch_guard
+                            if isinstance(guarded_patched, str) and guarded_patched.strip():
+                                current_text = guarded_patched
+                                if str(stage_plan_fields.get("executed_plan_action") or ""):
+                                    multistep_memory["last_successful_stage_action"] = str(stage_plan_fields.get("executed_plan_action") or "")
+                                final_error = "source_blind_multistep_branch_escape_applied_retry_pending"
+                                continue
+                            if direction:
+                                multistep_memory["branch_bad_directions"] = list(multistep_memory.get("branch_bad_directions") or []) + [direction]
+                            multistep_memory["search_regression_seen"] = True
+                            multistep_memory["search_bad_direction_count"] = int(multistep_memory.get("search_bad_direction_count") or 0) + 1
+                            final_error = str(patch_guard.get("reason") or "robustness_patch_rejected")
+                            continue
+                    else:
+                        attempts[-1]["source_blind_multistep_branch_escape"] = {"applied": False, "reason": "current_branch_not_trap"}
                     multistep_local_search_text, multistep_local_search = _apply_source_blind_multistep_local_search(
                         current_text=current_text,
                         declared_failure_type=str(args.failure_type),
@@ -3236,6 +3496,8 @@ def main() -> None:
                         multistep_memory["search_bad_direction_count"] = int(multistep_memory.get("search_bad_direction_count") or 0) + 1
                         final_error = str(patch_guard.get("reason") or "robustness_patch_rejected")
                         continue
+                else:
+                    attempts[-1]["source_blind_multistep_branch_escape"] = {"applied": False, "reason": "branch_escape_requires_stage_2"}
                 stage2_repaired_text, stage2_repair = _apply_source_blind_multistep_stage2_local_repair(
                     current_text=current_text,
                     declared_failure_type=str(args.failure_type),
@@ -3395,6 +3657,7 @@ def main() -> None:
         "stage_2_first_fail_bucket": str(multistep_memory.get("stage_2_first_fail_bucket") or ""),
         "stage_2_branch": str(final_stage_context.get("stage_2_branch") or multistep_memory.get("stage_2_branch") or ""),
         "preferred_stage_2_branch": str(final_stage_context.get("preferred_stage_2_branch") or multistep_memory.get("preferred_stage_2_branch") or ""),
+        "branch_mode": str(final_stage_context.get("branch_mode") or ""),
         "branch_reason": str(final_stage_context.get("branch_reason") or multistep_memory.get("branch_reason") or ""),
         "trap_branch": bool(final_stage_context.get("trap_branch")) if str(final_stage_context.get("stage_2_branch") or "").strip() else bool(multistep_memory.get("trap_branch_active")),
         "trap_branch_entered": bool(multistep_memory.get("trap_branch_entered")),
@@ -3403,10 +3666,16 @@ def main() -> None:
         "stage_aware_control_applied": bool(multistep_memory.get("stage_aware_focus_applied")),
         "stage_1_revisit_after_unlock": bool(multistep_memory.get("stage_1_revisit_after_unlock")),
         "plan_stage": str(multistep_memory.get("last_plan_stage") or ""),
+        "branch_stage": str(multistep_memory.get("last_plan_stage") or "") if str(multistep_memory.get("last_plan_stage") or "").strip().lower() == "stage_2" else "",
+        "current_branch": str(final_stage_context.get("stage_2_branch") or multistep_memory.get("stage_2_branch") or ""),
+        "preferred_branch": str(final_stage_context.get("preferred_stage_2_branch") or multistep_memory.get("preferred_stage_2_branch") or ""),
         "plan_goal": str(multistep_memory.get("last_plan_goal") or ""),
         "plan_actions": [str(x) for x in (multistep_memory.get("last_plan_actions") or []) if isinstance(x, str)],
         "plan_constraints": [str(x) for x in (multistep_memory.get("last_plan_constraints") or []) if isinstance(x, str)],
         "plan_stop_condition": str(multistep_memory.get("last_plan_stop_condition") or ""),
+        "branch_plan_goal": str(multistep_memory.get("last_plan_goal") or "") if str(multistep_memory.get("last_plan_stage") or "").strip().lower() == "stage_2" else "",
+        "branch_plan_actions": [str(x) for x in (multistep_memory.get("last_plan_actions") or []) if isinstance(x, str)] if str(multistep_memory.get("last_plan_stage") or "").strip().lower() == "stage_2" else [],
+        "branch_plan_stop_condition": str(multistep_memory.get("last_plan_stop_condition") or "") if str(multistep_memory.get("last_plan_stage") or "").strip().lower() == "stage_2" else "",
         "stage_plan_generated": bool(multistep_memory.get("stage_plan_generated")),
         "stage_plan_followed": bool(multistep_memory.get("stage_plan_followed")),
         "executed_plan_stage": str(multistep_memory.get("executed_plan_stage") or ""),
@@ -3435,6 +3704,21 @@ def main() -> None:
         "stage_2_resolution_via_adaptive_search": stage_2_resolution_via_local_search,
         "cluster_only_resolution": cluster_only_resolution,
         "template_only_resolution": cluster_only_resolution,
+        "branch_history": [str(x) for x in (multistep_memory.get("branch_history") or []) if str(x).strip()],
+        "trap_branch_history": [str(x) for x in (multistep_memory.get("trap_branch_history") or []) if str(x).strip()],
+        "last_trap_escape_direction": str(multistep_memory.get("last_trap_escape_direction") or ""),
+        "last_successful_branch_correction": str(multistep_memory.get("last_successful_branch_correction") or ""),
+        "branch_bad_directions": [str(x) for x in (multistep_memory.get("branch_bad_directions") or []) if str(x).strip()],
+        "branch_reentry_count": int(multistep_memory.get("branch_reentry_count") or 0),
+        "repeated_trap_branch": bool(int(multistep_memory.get("branch_reentry_count") or 0) > 0),
+        "branch_escape_attempt_count": int(multistep_memory.get("branch_escape_attempt_count") or 0),
+        "branch_escape_success_count": int(multistep_memory.get("branch_escape_success_count") or 0),
+        "branch_escape_success_pct": round((int(multistep_memory.get("branch_escape_success_count") or 0) / max(1, int(multistep_memory.get("branch_escape_attempt_count") or 0))) * 100.0, 2) if int(multistep_memory.get("branch_escape_attempt_count") or 0) > 0 else 0.0,
+        "branch_budget_reallocated_count": int(multistep_memory.get("branch_budget_reallocated_count") or 0),
+        "branch_escape_attempted": bool(int(multistep_memory.get("branch_escape_attempt_count") or 0) > 0),
+        "branch_escape_succeeded": bool(int(multistep_memory.get("branch_escape_success_count") or 0) > 0),
+        "branch_escape_direction": str(multistep_memory.get("last_trap_escape_direction") or ""),
+        "branch_budget_reallocated": bool(int(multistep_memory.get("branch_budget_reallocated_count") or 0) > 0),
         "regression_pass": bool(final_check_ok and final_simulate_ok),
         "elapsed_sec": elapsed,
         "error_message": final_error,
