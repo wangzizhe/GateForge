@@ -208,6 +208,8 @@ def build_multistep_llm_plan_prompt_hints_v1(
                 "output a new branch-aware repair plan instead of repeating the first-plan parameter direction",
                 f"explain why the previous plan failed using the observed signal '{failed_signal or 'no_progress'}'",
                 f"if the current branch '{branch or 'unknown'}' looks wrong, explicitly move toward '{preferred or 'the preferred branch'}'",
+                "make branch choice explicit: say whether to continue the current branch or switch to a new branch",
+                "allocate a small integer budget across branch diagnosis, branch escape, and final resolution",
                 "favor a minimal backtracking step and a new parameter subset over repeating the previous patch verbatim",
                 "stop the replan when the preferred branch is restored or when all scenarios pass",
             ]

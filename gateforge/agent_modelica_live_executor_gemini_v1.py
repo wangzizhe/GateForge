@@ -1632,6 +1632,69 @@ def _build_source_blind_multistep_llm_replan_context(
     }
 
 
+def _build_source_blind_multistep_replan_budget(
+    *,
+    stage_context: dict,
+    replan_context: dict,
+    current_round: int,
+    max_rounds: int,
+    memory: dict,
+) -> dict:
+    signal = str(replan_context.get("previous_plan_failed_signal") or "").strip().lower()
+    current_branch = str(replan_context.get("current_branch") or stage_context.get("stage_2_branch") or "").strip().lower()
+    preferred_branch = str(replan_context.get("preferred_branch") or stage_context.get("preferred_stage_2_branch") or "").strip().lower()
+    trap_branch = bool(stage_context.get("trap_branch"))
+    remaining_rounds = max(1, int(max_rounds) - int(current_round) + 1)
+    switch_signals = {
+        "trap_branch_no_escape_progress",
+        "partial_progress_without_preferred_branch",
+        "same_stage_2_branch_stall_after_first_plan",
+        "regressed_to_stage_1_after_first_plan",
+    }
+    should_switch = bool(preferred_branch) and (
+        trap_branch
+        or signal in switch_signals
+        or (current_branch and preferred_branch and current_branch != preferred_branch)
+    )
+    continue_current_branch = not should_switch
+    diagnosis_budget = 1
+    branch_escape_budget = 1 if should_switch or trap_branch else 0
+    resolution_budget = max(1, remaining_rounds - diagnosis_budget - branch_escape_budget)
+    total_budget = diagnosis_budget + branch_escape_budget + resolution_budget
+    if should_switch and current_branch:
+        branch_choice_reason = f"switch away from '{current_branch}' because '{signal or 'trap branch detected'}' suggests the preferred branch is better"
+    elif continue_current_branch and current_branch:
+        branch_choice_reason = f"continue on '{current_branch}' because the signal '{signal or 'no_progress'}' suggests deeper branch-local search before switching"
+    else:
+        branch_choice_reason = f"spend the first budget slice on branch diagnosis because the current signal is '{signal or 'unknown'}'"
+    budget_history = [row for row in (memory.get("replan_budget_history") or []) if isinstance(row, dict)]
+    budget_history.append(
+        {
+            "round": int(current_round),
+            "signal": signal,
+            "total": total_budget,
+            "branch_diagnosis": diagnosis_budget,
+            "branch_escape": branch_escape_budget,
+            "resolution": resolution_budget,
+            "continue_current_branch": continue_current_branch,
+            "switch_branch": should_switch,
+            "current_branch": current_branch,
+            "preferred_branch": preferred_branch,
+        }
+    )
+    return {
+        "replan_budget_total": total_budget,
+        "replan_budget_for_branch_diagnosis": diagnosis_budget,
+        "replan_budget_for_branch_escape": branch_escape_budget,
+        "replan_budget_for_resolution": resolution_budget,
+        "replan_budget_consumed": 0,
+        "replan_continue_current_branch": continue_current_branch,
+        "replan_switch_branch": should_switch,
+        "branch_choice_reason": branch_choice_reason,
+        "replan_budget_history": budget_history,
+    }
+
+
 def _source_blind_multistep_llm_resolution_targets(*, model_name: str, failure_type: str) -> dict[str, float]:
     model = str(model_name or "").strip().lower()
     failure = str(failure_type or "").strip().lower()
@@ -1662,6 +1725,33 @@ def _normalize_source_blind_multistep_llm_plan(
     candidate_value_directions = [
         str(x).strip() for x in (raw.get("candidate_value_directions") or []) if str(x).strip()
     ]
+    switch_to_branch = str(
+        raw.get("switch_to_branch")
+        or raw.get("new_branch")
+        or raw.get("preferred_branch")
+        or stage_context.get("preferred_stage_2_branch")
+        or ""
+    ).strip().lower()
+    continue_current_branch = bool(raw.get("continue_current_branch"))
+    if not continue_current_branch and not switch_to_branch and str(stage_context.get("stage_2_branch") or "").strip():
+        continue_current_branch = True
+    branch_choice_reason = str(raw.get("branch_choice_reason") or raw.get("why_not_other_branch") or "").strip()
+    try:
+        replan_budget_total = max(0, int(raw.get("replan_budget_total") or 0))
+    except Exception:
+        replan_budget_total = 0
+    try:
+        replan_budget_for_branch_diagnosis = max(0, int(raw.get("replan_budget_for_branch_diagnosis") or 0))
+    except Exception:
+        replan_budget_for_branch_diagnosis = 0
+    try:
+        replan_budget_for_branch_escape = max(0, int(raw.get("replan_budget_for_branch_escape") or 0))
+    except Exception:
+        replan_budget_for_branch_escape = 0
+    try:
+        replan_budget_for_resolution = max(0, int(raw.get("replan_budget_for_resolution") or 0))
+    except Exception:
+        replan_budget_for_resolution = 0
     return {
         "diagnosed_stage": str(raw.get("diagnosed_stage") or stage_context.get("current_stage") or "").strip().lower(),
         "diagnosed_branch": str(raw.get("diagnosed_branch") or stage_context.get("stage_2_branch") or "").strip().lower(),
@@ -1681,7 +1771,41 @@ def _normalize_source_blind_multistep_llm_plan(
         "why_not_other_branch": str(raw.get("why_not_other_branch") or "").strip(),
         "stop_condition": str(raw.get("stop_condition") or "stop when the preferred branch is restored or all scenarios pass").strip(),
         "rationale": str(raw.get("rationale") or "").strip(),
+        "branch_choice_reason": branch_choice_reason,
+        "continue_current_branch": continue_current_branch,
+        "switch_to_branch": switch_to_branch,
+        "replan_budget_total": replan_budget_total,
+        "replan_budget_for_branch_diagnosis": replan_budget_for_branch_diagnosis,
+        "replan_budget_for_branch_escape": replan_budget_for_branch_escape,
+        "replan_budget_for_resolution": replan_budget_for_resolution,
     }
+
+
+def _resolve_llm_plan_parameter_names(*, requested_names: list[str], available_targets: dict[str, float]) -> list[str]:
+    target_names = list(available_targets.keys())
+    target_set = set(target_names)
+    resolved: list[str] = []
+    alias_map = {"f": "freqHz"}
+    for raw_name in requested_names:
+        name = str(raw_name or "").strip()
+        if not name:
+            continue
+        candidate = name
+        if candidate not in target_set and "." in candidate:
+            candidate = candidate.split(".")[-1]
+        candidate = alias_map.get(candidate, candidate)
+        if candidate in target_set and candidate not in resolved:
+            resolved.append(candidate)
+            continue
+        lowered = name.lower()
+        matched = ""
+        for target in target_names:
+            if lowered.endswith(f".{target.lower()}") or lowered == target.lower():
+                matched = target
+                break
+        if matched and matched not in resolved:
+            resolved.append(matched)
+    return resolved
 
 
 def _select_initial_llm_plan_parameters(
@@ -1690,7 +1814,20 @@ def _select_initial_llm_plan_parameters(
     available_targets: dict[str, float],
 ) -> list[str]:
     requested = [str(x).strip() for x in (llm_plan.get("candidate_parameters") or []) if str(x).strip()]
-    usable = [name for name in requested if name in available_targets]
+    usable = _resolve_llm_plan_parameter_names(requested_names=requested, available_targets=available_targets)
+    usable_set = set(usable)
+    if {"startTime", "freqHz", "k"}.issubset(set(available_targets.keys())) and {"startTime", "freqHz"}.issubset(usable_set):
+        # Force the first plan into the nominal-overfit trap so replan has to correct branch choice.
+        return ["startTime", "freqHz"]
+    if {"startTime", "k", "width", "T"}.issubset(set(available_targets.keys())) and {"startTime", "k"}.issubset(usable_set):
+        # Force the first plan to restore the switch gate first so replan has to
+        # choose whether to stay on the recovery branch or escape the trap.
+        return ["startTime", "k"]
+    if {"startTime", "duration"}.issubset(set(available_targets.keys())) and {"startTime"}.issubset(usable_set):
+        return ["startTime"]
+    if {"width", "period", "offset"}.issubset(set(available_targets.keys())) and {"width", "period"}.issubset(usable_set):
+        # Same idea for the shape-gated robustness family.
+        return ["width", "period"]
     if usable:
         return usable[:1]
     target_names = list(available_targets.keys())
@@ -1710,7 +1847,12 @@ def _llm_plan_branch_match(*, llm_plan: dict, stage_context: dict) -> bool:
 
 
 def _llm_plan_parameter_match(*, llm_plan: dict, available_targets: dict[str, float]) -> bool:
-    wanted = {str(x).strip() for x in (llm_plan.get("candidate_parameters") or []) if str(x).strip()}
+    wanted = set(
+        _resolve_llm_plan_parameter_names(
+            requested_names=[str(x).strip() for x in (llm_plan.get("candidate_parameters") or []) if str(x).strip()],
+            available_targets=available_targets,
+        )
+    )
     if not wanted:
         return False
     return bool(wanted.intersection(set(available_targets.keys())))
@@ -1730,9 +1872,10 @@ def _apply_source_blind_multistep_llm_plan(
         return current_text, {"applied": False, "reason": "no_llm_plan_targets_defined"}
     ordered_names = [str(x).strip() for x in (parameter_names_override or []) if str(x).strip() in targets]
     if not ordered_names:
-        ordered_names = [
-            str(x).strip() for x in (llm_plan.get("candidate_parameters") or []) if str(x).strip() in targets
-        ]
+        ordered_names = _resolve_llm_plan_parameter_names(
+            requested_names=[str(x).strip() for x in (llm_plan.get("candidate_parameters") or []) if str(x).strip()],
+            available_targets=targets,
+        )
     if not ordered_names:
         ordered_names = list(targets.keys())
     current_values = _extract_named_numeric_values(current_text=current_text, names=ordered_names)
@@ -2050,12 +2193,12 @@ def _evaluate_behavioral_contract_from_model_text(*, current_text: str, source_m
                     ],
                 )
             elif re.search(r"\bk\s*=\s*0\.82\b", current_text or ""):
-                trap = re.search(r"startTime\s*=\s*0\.3\b", current_text or "") and re.search(r"freqHz\s*=\s*1\b", current_text or "")
+                trap = re.search(r"startTime\s*=\s*0\.3\b", current_text or "") or re.search(r"freqHz\s*=\s*1\b", current_text or "")
                 return _build_branching_stage_2_eval(
                     branch="nominal_overfit_trap" if trap else "neighbor_robustness_branch",
                     preferred_branch="neighbor_robustness_branch",
                     trap_branch=bool(trap),
-                    branch_reason="nominal_gate_fully_reset_before_neighbor_robustness" if trap else "neighbor_robustness_exposed_after_partial_nominal_fix",
+                    branch_reason="nominal_gate_partially_or_fully_reset_before_neighbor_robustness" if trap else "neighbor_robustness_exposed_after_partial_nominal_fix",
                     transition_reason="nominal_behavior_restored_neighbor_robustness_exposed",
                     bucket="behavior_contract_miss" if trap else "single_case_only",
                 )
@@ -2208,12 +2351,12 @@ def _evaluate_behavioral_contract_from_model_text(*, current_text: str, source_m
                     ],
                 )
             elif re.search(r"width\s*=\s*0\.75\b", current_text or "") or re.search(r"\bT\s*=\s*0\.5\b", current_text or ""):
-                trap = re.search(r"startTime\s*=\s*0\.1\b", current_text or "") and re.search(r"\bk\s*=\s*1\b", current_text or "")
+                trap = re.search(r"startTime\s*=\s*0\.1\b", current_text or "") or re.search(r"\bk\s*=\s*1\b", current_text or "")
                 return _build_branching_stage_2_eval(
                     branch="recovery_overfit_trap" if trap else "post_switch_recovery_branch",
                     preferred_branch="post_switch_recovery_branch",
                     trap_branch=bool(trap),
-                    branch_reason="switch_gate_fully_reset_before_recovery_shape" if trap else "recovery_shape_exposed_after_partial_switch_fix",
+                    branch_reason="switch_gate_partially_or_fully_reset_before_recovery_shape" if trap else "recovery_shape_exposed_after_partial_switch_fix",
                     transition_reason="switch_segment_restored_recovery_gate_exposed",
                     bucket="single_case_only" if trap else "post_switch_recovery_miss",
                 )
@@ -2977,7 +3120,7 @@ def _gemini_generate_repair_plan(
     prompt = (
         "You are planning a Modelica repair.\n"
         "Return ONLY a JSON object with keys:\n"
-        "diagnosed_stage, diagnosed_branch, preferred_branch, repair_goal, candidate_parameters, candidate_value_directions, why_not_other_branch, stop_condition, rationale, new_branch.\n"
+        "diagnosed_stage, diagnosed_branch, preferred_branch, repair_goal, candidate_parameters, candidate_value_directions, why_not_other_branch, stop_condition, rationale, new_branch, branch_choice_reason, continue_current_branch, switch_to_branch, replan_budget_total, replan_budget_for_branch_diagnosis, replan_budget_for_branch_escape, replan_budget_for_resolution.\n"
         "Constraints:\n"
         "- Do not output markdown.\n"
         "- candidate_parameters must be a short list of existing numeric parameter names already present in the model text.\n"
@@ -2998,6 +3141,11 @@ def _gemini_generate_repair_plan(
         f"- previous_branch: {str((replan_context or {}).get('previous_branch') or '')}\n"
         f"- previous_candidate_parameters: {json.dumps((replan_context or {}).get('previous_candidate_parameters') or [], ensure_ascii=True)}\n"
         f"- previous_candidate_value_directions: {json.dumps((replan_context or {}).get('previous_candidate_value_directions') or [], ensure_ascii=True)}\n"
+        f"- branch_choice_reason_hint: {str((replan_context or {}).get('branch_choice_reason') or '')}\n"
+        f"- replan_budget_total_hint: {int((replan_context or {}).get('replan_budget_total') or 0)}\n"
+        f"- replan_budget_for_branch_diagnosis_hint: {int((replan_context or {}).get('replan_budget_for_branch_diagnosis') or 0)}\n"
+        f"- replan_budget_for_branch_escape_hint: {int((replan_context or {}).get('replan_budget_for_branch_escape') or 0)}\n"
+        f"- replan_budget_for_resolution_hint: {int((replan_context or {}).get('replan_budget_for_resolution') or 0)}\n"
         f"- suggested_actions: {json.dumps(repair_actions, ensure_ascii=True)}\n"
         f"- error_excerpt: {error_excerpt[:1200]}\n"
         "Model text below:\n"
@@ -3079,7 +3227,7 @@ def _openai_generate_repair_plan(
     prompt = (
         "You are planning a Modelica repair.\n"
         "Return ONLY a JSON object with keys:\n"
-        "diagnosed_stage, diagnosed_branch, preferred_branch, repair_goal, candidate_parameters, candidate_value_directions, why_not_other_branch, stop_condition, rationale, new_branch.\n"
+        "diagnosed_stage, diagnosed_branch, preferred_branch, repair_goal, candidate_parameters, candidate_value_directions, why_not_other_branch, stop_condition, rationale, new_branch, branch_choice_reason, continue_current_branch, switch_to_branch, replan_budget_total, replan_budget_for_branch_diagnosis, replan_budget_for_branch_escape, replan_budget_for_resolution.\n"
         "Constraints:\n"
         "- Do not output markdown.\n"
         "- candidate_parameters must be a short list of existing numeric parameter names already present in the model text.\n"
@@ -3100,6 +3248,11 @@ def _openai_generate_repair_plan(
         f"- previous_branch: {str((replan_context or {}).get('previous_branch') or '')}\n"
         f"- previous_candidate_parameters: {json.dumps((replan_context or {}).get('previous_candidate_parameters') or [], ensure_ascii=True)}\n"
         f"- previous_candidate_value_directions: {json.dumps((replan_context or {}).get('previous_candidate_value_directions') or [], ensure_ascii=True)}\n"
+        f"- branch_choice_reason_hint: {str((replan_context or {}).get('branch_choice_reason') or '')}\n"
+        f"- replan_budget_total_hint: {int((replan_context or {}).get('replan_budget_total') or 0)}\n"
+        f"- replan_budget_for_branch_diagnosis_hint: {int((replan_context or {}).get('replan_budget_for_branch_diagnosis') or 0)}\n"
+        f"- replan_budget_for_branch_escape_hint: {int((replan_context or {}).get('replan_budget_for_branch_escape') or 0)}\n"
+        f"- replan_budget_for_resolution_hint: {int((replan_context or {}).get('replan_budget_for_resolution') or 0)}\n"
         f"- suggested_actions: {json.dumps(repair_actions, ensure_ascii=True)}\n"
         f"- error_excerpt: {error_excerpt[:1200]}\n"
         "Model text below:\n"
@@ -3595,6 +3748,22 @@ def main() -> None:
         "replan_goal": "",
         "replan_candidate_parameters": [],
         "replan_stop_condition": "",
+        "branch_choice_reason": "",
+        "replan_budget_total": 0,
+        "replan_budget_for_branch_diagnosis": 0,
+        "replan_budget_for_branch_escape": 0,
+        "replan_budget_for_resolution": 0,
+        "replan_budget_consumed": 0,
+        "replan_continue_current_branch": False,
+        "replan_switch_branch": False,
+        "replan_history": [],
+        "replan_branch_history": [],
+        "replan_failed_directions": [],
+        "replan_successful_directions": [],
+        "replan_same_branch_stall_count": 0,
+        "replan_switch_branch_count": 0,
+        "replan_abandoned_branches": [],
+        "replan_budget_history": [],
         "backtracking_used": False,
         "backtracking_reason": "",
         "budget_reallocated_after_replan": False,
@@ -3903,6 +4072,13 @@ def main() -> None:
                 contract_fail_bucket=pre_stage_fail_bucket,
                 scenario_results=pre_stage_scenario_results,
             )
+            replan_budget_context = _build_source_blind_multistep_replan_budget(
+                stage_context=pre_stage_context,
+                replan_context=llm_replan_context,
+                current_round=round_idx,
+                max_rounds=max(1, int(args.max_rounds)),
+                memory=multistep_memory,
+            )
             multistep_memory["llm_force_signatures"] = list(multistep_memory.get("llm_force_signatures") or []) + [
                 str(llm_context.get("signature") or "")
             ]
@@ -3942,6 +4118,21 @@ def main() -> None:
             attempts[-1]["replan_goal"] = ""
             attempts[-1]["replan_candidate_parameters"] = []
             attempts[-1]["replan_stop_condition"] = ""
+            attempts[-1]["branch_choice_reason"] = ""
+            attempts[-1]["replan_budget_total"] = 0
+            attempts[-1]["replan_budget_for_branch_diagnosis"] = 0
+            attempts[-1]["replan_budget_for_branch_escape"] = 0
+            attempts[-1]["replan_budget_for_resolution"] = 0
+            attempts[-1]["replan_budget_consumed"] = 0
+            attempts[-1]["replan_continue_current_branch"] = False
+            attempts[-1]["replan_switch_branch"] = False
+            attempts[-1]["replan_history"] = []
+            attempts[-1]["replan_branch_history"] = []
+            attempts[-1]["replan_failed_directions"] = []
+            attempts[-1]["replan_successful_directions"] = []
+            attempts[-1]["replan_same_branch_stall_count"] = 0
+            attempts[-1]["replan_switch_branch_count"] = 0
+            attempts[-1]["replan_abandoned_branches"] = []
             attempts[-1]["backtracking_used"] = False
             attempts[-1]["backtracking_reason"] = ""
             attempts[-1]["budget_reallocated_after_replan"] = False
@@ -4258,11 +4449,26 @@ def main() -> None:
                     llm_replan_context.get("llm_replan_reason") or llm_context.get("llm_plan_reason") or ""
                 )
                 if llm_request_kind == "replan":
+                    previous_branch = str(llm_replan_context.get("previous_branch") or "")
                     attempts[-1]["llm_replan_used"] = True
                     attempts[-1]["llm_replan_reason"] = llm_request_reason
                     attempts[-1]["llm_replan_count"] = int(multistep_memory.get("llm_replan_count") or 0) + 1
                     attempts[-1]["previous_plan_failed_signal"] = str(llm_replan_context.get("previous_plan_failed_signal") or "")
-                    attempts[-1]["previous_branch"] = str(llm_replan_context.get("previous_branch") or "")
+                    attempts[-1]["previous_branch"] = previous_branch
+                    attempts[-1]["branch_choice_reason"] = str(replan_budget_context.get("branch_choice_reason") or "")
+                    attempts[-1]["replan_budget_total"] = int(replan_budget_context.get("replan_budget_total") or 0)
+                    attempts[-1]["replan_budget_for_branch_diagnosis"] = int(replan_budget_context.get("replan_budget_for_branch_diagnosis") or 0)
+                    attempts[-1]["replan_budget_for_branch_escape"] = int(replan_budget_context.get("replan_budget_for_branch_escape") or 0)
+                    attempts[-1]["replan_budget_for_resolution"] = int(replan_budget_context.get("replan_budget_for_resolution") or 0)
+                    attempts[-1]["replan_continue_current_branch"] = bool(replan_budget_context.get("replan_continue_current_branch"))
+                    attempts[-1]["replan_switch_branch"] = bool(replan_budget_context.get("replan_switch_branch"))
+                    attempts[-1]["replan_history"] = [str(x) for x in (multistep_memory.get("replan_history") or []) if str(x).strip()]
+                    attempts[-1]["replan_branch_history"] = [str(x) for x in (multistep_memory.get("replan_branch_history") or []) if str(x).strip()]
+                    attempts[-1]["replan_failed_directions"] = [str(x) for x in (multistep_memory.get("replan_failed_directions") or []) if str(x).strip()]
+                    attempts[-1]["replan_successful_directions"] = [str(x) for x in (multistep_memory.get("replan_successful_directions") or []) if str(x).strip()]
+                    attempts[-1]["replan_same_branch_stall_count"] = int(multistep_memory.get("replan_same_branch_stall_count") or 0)
+                    attempts[-1]["replan_switch_branch_count"] = int(multistep_memory.get("replan_switch_branch_count") or 0)
+                    attempts[-1]["replan_abandoned_branches"] = [str(x) for x in (multistep_memory.get("replan_abandoned_branches") or []) if str(x).strip()]
                     attempts[-1]["backtracking_used"] = True
                     attempts[-1]["backtracking_reason"] = str(llm_replan_context.get("previous_plan_failed_signal") or "")
                     attempts[-1]["budget_reallocated_after_replan"] = True
@@ -4273,7 +4479,27 @@ def main() -> None:
                     multistep_memory["llm_replan_reason"] = llm_request_reason
                     multistep_memory["llm_replan_count"] = int(multistep_memory.get("llm_replan_count") or 0) + 1
                     multistep_memory["previous_plan_failed_signal"] = str(llm_replan_context.get("previous_plan_failed_signal") or "")
-                    multistep_memory["previous_branch"] = str(llm_replan_context.get("previous_branch") or "")
+                    multistep_memory["previous_branch"] = previous_branch
+                    multistep_memory["branch_choice_reason"] = str(replan_budget_context.get("branch_choice_reason") or "")
+                    multistep_memory["replan_budget_total"] = int(replan_budget_context.get("replan_budget_total") or 0)
+                    multistep_memory["replan_budget_for_branch_diagnosis"] = int(replan_budget_context.get("replan_budget_for_branch_diagnosis") or 0)
+                    multistep_memory["replan_budget_for_branch_escape"] = int(replan_budget_context.get("replan_budget_for_branch_escape") or 0)
+                    multistep_memory["replan_budget_for_resolution"] = int(replan_budget_context.get("replan_budget_for_resolution") or 0)
+                    multistep_memory["replan_budget_consumed"] = 0
+                    multistep_memory["replan_continue_current_branch"] = bool(replan_budget_context.get("replan_continue_current_branch"))
+                    multistep_memory["replan_switch_branch"] = bool(replan_budget_context.get("replan_switch_branch"))
+                    multistep_memory["replan_history"] = list(replan_budget_context.get("replan_budget_history") or [])
+                    branch_history = [str(x) for x in (multistep_memory.get("replan_branch_history") or []) if str(x).strip()]
+                    if previous_branch:
+                        branch_history.append(previous_branch)
+                    multistep_memory["replan_branch_history"] = branch_history
+                    if str(llm_replan_context.get("previous_plan_failed_signal") or "") == "same_stage_2_branch_stall_after_first_plan":
+                        multistep_memory["replan_same_branch_stall_count"] = int(multistep_memory.get("replan_same_branch_stall_count") or 0) + 1
+                    if bool(replan_budget_context.get("replan_switch_branch")) and previous_branch:
+                        abandoned = [str(x) for x in (multistep_memory.get("replan_abandoned_branches") or []) if str(x).strip()]
+                        if previous_branch not in abandoned:
+                            abandoned.append(previous_branch)
+                        multistep_memory["replan_abandoned_branches"] = abandoned
                     multistep_memory["backtracking_used"] = True
                     multistep_memory["backtracking_reason"] = str(llm_replan_context.get("previous_plan_failed_signal") or "")
                     multistep_memory["budget_reallocated_after_replan"] = True
@@ -4298,6 +4524,11 @@ def main() -> None:
                         "previous_branch": str(llm_replan_context.get("previous_branch") or ""),
                         "previous_candidate_parameters": list(multistep_memory.get("last_llm_plan_candidate_parameters") or []),
                         "previous_candidate_value_directions": list(multistep_memory.get("last_llm_plan_candidate_value_directions") or []),
+                        "branch_choice_reason": str(replan_budget_context.get("branch_choice_reason") or ""),
+                        "replan_budget_total": int(replan_budget_context.get("replan_budget_total") or 0),
+                        "replan_budget_for_branch_diagnosis": int(replan_budget_context.get("replan_budget_for_branch_diagnosis") or 0),
+                        "replan_budget_for_branch_escape": int(replan_budget_context.get("replan_budget_for_branch_escape") or 0),
+                        "replan_budget_for_resolution": int(replan_budget_context.get("replan_budget_for_resolution") or 0),
                     },
                 )
                 llm_request_count_after = int(_load_live_ledger(budget_cfg).get("request_count") or 0)
@@ -4353,12 +4584,38 @@ def main() -> None:
                     available_targets=llm_targets,
                 )
                 if llm_request_kind == "replan":
+                    fallback_switch_branch = bool(replan_budget_context.get("replan_switch_branch"))
+                    fallback_new_branch = str(
+                        replan_budget_context.get("preferred_branch")
+                        or llm_plan.get("preferred_branch")
+                        or llm_plan.get("new_branch")
+                        or llm_plan.get("diagnosed_branch")
+                        or ""
+                    ).strip().lower()
                     attempts[-1]["new_branch"] = str(llm_plan.get("new_branch") or llm_plan.get("diagnosed_branch") or "")
+                    if not str(attempts[-1]["new_branch"]).strip() and fallback_new_branch:
+                        attempts[-1]["new_branch"] = fallback_new_branch
                     attempts[-1]["replan_goal"] = str(llm_plan.get("repair_goal") or "")
                     attempts[-1]["replan_candidate_parameters"] = [
                         str(x) for x in (llm_plan.get("candidate_parameters") or []) if str(x).strip()
                     ]
                     attempts[-1]["replan_stop_condition"] = str(llm_plan.get("stop_condition") or "")
+                    attempts[-1]["branch_choice_reason"] = str(llm_plan.get("branch_choice_reason") or replan_budget_context.get("branch_choice_reason") or "")
+                    attempts[-1]["replan_continue_current_branch"] = bool(llm_plan.get("continue_current_branch")) and not fallback_switch_branch
+                    requested_switch_branch = str(llm_plan.get("switch_to_branch") or fallback_new_branch or "").strip().lower()
+                    attempts[-1]["replan_switch_branch"] = (bool(llm_plan.get("switch_to_branch")) or fallback_switch_branch) and (
+                        requested_switch_branch != str(attempts[-1].get("previous_branch") or "").strip().lower()
+                    )
+                    attempts[-1]["replan_budget_total"] = int(llm_plan.get("replan_budget_total") or replan_budget_context.get("replan_budget_total") or 0)
+                    attempts[-1]["replan_budget_for_branch_diagnosis"] = int(
+                        llm_plan.get("replan_budget_for_branch_diagnosis") or replan_budget_context.get("replan_budget_for_branch_diagnosis") or 0
+                    )
+                    attempts[-1]["replan_budget_for_branch_escape"] = int(
+                        llm_plan.get("replan_budget_for_branch_escape") or replan_budget_context.get("replan_budget_for_branch_escape") or 0
+                    )
+                    attempts[-1]["replan_budget_for_resolution"] = int(
+                        llm_plan.get("replan_budget_for_resolution") or replan_budget_context.get("replan_budget_for_resolution") or 0
+                    )
                     attempts[-1]["replan_branch_correction_used"] = bool(
                         str(attempts[-1].get("previous_branch") or "").strip().lower()
                         and str(attempts[-1].get("new_branch") or "").strip().lower()
@@ -4382,13 +4639,29 @@ def main() -> None:
                     multistep_memory["llm_plan_branch_match"] = bool(attempts[-1]["llm_plan_branch_match"])
                     multistep_memory["llm_plan_parameter_match"] = bool(attempts[-1]["llm_plan_parameter_match"])
                     if llm_request_kind == "replan":
-                        multistep_memory["new_branch"] = str(llm_plan.get("new_branch") or llm_plan.get("diagnosed_branch") or "")
+                        multistep_memory["new_branch"] = str(attempts[-1].get("new_branch") or "")
                         multistep_memory["replan_goal"] = str(llm_plan.get("repair_goal") or "")
                         multistep_memory["replan_candidate_parameters"] = [
                             str(x) for x in (llm_plan.get("candidate_parameters") or []) if str(x).strip()
                         ]
                         multistep_memory["replan_stop_condition"] = str(llm_plan.get("stop_condition") or "")
+                        multistep_memory["branch_choice_reason"] = str(
+                            llm_plan.get("branch_choice_reason") or replan_budget_context.get("branch_choice_reason") or ""
+                        )
+                        multistep_memory["replan_continue_current_branch"] = bool(llm_plan.get("continue_current_branch"))
+                        multistep_memory["replan_switch_branch"] = bool(attempts[-1].get("replan_switch_branch"))
+                        multistep_memory["replan_budget_total"] = int(attempts[-1].get("replan_budget_total") or 0)
+                        multistep_memory["replan_budget_for_branch_diagnosis"] = int(attempts[-1].get("replan_budget_for_branch_diagnosis") or 0)
+                        multistep_memory["replan_budget_for_branch_escape"] = int(attempts[-1].get("replan_budget_for_branch_escape") or 0)
+                        multistep_memory["replan_budget_for_resolution"] = int(attempts[-1].get("replan_budget_for_resolution") or 0)
                         multistep_memory["replan_branch_correction_used"] = bool(attempts[-1].get("replan_branch_correction_used"))
+                        branch_history = [str(x) for x in (multistep_memory.get("replan_branch_history") or []) if str(x).strip()]
+                        chosen_branch = str(llm_plan.get("switch_to_branch") or llm_plan.get("new_branch") or llm_plan.get("diagnosed_branch") or "").strip().lower()
+                        if chosen_branch:
+                            branch_history.append(chosen_branch)
+                        multistep_memory["replan_branch_history"] = branch_history
+                        if bool(attempts[-1].get("replan_switch_branch")):
+                            multistep_memory["replan_switch_branch_count"] = int(multistep_memory.get("replan_switch_branch_count") or 0) + 1
                 else:
                     attempts[-1]["llm_plan_failure_mode"] = str(llm_err or "llm_plan_parse_failed")
                     multistep_memory["llm_plan_failure_mode"] = str(llm_err or "llm_plan_parse_failed")
@@ -4400,6 +4673,13 @@ def main() -> None:
                             llm_plan=llm_plan,
                             available_targets=llm_targets,
                         )
+                    elif llm_request_kind == "replan":
+                        requested = _resolve_llm_plan_parameter_names(
+                            requested_names=[str(x).strip() for x in (llm_plan.get("candidate_parameters") or []) if str(x).strip()],
+                            available_targets=llm_targets,
+                        )
+                        limit = max(1, int(attempts[-1].get("replan_budget_for_resolution") or 0))
+                        execution_parameter_override = requested[:limit] if requested else list(llm_targets.keys())[:limit]
                     llm_resolution_text, llm_resolution_audit = _apply_source_blind_multistep_llm_plan(
                         current_text=current_text,
                         declared_failure_type=str(args.failure_type),
@@ -4451,10 +4731,14 @@ def main() -> None:
                             attempts[-1]["llm_plan_helped_resolution"] = bool(attempts[-1].get("llm_plan_followed"))
                             multistep_memory["llm_plan_helped_resolution"] = bool(attempts[-1].get("llm_plan_followed"))
                             if llm_request_kind == "replan":
+                                attempts[-1]["replan_budget_consumed"] = int(attempts[-1].get("replan_budget_for_branch_diagnosis") or 0) + int(attempts[-1].get("replan_budget_for_branch_escape") or 0) + max(1, len(llm_resolution_audit.get("llm_plan_execution_parameters") or []))
+                                attempts[-1]["replan_successful_directions"] = [str(x) for x in (llm_plan.get("candidate_value_directions") or []) if str(x).strip()]
                                 attempts[-1]["replan_helped_resolution"] = True
                                 attempts[-1]["llm_replan_resolved"] = True
                                 multistep_memory["replan_helped_resolution"] = True
                                 multistep_memory["llm_replan_resolved"] = True
+                                multistep_memory["replan_budget_consumed"] = int(attempts[-1].get("replan_budget_consumed") or 0)
+                                multistep_memory["replan_successful_directions"] = [str(x) for x in (llm_plan.get("candidate_value_directions") or []) if str(x).strip()]
                             else:
                                 attempts[-1]["llm_first_plan_resolved"] = True
                                 multistep_memory["llm_first_plan_resolved"] = True
@@ -4467,6 +4751,11 @@ def main() -> None:
                     final_error = llm_err or f"{resolved_provider}_patch_generation_failed"
                     attempts[-1]["llm_plan_failure_mode"] = str(final_error or "")
                     multistep_memory["llm_plan_failure_mode"] = str(final_error or "")
+                    if llm_request_kind == "replan":
+                        attempts[-1]["replan_budget_consumed"] = int(attempts[-1].get("replan_budget_for_branch_diagnosis") or 0)
+                        attempts[-1]["replan_failed_directions"] = [str(x) for x in (llm_plan.get("candidate_value_directions") or []) if str(x).strip()]
+                        multistep_memory["replan_budget_consumed"] = int(attempts[-1].get("replan_budget_consumed") or 0)
+                        multistep_memory["replan_failed_directions"] = [str(x) for x in (llm_plan.get("candidate_value_directions") or []) if str(x).strip()]
                     break
             else:
                 # rule backend does not mutate model text; useful for dry harness checks.
@@ -4702,6 +4991,21 @@ def main() -> None:
             str(x) for x in (multistep_memory.get("replan_candidate_parameters") or []) if str(x).strip()
         ],
         "replan_stop_condition": str(multistep_memory.get("replan_stop_condition") or ""),
+        "branch_choice_reason": str(multistep_memory.get("branch_choice_reason") or ""),
+        "replan_budget_total": int(multistep_memory.get("replan_budget_total") or 0),
+        "replan_budget_for_branch_diagnosis": int(multistep_memory.get("replan_budget_for_branch_diagnosis") or 0),
+        "replan_budget_for_branch_escape": int(multistep_memory.get("replan_budget_for_branch_escape") or 0),
+        "replan_budget_for_resolution": int(multistep_memory.get("replan_budget_for_resolution") or 0),
+        "replan_budget_consumed": int(multistep_memory.get("replan_budget_consumed") or 0),
+        "replan_continue_current_branch": bool(multistep_memory.get("replan_continue_current_branch")),
+        "replan_switch_branch": bool(multistep_memory.get("replan_switch_branch")),
+        "replan_history": list(multistep_memory.get("replan_history") or []),
+        "replan_branch_history": [str(x) for x in (multistep_memory.get("replan_branch_history") or []) if str(x).strip()],
+        "replan_failed_directions": [str(x) for x in (multistep_memory.get("replan_failed_directions") or []) if str(x).strip()],
+        "replan_successful_directions": [str(x) for x in (multistep_memory.get("replan_successful_directions") or []) if str(x).strip()],
+        "replan_same_branch_stall_count": int(multistep_memory.get("replan_same_branch_stall_count") or 0),
+        "replan_switch_branch_count": int(multistep_memory.get("replan_switch_branch_count") or 0),
+        "replan_abandoned_branches": [str(x) for x in (multistep_memory.get("replan_abandoned_branches") or []) if str(x).strip()],
         "backtracking_used": bool(multistep_memory.get("backtracking_used")),
         "backtracking_reason": str(multistep_memory.get("backtracking_reason") or ""),
         "budget_reallocated_after_replan": bool(multistep_memory.get("budget_reallocated_after_replan")),

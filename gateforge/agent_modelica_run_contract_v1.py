@@ -454,6 +454,21 @@ def _extract_multistep_fields(payload: dict, live_attempt: dict) -> dict:
         "branch_escape_succeeded": False,
         "branch_escape_direction": "",
         "branch_budget_reallocated": False,
+        "branch_choice_reason": "",
+        "replan_budget_total": 0,
+        "replan_budget_for_branch_diagnosis": 0,
+        "replan_budget_for_branch_escape": 0,
+        "replan_budget_for_resolution": 0,
+        "replan_budget_consumed": 0,
+        "replan_continue_current_branch": False,
+        "replan_switch_branch": False,
+        "replan_history": [],
+        "replan_branch_history": [],
+        "replan_failed_directions": [],
+        "replan_successful_directions": [],
+        "replan_same_branch_stall_count": 0,
+        "replan_switch_branch_count": 0,
+        "replan_abandoned_branches": [],
     }
     stage = str(live_attempt.get("multi_step_stage") or payload.get("multi_step_stage") or "").strip().lower()
     out["multi_step_stage"] = stage
@@ -566,6 +581,27 @@ def _extract_multistep_fields(payload: dict, live_attempt: dict) -> dict:
         or payload.get("branch_plan_stop_condition")
         or ""
     ).strip()
+    out["branch_choice_reason"] = str(live_attempt.get("branch_choice_reason") or payload.get("branch_choice_reason") or "").strip()
+    for key in (
+        "replan_budget_total",
+        "replan_budget_for_branch_diagnosis",
+        "replan_budget_for_branch_escape",
+        "replan_budget_for_resolution",
+        "replan_budget_consumed",
+        "replan_same_branch_stall_count",
+        "replan_switch_branch_count",
+    ):
+        try:
+            out[key] = max(0, int(live_attempt.get(key) or payload.get(key) or 0))
+        except Exception:
+            out[key] = 0
+    out["replan_continue_current_branch"] = bool(_as_bool(live_attempt.get("replan_continue_current_branch"))) or bool(_as_bool(payload.get("replan_continue_current_branch")))
+    out["replan_switch_branch"] = bool(_as_bool(live_attempt.get("replan_switch_branch"))) or bool(_as_bool(payload.get("replan_switch_branch")))
+    out["replan_history"] = [row for row in (live_attempt.get("replan_history") or payload.get("replan_history") or []) if isinstance(row, dict)]
+    out["replan_branch_history"] = _as_str_list(live_attempt.get("replan_branch_history")) or _as_str_list(payload.get("replan_branch_history"))
+    out["replan_failed_directions"] = _as_str_list(live_attempt.get("replan_failed_directions")) or _as_str_list(payload.get("replan_failed_directions"))
+    out["replan_successful_directions"] = _as_str_list(live_attempt.get("replan_successful_directions")) or _as_str_list(payload.get("replan_successful_directions"))
+    out["replan_abandoned_branches"] = _as_str_list(live_attempt.get("replan_abandoned_branches")) or _as_str_list(payload.get("replan_abandoned_branches"))
     out["stage_plan_generated"] = bool(_as_bool(live_attempt.get("stage_plan_generated"))) or bool(_as_bool(payload.get("stage_plan_generated")))
     out["stage_plan_followed"] = bool(_as_bool(live_attempt.get("stage_plan_followed"))) or bool(_as_bool(payload.get("stage_plan_followed")))
     out["executed_plan_stage"] = str(
@@ -707,6 +743,21 @@ def _extract_live_usage_fields(payload: dict, live_attempt: dict) -> dict:
         "replan_goal": "",
         "replan_candidate_parameters": [],
         "replan_stop_condition": "",
+        "branch_choice_reason": "",
+        "replan_budget_total": 0,
+        "replan_budget_for_branch_diagnosis": 0,
+        "replan_budget_for_branch_escape": 0,
+        "replan_budget_for_resolution": 0,
+        "replan_budget_consumed": 0,
+        "replan_continue_current_branch": False,
+        "replan_switch_branch": False,
+        "replan_history": [],
+        "replan_branch_history": [],
+        "replan_failed_directions": [],
+        "replan_successful_directions": [],
+        "replan_same_branch_stall_count": 0,
+        "replan_switch_branch_count": 0,
+        "replan_abandoned_branches": [],
         "backtracking_used": False,
         "backtracking_reason": "",
         "budget_reallocated_after_replan": False,
@@ -776,6 +827,45 @@ def _extract_live_usage_fields(payload: dict, live_attempt: dict) -> dict:
         if isinstance(x, str) and str(x).strip()
     ]
     out["replan_stop_condition"] = str(live_attempt.get("replan_stop_condition") or payload.get("replan_stop_condition") or "").strip()
+    out["branch_choice_reason"] = str(live_attempt.get("branch_choice_reason") or payload.get("branch_choice_reason") or "").strip()
+    for key in (
+        "replan_budget_total",
+        "replan_budget_for_branch_diagnosis",
+        "replan_budget_for_branch_escape",
+        "replan_budget_for_resolution",
+        "replan_budget_consumed",
+        "replan_same_branch_stall_count",
+        "replan_switch_branch_count",
+    ):
+        try:
+            out[key] = max(0, int(live_attempt.get(key) or payload.get(key) or 0))
+        except Exception:
+            out[key] = 0
+    out["replan_continue_current_branch"] = bool(_as_bool(live_attempt.get("replan_continue_current_branch"))) or bool(_as_bool(payload.get("replan_continue_current_branch")))
+    out["replan_switch_branch"] = bool(_as_bool(live_attempt.get("replan_switch_branch"))) or bool(_as_bool(payload.get("replan_switch_branch")))
+    out["replan_history"] = [
+        row for row in (live_attempt.get("replan_history") or payload.get("replan_history") or []) if isinstance(row, dict)
+    ]
+    out["replan_branch_history"] = [
+        str(x)
+        for x in (live_attempt.get("replan_branch_history") or payload.get("replan_branch_history") or [])
+        if isinstance(x, str) and str(x).strip()
+    ]
+    out["replan_failed_directions"] = [
+        str(x)
+        for x in (live_attempt.get("replan_failed_directions") or payload.get("replan_failed_directions") or [])
+        if isinstance(x, str) and str(x).strip()
+    ]
+    out["replan_successful_directions"] = [
+        str(x)
+        for x in (live_attempt.get("replan_successful_directions") or payload.get("replan_successful_directions") or [])
+        if isinstance(x, str) and str(x).strip()
+    ]
+    out["replan_abandoned_branches"] = [
+        str(x)
+        for x in (live_attempt.get("replan_abandoned_branches") or payload.get("replan_abandoned_branches") or [])
+        if isinstance(x, str) and str(x).strip()
+    ]
     out["backtracking_used"] = bool(_as_bool(live_attempt.get("backtracking_used"))) or bool(_as_bool(payload.get("backtracking_used")))
     out["backtracking_reason"] = str(live_attempt.get("backtracking_reason") or payload.get("backtracking_reason") or "").strip()
     out["budget_reallocated_after_replan"] = bool(_as_bool(live_attempt.get("budget_reallocated_after_replan"))) or bool(_as_bool(payload.get("budget_reallocated_after_replan")))
@@ -1979,6 +2069,21 @@ def _run_task_live_l4(
             "replan_goal": str(live_usage_fields.get("replan_goal") or ""),
             "replan_candidate_parameters": list(live_usage_fields.get("replan_candidate_parameters") or []),
             "replan_stop_condition": str(live_usage_fields.get("replan_stop_condition") or ""),
+            "branch_choice_reason": str(live_usage_fields.get("branch_choice_reason") or ""),
+            "replan_budget_total": int(live_usage_fields.get("replan_budget_total") or 0),
+            "replan_budget_for_branch_diagnosis": int(live_usage_fields.get("replan_budget_for_branch_diagnosis") or 0),
+            "replan_budget_for_branch_escape": int(live_usage_fields.get("replan_budget_for_branch_escape") or 0),
+            "replan_budget_for_resolution": int(live_usage_fields.get("replan_budget_for_resolution") or 0),
+            "replan_budget_consumed": int(live_usage_fields.get("replan_budget_consumed") or 0),
+            "replan_continue_current_branch": bool(live_usage_fields.get("replan_continue_current_branch")),
+            "replan_switch_branch": bool(live_usage_fields.get("replan_switch_branch")),
+            "replan_history": list(live_usage_fields.get("replan_history") or []),
+            "replan_branch_history": list(live_usage_fields.get("replan_branch_history") or []),
+            "replan_failed_directions": list(live_usage_fields.get("replan_failed_directions") or []),
+            "replan_successful_directions": list(live_usage_fields.get("replan_successful_directions") or []),
+            "replan_same_branch_stall_count": int(live_usage_fields.get("replan_same_branch_stall_count") or 0),
+            "replan_switch_branch_count": int(live_usage_fields.get("replan_switch_branch_count") or 0),
+            "replan_abandoned_branches": list(live_usage_fields.get("replan_abandoned_branches") or []),
             "backtracking_used": bool(live_usage_fields.get("backtracking_used")),
             "backtracking_reason": str(live_usage_fields.get("backtracking_reason") or ""),
             "budget_reallocated_after_replan": bool(live_usage_fields.get("budget_reallocated_after_replan")),
@@ -2184,6 +2289,21 @@ def _run_task_live_l4(
         "replan_goal": str(best_live_usage_fields.get("replan_goal") or ""),
         "replan_candidate_parameters": list(best_live_usage_fields.get("replan_candidate_parameters") or []),
         "replan_stop_condition": str(best_live_usage_fields.get("replan_stop_condition") or ""),
+        "branch_choice_reason": str(best_live_usage_fields.get("branch_choice_reason") or ""),
+        "replan_budget_total": int(best_live_usage_fields.get("replan_budget_total") or 0),
+        "replan_budget_for_branch_diagnosis": int(best_live_usage_fields.get("replan_budget_for_branch_diagnosis") or 0),
+        "replan_budget_for_branch_escape": int(best_live_usage_fields.get("replan_budget_for_branch_escape") or 0),
+        "replan_budget_for_resolution": int(best_live_usage_fields.get("replan_budget_for_resolution") or 0),
+        "replan_budget_consumed": int(best_live_usage_fields.get("replan_budget_consumed") or 0),
+        "replan_continue_current_branch": bool(best_live_usage_fields.get("replan_continue_current_branch")),
+        "replan_switch_branch": bool(best_live_usage_fields.get("replan_switch_branch")),
+        "replan_history": list(best_live_usage_fields.get("replan_history") or []),
+        "replan_branch_history": list(best_live_usage_fields.get("replan_branch_history") or []),
+        "replan_failed_directions": list(best_live_usage_fields.get("replan_failed_directions") or []),
+        "replan_successful_directions": list(best_live_usage_fields.get("replan_successful_directions") or []),
+        "replan_same_branch_stall_count": int(best_live_usage_fields.get("replan_same_branch_stall_count") or 0),
+        "replan_switch_branch_count": int(best_live_usage_fields.get("replan_switch_branch_count") or 0),
+        "replan_abandoned_branches": list(best_live_usage_fields.get("replan_abandoned_branches") or []),
         "backtracking_used": bool(best_live_usage_fields.get("backtracking_used")),
         "backtracking_reason": str(best_live_usage_fields.get("backtracking_reason") or ""),
         "budget_reallocated_after_replan": bool(best_live_usage_fields.get("budget_reallocated_after_replan")),
@@ -2685,6 +2805,21 @@ def _run_task_live(
                 "replan_goal": str(live_usage_fields.get("replan_goal") or ""),
                 "replan_candidate_parameters": list(live_usage_fields.get("replan_candidate_parameters") or []),
                 "replan_stop_condition": str(live_usage_fields.get("replan_stop_condition") or ""),
+                "branch_choice_reason": str(live_usage_fields.get("branch_choice_reason") or ""),
+                "replan_budget_total": int(live_usage_fields.get("replan_budget_total") or 0),
+                "replan_budget_for_branch_diagnosis": int(live_usage_fields.get("replan_budget_for_branch_diagnosis") or 0),
+                "replan_budget_for_branch_escape": int(live_usage_fields.get("replan_budget_for_branch_escape") or 0),
+                "replan_budget_for_resolution": int(live_usage_fields.get("replan_budget_for_resolution") or 0),
+                "replan_budget_consumed": int(live_usage_fields.get("replan_budget_consumed") or 0),
+                "replan_continue_current_branch": bool(live_usage_fields.get("replan_continue_current_branch")),
+                "replan_switch_branch": bool(live_usage_fields.get("replan_switch_branch")),
+                "replan_history": list(live_usage_fields.get("replan_history") or []),
+                "replan_branch_history": list(live_usage_fields.get("replan_branch_history") or []),
+                "replan_failed_directions": list(live_usage_fields.get("replan_failed_directions") or []),
+                "replan_successful_directions": list(live_usage_fields.get("replan_successful_directions") or []),
+                "replan_same_branch_stall_count": int(live_usage_fields.get("replan_same_branch_stall_count") or 0),
+                "replan_switch_branch_count": int(live_usage_fields.get("replan_switch_branch_count") or 0),
+                "replan_abandoned_branches": list(live_usage_fields.get("replan_abandoned_branches") or []),
                 "backtracking_used": bool(live_usage_fields.get("backtracking_used")),
                 "backtracking_reason": str(live_usage_fields.get("backtracking_reason") or ""),
                 "budget_reallocated_after_replan": bool(live_usage_fields.get("budget_reallocated_after_replan")),
@@ -2859,6 +2994,21 @@ def _run_task_live(
         "replan_goal": str(best_live_usage_fields.get("replan_goal") or ""),
         "replan_candidate_parameters": list(best_live_usage_fields.get("replan_candidate_parameters") or []),
         "replan_stop_condition": str(best_live_usage_fields.get("replan_stop_condition") or ""),
+        "branch_choice_reason": str(best_live_usage_fields.get("branch_choice_reason") or ""),
+        "replan_budget_total": int(best_live_usage_fields.get("replan_budget_total") or 0),
+        "replan_budget_for_branch_diagnosis": int(best_live_usage_fields.get("replan_budget_for_branch_diagnosis") or 0),
+        "replan_budget_for_branch_escape": int(best_live_usage_fields.get("replan_budget_for_branch_escape") or 0),
+        "replan_budget_for_resolution": int(best_live_usage_fields.get("replan_budget_for_resolution") or 0),
+        "replan_budget_consumed": int(best_live_usage_fields.get("replan_budget_consumed") or 0),
+        "replan_continue_current_branch": bool(best_live_usage_fields.get("replan_continue_current_branch")),
+        "replan_switch_branch": bool(best_live_usage_fields.get("replan_switch_branch")),
+        "replan_history": list(best_live_usage_fields.get("replan_history") or []),
+        "replan_branch_history": list(best_live_usage_fields.get("replan_branch_history") or []),
+        "replan_failed_directions": list(best_live_usage_fields.get("replan_failed_directions") or []),
+        "replan_successful_directions": list(best_live_usage_fields.get("replan_successful_directions") or []),
+        "replan_same_branch_stall_count": int(best_live_usage_fields.get("replan_same_branch_stall_count") or 0),
+        "replan_switch_branch_count": int(best_live_usage_fields.get("replan_switch_branch_count") or 0),
+        "replan_abandoned_branches": list(best_live_usage_fields.get("replan_abandoned_branches") or []),
         "backtracking_used": bool(best_live_usage_fields.get("backtracking_used")),
         "backtracking_reason": str(best_live_usage_fields.get("backtracking_reason") or ""),
         "budget_reallocated_after_replan": bool(best_live_usage_fields.get("budget_reallocated_after_replan")),

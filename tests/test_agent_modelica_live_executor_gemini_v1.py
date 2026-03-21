@@ -29,6 +29,7 @@ from gateforge.agent_modelica_live_executor_gemini_v1 import (
     _apply_wave2_2_marker_repair,
     _bootstrap_env_from_repo,
     _build_source_blind_multistep_llm_replan_context,
+    _build_source_blind_multistep_replan_budget,
     _diagnostic_context_hints_from_model,
     _extract_om_success_flags,
     _extract_source_blind_multistep_markers,
@@ -36,6 +37,7 @@ from gateforge.agent_modelica_live_executor_gemini_v1 import (
     _llm_round_constraints,
     _llm_request_timeout_sec,
     _normalize_source_blind_multistep_llm_plan,
+    _resolve_llm_plan_parameter_names,
     _looks_like_stage_1_focus,
     _live_budget_config,
     _normalize_terminal_errors,
@@ -303,12 +305,47 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
         self.assertEqual(str(context.get("previous_plan_failed_signal") or ""), "same_stage_2_branch_stall_after_first_plan")
         self.assertEqual(str(context.get("previous_branch") or ""), "neighbor_robustness_branch")
 
+    def test_build_source_blind_multistep_replan_budget_prefers_branch_switch_for_trap(self) -> None:
+        budget = _build_source_blind_multistep_replan_budget(
+            stage_context={
+                "trap_branch": True,
+                "stage_2_branch": "nominal_overfit_trap",
+                "preferred_stage_2_branch": "behavior_timing_branch",
+            },
+            replan_context={
+                "previous_plan_failed_signal": "trap_branch_no_escape_progress",
+                "current_branch": "nominal_overfit_trap",
+                "preferred_branch": "behavior_timing_branch",
+            },
+            current_round=2,
+            max_rounds=3,
+            memory={},
+        )
+        self.assertTrue(bool(budget.get("replan_switch_branch")))
+        self.assertFalse(bool(budget.get("replan_continue_current_branch")))
+        self.assertGreaterEqual(int(budget.get("replan_budget_for_branch_escape") or 0), 1)
+        self.assertIn("switch away", str(budget.get("branch_choice_reason") or ""))
+
     def test_select_initial_llm_plan_parameters_prefers_first_available_parameter(self) -> None:
         selected = _select_initial_llm_plan_parameters(
             llm_plan={"candidate_parameters": ["offset", "k", "startTime"]},
             available_targets={"k": 0.5, "startTime": 0.3},
         )
         self.assertEqual(selected, ["k"])
+
+    def test_select_initial_llm_plan_parameters_prefers_gate_pair_for_behavior_then_robustness(self) -> None:
+        selected = _select_initial_llm_plan_parameters(
+            llm_plan={"candidate_parameters": ["startTime", "freqHz", "k"]},
+            available_targets={"startTime": 0.3, "freqHz": 1.0, "k": 0.5},
+        )
+        self.assertEqual(selected, ["startTime", "freqHz"])
+
+    def test_resolve_llm_plan_parameter_names_normalizes_component_qualified_names(self) -> None:
+        resolved = _resolve_llm_plan_parameter_names(
+            requested_names=["step1.startTime", "sine1.f", "ref1.k"],
+            available_targets={"startTime": 0.3, "freqHz": 1.0, "k": 0.5},
+        )
+        self.assertEqual(resolved, ["startTime", "freqHz", "k"])
 
     def test_live_ledger_uses_in_memory_fallback_without_path(self) -> None:
         _IN_MEMORY_LIVE_LEDGER.clear()

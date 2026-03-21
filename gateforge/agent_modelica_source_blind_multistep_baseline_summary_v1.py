@@ -198,6 +198,12 @@ def main() -> None:
     first_plan_resolution_count = 0
     replan_after_branch_miss_count = 0
     backtracking_used_count = 0
+    llm_replan_budget_consumed_total = 0
+    llm_replan_switch_branch_count = 0
+    llm_replan_same_branch_success_count = 0
+    llm_replan_switch_branch_success_count = 0
+    abandoned_branch_count = 0
+    budget_wasted_on_bad_branch_count = 0
     llm_plan_failure_modes: dict[str, int] = {}
     llm_usage_by_failure_type: dict[str, int] = {}
     llm_usage_by_branch: dict[str, int] = {}
@@ -324,8 +330,18 @@ def main() -> None:
         if bool(record.get("llm_replan_used")):
             llm_replan_task_count += 1
             llm_replan_used_count += 1
+            try:
+                llm_replan_budget_consumed_total += max(0, int(record.get("replan_budget_consumed") or 0))
+            except Exception:
+                pass
+            if bool(record.get("replan_switch_branch")):
+                llm_replan_switch_branch_count += 1
         if bool(record.get("llm_replan_resolved")):
             llm_replan_resolution_count += 1
+            if bool(record.get("replan_switch_branch")):
+                llm_replan_switch_branch_success_count += 1
+            else:
+                llm_replan_same_branch_success_count += 1
         if bool(record.get("llm_first_plan_resolved")):
             first_plan_resolution_count += 1
         if str(record.get("previous_plan_failed_signal") or "").strip().lower() in {
@@ -336,6 +352,10 @@ def main() -> None:
             replan_after_branch_miss_count += 1
         if bool(record.get("backtracking_used")):
             backtracking_used_count += 1
+        abandoned_branches = [x for x in (record.get("replan_abandoned_branches") or []) if str(x).strip()]
+        abandoned_branch_count += len(abandoned_branches)
+        if (bool(record.get("budget_reallocated_after_replan")) or int(record.get("branch_budget_reallocated_count") or 0) > 0) and abandoned_branches:
+            budget_wasted_on_bad_branch_count += len(abandoned_branches)
         failure_mode = str(record.get("llm_plan_failure_mode") or "").strip().lower()
         if failure_mode:
             llm_plan_failure_modes[failure_mode] = int(llm_plan_failure_modes.get(failure_mode, 0)) + 1
@@ -541,6 +561,13 @@ def main() -> None:
         "first_plan_resolution_count": first_plan_resolution_count,
         "replan_after_branch_miss_count": replan_after_branch_miss_count,
         "backtracking_used_count": backtracking_used_count,
+        "llm_replan_budget_consumed_avg": round((llm_replan_budget_consumed_total / llm_replan_used_count), 2) if llm_replan_used_count > 0 else 0.0,
+        "llm_replan_switch_branch_count": llm_replan_switch_branch_count,
+        "llm_replan_same_branch_success_count": llm_replan_same_branch_success_count,
+        "llm_replan_switch_branch_success_count": llm_replan_switch_branch_success_count,
+        "llm_replan_budget_efficiency": round((llm_replan_resolution_count / llm_replan_budget_consumed_total) * 100.0, 2) if llm_replan_budget_consumed_total > 0 else 0.0,
+        "abandoned_branch_count": abandoned_branch_count,
+        "budget_wasted_on_bad_branch_count": budget_wasted_on_bad_branch_count,
         "llm_plan_failure_modes": llm_plan_failure_modes,
         "llm_resolution_count": llm_resolution_count,
         "llm_resolution_pct": _ratio(llm_resolution_count, total_tasks),

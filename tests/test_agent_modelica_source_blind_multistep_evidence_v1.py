@@ -97,6 +97,13 @@ class AgentModelicaSourceBlindMultistepEvidenceV1Tests(unittest.TestCase):
                 "first_plan_resolution_count": 0,
                 "replan_after_branch_miss_count": 1,
                 "backtracking_used_count": 1,
+                "llm_replan_budget_consumed_avg": 3.0,
+                "llm_replan_switch_branch_count": 1,
+                "llm_replan_same_branch_success_count": 0,
+                "llm_replan_switch_branch_success_count": 1,
+                "llm_replan_budget_efficiency": 33.33,
+                "abandoned_branch_count": 1,
+                "budget_wasted_on_bad_branch_count": 1,
                 "llm_request_count_total": 2,
                 "llm_task_count": 2,
                 "llm_resolution_count": 1,
@@ -197,6 +204,10 @@ class AgentModelicaSourceBlindMultistepEvidenceV1Tests(unittest.TestCase):
             self.assertEqual(payload.get("first_plan_resolution_count"), 0)
             self.assertEqual(payload.get("replan_after_branch_miss_count"), 1)
             self.assertEqual(payload.get("backtracking_used_count"), 1)
+            self.assertEqual(payload.get("llm_replan_budget_consumed_avg"), 3.0)
+            self.assertEqual(payload.get("llm_replan_switch_branch_count"), 1)
+            self.assertEqual(payload.get("llm_replan_budget_efficiency"), 33.33)
+            self.assertEqual(payload.get("abandoned_branch_count"), 1)
             self.assertEqual(payload.get("deterministic_vs_llm_resolution_split"), {"adaptive_search": 1, "template_only": 0, "llm_contributed": 1, "llm_only": 0})
             self.assertEqual(payload.get("deterministic_vs_first_plan_vs_replan_split"), {"deterministic": 0, "llm_first_plan": 0, "llm_replan": 1})
             self.assertEqual(payload.get("median_round_to_correct_branch"), 2.0)
