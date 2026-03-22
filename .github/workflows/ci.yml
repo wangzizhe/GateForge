@@ -349,7 +349,8 @@ jobs:
 
       - name: Run release preflight
         run: |
-          bash scripts/run_agent_modelica_release_preflight_v0_1_2.sh
+          GATEFORGE_AGENT_RELEASE_OUT_DIR=artifacts/release_current_ci \
+            bash scripts/run_agent_modelica_now_v1.sh preflight
 
       - name: Publish release preflight status
         if: always()
@@ -359,7 +360,7 @@ jobs:
           import os
           from pathlib import Path
 
-          summary_path = Path("artifacts/release_v0_1_2/release_preflight_summary.json")
+          summary_path = Path("artifacts/release_current_ci/release_preflight_summary.json")
           status = "MISSING"
           details = {}
           if summary_path.exists():
@@ -398,7 +399,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: release-preflight-logs
-          path: artifacts/release_v0_1_2
+          path: artifacts/release_current_ci
           if-no-files-found: ignore
 
   l3-diagnostic-gate:
