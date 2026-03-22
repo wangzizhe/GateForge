@@ -15,13 +15,15 @@ BASE_RC=$?
 set -e
 
 EVIDENCE_RC=0
-set +e
-python3 -m gateforge.agent_modelica_release_preflight_v0_1_4_evidence \
-  --summary "$GATEFORGE_AGENT_RELEASE_OUT_DIR/release_preflight_summary.json" \
-  --v4-replan-summary "$V4_REPLAN_SUMMARY" \
-  --v5-branch-summary "$V5_BRANCH_SUMMARY"
-EVIDENCE_RC=$?
-set -e
+if [ "${GATEFORGE_AGENT_RELEASE_SKIP_VERSION_EVIDENCE:-0}" != "1" ]; then
+  set +e
+  python3 -m gateforge.agent_modelica_release_preflight_v0_1_4_evidence \
+    --summary "$GATEFORGE_AGENT_RELEASE_OUT_DIR/release_preflight_summary.json" \
+    --v4-replan-summary "$V4_REPLAN_SUMMARY" \
+    --v5-branch-summary "$V5_BRANCH_SUMMARY"
+  EVIDENCE_RC=$?
+  set -e
+fi
 
 if [ "$BASE_RC" -ne 0 ] || [ "$EVIDENCE_RC" -ne 0 ]; then
   exit 1

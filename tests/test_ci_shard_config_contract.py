@@ -48,6 +48,7 @@ class CIShardConfigContractTests(unittest.TestCase):
         self.assertIn("bash scripts/run_agent_modelica_l5_eval_v1.sh", workflow)
         self.assertIn('run_release_live_smoke:', workflow)
         self.assertIn("Publish release preflight status", workflow)
+        self.assertIn("GATEFORGE_AGENT_RELEASE_SKIP_VERSION_EVIDENCE=1", workflow)
         self.assertIn("GATEFORGE_AGENT_RELEASE_OUT_DIR=artifacts/release_current_ci", workflow)
         self.assertIn("artifacts/release_current_ci/release_preflight_summary.json", workflow)
         self.assertIn("l3_diagnostic_gate_status", workflow)
