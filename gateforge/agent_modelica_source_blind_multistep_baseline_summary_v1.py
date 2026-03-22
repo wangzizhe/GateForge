@@ -74,6 +74,62 @@ def _infer_fail_bucket(record: dict, task: dict) -> str:
     return FAILURE_TYPE_TO_BUCKET.get(failure_type, "infra")
 
 
+def _failure_domain(record: dict) -> str:
+    domain = str(record.get("failure_domain") or "").strip().lower()
+    if domain:
+        return domain
+    if bool(record.get("passed")) or bool(record.get("contract_pass")):
+        return "none"
+    environment_kind = _failure_kind(record, "environment")
+    agent_kind = _failure_kind(record, "agent")
+    if environment_kind and agent_kind:
+        return "mixed"
+    if environment_kind:
+        return "environment"
+    if agent_kind:
+        return "agent"
+    return "unknown"
+
+
+def _failure_kind(record: dict, domain: str) -> str:
+    key = f"{domain}_failure_kind"
+    value = str(record.get(key) or "").strip().lower()
+    if value:
+        return value
+    if domain == "environment":
+        text_blob = " | ".join(
+            [
+                str(record.get("error_message") or ""),
+                str(record.get("compile_error") or ""),
+                str(record.get("simulate_error_message") or ""),
+                str(record.get("stderr_snippet") or ""),
+                str(record.get("observed_failure_type") or ""),
+                str(((record.get("diagnostic_ir") or {}) if isinstance(record.get("diagnostic_ir"), dict) else {}).get("error_subtype") or ""),
+            ]
+        ).lower()
+        if "docker_unavailable" in text_blob:
+            return "docker_unavailable"
+        if "modelica_package_unavailable" in text_blob:
+            return "modelica_package_unavailable"
+        if "live_executor_timeout" in text_blob or "timeoutexpired" in text_blob:
+            return "executor_timeout"
+        if "class modelica.blocks.sources." in text_blob and "not found in scope" in text_blob:
+            return "source_block_incompatible"
+        if "package modelica" in text_blob and "not found" in text_blob:
+            return "modelica_package_unavailable"
+        return ""
+    if (bool(record.get("wrong_branch_entered")) or bool(record.get("trap_branch_entered")) or bool(record.get("trap_branch"))) and not bool(record.get("wrong_branch_recovered")):
+        return "wrong_branch_enter"
+    if bool(record.get("trap_branch")) and bool(record.get("branch_escape_attempted")) and not bool(record.get("branch_escape_succeeded")):
+        return "trap_escape_failed"
+    if bool(record.get("llm_replan_used")) and not bool(record.get("llm_replan_resolved")) and str(record.get("previous_plan_failed_signal") or "").strip():
+        return "replan_no_progress"
+    if bool(record.get("llm_guided_search_used")) and bool(record.get("search_budget_followed")) and not bool(record.get("llm_guided_search_resolution")):
+        return "guided_search_budget_misallocated"
+    bucket = str(record.get("stage_2_first_fail_bucket") or record.get("current_fail_bucket") or record.get("contract_fail_bucket") or "").strip().lower()
+    return bucket
+
+
 def _attempt_signature(attempt: dict, task: dict) -> str:
     stage = str(attempt.get("multi_step_stage") or "").strip().lower()
     if stage:
@@ -225,6 +281,9 @@ def main() -> None:
     hard_case_remaining_buckets: dict[str, int] = {}
     repair_action_sequence: dict[str, int] = {}
     stage_transition_action_sequence: dict[str, int] = {}
+    failure_domain_counts = {"none": 0, "environment": 0, "agent": 0, "mixed": 0, "unknown": 0}
+    environment_failure_by_kind: dict[str, int] = {}
+    agent_failure_by_kind: dict[str, int] = {}
 
     for record in [row for row in (baseline_results.get("records") or []) if isinstance(row, dict)]:
         task_id = str(record.get("task_id") or "").strip()
@@ -237,6 +296,14 @@ def main() -> None:
         fail_row["task_count"] += 1
         stage2_row["task_count"] += 1
         executor_attempt_values.append(float(_executor_attempt_count(record)))
+        failure_domain = _failure_domain(record)
+        failure_domain_counts[failure_domain] = int(failure_domain_counts.get(failure_domain, 0)) + 1
+        environment_failure_kind = _failure_kind(record, "environment")
+        if environment_failure_kind and failure_domain in {"environment", "mixed"}:
+            environment_failure_by_kind[environment_failure_kind] = int(environment_failure_by_kind.get(environment_failure_kind, 0)) + 1
+        agent_failure_kind = _failure_kind(record, "agent")
+        if agent_failure_kind and failure_domain in {"agent", "mixed"}:
+            agent_failure_by_kind[agent_failure_kind] = int(agent_failure_by_kind.get(agent_failure_kind, 0)) + 1
         realism_key = str(record.get("realism_version") or "").strip().lower()
         if realism_key:
             realism_version_counts[realism_key] = int(realism_version_counts.get(realism_key, 0)) + 1
@@ -536,6 +603,13 @@ def main() -> None:
         "partial_pass_pct": _ratio(partial_pass_count, total_tasks),
         "scenario_fail_count": max(0, total_tasks - all_scenarios_pass_count),
         "scenario_fail_breakdown": scenario_fail_breakdown,
+        "failure_domain_counts": failure_domain_counts,
+        "environment_failure_count": int(failure_domain_counts.get("environment") or 0),
+        "agent_failure_count": int(failure_domain_counts.get("agent") or 0),
+        "mixed_failure_count": int(failure_domain_counts.get("mixed") or 0),
+        "unknown_failure_count": int(failure_domain_counts.get("unknown") or 0),
+        "environment_failure_by_kind": environment_failure_by_kind,
+        "agent_failure_by_kind": agent_failure_by_kind,
         "success_by_failure_type": success_by_failure_type,
         "scenario_fail_by_failure_type": scenario_fail_by_failure_type,
         "counts_by_failure_type": challenge.get("counts_by_failure_type") if isinstance(challenge.get("counts_by_failure_type"), dict) else {},

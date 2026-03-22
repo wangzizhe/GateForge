@@ -8,6 +8,7 @@ from pathlib import Path
 
 from gateforge.agent_modelica_run_contract_v1 import (
     _build_live_template_context,
+    _classify_failure_domain_v1,
     _extract_contract_fields,
     _extract_live_usage_fields,
     _pick_manifestation_live_attempt,
@@ -15,6 +16,42 @@ from gateforge.agent_modelica_run_contract_v1 import (
 
 
 class AgentModelicaRunContractV1Tests(unittest.TestCase):
+    def test_classify_failure_domain_marks_source_block_incompatibility_as_environment(self) -> None:
+        payload = _classify_failure_domain_v1(
+            check_model_pass=False,
+            simulate_pass=False,
+            contract_pass=False,
+            diagnostic_ir={"error_type": "model_check_error", "error_subtype": "compile_failure_unknown"},
+            error_message="",
+            compile_error="Class Modelica.Blocks.Sources.Trapezoid not found in scope HybridB.",
+            simulate_error_message="",
+            stderr_snippet="",
+        )
+        self.assertEqual(payload.get("failure_domain"), "environment")
+        self.assertEqual(payload.get("environment_failure_kind"), "source_block_incompatible")
+        self.assertEqual(payload.get("agent_failure_kind"), "")
+
+    def test_classify_failure_domain_marks_wrong_branch_as_agent(self) -> None:
+        payload = _classify_failure_domain_v1(
+            check_model_pass=True,
+            simulate_pass=True,
+            contract_pass=False,
+            diagnostic_ir={"error_type": "none", "error_subtype": "none"},
+            error_message="",
+            compile_error="",
+            simulate_error_message="",
+            stderr_snippet="",
+            contract_fail_bucket="single_case_only",
+            wrong_branch_entered=True,
+            wrong_branch_recovered=False,
+            trap_branch=True,
+            branch_escape_attempted=True,
+            branch_escape_succeeded=False,
+        )
+        self.assertEqual(payload.get("failure_domain"), "agent")
+        self.assertEqual(payload.get("environment_failure_kind"), "")
+        self.assertEqual(payload.get("agent_failure_kind"), "wrong_branch_enter")
+
     def test_extract_contract_fields_clears_fail_bucket_on_contract_pass(self) -> None:
         contract_pass, contract_fail_bucket, scenario_results, multistep = _extract_contract_fields(
             {
