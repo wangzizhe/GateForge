@@ -245,6 +245,18 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
                 "llm_guided_search_used": True,
                 "search_budget_from_llm_plan": 3,
                 "search_budget_followed": True,
+                "guided_search_bucket_sequence": ["branch_diagnosis", "branch_escape", "resolution"],
+                "guided_search_order": "branch_diagnosis -> branch_escape -> resolution",
+                "budget_bucket_consumed": {"branch_diagnosis": 1, "branch_escape": 1, "resolution": 1},
+                "budget_bucket_exhausted": ["branch_diagnosis", "branch_escape", "resolution"],
+                "candidate_suppressed_by_budget": 1,
+                "candidate_attempt_count_by_bucket": {"branch_diagnosis": 1, "branch_escape": 1, "resolution": 1},
+                "resolution_skipped_due_to_budget": False,
+                "branch_escape_skipped_due_to_budget": False,
+                "branch_frozen_by_budget": ["nominal_overfit_trap"],
+                "guided_search_observation_payload": {"no_progress_buckets": ["branch_escape"]},
+                "guided_search_replan_after_observation": True,
+                "guided_search_closed_loop_observed": True,
                 "llm_budget_helped_resolution": False,
                 "llm_guided_search_resolution": False,
             },
@@ -303,6 +315,13 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
         self.assertTrue(bool(multistep.get("llm_guided_search_used")))
         self.assertEqual(int(multistep.get("search_budget_from_llm_plan") or 0), 3)
         self.assertTrue(bool(multistep.get("search_budget_followed")))
+        self.assertEqual(multistep.get("guided_search_bucket_sequence"), ["branch_diagnosis", "branch_escape", "resolution"])
+        self.assertEqual(str(multistep.get("guided_search_order") or ""), "branch_diagnosis -> branch_escape -> resolution")
+        self.assertEqual(multistep.get("budget_bucket_exhausted"), ["branch_diagnosis", "branch_escape", "resolution"])
+        self.assertEqual(int(multistep.get("candidate_suppressed_by_budget") or 0), 1)
+        self.assertEqual(multistep.get("branch_frozen_by_budget"), ["nominal_overfit_trap"])
+        self.assertTrue(bool(multistep.get("guided_search_replan_after_observation")))
+        self.assertTrue(bool(multistep.get("guided_search_closed_loop_observed")))
         self.assertEqual((multistep.get("source_blind_multistep_local_search") or {}).get("search_kind"), "stage_2_resolution")
 
         live_usage = _extract_live_usage_fields(
@@ -337,6 +356,18 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
                 "llm_guided_search_used": True,
                 "search_budget_from_llm_plan": 3,
                 "search_budget_followed": True,
+                "guided_search_bucket_sequence": ["branch_diagnosis", "branch_escape", "resolution"],
+                "guided_search_order": "branch_diagnosis -> branch_escape -> resolution",
+                "budget_bucket_consumed": {"branch_diagnosis": 1, "branch_escape": 1, "resolution": 1},
+                "budget_bucket_exhausted": ["branch_diagnosis", "branch_escape", "resolution"],
+                "candidate_suppressed_by_budget": 1,
+                "candidate_attempt_count_by_bucket": {"branch_diagnosis": 1, "branch_escape": 1, "resolution": 1},
+                "resolution_skipped_due_to_budget": False,
+                "branch_escape_skipped_due_to_budget": False,
+                "branch_frozen_by_budget": ["nominal_overfit_trap"],
+                "guided_search_observation_payload": {"no_progress_buckets": ["branch_escape"]},
+                "guided_search_replan_after_observation": True,
+                "guided_search_closed_loop_observed": True,
                 "llm_budget_helped_resolution": False,
                 "llm_guided_search_resolution": True,
             },
@@ -364,6 +395,8 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
         self.assertTrue(bool(live_usage.get("llm_guided_search_used")))
         self.assertEqual(int(live_usage.get("search_budget_from_llm_plan") or 0), 3)
         self.assertTrue(bool(live_usage.get("search_budget_followed")))
+        self.assertEqual(live_usage.get("guided_search_bucket_sequence"), ["branch_diagnosis", "branch_escape", "resolution"])
+        self.assertTrue(bool(live_usage.get("guided_search_closed_loop_observed")))
         self.assertTrue(bool(live_usage.get("llm_guided_search_resolution")))
 
     def test_extract_live_usage_fields_defaults_to_zero_visibility(self) -> None:
@@ -406,6 +439,8 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
         self.assertFalse(bool(fields.get("llm_guided_search_used")))
         self.assertEqual(int(fields.get("search_budget_from_llm_plan") or 0), 0)
         self.assertFalse(bool(fields.get("search_budget_followed")))
+        self.assertEqual(fields.get("guided_search_bucket_sequence"), [])
+        self.assertFalse(bool(fields.get("guided_search_closed_loop_observed")))
         self.assertFalse(bool(fields.get("llm_budget_helped_resolution")))
 
     def test_extract_contract_fields_prefers_current_branch_state_over_payload_memory(self) -> None:

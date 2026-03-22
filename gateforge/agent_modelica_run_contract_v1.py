@@ -606,6 +606,18 @@ def _extract_multistep_fields(payload: dict, live_attempt: dict) -> dict:
         "llm_guided_search_used": False,
         "search_budget_from_llm_plan": 0,
         "search_budget_followed": False,
+        "guided_search_bucket_sequence": [],
+        "guided_search_order": "",
+        "budget_bucket_consumed": {},
+        "budget_bucket_exhausted": [],
+        "candidate_suppressed_by_budget": 0,
+        "candidate_attempt_count_by_bucket": {},
+        "resolution_skipped_due_to_budget": False,
+        "branch_escape_skipped_due_to_budget": False,
+        "branch_frozen_by_budget": [],
+        "guided_search_observation_payload": {},
+        "guided_search_replan_after_observation": False,
+        "guided_search_closed_loop_observed": False,
         "llm_budget_helped_resolution": False,
         "llm_guided_search_resolution": False,
     }
@@ -757,6 +769,21 @@ def _extract_multistep_fields(payload: dict, live_attempt: dict) -> dict:
     except Exception:
         out["search_budget_from_llm_plan"] = 0
     out["search_budget_followed"] = bool(_as_bool(live_attempt.get("search_budget_followed"))) or bool(_as_bool(payload.get("search_budget_followed")))
+    out["guided_search_bucket_sequence"] = _as_str_list(live_attempt.get("guided_search_bucket_sequence")) or _as_str_list(payload.get("guided_search_bucket_sequence"))
+    out["guided_search_order"] = str(live_attempt.get("guided_search_order") or payload.get("guided_search_order") or "").strip()
+    out["budget_bucket_consumed"] = dict(live_attempt.get("budget_bucket_consumed") or payload.get("budget_bucket_consumed") or {})
+    out["budget_bucket_exhausted"] = _as_str_list(live_attempt.get("budget_bucket_exhausted")) or _as_str_list(payload.get("budget_bucket_exhausted"))
+    try:
+        out["candidate_suppressed_by_budget"] = max(0, int(live_attempt.get("candidate_suppressed_by_budget") or payload.get("candidate_suppressed_by_budget") or 0))
+    except Exception:
+        out["candidate_suppressed_by_budget"] = 0
+    out["candidate_attempt_count_by_bucket"] = dict(live_attempt.get("candidate_attempt_count_by_bucket") or payload.get("candidate_attempt_count_by_bucket") or {})
+    out["resolution_skipped_due_to_budget"] = bool(_as_bool(live_attempt.get("resolution_skipped_due_to_budget"))) or bool(_as_bool(payload.get("resolution_skipped_due_to_budget")))
+    out["branch_escape_skipped_due_to_budget"] = bool(_as_bool(live_attempt.get("branch_escape_skipped_due_to_budget"))) or bool(_as_bool(payload.get("branch_escape_skipped_due_to_budget")))
+    out["branch_frozen_by_budget"] = _as_str_list(live_attempt.get("branch_frozen_by_budget")) or _as_str_list(payload.get("branch_frozen_by_budget"))
+    out["guided_search_observation_payload"] = dict(live_attempt.get("guided_search_observation_payload") or payload.get("guided_search_observation_payload") or {})
+    out["guided_search_replan_after_observation"] = bool(_as_bool(live_attempt.get("guided_search_replan_after_observation"))) or bool(_as_bool(payload.get("guided_search_replan_after_observation")))
+    out["guided_search_closed_loop_observed"] = bool(_as_bool(live_attempt.get("guided_search_closed_loop_observed"))) or bool(_as_bool(payload.get("guided_search_closed_loop_observed")))
     out["llm_budget_helped_resolution"] = bool(_as_bool(live_attempt.get("llm_budget_helped_resolution"))) or bool(_as_bool(payload.get("llm_budget_helped_resolution")))
     out["stage_plan_generated"] = bool(_as_bool(live_attempt.get("stage_plan_generated"))) or bool(_as_bool(payload.get("stage_plan_generated")))
     out["stage_plan_followed"] = bool(_as_bool(live_attempt.get("stage_plan_followed"))) or bool(_as_bool(payload.get("stage_plan_followed")))
@@ -939,6 +966,18 @@ def _extract_live_usage_fields(payload: dict, live_attempt: dict) -> dict:
         "llm_guided_search_used": False,
         "search_budget_from_llm_plan": 0,
         "search_budget_followed": False,
+        "guided_search_bucket_sequence": [],
+        "guided_search_order": "",
+        "budget_bucket_consumed": {},
+        "budget_bucket_exhausted": [],
+        "candidate_suppressed_by_budget": 0,
+        "candidate_attempt_count_by_bucket": {},
+        "resolution_skipped_due_to_budget": False,
+        "branch_escape_skipped_due_to_budget": False,
+        "branch_frozen_by_budget": [],
+        "guided_search_observation_payload": {},
+        "guided_search_replan_after_observation": False,
+        "guided_search_closed_loop_observed": False,
         "llm_budget_helped_resolution": False,
         "llm_guided_search_resolution": False,
     }
@@ -1080,6 +1119,21 @@ def _extract_live_usage_fields(payload: dict, live_attempt: dict) -> dict:
     except Exception:
         out["search_budget_from_llm_plan"] = 0
     out["search_budget_followed"] = bool(_as_bool(live_attempt.get("search_budget_followed"))) or bool(_as_bool(payload.get("search_budget_followed")))
+    out["guided_search_bucket_sequence"] = _as_str_list(live_attempt.get("guided_search_bucket_sequence")) or _as_str_list(payload.get("guided_search_bucket_sequence"))
+    out["guided_search_order"] = str(live_attempt.get("guided_search_order") or payload.get("guided_search_order") or "").strip()
+    out["budget_bucket_consumed"] = dict(live_attempt.get("budget_bucket_consumed") or payload.get("budget_bucket_consumed") or {})
+    out["budget_bucket_exhausted"] = _as_str_list(live_attempt.get("budget_bucket_exhausted")) or _as_str_list(payload.get("budget_bucket_exhausted"))
+    try:
+        out["candidate_suppressed_by_budget"] = max(0, int(live_attempt.get("candidate_suppressed_by_budget") or payload.get("candidate_suppressed_by_budget") or 0))
+    except Exception:
+        out["candidate_suppressed_by_budget"] = 0
+    out["candidate_attempt_count_by_bucket"] = dict(live_attempt.get("candidate_attempt_count_by_bucket") or payload.get("candidate_attempt_count_by_bucket") or {})
+    out["resolution_skipped_due_to_budget"] = bool(_as_bool(live_attempt.get("resolution_skipped_due_to_budget"))) or bool(_as_bool(payload.get("resolution_skipped_due_to_budget")))
+    out["branch_escape_skipped_due_to_budget"] = bool(_as_bool(live_attempt.get("branch_escape_skipped_due_to_budget"))) or bool(_as_bool(payload.get("branch_escape_skipped_due_to_budget")))
+    out["branch_frozen_by_budget"] = _as_str_list(live_attempt.get("branch_frozen_by_budget")) or _as_str_list(payload.get("branch_frozen_by_budget"))
+    out["guided_search_observation_payload"] = dict(live_attempt.get("guided_search_observation_payload") or payload.get("guided_search_observation_payload") or {})
+    out["guided_search_replan_after_observation"] = bool(_as_bool(live_attempt.get("guided_search_replan_after_observation"))) or bool(_as_bool(payload.get("guided_search_replan_after_observation")))
+    out["guided_search_closed_loop_observed"] = bool(_as_bool(live_attempt.get("guided_search_closed_loop_observed"))) or bool(_as_bool(payload.get("guided_search_closed_loop_observed")))
     out["llm_budget_helped_resolution"] = bool(_as_bool(live_attempt.get("llm_budget_helped_resolution"))) or bool(_as_bool(payload.get("llm_budget_helped_resolution")))
     out["llm_guided_search_resolution"] = bool(_as_bool(live_attempt.get("llm_guided_search_resolution"))) or bool(_as_bool(payload.get("llm_guided_search_resolution")))
     return out
@@ -2364,6 +2418,18 @@ def _run_task_live_l4(
             "llm_guided_search_used": bool(live_usage_fields.get("llm_guided_search_used")),
             "search_budget_from_llm_plan": int(live_usage_fields.get("search_budget_from_llm_plan") or 0),
             "search_budget_followed": bool(live_usage_fields.get("search_budget_followed")),
+            "guided_search_bucket_sequence": list(live_usage_fields.get("guided_search_bucket_sequence") or []),
+            "guided_search_order": str(live_usage_fields.get("guided_search_order") or ""),
+            "budget_bucket_consumed": dict(live_usage_fields.get("budget_bucket_consumed") or {}),
+            "budget_bucket_exhausted": list(live_usage_fields.get("budget_bucket_exhausted") or []),
+            "candidate_suppressed_by_budget": int(live_usage_fields.get("candidate_suppressed_by_budget") or 0),
+            "candidate_attempt_count_by_bucket": dict(live_usage_fields.get("candidate_attempt_count_by_bucket") or {}),
+            "resolution_skipped_due_to_budget": bool(live_usage_fields.get("resolution_skipped_due_to_budget")),
+            "branch_escape_skipped_due_to_budget": bool(live_usage_fields.get("branch_escape_skipped_due_to_budget")),
+            "branch_frozen_by_budget": list(live_usage_fields.get("branch_frozen_by_budget") or []),
+            "guided_search_observation_payload": dict(live_usage_fields.get("guided_search_observation_payload") or {}),
+            "guided_search_replan_after_observation": bool(live_usage_fields.get("guided_search_replan_after_observation")),
+            "guided_search_closed_loop_observed": bool(live_usage_fields.get("guided_search_closed_loop_observed")),
             "llm_budget_helped_resolution": bool(live_usage_fields.get("llm_budget_helped_resolution")),
             "llm_guided_search_resolution": bool(live_usage_fields.get("llm_guided_search_resolution")),
             "physics_contract_reasons": physics_reasons,
@@ -2632,6 +2698,18 @@ def _run_task_live_l4(
         "llm_guided_search_used": bool(best_live_usage_fields.get("llm_guided_search_used")),
         "search_budget_from_llm_plan": int(best_live_usage_fields.get("search_budget_from_llm_plan") or 0),
         "search_budget_followed": bool(best_live_usage_fields.get("search_budget_followed")),
+        "guided_search_bucket_sequence": list(best_live_usage_fields.get("guided_search_bucket_sequence") or []),
+        "guided_search_order": str(best_live_usage_fields.get("guided_search_order") or ""),
+        "budget_bucket_consumed": dict(best_live_usage_fields.get("budget_bucket_consumed") or {}),
+        "budget_bucket_exhausted": list(best_live_usage_fields.get("budget_bucket_exhausted") or []),
+        "candidate_suppressed_by_budget": int(best_live_usage_fields.get("candidate_suppressed_by_budget") or 0),
+        "candidate_attempt_count_by_bucket": dict(best_live_usage_fields.get("candidate_attempt_count_by_bucket") or {}),
+        "resolution_skipped_due_to_budget": bool(best_live_usage_fields.get("resolution_skipped_due_to_budget")),
+        "branch_escape_skipped_due_to_budget": bool(best_live_usage_fields.get("branch_escape_skipped_due_to_budget")),
+        "branch_frozen_by_budget": list(best_live_usage_fields.get("branch_frozen_by_budget") or []),
+        "guided_search_observation_payload": dict(best_live_usage_fields.get("guided_search_observation_payload") or {}),
+        "guided_search_replan_after_observation": bool(best_live_usage_fields.get("guided_search_replan_after_observation")),
+        "guided_search_closed_loop_observed": bool(best_live_usage_fields.get("guided_search_closed_loop_observed")),
         "llm_budget_helped_resolution": bool(best_live_usage_fields.get("llm_budget_helped_resolution")),
         "llm_guided_search_resolution": bool(best_live_usage_fields.get("llm_guided_search_resolution")),
         "repair_strategy": repair_strategy,
@@ -3168,6 +3246,18 @@ def _run_task_live(
                 "llm_guided_search_used": bool(live_usage_fields.get("llm_guided_search_used")),
                 "search_budget_from_llm_plan": int(live_usage_fields.get("search_budget_from_llm_plan") or 0),
                 "search_budget_followed": bool(live_usage_fields.get("search_budget_followed")),
+                "guided_search_bucket_sequence": list(live_usage_fields.get("guided_search_bucket_sequence") or []),
+                "guided_search_order": str(live_usage_fields.get("guided_search_order") or ""),
+                "budget_bucket_consumed": dict(live_usage_fields.get("budget_bucket_consumed") or {}),
+                "budget_bucket_exhausted": list(live_usage_fields.get("budget_bucket_exhausted") or []),
+                "candidate_suppressed_by_budget": int(live_usage_fields.get("candidate_suppressed_by_budget") or 0),
+                "candidate_attempt_count_by_bucket": dict(live_usage_fields.get("candidate_attempt_count_by_bucket") or {}),
+                "resolution_skipped_due_to_budget": bool(live_usage_fields.get("resolution_skipped_due_to_budget")),
+                "branch_escape_skipped_due_to_budget": bool(live_usage_fields.get("branch_escape_skipped_due_to_budget")),
+                "branch_frozen_by_budget": list(live_usage_fields.get("branch_frozen_by_budget") or []),
+                "guided_search_observation_payload": dict(live_usage_fields.get("guided_search_observation_payload") or {}),
+                "guided_search_replan_after_observation": bool(live_usage_fields.get("guided_search_replan_after_observation")),
+                "guided_search_closed_loop_observed": bool(live_usage_fields.get("guided_search_closed_loop_observed")),
                 "llm_budget_helped_resolution": bool(live_usage_fields.get("llm_budget_helped_resolution")),
                 "llm_guided_search_resolution": bool(live_usage_fields.get("llm_guided_search_resolution")),
                 "physics_contract_reasons": physics_contract_reasons,
@@ -3405,6 +3495,18 @@ def _run_task_live(
         "llm_guided_search_used": bool(best_live_usage_fields.get("llm_guided_search_used")),
         "search_budget_from_llm_plan": int(best_live_usage_fields.get("search_budget_from_llm_plan") or 0),
         "search_budget_followed": bool(best_live_usage_fields.get("search_budget_followed")),
+        "guided_search_bucket_sequence": list(best_live_usage_fields.get("guided_search_bucket_sequence") or []),
+        "guided_search_order": str(best_live_usage_fields.get("guided_search_order") or ""),
+        "budget_bucket_consumed": dict(best_live_usage_fields.get("budget_bucket_consumed") or {}),
+        "budget_bucket_exhausted": list(best_live_usage_fields.get("budget_bucket_exhausted") or []),
+        "candidate_suppressed_by_budget": int(best_live_usage_fields.get("candidate_suppressed_by_budget") or 0),
+        "candidate_attempt_count_by_bucket": dict(best_live_usage_fields.get("candidate_attempt_count_by_bucket") or {}),
+        "resolution_skipped_due_to_budget": bool(best_live_usage_fields.get("resolution_skipped_due_to_budget")),
+        "branch_escape_skipped_due_to_budget": bool(best_live_usage_fields.get("branch_escape_skipped_due_to_budget")),
+        "branch_frozen_by_budget": list(best_live_usage_fields.get("branch_frozen_by_budget") or []),
+        "guided_search_observation_payload": dict(best_live_usage_fields.get("guided_search_observation_payload") or {}),
+        "guided_search_replan_after_observation": bool(best_live_usage_fields.get("guided_search_replan_after_observation")),
+        "guided_search_closed_loop_observed": bool(best_live_usage_fields.get("guided_search_closed_loop_observed")),
         "llm_budget_helped_resolution": bool(best_live_usage_fields.get("llm_budget_helped_resolution")),
         "llm_guided_search_resolution": bool(best_live_usage_fields.get("llm_guided_search_resolution")),
         "repair_strategy": repair_strategy,

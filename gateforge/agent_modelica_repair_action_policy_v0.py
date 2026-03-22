@@ -198,6 +198,7 @@ def build_multistep_llm_plan_prompt_hints_v1(
     previous_plan_failed_signal: str = "",
     realism_version: str = "",
     replan_count: int = 0,
+    guided_search_observation_available: bool = False,
 ) -> list[str]:
     kind = str(request_kind or "").strip().lower()
     stage = str(current_stage or "").strip().lower()
@@ -218,9 +219,15 @@ def build_multistep_llm_plan_prompt_hints_v1(
                 "make branch choice explicit: say whether to continue the current branch or switch to a new branch",
                 "allocate a small integer budget across branch diagnosis, branch escape, and final resolution",
                 "make the budget explicit enough that execution can follow it without guessing",
+                "output an explicit guided_search_bucket_sequence using branch_diagnosis, branch_escape, and resolution",
                 "favor a minimal backtracking step and a new parameter subset over repeating the previous patch verbatim",
                 "name the parameter directions that should be abandoned from the previous failed plan",
                 "stop the replan when the preferred branch is restored or when all scenarios pass",
+                (
+                    "use the structured guided-search observation to avoid reusing buckets that already spent budget without progress"
+                    if guided_search_observation_available
+                    else ""
+                ),
                 (
                     "this is a deeper v5-style replan, so compare the current branch against at least one alternative branch "
                     "before keeping the same direction"

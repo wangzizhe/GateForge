@@ -110,6 +110,12 @@ class AgentModelicaSourceBlindMultistepEvidenceV1Tests(unittest.TestCase):
                 "search_budget_from_llm_plan_avg": 2.5,
                 "search_budget_followed_count": 2,
                 "search_budget_followed_pct": 100.0,
+                "guided_search_closed_loop_count": 1,
+                "guided_search_closed_loop_pct": 50.0,
+                "guided_search_replan_after_observation_count": 1,
+                "budget_bucket_exhausted_count": 1,
+                "resolution_skipped_due_to_budget_count": 0,
+                "candidate_suppressed_by_budget_count": 1,
                 "llm_budget_helped_resolution_count": 2,
                 "llm_budget_helped_resolution_pct": 100.0,
                 "llm_guided_search_resolution_count": 2,
@@ -250,6 +256,10 @@ class AgentModelicaSourceBlindMultistepEvidenceV1Tests(unittest.TestCase):
             self.assertEqual(payload.get("llm_guided_search_used_count"), 2)
             self.assertEqual(payload.get("search_budget_from_llm_plan_avg"), 2.5)
             self.assertEqual(payload.get("search_budget_followed_count"), 2)
+            self.assertEqual(payload.get("guided_search_closed_loop_count"), 1)
+            self.assertEqual(payload.get("guided_search_replan_after_observation_count"), 1)
+            self.assertEqual(payload.get("budget_bucket_exhausted_count"), 1)
+            self.assertEqual(payload.get("candidate_suppressed_by_budget_count"), 1)
             self.assertEqual(payload.get("llm_budget_helped_resolution_count"), 2)
             self.assertEqual(payload.get("llm_guided_search_resolution_count"), 2)
             self.assertEqual(payload.get("llm_replan_budget_consumed_avg"), 3.0)
