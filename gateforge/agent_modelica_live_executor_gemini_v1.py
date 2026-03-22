@@ -5374,6 +5374,8 @@ def main() -> None:
     stage_2_resolution_via_local_search = bool(
         physics_contract_pass and any(kind == "stage_2_resolution" for kind in local_search_kinds)
     )
+    stage_1_unlock_via_adaptive_search = stage_1_unlock_via_local_search
+    stage_2_resolution_via_adaptive_search = stage_2_resolution_via_local_search
     local_search_success_count = 1 if bool(physics_contract_pass and local_search_audits) else 0
     successful_directions = [
         str((row or {}).get("search_direction") or "").strip()
