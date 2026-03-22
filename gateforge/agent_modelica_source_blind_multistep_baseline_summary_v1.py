@@ -259,6 +259,8 @@ def main() -> None:
         stage_1_revisit_seen = False
         branch_seen = False
         trap_entered = False
+        wrong_branch_entered = False
+        wrong_branch_recovered = False
         correct_branch_seen = False
         stage_plan_generated_seen = False
         stage_plan_followed_seen = False
@@ -288,12 +290,16 @@ def main() -> None:
                 branch_seen = True
             if bool(attempt.get("trap_branch")) or bool(attempt.get("trap_branch_entered")):
                 trap_entered = True
+            if bool(attempt.get("wrong_branch_entered")):
+                wrong_branch_entered = True
             if bool(attempt.get("correct_branch_selected")):
                 correct_branch_seen = True
                 try:
                     round_to_correct_branch_values.append(float(int(attempt.get("round") or 0)))
                 except Exception:
                     pass
+            if bool(attempt.get("wrong_branch_recovered")):
+                wrong_branch_recovered = True
             if bool(attempt.get("stage_plan_generated")):
                 stage_plan_generated_seen = True
             if bool(attempt.get("stage_plan_followed")) or bool(attempt.get("plan_followed")):
@@ -448,7 +454,7 @@ def main() -> None:
             stage_2_unlock_count += 1
             if branch_seen or str(record.get("stage_2_branch") or "").strip():
                 stage_2_branch_count += 1
-            if trap_entered or bool(record.get("trap_branch_entered")):
+            if wrong_branch_entered or bool(record.get("wrong_branch_entered")) or trap_entered or bool(record.get("trap_branch_entered")):
                 trap_branch_enter_count += 1
             if correct_branch_seen or bool(record.get("correct_branch_selected")):
                 pass
@@ -474,7 +480,7 @@ def main() -> None:
                 if (correct_branch_seen or bool(record.get("correct_branch_selected"))) and not (trap_entered or bool(record.get("trap_branch_entered"))):
                     good_branch_resolution_count += 1
                     preferred_branch_resolution_count += 1
-                if trap_entered or bool(record.get("trap_branch_entered")):
+                if wrong_branch_recovered or bool(record.get("wrong_branch_recovered")) or trap_entered or bool(record.get("trap_branch_entered")):
                     trap_branch_recovery_count += 1
                     trap_branch_resolution_count += 1
                 first_stage2_bucket = str(record.get("stage_2_first_fail_bucket") or "").strip().lower()
@@ -496,7 +502,7 @@ def main() -> None:
                 partial_pass_count += 1
             if bool(record.get("multi_step_stage_2_unlocked")) or unlocked_rounds:
                 stage_2_then_fail_count += 1
-                if trap_entered or bool(record.get("trap_branch_entered")):
+                if wrong_branch_entered or bool(record.get("wrong_branch_entered")) or trap_entered or bool(record.get("trap_branch_entered")):
                     branch_selection_error_count += 1
                 first_stage2_bucket = str(record.get("stage_2_first_fail_bucket") or record.get("contract_fail_bucket") or "").strip().lower()
                 if first_stage2_bucket:
@@ -602,6 +608,7 @@ def main() -> None:
         "branch_escape_success_pct": _ratio(branch_escape_success_count, branch_escape_attempt_count),
         "branch_budget_reallocated_count": branch_budget_reallocated_count,
         "repeated_trap_branch_count": repeated_trap_branch_count,
+        "repeated_bad_branch_count": repeated_trap_branch_count,
         "llm_request_count_total": llm_request_count_total,
         "llm_task_count": llm_task_count,
         "llm_task_pct": _ratio(llm_task_count, total_tasks),

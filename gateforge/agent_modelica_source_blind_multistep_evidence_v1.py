@@ -256,6 +256,7 @@ def main() -> None:
         "branch_escape_success_pct": branch_escape_success_pct,
         "branch_budget_reallocated_count": branch_budget_reallocated_count,
         "repeated_trap_branch_count": repeated_trap_branch_count,
+        "repeated_bad_branch_count": repeated_trap_branch_count,
         "trap_escape_success_count": trap_escape_success_count,
         "wrong_branch_enter_count": wrong_branch_enter_count,
         "wrong_branch_recovery_count": wrong_branch_recovery_count,
@@ -395,6 +396,7 @@ def main() -> None:
         "trap_escape_success_count": trap_escape_success_count,
         "wrong_branch_enter_count": wrong_branch_enter_count,
         "wrong_branch_recovery_count": wrong_branch_recovery_count,
+        "repeated_bad_branch_count": repeated_trap_branch_count,
         "stage_aware_control_status": stage_aware_control_status,
     }
     decision_summary = {
@@ -452,6 +454,7 @@ def main() -> None:
         "branch_escape_success_pct": branch_escape_success_pct,
         "branch_budget_reallocated_count": branch_budget_reallocated_count,
         "repeated_trap_branch_count": repeated_trap_branch_count,
+        "repeated_bad_branch_count": repeated_trap_branch_count,
         "llm_request_count_total": llm_request_count_total,
         "llm_task_count": llm_task_count,
         "planner_backend_counts": planner_backend_counts,

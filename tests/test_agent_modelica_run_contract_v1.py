@@ -73,8 +73,10 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
                 "branch_reason": "nominal_gate_fully_reset_before_neighbor_robustness",
                 "trap_branch": True,
                 "trap_branch_entered": True,
+                "wrong_branch_entered": True,
                 "correct_branch_selected": False,
                 "correct_branch_round": 0,
+                "wrong_branch_recovered": False,
                 "stage_aware_control_applied": True,
                 "stage_1_revisit_after_unlock": False,
                 "plan_stage": "stage_2",
@@ -222,7 +224,9 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
         self.assertEqual(str(multistep.get("branch_mode") or ""), "trap")
         self.assertTrue(bool(multistep.get("trap_branch")))
         self.assertTrue(bool(multistep.get("trap_branch_entered")))
+        self.assertTrue(bool(multistep.get("wrong_branch_entered")))
         self.assertFalse(bool(multistep.get("correct_branch_selected")))
+        self.assertFalse(bool(multistep.get("wrong_branch_recovered")))
         self.assertTrue(bool(multistep.get("stage_aware_control_applied")))
         self.assertEqual(str(multistep.get("plan_stage") or ""), "stage_2")
         self.assertTrue(bool(multistep.get("stage_plan_generated")))
@@ -397,14 +401,18 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
                 "preferred_stage_2_branch": "post_switch_recovery_branch",
                 "trap_branch": True,
                 "trap_branch_entered": True,
+                "wrong_branch_entered": True,
                 "correct_branch_selected": False,
                 "correct_branch_round": 0,
+                "wrong_branch_recovered": False,
             },
             physics_ok=False,
         )
         self.assertEqual(str(multistep.get("stage_2_branch") or ""), "recovery_overfit_trap")
         self.assertTrue(bool(multistep.get("trap_branch")))
+        self.assertTrue(bool(multistep.get("wrong_branch_entered")))
         self.assertFalse(bool(multistep.get("correct_branch_selected")))
+        self.assertFalse(bool(multistep.get("wrong_branch_recovered")))
 
     def test_build_live_template_context_exposes_unknown_library_source_meta(self) -> None:
         context = _build_live_template_context(

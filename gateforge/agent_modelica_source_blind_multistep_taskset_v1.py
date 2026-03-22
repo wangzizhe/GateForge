@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -204,6 +205,43 @@ def _prepend_multistep_markers(
         if str(llm_trigger_reason or "").strip():
             prefix_lines.append(f"// gateforge_source_blind_multistep_llm_trigger:{llm_trigger_reason}")
     return "\n".join(prefix_lines) + "\n" + str(source_text or "").lstrip()
+
+
+def _normalize_omc_source_block_compat(*, model_id: str, source_text: str) -> str:
+    text = str(source_text or "")
+    normalized_id = str(model_id or "").strip().lower()
+    if normalized_id in {"switchb", "switch_b"} and "BooleanExpression step1" not in text:
+        text = re.sub(
+            r"^\s*Modelica\.Blocks\.Sources\.(?:BooleanStep|BooleanPulse)\s+step1\([^;\n]*startTime\s*=\s*([0-9]+(?:\.[0-9]+)?)"
+            r"[^;\n]*\);\s*$",
+            r"  parameter Real startTime=\1;\n  Modelica.Blocks.Sources.BooleanExpression step1(y=time >= startTime);",
+            text,
+            flags=re.MULTILINE,
+        )
+    if normalized_id in {"hybridb", "hybrid_b"} and "RealExpression trap1" not in text:
+        amplitude_match = re.search(r"\bamplitude\s*=\s*([0-9]+(?:\.[0-9]+)?)", text)
+        width_match = re.search(r"\bwidth\s*=\s*([0-9]+(?:\.[0-9]+)?)", text)
+        period_match = re.search(r"\bperiod\s*=\s*([0-9]+(?:\.[0-9]+)?)", text)
+        start_match = re.search(r"\bstartTime\s*=\s*([0-9]+(?:\.[0-9]+)?)", text)
+        amplitude = amplitude_match.group(1) if amplitude_match else "1"
+        width = width_match.group(1) if width_match else "0.4"
+        period = period_match.group(1) if period_match else "1.0"
+        start_time = start_match.group(1) if start_match else "0.1"
+        text = re.sub(
+            r"^\s*Modelica\.Blocks\.Sources\.(?:Trapezoid|Pulse)\s+trap1\([^;\n]*\);\s*$",
+            "  Modelica.Blocks.Sources.RealExpression trap1(y=if time < startTime then 0 else if time < startTime + width then amplitude else 0);",
+            text,
+            flags=re.MULTILINE,
+        )
+        if "parameter Real amplitude=" not in text:
+            text = text.replace("model HybridB\n", f"model HybridB\n  parameter Real amplitude={amplitude};\n", 1)
+        if "parameter Real width=" not in text:
+            text = text.replace("model HybridB\n", f"model HybridB\n  parameter Real width={width};\n", 1)
+        if "parameter Real period=" not in text:
+            text = text.replace("model HybridB\n", f"model HybridB\n  parameter Real period={period};\n", 1)
+        if "parameter Real startTime=" not in text:
+            text = text.replace("model HybridB\n", f"model HybridB\n  parameter Real startTime={start_time};\n", 1)
+    return text
 
 
 def _mutate_source_blind_multistep_model(
@@ -503,6 +541,7 @@ def build_source_blind_multistep_taskset(
                         continue
                 copied_source_path = source_models_dir / library_id / f"{model_id}.mo"
                 source_text = _normalize_behavioral_source_model_text(model_path.read_text(encoding="utf-8", errors="ignore"))
+                source_text = _normalize_omc_source_block_compat(model_id=model_id, source_text=source_text)
                 if str(model_path) not in copied_source_paths:
                     _write_text(copied_source_path, source_text)
                     copied_source_paths[str(model_path)] = str(copied_source_path.resolve())

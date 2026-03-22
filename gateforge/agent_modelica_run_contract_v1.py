@@ -395,8 +395,10 @@ def _extract_multistep_fields(payload: dict, live_attempt: dict) -> dict:
         "branch_reason": "",
         "trap_branch": False,
         "trap_branch_entered": False,
+        "wrong_branch_entered": False,
         "correct_branch_selected": False,
         "correct_branch_round": 0,
+        "wrong_branch_recovered": False,
         "stage_aware_control_applied": False,
         "stage_1_revisit_after_unlock": False,
         "plan_stage": "",
@@ -563,10 +565,14 @@ def _extract_multistep_fields(payload: dict, live_attempt: dict) -> dict:
         out["trap_branch"] = bool(_as_bool(payload.get("trap_branch")))
         out["correct_branch_selected"] = bool(_as_bool(payload.get("correct_branch_selected")))
     out["trap_branch_entered"] = bool(_as_bool(live_attempt.get("trap_branch_entered"))) or bool(_as_bool(payload.get("trap_branch_entered"))) or bool(out["trap_branch"])
+    out["wrong_branch_entered"] = bool(_as_bool(live_attempt.get("wrong_branch_entered"))) or bool(_as_bool(payload.get("wrong_branch_entered"))) or bool(out["trap_branch_entered"])
     try:
         out["correct_branch_round"] = max(0, int(live_attempt.get("correct_branch_round") or payload.get("correct_branch_round") or 0))
     except Exception:
         out["correct_branch_round"] = 0
+    out["wrong_branch_recovered"] = bool(_as_bool(live_attempt.get("wrong_branch_recovered"))) or bool(_as_bool(payload.get("wrong_branch_recovered"))) or (
+        bool(out["wrong_branch_entered"]) and bool(out["correct_branch_selected"])
+    )
     stage_aware_payload = _as_bool(payload.get("stage_aware_control_applied"))
     stage_aware_live = _as_bool(live_attempt.get("stage_aware_control_applied"))
     out["stage_aware_control_applied"] = bool(stage_aware_live) or bool(stage_aware_payload)
@@ -2046,8 +2052,10 @@ def _run_task_live_l4(
             "branch_reason": str(multistep_fields.get("branch_reason") or ""),
             "trap_branch": bool(multistep_fields.get("trap_branch")),
             "trap_branch_entered": bool(multistep_fields.get("trap_branch_entered")),
+            "wrong_branch_entered": bool(multistep_fields.get("wrong_branch_entered")),
             "correct_branch_selected": bool(multistep_fields.get("correct_branch_selected")),
             "correct_branch_round": int(multistep_fields.get("correct_branch_round") or 0),
+            "wrong_branch_recovered": bool(multistep_fields.get("wrong_branch_recovered")),
             "stage_aware_control_applied": bool(multistep_fields.get("stage_aware_control_applied")),
             "stage_1_revisit_after_unlock": bool(multistep_fields.get("stage_1_revisit_after_unlock")),
             "plan_stage": str(multistep_fields.get("plan_stage") or ""),
@@ -2281,8 +2289,10 @@ def _run_task_live_l4(
         "branch_reason": str(best_contract_attempt.get("branch_reason") or "") if best_contract_attempt else "",
         "trap_branch": bool(best_contract_attempt.get("trap_branch")) if best_contract_attempt else False,
         "trap_branch_entered": bool(best_contract_attempt.get("trap_branch_entered")) if best_contract_attempt else False,
+        "wrong_branch_entered": bool(best_contract_attempt.get("wrong_branch_entered")) if best_contract_attempt else False,
         "correct_branch_selected": bool(best_contract_attempt.get("correct_branch_selected")) if best_contract_attempt else False,
         "correct_branch_round": int(best_contract_attempt.get("correct_branch_round") or 0) if best_contract_attempt else 0,
+        "wrong_branch_recovered": bool(best_contract_attempt.get("wrong_branch_recovered")) if best_contract_attempt else False,
         "stage_aware_control_applied": bool(best_contract_attempt.get("stage_aware_control_applied")) if best_contract_attempt else False,
         "stage_1_revisit_after_unlock": bool(best_contract_attempt.get("stage_1_revisit_after_unlock")) if best_contract_attempt else False,
         "plan_stage": str(best_contract_attempt.get("plan_stage") or "") if best_contract_attempt else "",
@@ -2812,8 +2822,10 @@ def _run_task_live(
                 "branch_reason": str(multistep_fields.get("branch_reason") or ""),
                 "trap_branch": bool(multistep_fields.get("trap_branch")),
                 "trap_branch_entered": bool(multistep_fields.get("trap_branch_entered")),
+                "wrong_branch_entered": bool(multistep_fields.get("wrong_branch_entered")),
                 "correct_branch_selected": bool(multistep_fields.get("correct_branch_selected")),
                 "correct_branch_round": int(multistep_fields.get("correct_branch_round") or 0),
+                "wrong_branch_recovered": bool(multistep_fields.get("wrong_branch_recovered")),
                 "stage_aware_control_applied": bool(multistep_fields.get("stage_aware_control_applied")),
                 "stage_1_revisit_after_unlock": bool(multistep_fields.get("stage_1_revisit_after_unlock")),
                 "plan_stage": str(multistep_fields.get("plan_stage") or ""),
@@ -3016,8 +3028,10 @@ def _run_task_live(
         "branch_reason": str(best_contract_attempt.get("branch_reason") or "") if best_contract_attempt else "",
         "trap_branch": bool(best_contract_attempt.get("trap_branch")) if best_contract_attempt else False,
         "trap_branch_entered": bool(best_contract_attempt.get("trap_branch_entered")) if best_contract_attempt else False,
+        "wrong_branch_entered": bool(best_contract_attempt.get("wrong_branch_entered")) if best_contract_attempt else False,
         "correct_branch_selected": bool(best_contract_attempt.get("correct_branch_selected")) if best_contract_attempt else False,
         "correct_branch_round": int(best_contract_attempt.get("correct_branch_round") or 0) if best_contract_attempt else 0,
+        "wrong_branch_recovered": bool(best_contract_attempt.get("wrong_branch_recovered")) if best_contract_attempt else False,
         "stage_aware_control_applied": bool(best_contract_attempt.get("stage_aware_control_applied")) if best_contract_attempt else False,
         "stage_1_revisit_after_unlock": bool(best_contract_attempt.get("stage_1_revisit_after_unlock")) if best_contract_attempt else False,
         "plan_stage": str(best_contract_attempt.get("plan_stage") or "") if best_contract_attempt else "",
