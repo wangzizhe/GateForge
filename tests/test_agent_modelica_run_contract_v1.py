@@ -189,7 +189,9 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
                 "llm_plan_followed": True,
                 "llm_plan_branch_match": True,
                 "first_plan_branch_match": False,
+                "first_plan_branch_miss": True,
                 "replan_branch_match": True,
+                "replan_branch_corrected": True,
                 "llm_plan_parameter_match": True,
                 "llm_plan_helped_resolution": False,
                 "llm_plan_was_decisive": False,
@@ -257,8 +259,14 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
                 "guided_search_observation_payload": {"no_progress_buckets": ["branch_escape"]},
                 "guided_search_replan_after_observation": True,
                 "guided_search_closed_loop_observed": True,
+                "guided_search_helped_branch_diagnosis": True,
+                "guided_search_helped_trap_escape": True,
+                "guided_search_helped_resolution": False,
+                "guided_search_helped_replan": True,
+                "guided_search_was_decisive": False,
                 "llm_budget_helped_resolution": False,
                 "llm_guided_search_resolution": False,
+                "resolution_primary_contribution": "",
             },
             physics_ok=False,
         )
@@ -310,7 +318,9 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
         self.assertTrue(bool(multistep.get("replan_switch_branch")))
         self.assertEqual(multistep.get("replan_abandoned_branches"), ["nominal_overfit_trap"])
         self.assertFalse(bool(multistep.get("first_plan_branch_match")))
+        self.assertTrue(bool(multistep.get("first_plan_branch_miss")))
         self.assertTrue(bool(multistep.get("replan_branch_match")))
+        self.assertTrue(bool(multistep.get("replan_branch_corrected")))
         self.assertFalse(bool(multistep.get("llm_second_replan_used")))
         self.assertTrue(bool(multistep.get("llm_guided_search_used")))
         self.assertEqual(int(multistep.get("search_budget_from_llm_plan") or 0), 3)
@@ -322,6 +332,12 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
         self.assertEqual(multistep.get("branch_frozen_by_budget"), ["nominal_overfit_trap"])
         self.assertTrue(bool(multistep.get("guided_search_replan_after_observation")))
         self.assertTrue(bool(multistep.get("guided_search_closed_loop_observed")))
+        self.assertTrue(bool(multistep.get("guided_search_helped_branch_diagnosis")))
+        self.assertTrue(bool(multistep.get("guided_search_helped_trap_escape")))
+        self.assertFalse(bool(multistep.get("guided_search_helped_resolution")))
+        self.assertTrue(bool(multistep.get("guided_search_helped_replan")))
+        self.assertFalse(bool(multistep.get("guided_search_was_decisive")))
+        self.assertEqual(str(multistep.get("resolution_primary_contribution") or ""), "")
         self.assertEqual((multistep.get("source_blind_multistep_local_search") or {}).get("search_kind"), "stage_2_resolution")
 
         live_usage = _extract_live_usage_fields(
@@ -337,7 +353,9 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
             {
                 "realism_version": "v5",
                 "first_plan_branch_match": False,
+                "first_plan_branch_miss": True,
                 "replan_branch_match": True,
+                "replan_branch_corrected": True,
                 "llm_replan_used": True,
                 "llm_replan_reason": "same_stage_2_branch_stall_after_first_plan",
                 "llm_replan_count": 1,
@@ -368,8 +386,14 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
                 "guided_search_observation_payload": {"no_progress_buckets": ["branch_escape"]},
                 "guided_search_replan_after_observation": True,
                 "guided_search_closed_loop_observed": True,
+                "guided_search_helped_branch_diagnosis": True,
+                "guided_search_helped_trap_escape": True,
+                "guided_search_helped_resolution": True,
+                "guided_search_helped_replan": True,
+                "guided_search_was_decisive": False,
                 "llm_budget_helped_resolution": False,
                 "llm_guided_search_resolution": True,
+                "resolution_primary_contribution": "switch_branch_replan",
             },
         )
         self.assertEqual(str(live_usage.get("planner_contract_version") or ""), "agent_modelica_multistep_planner_contract_v1")
@@ -378,7 +402,9 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
         self.assertEqual(str(live_usage.get("planner_request_kind") or ""), "replan")
         self.assertEqual(str(live_usage.get("realism_version") or ""), "v5")
         self.assertFalse(bool(live_usage.get("first_plan_branch_match")))
+        self.assertTrue(bool(live_usage.get("first_plan_branch_miss")))
         self.assertTrue(bool(live_usage.get("replan_branch_match")))
+        self.assertTrue(bool(live_usage.get("replan_branch_corrected")))
         self.assertTrue(bool(live_usage.get("llm_replan_used")))
         self.assertEqual(str(live_usage.get("llm_replan_reason") or ""), "same_stage_2_branch_stall_after_first_plan")
         self.assertEqual(int(live_usage.get("llm_replan_count") or 0), 1)
@@ -397,13 +423,21 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
         self.assertTrue(bool(live_usage.get("search_budget_followed")))
         self.assertEqual(live_usage.get("guided_search_bucket_sequence"), ["branch_diagnosis", "branch_escape", "resolution"])
         self.assertTrue(bool(live_usage.get("guided_search_closed_loop_observed")))
+        self.assertTrue(bool(live_usage.get("guided_search_helped_branch_diagnosis")))
+        self.assertTrue(bool(live_usage.get("guided_search_helped_trap_escape")))
+        self.assertTrue(bool(live_usage.get("guided_search_helped_resolution")))
+        self.assertTrue(bool(live_usage.get("guided_search_helped_replan")))
+        self.assertFalse(bool(live_usage.get("guided_search_was_decisive")))
         self.assertTrue(bool(live_usage.get("llm_guided_search_resolution")))
+        self.assertEqual(str(live_usage.get("resolution_primary_contribution") or ""), "switch_branch_replan")
 
     def test_extract_live_usage_fields_defaults_to_zero_visibility(self) -> None:
         fields = _extract_live_usage_fields({}, {})
         self.assertEqual(fields.get("realism_version"), "")
         self.assertFalse(bool(fields.get("first_plan_branch_match")))
+        self.assertFalse(bool(fields.get("first_plan_branch_miss")))
         self.assertFalse(bool(fields.get("replan_branch_match")))
+        self.assertFalse(bool(fields.get("replan_branch_corrected")))
         self.assertEqual(fields.get("planner_backend"), "")
         self.assertEqual(fields.get("resolved_llm_provider"), "")
         self.assertEqual(fields.get("planner_contract_version"), "")
@@ -412,6 +446,12 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
         self.assertEqual(fields.get("planner_request_kind"), "")
         self.assertEqual(int(fields.get("live_request_count") or 0), 0)
         self.assertFalse(bool(fields.get("llm_guided_search_resolution")))
+        self.assertFalse(bool(fields.get("guided_search_helped_branch_diagnosis")))
+        self.assertFalse(bool(fields.get("guided_search_helped_trap_escape")))
+        self.assertFalse(bool(fields.get("guided_search_helped_resolution")))
+        self.assertFalse(bool(fields.get("guided_search_helped_replan")))
+        self.assertFalse(bool(fields.get("guided_search_was_decisive")))
+        self.assertEqual(str(fields.get("resolution_primary_contribution") or ""), "")
         self.assertEqual(int(fields.get("rate_limit_429_count") or 0), 0)
         self.assertFalse(bool(fields.get("budget_stop_triggered")))
         self.assertFalse(bool(fields.get("llm_plan_used")))

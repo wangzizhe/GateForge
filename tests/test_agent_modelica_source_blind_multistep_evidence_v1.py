@@ -86,8 +86,12 @@ class AgentModelicaSourceBlindMultistepEvidenceV1Tests(unittest.TestCase):
                 "llm_plan_branch_match_pct": 50.0,
                 "first_plan_branch_match_count": 1,
                 "first_plan_branch_match_pct": 50.0,
+                "first_plan_branch_miss_count": 1,
+                "first_plan_branch_miss_pct": 50.0,
                 "replan_branch_match_count": 1,
                 "replan_branch_match_pct": 50.0,
+                "replan_branch_corrected_count": 1,
+                "replan_branch_corrected_pct": 50.0,
                 "llm_plan_helped_resolution_count": 1,
                 "llm_plan_helped_resolution_pct": 50.0,
                 "llm_plan_was_decisive_count": 0,
@@ -113,6 +117,11 @@ class AgentModelicaSourceBlindMultistepEvidenceV1Tests(unittest.TestCase):
                 "guided_search_closed_loop_count": 1,
                 "guided_search_closed_loop_pct": 50.0,
                 "guided_search_replan_after_observation_count": 1,
+                "guided_search_helped_branch_diagnosis_count": 2,
+                "guided_search_helped_trap_escape_count": 1,
+                "guided_search_helped_resolution_count": 2,
+                "guided_search_helped_replan_count": 1,
+                "guided_search_was_decisive_count": 0,
                 "budget_bucket_exhausted_count": 1,
                 "resolution_skipped_due_to_budget_count": 0,
                 "candidate_suppressed_by_budget_count": 1,
@@ -142,6 +151,11 @@ class AgentModelicaSourceBlindMultistepEvidenceV1Tests(unittest.TestCase):
                 "llm_resolution_count": 1,
                 "llm_only_resolution_count": 0,
                 "llm_branch_correction_count": 1,
+                "deterministic_resolution_count": 0,
+                "llm_first_plan_resolution_count": 1,
+                "switch_branch_replan_resolution_count": 1,
+                "guided_search_assisted_resolution_count": 0,
+                "guided_search_decisive_resolution_count": 0,
                 "trap_escape_success_count": 1,
                 "wrong_branch_enter_count": 1,
                 "wrong_branch_recovery_count": 0,
@@ -149,6 +163,8 @@ class AgentModelicaSourceBlindMultistepEvidenceV1Tests(unittest.TestCase):
                 "llm_usage_by_branch": {"behavior_timing_branch": 1},
                 "deterministic_vs_llm_resolution_split": {"adaptive_search": 1, "template_only": 0, "llm_contributed": 1, "llm_only": 0},
                 "deterministic_vs_first_plan_vs_replan_split": {"deterministic": 0, "llm_first_plan": 0, "llm_replan": 1, "llm_second_replan": 1},
+                "resolution_attribution_split": {"deterministic": 0, "llm_first_plan": 1, "llm_replan": 0, "switch_branch_replan": 1, "guided_search_assisted": 0, "guided_search_decisive": 0},
+                "resolution_primary_contribution_counts": {"llm_first_plan": 1, "switch_branch_replan": 1},
                 "median_round_to_correct_branch": 2.0,
                 "hard_case_remaining_buckets": {"post_switch_recovery_miss": 1},
                 "median_round_from_stage_2_to_resolution": 0.0,
@@ -242,7 +258,9 @@ class AgentModelicaSourceBlindMultistepEvidenceV1Tests(unittest.TestCase):
             self.assertEqual(payload.get("llm_plan_task_count"), 2)
             self.assertEqual(payload.get("llm_plan_followed_count"), 2)
             self.assertEqual(payload.get("first_plan_branch_match_count"), 1)
+            self.assertEqual(payload.get("first_plan_branch_miss_count"), 1)
             self.assertEqual(payload.get("replan_branch_match_count"), 1)
+            self.assertEqual(payload.get("replan_branch_corrected_count"), 1)
             self.assertEqual(payload.get("llm_resolution_count"), 1)
             self.assertEqual(payload.get("llm_branch_correction_count"), 1)
             self.assertEqual(payload.get("llm_replan_task_count"), 1)
@@ -258,6 +276,11 @@ class AgentModelicaSourceBlindMultistepEvidenceV1Tests(unittest.TestCase):
             self.assertEqual(payload.get("search_budget_followed_count"), 2)
             self.assertEqual(payload.get("guided_search_closed_loop_count"), 1)
             self.assertEqual(payload.get("guided_search_replan_after_observation_count"), 1)
+            self.assertEqual(payload.get("guided_search_helped_branch_diagnosis_count"), 2)
+            self.assertEqual(payload.get("guided_search_helped_trap_escape_count"), 1)
+            self.assertEqual(payload.get("guided_search_helped_resolution_count"), 2)
+            self.assertEqual(payload.get("guided_search_helped_replan_count"), 1)
+            self.assertEqual(payload.get("guided_search_was_decisive_count"), 0)
             self.assertEqual(payload.get("budget_bucket_exhausted_count"), 1)
             self.assertEqual(payload.get("candidate_suppressed_by_budget_count"), 1)
             self.assertEqual(payload.get("llm_budget_helped_resolution_count"), 2)
@@ -272,6 +295,7 @@ class AgentModelicaSourceBlindMultistepEvidenceV1Tests(unittest.TestCase):
             self.assertEqual(payload.get("repeated_bad_branch_count"), 0)
             self.assertEqual(payload.get("deterministic_vs_llm_resolution_split"), {"adaptive_search": 1, "template_only": 0, "llm_contributed": 1, "llm_only": 0})
             self.assertEqual(payload.get("deterministic_vs_first_plan_vs_replan_split"), {"deterministic": 0, "llm_first_plan": 0, "llm_replan": 1, "llm_second_replan": 1})
+            self.assertEqual(payload.get("resolution_attribution_split"), {"deterministic": 0, "llm_first_plan": 1, "llm_replan": 0, "switch_branch_replan": 1, "guided_search_assisted": 0, "guided_search_decisive": 0})
             self.assertEqual(payload.get("median_round_to_correct_branch"), 2.0)
             self.assertEqual(payload.get("hard_case_remaining_buckets"), {"post_switch_recovery_miss": 1})
 
