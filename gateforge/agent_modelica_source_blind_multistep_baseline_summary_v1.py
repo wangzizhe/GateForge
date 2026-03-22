@@ -267,6 +267,11 @@ def main() -> None:
     llm_guided_search_used_count = 0
     search_budget_from_llm_plan_total = 0
     search_budget_followed_count = 0
+    guided_search_closed_loop_count = 0
+    guided_search_replan_after_observation_count = 0
+    budget_bucket_exhausted_count = 0
+    resolution_skipped_due_to_budget_count = 0
+    candidate_suppressed_by_budget_count = 0
     llm_budget_helped_resolution_count = 0
     llm_guided_search_resolution_count = 0
     llm_replan_budget_consumed_total = 0
@@ -476,6 +481,16 @@ def main() -> None:
             pass
         if bool(record.get("search_budget_followed")):
             search_budget_followed_count += 1
+        if bool(record.get("guided_search_closed_loop_observed")):
+            guided_search_closed_loop_count += 1
+        if bool(record.get("guided_search_replan_after_observation")):
+            guided_search_replan_after_observation_count += 1
+        if record.get("budget_bucket_exhausted"):
+            budget_bucket_exhausted_count += 1
+        if bool(record.get("resolution_skipped_due_to_budget")):
+            resolution_skipped_due_to_budget_count += 1
+        if int(record.get("candidate_suppressed_by_budget") or 0) > 0:
+            candidate_suppressed_by_budget_count += 1
         if bool(record.get("llm_budget_helped_resolution")):
             llm_budget_helped_resolution_count += 1
         if bool(record.get("llm_guided_search_resolution")):
@@ -720,6 +735,13 @@ def main() -> None:
         "search_budget_from_llm_plan_avg": round((search_budget_from_llm_plan_total / llm_guided_search_used_count), 2) if llm_guided_search_used_count > 0 else 0.0,
         "search_budget_followed_count": search_budget_followed_count,
         "search_budget_followed_pct": _ratio(search_budget_followed_count, total_tasks),
+        "guided_search_budget_followed_count": search_budget_followed_count,
+        "guided_search_closed_loop_count": guided_search_closed_loop_count,
+        "guided_search_closed_loop_pct": _ratio(guided_search_closed_loop_count, total_tasks),
+        "guided_search_replan_after_observation_count": guided_search_replan_after_observation_count,
+        "budget_bucket_exhausted_count": budget_bucket_exhausted_count,
+        "resolution_skipped_due_to_budget_count": resolution_skipped_due_to_budget_count,
+        "candidate_suppressed_by_budget_count": candidate_suppressed_by_budget_count,
         "llm_budget_helped_resolution_count": llm_budget_helped_resolution_count,
         "llm_budget_helped_resolution_pct": _ratio(llm_budget_helped_resolution_count, total_tasks),
         "llm_guided_search_resolution_count": llm_guided_search_resolution_count,

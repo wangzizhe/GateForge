@@ -176,6 +176,11 @@ def main() -> None:
     llm_guided_search_used_count = int(baseline_summary.get("llm_guided_search_used_count") or 0)
     search_budget_from_llm_plan_avg = float(baseline_summary.get("search_budget_from_llm_plan_avg") or 0.0)
     search_budget_followed_count = int(baseline_summary.get("search_budget_followed_count") or 0)
+    guided_search_closed_loop_count = int(baseline_summary.get("guided_search_closed_loop_count") or 0)
+    guided_search_replan_after_observation_count = int(baseline_summary.get("guided_search_replan_after_observation_count") or 0)
+    budget_bucket_exhausted_count = int(baseline_summary.get("budget_bucket_exhausted_count") or 0)
+    resolution_skipped_due_to_budget_count = int(baseline_summary.get("resolution_skipped_due_to_budget_count") or 0)
+    candidate_suppressed_by_budget_count = int(baseline_summary.get("candidate_suppressed_by_budget_count") or 0)
     llm_budget_helped_resolution_count = int(baseline_summary.get("llm_budget_helped_resolution_count") or 0)
     llm_guided_search_resolution_count = int(baseline_summary.get("llm_guided_search_resolution_count") or 0)
     llm_replan_budget_consumed_avg = float(baseline_summary.get("llm_replan_budget_consumed_avg") or 0.0)
@@ -311,6 +316,12 @@ def main() -> None:
         "search_budget_from_llm_plan_avg": search_budget_from_llm_plan_avg,
         "search_budget_followed_count": search_budget_followed_count,
         "search_budget_followed_pct": float(baseline_summary.get("search_budget_followed_pct") or 0.0),
+        "guided_search_closed_loop_count": guided_search_closed_loop_count,
+        "guided_search_closed_loop_pct": float(baseline_summary.get("guided_search_closed_loop_pct") or 0.0),
+        "guided_search_replan_after_observation_count": guided_search_replan_after_observation_count,
+        "budget_bucket_exhausted_count": budget_bucket_exhausted_count,
+        "resolution_skipped_due_to_budget_count": resolution_skipped_due_to_budget_count,
+        "candidate_suppressed_by_budget_count": candidate_suppressed_by_budget_count,
         "llm_budget_helped_resolution_count": llm_budget_helped_resolution_count,
         "llm_budget_helped_resolution_pct": float(baseline_summary.get("llm_budget_helped_resolution_pct") or 0.0),
         "llm_guided_search_resolution_count": llm_guided_search_resolution_count,
@@ -402,6 +413,11 @@ def main() -> None:
         "llm_guided_search_used_count": llm_guided_search_used_count,
         "search_budget_from_llm_plan_avg": search_budget_from_llm_plan_avg,
         "search_budget_followed_count": search_budget_followed_count,
+        "guided_search_closed_loop_count": guided_search_closed_loop_count,
+        "guided_search_replan_after_observation_count": guided_search_replan_after_observation_count,
+        "budget_bucket_exhausted_count": budget_bucket_exhausted_count,
+        "resolution_skipped_due_to_budget_count": resolution_skipped_due_to_budget_count,
+        "candidate_suppressed_by_budget_count": candidate_suppressed_by_budget_count,
         "llm_budget_helped_resolution_count": llm_budget_helped_resolution_count,
         "llm_guided_search_resolution_count": llm_guided_search_resolution_count,
         "llm_replan_budget_consumed_avg": llm_replan_budget_consumed_avg,
@@ -519,6 +535,12 @@ def main() -> None:
         "search_budget_from_llm_plan_avg": search_budget_from_llm_plan_avg,
         "search_budget_followed_count": search_budget_followed_count,
         "search_budget_followed_pct": float(baseline_summary.get("search_budget_followed_pct") or 0.0),
+        "guided_search_closed_loop_count": guided_search_closed_loop_count,
+        "guided_search_closed_loop_pct": float(baseline_summary.get("guided_search_closed_loop_pct") or 0.0),
+        "guided_search_replan_after_observation_count": guided_search_replan_after_observation_count,
+        "budget_bucket_exhausted_count": budget_bucket_exhausted_count,
+        "resolution_skipped_due_to_budget_count": resolution_skipped_due_to_budget_count,
+        "candidate_suppressed_by_budget_count": candidate_suppressed_by_budget_count,
         "llm_budget_helped_resolution_count": llm_budget_helped_resolution_count,
         "llm_budget_helped_resolution_pct": float(baseline_summary.get("llm_budget_helped_resolution_pct") or 0.0),
         "llm_guided_search_resolution_count": llm_guided_search_resolution_count,

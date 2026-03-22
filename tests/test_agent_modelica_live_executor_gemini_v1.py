@@ -30,6 +30,8 @@ from gateforge.agent_modelica_live_executor_gemini_v1 import (
     _bootstrap_env_from_repo,
     _build_source_blind_multistep_llm_replan_context,
     _build_source_blind_multistep_replan_budget,
+    _build_guided_search_execution_plan,
+    _build_guided_search_observation_payload,
     _diagnostic_context_hints_from_model,
     _extract_om_success_flags,
     _extract_source_blind_multistep_markers,
@@ -348,6 +350,62 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
         self.assertGreaterEqual(int(budget.get("replan_budget_for_branch_escape") or 0), 1)
         self.assertIn("switch away", str(budget.get("branch_choice_reason") or ""))
 
+    def test_build_guided_search_execution_plan_enforces_resolution_budget(self) -> None:
+        plan = _build_guided_search_execution_plan(
+            llm_plan={
+                "replan_budget_for_branch_diagnosis": 1,
+                "replan_budget_for_branch_escape": 1,
+                "replan_budget_for_resolution": 1,
+                "guided_search_bucket_sequence": ["branch_diagnosis", "branch_escape", "resolution"],
+                "switch_to_branch": "neighbor_robustness_branch",
+                "replan_switch_branch": True,
+            },
+            stage_context={
+                "stage_2_branch": "nominal_overfit_trap",
+                "preferred_stage_2_branch": "neighbor_robustness_branch",
+                "trap_branch": True,
+            },
+            requested_parameters=["offset", "k", "startTime"],
+            ordered_targets=["offset", "k", "startTime"],
+            previous_branch="nominal_overfit_trap",
+        )
+        self.assertEqual(plan.get("execution_parameters"), ["offset"])
+        self.assertEqual(int(plan.get("candidate_suppressed_by_budget") or 0), 2)
+        self.assertEqual(plan.get("budget_bucket_exhausted"), ["branch_diagnosis", "branch_escape", "resolution"])
+        self.assertEqual((plan.get("budget_bucket_consumed") or {}).get("resolution"), 1)
+
+    def test_build_guided_search_observation_payload_marks_no_progress_buckets(self) -> None:
+        observation = _build_guided_search_observation_payload(
+            memory={
+                "last_guided_search_bucket_sequence": ["branch_diagnosis", "branch_escape", "resolution"],
+                "last_budget_spent_by_bucket": {"branch_diagnosis": 1, "branch_escape": 1, "resolution": 1},
+                "last_candidate_attempt_count_by_bucket": {"branch_diagnosis": 1, "branch_escape": 1, "resolution": 1},
+                "last_llm_plan_pass_count": 1,
+                "replan_abandoned_branches": ["nominal_overfit_trap"],
+                "replan_same_branch_stall_count": 1,
+                "last_candidate_suppressed_by_budget": 2,
+                "last_resolution_skipped_due_to_budget": False,
+                "last_branch_escape_skipped_due_to_budget": False,
+                "last_branch_frozen_by_budget": ["nominal_overfit_trap"],
+            },
+            stage_context={
+                "current_stage": "stage_2",
+                "stage_2_branch": "nominal_overfit_trap",
+                "preferred_stage_2_branch": "neighbor_robustness_branch",
+                "branch_mode": "trap",
+            },
+            contract_fail_bucket="single_case_only",
+            scenario_results=[
+                {"scenario_id": "nominal", "pass": True},
+                {"scenario_id": "neighbor_a", "pass": False},
+                {"scenario_id": "neighbor_b", "pass": False},
+            ],
+        )
+        self.assertEqual((observation.get("best_progress_by_bucket") or {}).get("resolution"), 0)
+        self.assertIn("branch_escape", observation.get("no_progress_buckets") or [])
+        self.assertEqual(observation.get("abandoned_branches"), ["nominal_overfit_trap"])
+        self.assertEqual(observation.get("branch_frozen_by_budget"), ["nominal_overfit_trap"])
+
     def test_select_initial_llm_plan_parameters_prefers_first_available_parameter(self) -> None:
         selected = _select_initial_llm_plan_parameters(
             llm_plan={"candidate_parameters": ["offset", "k", "startTime"]},
@@ -575,7 +633,7 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
                     )
                     self.assertEqual(mocked.call_count, 1)
                     cmd = mocked.call_args.args[0]
-                    self.assertIn(f"{str(cache_dir)}:/root/.openmodelica/libraries", cmd)
+                    self.assertIn(f"{str(cache_dir.resolve())}:/root/.openmodelica/libraries", cmd)
             finally:
                 if prev is None:
                     os.environ.pop("GATEFORGE_OM_DOCKER_LIBRARY_CACHE", None)

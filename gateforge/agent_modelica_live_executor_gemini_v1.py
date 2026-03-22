@@ -1807,6 +1807,32 @@ def _normalize_source_blind_multistep_llm_plan(
         replan_budget_for_resolution = max(0, int(raw.get("replan_budget_for_resolution") or 0))
     except Exception:
         replan_budget_for_resolution = 0
+    bucket_aliases = {
+        "branch_diagnosis": "branch_diagnosis",
+        "diagnosis": "branch_diagnosis",
+        "branch-diagnosis": "branch_diagnosis",
+        "branch_escape": "branch_escape",
+        "escape": "branch_escape",
+        "trap_escape": "branch_escape",
+        "branch-escape": "branch_escape",
+        "resolution": "resolution",
+        "resolve": "resolution",
+    }
+    raw_bucket_sequence = raw.get("guided_search_bucket_sequence")
+    bucket_sequence: list[str] = []
+    if isinstance(raw_bucket_sequence, list):
+        for item in raw_bucket_sequence:
+            normalized = bucket_aliases.get(str(item or "").strip().lower(), "")
+            if not normalized or normalized in bucket_sequence:
+                continue
+            bucket_sequence.append(normalized)
+    if not bucket_sequence:
+        if replan_budget_for_branch_diagnosis > 0:
+            bucket_sequence.append("branch_diagnosis")
+        if replan_budget_for_branch_escape > 0:
+            bucket_sequence.append("branch_escape")
+        if replan_budget_for_resolution > 0:
+            bucket_sequence.append("resolution")
     return {
         "diagnosed_stage": str(raw.get("diagnosed_stage") or stage_context.get("current_stage") or "").strip().lower(),
         "diagnosed_branch": str(raw.get("diagnosed_branch") or stage_context.get("stage_2_branch") or "").strip().lower(),
@@ -1833,6 +1859,123 @@ def _normalize_source_blind_multistep_llm_plan(
         "replan_budget_for_branch_diagnosis": replan_budget_for_branch_diagnosis,
         "replan_budget_for_branch_escape": replan_budget_for_branch_escape,
         "replan_budget_for_resolution": replan_budget_for_resolution,
+        "guided_search_bucket_sequence": bucket_sequence,
+    }
+
+
+def _build_guided_search_execution_plan(
+    *,
+    llm_plan: dict,
+    stage_context: dict,
+    requested_parameters: list[str],
+    ordered_targets: list[str],
+    previous_branch: str,
+) -> dict:
+    diagnosis_budget = max(0, int(llm_plan.get("replan_budget_for_branch_diagnosis") or 0))
+    branch_escape_budget = max(0, int(llm_plan.get("replan_budget_for_branch_escape") or 0))
+    resolution_budget = max(0, int(llm_plan.get("replan_budget_for_resolution") or 0))
+    bucket_sequence = [
+        str(x).strip().lower()
+        for x in (llm_plan.get("guided_search_bucket_sequence") or [])
+        if str(x).strip()
+    ]
+    candidate_pool = requested_parameters if requested_parameters else list(ordered_targets)
+    execution_parameters = list(candidate_pool[:resolution_budget]) if resolution_budget > 0 else []
+    candidate_suppressed = max(0, len(candidate_pool) - len(execution_parameters))
+    current_branch = str(stage_context.get("stage_2_branch") or "").strip().lower()
+    preferred_branch = str(stage_context.get("preferred_stage_2_branch") or "").strip().lower()
+    trap_branch = bool(stage_context.get("trap_branch"))
+    needs_branch_escape = bool(
+        trap_branch
+        or (current_branch and preferred_branch and current_branch != preferred_branch)
+        or bool(llm_plan.get("switch_to_branch"))
+    )
+    branch_escape_skipped = bool(needs_branch_escape and branch_escape_budget <= 0)
+    resolution_skipped = bool(candidate_pool and resolution_budget <= 0)
+    branch_frozen: list[str] = []
+    if branch_escape_skipped and current_branch:
+        branch_frozen.append(current_branch)
+    if bool(llm_plan.get("replan_switch_branch")) and previous_branch and previous_branch not in branch_frozen:
+        branch_frozen.append(previous_branch)
+    budget_bucket_consumed = {
+        "branch_diagnosis": diagnosis_budget if diagnosis_budget > 0 and "branch_diagnosis" in bucket_sequence else 0,
+        "branch_escape": branch_escape_budget if branch_escape_budget > 0 and "branch_escape" in bucket_sequence and not branch_escape_skipped else 0,
+        "resolution": len(execution_parameters),
+    }
+    budget_bucket_exhausted = [
+        bucket
+        for bucket, budget in (
+            ("branch_diagnosis", diagnosis_budget),
+            ("branch_escape", branch_escape_budget),
+            ("resolution", resolution_budget),
+        )
+        if budget > 0 and int(budget_bucket_consumed.get(bucket) or 0) >= budget
+    ]
+    candidate_attempt_count_by_bucket = {
+        "branch_diagnosis": 1 if diagnosis_budget > 0 and "branch_diagnosis" in bucket_sequence else 0,
+        "branch_escape": 1 if branch_escape_budget > 0 and "branch_escape" in bucket_sequence and not branch_escape_skipped else 0,
+        "resolution": len(execution_parameters),
+    }
+    return {
+        "guided_search_bucket_sequence": bucket_sequence,
+        "guided_search_order": " -> ".join(bucket_sequence),
+        "execution_parameters": execution_parameters,
+        "candidate_pool_size": len(candidate_pool),
+        "candidate_suppressed_by_budget": candidate_suppressed,
+        "budget_bucket_consumed": budget_bucket_consumed,
+        "budget_bucket_exhausted": budget_bucket_exhausted,
+        "candidate_attempt_count_by_bucket": candidate_attempt_count_by_bucket,
+        "resolution_skipped_due_to_budget": resolution_skipped,
+        "branch_escape_skipped_due_to_budget": branch_escape_skipped,
+        "branch_frozen_by_budget": branch_frozen,
+    }
+
+
+def _build_guided_search_observation_payload(
+    *,
+    memory: dict,
+    stage_context: dict,
+    contract_fail_bucket: str,
+    scenario_results: list[dict] | None,
+) -> dict:
+    budget_spent = dict(memory.get("last_budget_spent_by_bucket") or {})
+    candidate_attempt_count = dict(memory.get("last_candidate_attempt_count_by_bucket") or {})
+    bucket_sequence = [
+        str(x).strip().lower()
+        for x in (memory.get("last_guided_search_bucket_sequence") or [])
+        if str(x).strip()
+    ]
+    current_pass_count = _count_passed_scenarios(scenario_results)
+    previous_pass_count = int(memory.get("last_llm_plan_pass_count") or 0)
+    progress_delta = max(0, current_pass_count - previous_pass_count)
+    current_branch = str(stage_context.get("stage_2_branch") or "").strip().lower()
+    preferred_branch = str(stage_context.get("preferred_stage_2_branch") or "").strip().lower()
+    branch_progress = int(bool(current_branch and preferred_branch and current_branch == preferred_branch))
+    diagnosis_progress = int(str(stage_context.get("branch_mode") or "").strip().lower() != "unknown")
+    best_progress_by_bucket = {
+        "branch_diagnosis": diagnosis_progress,
+        "branch_escape": branch_progress,
+        "resolution": progress_delta,
+    }
+    no_progress_buckets = [
+        bucket
+        for bucket, spent in budget_spent.items()
+        if int(spent or 0) > 0 and int(best_progress_by_bucket.get(bucket) or 0) <= 0
+    ]
+    return {
+        "guided_search_bucket_sequence": bucket_sequence,
+        "budget_spent_by_bucket": budget_spent,
+        "candidate_attempt_count_by_bucket": candidate_attempt_count,
+        "best_progress_by_bucket": best_progress_by_bucket,
+        "no_progress_buckets": no_progress_buckets,
+        "branch_regression_seen": bool(str(stage_context.get("current_stage") or "").strip().lower() == "stage_1"),
+        "same_branch_stall_count": int(memory.get("replan_same_branch_stall_count") or 0),
+        "abandoned_branches": [str(x) for x in (memory.get("replan_abandoned_branches") or []) if str(x).strip()],
+        "current_fail_bucket": str(contract_fail_bucket or stage_context.get("current_fail_bucket") or "").strip().lower(),
+        "candidate_suppressed_by_budget": int(memory.get("last_candidate_suppressed_by_budget") or 0),
+        "resolution_skipped_due_to_budget": bool(memory.get("last_resolution_skipped_due_to_budget")),
+        "branch_escape_skipped_due_to_budget": bool(memory.get("last_branch_escape_skipped_due_to_budget")),
+        "branch_frozen_by_budget": [str(x) for x in (memory.get("last_branch_frozen_by_budget") or []) if str(x).strip()],
     }
 
 
@@ -3027,11 +3170,12 @@ def _build_source_blind_multistep_planner_prompt(
         previous_plan_failed_signal=str((replan_context or {}).get("previous_plan_failed_signal") or ""),
         realism_version=str((replan_context or {}).get("realism_version") or _extract_source_blind_multistep_markers(original_text).get("realism_version") or ""),
         replan_count=int((replan_context or {}).get("replan_count_before") or 0),
+        guided_search_observation_available=bool((replan_context or {}).get("guided_search_observation")),
     )
     prompt = (
         "You are planning a Modelica repair.\n"
         "Return ONLY a JSON object with keys:\n"
-        "diagnosed_stage, diagnosed_branch, preferred_branch, repair_goal, candidate_parameters, candidate_value_directions, why_not_other_branch, stop_condition, rationale, new_branch, branch_choice_reason, continue_current_branch, switch_to_branch, replan_budget_total, replan_budget_for_branch_diagnosis, replan_budget_for_branch_escape, replan_budget_for_resolution.\n"
+        "diagnosed_stage, diagnosed_branch, preferred_branch, repair_goal, candidate_parameters, candidate_value_directions, why_not_other_branch, stop_condition, rationale, new_branch, branch_choice_reason, continue_current_branch, switch_to_branch, replan_budget_total, replan_budget_for_branch_diagnosis, replan_budget_for_branch_escape, replan_budget_for_resolution, guided_search_bucket_sequence.\n"
         "Constraints:\n"
         "- Do not output markdown.\n"
         "- candidate_parameters must be a short list of existing numeric parameter names already present in the model text.\n"
@@ -3044,6 +3188,7 @@ def _build_source_blind_multistep_planner_prompt(
         f"- previous_candidate_parameters: {json.dumps((replan_context or {}).get('previous_candidate_parameters') or [], ensure_ascii=True)}\n"
         f"- previous_candidate_value_directions: {json.dumps((replan_context or {}).get('previous_candidate_value_directions') or [], ensure_ascii=True)}\n"
         f"- branch_choice_reason_hint: {str((replan_context or {}).get('branch_choice_reason') or '')}\n"
+        f"- guided_search_observation: {json.dumps((replan_context or {}).get('guided_search_observation') or {}, ensure_ascii=True)}\n"
         f"- replan_budget_total_hint: {int((replan_context or {}).get('replan_budget_total') or 0)}\n"
         f"- replan_budget_for_branch_diagnosis_hint: {int((replan_context or {}).get('replan_budget_for_branch_diagnosis') or 0)}\n"
         f"- replan_budget_for_branch_escape_hint: {int((replan_context or {}).get('replan_budget_for_branch_escape') or 0)}\n"
@@ -3929,6 +4074,24 @@ def main() -> None:
         "search_budget_followed": False,
         "llm_budget_helped_resolution": False,
         "llm_guided_search_resolution": False,
+        "guided_search_bucket_sequence": [],
+        "guided_search_order": "",
+        "budget_bucket_consumed": {},
+        "budget_bucket_exhausted": [],
+        "candidate_suppressed_by_budget": 0,
+        "branch_frozen_by_budget": [],
+        "resolution_skipped_due_to_budget": False,
+        "branch_escape_skipped_due_to_budget": False,
+        "guided_search_observation_payload": {},
+        "guided_search_replan_after_observation": False,
+        "guided_search_closed_loop_observed": False,
+        "last_guided_search_bucket_sequence": [],
+        "last_budget_spent_by_bucket": {},
+        "last_candidate_attempt_count_by_bucket": {},
+        "last_candidate_suppressed_by_budget": 0,
+        "last_resolution_skipped_due_to_budget": False,
+        "last_branch_escape_skipped_due_to_budget": False,
+        "last_branch_frozen_by_budget": [],
     }
     final_check_ok = False
     final_simulate_ok = False
@@ -4682,6 +4845,18 @@ def main() -> None:
                     multistep_memory["abandoned_plan_directions"] = [
                         str(x) for x in (multistep_memory.get("last_llm_plan_candidate_value_directions") or []) if str(x).strip()
                     ]
+                guided_search_observation = _build_guided_search_observation_payload(
+                    memory=multistep_memory,
+                    stage_context=stage_context,
+                    contract_fail_bucket=str(stage_context.get("current_fail_bucket") or ""),
+                    scenario_results=pre_stage_scenario_results,
+                )
+                if guided_search_observation:
+                    attempts[-1]["guided_search_observation_payload"] = dict(guided_search_observation)
+                    multistep_memory["guided_search_observation_payload"] = dict(guided_search_observation)
+                    if llm_request_kind == "replan":
+                        attempts[-1]["guided_search_replan_after_observation"] = True
+                        multistep_memory["guided_search_replan_after_observation"] = True
                 llm_request_count_before = int(_load_live_ledger(budget_cfg).get("request_count") or 0)
                 llm_plan_payload, llm_err, resolved_provider = _llm_generate_repair_plan(
                     planner_backend=str(args.planner_backend),
@@ -4701,6 +4876,7 @@ def main() -> None:
                         "previous_candidate_parameters": list(multistep_memory.get("last_llm_plan_candidate_parameters") or []),
                         "previous_candidate_value_directions": list(multistep_memory.get("last_llm_plan_candidate_value_directions") or []),
                         "branch_choice_reason": str(replan_budget_context.get("branch_choice_reason") or ""),
+                        "guided_search_observation": guided_search_observation,
                         "replan_budget_total": int(replan_budget_context.get("replan_budget_total") or 0),
                         "replan_budget_for_branch_diagnosis": int(replan_budget_context.get("replan_budget_for_branch_diagnosis") or 0),
                         "replan_budget_for_branch_escape": int(replan_budget_context.get("replan_budget_for_branch_escape") or 0),
@@ -4768,6 +4944,10 @@ def main() -> None:
                 ]
                 attempts[-1]["llm_plan_why_not_other_branch"] = str(llm_plan.get("why_not_other_branch") or "")
                 attempts[-1]["llm_plan_stop_condition"] = str(llm_plan.get("stop_condition") or "")
+                attempts[-1]["guided_search_bucket_sequence"] = [
+                    str(x) for x in (llm_plan.get("guided_search_bucket_sequence") or []) if str(x).strip()
+                ]
+                attempts[-1]["guided_search_order"] = " -> ".join(attempts[-1]["guided_search_bucket_sequence"])
                 attempts[-1]["llm_plan_branch_match"] = bool(llm_plan) and _llm_plan_branch_match(
                     llm_plan=llm_plan,
                     stage_context=stage_context,
@@ -4847,6 +5027,10 @@ def main() -> None:
                     ]
                     multistep_memory["llm_plan_why_not_other_branch"] = str(llm_plan.get("why_not_other_branch") or "")
                     multistep_memory["llm_plan_stop_condition"] = str(llm_plan.get("stop_condition") or "")
+                    multistep_memory["guided_search_bucket_sequence"] = [
+                        str(x) for x in (llm_plan.get("guided_search_bucket_sequence") or []) if str(x).strip()
+                    ]
+                    multistep_memory["guided_search_order"] = " -> ".join(multistep_memory["guided_search_bucket_sequence"])
                     multistep_memory["llm_plan_branch_match"] = bool(attempts[-1]["llm_plan_branch_match"])
                     if llm_request_kind == "plan":
                         multistep_memory["first_plan_branch_match"] = bool(attempts[-1]["first_plan_branch_match"])
@@ -4885,6 +5069,7 @@ def main() -> None:
                 patched = None
                 if bool(llm_context.get("llm_forcing")) and llm_request_delta > 0 and bool(llm_plan):
                     execution_parameter_override = None
+                    execution_plan = {}
                     if llm_request_kind == "plan":
                         execution_parameter_override = _select_initial_llm_plan_parameters(
                             llm_plan=llm_plan,
@@ -4905,29 +5090,82 @@ def main() -> None:
                         )
                         if requested:
                             requested = [name for name in ordered_targets if name in set(requested)]
-                        realism_version = str(llm_replan_context.get("realism_version") or llm_context.get("realism_version") or "").strip().lower()
-                        if realism_version == "v4":
-                            if bool(attempts[-1].get("replan_switch_branch")):
-                                execution_parameter_override = list(ordered_targets)
-                            else:
-                                preferred_set = requested if requested else ordered_targets
-                                execution_parameter_override = preferred_set[: max(limit, len(preferred_set))]
-                        else:
-                            if bool(attempts[-1].get("replan_switch_branch")):
-                                preferred_set = requested if requested else ordered_targets
-                                execution_parameter_override = preferred_set[: max(2, limit)]
-                            elif preferred_branch and preferred_branch == str(stage_context.get("preferred_stage_2_branch") or "").strip().lower():
-                                preferred_set = requested if requested else ordered_targets
-                                execution_parameter_override = preferred_set[: max(2, limit)]
-                            else:
-                                execution_parameter_override = requested[:limit] if requested else ordered_targets[:limit]
-                    budget_from_plan = max(1, len(execution_parameter_override or [])) if execution_parameter_override else 0
+                        execution_plan = _build_guided_search_execution_plan(
+                            llm_plan={
+                                **llm_plan,
+                                "replan_budget_for_resolution": limit,
+                            },
+                            stage_context=stage_context,
+                            requested_parameters=requested,
+                            ordered_targets=ordered_targets,
+                            previous_branch=str(attempts[-1].get("previous_branch") or ""),
+                        )
+                        execution_parameter_override = list(execution_plan.get("execution_parameters") or [])
+                    if llm_request_kind == "plan":
+                        execution_plan = {
+                            "guided_search_bucket_sequence": ["resolution"] if execution_parameter_override else [],
+                            "guided_search_order": "resolution" if execution_parameter_override else "",
+                            "execution_parameters": list(execution_parameter_override or []),
+                            "candidate_pool_size": len(execution_parameter_override or []),
+                            "candidate_suppressed_by_budget": 0,
+                            "budget_bucket_consumed": {"branch_diagnosis": 0, "branch_escape": 0, "resolution": len(execution_parameter_override or [])},
+                            "budget_bucket_exhausted": ["resolution"] if execution_parameter_override else [],
+                            "candidate_attempt_count_by_bucket": {"branch_diagnosis": 0, "branch_escape": 0, "resolution": len(execution_parameter_override or [])},
+                            "resolution_skipped_due_to_budget": False,
+                            "branch_escape_skipped_due_to_budget": False,
+                            "branch_frozen_by_budget": [],
+                        }
+                    budget_from_plan = int(
+                        attempts[-1].get("replan_budget_total")
+                        or (
+                            len(execution_parameter_override or [])
+                            + int(((execution_plan.get("budget_bucket_consumed") or {}).get("branch_diagnosis") or 0))
+                            + int(((execution_plan.get("budget_bucket_consumed") or {}).get("branch_escape") or 0))
+                        )
+                    )
                     attempts[-1]["llm_guided_search_used"] = True
                     attempts[-1]["search_budget_from_llm_plan"] = int(budget_from_plan)
-                    attempts[-1]["search_budget_followed"] = bool(execution_parameter_override) and len(execution_parameter_override or []) <= max(1, budget_from_plan)
+                    attempts[-1]["search_budget_followed"] = (
+                        int(sum(int(v or 0) for v in (execution_plan.get("budget_bucket_consumed") or {}).values())) <= max(0, budget_from_plan)
+                    )
+                    attempts[-1]["guided_search_bucket_sequence"] = [str(x) for x in (execution_plan.get("guided_search_bucket_sequence") or []) if str(x).strip()]
+                    attempts[-1]["guided_search_order"] = str(execution_plan.get("guided_search_order") or "")
+                    attempts[-1]["budget_bucket_consumed"] = dict(execution_plan.get("budget_bucket_consumed") or {})
+                    attempts[-1]["budget_bucket_exhausted"] = [str(x) for x in (execution_plan.get("budget_bucket_exhausted") or []) if str(x).strip()]
+                    attempts[-1]["candidate_suppressed_by_budget"] = int(execution_plan.get("candidate_suppressed_by_budget") or 0)
+                    attempts[-1]["candidate_attempt_count_by_bucket"] = dict(execution_plan.get("candidate_attempt_count_by_bucket") or {})
+                    attempts[-1]["resolution_skipped_due_to_budget"] = bool(execution_plan.get("resolution_skipped_due_to_budget"))
+                    attempts[-1]["branch_escape_skipped_due_to_budget"] = bool(execution_plan.get("branch_escape_skipped_due_to_budget"))
+                    attempts[-1]["branch_frozen_by_budget"] = [str(x) for x in (execution_plan.get("branch_frozen_by_budget") or []) if str(x).strip()]
                     multistep_memory["llm_guided_search_used"] = True
                     multistep_memory["search_budget_from_llm_plan"] = int(budget_from_plan)
                     multistep_memory["search_budget_followed"] = bool(attempts[-1]["search_budget_followed"])
+                    multistep_memory["guided_search_bucket_sequence"] = list(attempts[-1]["guided_search_bucket_sequence"])
+                    multistep_memory["guided_search_order"] = str(attempts[-1]["guided_search_order"] or "")
+                    multistep_memory["budget_bucket_consumed"] = dict(attempts[-1]["budget_bucket_consumed"] or {})
+                    multistep_memory["budget_bucket_exhausted"] = list(attempts[-1]["budget_bucket_exhausted"] or [])
+                    multistep_memory["candidate_suppressed_by_budget"] = int(attempts[-1]["candidate_suppressed_by_budget"] or 0)
+                    multistep_memory["resolution_skipped_due_to_budget"] = bool(attempts[-1]["resolution_skipped_due_to_budget"])
+                    multistep_memory["branch_escape_skipped_due_to_budget"] = bool(attempts[-1]["branch_escape_skipped_due_to_budget"])
+                    multistep_memory["branch_frozen_by_budget"] = list(attempts[-1]["branch_frozen_by_budget"] or [])
+                    multistep_memory["last_guided_search_bucket_sequence"] = list(attempts[-1]["guided_search_bucket_sequence"] or [])
+                    multistep_memory["last_budget_spent_by_bucket"] = dict(attempts[-1]["budget_bucket_consumed"] or {})
+                    multistep_memory["last_candidate_attempt_count_by_bucket"] = dict(attempts[-1]["candidate_attempt_count_by_bucket"] or {})
+                    multistep_memory["last_candidate_suppressed_by_budget"] = int(attempts[-1]["candidate_suppressed_by_budget"] or 0)
+                    multistep_memory["last_resolution_skipped_due_to_budget"] = bool(attempts[-1]["resolution_skipped_due_to_budget"])
+                    multistep_memory["last_branch_escape_skipped_due_to_budget"] = bool(attempts[-1]["branch_escape_skipped_due_to_budget"])
+                    multistep_memory["last_branch_frozen_by_budget"] = list(attempts[-1]["branch_frozen_by_budget"] or [])
+                    if llm_request_kind == "replan" and guided_search_observation:
+                        attempts[-1]["guided_search_closed_loop_observed"] = True
+                        multistep_memory["guided_search_closed_loop_observed"] = True
+                    if bool(attempts[-1]["resolution_skipped_due_to_budget"]):
+                        attempts[-1]["source_blind_multistep_llm_resolution"] = {
+                            "applied": False,
+                            "reason": "resolution_skipped_due_to_budget",
+                            "llm_plan_execution_parameters": [],
+                        }
+                        final_error = "llm_guided_resolution_skipped_due_to_budget"
+                        continue
                     llm_resolution_text, llm_resolution_audit = _apply_source_blind_multistep_llm_plan(
                         current_text=current_text,
                         declared_failure_type=str(args.failure_type),
@@ -5020,7 +5258,12 @@ def main() -> None:
                             attempts[-1]["llm_plan_helped_resolution"] = bool(attempts[-1].get("llm_plan_followed"))
                             multistep_memory["llm_plan_helped_resolution"] = bool(attempts[-1].get("llm_plan_followed"))
                             if llm_request_kind == "replan":
-                                attempts[-1]["replan_budget_consumed"] = int(attempts[-1].get("replan_budget_for_branch_diagnosis") or 0) + int(attempts[-1].get("replan_budget_for_branch_escape") or 0) + max(1, len(llm_resolution_audit.get("llm_plan_execution_parameters") or []))
+                                attempts[-1]["replan_budget_consumed"] = int(
+                                    sum(
+                                        int(v or 0)
+                                        for v in ((attempts[-1].get("budget_bucket_consumed") or {}) if isinstance(attempts[-1].get("budget_bucket_consumed"), dict) else {}).values()
+                                    )
+                                )
                                 attempts[-1]["replan_successful_directions"] = [str(x) for x in (llm_plan.get("candidate_value_directions") or []) if str(x).strip()]
                                 attempts[-1]["replan_helped_resolution"] = True
                                 attempts[-1]["llm_replan_resolved"] = True
@@ -5045,7 +5288,12 @@ def main() -> None:
                     attempts[-1]["llm_plan_failure_mode"] = str(final_error or "")
                     multistep_memory["llm_plan_failure_mode"] = str(final_error or "")
                     if llm_request_kind == "replan":
-                        attempts[-1]["replan_budget_consumed"] = int(attempts[-1].get("replan_budget_for_branch_diagnosis") or 0)
+                        attempts[-1]["replan_budget_consumed"] = int(
+                            sum(
+                                int(v or 0)
+                                for v in ((attempts[-1].get("budget_bucket_consumed") or {}) if isinstance(attempts[-1].get("budget_bucket_consumed"), dict) else {}).values()
+                            )
+                        )
                         attempts[-1]["replan_failed_directions"] = [str(x) for x in (llm_plan.get("candidate_value_directions") or []) if str(x).strip()]
                         multistep_memory["replan_budget_consumed"] = int(attempts[-1].get("replan_budget_consumed") or 0)
                         multistep_memory["replan_failed_directions"] = [str(x) for x in (llm_plan.get("candidate_value_directions") or []) if str(x).strip()]
@@ -5175,6 +5423,7 @@ def main() -> None:
     llm_guided_search_used = bool(multistep_memory.get("llm_guided_search_used"))
     search_budget_from_llm_plan = int(multistep_memory.get("search_budget_from_llm_plan") or 0)
     search_budget_followed = bool(multistep_memory.get("search_budget_followed"))
+    guided_search_closed_loop_observed = bool(multistep_memory.get("guided_search_closed_loop_observed"))
     llm_budget_helped_resolution = bool(multistep_memory.get("llm_budget_helped_resolution")) and bool(physics_contract_pass)
     inferred_guided_search_resolution = bool(
         physics_contract_pass
@@ -5365,6 +5614,18 @@ def main() -> None:
         "llm_guided_search_used": llm_guided_search_used,
         "search_budget_from_llm_plan": search_budget_from_llm_plan,
         "search_budget_followed": search_budget_followed,
+        "guided_search_bucket_sequence": [str(x) for x in (multistep_memory.get("guided_search_bucket_sequence") or []) if str(x).strip()],
+        "guided_search_order": str(multistep_memory.get("guided_search_order") or ""),
+        "budget_bucket_consumed": dict(multistep_memory.get("budget_bucket_consumed") or {}),
+        "budget_bucket_exhausted": [str(x) for x in (multistep_memory.get("budget_bucket_exhausted") or []) if str(x).strip()],
+        "candidate_suppressed_by_budget": int(multistep_memory.get("candidate_suppressed_by_budget") or 0),
+        "candidate_attempt_count_by_bucket": dict(multistep_memory.get("last_candidate_attempt_count_by_bucket") or {}),
+        "resolution_skipped_due_to_budget": bool(multistep_memory.get("resolution_skipped_due_to_budget")),
+        "branch_escape_skipped_due_to_budget": bool(multistep_memory.get("branch_escape_skipped_due_to_budget")),
+        "branch_frozen_by_budget": [str(x) for x in (multistep_memory.get("branch_frozen_by_budget") or []) if str(x).strip()],
+        "guided_search_observation_payload": dict(multistep_memory.get("guided_search_observation_payload") or {}),
+        "guided_search_replan_after_observation": bool(multistep_memory.get("guided_search_replan_after_observation")),
+        "guided_search_closed_loop_observed": guided_search_closed_loop_observed,
         "llm_budget_helped_resolution": llm_budget_helped_resolution,
         "llm_guided_search_resolution": llm_guided_search_resolution,
         "llm_request_count_delta": llm_request_count_delta_total,
