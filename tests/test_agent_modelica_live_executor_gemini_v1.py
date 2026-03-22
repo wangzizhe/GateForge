@@ -270,6 +270,28 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
         self.assertIn("duration=0.5", patched)
         self.assertNotIn("startTime=0.2", patched)
 
+    def test_source_blind_multistep_llm_plan_falls_back_from_satisfied_subset(self) -> None:
+        model_text = (
+            "model SwitchB\n"
+            "  parameter Real startTime=0.3;\n"
+            "  parameter Real freqHz=1.6;\n"
+            "  parameter Real k=0.82;\n"
+            "end SwitchB;\n"
+        )
+        patched, audit = _apply_source_blind_multistep_llm_plan(
+            current_text=model_text,
+            declared_failure_type="behavior_then_robustness",
+            llm_plan={
+                "candidate_parameters": ["startTime"],
+                "candidate_value_directions": ["startTime:keep"],
+            },
+            llm_reason="same_stage_2_branch_stall_after_replan",
+            parameter_names_override=["startTime"],
+        )
+        self.assertTrue(audit.get("applied"))
+        self.assertIn("freqHz=1", patched)
+        self.assertIn("k=0.5", patched)
+
     def test_build_source_blind_multistep_llm_replan_context_detects_same_branch_stall(self) -> None:
         context = _build_source_blind_multistep_llm_replan_context(
             current_text=(

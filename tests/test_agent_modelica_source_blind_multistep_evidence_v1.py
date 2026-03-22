@@ -112,6 +112,7 @@ class AgentModelicaSourceBlindMultistepEvidenceV1Tests(unittest.TestCase):
                 "search_budget_followed_pct": 100.0,
                 "llm_budget_helped_resolution_count": 2,
                 "llm_budget_helped_resolution_pct": 100.0,
+                "llm_guided_search_resolution_count": 2,
                 "llm_replan_budget_consumed_avg": 3.0,
                 "llm_replan_switch_branch_count": 1,
                 "llm_replan_same_branch_success_count": 0,
@@ -121,6 +122,10 @@ class AgentModelicaSourceBlindMultistepEvidenceV1Tests(unittest.TestCase):
                 "budget_wasted_on_bad_branch_count": 1,
                 "llm_request_count_total": 2,
                 "llm_task_count": 2,
+                "planner_backend_counts": {"gemini": 2},
+                "resolved_llm_provider_counts": {"gemini": 2},
+                "planner_family_counts": {"llm": 2},
+                "planner_adapter_counts": {"gateforge_gemini_planner_v1": 2},
                 "llm_resolution_count": 1,
                 "llm_only_resolution_count": 0,
                 "llm_branch_correction_count": 1,
@@ -212,6 +217,10 @@ class AgentModelicaSourceBlindMultistepEvidenceV1Tests(unittest.TestCase):
             self.assertEqual(payload.get("trap_branch_enter_count"), 1)
             self.assertEqual(payload.get("llm_request_count_total"), 2)
             self.assertEqual(payload.get("llm_task_count"), 2)
+            self.assertEqual(payload.get("planner_backend_counts"), {"gemini": 2})
+            self.assertEqual(payload.get("resolved_llm_provider_counts"), {"gemini": 2})
+            self.assertEqual(payload.get("planner_family_counts"), {"llm": 2})
+            self.assertEqual(payload.get("planner_adapter_counts"), {"gateforge_gemini_planner_v1": 2})
             self.assertEqual(payload.get("llm_plan_task_count"), 2)
             self.assertEqual(payload.get("llm_plan_followed_count"), 2)
             self.assertEqual(payload.get("first_plan_branch_match_count"), 1)
@@ -230,6 +239,7 @@ class AgentModelicaSourceBlindMultistepEvidenceV1Tests(unittest.TestCase):
             self.assertEqual(payload.get("search_budget_from_llm_plan_avg"), 2.5)
             self.assertEqual(payload.get("search_budget_followed_count"), 2)
             self.assertEqual(payload.get("llm_budget_helped_resolution_count"), 2)
+            self.assertEqual(payload.get("llm_guided_search_resolution_count"), 2)
             self.assertEqual(payload.get("llm_replan_budget_consumed_avg"), 3.0)
             self.assertEqual(payload.get("llm_replan_switch_branch_count"), 1)
             self.assertEqual(payload.get("llm_replan_budget_efficiency"), 33.33)

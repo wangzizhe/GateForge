@@ -2,6 +2,19 @@
 
 All notable changes to this project are documented in this file.
 
+## [v0.1.5] - 2026-03-22
+### Added
+- Added provider-agnostic multistep planner-contract accounting across plan, replan, and guided-search runs.
+- Added `v0.1.5` release preflight checks for `v4` replanning stability and `v5` branch-choice plus guided-search evidence.
+
+### Changed
+- Improved `v5` multistep evaluation so branch-choice, replanning, and guided-search evidence are measured against a rule baseline instead of LLM usage alone.
+- Improved release-facing evidence so planner family/adapter, branch-match quality, and guided-search contribution are explicitly separated.
+
+### Validation
+- `v4` replanning authority remains saturated with non-zero switch-branch replan success.
+- `v5` release lane compares Gemini against rule baseline and requires non-zero branch-aware replanning plus guided-search contribution.
+
 ## [v0.1.4] - 2026-03-21
 ### Added
 - Added a harder `source-blind multistep` v5 realism lane with branch-sensitive failure exposure.

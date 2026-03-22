@@ -454,6 +454,10 @@ def _extract_multistep_fields(payload: dict, live_attempt: dict) -> dict:
         "branch_escape_succeeded": False,
         "branch_escape_direction": "",
         "branch_budget_reallocated": False,
+        "planner_contract_version": "",
+        "planner_family": "",
+        "planner_adapter": "",
+        "planner_request_kind": "",
         "branch_choice_reason": "",
         "replan_budget_total": 0,
         "replan_budget_for_branch_diagnosis": 0,
@@ -479,6 +483,7 @@ def _extract_multistep_fields(payload: dict, live_attempt: dict) -> dict:
         "search_budget_from_llm_plan": 0,
         "search_budget_followed": False,
         "llm_budget_helped_resolution": False,
+        "llm_guided_search_resolution": False,
     }
     stage = str(live_attempt.get("multi_step_stage") or payload.get("multi_step_stage") or "").strip().lower()
     out["multi_step_stage"] = stage
@@ -738,6 +743,10 @@ def _extract_live_usage_fields(payload: dict, live_attempt: dict) -> dict:
         "live_request_count": 0,
         "rate_limit_429_count": 0,
         "budget_stop_triggered": False,
+        "planner_contract_version": "",
+        "planner_family": "",
+        "planner_adapter": "",
+        "planner_request_kind": "",
         "llm_plan_used": False,
         "llm_plan_reason": "",
         "llm_plan_generated": False,
@@ -803,10 +812,23 @@ def _extract_live_usage_fields(payload: dict, live_attempt: dict) -> dict:
         "search_budget_from_llm_plan": 0,
         "search_budget_followed": False,
         "llm_budget_helped_resolution": False,
+        "llm_guided_search_resolution": False,
     }
     out["planner_backend"] = str(live_attempt.get("planner_backend") or payload.get("planner_backend") or "").strip().lower()
     out["resolved_llm_provider"] = str(
         live_attempt.get("resolved_llm_provider") or payload.get("resolved_llm_provider") or ""
+    ).strip().lower()
+    out["planner_contract_version"] = str(
+        live_attempt.get("planner_contract_version") or payload.get("planner_contract_version") or ""
+    ).strip()
+    out["planner_family"] = str(
+        live_attempt.get("planner_family") or payload.get("planner_family") or ""
+    ).strip().lower()
+    out["planner_adapter"] = str(
+        live_attempt.get("planner_adapter") or payload.get("planner_adapter") or ""
+    ).strip().lower()
+    out["planner_request_kind"] = str(
+        live_attempt.get("planner_request_kind") or payload.get("planner_request_kind") or ""
     ).strip().lower()
     try:
         out["live_request_count"] = max(0, int(live_attempt.get("live_request_count") or payload.get("live_request_count") or 0))
@@ -931,6 +953,7 @@ def _extract_live_usage_fields(payload: dict, live_attempt: dict) -> dict:
         out["search_budget_from_llm_plan"] = 0
     out["search_budget_followed"] = bool(_as_bool(live_attempt.get("search_budget_followed"))) or bool(_as_bool(payload.get("search_budget_followed")))
     out["llm_budget_helped_resolution"] = bool(_as_bool(live_attempt.get("llm_budget_helped_resolution"))) or bool(_as_bool(payload.get("llm_budget_helped_resolution")))
+    out["llm_guided_search_resolution"] = bool(_as_bool(live_attempt.get("llm_guided_search_resolution"))) or bool(_as_bool(payload.get("llm_guided_search_resolution")))
     return out
 
 
@@ -2084,6 +2107,10 @@ def _run_task_live_l4(
             "branch_budget_reallocated": bool(multistep_fields.get("branch_budget_reallocated")),
             "planner_backend": str(live_usage_fields.get("planner_backend") or ""),
             "resolved_llm_provider": str(live_usage_fields.get("resolved_llm_provider") or ""),
+            "planner_contract_version": str(live_usage_fields.get("planner_contract_version") or ""),
+            "planner_family": str(live_usage_fields.get("planner_family") or ""),
+            "planner_adapter": str(live_usage_fields.get("planner_adapter") or ""),
+            "planner_request_kind": str(live_usage_fields.get("planner_request_kind") or ""),
             "live_request_count": int(live_usage_fields.get("live_request_count") or 0),
             "rate_limit_429_count": int(live_usage_fields.get("rate_limit_429_count") or 0),
             "budget_stop_triggered": bool(live_usage_fields.get("budget_stop_triggered")),
@@ -2152,6 +2179,7 @@ def _run_task_live_l4(
             "search_budget_from_llm_plan": int(live_usage_fields.get("search_budget_from_llm_plan") or 0),
             "search_budget_followed": bool(live_usage_fields.get("search_budget_followed")),
             "llm_budget_helped_resolution": bool(live_usage_fields.get("llm_budget_helped_resolution")),
+            "llm_guided_search_resolution": bool(live_usage_fields.get("llm_guided_search_resolution")),
             "physics_contract_reasons": physics_reasons,
             "physics_contract_invariant_count": len(task_invariants),
             "regression_pass": bool(regression_ok),
@@ -2314,6 +2342,10 @@ def _run_task_live_l4(
         "branch_budget_reallocated": bool(best_contract_attempt.get("branch_budget_reallocated")) if best_contract_attempt else False,
         "planner_backend": str(best_live_usage_fields.get("planner_backend") or ""),
         "resolved_llm_provider": str(best_live_usage_fields.get("resolved_llm_provider") or ""),
+        "planner_contract_version": str(best_live_usage_fields.get("planner_contract_version") or ""),
+        "planner_family": str(best_live_usage_fields.get("planner_family") or ""),
+        "planner_adapter": str(best_live_usage_fields.get("planner_adapter") or ""),
+        "planner_request_kind": str(best_live_usage_fields.get("planner_request_kind") or ""),
         "live_request_count": int(best_live_usage_fields.get("live_request_count") or 0),
         "rate_limit_429_count": int(best_live_usage_fields.get("rate_limit_429_count") or 0),
         "budget_stop_triggered": bool(best_live_usage_fields.get("budget_stop_triggered")),
@@ -2382,6 +2414,7 @@ def _run_task_live_l4(
         "search_budget_from_llm_plan": int(best_live_usage_fields.get("search_budget_from_llm_plan") or 0),
         "search_budget_followed": bool(best_live_usage_fields.get("search_budget_followed")),
         "llm_budget_helped_resolution": bool(best_live_usage_fields.get("llm_budget_helped_resolution")),
+        "llm_guided_search_resolution": bool(best_live_usage_fields.get("llm_guided_search_resolution")),
         "repair_strategy": repair_strategy,
         "repair_audit": {
             **strategy_audit,
@@ -2840,6 +2873,10 @@ def _run_task_live(
                 "branch_budget_reallocated": bool(multistep_fields.get("branch_budget_reallocated")),
                 "planner_backend": str(live_usage_fields.get("planner_backend") or ""),
                 "resolved_llm_provider": str(live_usage_fields.get("resolved_llm_provider") or ""),
+                "planner_contract_version": str(live_usage_fields.get("planner_contract_version") or ""),
+                "planner_family": str(live_usage_fields.get("planner_family") or ""),
+                "planner_adapter": str(live_usage_fields.get("planner_adapter") or ""),
+                "planner_request_kind": str(live_usage_fields.get("planner_request_kind") or ""),
                 "live_request_count": int(live_usage_fields.get("live_request_count") or 0),
                 "rate_limit_429_count": int(live_usage_fields.get("rate_limit_429_count") or 0),
                 "budget_stop_triggered": bool(live_usage_fields.get("budget_stop_triggered")),
@@ -2908,6 +2945,7 @@ def _run_task_live(
                 "search_budget_from_llm_plan": int(live_usage_fields.get("search_budget_from_llm_plan") or 0),
                 "search_budget_followed": bool(live_usage_fields.get("search_budget_followed")),
                 "llm_budget_helped_resolution": bool(live_usage_fields.get("llm_budget_helped_resolution")),
+                "llm_guided_search_resolution": bool(live_usage_fields.get("llm_guided_search_resolution")),
                 "physics_contract_reasons": physics_contract_reasons,
                 "physics_contract_invariant_count": int(physics_eval.get("invariant_count") or 0),
                 "regression_pass": bool(regression_ok),
@@ -3039,6 +3077,10 @@ def _run_task_live(
         "branch_budget_reallocated": bool(best_contract_attempt.get("branch_budget_reallocated")) if best_contract_attempt else False,
         "planner_backend": str(best_live_usage_fields.get("planner_backend") or ""),
         "resolved_llm_provider": str(best_live_usage_fields.get("resolved_llm_provider") or ""),
+        "planner_contract_version": str(best_live_usage_fields.get("planner_contract_version") or ""),
+        "planner_family": str(best_live_usage_fields.get("planner_family") or ""),
+        "planner_adapter": str(best_live_usage_fields.get("planner_adapter") or ""),
+        "planner_request_kind": str(best_live_usage_fields.get("planner_request_kind") or ""),
         "live_request_count": int(best_live_usage_fields.get("live_request_count") or 0),
         "rate_limit_429_count": int(best_live_usage_fields.get("rate_limit_429_count") or 0),
         "budget_stop_triggered": bool(best_live_usage_fields.get("budget_stop_triggered")),
@@ -3107,6 +3149,7 @@ def _run_task_live(
         "search_budget_from_llm_plan": int(best_live_usage_fields.get("search_budget_from_llm_plan") or 0),
         "search_budget_followed": bool(best_live_usage_fields.get("search_budget_followed")),
         "llm_budget_helped_resolution": bool(best_live_usage_fields.get("llm_budget_helped_resolution")),
+        "llm_guided_search_resolution": bool(best_live_usage_fields.get("llm_guided_search_resolution")),
         "repair_strategy": repair_strategy,
         "repair_audit": {
             **strategy_audit,
