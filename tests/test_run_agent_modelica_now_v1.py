@@ -35,10 +35,10 @@ class RunAgentModelicaNowV1Tests(unittest.TestCase):
         merged = (proc.stdout or "") + (proc.stderr or "")
         self.assertIn("unknown command", merged)
 
-    def test_preflight_defaults_to_v014_wrapper(self) -> None:
+    def test_preflight_defaults_to_v015_wrapper(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
         script = (repo_root / "scripts" / "run_agent_modelica_now_v1.sh").read_text(encoding="utf-8")
-        self.assertIn("bash scripts/run_agent_modelica_release_preflight_v0_1_4.sh", script)
+        self.assertIn("bash scripts/run_agent_modelica_release_preflight_v0_1_5.sh", script)
 
 
 if __name__ == "__main__":
