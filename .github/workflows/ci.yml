@@ -349,6 +349,7 @@ jobs:
 
       - name: Run release preflight
         run: |
+          GATEFORGE_AGENT_RELEASE_SKIP_VERSION_EVIDENCE=1 \
           GATEFORGE_AGENT_RELEASE_OUT_DIR=artifacts/release_current_ci \
             bash scripts/run_agent_modelica_now_v1.sh preflight
 

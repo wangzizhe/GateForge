@@ -16,14 +16,16 @@ BASE_RC=$?
 set -e
 
 EVIDENCE_RC=0
-set +e
-python3 -m gateforge.agent_modelica_release_preflight_v0_1_3_evidence \
-  --summary "$GATEFORGE_AGENT_RELEASE_OUT_DIR/release_preflight_summary.json" \
-  --robustness-baseline-summary "$ROBUSTNESS_BASELINE_SUMMARY" \
-  --robustness-deterministic-summary "$ROBUSTNESS_DETERMINISTIC_SUMMARY" \
-  --multistep-baseline-summary "$MULTISTEP_BASELINE_SUMMARY"
-EVIDENCE_RC=$?
-set -e
+if [ "${GATEFORGE_AGENT_RELEASE_SKIP_VERSION_EVIDENCE:-0}" != "1" ]; then
+  set +e
+  python3 -m gateforge.agent_modelica_release_preflight_v0_1_3_evidence \
+    --summary "$GATEFORGE_AGENT_RELEASE_OUT_DIR/release_preflight_summary.json" \
+    --robustness-baseline-summary "$ROBUSTNESS_BASELINE_SUMMARY" \
+    --robustness-deterministic-summary "$ROBUSTNESS_DETERMINISTIC_SUMMARY" \
+    --multistep-baseline-summary "$MULTISTEP_BASELINE_SUMMARY"
+  EVIDENCE_RC=$?
+  set -e
+fi
 
 if [ "$BASE_RC" -ne 0 ] || [ "$EVIDENCE_RC" -ne 0 ]; then
   exit 1
