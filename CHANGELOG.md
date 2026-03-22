@@ -13,7 +13,7 @@ All notable changes to this project are documented in this file.
 
 ### Validation
 - `v4` replanning authority remains saturated with non-zero switch-branch replan success.
-- `v5` release lane compares Gemini against rule baseline and requires non-zero branch-aware replanning plus guided-search contribution.
+- `v5` release lane compares LLM-backed planner runs against a rule baseline and requires non-zero branch-aware replanning plus guided-search contribution.
 
 ## [v0.1.4] - 2026-03-21
 ### Added
@@ -22,12 +22,12 @@ All notable changes to this project are documented in this file.
 - Added `v0.1.4` release preflight checks for v4 LLM replanning and v5 branch-decision evidence.
 
 ### Changed
-- Improved Gemini-guided multistep repair so the planner can replan, switch branch, and allocate budget across branch diagnosis, trap escape, and resolution.
+- Improved multistep repair planning so the LLM-backed planner can replan, switch branch, and allocate budget across branch diagnosis, trap escape, and resolution.
 - Improved release-facing evidence so LLM plan, replan, branch-correction, and guided-search contributions are explicitly separated.
 
 ### Validation
 - `v4` LLM-replan authority target: stabilized to `6/6 PASS` with non-zero switch-branch replan success.
-- `v5` authority establishes new headroom while preserving real Gemini contribution signals.
+- `v5` authority establishes new headroom while preserving real LLM-planner contribution signals.
 
 ## [v0.1.3] - 2026-03-20
 ### Added
