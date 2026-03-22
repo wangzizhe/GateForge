@@ -5395,6 +5395,7 @@ def main() -> None:
             if isinstance(row, dict)
         )
     )
+    template_only_resolution = cluster_only_resolution
     llm_markers = _extract_source_blind_multistep_markers(current_text)
     llm_request_count_delta_total = int(multistep_memory.get("llm_request_count_delta_total") or 0)
     llm_plan_used = bool(multistep_memory.get("llm_plan_used")) or llm_request_count_delta_total > 0
