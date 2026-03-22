@@ -126,6 +126,13 @@ class AgentModelicaSourceBlindMultistepEvidenceV1Tests(unittest.TestCase):
                 "resolved_llm_provider_counts": {"gemini": 2},
                 "planner_family_counts": {"llm": 2},
                 "planner_adapter_counts": {"gateforge_gemini_planner_v1": 2},
+                "failure_domain_counts": {"none": 0, "environment": 1, "agent": 1, "mixed": 0, "unknown": 0},
+                "environment_failure_count": 1,
+                "agent_failure_count": 1,
+                "mixed_failure_count": 0,
+                "unknown_failure_count": 0,
+                "environment_failure_by_kind": {"source_block_incompatible": 1},
+                "agent_failure_by_kind": {"wrong_branch_enter": 1},
                 "llm_resolution_count": 1,
                 "llm_only_resolution_count": 0,
                 "llm_branch_correction_count": 1,
@@ -221,6 +228,11 @@ class AgentModelicaSourceBlindMultistepEvidenceV1Tests(unittest.TestCase):
             self.assertEqual(payload.get("resolved_llm_provider_counts"), {"gemini": 2})
             self.assertEqual(payload.get("planner_family_counts"), {"llm": 2})
             self.assertEqual(payload.get("planner_adapter_counts"), {"gateforge_gemini_planner_v1": 2})
+            self.assertEqual(payload.get("failure_domain_counts"), {"none": 0, "environment": 1, "agent": 1, "mixed": 0, "unknown": 0})
+            self.assertEqual(payload.get("environment_failure_count"), 1)
+            self.assertEqual(payload.get("agent_failure_count"), 1)
+            self.assertEqual(payload.get("environment_failure_by_kind"), {"source_block_incompatible": 1})
+            self.assertEqual(payload.get("agent_failure_by_kind"), {"wrong_branch_enter": 1})
             self.assertEqual(payload.get("llm_plan_task_count"), 2)
             self.assertEqual(payload.get("llm_plan_followed_count"), 2)
             self.assertEqual(payload.get("first_plan_branch_match_count"), 1)

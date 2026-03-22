@@ -374,6 +374,128 @@ def _as_dict_list(value: object) -> list[dict]:
     return [dict(x) for x in value if isinstance(x, dict)]
 
 
+def _normalize_text(value: object) -> str:
+    return str(value or "").strip().lower()
+
+
+def _classify_failure_domain_v1(
+    *,
+    check_model_pass: bool,
+    simulate_pass: bool,
+    contract_pass: bool,
+    diagnostic_ir: dict | None,
+    error_message: str,
+    compile_error: str,
+    simulate_error_message: str,
+    stderr_snippet: str,
+    executor_stderr_tail: str = "",
+    reason: str = "",
+    observed_failure_type: str = "",
+    contract_fail_bucket: str = "",
+    current_fail_bucket: str = "",
+    stage_2_first_fail_bucket: str = "",
+    wrong_branch_entered: bool = False,
+    wrong_branch_recovered: bool = False,
+    trap_branch: bool = False,
+    trap_branch_entered: bool = False,
+    branch_escape_attempted: bool = False,
+    branch_escape_succeeded: bool = False,
+    llm_replan_used: bool = False,
+    llm_replan_resolved: bool = False,
+    previous_plan_failed_signal: str = "",
+    llm_guided_search_used: bool = False,
+    llm_guided_search_resolution: bool = False,
+    search_budget_followed: bool = False,
+) -> dict:
+    if contract_pass:
+        return {
+            "failure_domain": "none",
+            "environment_failure_kind": "",
+            "agent_failure_kind": "",
+        }
+
+    diagnostic_ir = diagnostic_ir if isinstance(diagnostic_ir, dict) else {}
+    subtype = _normalize_text(diagnostic_ir.get("error_subtype"))
+    canonical_error = _normalize_text(diagnostic_ir.get("error_type"))
+    text_blob = " | ".join(
+        [
+            error_message,
+            compile_error,
+            simulate_error_message,
+            stderr_snippet,
+            executor_stderr_tail,
+            reason,
+            observed_failure_type,
+            subtype,
+            canonical_error,
+        ]
+    ).lower()
+
+    environment_failure_kind = ""
+    if "docker_unavailable" in text_blob:
+        environment_failure_kind = "docker_unavailable"
+    elif "modelica_package_unavailable" in text_blob:
+        environment_failure_kind = "modelica_package_unavailable"
+    elif "live_executor_timeout" in text_blob or "timeoutexpired" in text_blob:
+        environment_failure_kind = "executor_timeout"
+    elif (
+        "class modelica.blocks.sources." in text_blob and "not found in scope" in text_blob
+    ) or ("class not found in scope" in text_blob and "modelica.blocks.sources." in text_blob):
+        environment_failure_kind = "source_block_incompatible"
+    elif ("package modelica" in text_blob and "not found" in text_blob) or (
+        "loadmodel(modelica)" in text_blob and "failed" in text_blob
+    ):
+        environment_failure_kind = "modelica_package_unavailable"
+    elif subtype == "compile_failure_unknown" and (
+        "class " in text_blob and "not found in scope" in text_blob
+    ):
+        environment_failure_kind = "compile_layer_compatibility"
+    elif observed_failure_type in {"executor_invocation_error", "executor_runtime_error"}:
+        environment_failure_kind = "executor_runtime_error"
+
+    fail_bucket = _normalize_text(current_fail_bucket) or _normalize_text(contract_fail_bucket)
+    first_stage_2_bucket = _normalize_text(stage_2_first_fail_bucket)
+    previous_failed_signal = _normalize_text(previous_plan_failed_signal)
+
+    agent_failure_kind = ""
+    if (wrong_branch_entered or trap_branch_entered or trap_branch) and not wrong_branch_recovered:
+        agent_failure_kind = "wrong_branch_enter"
+    elif trap_branch and branch_escape_attempted and not branch_escape_succeeded:
+        agent_failure_kind = "trap_escape_failed"
+    elif llm_replan_used and not llm_replan_resolved and previous_failed_signal:
+        agent_failure_kind = "replan_no_progress"
+    elif llm_guided_search_used and search_budget_followed and not llm_guided_search_resolution:
+        agent_failure_kind = "guided_search_budget_misallocated"
+    elif first_stage_2_bucket:
+        agent_failure_kind = first_stage_2_bucket
+    elif fail_bucket:
+        agent_failure_kind = fail_bucket
+    elif not check_model_pass or not simulate_pass:
+        if observed_failure_type:
+            agent_failure_kind = _normalize_text(observed_failure_type)
+        elif subtype and subtype not in {
+            "compile_failure_unknown",
+            "docker_unavailable",
+            "modelica_package_unavailable",
+        }:
+            agent_failure_kind = subtype
+
+    if environment_failure_kind and agent_failure_kind:
+        failure_domain = "mixed"
+    elif environment_failure_kind:
+        failure_domain = "environment"
+    elif agent_failure_kind:
+        failure_domain = "agent"
+    else:
+        failure_domain = "unknown"
+
+    return {
+        "failure_domain": failure_domain,
+        "environment_failure_kind": environment_failure_kind,
+        "agent_failure_kind": agent_failure_kind,
+    }
+
+
 def _extract_multistep_fields(payload: dict, live_attempt: dict) -> dict:
     out = {
         "multi_step_stage": "",
@@ -1621,6 +1743,34 @@ def _run_task_evidence(
 
     best_contract_attempt = _pick_best_contract_attempt(attempts)
     best_live_usage_fields = _extract_live_usage_fields(best_contract_attempt or {}, best_contract_attempt or {})
+    failure_domain_fields = _classify_failure_domain_v1(
+        check_model_pass=bool((best_contract_attempt or {}).get("check_model_pass")),
+        simulate_pass=bool((best_contract_attempt or {}).get("simulate_pass")),
+        contract_pass=bool((best_contract_attempt or {}).get("contract_pass")),
+        diagnostic_ir=(best_contract_attempt or {}).get("diagnostic_ir") if isinstance((best_contract_attempt or {}).get("diagnostic_ir"), dict) else {},
+        error_message=" | ".join([str(x) for x in (regression.get("reasons") or []) if isinstance(x, str)]),
+        compile_error="",
+        simulate_error_message="",
+        stderr_snippet=" | ".join([str(x) for x in (physics_eval.get("reasons") or []) if isinstance(x, str)]),
+        executor_stderr_tail=str((best_contract_attempt or {}).get("executor_stderr_tail") or ""),
+        reason=str((best_contract_attempt or {}).get("reason") or ""),
+        observed_failure_type=str((best_contract_attempt or {}).get("observed_failure_type") or ""),
+        contract_fail_bucket=str((best_contract_attempt or {}).get("contract_fail_bucket") or ""),
+        current_fail_bucket=str((best_contract_attempt or {}).get("current_fail_bucket") or ""),
+        stage_2_first_fail_bucket=str((best_contract_attempt or {}).get("stage_2_first_fail_bucket") or ""),
+        wrong_branch_entered=bool((best_contract_attempt or {}).get("wrong_branch_entered")),
+        wrong_branch_recovered=bool((best_contract_attempt or {}).get("wrong_branch_recovered")),
+        trap_branch=bool((best_contract_attempt or {}).get("trap_branch")),
+        trap_branch_entered=bool((best_contract_attempt or {}).get("trap_branch_entered")),
+        branch_escape_attempted=bool((best_contract_attempt or {}).get("branch_escape_attempted")),
+        branch_escape_succeeded=bool((best_contract_attempt or {}).get("branch_escape_succeeded")),
+        llm_replan_used=bool(best_live_usage_fields.get("llm_replan_used")),
+        llm_replan_resolved=bool(best_live_usage_fields.get("llm_replan_resolved")),
+        previous_plan_failed_signal=str(best_live_usage_fields.get("previous_plan_failed_signal") or ""),
+        llm_guided_search_used=bool(best_live_usage_fields.get("llm_guided_search_used")),
+        llm_guided_search_resolution=bool(best_live_usage_fields.get("llm_guided_search_resolution")),
+        search_budget_followed=bool(best_live_usage_fields.get("search_budget_followed")),
+    )
     return {
         "task_id": str(task.get("task_id") or ""),
         "scale": scale,
@@ -2025,6 +2175,34 @@ def _run_task_live_l4(
             diagnostic_ir=diagnostic_ir,
         )
         live_usage_fields = _extract_live_usage_fields(live_payload, live_attempt)
+        failure_domain_fields = _classify_failure_domain_v1(
+            check_model_pass=bool(check_ok),
+            simulate_pass=bool(simulate_ok),
+            contract_pass=bool(contract_pass),
+            diagnostic_ir=diagnostic_ir,
+            error_message=error_message,
+            compile_error=compile_error,
+            simulate_error_message=simulate_error_message,
+            stderr_snippet=stderr_snippet,
+            executor_stderr_tail=str(live_payload.get("_executor_stderr_tail") or ""),
+            reason=attempt_reason,
+            observed_failure_type=observed_failure_type,
+            contract_fail_bucket=contract_fail_bucket,
+            current_fail_bucket=str(multistep_fields.get("current_fail_bucket") or ""),
+            stage_2_first_fail_bucket=str(multistep_fields.get("stage_2_first_fail_bucket") or ""),
+            wrong_branch_entered=bool(multistep_fields.get("wrong_branch_entered")),
+            wrong_branch_recovered=bool(multistep_fields.get("wrong_branch_recovered")),
+            trap_branch=bool(multistep_fields.get("trap_branch")),
+            trap_branch_entered=bool(multistep_fields.get("trap_branch_entered")),
+            branch_escape_attempted=bool(multistep_fields.get("branch_escape_attempted")),
+            branch_escape_succeeded=bool(multistep_fields.get("branch_escape_succeeded")),
+            llm_replan_used=bool(live_usage_fields.get("llm_replan_used")),
+            llm_replan_resolved=bool(live_usage_fields.get("llm_replan_resolved")),
+            previous_plan_failed_signal=str(live_usage_fields.get("previous_plan_failed_signal") or ""),
+            llm_guided_search_used=bool(multistep_fields.get("llm_guided_search_used")) or bool(live_usage_fields.get("llm_guided_search_used")),
+            llm_guided_search_resolution=bool(multistep_fields.get("llm_guided_search_resolution")) or bool(live_usage_fields.get("llm_guided_search_resolution")),
+            search_budget_followed=bool(multistep_fields.get("search_budget_followed")) or bool(live_usage_fields.get("search_budget_followed")),
+        )
         return {
             "round": int(round_idx),
             "check_model_pass": bool(check_ok),
@@ -2206,6 +2384,9 @@ def _run_task_live_l4(
             "reason": attempt_reason,
             "log_excerpt": attempt_log_excerpt[: max(0, int(live_max_output_chars))],
             "diagnostic_ir": diagnostic_ir,
+            "failure_domain": str(failure_domain_fields.get("failure_domain") or ""),
+            "environment_failure_kind": str(failure_domain_fields.get("environment_failure_kind") or ""),
+            "agent_failure_kind": str(failure_domain_fields.get("agent_failure_kind") or ""),
             "pre_repair": pre_repair,
             "attempts": live_attempts,
         }
@@ -2250,6 +2431,34 @@ def _run_task_live_l4(
     contract_pass = bool(best_contract_attempt.get("contract_pass")) if best_contract_attempt else False
     contract_fail_bucket = str(best_contract_attempt.get("contract_fail_bucket") or "") if best_contract_attempt else ""
     scenario_results = _as_dict_list(best_contract_attempt.get("scenario_results") if best_contract_attempt else [])
+    failure_domain_fields = _classify_failure_domain_v1(
+        check_model_pass=bool((best_contract_attempt or {}).get("check_model_pass")),
+        simulate_pass=bool((best_contract_attempt or {}).get("simulate_pass")),
+        contract_pass=contract_pass,
+        diagnostic_ir=(best_contract_attempt or {}).get("diagnostic_ir") if isinstance((best_contract_attempt or {}).get("diagnostic_ir"), dict) else {},
+        error_message=error_message,
+        compile_error=compile_error,
+        simulate_error_message=simulate_error_message,
+        stderr_snippet=stderr_snippet,
+        executor_stderr_tail=str((best_contract_attempt or {}).get("executor_stderr_tail") or ""),
+        reason=str((best_contract_attempt or {}).get("reason") or ""),
+        observed_failure_type=str((best_contract_attempt or {}).get("observed_failure_type") or ""),
+        contract_fail_bucket=contract_fail_bucket,
+        current_fail_bucket=str((best_contract_attempt or {}).get("current_fail_bucket") or ""),
+        stage_2_first_fail_bucket=str((best_contract_attempt or {}).get("stage_2_first_fail_bucket") or ""),
+        wrong_branch_entered=bool((best_contract_attempt or {}).get("wrong_branch_entered")),
+        wrong_branch_recovered=bool((best_contract_attempt or {}).get("wrong_branch_recovered")),
+        trap_branch=bool((best_contract_attempt or {}).get("trap_branch")),
+        trap_branch_entered=bool((best_contract_attempt or {}).get("trap_branch_entered")),
+        branch_escape_attempted=bool((best_contract_attempt or {}).get("branch_escape_attempted")),
+        branch_escape_succeeded=bool((best_contract_attempt or {}).get("branch_escape_succeeded")),
+        llm_replan_used=bool(best_live_usage_fields.get("llm_replan_used")),
+        llm_replan_resolved=bool(best_live_usage_fields.get("llm_replan_resolved")),
+        previous_plan_failed_signal=str(best_live_usage_fields.get("previous_plan_failed_signal") or ""),
+        llm_guided_search_used=bool(best_live_usage_fields.get("llm_guided_search_used")),
+        llm_guided_search_resolution=bool(best_live_usage_fields.get("llm_guided_search_resolution")),
+        search_budget_followed=bool(best_live_usage_fields.get("search_budget_followed")),
+    )
     if not error_message and not bool(orchestrator.get("passed")):
         error_message = str(orchestrator.get("stop_reason") or "l4_failed")
 
@@ -2438,6 +2647,9 @@ def _run_task_live_l4(
         },
         "physics_contract_reasons": physics_contract_reasons,
         "regression_reasons": regression_reasons,
+        "failure_domain": str(failure_domain_fields.get("failure_domain") or ""),
+        "environment_failure_kind": str(failure_domain_fields.get("environment_failure_kind") or ""),
+        "agent_failure_kind": str(failure_domain_fields.get("agent_failure_kind") or ""),
         "attempts": attempts,
         "error_message": error_message,
         "compile_error": compile_error,
@@ -2997,6 +3209,34 @@ def _run_task_live(
 
     best_contract_attempt = _pick_best_contract_attempt(attempts)
     best_live_usage_fields = _extract_live_usage_fields(best_contract_attempt or {}, best_contract_attempt or {})
+    failure_domain_fields = _classify_failure_domain_v1(
+        check_model_pass=bool((best_contract_attempt or {}).get("check_model_pass")),
+        simulate_pass=bool((best_contract_attempt or {}).get("simulate_pass")),
+        contract_pass=bool((best_contract_attempt or {}).get("contract_pass")),
+        diagnostic_ir=(best_contract_attempt or {}).get("diagnostic_ir") if isinstance((best_contract_attempt or {}).get("diagnostic_ir"), dict) else {},
+        error_message=error_message,
+        compile_error=compile_error,
+        simulate_error_message=simulate_error_message,
+        stderr_snippet=stderr_snippet,
+        executor_stderr_tail=str((best_contract_attempt or {}).get("executor_stderr_tail") or ""),
+        reason=str((best_contract_attempt or {}).get("reason") or ""),
+        observed_failure_type=str((best_contract_attempt or {}).get("observed_failure_type") or ""),
+        contract_fail_bucket=str((best_contract_attempt or {}).get("contract_fail_bucket") or ""),
+        current_fail_bucket=str((best_contract_attempt or {}).get("current_fail_bucket") or ""),
+        stage_2_first_fail_bucket=str((best_contract_attempt or {}).get("stage_2_first_fail_bucket") or ""),
+        wrong_branch_entered=bool((best_contract_attempt or {}).get("wrong_branch_entered")),
+        wrong_branch_recovered=bool((best_contract_attempt or {}).get("wrong_branch_recovered")),
+        trap_branch=bool((best_contract_attempt or {}).get("trap_branch")),
+        trap_branch_entered=bool((best_contract_attempt or {}).get("trap_branch_entered")),
+        branch_escape_attempted=bool((best_contract_attempt or {}).get("branch_escape_attempted")),
+        branch_escape_succeeded=bool((best_contract_attempt or {}).get("branch_escape_succeeded")),
+        llm_replan_used=bool(best_live_usage_fields.get("llm_replan_used")),
+        llm_replan_resolved=bool(best_live_usage_fields.get("llm_replan_resolved")),
+        previous_plan_failed_signal=str(best_live_usage_fields.get("previous_plan_failed_signal") or ""),
+        llm_guided_search_used=bool(best_live_usage_fields.get("llm_guided_search_used")),
+        llm_guided_search_resolution=bool(best_live_usage_fields.get("llm_guided_search_resolution")),
+        search_budget_followed=bool(best_live_usage_fields.get("search_budget_followed")),
+    )
     return {
         "task_id": str(task.get("task_id") or ""),
         "scale": scale,
@@ -3006,6 +3246,9 @@ def _run_task_live(
         "time_to_pass_sec": round(total_time_sec, 4) if passed else None,
         "elapsed_sec": round(total_time_sec, 4),
         "hard_checks": hard,
+        "failure_domain": str(failure_domain_fields.get("failure_domain") or ""),
+        "environment_failure_kind": str(failure_domain_fields.get("environment_failure_kind") or ""),
+        "agent_failure_kind": str(failure_domain_fields.get("agent_failure_kind") or ""),
         "contract_pass": bool(best_contract_attempt.get("contract_pass")) if best_contract_attempt else False,
         "contract_fail_bucket": str(best_contract_attempt.get("contract_fail_bucket") or "") if best_contract_attempt else "",
         "scenario_results": _as_dict_list(best_contract_attempt.get("scenario_results") if best_contract_attempt else []),

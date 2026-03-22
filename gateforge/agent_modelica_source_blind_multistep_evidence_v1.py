@@ -149,6 +149,13 @@ def main() -> None:
     resolved_llm_provider_counts = baseline_summary.get("resolved_llm_provider_counts") if isinstance(baseline_summary.get("resolved_llm_provider_counts"), dict) else {}
     planner_family_counts = baseline_summary.get("planner_family_counts") if isinstance(baseline_summary.get("planner_family_counts"), dict) else {}
     planner_adapter_counts = baseline_summary.get("planner_adapter_counts") if isinstance(baseline_summary.get("planner_adapter_counts"), dict) else {}
+    failure_domain_counts = baseline_summary.get("failure_domain_counts") if isinstance(baseline_summary.get("failure_domain_counts"), dict) else {}
+    environment_failure_count = int(baseline_summary.get("environment_failure_count") or 0)
+    agent_failure_count = int(baseline_summary.get("agent_failure_count") or 0)
+    mixed_failure_count = int(baseline_summary.get("mixed_failure_count") or 0)
+    unknown_failure_count = int(baseline_summary.get("unknown_failure_count") or 0)
+    environment_failure_by_kind = baseline_summary.get("environment_failure_by_kind") if isinstance(baseline_summary.get("environment_failure_by_kind"), dict) else {}
+    agent_failure_by_kind = baseline_summary.get("agent_failure_by_kind") if isinstance(baseline_summary.get("agent_failure_by_kind"), dict) else {}
     llm_plan_task_count = int(baseline_summary.get("llm_plan_task_count") or 0)
     llm_plan_followed_count = int(baseline_summary.get("llm_plan_followed_count") or 0)
     llm_plan_branch_match_count = int(baseline_summary.get("llm_plan_branch_match_count") or 0)
@@ -266,6 +273,13 @@ def main() -> None:
         "resolved_llm_provider_counts": resolved_llm_provider_counts,
         "planner_family_counts": planner_family_counts,
         "planner_adapter_counts": planner_adapter_counts,
+        "failure_domain_counts": failure_domain_counts,
+        "environment_failure_count": environment_failure_count,
+        "agent_failure_count": agent_failure_count,
+        "mixed_failure_count": mixed_failure_count,
+        "unknown_failure_count": unknown_failure_count,
+        "environment_failure_by_kind": environment_failure_by_kind,
+        "agent_failure_by_kind": agent_failure_by_kind,
         "llm_plan_task_count": llm_plan_task_count,
         "llm_plan_followed_count": llm_plan_followed_count,
         "llm_plan_followed_pct": float(baseline_summary.get("llm_plan_followed_pct") or 0.0),
@@ -362,6 +376,13 @@ def main() -> None:
         "resolved_llm_provider_counts": resolved_llm_provider_counts,
         "planner_family_counts": planner_family_counts,
         "planner_adapter_counts": planner_adapter_counts,
+        "failure_domain_counts": failure_domain_counts,
+        "environment_failure_count": environment_failure_count,
+        "agent_failure_count": agent_failure_count,
+        "mixed_failure_count": mixed_failure_count,
+        "unknown_failure_count": unknown_failure_count,
+        "environment_failure_by_kind": environment_failure_by_kind,
+        "agent_failure_by_kind": agent_failure_by_kind,
         "llm_plan_task_count": llm_plan_task_count,
         "llm_plan_followed_count": llm_plan_followed_count,
         "llm_plan_branch_match_count": llm_plan_branch_match_count,
@@ -461,6 +482,13 @@ def main() -> None:
         "resolved_llm_provider_counts": resolved_llm_provider_counts,
         "planner_family_counts": planner_family_counts,
         "planner_adapter_counts": planner_adapter_counts,
+        "failure_domain_counts": failure_domain_counts,
+        "environment_failure_count": environment_failure_count,
+        "agent_failure_count": agent_failure_count,
+        "mixed_failure_count": mixed_failure_count,
+        "unknown_failure_count": unknown_failure_count,
+        "environment_failure_by_kind": environment_failure_by_kind,
+        "agent_failure_by_kind": agent_failure_by_kind,
         "llm_plan_task_count": llm_plan_task_count,
         "llm_plan_followed_count": llm_plan_followed_count,
         "llm_plan_followed_pct": float(baseline_summary.get("llm_plan_followed_pct") or 0.0),

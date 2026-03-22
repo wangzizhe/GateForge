@@ -186,6 +186,9 @@ class AgentModelicaSourceBlindMultistepBaselineSummaryV1Tests(unittest.TestCase)
                         "stage_2_resolution_via_adaptive_search": False,
                         "cluster_only_resolution": True,
                         "template_only_resolution": True,
+                        "failure_domain": "environment",
+                        "environment_failure_kind": "source_block_incompatible",
+                        "agent_failure_kind": "",
                         "contract_fail_bucket": "scenario_switch_miss",
                         "scenario_results": [{"pass": False}, {"pass": False}, {"pass": False}],
                         "attempts": [
@@ -267,6 +270,13 @@ class AgentModelicaSourceBlindMultistepBaselineSummaryV1Tests(unittest.TestCase)
             self.assertEqual(payload.get("branch_budget_reallocated_count"), 1)
             self.assertEqual(payload.get("repeated_trap_branch_count"), 1)
             self.assertEqual(payload.get("repeated_bad_branch_count"), 1)
+            self.assertEqual(payload.get("failure_domain_counts"), {"none": 1, "environment": 1, "agent": 1, "mixed": 0, "unknown": 0})
+            self.assertEqual(payload.get("environment_failure_count"), 1)
+            self.assertEqual(payload.get("agent_failure_count"), 1)
+            self.assertEqual(payload.get("mixed_failure_count"), 0)
+            self.assertEqual(payload.get("unknown_failure_count"), 0)
+            self.assertEqual(payload.get("environment_failure_by_kind"), {"source_block_incompatible": 1})
+            self.assertEqual(payload.get("agent_failure_by_kind"), {"wrong_branch_enter": 1})
             self.assertEqual(payload.get("llm_request_count_total"), 2)
             self.assertEqual(payload.get("llm_task_count"), 2)
             self.assertEqual(payload.get("planner_backend_counts"), {"gemini": 2})
