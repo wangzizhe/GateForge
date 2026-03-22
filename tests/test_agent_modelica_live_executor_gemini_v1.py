@@ -406,6 +406,8 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
     def test_source_blind_multistep_local_search_generates_stage2_candidate(self) -> None:
         model_text = (
             "model HybridB\n"
+            "  parameter Real startTime=0.6;\n"
+            "  parameter Real k=0.6;\n"
             "  parameter Real width=0.75;\n"
             "  parameter Real T=0.5;\n"
             "end HybridB;\n"
@@ -472,6 +474,8 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
     def test_source_blind_multistep_branch_escape_search_restores_hybridb_recovery_branch(self) -> None:
         model_text = (
             "model HybridB\n"
+            "  parameter Real startTime=0.6;\n"
+            "  parameter Real k=0.6;\n"
             "  parameter Real width=0.75;\n"
             "  parameter Real T=0.5;\n"
             "end HybridB;\n"
@@ -485,9 +489,11 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
         )
         self.assertTrue(audit.get("applied"))
         self.assertEqual(audit.get("search_kind"), "branch_escape")
-        self.assertEqual(audit.get("cluster_name"), "escape_recovery_overfit_tail")
+        self.assertEqual(audit.get("cluster_name"), "escape_recovery_overfit_full")
         self.assertEqual(audit.get("candidate_origin"), "branch_escape_template")
-        self.assertEqual(audit.get("search_direction"), "width+T")
+        self.assertEqual(audit.get("search_direction"), "startTime+k+width+T")
+        self.assertIn("startTime=0.1", patched)
+        self.assertIn("k=1", patched)
         self.assertIn("width=0.4", patched)
         self.assertIn("T=0.2", patched)
 
@@ -783,7 +789,11 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
         try:
             current = (
                 "model HybridB\n"
-                "  Modelica.Blocks.Sources.Trapezoid trap1(amplitude=1, width=0.4, period=1.0, startTime=0.6);\n"
+                "  parameter Real amplitude=1;\n"
+                "  parameter Real width=0.4;\n"
+                "  parameter Real period=1.0;\n"
+                "  parameter Real startTime=0.6;\n"
+                "  Modelica.Blocks.Sources.RealExpression trap1(y=if time < startTime then 0 else if time < startTime + width then amplitude else 0);\n"
                 "  Modelica.Blocks.Continuous.FirstOrder first1(T=0.2, k=0.6);\n"
                 "equation\n"
                 "  connect(trap1.y, first1.u);\n"
@@ -852,21 +862,24 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
     def test_source_blind_multistep_contract_eval_handles_switchb_two_stage_path(self) -> None:
         source = (
             "model SwitchB\n"
-            "  Modelica.Blocks.Sources.BooleanStep step1(startTime=0.3);\n"
+            "  parameter Real startTime=0.3;\n"
+            "  Modelica.Blocks.Sources.BooleanExpression step1(y=time >= startTime);\n"
             "  Modelica.Blocks.Sources.Sine sine1(freqHz=1);\n"
             "  Modelica.Blocks.Sources.Constant ref1(k=0.5);\n"
             "end SwitchB;\n"
         )
         stage1 = (
             "model SwitchB\n"
-            "  Modelica.Blocks.Sources.BooleanStep step1(startTime=0.75);\n"
+            "  parameter Real startTime=0.75;\n"
+            "  Modelica.Blocks.Sources.BooleanExpression step1(y=time >= startTime);\n"
             "  Modelica.Blocks.Sources.Sine sine1(freqHz=1.6);\n"
             "  Modelica.Blocks.Sources.Constant ref1(k=0.82);\n"
             "end SwitchB;\n"
         )
         stage2 = (
             "model SwitchB\n"
-            "  Modelica.Blocks.Sources.BooleanStep step1(startTime=0.3);\n"
+            "  parameter Real startTime=0.3;\n"
+            "  Modelica.Blocks.Sources.BooleanExpression step1(y=time >= startTime);\n"
             "  Modelica.Blocks.Sources.Sine sine1(freqHz=1);\n"
             "  Modelica.Blocks.Sources.Constant ref1(k=0.82);\n"
             "end SwitchB;\n"
@@ -892,19 +905,31 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
     def test_source_blind_multistep_contract_eval_handles_hybridb_two_stage_path(self) -> None:
         source = (
             "model HybridB\n"
-            "  Modelica.Blocks.Sources.Trapezoid trap1(amplitude=1, width=0.4, period=1.0, startTime=0.1);\n"
+            "  parameter Real amplitude=1;\n"
+            "  parameter Real width=0.4;\n"
+            "  parameter Real period=1.0;\n"
+            "  parameter Real startTime=0.1;\n"
+            "  Modelica.Blocks.Sources.RealExpression trap1(y=if time < startTime then 0 else if time < startTime + width then amplitude else 0);\n"
             "  Modelica.Blocks.Continuous.FirstOrder first1(T=0.2, k=1);\n"
             "end HybridB;\n"
         )
         stage1 = (
             "model HybridB\n"
-            "  Modelica.Blocks.Sources.Trapezoid trap1(amplitude=1, width=0.75, period=1.0, startTime=0.6);\n"
+            "  parameter Real amplitude=1;\n"
+            "  parameter Real width=0.75;\n"
+            "  parameter Real period=1.0;\n"
+            "  parameter Real startTime=0.6;\n"
+            "  Modelica.Blocks.Sources.RealExpression trap1(y=if time < startTime then 0 else if time < startTime + width then amplitude else 0);\n"
             "  Modelica.Blocks.Continuous.FirstOrder first1(T=0.5, k=0.6);\n"
             "end HybridB;\n"
         )
         stage2 = (
             "model HybridB\n"
-            "  Modelica.Blocks.Sources.Trapezoid trap1(amplitude=1, width=0.75, period=1.0, startTime=0.1);\n"
+            "  parameter Real amplitude=1;\n"
+            "  parameter Real width=0.75;\n"
+            "  parameter Real period=1.0;\n"
+            "  parameter Real startTime=0.1;\n"
+            "  Modelica.Blocks.Sources.RealExpression trap1(y=if time < startTime then 0 else if time < startTime + width then amplitude else 0);\n"
             "  Modelica.Blocks.Continuous.FirstOrder first1(T=0.5, k=1);\n"
             "end HybridB;\n"
         )
@@ -1065,7 +1090,8 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
     def test_source_blind_multistep_exposure_repair_reveals_switchb_second_stage(self) -> None:
         current = (
             "model SwitchB\n"
-            "  Modelica.Blocks.Sources.BooleanStep step1(startTime=0.75);\n"
+            "  parameter Real startTime=0.75;\n"
+            "  Modelica.Blocks.Sources.BooleanExpression step1(y=time >= startTime);\n"
             "  Modelica.Blocks.Sources.Sine sine1(freqHz=1.6);\n"
             "  Modelica.Blocks.Sources.Constant ref1(k=0.82);\n"
             "end SwitchB;\n"
@@ -1113,7 +1139,7 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
         self.assertIn("duration=1.1", patched)
 
     def test_source_blind_multistep_exposure_repair_only_runs_in_first_round(self) -> None:
-        current = "model HybridB\n  Modelica.Blocks.Sources.Trapezoid trap1(amplitude=1, width=0.75, period=1.0, startTime=0.6);\n  Modelica.Blocks.Continuous.FirstOrder first1(T=0.5, k=0.6);\nend HybridB;\n"
+        current = "model HybridB\n  parameter Real amplitude=1;\n  parameter Real width=0.75;\n  parameter Real period=1.0;\n  parameter Real startTime=0.6;\n  Modelica.Blocks.Sources.RealExpression trap1(y=if time < startTime then 0 else if time < startTime + width then amplitude else 0);\n  Modelica.Blocks.Continuous.FirstOrder first1(T=0.5, k=0.6);\nend HybridB;\n"
         patched, audit = _apply_source_blind_multistep_exposure_repair(
             current_text=current,
             declared_failure_type="switch_then_recovery",
@@ -1144,7 +1170,8 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
     def test_source_blind_multistep_stage2_local_repair_resolves_switchb_neighbor_layer(self) -> None:
         current = (
             "model SwitchB\n"
-            "  Modelica.Blocks.Sources.BooleanStep step1(startTime=0.3);\n"
+            "  parameter Real startTime=0.3;\n"
+            "  Modelica.Blocks.Sources.BooleanExpression step1(y=time >= startTime);\n"
             "  Modelica.Blocks.Sources.Sine sine1(freqHz=1);\n"
             "  Modelica.Blocks.Sources.Constant ref1(k=0.82);\n"
             "end SwitchB;\n"
@@ -1162,7 +1189,11 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
     def test_source_blind_multistep_stage2_local_repair_resolves_hybridb_recovery_layer(self) -> None:
         current = (
             "model HybridB\n"
-            "  Modelica.Blocks.Sources.Trapezoid trap1(amplitude=1, width=0.75, period=1.0, startTime=0.1);\n"
+            "  parameter Real amplitude=1;\n"
+            "  parameter Real width=0.75;\n"
+            "  parameter Real period=1.0;\n"
+            "  parameter Real startTime=0.1;\n"
+            "  Modelica.Blocks.Sources.RealExpression trap1(y=if time < startTime then 0 else if time < startTime + width then amplitude else 0);\n"
             "  Modelica.Blocks.Continuous.FirstOrder first1(T=0.5, k=1);\n"
             "end HybridB;\n"
         )

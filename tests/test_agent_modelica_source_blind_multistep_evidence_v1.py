@@ -247,6 +247,7 @@ class AgentModelicaSourceBlindMultistepEvidenceV1Tests(unittest.TestCase):
             self.assertEqual(payload.get("trap_escape_success_count"), 1)
             self.assertEqual(payload.get("wrong_branch_enter_count"), 1)
             self.assertEqual(payload.get("wrong_branch_recovery_count"), 0)
+            self.assertEqual(payload.get("repeated_bad_branch_count"), 0)
             self.assertEqual(payload.get("deterministic_vs_llm_resolution_split"), {"adaptive_search": 1, "template_only": 0, "llm_contributed": 1, "llm_only": 0})
             self.assertEqual(payload.get("deterministic_vs_first_plan_vs_replan_split"), {"deterministic": 0, "llm_first_plan": 0, "llm_replan": 1, "llm_second_replan": 1})
             self.assertEqual(payload.get("median_round_to_correct_branch"), 2.0)

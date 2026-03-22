@@ -5,7 +5,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from gateforge.agent_modelica_source_blind_multistep_taskset_v1 import _mutate_source_blind_multistep_model
+from gateforge.agent_modelica_source_blind_multistep_taskset_v1 import (
+    _mutate_source_blind_multistep_model,
+    _normalize_omc_source_block_compat,
+)
 
 
 def _write_model(path: Path, model_name: str) -> None:
@@ -145,6 +148,33 @@ class AgentModelicaSourceBlindMultistepTasksetV1Tests(unittest.TestCase):
         mutated = _mutate_source_blind_multistep_model(source, "switch_then_recovery")
         self.assertIn("duration=1.1", mutated)
         self.assertIn("startTime=0.6", mutated)
+
+    def test_normalize_omc_source_block_compat_rewrites_switchb_boolean_source(self) -> None:
+        source = (
+            "model SwitchB\n"
+            "  Modelica.Blocks.Sources.BooleanStep step1(startTime=0.3);\n"
+            "  Modelica.Blocks.Sources.Sine sine1(freqHz=1);\n"
+            "end SwitchB;\n"
+        )
+        normalized = _normalize_omc_source_block_compat(model_id="switch_b", source_text=source)
+        self.assertIn("parameter Real startTime=0.3", normalized)
+        self.assertIn("Modelica.Blocks.Sources.BooleanExpression step1(y=time >= startTime);", normalized)
+        self.assertNotIn("BooleanStep", normalized)
+
+    def test_normalize_omc_source_block_compat_rewrites_hybridb_real_source(self) -> None:
+        source = (
+            "model HybridB\n"
+            "  Modelica.Blocks.Sources.Trapezoid trap1(amplitude=1, width=0.4, period=1.0, startTime=0.1);\n"
+            "  Modelica.Blocks.Continuous.FirstOrder first1(T=0.2, k=1);\n"
+            "end HybridB;\n"
+        )
+        normalized = _normalize_omc_source_block_compat(model_id="hybrid_b", source_text=source)
+        self.assertIn("parameter Real amplitude=1", normalized)
+        self.assertIn("parameter Real width=0.4", normalized)
+        self.assertIn("parameter Real period=1.0", normalized)
+        self.assertIn("parameter Real startTime=0.1", normalized)
+        self.assertIn("Modelica.Blocks.Sources.RealExpression trap1(", normalized)
+        self.assertNotIn("Trapezoid", normalized)
 
     def test_builder_produces_multistep_metadata(self) -> None:
         with tempfile.TemporaryDirectory() as d:

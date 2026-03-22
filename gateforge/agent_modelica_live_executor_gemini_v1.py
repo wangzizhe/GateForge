@@ -755,7 +755,7 @@ def _source_blind_multistep_branch_escape_templates(
                 ("escape_recovery_overfit_shape", {"width": 40.0, "period": 1.0}),
             ],
             "hybridb": [
-                ("escape_recovery_overfit_tail", {"width": 0.4, "T": 0.2}),
+                ("escape_recovery_overfit_full", {"startTime": 0.1, "k": 1.0, "width": 0.4, "T": 0.2}),
             ],
         },
     }
@@ -5165,6 +5165,8 @@ def main() -> None:
         llm_replan_resolved = True
         multistep_memory["replan_helped_resolution"] = True
         multistep_memory["llm_replan_resolved"] = True
+    wrong_branch_entered = bool(multistep_memory.get("trap_branch_entered"))
+    wrong_branch_recovered = bool(wrong_branch_entered and multistep_memory.get("correct_branch_selected"))
     trap_escape_success = bool(multistep_memory.get("trap_branch_entered")) and bool(multistep_memory.get("correct_branch_selected"))
     llm_guided_search_used = bool(multistep_memory.get("llm_guided_search_used"))
     search_budget_from_llm_plan = int(multistep_memory.get("search_budget_from_llm_plan") or 0)
@@ -5228,8 +5230,10 @@ def main() -> None:
         "branch_reason": str(final_stage_context.get("branch_reason") or multistep_memory.get("branch_reason") or ""),
         "trap_branch": bool(final_stage_context.get("trap_branch")) if str(final_stage_context.get("stage_2_branch") or "").strip() else bool(multistep_memory.get("trap_branch_active")),
         "trap_branch_entered": bool(multistep_memory.get("trap_branch_entered")),
+        "wrong_branch_entered": wrong_branch_entered,
         "correct_branch_selected": bool(final_stage_context.get("correct_branch_selected")) if str(final_stage_context.get("stage_2_branch") or "").strip() else bool(multistep_memory.get("correct_branch_selected")),
         "correct_branch_round": int(multistep_memory.get("correct_branch_round") or 0),
+        "wrong_branch_recovered": wrong_branch_recovered,
         "stage_aware_control_applied": bool(multistep_memory.get("stage_aware_focus_applied")),
         "stage_1_revisit_after_unlock": bool(multistep_memory.get("stage_1_revisit_after_unlock")),
         "plan_stage": str(multistep_memory.get("last_plan_stage") or ""),
