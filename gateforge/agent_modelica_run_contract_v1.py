@@ -599,7 +599,9 @@ def _extract_multistep_fields(payload: dict, live_attempt: dict) -> dict:
         "replan_abandoned_branches": [],
         "realism_version": "",
         "first_plan_branch_match": False,
+        "first_plan_branch_miss": False,
         "replan_branch_match": False,
+        "replan_branch_corrected": False,
         "llm_second_replan_used": False,
         "llm_second_replan_reason": "",
         "trap_escape_success": False,
@@ -618,8 +620,14 @@ def _extract_multistep_fields(payload: dict, live_attempt: dict) -> dict:
         "guided_search_observation_payload": {},
         "guided_search_replan_after_observation": False,
         "guided_search_closed_loop_observed": False,
+        "guided_search_helped_branch_diagnosis": False,
+        "guided_search_helped_trap_escape": False,
+        "guided_search_helped_resolution": False,
+        "guided_search_helped_replan": False,
+        "guided_search_was_decisive": False,
         "llm_budget_helped_resolution": False,
         "llm_guided_search_resolution": False,
+        "resolution_primary_contribution": "",
     }
     stage = str(live_attempt.get("multi_step_stage") or payload.get("multi_step_stage") or "").strip().lower()
     out["multi_step_stage"] = stage
@@ -759,7 +767,9 @@ def _extract_multistep_fields(payload: dict, live_attempt: dict) -> dict:
     out["replan_abandoned_branches"] = _as_str_list(live_attempt.get("replan_abandoned_branches")) or _as_str_list(payload.get("replan_abandoned_branches"))
     out["realism_version"] = str(live_attempt.get("realism_version") or payload.get("realism_version") or "").strip().lower()
     out["first_plan_branch_match"] = bool(_as_bool(live_attempt.get("first_plan_branch_match"))) or bool(_as_bool(payload.get("first_plan_branch_match")))
+    out["first_plan_branch_miss"] = bool(_as_bool(live_attempt.get("first_plan_branch_miss"))) or bool(_as_bool(payload.get("first_plan_branch_miss")))
     out["replan_branch_match"] = bool(_as_bool(live_attempt.get("replan_branch_match"))) or bool(_as_bool(payload.get("replan_branch_match")))
+    out["replan_branch_corrected"] = bool(_as_bool(live_attempt.get("replan_branch_corrected"))) or bool(_as_bool(payload.get("replan_branch_corrected")))
     out["llm_second_replan_used"] = bool(_as_bool(live_attempt.get("llm_second_replan_used"))) or bool(_as_bool(payload.get("llm_second_replan_used")))
     out["llm_second_replan_reason"] = str(live_attempt.get("llm_second_replan_reason") or payload.get("llm_second_replan_reason") or "").strip()
     out["trap_escape_success"] = bool(_as_bool(live_attempt.get("trap_escape_success"))) or bool(_as_bool(payload.get("trap_escape_success")))
@@ -784,7 +794,13 @@ def _extract_multistep_fields(payload: dict, live_attempt: dict) -> dict:
     out["guided_search_observation_payload"] = dict(live_attempt.get("guided_search_observation_payload") or payload.get("guided_search_observation_payload") or {})
     out["guided_search_replan_after_observation"] = bool(_as_bool(live_attempt.get("guided_search_replan_after_observation"))) or bool(_as_bool(payload.get("guided_search_replan_after_observation")))
     out["guided_search_closed_loop_observed"] = bool(_as_bool(live_attempt.get("guided_search_closed_loop_observed"))) or bool(_as_bool(payload.get("guided_search_closed_loop_observed")))
+    out["guided_search_helped_branch_diagnosis"] = bool(_as_bool(live_attempt.get("guided_search_helped_branch_diagnosis"))) or bool(_as_bool(payload.get("guided_search_helped_branch_diagnosis")))
+    out["guided_search_helped_trap_escape"] = bool(_as_bool(live_attempt.get("guided_search_helped_trap_escape"))) or bool(_as_bool(payload.get("guided_search_helped_trap_escape")))
+    out["guided_search_helped_resolution"] = bool(_as_bool(live_attempt.get("guided_search_helped_resolution"))) or bool(_as_bool(payload.get("guided_search_helped_resolution")))
+    out["guided_search_helped_replan"] = bool(_as_bool(live_attempt.get("guided_search_helped_replan"))) or bool(_as_bool(payload.get("guided_search_helped_replan")))
+    out["guided_search_was_decisive"] = bool(_as_bool(live_attempt.get("guided_search_was_decisive"))) or bool(_as_bool(payload.get("guided_search_was_decisive")))
     out["llm_budget_helped_resolution"] = bool(_as_bool(live_attempt.get("llm_budget_helped_resolution"))) or bool(_as_bool(payload.get("llm_budget_helped_resolution")))
+    out["resolution_primary_contribution"] = str(live_attempt.get("resolution_primary_contribution") or payload.get("resolution_primary_contribution") or "").strip().lower()
     out["stage_plan_generated"] = bool(_as_bool(live_attempt.get("stage_plan_generated"))) or bool(_as_bool(payload.get("stage_plan_generated")))
     out["stage_plan_followed"] = bool(_as_bool(live_attempt.get("stage_plan_followed"))) or bool(_as_bool(payload.get("stage_plan_followed")))
     out["executed_plan_stage"] = str(
@@ -959,7 +975,9 @@ def _extract_live_usage_fields(payload: dict, live_attempt: dict) -> dict:
         "llm_only_resolution": False,
         "realism_version": "",
         "first_plan_branch_match": False,
+        "first_plan_branch_miss": False,
         "replan_branch_match": False,
+        "replan_branch_corrected": False,
         "llm_second_replan_used": False,
         "llm_second_replan_reason": "",
         "trap_escape_success": False,
@@ -978,8 +996,14 @@ def _extract_live_usage_fields(payload: dict, live_attempt: dict) -> dict:
         "guided_search_observation_payload": {},
         "guided_search_replan_after_observation": False,
         "guided_search_closed_loop_observed": False,
+        "guided_search_helped_branch_diagnosis": False,
+        "guided_search_helped_trap_escape": False,
+        "guided_search_helped_resolution": False,
+        "guided_search_helped_replan": False,
+        "guided_search_was_decisive": False,
         "llm_budget_helped_resolution": False,
         "llm_guided_search_resolution": False,
+        "resolution_primary_contribution": "",
     }
     out["planner_backend"] = str(live_attempt.get("planner_backend") or payload.get("planner_backend") or "").strip().lower()
     out["resolved_llm_provider"] = str(
@@ -1109,7 +1133,9 @@ def _extract_live_usage_fields(payload: dict, live_attempt: dict) -> dict:
     out["llm_only_resolution"] = bool(_as_bool(live_attempt.get("llm_only_resolution"))) or bool(_as_bool(payload.get("llm_only_resolution")))
     out["realism_version"] = str(live_attempt.get("realism_version") or payload.get("realism_version") or "").strip().lower()
     out["first_plan_branch_match"] = bool(_as_bool(live_attempt.get("first_plan_branch_match"))) or bool(_as_bool(payload.get("first_plan_branch_match")))
+    out["first_plan_branch_miss"] = bool(_as_bool(live_attempt.get("first_plan_branch_miss"))) or bool(_as_bool(payload.get("first_plan_branch_miss")))
     out["replan_branch_match"] = bool(_as_bool(live_attempt.get("replan_branch_match"))) or bool(_as_bool(payload.get("replan_branch_match")))
+    out["replan_branch_corrected"] = bool(_as_bool(live_attempt.get("replan_branch_corrected"))) or bool(_as_bool(payload.get("replan_branch_corrected")))
     out["llm_second_replan_used"] = bool(_as_bool(live_attempt.get("llm_second_replan_used"))) or bool(_as_bool(payload.get("llm_second_replan_used")))
     out["llm_second_replan_reason"] = str(live_attempt.get("llm_second_replan_reason") or payload.get("llm_second_replan_reason") or "").strip()
     out["trap_escape_success"] = bool(_as_bool(live_attempt.get("trap_escape_success"))) or bool(_as_bool(payload.get("trap_escape_success")))
@@ -1134,8 +1160,14 @@ def _extract_live_usage_fields(payload: dict, live_attempt: dict) -> dict:
     out["guided_search_observation_payload"] = dict(live_attempt.get("guided_search_observation_payload") or payload.get("guided_search_observation_payload") or {})
     out["guided_search_replan_after_observation"] = bool(_as_bool(live_attempt.get("guided_search_replan_after_observation"))) or bool(_as_bool(payload.get("guided_search_replan_after_observation")))
     out["guided_search_closed_loop_observed"] = bool(_as_bool(live_attempt.get("guided_search_closed_loop_observed"))) or bool(_as_bool(payload.get("guided_search_closed_loop_observed")))
+    out["guided_search_helped_branch_diagnosis"] = bool(_as_bool(live_attempt.get("guided_search_helped_branch_diagnosis"))) or bool(_as_bool(payload.get("guided_search_helped_branch_diagnosis")))
+    out["guided_search_helped_trap_escape"] = bool(_as_bool(live_attempt.get("guided_search_helped_trap_escape"))) or bool(_as_bool(payload.get("guided_search_helped_trap_escape")))
+    out["guided_search_helped_resolution"] = bool(_as_bool(live_attempt.get("guided_search_helped_resolution"))) or bool(_as_bool(payload.get("guided_search_helped_resolution")))
+    out["guided_search_helped_replan"] = bool(_as_bool(live_attempt.get("guided_search_helped_replan"))) or bool(_as_bool(payload.get("guided_search_helped_replan")))
+    out["guided_search_was_decisive"] = bool(_as_bool(live_attempt.get("guided_search_was_decisive"))) or bool(_as_bool(payload.get("guided_search_was_decisive")))
     out["llm_budget_helped_resolution"] = bool(_as_bool(live_attempt.get("llm_budget_helped_resolution"))) or bool(_as_bool(payload.get("llm_budget_helped_resolution")))
     out["llm_guided_search_resolution"] = bool(_as_bool(live_attempt.get("llm_guided_search_resolution"))) or bool(_as_bool(payload.get("llm_guided_search_resolution")))
+    out["resolution_primary_contribution"] = str(live_attempt.get("resolution_primary_contribution") or payload.get("resolution_primary_contribution") or "").strip().lower()
     return out
 
 
@@ -2411,7 +2443,9 @@ def _run_task_live_l4(
             "llm_only_resolution": bool(live_usage_fields.get("llm_only_resolution")),
             "realism_version": str(live_usage_fields.get("realism_version") or ""),
             "first_plan_branch_match": bool(live_usage_fields.get("first_plan_branch_match")),
+            "first_plan_branch_miss": bool(live_usage_fields.get("first_plan_branch_miss")),
             "replan_branch_match": bool(live_usage_fields.get("replan_branch_match")),
+            "replan_branch_corrected": bool(live_usage_fields.get("replan_branch_corrected")),
             "llm_second_replan_used": bool(live_usage_fields.get("llm_second_replan_used")),
             "llm_second_replan_reason": str(live_usage_fields.get("llm_second_replan_reason") or ""),
             "trap_escape_success": bool(live_usage_fields.get("trap_escape_success")),
@@ -2430,8 +2464,14 @@ def _run_task_live_l4(
             "guided_search_observation_payload": dict(live_usage_fields.get("guided_search_observation_payload") or {}),
             "guided_search_replan_after_observation": bool(live_usage_fields.get("guided_search_replan_after_observation")),
             "guided_search_closed_loop_observed": bool(live_usage_fields.get("guided_search_closed_loop_observed")),
+            "guided_search_helped_branch_diagnosis": bool(live_usage_fields.get("guided_search_helped_branch_diagnosis")),
+            "guided_search_helped_trap_escape": bool(live_usage_fields.get("guided_search_helped_trap_escape")),
+            "guided_search_helped_resolution": bool(live_usage_fields.get("guided_search_helped_resolution")),
+            "guided_search_helped_replan": bool(live_usage_fields.get("guided_search_helped_replan")),
+            "guided_search_was_decisive": bool(live_usage_fields.get("guided_search_was_decisive")),
             "llm_budget_helped_resolution": bool(live_usage_fields.get("llm_budget_helped_resolution")),
             "llm_guided_search_resolution": bool(live_usage_fields.get("llm_guided_search_resolution")),
+            "resolution_primary_contribution": str(live_usage_fields.get("resolution_primary_contribution") or ""),
             "physics_contract_reasons": physics_reasons,
             "physics_contract_invariant_count": len(task_invariants),
             "regression_pass": bool(regression_ok),
@@ -2691,7 +2731,9 @@ def _run_task_live_l4(
         "llm_only_resolution": bool(best_live_usage_fields.get("llm_only_resolution")),
         "realism_version": str(best_live_usage_fields.get("realism_version") or ""),
         "first_plan_branch_match": bool(best_live_usage_fields.get("first_plan_branch_match")),
+        "first_plan_branch_miss": bool(best_live_usage_fields.get("first_plan_branch_miss")),
         "replan_branch_match": bool(best_live_usage_fields.get("replan_branch_match")),
+        "replan_branch_corrected": bool(best_live_usage_fields.get("replan_branch_corrected")),
         "llm_second_replan_used": bool(best_live_usage_fields.get("llm_second_replan_used")),
         "llm_second_replan_reason": str(best_live_usage_fields.get("llm_second_replan_reason") or ""),
         "trap_escape_success": bool(best_live_usage_fields.get("trap_escape_success")),
@@ -2710,8 +2752,14 @@ def _run_task_live_l4(
         "guided_search_observation_payload": dict(best_live_usage_fields.get("guided_search_observation_payload") or {}),
         "guided_search_replan_after_observation": bool(best_live_usage_fields.get("guided_search_replan_after_observation")),
         "guided_search_closed_loop_observed": bool(best_live_usage_fields.get("guided_search_closed_loop_observed")),
+        "guided_search_helped_branch_diagnosis": bool(best_live_usage_fields.get("guided_search_helped_branch_diagnosis")),
+        "guided_search_helped_trap_escape": bool(best_live_usage_fields.get("guided_search_helped_trap_escape")),
+        "guided_search_helped_resolution": bool(best_live_usage_fields.get("guided_search_helped_resolution")),
+        "guided_search_helped_replan": bool(best_live_usage_fields.get("guided_search_helped_replan")),
+        "guided_search_was_decisive": bool(best_live_usage_fields.get("guided_search_was_decisive")),
         "llm_budget_helped_resolution": bool(best_live_usage_fields.get("llm_budget_helped_resolution")),
         "llm_guided_search_resolution": bool(best_live_usage_fields.get("llm_guided_search_resolution")),
+        "resolution_primary_contribution": str(best_live_usage_fields.get("resolution_primary_contribution") or ""),
         "repair_strategy": repair_strategy,
         "repair_audit": {
             **strategy_audit,
@@ -3239,7 +3287,9 @@ def _run_task_live(
                 "llm_only_resolution": bool(live_usage_fields.get("llm_only_resolution")),
                 "realism_version": str(live_usage_fields.get("realism_version") or ""),
                 "first_plan_branch_match": bool(live_usage_fields.get("first_plan_branch_match")),
+                "first_plan_branch_miss": bool(live_usage_fields.get("first_plan_branch_miss")),
                 "replan_branch_match": bool(live_usage_fields.get("replan_branch_match")),
+                "replan_branch_corrected": bool(live_usage_fields.get("replan_branch_corrected")),
                 "llm_second_replan_used": bool(live_usage_fields.get("llm_second_replan_used")),
                 "llm_second_replan_reason": str(live_usage_fields.get("llm_second_replan_reason") or ""),
                 "trap_escape_success": bool(live_usage_fields.get("trap_escape_success")),
@@ -3258,8 +3308,14 @@ def _run_task_live(
                 "guided_search_observation_payload": dict(live_usage_fields.get("guided_search_observation_payload") or {}),
                 "guided_search_replan_after_observation": bool(live_usage_fields.get("guided_search_replan_after_observation")),
                 "guided_search_closed_loop_observed": bool(live_usage_fields.get("guided_search_closed_loop_observed")),
+                "guided_search_helped_branch_diagnosis": bool(live_usage_fields.get("guided_search_helped_branch_diagnosis")),
+                "guided_search_helped_trap_escape": bool(live_usage_fields.get("guided_search_helped_trap_escape")),
+                "guided_search_helped_resolution": bool(live_usage_fields.get("guided_search_helped_resolution")),
+                "guided_search_helped_replan": bool(live_usage_fields.get("guided_search_helped_replan")),
+                "guided_search_was_decisive": bool(live_usage_fields.get("guided_search_was_decisive")),
                 "llm_budget_helped_resolution": bool(live_usage_fields.get("llm_budget_helped_resolution")),
                 "llm_guided_search_resolution": bool(live_usage_fields.get("llm_guided_search_resolution")),
+                "resolution_primary_contribution": str(live_usage_fields.get("resolution_primary_contribution") or ""),
                 "physics_contract_reasons": physics_contract_reasons,
                 "physics_contract_invariant_count": int(physics_eval.get("invariant_count") or 0),
                 "regression_pass": bool(regression_ok),
@@ -3488,7 +3544,9 @@ def _run_task_live(
         "llm_only_resolution": bool(best_live_usage_fields.get("llm_only_resolution")),
         "realism_version": str(best_live_usage_fields.get("realism_version") or ""),
         "first_plan_branch_match": bool(best_live_usage_fields.get("first_plan_branch_match")),
+        "first_plan_branch_miss": bool(best_live_usage_fields.get("first_plan_branch_miss")),
         "replan_branch_match": bool(best_live_usage_fields.get("replan_branch_match")),
+        "replan_branch_corrected": bool(best_live_usage_fields.get("replan_branch_corrected")),
         "llm_second_replan_used": bool(best_live_usage_fields.get("llm_second_replan_used")),
         "llm_second_replan_reason": str(best_live_usage_fields.get("llm_second_replan_reason") or ""),
         "trap_escape_success": bool(best_live_usage_fields.get("trap_escape_success")),
@@ -3507,8 +3565,14 @@ def _run_task_live(
         "guided_search_observation_payload": dict(best_live_usage_fields.get("guided_search_observation_payload") or {}),
         "guided_search_replan_after_observation": bool(best_live_usage_fields.get("guided_search_replan_after_observation")),
         "guided_search_closed_loop_observed": bool(best_live_usage_fields.get("guided_search_closed_loop_observed")),
+        "guided_search_helped_branch_diagnosis": bool(best_live_usage_fields.get("guided_search_helped_branch_diagnosis")),
+        "guided_search_helped_trap_escape": bool(best_live_usage_fields.get("guided_search_helped_trap_escape")),
+        "guided_search_helped_resolution": bool(best_live_usage_fields.get("guided_search_helped_resolution")),
+        "guided_search_helped_replan": bool(best_live_usage_fields.get("guided_search_helped_replan")),
+        "guided_search_was_decisive": bool(best_live_usage_fields.get("guided_search_was_decisive")),
         "llm_budget_helped_resolution": bool(best_live_usage_fields.get("llm_budget_helped_resolution")),
         "llm_guided_search_resolution": bool(best_live_usage_fields.get("llm_guided_search_resolution")),
+        "resolution_primary_contribution": str(best_live_usage_fields.get("resolution_primary_contribution") or ""),
         "repair_strategy": repair_strategy,
         "repair_audit": {
             **strategy_audit,

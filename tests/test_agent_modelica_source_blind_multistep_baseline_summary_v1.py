@@ -66,7 +66,9 @@ class AgentModelicaSourceBlindMultistepBaselineSummaryV1Tests(unittest.TestCase)
                         "llm_second_replan_used": False,
                         "previous_plan_failed_signal": "",
                         "first_plan_branch_match": True,
+                        "first_plan_branch_miss": False,
                         "replan_branch_match": False,
+                        "replan_branch_corrected": False,
                         "backtracking_used": False,
                         "replan_helped_resolution": False,
                         "llm_first_plan_resolved": True,
@@ -74,8 +76,14 @@ class AgentModelicaSourceBlindMultistepBaselineSummaryV1Tests(unittest.TestCase)
                         "llm_guided_search_used": True,
                         "search_budget_from_llm_plan": 2,
                         "search_budget_followed": True,
+                        "guided_search_helped_branch_diagnosis": True,
+                        "guided_search_helped_trap_escape": False,
+                        "guided_search_helped_resolution": True,
+                        "guided_search_helped_replan": False,
+                        "guided_search_was_decisive": False,
                         "llm_budget_helped_resolution": True,
                         "llm_guided_search_resolution": True,
+                        "resolution_primary_contribution": "llm_first_plan",
                         "trap_escape_success": False,
                         "stage_2_first_fail_bucket": "behavior_contract_miss",
                         "stage_2_branch": "behavior_timing_branch",
@@ -150,7 +158,9 @@ class AgentModelicaSourceBlindMultistepBaselineSummaryV1Tests(unittest.TestCase)
                         "llm_first_plan_resolved": False,
                         "llm_replan_resolved": True,
                         "first_plan_branch_match": False,
+                        "first_plan_branch_miss": True,
                         "replan_branch_match": True,
+                        "replan_branch_corrected": True,
                         "llm_guided_search_used": True,
                         "search_budget_from_llm_plan": 3,
                         "search_budget_followed": True,
@@ -166,8 +176,14 @@ class AgentModelicaSourceBlindMultistepBaselineSummaryV1Tests(unittest.TestCase)
                         "guided_search_observation_payload": {"no_progress_buckets": ["branch_escape"]},
                         "guided_search_replan_after_observation": True,
                         "guided_search_closed_loop_observed": True,
+                        "guided_search_helped_branch_diagnosis": True,
+                        "guided_search_helped_trap_escape": True,
+                        "guided_search_helped_resolution": True,
+                        "guided_search_helped_replan": True,
+                        "guided_search_was_decisive": False,
                         "llm_budget_helped_resolution": True,
                         "llm_guided_search_resolution": True,
+                        "resolution_primary_contribution": "switch_branch_replan",
                         "trap_escape_success": True,
                         "stage_2_first_fail_bucket": "single_case_only",
                         "stage_2_branch": "nominal_overfit_trap",
@@ -301,7 +317,9 @@ class AgentModelicaSourceBlindMultistepBaselineSummaryV1Tests(unittest.TestCase)
             self.assertEqual(payload.get("llm_only_resolution_count"), 0)
             self.assertEqual(payload.get("llm_branch_correction_count"), 1)
             self.assertEqual(payload.get("first_plan_branch_match_count"), 1)
+            self.assertEqual(payload.get("first_plan_branch_miss_count"), 1)
             self.assertEqual(payload.get("replan_branch_match_count"), 1)
+            self.assertEqual(payload.get("replan_branch_corrected_count"), 1)
             self.assertEqual(payload.get("llm_replan_task_count"), 1)
             self.assertEqual(payload.get("llm_replan_used_count"), 1)
             self.assertEqual(payload.get("llm_replan_resolution_count"), 1)
@@ -316,6 +334,11 @@ class AgentModelicaSourceBlindMultistepBaselineSummaryV1Tests(unittest.TestCase)
             self.assertEqual(payload.get("guided_search_budget_followed_count"), 2)
             self.assertEqual(payload.get("guided_search_closed_loop_count"), 1)
             self.assertEqual(payload.get("guided_search_replan_after_observation_count"), 1)
+            self.assertEqual(payload.get("guided_search_helped_branch_diagnosis_count"), 2)
+            self.assertEqual(payload.get("guided_search_helped_trap_escape_count"), 1)
+            self.assertEqual(payload.get("guided_search_helped_resolution_count"), 2)
+            self.assertEqual(payload.get("guided_search_helped_replan_count"), 1)
+            self.assertEqual(payload.get("guided_search_was_decisive_count"), 0)
             self.assertEqual(payload.get("budget_bucket_exhausted_count"), 1)
             self.assertEqual(payload.get("resolution_skipped_due_to_budget_count"), 0)
             self.assertEqual(payload.get("candidate_suppressed_by_budget_count"), 1)
@@ -336,6 +359,17 @@ class AgentModelicaSourceBlindMultistepBaselineSummaryV1Tests(unittest.TestCase)
             self.assertEqual(
                 payload.get("deterministic_vs_first_plan_vs_replan_split"),
                 {"adaptive_search": 1, "template_only": 1, "llm_first_plan": 1, "llm_replan": 1, "llm_second_replan": 1, "llm_guided_search": 2},
+            )
+            self.assertEqual(
+                payload.get("resolution_attribution_split"),
+                {
+                    "deterministic": 0,
+                    "llm_first_plan": 1,
+                    "llm_replan": 0,
+                    "switch_branch_replan": 1,
+                    "guided_search_assisted": 0,
+                    "guided_search_decisive": 0,
+                },
             )
             self.assertEqual(payload.get("median_round_to_correct_branch"), 2.0)
             self.assertEqual(payload.get("multi_step_completion_count"), 1)

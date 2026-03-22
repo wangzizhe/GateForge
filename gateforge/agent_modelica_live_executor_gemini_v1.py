@@ -4014,7 +4014,9 @@ def main() -> None:
         "planner_request_kind": "",
         "llm_plan_branch_match": False,
         "first_plan_branch_match": False,
+        "first_plan_branch_miss": False,
         "replan_branch_match": False,
+        "replan_branch_corrected": False,
         "llm_plan_parameter_match": False,
         "llm_plan_helped_resolution": False,
         "llm_plan_was_decisive": False,
@@ -4085,6 +4087,12 @@ def main() -> None:
         "guided_search_observation_payload": {},
         "guided_search_replan_after_observation": False,
         "guided_search_closed_loop_observed": False,
+        "guided_search_helped_branch_diagnosis": False,
+        "guided_search_helped_trap_escape": False,
+        "guided_search_helped_resolution": False,
+        "guided_search_helped_replan": False,
+        "guided_search_was_decisive": False,
+        "resolution_primary_contribution": "",
         "last_guided_search_bucket_sequence": [],
         "last_budget_spent_by_bucket": {},
         "last_candidate_attempt_count_by_bucket": {},
@@ -4421,7 +4429,9 @@ def main() -> None:
             attempts[-1]["llm_plan_followed"] = False
             attempts[-1]["llm_plan_branch_match"] = False
             attempts[-1]["first_plan_branch_match"] = False
+            attempts[-1]["first_plan_branch_miss"] = False
             attempts[-1]["replan_branch_match"] = False
+            attempts[-1]["replan_branch_corrected"] = False
             attempts[-1]["llm_plan_parameter_match"] = False
             attempts[-1]["llm_plan_helped_resolution"] = False
             attempts[-1]["llm_plan_was_decisive"] = False
@@ -4474,6 +4484,12 @@ def main() -> None:
             attempts[-1]["search_budget_followed"] = False
             attempts[-1]["llm_budget_helped_resolution"] = False
             attempts[-1]["llm_guided_search_resolution"] = False
+            attempts[-1]["guided_search_helped_branch_diagnosis"] = False
+            attempts[-1]["guided_search_helped_trap_escape"] = False
+            attempts[-1]["guided_search_helped_resolution"] = False
+            attempts[-1]["guided_search_helped_replan"] = False
+            attempts[-1]["guided_search_was_decisive"] = False
+            attempts[-1]["resolution_primary_contribution"] = ""
             force_llm_now = bool(llm_context.get("should_force_llm")) or bool(llm_replan_context.get("should_force_replan"))
             if (
                 str(pre_stage_context.get("current_stage") or "").strip().lower() == "stage_2"
@@ -5385,6 +5401,7 @@ def main() -> None:
     llm_plan_followed = bool(multistep_memory.get("llm_plan_followed"))
     llm_plan_branch_match = bool(multistep_memory.get("llm_plan_branch_match"))
     first_plan_branch_match = bool(multistep_memory.get("first_plan_branch_match"))
+    first_plan_branch_miss = bool(llm_plan_generated and not first_plan_branch_match)
     replan_branch_match = bool(multistep_memory.get("replan_branch_match"))
     llm_plan_parameter_match = bool(multistep_memory.get("llm_plan_parameter_match"))
     llm_resolution_contributed = bool(multistep_memory.get("llm_resolution_contributed")) and bool(physics_contract_pass)
@@ -5419,6 +5436,7 @@ def main() -> None:
         multistep_memory["llm_replan_resolved"] = True
     wrong_branch_entered = bool(multistep_memory.get("trap_branch_entered"))
     wrong_branch_recovered = bool(wrong_branch_entered and multistep_memory.get("correct_branch_selected"))
+    replan_branch_corrected = bool(llm_replan_used and wrong_branch_recovered)
     trap_escape_success = bool(multistep_memory.get("trap_branch_entered")) and bool(multistep_memory.get("correct_branch_selected"))
     llm_guided_search_used = bool(multistep_memory.get("llm_guided_search_used"))
     search_budget_from_llm_plan = int(multistep_memory.get("search_budget_from_llm_plan") or 0)
@@ -5436,6 +5454,69 @@ def main() -> None:
         multistep_memory["llm_budget_helped_resolution"] = True
         multistep_memory["llm_guided_search_resolution"] = True
     llm_guided_search_resolution = bool(inferred_guided_search_resolution or multistep_memory.get("llm_guided_search_resolution"))
+    guided_search_bucket_sequence = [
+        str(x).strip().lower()
+        for x in (multistep_memory.get("guided_search_bucket_sequence") or [])
+        if str(x).strip()
+    ]
+    guided_search_helped_branch_diagnosis = bool(
+        llm_guided_search_used
+        and search_budget_followed
+        and "branch_diagnosis" in guided_search_bucket_sequence
+        and (first_plan_branch_match or replan_branch_match or bool(multistep_memory.get("correct_branch_selected")))
+    )
+    guided_search_helped_trap_escape = bool(
+        llm_guided_search_used
+        and search_budget_followed
+        and "branch_escape" in guided_search_bucket_sequence
+        and (
+            trap_escape_success
+            or wrong_branch_recovered
+            or int(multistep_memory.get("branch_escape_success_count") or 0) > 0
+        )
+    )
+    guided_search_helped_replan = bool(
+        llm_guided_search_used
+        and search_budget_followed
+        and bool(multistep_memory.get("guided_search_replan_after_observation"))
+        and llm_replan_used
+    )
+    guided_search_helped_resolution = bool(llm_guided_search_resolution or llm_budget_helped_resolution)
+    guided_search_was_decisive = bool(
+        physics_contract_pass
+        and guided_search_helped_resolution
+        and not llm_first_plan_resolved
+        and not llm_replan_resolved
+    )
+    resolution_primary_contribution = ""
+    if physics_contract_pass:
+        if guided_search_was_decisive:
+            resolution_primary_contribution = "guided_search_decisive"
+        elif llm_replan_resolved and bool(multistep_memory.get("replan_switch_branch")):
+            resolution_primary_contribution = "switch_branch_replan"
+        elif llm_replan_resolved:
+            resolution_primary_contribution = "llm_replan"
+        elif llm_first_plan_resolved:
+            resolution_primary_contribution = "llm_first_plan"
+        elif guided_search_helped_resolution:
+            resolution_primary_contribution = "guided_search_assisted"
+        elif (
+            stage_2_resolution_via_local_search
+            or stage_2_resolution_via_adaptive_search
+            or cluster_only_resolution
+            or template_only_resolution
+            or local_search_success_count > 0
+            or adaptive_search_success_count > 0
+        ):
+            resolution_primary_contribution = "deterministic"
+    multistep_memory["first_plan_branch_miss"] = first_plan_branch_miss
+    multistep_memory["replan_branch_corrected"] = replan_branch_corrected
+    multistep_memory["guided_search_helped_branch_diagnosis"] = guided_search_helped_branch_diagnosis
+    multistep_memory["guided_search_helped_trap_escape"] = guided_search_helped_trap_escape
+    multistep_memory["guided_search_helped_resolution"] = guided_search_helped_resolution
+    multistep_memory["guided_search_helped_replan"] = guided_search_helped_replan
+    multistep_memory["guided_search_was_decisive"] = guided_search_was_decisive
+    multistep_memory["resolution_primary_contribution"] = resolution_primary_contribution
     llm_only_resolution = bool(
         llm_resolution_contributed
         and llm_plan_followed
@@ -5554,7 +5635,9 @@ def main() -> None:
         "planner_request_kind": str(multistep_memory.get("planner_request_kind") or ""),
         "llm_plan_branch_match": llm_plan_branch_match,
         "first_plan_branch_match": first_plan_branch_match,
+        "first_plan_branch_miss": first_plan_branch_miss,
         "replan_branch_match": replan_branch_match,
+        "replan_branch_corrected": replan_branch_corrected,
         "llm_plan_parameter_match": llm_plan_parameter_match,
         "llm_plan_helped_resolution": llm_plan_helped_resolution,
         "llm_plan_was_decisive": llm_plan_was_decisive,
@@ -5626,8 +5709,14 @@ def main() -> None:
         "guided_search_observation_payload": dict(multistep_memory.get("guided_search_observation_payload") or {}),
         "guided_search_replan_after_observation": bool(multistep_memory.get("guided_search_replan_after_observation")),
         "guided_search_closed_loop_observed": guided_search_closed_loop_observed,
+        "guided_search_helped_branch_diagnosis": guided_search_helped_branch_diagnosis,
+        "guided_search_helped_trap_escape": guided_search_helped_trap_escape,
+        "guided_search_helped_resolution": guided_search_helped_resolution,
+        "guided_search_helped_replan": guided_search_helped_replan,
+        "guided_search_was_decisive": guided_search_was_decisive,
         "llm_budget_helped_resolution": llm_budget_helped_resolution,
         "llm_guided_search_resolution": llm_guided_search_resolution,
+        "resolution_primary_contribution": resolution_primary_contribution,
         "llm_request_count_delta": llm_request_count_delta_total,
         "llm_branch_correction_used": bool(multistep_memory.get("llm_branch_correction_used")),
         "llm_resolution_contributed": llm_resolution_contributed,

@@ -252,7 +252,9 @@ def main() -> None:
     llm_plan_followed_count = 0
     llm_plan_branch_match_count = 0
     first_plan_branch_match_count = 0
+    first_plan_branch_miss_count = 0
     replan_branch_match_count = 0
+    replan_branch_corrected_count = 0
     llm_plan_helped_resolution_count = 0
     llm_plan_was_decisive_count = 0
     llm_called_only_count = 0
@@ -269,6 +271,11 @@ def main() -> None:
     search_budget_followed_count = 0
     guided_search_closed_loop_count = 0
     guided_search_replan_after_observation_count = 0
+    guided_search_helped_branch_diagnosis_count = 0
+    guided_search_helped_trap_escape_count = 0
+    guided_search_helped_resolution_count = 0
+    guided_search_helped_replan_count = 0
+    guided_search_was_decisive_count = 0
     budget_bucket_exhausted_count = 0
     resolution_skipped_due_to_budget_count = 0
     candidate_suppressed_by_budget_count = 0
@@ -278,6 +285,12 @@ def main() -> None:
     llm_replan_switch_branch_count = 0
     llm_replan_same_branch_success_count = 0
     llm_replan_switch_branch_success_count = 0
+    deterministic_resolution_count = 0
+    llm_first_plan_resolution_count = 0
+    switch_branch_replan_resolution_count = 0
+    guided_search_assisted_resolution_count = 0
+    guided_search_decisive_resolution_count = 0
+    resolution_primary_contribution_counts: dict[str, int] = {}
     abandoned_branch_count = 0
     budget_wasted_on_bad_branch_count = 0
     llm_plan_failure_modes: dict[str, int] = {}
@@ -431,8 +444,12 @@ def main() -> None:
             llm_plan_branch_match_count += 1
         if bool(record.get("first_plan_branch_match")):
             first_plan_branch_match_count += 1
+        if bool(record.get("first_plan_branch_miss")):
+            first_plan_branch_miss_count += 1
         if bool(record.get("replan_branch_match")):
             replan_branch_match_count += 1
+        if bool(record.get("replan_branch_corrected")):
+            replan_branch_corrected_count += 1
         if bool(record.get("llm_plan_helped_resolution")):
             llm_plan_helped_resolution_count += 1
         if bool(record.get("llm_plan_was_decisive")):
@@ -485,6 +502,16 @@ def main() -> None:
             guided_search_closed_loop_count += 1
         if bool(record.get("guided_search_replan_after_observation")):
             guided_search_replan_after_observation_count += 1
+        if bool(record.get("guided_search_helped_branch_diagnosis")):
+            guided_search_helped_branch_diagnosis_count += 1
+        if bool(record.get("guided_search_helped_trap_escape")):
+            guided_search_helped_trap_escape_count += 1
+        if bool(record.get("guided_search_helped_resolution")):
+            guided_search_helped_resolution_count += 1
+        if bool(record.get("guided_search_helped_replan")):
+            guided_search_helped_replan_count += 1
+        if bool(record.get("guided_search_was_decisive")):
+            guided_search_was_decisive_count += 1
         if record.get("budget_bucket_exhausted"):
             budget_bucket_exhausted_count += 1
         if bool(record.get("resolution_skipped_due_to_budget")):
@@ -495,6 +522,23 @@ def main() -> None:
             llm_budget_helped_resolution_count += 1
         if bool(record.get("llm_guided_search_resolution")):
             llm_guided_search_resolution_count += 1
+        primary_contribution = str(record.get("resolution_primary_contribution") or "").strip().lower()
+        if primary_contribution:
+            resolution_primary_contribution_counts[primary_contribution] = int(
+                resolution_primary_contribution_counts.get(primary_contribution, 0)
+            ) + 1
+            if primary_contribution == "deterministic":
+                deterministic_resolution_count += 1
+            elif primary_contribution == "llm_first_plan":
+                llm_first_plan_resolution_count += 1
+            elif primary_contribution == "llm_replan":
+                pass
+            elif primary_contribution == "switch_branch_replan":
+                switch_branch_replan_resolution_count += 1
+            elif primary_contribution == "guided_search_assisted":
+                guided_search_assisted_resolution_count += 1
+            elif primary_contribution == "guided_search_decisive":
+                guided_search_decisive_resolution_count += 1
         if bool(record.get("trap_escape_success")):
             trap_escape_success_count += 1
         abandoned_branches = [x for x in (record.get("replan_abandoned_branches") or []) if str(x).strip()]
@@ -712,8 +756,12 @@ def main() -> None:
         "llm_plan_branch_match_pct": _ratio(llm_plan_branch_match_count, total_tasks),
         "first_plan_branch_match_count": first_plan_branch_match_count,
         "first_plan_branch_match_pct": _ratio(first_plan_branch_match_count, total_tasks),
+        "first_plan_branch_miss_count": first_plan_branch_miss_count,
+        "first_plan_branch_miss_pct": _ratio(first_plan_branch_miss_count, total_tasks),
         "replan_branch_match_count": replan_branch_match_count,
         "replan_branch_match_pct": _ratio(replan_branch_match_count, total_tasks),
+        "replan_branch_corrected_count": replan_branch_corrected_count,
+        "replan_branch_corrected_pct": _ratio(replan_branch_corrected_count, total_tasks),
         "llm_plan_helped_resolution_count": llm_plan_helped_resolution_count,
         "llm_plan_helped_resolution_pct": _ratio(llm_plan_helped_resolution_count, total_tasks),
         "llm_plan_was_decisive_count": llm_plan_was_decisive_count,
@@ -739,6 +787,11 @@ def main() -> None:
         "guided_search_closed_loop_count": guided_search_closed_loop_count,
         "guided_search_closed_loop_pct": _ratio(guided_search_closed_loop_count, total_tasks),
         "guided_search_replan_after_observation_count": guided_search_replan_after_observation_count,
+        "guided_search_helped_branch_diagnosis_count": guided_search_helped_branch_diagnosis_count,
+        "guided_search_helped_trap_escape_count": guided_search_helped_trap_escape_count,
+        "guided_search_helped_resolution_count": guided_search_helped_resolution_count,
+        "guided_search_helped_replan_count": guided_search_helped_replan_count,
+        "guided_search_was_decisive_count": guided_search_was_decisive_count,
         "budget_bucket_exhausted_count": budget_bucket_exhausted_count,
         "resolution_skipped_due_to_budget_count": resolution_skipped_due_to_budget_count,
         "candidate_suppressed_by_budget_count": candidate_suppressed_by_budget_count,
@@ -761,6 +814,12 @@ def main() -> None:
         "llm_branch_correction_count": llm_branch_correction_count,
         "llm_usage_by_failure_type": llm_usage_by_failure_type,
         "llm_usage_by_branch": llm_usage_by_branch,
+        "deterministic_resolution_count": deterministic_resolution_count,
+        "llm_first_plan_resolution_count": llm_first_plan_resolution_count,
+        "switch_branch_replan_resolution_count": switch_branch_replan_resolution_count,
+        "guided_search_assisted_resolution_count": guided_search_assisted_resolution_count,
+        "guided_search_decisive_resolution_count": guided_search_decisive_resolution_count,
+        "resolution_primary_contribution_counts": resolution_primary_contribution_counts,
         "deterministic_vs_first_plan_vs_replan_split": {
             "adaptive_search": stage_2_resolution_via_adaptive_search_count,
             "template_only": template_only_resolution_count,
@@ -768,6 +827,14 @@ def main() -> None:
             "llm_replan": llm_replan_resolution_count,
             "llm_second_replan": llm_second_replan_resolution_count,
             "llm_guided_search": llm_guided_search_resolution_count,
+        },
+        "resolution_attribution_split": {
+            "deterministic": deterministic_resolution_count,
+            "llm_first_plan": llm_first_plan_resolution_count,
+            "llm_replan": max(0, llm_replan_resolution_count - switch_branch_replan_resolution_count),
+            "switch_branch_replan": switch_branch_replan_resolution_count,
+            "guided_search_assisted": guided_search_assisted_resolution_count,
+            "guided_search_decisive": guided_search_decisive_resolution_count,
         },
         "deterministic_vs_llm_resolution_split": {
             "adaptive_search": stage_2_resolution_via_adaptive_search_count,

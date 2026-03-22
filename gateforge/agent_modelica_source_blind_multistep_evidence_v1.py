@@ -160,7 +160,9 @@ def main() -> None:
     llm_plan_followed_count = int(baseline_summary.get("llm_plan_followed_count") or 0)
     llm_plan_branch_match_count = int(baseline_summary.get("llm_plan_branch_match_count") or 0)
     first_plan_branch_match_count = int(baseline_summary.get("first_plan_branch_match_count") or 0)
+    first_plan_branch_miss_count = int(baseline_summary.get("first_plan_branch_miss_count") or 0)
     replan_branch_match_count = int(baseline_summary.get("replan_branch_match_count") or 0)
+    replan_branch_corrected_count = int(baseline_summary.get("replan_branch_corrected_count") or 0)
     llm_plan_helped_resolution_count = int(baseline_summary.get("llm_plan_helped_resolution_count") or 0)
     llm_plan_was_decisive_count = int(baseline_summary.get("llm_plan_was_decisive_count") or 0)
     llm_called_only_count = int(baseline_summary.get("llm_called_only_count") or 0)
@@ -178,6 +180,11 @@ def main() -> None:
     search_budget_followed_count = int(baseline_summary.get("search_budget_followed_count") or 0)
     guided_search_closed_loop_count = int(baseline_summary.get("guided_search_closed_loop_count") or 0)
     guided_search_replan_after_observation_count = int(baseline_summary.get("guided_search_replan_after_observation_count") or 0)
+    guided_search_helped_branch_diagnosis_count = int(baseline_summary.get("guided_search_helped_branch_diagnosis_count") or 0)
+    guided_search_helped_trap_escape_count = int(baseline_summary.get("guided_search_helped_trap_escape_count") or 0)
+    guided_search_helped_resolution_count = int(baseline_summary.get("guided_search_helped_resolution_count") or 0)
+    guided_search_helped_replan_count = int(baseline_summary.get("guided_search_helped_replan_count") or 0)
+    guided_search_was_decisive_count = int(baseline_summary.get("guided_search_was_decisive_count") or 0)
     budget_bucket_exhausted_count = int(baseline_summary.get("budget_bucket_exhausted_count") or 0)
     resolution_skipped_due_to_budget_count = int(baseline_summary.get("resolution_skipped_due_to_budget_count") or 0)
     candidate_suppressed_by_budget_count = int(baseline_summary.get("candidate_suppressed_by_budget_count") or 0)
@@ -193,10 +200,17 @@ def main() -> None:
     llm_resolution_count = int(baseline_summary.get("llm_resolution_count") or 0)
     llm_only_resolution_count = int(baseline_summary.get("llm_only_resolution_count") or 0)
     llm_branch_correction_count = int(baseline_summary.get("llm_branch_correction_count") or 0)
+    deterministic_resolution_count = int(baseline_summary.get("deterministic_resolution_count") or 0)
+    llm_first_plan_resolution_count = int(baseline_summary.get("llm_first_plan_resolution_count") or 0)
+    switch_branch_replan_resolution_count = int(baseline_summary.get("switch_branch_replan_resolution_count") or 0)
+    guided_search_assisted_resolution_count = int(baseline_summary.get("guided_search_assisted_resolution_count") or 0)
+    guided_search_decisive_resolution_count = int(baseline_summary.get("guided_search_decisive_resolution_count") or 0)
     llm_usage_by_failure_type = baseline_summary.get("llm_usage_by_failure_type") if isinstance(baseline_summary.get("llm_usage_by_failure_type"), dict) else {}
     llm_usage_by_branch = baseline_summary.get("llm_usage_by_branch") if isinstance(baseline_summary.get("llm_usage_by_branch"), dict) else {}
     deterministic_vs_llm_resolution_split = baseline_summary.get("deterministic_vs_llm_resolution_split") if isinstance(baseline_summary.get("deterministic_vs_llm_resolution_split"), dict) else {}
     deterministic_vs_first_plan_vs_replan_split = baseline_summary.get("deterministic_vs_first_plan_vs_replan_split") if isinstance(baseline_summary.get("deterministic_vs_first_plan_vs_replan_split"), dict) else {}
+    resolution_attribution_split = baseline_summary.get("resolution_attribution_split") if isinstance(baseline_summary.get("resolution_attribution_split"), dict) else {}
+    resolution_primary_contribution_counts = baseline_summary.get("resolution_primary_contribution_counts") if isinstance(baseline_summary.get("resolution_primary_contribution_counts"), dict) else {}
     partial_to_full_count, partial_to_full_by_failure = _partial_to_full(taskset, baseline_results, deterministic_results)
     task_total = int(challenge.get("total_tasks") or 0)
     partial_to_full_pct = round((partial_to_full_count / task_total) * 100.0, 2) if task_total > 0 else 0.0
@@ -292,8 +306,12 @@ def main() -> None:
         "llm_plan_branch_match_pct": float(baseline_summary.get("llm_plan_branch_match_pct") or 0.0),
         "first_plan_branch_match_count": first_plan_branch_match_count,
         "first_plan_branch_match_pct": float(baseline_summary.get("first_plan_branch_match_pct") or 0.0),
+        "first_plan_branch_miss_count": first_plan_branch_miss_count,
+        "first_plan_branch_miss_pct": float(baseline_summary.get("first_plan_branch_miss_pct") or 0.0),
         "replan_branch_match_count": replan_branch_match_count,
         "replan_branch_match_pct": float(baseline_summary.get("replan_branch_match_pct") or 0.0),
+        "replan_branch_corrected_count": replan_branch_corrected_count,
+        "replan_branch_corrected_pct": float(baseline_summary.get("replan_branch_corrected_pct") or 0.0),
         "llm_plan_helped_resolution_count": llm_plan_helped_resolution_count,
         "llm_plan_helped_resolution_pct": float(baseline_summary.get("llm_plan_helped_resolution_pct") or 0.0),
         "llm_plan_was_decisive_count": llm_plan_was_decisive_count,
@@ -319,6 +337,11 @@ def main() -> None:
         "guided_search_closed_loop_count": guided_search_closed_loop_count,
         "guided_search_closed_loop_pct": float(baseline_summary.get("guided_search_closed_loop_pct") or 0.0),
         "guided_search_replan_after_observation_count": guided_search_replan_after_observation_count,
+        "guided_search_helped_branch_diagnosis_count": guided_search_helped_branch_diagnosis_count,
+        "guided_search_helped_trap_escape_count": guided_search_helped_trap_escape_count,
+        "guided_search_helped_resolution_count": guided_search_helped_resolution_count,
+        "guided_search_helped_replan_count": guided_search_helped_replan_count,
+        "guided_search_was_decisive_count": guided_search_was_decisive_count,
         "budget_bucket_exhausted_count": budget_bucket_exhausted_count,
         "resolution_skipped_due_to_budget_count": resolution_skipped_due_to_budget_count,
         "candidate_suppressed_by_budget_count": candidate_suppressed_by_budget_count,
@@ -335,10 +358,17 @@ def main() -> None:
         "llm_resolution_count": llm_resolution_count,
         "llm_only_resolution_count": llm_only_resolution_count,
         "llm_branch_correction_count": llm_branch_correction_count,
+        "deterministic_resolution_count": deterministic_resolution_count,
+        "llm_first_plan_resolution_count": llm_first_plan_resolution_count,
+        "switch_branch_replan_resolution_count": switch_branch_replan_resolution_count,
+        "guided_search_assisted_resolution_count": guided_search_assisted_resolution_count,
+        "guided_search_decisive_resolution_count": guided_search_decisive_resolution_count,
         "llm_usage_by_failure_type": llm_usage_by_failure_type,
         "llm_usage_by_branch": llm_usage_by_branch,
         "deterministic_vs_llm_resolution_split": deterministic_vs_llm_resolution_split,
         "deterministic_vs_first_plan_vs_replan_split": deterministic_vs_first_plan_vs_replan_split,
+        "resolution_attribution_split": resolution_attribution_split,
+        "resolution_primary_contribution_counts": resolution_primary_contribution_counts,
         "median_round_to_correct_branch": median_round_to_correct_branch,
         "hard_case_remaining_buckets": hard_case_remaining_buckets,
         "median_round_from_stage_2_to_resolution": float(baseline_summary.get("median_round_from_stage_2_to_resolution") or 0.0),
