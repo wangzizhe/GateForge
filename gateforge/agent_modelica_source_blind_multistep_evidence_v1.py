@@ -145,6 +145,10 @@ def main() -> None:
     hard_case_remaining_buckets = baseline_summary.get("hard_case_remaining_buckets") if isinstance(baseline_summary.get("hard_case_remaining_buckets"), dict) else {}
     llm_request_count_total = int(baseline_summary.get("llm_request_count_total") or 0)
     llm_task_count = int(baseline_summary.get("llm_task_count") or 0)
+    planner_backend_counts = baseline_summary.get("planner_backend_counts") if isinstance(baseline_summary.get("planner_backend_counts"), dict) else {}
+    resolved_llm_provider_counts = baseline_summary.get("resolved_llm_provider_counts") if isinstance(baseline_summary.get("resolved_llm_provider_counts"), dict) else {}
+    planner_family_counts = baseline_summary.get("planner_family_counts") if isinstance(baseline_summary.get("planner_family_counts"), dict) else {}
+    planner_adapter_counts = baseline_summary.get("planner_adapter_counts") if isinstance(baseline_summary.get("planner_adapter_counts"), dict) else {}
     llm_plan_task_count = int(baseline_summary.get("llm_plan_task_count") or 0)
     llm_plan_followed_count = int(baseline_summary.get("llm_plan_followed_count") or 0)
     llm_plan_branch_match_count = int(baseline_summary.get("llm_plan_branch_match_count") or 0)
@@ -166,6 +170,7 @@ def main() -> None:
     search_budget_from_llm_plan_avg = float(baseline_summary.get("search_budget_from_llm_plan_avg") or 0.0)
     search_budget_followed_count = int(baseline_summary.get("search_budget_followed_count") or 0)
     llm_budget_helped_resolution_count = int(baseline_summary.get("llm_budget_helped_resolution_count") or 0)
+    llm_guided_search_resolution_count = int(baseline_summary.get("llm_guided_search_resolution_count") or 0)
     llm_replan_budget_consumed_avg = float(baseline_summary.get("llm_replan_budget_consumed_avg") or 0.0)
     llm_replan_switch_branch_count = int(baseline_summary.get("llm_replan_switch_branch_count") or 0)
     llm_replan_same_branch_success_count = int(baseline_summary.get("llm_replan_same_branch_success_count") or 0)
@@ -256,6 +261,10 @@ def main() -> None:
         "wrong_branch_recovery_count": wrong_branch_recovery_count,
         "llm_request_count_total": llm_request_count_total,
         "llm_task_count": llm_task_count,
+        "planner_backend_counts": planner_backend_counts,
+        "resolved_llm_provider_counts": resolved_llm_provider_counts,
+        "planner_family_counts": planner_family_counts,
+        "planner_adapter_counts": planner_adapter_counts,
         "llm_plan_task_count": llm_plan_task_count,
         "llm_plan_followed_count": llm_plan_followed_count,
         "llm_plan_followed_pct": float(baseline_summary.get("llm_plan_followed_pct") or 0.0),
@@ -289,6 +298,7 @@ def main() -> None:
         "search_budget_followed_pct": float(baseline_summary.get("search_budget_followed_pct") or 0.0),
         "llm_budget_helped_resolution_count": llm_budget_helped_resolution_count,
         "llm_budget_helped_resolution_pct": float(baseline_summary.get("llm_budget_helped_resolution_pct") or 0.0),
+        "llm_guided_search_resolution_count": llm_guided_search_resolution_count,
         "llm_replan_budget_consumed_avg": llm_replan_budget_consumed_avg,
         "llm_replan_switch_branch_count": llm_replan_switch_branch_count,
         "llm_replan_same_branch_success_count": llm_replan_same_branch_success_count,
@@ -347,6 +357,10 @@ def main() -> None:
         "repeated_trap_branch_count": repeated_trap_branch_count,
         "llm_request_count_total": llm_request_count_total,
         "llm_task_count": llm_task_count,
+        "planner_backend_counts": planner_backend_counts,
+        "resolved_llm_provider_counts": resolved_llm_provider_counts,
+        "planner_family_counts": planner_family_counts,
+        "planner_adapter_counts": planner_adapter_counts,
         "llm_plan_task_count": llm_plan_task_count,
         "llm_plan_followed_count": llm_plan_followed_count,
         "llm_plan_branch_match_count": llm_plan_branch_match_count,
@@ -367,6 +381,7 @@ def main() -> None:
         "search_budget_from_llm_plan_avg": search_budget_from_llm_plan_avg,
         "search_budget_followed_count": search_budget_followed_count,
         "llm_budget_helped_resolution_count": llm_budget_helped_resolution_count,
+        "llm_guided_search_resolution_count": llm_guided_search_resolution_count,
         "llm_replan_budget_consumed_avg": llm_replan_budget_consumed_avg,
         "llm_replan_switch_branch_count": llm_replan_switch_branch_count,
         "llm_replan_same_branch_success_count": llm_replan_same_branch_success_count,
@@ -439,6 +454,10 @@ def main() -> None:
         "repeated_trap_branch_count": repeated_trap_branch_count,
         "llm_request_count_total": llm_request_count_total,
         "llm_task_count": llm_task_count,
+        "planner_backend_counts": planner_backend_counts,
+        "resolved_llm_provider_counts": resolved_llm_provider_counts,
+        "planner_family_counts": planner_family_counts,
+        "planner_adapter_counts": planner_adapter_counts,
         "llm_plan_task_count": llm_plan_task_count,
         "llm_plan_followed_count": llm_plan_followed_count,
         "llm_plan_followed_pct": float(baseline_summary.get("llm_plan_followed_pct") or 0.0),
@@ -471,6 +490,7 @@ def main() -> None:
         "search_budget_followed_pct": float(baseline_summary.get("search_budget_followed_pct") or 0.0),
         "llm_budget_helped_resolution_count": llm_budget_helped_resolution_count,
         "llm_budget_helped_resolution_pct": float(baseline_summary.get("llm_budget_helped_resolution_pct") or 0.0),
+        "llm_guided_search_resolution_count": llm_guided_search_resolution_count,
         "llm_replan_budget_consumed_avg": llm_replan_budget_consumed_avg,
         "llm_replan_switch_branch_count": llm_replan_switch_branch_count,
         "llm_replan_same_branch_success_count": llm_replan_same_branch_success_count,

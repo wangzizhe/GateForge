@@ -136,6 +136,10 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
                 "realism_version": "v5",
                 "planner_backend": "gemini",
                 "resolved_llm_provider": "gemini",
+                "planner_contract_version": "agent_modelica_multistep_planner_contract_v1",
+                "planner_family": "llm",
+                "planner_adapter": "gateforge_gemini_planner_v1",
+                "planner_request_kind": "replan",
                 "live_request_count": 2,
                 "rate_limit_429_count": 0,
                 "budget_stop_triggered": False,
@@ -203,6 +207,7 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
                 "search_budget_from_llm_plan": 3,
                 "search_budget_followed": True,
                 "llm_budget_helped_resolution": False,
+                "llm_guided_search_resolution": False,
             },
             physics_ok=False,
         )
@@ -263,6 +268,10 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
             {
                 "planner_backend": "gemini",
                 "resolved_llm_provider": "gemini",
+                "planner_contract_version": "agent_modelica_multistep_planner_contract_v1",
+                "planner_family": "llm",
+                "planner_adapter": "gateforge_gemini_planner_v1",
+                "planner_request_kind": "replan",
                 "live_request_count": 1,
             },
             {
@@ -288,8 +297,13 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
                 "search_budget_from_llm_plan": 3,
                 "search_budget_followed": True,
                 "llm_budget_helped_resolution": False,
+                "llm_guided_search_resolution": True,
             },
         )
+        self.assertEqual(str(live_usage.get("planner_contract_version") or ""), "agent_modelica_multistep_planner_contract_v1")
+        self.assertEqual(str(live_usage.get("planner_family") or ""), "llm")
+        self.assertEqual(str(live_usage.get("planner_adapter") or ""), "gateforge_gemini_planner_v1")
+        self.assertEqual(str(live_usage.get("planner_request_kind") or ""), "replan")
         self.assertEqual(str(live_usage.get("realism_version") or ""), "v5")
         self.assertFalse(bool(live_usage.get("first_plan_branch_match")))
         self.assertTrue(bool(live_usage.get("replan_branch_match")))
@@ -309,6 +323,7 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
         self.assertTrue(bool(live_usage.get("llm_guided_search_used")))
         self.assertEqual(int(live_usage.get("search_budget_from_llm_plan") or 0), 3)
         self.assertTrue(bool(live_usage.get("search_budget_followed")))
+        self.assertTrue(bool(live_usage.get("llm_guided_search_resolution")))
 
     def test_extract_live_usage_fields_defaults_to_zero_visibility(self) -> None:
         fields = _extract_live_usage_fields({}, {})
@@ -317,7 +332,12 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
         self.assertFalse(bool(fields.get("replan_branch_match")))
         self.assertEqual(fields.get("planner_backend"), "")
         self.assertEqual(fields.get("resolved_llm_provider"), "")
+        self.assertEqual(fields.get("planner_contract_version"), "")
+        self.assertEqual(fields.get("planner_family"), "")
+        self.assertEqual(fields.get("planner_adapter"), "")
+        self.assertEqual(fields.get("planner_request_kind"), "")
         self.assertEqual(int(fields.get("live_request_count") or 0), 0)
+        self.assertFalse(bool(fields.get("llm_guided_search_resolution")))
         self.assertEqual(int(fields.get("rate_limit_429_count") or 0), 0)
         self.assertFalse(bool(fields.get("budget_stop_triggered")))
         self.assertFalse(bool(fields.get("llm_plan_used")))

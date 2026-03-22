@@ -48,6 +48,10 @@ class AgentModelicaSourceBlindMultistepBaselineSummaryV1Tests(unittest.TestCase)
                         "cluster_only_resolution": False,
                         "template_only_resolution": False,
                         "llm_plan_used": True,
+                        "planner_backend": "gemini",
+                        "resolved_llm_provider": "gemini",
+                        "planner_family": "llm",
+                        "planner_adapter": "gateforge_gemini_planner_v1",
                         "llm_plan_generated": True,
                         "llm_plan_followed": True,
                         "llm_plan_reason": "same_stage_2_branch_stall",
@@ -71,6 +75,7 @@ class AgentModelicaSourceBlindMultistepBaselineSummaryV1Tests(unittest.TestCase)
                         "search_budget_from_llm_plan": 2,
                         "search_budget_followed": True,
                         "llm_budget_helped_resolution": True,
+                        "llm_guided_search_resolution": True,
                         "trap_escape_success": False,
                         "stage_2_first_fail_bucket": "behavior_contract_miss",
                         "stage_2_branch": "behavior_timing_branch",
@@ -103,6 +108,10 @@ class AgentModelicaSourceBlindMultistepBaselineSummaryV1Tests(unittest.TestCase)
                         "cluster_only_resolution": False,
                         "template_only_resolution": False,
                         "llm_plan_used": True,
+                        "planner_backend": "gemini",
+                        "resolved_llm_provider": "gemini",
+                        "planner_family": "llm",
+                        "planner_adapter": "gateforge_gemini_planner_v1",
                         "llm_plan_generated": True,
                         "llm_plan_followed": True,
                         "llm_plan_reason": "trap_escape_no_progress",
@@ -146,6 +155,7 @@ class AgentModelicaSourceBlindMultistepBaselineSummaryV1Tests(unittest.TestCase)
                         "search_budget_from_llm_plan": 3,
                         "search_budget_followed": True,
                         "llm_budget_helped_resolution": True,
+                        "llm_guided_search_resolution": True,
                         "trap_escape_success": True,
                         "stage_2_first_fail_bucket": "single_case_only",
                         "stage_2_branch": "nominal_overfit_trap",
@@ -258,6 +268,10 @@ class AgentModelicaSourceBlindMultistepBaselineSummaryV1Tests(unittest.TestCase)
             self.assertEqual(payload.get("repeated_trap_branch_count"), 1)
             self.assertEqual(payload.get("llm_request_count_total"), 2)
             self.assertEqual(payload.get("llm_task_count"), 2)
+            self.assertEqual(payload.get("planner_backend_counts"), {"gemini": 2})
+            self.assertEqual(payload.get("resolved_llm_provider_counts"), {"gemini": 2})
+            self.assertEqual(payload.get("planner_family_counts"), {"llm": 2})
+            self.assertEqual(payload.get("planner_adapter_counts"), {"gateforge_gemini_planner_v1": 2})
             self.assertEqual(payload.get("realism_version_counts"), {"v5": 2})
             self.assertEqual(payload.get("llm_plan_task_count"), 2)
             self.assertEqual(payload.get("llm_resolution_count"), 1)
@@ -277,6 +291,7 @@ class AgentModelicaSourceBlindMultistepBaselineSummaryV1Tests(unittest.TestCase)
             self.assertEqual(payload.get("search_budget_from_llm_plan_avg"), 2.5)
             self.assertEqual(payload.get("search_budget_followed_count"), 2)
             self.assertEqual(payload.get("llm_budget_helped_resolution_count"), 2)
+            self.assertEqual(payload.get("llm_guided_search_resolution_count"), 2)
             self.assertEqual(payload.get("llm_replan_budget_consumed_avg"), 3.0)
             self.assertEqual(payload.get("llm_replan_switch_branch_count"), 1)
             self.assertEqual(payload.get("llm_replan_same_branch_success_count"), 0)
@@ -291,7 +306,7 @@ class AgentModelicaSourceBlindMultistepBaselineSummaryV1Tests(unittest.TestCase)
             self.assertEqual(payload.get("llm_usage_by_branch"), {"behavior_timing_branch": 1, "nominal_overfit_trap": 1})
             self.assertEqual(
                 payload.get("deterministic_vs_first_plan_vs_replan_split"),
-                {"adaptive_search": 1, "template_only": 1, "llm_first_plan": 1, "llm_replan": 1, "llm_second_replan": 1},
+                {"adaptive_search": 1, "template_only": 1, "llm_first_plan": 1, "llm_replan": 1, "llm_second_replan": 1, "llm_guided_search": 2},
             )
             self.assertEqual(payload.get("median_round_to_correct_branch"), 2.0)
             self.assertEqual(payload.get("multi_step_completion_count"), 1)

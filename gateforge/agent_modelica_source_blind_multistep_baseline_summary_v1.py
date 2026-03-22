@@ -184,6 +184,10 @@ def main() -> None:
     repeated_trap_branch_count = 0
     llm_request_count_total = 0
     llm_task_count = 0
+    planner_backend_counts: dict[str, int] = {}
+    resolved_llm_provider_counts: dict[str, int] = {}
+    planner_family_counts: dict[str, int] = {}
+    planner_adapter_counts: dict[str, int] = {}
     realism_version_counts: dict[str, int] = {}
     llm_resolution_count = 0
     llm_only_resolution_count = 0
@@ -208,6 +212,7 @@ def main() -> None:
     search_budget_from_llm_plan_total = 0
     search_budget_followed_count = 0
     llm_budget_helped_resolution_count = 0
+    llm_guided_search_resolution_count = 0
     llm_replan_budget_consumed_total = 0
     llm_replan_switch_branch_count = 0
     llm_replan_same_branch_success_count = 0
@@ -235,6 +240,18 @@ def main() -> None:
         realism_key = str(record.get("realism_version") or "").strip().lower()
         if realism_key:
             realism_version_counts[realism_key] = int(realism_version_counts.get(realism_key, 0)) + 1
+        planner_backend = str(record.get("planner_backend") or "").strip().lower()
+        if planner_backend:
+            planner_backend_counts[planner_backend] = int(planner_backend_counts.get(planner_backend, 0)) + 1
+        resolved_provider = str(record.get("resolved_llm_provider") or "").strip().lower()
+        if resolved_provider:
+            resolved_llm_provider_counts[resolved_provider] = int(resolved_llm_provider_counts.get(resolved_provider, 0)) + 1
+        planner_family = str(record.get("planner_family") or "").strip().lower()
+        if planner_family:
+            planner_family_counts[planner_family] = int(planner_family_counts.get(planner_family, 0)) + 1
+        planner_adapter = str(record.get("planner_adapter") or "").strip().lower()
+        if planner_adapter:
+            planner_adapter_counts[planner_adapter] = int(planner_adapter_counts.get(planner_adapter, 0)) + 1
         signatures: list[str] = []
         second_failure_round: int | None = None
         unlocked_rounds: list[int] = []
@@ -369,6 +386,11 @@ def main() -> None:
             "same_stage_2_branch_stall_after_first_plan",
             "branch_mode_unknown_after_first_plan",
             "partial_progress_without_preferred_branch",
+            "same_stage_2_branch_stall_after_replan",
+            "branch_mode_unknown_after_replan",
+            "replan_did_not_reach_preferred_branch",
+            "candidate_pool_exhausted_after_replan",
+            "no_contract_bucket_progress_after_replan",
         }:
             replan_after_branch_miss_count += 1
         if bool(record.get("backtracking_used")):
@@ -383,6 +405,8 @@ def main() -> None:
             search_budget_followed_count += 1
         if bool(record.get("llm_budget_helped_resolution")):
             llm_budget_helped_resolution_count += 1
+        if bool(record.get("llm_guided_search_resolution")):
+            llm_guided_search_resolution_count += 1
         if bool(record.get("trap_escape_success")):
             trap_escape_success_count += 1
         abandoned_branches = [x for x in (record.get("replan_abandoned_branches") or []) if str(x).strip()]
@@ -581,6 +605,10 @@ def main() -> None:
         "llm_request_count_total": llm_request_count_total,
         "llm_task_count": llm_task_count,
         "llm_task_pct": _ratio(llm_task_count, total_tasks),
+        "planner_backend_counts": planner_backend_counts,
+        "resolved_llm_provider_counts": resolved_llm_provider_counts,
+        "planner_family_counts": planner_family_counts,
+        "planner_adapter_counts": planner_adapter_counts,
         "llm_plan_task_count": llm_plan_task_count,
         "llm_plan_followed_count": llm_plan_followed_count,
         "llm_plan_followed_pct": _ratio(llm_plan_followed_count, total_tasks),
@@ -613,6 +641,8 @@ def main() -> None:
         "search_budget_followed_pct": _ratio(search_budget_followed_count, total_tasks),
         "llm_budget_helped_resolution_count": llm_budget_helped_resolution_count,
         "llm_budget_helped_resolution_pct": _ratio(llm_budget_helped_resolution_count, total_tasks),
+        "llm_guided_search_resolution_count": llm_guided_search_resolution_count,
+        "llm_guided_search_resolution_pct": _ratio(llm_guided_search_resolution_count, total_tasks),
         "llm_replan_budget_consumed_avg": round((llm_replan_budget_consumed_total / llm_replan_used_count), 2) if llm_replan_used_count > 0 else 0.0,
         "llm_replan_switch_branch_count": llm_replan_switch_branch_count,
         "llm_replan_same_branch_success_count": llm_replan_same_branch_success_count,
@@ -634,6 +664,7 @@ def main() -> None:
             "llm_first_plan": first_plan_resolution_count,
             "llm_replan": llm_replan_resolution_count,
             "llm_second_replan": llm_second_replan_resolution_count,
+            "llm_guided_search": llm_guided_search_resolution_count,
         },
         "deterministic_vs_llm_resolution_split": {
             "adaptive_search": stage_2_resolution_via_adaptive_search_count,
