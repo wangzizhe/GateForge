@@ -1,0 +1,25 @@
+{
+  "schema_version": "modelica_compatibility_whitelist_v1",
+  "description": "Known-good models for environment compatibility smoke testing.",
+  "docker_image": "openmodelica/openmodelica:v1.26.1-minimal",
+  "models": [
+    {
+      "model_id": "MinimalProbe",
+      "model_path": "examples/openmodelica/MinimalProbe.mo",
+      "model_name": "MinimalProbe",
+      "expect_check_pass": true,
+      "expect_simulate_pass": true,
+      "stop_time": 1.0,
+      "purpose": "Trivial ODE: validates compile and simulate pipeline"
+    },
+    {
+      "model_id": "MediumOscillator",
+      "model_path": "examples/openmodelica/MediumOscillator.mo",
+      "model_name": "MediumOscillator",
+      "expect_check_pass": true,
+      "expect_simulate_pass": true,
+      "stop_time": 5.0,
+      "purpose": "Damped oscillator: validates parameter handling and longer simulation"
+    }
+  ]
+}
