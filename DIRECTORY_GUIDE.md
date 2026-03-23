@@ -17,6 +17,7 @@ This file explains what each top-level folder is for, so you can quickly tell:
 | `baselines/` | Baseline references for trend/compare modules | previous snapshot/trend inputs | Yes (small curated baselines) |
 | `benchmarks/` | Benchmark packs and benchmark inputs | pack JSONs, benchmark case lists | Yes |
 | `data/` | Static data/config inputs | source manifests, seed lists | Yes |
+| `docs/` | Public technical and operational documentation | architecture, contracts, runbooks, demo and operations guides | Yes |
 | `examples/` | Small public examples and toy/demo models | minimal probes, sample mutants | Yes |
 | `gateforge/` | Main product Python modules | pipeline, governance, dataset modules | Yes (core code) |
 | `policies/` | Policy profiles and policy configs | gate thresholds, policy templates | Yes |
@@ -32,6 +33,10 @@ This file explains what each top-level folder is for, so you can quickly tell:
 - Behavioral guarantees: `tests/`
 - Policy behavior: `policies/`
 - Data/source seed configuration: `data/`
+- Operations guide: `docs/OPERATIONS.md`
+- Demo guide: `docs/DEMO.md`
+- OMC adapter contract: `docs/contracts/AGENT_MODELICA_OMC_ADAPTER_CONTRACT_V0.md`
+- Runbooks: `docs/runbooks/`
 
 ## Current Lane (Use This First)
 
