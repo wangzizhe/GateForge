@@ -2778,7 +2778,7 @@ def _run_omc_script_docker(script_text: str, timeout_sec: int, cwd: str, image: 
     script_path = Path(cwd) / "run.mos"
     script_path.write_text(script_text, encoding="utf-8")
     cache_root_raw = str(os.getenv("GATEFORGE_OM_DOCKER_LIBRARY_CACHE") or "").strip()
-    cache_root = Path(cache_root_raw) if cache_root_raw else (Path(cwd) / ".gf_omcache" / "libraries")
+    cache_root = Path(cache_root_raw) if cache_root_raw else (Path.home() / ".openmodelica" / "libraries")
     if not cache_root.is_absolute():
         cache_root = (Path(cwd) / cache_root).resolve()
     else:
