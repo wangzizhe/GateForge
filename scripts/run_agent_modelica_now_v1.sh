@@ -14,6 +14,10 @@ Usage:
   bash scripts/run_agent_modelica_now_v1.sh <command>
 
 Commands:
+  compat-smoke
+    Run environment compatibility probes (Docker, image, MSL, compile, simulate).
+    Exits non-zero on first infrastructure failure.
+
   calib
     Run strict OMC calibration pack for mutation quality.
 
@@ -22,12 +26,27 @@ Commands:
 
   preflight
     Run release preflight with mandatory live smoke.
+    Automatically runs compat-smoke first; aborts if environment is broken.
 TXT
 }
 
 if [ -z "$cmd" ] || [ "$cmd" = "help" ] || [ "$cmd" = "--help" ] || [ "$cmd" = "-h" ]; then
   usage
   exit 0
+fi
+
+if [ "$cmd" = "compat-smoke" ]; then
+  docker_image="${GATEFORGE_DOCKER_IMAGE:-openmodelica/openmodelica:v1.26.1-minimal}"
+  whitelist="${GATEFORGE_COMPAT_WHITELIST:-data/modelica_compatibility_whitelist_v1.json}"
+  out_dir="${GATEFORGE_COMPAT_SMOKE_OUT_DIR:-artifacts/compatibility_smoke}"
+  timeout="${GATEFORGE_COMPAT_SMOKE_TIMEOUT_SEC:-180}"
+  python3 -m gateforge.agent_modelica_compatibility_detector_v1 \
+    --docker-image "$docker_image" \
+    --whitelist "$whitelist" \
+    --out "$out_dir/compatibility_report.json" \
+    --md-out "$out_dir/compatibility_report.md" \
+    --timeout-sec "$timeout"
+  exit $?
 fi
 
 if [ "$cmd" = "calib" ]; then
@@ -55,6 +74,16 @@ if [ "$cmd" = "loop-mini-live" ]; then
 fi
 
 if [ "$cmd" = "preflight" ]; then
+  # Fail-fast: run compatibility smoke before expensive preflight work.
+  if [ "${GATEFORGE_SKIP_COMPAT_SMOKE:-0}" != "1" ]; then
+    echo "=== Compatibility smoke (fail-fast gate) ==="
+    if ! bash "$0" compat-smoke; then
+      echo "PREFLIGHT ABORTED: environment compatibility smoke failed." >&2
+      echo "Fix the infrastructure issues above, or set GATEFORGE_SKIP_COMPAT_SMOKE=1 to bypass." >&2
+      exit 1
+    fi
+    echo "=== Compatibility smoke passed ==="
+  fi
   GATEFORGE_AGENT_RELEASE_RUN_LIVE_SMOKE="${GATEFORGE_AGENT_RELEASE_RUN_LIVE_SMOKE:-1}" \
     bash scripts/run_agent_modelica_release_preflight_v0_1_5.sh
   exit 0
