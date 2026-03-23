@@ -26,6 +26,35 @@ def _status_ok(value: str) -> bool:
     return str(value or "").strip().upper() == "PASS"
 
 
+def _l5_performance_trend_status(trend_summary: dict) -> tuple[str, list[str], dict]:
+    """Evaluate L5 performance trend signal.
+
+    Surfaces NEEDS_REVIEW for non-stable authority_status; never escalates to FAIL.
+    """
+    reasons: list[str] = []
+    authority_status = str(trend_summary.get("authority_status") or "").strip()
+    if not trend_summary:
+        reasons.append("l5_trend_summary_missing")
+    elif authority_status == "insufficient_data":
+        reasons.append("l5_trend_authority_insufficient_data")
+    elif authority_status == "calibrating":
+        reasons.append("l5_trend_authority_calibrating")
+    status = "PASS" if not reasons else "NEEDS_REVIEW"
+    return (
+        status,
+        reasons,
+        {
+            "authority_status": authority_status,
+            "baseline_derived_pct": trend_summary.get("baseline_derived_pct"),
+            "volatility_pp": trend_summary.get("volatility_pp"),
+            "trend_direction": trend_summary.get("trend_direction"),
+            "window_weeks": trend_summary.get("window_weeks"),
+            "total_ledger_weeks": trend_summary.get("total_ledger_weeks"),
+            "consecutive_pass_weeks": trend_summary.get("consecutive_pass_weeks"),
+        },
+    )
+
+
 def _v4_replan_status(summary: dict) -> tuple[str, list[str], dict]:
     reasons: list[str] = []
     success_count = int(summary.get("success_count") or 0)
@@ -135,6 +164,8 @@ def main() -> None:
     parser.add_argument("--v5-rule-summary", required=True)
     parser.add_argument("--decision-quality-gate", default=None,
                         help="Optional path to decision_quality_gate.json")
+    parser.add_argument("--l5-performance-trend", default=None,
+                        help="Optional path to l5_performance_trend.json")
     parser.add_argument("--out")
     args = parser.parse_args()
 
@@ -144,10 +175,12 @@ def main() -> None:
     v5_gemini_summary = _load_json(args.v5_gemini_summary)
     v5_rule_summary = _load_json(args.v5_rule_summary)
     dq_gate = _load_json(args.decision_quality_gate) if args.decision_quality_gate else {}
+    l5_trend = _load_json(args.l5_performance_trend) if args.l5_performance_trend else {}
 
     v4_status, v4_reasons, v4_details = _v4_replan_status(v4_summary)
     v5_branch_status, v5_branch_reasons, v5_branch_details = _v5_branch_choice_status(v5_gemini_summary, v5_rule_summary)
     v5_guided_status, v5_guided_reasons, v5_guided_details = _v5_guided_search_status(v5_gemini_summary)
+    l5_trend_status, l5_trend_reasons, l5_trend_details = _l5_performance_trend_status(l5_trend)
 
     payload = dict(summary)
     payload["schema_version"] = SCHEMA_VERSION
@@ -181,6 +214,15 @@ def main() -> None:
             "checks": dq_gate.get("checks") or {},
         }
 
+    # L5 performance trend (optional, advisory only: never escalates to FAIL)
+    payload["v015_l5_performance_trend_status"] = l5_trend_status if l5_trend else "missing"
+    if l5_trend:
+        payload["v015_l5_performance_trend"] = {
+            **l5_trend_details,
+            "reasons": l5_trend_reasons,
+            "summary_path": str(args.l5_performance_trend or ""),
+        }
+
     reasons = [str(x) for x in payload.get("reasons") or [] if isinstance(x, str)]
     if v4_status != "PASS":
         reasons.append("v015_v4_llm_replan_not_pass")
@@ -192,6 +234,8 @@ def main() -> None:
         reasons.append("v015_decision_quality_needs_review")
     elif dq_status == "FAIL":
         reasons.append("v015_decision_quality_fail")
+    if l5_trend_status != "PASS":
+        reasons.append("v015_l5_trend_authority_not_stable")
     payload["reasons"] = reasons
 
     status = str(payload.get("status") or "PASS").strip().upper() or "PASS"
@@ -200,6 +244,9 @@ def main() -> None:
     # Decision quality FAIL also fails the release; NEEDS_REVIEW only surfaces in reasons
     if dq_status == "FAIL":
         status = "FAIL"
+    # L5 trend: NEEDS_REVIEW can move PASS -> NEEDS_REVIEW; never causes FAIL
+    if status == "PASS" and l5_trend_status == "NEEDS_REVIEW":
+        status = "NEEDS_REVIEW"
     payload["status"] = status
 
     _write_json(out_path, payload)
