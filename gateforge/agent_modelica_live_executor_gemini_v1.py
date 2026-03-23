@@ -24,8 +24,6 @@ from .agent_modelica_repair_action_policy_v0 import (
 
 DEFAULT_DOCKER_IMAGE = "openmodelica/openmodelica:v1.26.1-minimal"
 ENV_KEY_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
-LIVE_LEDGER_SCHEMA_VERSION = "agent_modelica_live_request_ledger_v1"
-_IN_MEMORY_LIVE_LEDGER: dict[str, dict] = {}
 OPENAI_MODEL_HINT_PATTERN = re.compile(r"^(gpt|o[0-9]|chatgpt|gpt-5)", re.IGNORECASE)
 BEHAVIORAL_MARKER_PREFIX = "gateforge_behavioral_contract_violation"
 BEHAVIORAL_ROBUSTNESS_MARKER_PREFIX = "gateforge_behavioral_robustness_violation"
@@ -2826,133 +2824,25 @@ def _extract_om_success_flags(output: str) -> tuple[bool, bool]:
     return check_ok, simulate_ok
 
 
-def _to_int_env(name: str, default: int) -> int:
-    try:
-        return max(0, int(str(os.getenv(name) or "").strip() or default))
-    except Exception:
-        return max(0, int(default))
+from .llm_budget import (  # noqa: E402
+    _to_int_env,
+    _to_float_env,
+)
 
 
-def _to_float_env(name: str, default: float) -> float:
-    try:
-        return max(0.0, float(str(os.getenv(name) or "").strip() or default))
-    except Exception:
-        return max(0.0, float(default))
-
-
-def _llm_request_timeout_sec() -> float:
-    return max(1.0, _to_float_env("GATEFORGE_AGENT_LIVE_LLM_REQUEST_TIMEOUT_SEC", 120.0))
-
-
-def _live_budget_config() -> dict:
-    ledger_path = str(os.getenv("GATEFORGE_AGENT_LIVE_REQUEST_LEDGER_PATH") or "").strip()
-    return {
-        "ledger_path": ledger_path,
-        "stage": str(os.getenv("GATEFORGE_AGENT_LIVE_REQUEST_STAGE") or "").strip(),
-        "max_requests_per_run": _to_int_env("GATEFORGE_AGENT_LIVE_MAX_REQUESTS_PER_RUN", 80),
-        "max_consecutive_429": max(1, _to_int_env("GATEFORGE_AGENT_LIVE_MAX_CONSECUTIVE_429", 3)),
-        "base_backoff_sec": _to_float_env("GATEFORGE_AGENT_LIVE_BACKOFF_BASE_SEC", 5.0),
-        "max_backoff_sec": _to_float_env("GATEFORGE_AGENT_LIVE_BACKOFF_MAX_SEC", 60.0),
-    }
-
-
-def _empty_live_ledger(cfg: dict) -> dict:
-    return {
-        "schema_version": LIVE_LEDGER_SCHEMA_VERSION,
-        "live_budget": {
-            "max_requests_per_run": int(cfg.get("max_requests_per_run") or 0),
-            "max_consecutive_429": int(cfg.get("max_consecutive_429") or 0),
-            "base_backoff_sec": float(cfg.get("base_backoff_sec") or 0.0),
-            "max_backoff_sec": float(cfg.get("max_backoff_sec") or 0.0),
-        },
-        "request_count": 0,
-        "rate_limit_429_count": 0,
-        "consecutive_429_count": 0,
-        "backoff_count": 0,
-        "last_backoff_sec": 0.0,
-        "budget_stop_triggered": False,
-        "last_stop_reason": "",
-        "last_stage": str(cfg.get("stage") or ""),
-    }
-
-
-def _live_ledger_key(cfg: dict) -> str:
-    ledger_path = str(cfg.get("ledger_path") or "").strip()
-    if ledger_path:
-        return str(Path(ledger_path).resolve())
-    return "__process__"
-
-
-def _load_live_ledger(cfg: dict) -> dict:
-    ledger_path = str(cfg.get("ledger_path") or "").strip()
-    if not ledger_path:
-        payload = _IN_MEMORY_LIVE_LEDGER.get(_live_ledger_key(cfg))
-        if not payload:
-            return _empty_live_ledger(cfg)
-        out = _empty_live_ledger(cfg)
-        out.update(payload)
-        if cfg.get("stage"):
-            out["last_stage"] = str(cfg.get("stage") or "")
-        return out
-    payload = _load_json(Path(ledger_path))
-    if not payload:
-        return _empty_live_ledger(cfg)
-    out = _empty_live_ledger(cfg)
-    out.update(payload)
-    if cfg.get("stage"):
-        out["last_stage"] = str(cfg.get("stage") or "")
-    return out
-
-
-def _write_live_ledger(cfg: dict, payload: dict) -> None:
-    ledger_path = str(cfg.get("ledger_path") or "").strip()
-    if not ledger_path:
-        _IN_MEMORY_LIVE_LEDGER[_live_ledger_key(cfg)] = dict(payload)
-        return
-    _write_json(Path(ledger_path), payload)
-
-
-def _reserve_live_request(cfg: dict) -> tuple[bool, dict]:
-    ledger = _load_live_ledger(cfg)
-    max_requests = int(cfg.get("max_requests_per_run") or 0)
-    if max_requests > 0 and int(ledger.get("request_count") or 0) >= max_requests:
-        ledger["budget_stop_triggered"] = True
-        ledger["last_stop_reason"] = "live_request_budget_exceeded"
-        _write_live_ledger(cfg, ledger)
-        return False, ledger
-    ledger["request_count"] = int(ledger.get("request_count") or 0) + 1
-    ledger["last_stage"] = str(cfg.get("stage") or ledger.get("last_stage") or "")
-    _write_live_ledger(cfg, ledger)
-    return True, ledger
-
-
-def _record_live_request_success(cfg: dict) -> dict:
-    ledger = _load_live_ledger(cfg)
-    ledger["consecutive_429_count"] = 0
-    _write_live_ledger(cfg, ledger)
-    return ledger
-
-
-def _record_live_request_429(cfg: dict) -> tuple[str, dict]:
-    ledger = _load_live_ledger(cfg)
-    ledger["rate_limit_429_count"] = int(ledger.get("rate_limit_429_count") or 0) + 1
-    ledger["consecutive_429_count"] = int(ledger.get("consecutive_429_count") or 0) + 1
-    threshold = max(1, int(cfg.get("max_consecutive_429") or 1))
-    if int(ledger.get("consecutive_429_count") or 0) >= threshold:
-        ledger["budget_stop_triggered"] = True
-        ledger["last_stop_reason"] = "rate_limited"
-        _write_live_ledger(cfg, ledger)
-        return "rate_limited", ledger
-    backoff = min(
-        float(cfg.get("max_backoff_sec") or 0.0),
-        float(cfg.get("base_backoff_sec") or 0.0) * (2 ** max(0, int(ledger.get("consecutive_429_count") or 1) - 1)),
-    )
-    ledger["backoff_count"] = int(ledger.get("backoff_count") or 0) + 1
-    ledger["last_backoff_sec"] = float(backoff)
-    _write_live_ledger(cfg, ledger)
-    if backoff > 0:
-        time.sleep(backoff)
-    return "", ledger
+from .llm_budget import (  # noqa: E402
+    LIVE_LEDGER_SCHEMA_VERSION,
+    _IN_MEMORY_LIVE_LEDGER,
+    _llm_request_timeout_sec,
+    _live_budget_config,
+    _empty_live_ledger,
+    _live_ledger_key,
+    _load_live_ledger,
+    _write_live_ledger,
+    _reserve_live_request,
+    _record_live_request_success,
+    _record_live_request_429,
+)
 
 
 def _classify_failure(output: str, check_ok: bool, simulate_ok: bool) -> tuple[str, str]:
@@ -2967,25 +2857,10 @@ def _classify_failure(output: str, check_ok: bool, simulate_ok: bool) -> tuple[s
 
 
 def _extract_json_object(text: str) -> dict:
-    stripped = str(text or "").strip()
-    if stripped.startswith("```"):
-        lines = stripped.splitlines()
-        if lines and lines[0].startswith("```"):
-            lines = lines[1:]
-        if lines and lines[-1].strip().startswith("```"):
-            lines = lines[:-1]
-        stripped = "\n".join(lines).strip()
-    try:
-        payload = json.loads(stripped)
-    except json.JSONDecodeError:
-        match = re.search(r"\{.*\}", stripped, re.DOTALL)
-        if not match:
-            return {}
-        try:
-            payload = json.loads(match.group(0))
-        except json.JSONDecodeError:
-            return {}
-    return payload if isinstance(payload, dict) else {}
+    # Canonical implementation moved to llm_response.extract_json_object.
+    # This re-export preserves the existing internal call sites and test imports.
+    from .llm_response import extract_json_object  # noqa: F811
+    return extract_json_object(text, strict=False)
 
 
 def _parse_env_assignment(line: str) -> tuple[str, str] | tuple[None, None]:
@@ -3204,22 +3079,40 @@ def _build_source_blind_multistep_planner_prompt(
 
 
 def _extract_response_text_openai(payload: dict) -> str:
-    if isinstance(payload.get("output_text"), str) and str(payload.get("output_text")).strip():
-        return str(payload.get("output_text"))
-    output = payload.get("output") if isinstance(payload.get("output"), list) else []
-    parts: list[str] = []
-    for item in output:
-        if not isinstance(item, dict):
+    # Re-export kept for backward compatibility with existing callers.
+    from .llm_provider_adapter import OpenAIProviderAdapter
+    return OpenAIProviderAdapter._extract_response_text(payload)
+
+
+def _send_with_budget(
+    adapter: "LLMProviderAdapter",
+    prompt: str,
+    config: "LLMProviderConfig",
+) -> tuple[str, str]:
+    """Send a prompt through the adapter with budget-gated retry on 429.
+
+    Integrates the adapter's single-shot send with the budget tracking
+    and exponential backoff retry loop for rate-limited responses.
+
+    Returns:
+        Tuple of (response_text, error_string). Empty error means success.
+    """
+    cfg = _live_budget_config()
+    provider = config.provider_name
+    while True:
+        allowed, _ledger = _reserve_live_request(cfg)
+        if not allowed:
+            return "", "live_request_budget_exceeded"
+        text, err = adapter.send_text_request(prompt, config)
+        if not err:
+            _record_live_request_success(cfg)
+            return text, ""
+        if "_rate_limited" in err:
+            stop_reason, _ledger = _record_live_request_429(cfg)
+            if stop_reason:
+                return "", stop_reason
             continue
-        content = item.get("content") if isinstance(item.get("content"), list) else []
-        for row in content:
-            if not isinstance(row, dict):
-                continue
-            if isinstance(row.get("text"), str):
-                parts.append(str(row.get("text")))
-            elif isinstance(row.get("value"), str):
-                parts.append(str(row.get("value")))
-    return "\n".join([x for x in parts if x.strip()]).strip()
+        return "", err
 
 
 def _gemini_repair_model_text(
@@ -3232,14 +3125,11 @@ def _gemini_repair_model_text(
     model_name: str,
     current_round: int = 1,
 ) -> tuple[str | None, str]:
-    api_key = os.getenv("GOOGLE_API_KEY")
-    if not api_key:
-        _bootstrap_env_from_repo(allowed_keys={"GOOGLE_API_KEY", "LLM_MODEL", "GATEFORGE_GEMINI_MODEL", "GEMINI_MODEL"})
-        api_key = os.getenv("GOOGLE_API_KEY")
-    if not api_key:
+    from .llm_provider_adapter import resolve_provider_adapter
+    adapter, config = resolve_provider_adapter("gemini")
+    if not config.api_key:
         return None, "GOOGLE_API_KEY missing"
-    model = os.getenv("LLM_MODEL") or os.getenv("GATEFORGE_GEMINI_MODEL") or os.getenv("GEMINI_MODEL")
-    if not model:
+    if not config.model:
         return None, "LLM_MODEL or GATEFORGE_GEMINI_MODEL or GEMINI_MODEL missing"
     prompt_constraints = _llm_round_constraints(
         failure_type=failure_type,
@@ -3263,49 +3153,9 @@ def _gemini_repair_model_text(
         f"{original_text}\n"
         "-----END_MODEL-----\n"
     )
-    req_payload = {
-        "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {"temperature": 0.1},
-    }
-    req_data = json.dumps(req_payload).encode("utf-8")
-    url = (
-        "https://generativelanguage.googleapis.com/v1beta/models/"
-        f"{model}:generateContent?key={urllib.parse.quote(api_key)}"
-    )
-    req = urllib.request.Request(
-        url,
-        data=req_data,
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
-    cfg = _live_budget_config()
-    while True:
-        allowed, _ledger = _reserve_live_request(cfg)
-        if not allowed:
-            return None, "live_request_budget_exceeded"
-        try:
-            with urllib.request.urlopen(req, timeout=_llm_request_timeout_sec()) as resp:
-                response_payload = json.loads(resp.read().decode("utf-8"))
-            _record_live_request_success(cfg)
-            break
-        except TimeoutError:
-            return None, "gemini_request_timeout"
-        except urllib.error.HTTPError as exc:
-            body = exc.read().decode("utf-8", errors="ignore")
-            if int(exc.code) == 429:
-                stop_reason, _ledger = _record_live_request_429(cfg)
-                if stop_reason:
-                    return None, stop_reason
-                continue
-            return None, f"gemini_http_error:{exc.code}:{body[:180]}"
-        except urllib.error.URLError as exc:
-            return None, f"gemini_url_error:{exc.reason}"
-    candidates = response_payload.get("candidates", [])
-    if not candidates:
-        return None, "gemini_no_candidates"
-    text = (
-        candidates[0].get("content", {}).get("parts", [{}])[0].get("text", "")
-    )
+    text, err = _send_with_budget(adapter, prompt, config)
+    if err:
+        return None, err
     payload = _extract_json_object(text)
     patched = payload.get("patched_model_text")
     if not isinstance(patched, str) or not patched.strip():
@@ -3323,12 +3173,13 @@ def _openai_repair_model_text(
     model_name: str,
     current_round: int = 1,
 ) -> tuple[str | None, str]:
-    provider, model, api_key = _resolve_llm_provider("openai")
-    if provider != "openai":
+    from .llm_provider_adapter import resolve_provider_adapter
+    adapter, config = resolve_provider_adapter("openai")
+    if config.provider_name != "openai":
         return None, "openai_provider_resolution_failed"
-    if not api_key:
+    if not config.api_key:
         return None, "OPENAI_API_KEY missing"
-    if not model:
+    if not config.model:
         return None, "LLM_MODEL or OPENAI_MODEL missing"
     prompt_constraints = _llm_round_constraints(
         failure_type=failure_type,
@@ -3352,44 +3203,9 @@ def _openai_repair_model_text(
         f"{original_text}\n"
         "-----END_MODEL-----\n"
     )
-    req_payload = {
-        "model": model,
-        "input": prompt,
-        "temperature": 0.1,
-    }
-    req_data = json.dumps(req_payload).encode("utf-8")
-    req = urllib.request.Request(
-        "https://api.openai.com/v1/responses",
-        data=req_data,
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {api_key}",
-        },
-        method="POST",
-    )
-    cfg = _live_budget_config()
-    while True:
-        allowed, _ledger = _reserve_live_request(cfg)
-        if not allowed:
-            return None, "live_request_budget_exceeded"
-        try:
-            with urllib.request.urlopen(req, timeout=_llm_request_timeout_sec()) as resp:
-                response_payload = json.loads(resp.read().decode("utf-8"))
-            _record_live_request_success(cfg)
-            break
-        except TimeoutError:
-            return None, "openai_request_timeout"
-        except urllib.error.HTTPError as exc:
-            body = exc.read().decode("utf-8", errors="ignore")
-            if int(exc.code) == 429:
-                stop_reason, _ledger = _record_live_request_429(cfg)
-                if stop_reason:
-                    return None, stop_reason
-                continue
-            return None, f"openai_http_error:{exc.code}:{body[:180]}"
-        except urllib.error.URLError as exc:
-            return None, f"openai_url_error:{exc.reason}"
-    text = _extract_response_text_openai(response_payload)
+    text, err = _send_with_budget(adapter, prompt, config)
+    if err:
+        return None, err
     payload = _extract_json_object(text)
     patched = payload.get("patched_model_text")
     if not isinstance(patched, str) or not patched.strip():
@@ -3408,182 +3224,45 @@ def _llm_repair_model_text(
     model_name: str,
     current_round: int = 1,
 ) -> tuple[str | None, str, str]:
-    provider, _model, _key = _resolve_llm_provider(planner_backend)
-    if provider == "openai":
-        patched, err = _openai_repair_model_text(
-            original_text=original_text,
-            failure_type=failure_type,
-            expected_stage=expected_stage,
-            error_excerpt=error_excerpt,
-            repair_actions=repair_actions,
-            model_name=model_name,
-            current_round=current_round,
-        )
-        return patched, err, provider
-    if provider == "gemini":
-        patched, err = _gemini_repair_model_text(
-            original_text=original_text,
-            failure_type=failure_type,
-            expected_stage=expected_stage,
-            error_excerpt=error_excerpt,
-            repair_actions=repair_actions,
-            model_name=model_name,
-            current_round=current_round,
-        )
-        return patched, err, provider
-    return None, "rule_backend_selected", "rule"
-
-
-def _gemini_generate_repair_plan(
-    *,
-    original_text: str,
-    failure_type: str,
-    expected_stage: str,
-    error_excerpt: str,
-    repair_actions: list[str],
-    model_name: str,
-    current_round: int,
-    stage_context: dict,
-    llm_reason: str,
-    request_kind: str = "plan",
-    replan_context: dict | None = None,
-) -> tuple[dict | None, str]:
-    api_key = os.getenv("GOOGLE_API_KEY")
-    if not api_key:
-        _bootstrap_env_from_repo(allowed_keys={"GOOGLE_API_KEY", "LLM_MODEL", "GATEFORGE_GEMINI_MODEL", "GEMINI_MODEL"})
-        api_key = os.getenv("GOOGLE_API_KEY")
-    if not api_key:
-        return None, "GOOGLE_API_KEY missing"
-    model = os.getenv("LLM_MODEL") or os.getenv("GATEFORGE_GEMINI_MODEL") or os.getenv("GEMINI_MODEL")
-    if not model:
-        return None, "LLM_MODEL or GATEFORGE_GEMINI_MODEL or GEMINI_MODEL missing"
-    prompt, _planner_contract = _build_source_blind_multistep_planner_prompt(
-        original_text=original_text,
+    from .llm_provider_adapter import resolve_provider_adapter
+    adapter, config = resolve_provider_adapter(planner_backend)
+    provider = config.provider_name
+    if provider == "rule":
+        return None, "rule_backend_selected", "rule"
+    if not config.api_key:
+        return None, f"{provider}_api_key_missing", provider
+    if not config.model:
+        return None, f"{provider}_model_missing", provider
+    prompt_constraints = _llm_round_constraints(
         failure_type=failure_type,
-        expected_stage=expected_stage,
-        error_excerpt=error_excerpt,
-        repair_actions=repair_actions,
-        model_name=model_name,
         current_round=current_round,
-        stage_context=stage_context,
-        llm_reason=llm_reason,
-        request_kind=request_kind,
-        replan_context=replan_context,
-        resolved_provider="gemini",
     )
-    req_payload = {
-        "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {"temperature": 0.1},
-    }
-    req = urllib.request.Request(
-        "https://generativelanguage.googleapis.com/v1beta/models/"
-        f"{model}:generateContent?key={urllib.parse.quote(api_key)}",
-        data=json.dumps(req_payload).encode("utf-8"),
-        headers={"Content-Type": "application/json"},
-        method="POST",
+    prompt = (
+        "You are fixing a Modelica model.\n"
+        "Return ONLY JSON object with keys: patched_model_text, rationale.\n"
+        "Constraints:\n"
+        "- Keep model name unchanged.\n"
+        "- Keep edits minimal and compile-oriented.\n"
+        "- Do not output markdown.\n"
+        f"{prompt_constraints}"
+        f"- model_name: {model_name}\n"
+        f"- failure_type: {failure_type}\n"
+        f"- expected_stage: {expected_stage}\n"
+        f"- error_excerpt: {error_excerpt[:1200]}\n"
+        f"- suggested_actions: {json.dumps(repair_actions, ensure_ascii=True)}\n"
+        "Model text below:\n"
+        "-----BEGIN_MODEL-----\n"
+        f"{original_text}\n"
+        "-----END_MODEL-----\n"
     )
-    cfg = _live_budget_config()
-    while True:
-        allowed, _ledger = _reserve_live_request(cfg)
-        if not allowed:
-            return None, "live_request_budget_exceeded"
-        try:
-            with urllib.request.urlopen(req, timeout=_llm_request_timeout_sec()) as resp:
-                response_payload = json.loads(resp.read().decode("utf-8"))
-            _record_live_request_success(cfg)
-            break
-        except TimeoutError:
-            return None, "gemini_request_timeout"
-        except urllib.error.HTTPError as exc:
-            body = exc.read().decode("utf-8", errors="ignore")
-            if int(exc.code) == 429:
-                stop_reason, _ledger = _record_live_request_429(cfg)
-                if stop_reason:
-                    return None, stop_reason
-                continue
-            return None, f"gemini_http_error:{exc.code}:{body[:180]}"
-        except urllib.error.URLError as exc:
-            return None, f"gemini_url_error:{exc.reason}"
-    candidates = response_payload.get("candidates", [])
-    if not candidates:
-        return None, "gemini_no_candidates"
-    text = candidates[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+    text, err = _send_with_budget(adapter, prompt, config)
+    if err:
+        return None, err, provider
     payload = _extract_json_object(text)
-    if not payload:
-        return None, "gemini_missing_repair_plan"
-    return payload, ""
-
-
-def _openai_generate_repair_plan(
-    *,
-    original_text: str,
-    failure_type: str,
-    expected_stage: str,
-    error_excerpt: str,
-    repair_actions: list[str],
-    model_name: str,
-    current_round: int,
-    stage_context: dict,
-    llm_reason: str,
-    request_kind: str = "plan",
-    replan_context: dict | None = None,
-) -> tuple[dict | None, str]:
-    provider, model, api_key = _resolve_llm_provider("openai")
-    if provider != "openai":
-        return None, "openai_provider_resolution_failed"
-    if not api_key:
-        return None, "OPENAI_API_KEY missing"
-    if not model:
-        return None, "LLM_MODEL or OPENAI_MODEL missing"
-    prompt, _planner_contract = _build_source_blind_multistep_planner_prompt(
-        original_text=original_text,
-        failure_type=failure_type,
-        expected_stage=expected_stage,
-        error_excerpt=error_excerpt,
-        repair_actions=repair_actions,
-        model_name=model_name,
-        current_round=current_round,
-        stage_context=stage_context,
-        llm_reason=llm_reason,
-        request_kind=request_kind,
-        replan_context=replan_context,
-        resolved_provider="openai",
-    )
-    req = urllib.request.Request(
-        "https://api.openai.com/v1/responses",
-        data=json.dumps({"model": model, "input": prompt, "temperature": 0.1}).encode("utf-8"),
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {api_key}",
-        },
-        method="POST",
-    )
-    cfg = _live_budget_config()
-    while True:
-        allowed, _ledger = _reserve_live_request(cfg)
-        if not allowed:
-            return None, "live_request_budget_exceeded"
-        try:
-            with urllib.request.urlopen(req, timeout=_llm_request_timeout_sec()) as resp:
-                response_payload = json.loads(resp.read().decode("utf-8"))
-            _record_live_request_success(cfg)
-            break
-        except TimeoutError:
-            return None, "openai_request_timeout"
-        except urllib.error.HTTPError as exc:
-            body = exc.read().decode("utf-8", errors="ignore")
-            if int(exc.code) == 429:
-                stop_reason, _ledger = _record_live_request_429(cfg)
-                if stop_reason:
-                    return None, stop_reason
-                continue
-            return None, f"openai_http_error:{exc.code}:{body[:180]}"
-        except urllib.error.URLError as exc:
-            return None, f"openai_url_error:{exc.reason}"
-    payload = _extract_json_object(_extract_response_text_openai(response_payload))
-    if not payload:
-        return None, "openai_missing_repair_plan"
-    return payload, ""
+    patched = payload.get("patched_model_text")
+    if not isinstance(patched, str) or not patched.strip():
+        return None, f"{provider}_missing_patched_model_text", provider
+    return patched, "", provider
 
 
 def _llm_generate_repair_plan(
@@ -3601,38 +3280,36 @@ def _llm_generate_repair_plan(
     request_kind: str = "plan",
     replan_context: dict | None = None,
 ) -> tuple[dict | None, str, str]:
-    provider, _model, _key = _resolve_llm_provider(planner_backend)
-    if provider == "openai":
-        plan, err = _openai_generate_repair_plan(
-            original_text=original_text,
-            failure_type=failure_type,
-            expected_stage=expected_stage,
-            error_excerpt=error_excerpt,
-            repair_actions=repair_actions,
-            model_name=model_name,
-            current_round=current_round,
-            stage_context=stage_context,
-            llm_reason=llm_reason,
-            request_kind=request_kind,
-            replan_context=replan_context,
-        )
-        return plan, err, provider
-    if provider == "gemini":
-        plan, err = _gemini_generate_repair_plan(
-            original_text=original_text,
-            failure_type=failure_type,
-            expected_stage=expected_stage,
-            error_excerpt=error_excerpt,
-            repair_actions=repair_actions,
-            model_name=model_name,
-            current_round=current_round,
-            stage_context=stage_context,
-            llm_reason=llm_reason,
-            request_kind=request_kind,
-            replan_context=replan_context,
-        )
-        return plan, err, provider
-    return None, "rule_backend_selected", "rule"
+    from .llm_provider_adapter import resolve_provider_adapter
+    adapter, config = resolve_provider_adapter(planner_backend)
+    provider = config.provider_name
+    if provider == "rule":
+        return None, "rule_backend_selected", "rule"
+    if not config.api_key:
+        return None, f"{provider}_api_key_missing", provider
+    if not config.model:
+        return None, f"{provider}_model_missing", provider
+    prompt, _planner_contract = _build_source_blind_multistep_planner_prompt(
+        original_text=original_text,
+        failure_type=failure_type,
+        expected_stage=expected_stage,
+        error_excerpt=error_excerpt,
+        repair_actions=repair_actions,
+        model_name=model_name,
+        current_round=current_round,
+        stage_context=stage_context,
+        llm_reason=llm_reason,
+        request_kind=request_kind,
+        replan_context=replan_context,
+        resolved_provider=provider,
+    )
+    text, err = _send_with_budget(adapter, prompt, config)
+    if err:
+        return None, err, provider
+    payload = _extract_json_object(text)
+    if not payload:
+        return None, f"{provider}_missing_repair_plan", provider
+    return payload, "", provider
 
 
 def _llm_round_constraints(*, failure_type: str, current_round: int) -> str:

@@ -226,7 +226,7 @@ def _plan_with_rule_backend(
     return payload
 
 
-def _plan_with_openai_backend_placeholder(
+def _plan_with_openai_backend(
     *,
     goal_text: str,
     context: dict,
@@ -235,38 +235,94 @@ def _plan_with_openai_backend_placeholder(
     context_json_path: str | None,
     emit_change_set_draft: bool,
 ) -> dict:
-    api_key = os.getenv("OPENAI_API_KEY")
-    model = os.getenv("LLM_MODEL")
-    if not api_key or not model:
-        _bootstrap_env_from_repo(allowed_keys={"OPENAI_API_KEY", "LLM_MODEL"})
-        api_key = os.getenv("OPENAI_API_KEY")
-        model = os.getenv("LLM_MODEL")
-    if not api_key:
+    from .llm_provider_adapter import resolve_provider_adapter, LLMProviderConfig
+    adapter, config = resolve_provider_adapter("openai")
+    if not config.api_key:
         raise ValueError("planner-backend=openai requires OPENAI_API_KEY to be set")
-    raise ValueError(
-        "planner-backend=openai is not implemented yet; keep using --planner-backend rule for now"
+    if not config.model:
+        raise ValueError("planner-backend=openai requires LLM_MODEL or OPENAI_MODEL to be set")
+    planner_config = LLMProviderConfig(
+        provider_name=config.provider_name,
+        model=config.model,
+        api_key=config.api_key,
+        temperature=config.temperature,
+        timeout_sec=30,
     )
+    prompt = (
+        "You are a planning backend for GateForge.\n"
+        "Return ONLY JSON object with keys: intent, proposal_id, overrides.\n"
+        "Allowed intent values: demo_mock_pass, demo_openmodelica_pass, medium_openmodelica_pass, "
+        "runtime_regress_low_risk, runtime_regress_high_risk.\n"
+        "proposal_id should be null if unknown.\n"
+        "overrides must be an object and may include risk_level, change_summary, checkers, checker_config, physical_invariants.\n"
+        "You may include optional change_plan with schema_version='0.1.0' and operations list.\n"
+        "Each change_plan operation must include: kind,file,old,new,reason,confidence (0..1).\n"
+        "If emit_change_set_draft is true, optionally add key change_set_draft with valid GateForge change_set JSON.\n"
+        f"goal: {goal_text}\n"
+        f"prefer_backend: {prefer_backend}\n"
+        f"context_json: {json.dumps(context)}\n"
+        f"user_proposal_id: {proposal_id}\n"
+        f"emit_change_set_draft: {emit_change_set_draft}\n"
+    )
+    text, err = adapter.send_text_request(prompt, planner_config)
+    if err:
+        raise ValueError(f"OpenAI planner request failed: {err}")
+    parsed = _extract_json_object(text)
+    intent = parsed.get("intent")
+    allowed_intents = {
+        "demo_mock_pass",
+        "demo_openmodelica_pass",
+        "medium_openmodelica_pass",
+        "runtime_regress_low_risk",
+        "runtime_regress_high_risk",
+    }
+    if intent not in allowed_intents:
+        raise ValueError(f"OpenAI planner returned unsupported intent: {intent}")
+    raw_allowed = {"intent", "proposal_id", "overrides", "change_plan", "change_set_draft"}
+    unknown_top_level = sorted(k for k in parsed.keys() if k not in raw_allowed)
+    if unknown_top_level:
+        raise PlannerGuardrailError(
+            "openai_unsupported_top_level_keys",
+            f"OpenAI planner returned unsupported top-level keys: {unknown_top_level}",
+        )
+    overrides = parsed.get("overrides", {})
+    if "change_summary" not in overrides:
+        overrides["change_summary"] = goal_text
+    resolved_proposal_id = proposal_id if proposal_id is not None else parsed.get("proposal_id")
+    payload = {
+        "intent": intent,
+        "proposal_id": resolved_proposal_id,
+        "overrides": overrides,
+        "planner": "openai_v0",
+        "planner_inputs": {
+            "goal": goal_text,
+            "prefer_backend": prefer_backend,
+            "context_path": context_json_path,
+            "planner_backend": "openai",
+            "model": planner_config.model,
+            "emit_change_set_draft": emit_change_set_draft,
+        },
+        "context": context,
+        "raw_response": {},
+    }
+    draft = parsed.get("change_set_draft")
+    if draft is not None:
+        payload["change_set_draft"] = draft
+    change_plan = parsed.get("change_plan")
+    if change_plan is not None:
+        payload["change_plan"] = change_plan
+    try:
+        validate_planner_output(payload, strict_top_level=True)
+    except ValueError as exc:
+        raise PlannerGuardrailError("planner_output_invalid", str(exc)) from exc
+    return payload
 
 
 def _extract_json_object(text: str) -> dict:
-    stripped = text.strip()
-    if stripped.startswith("```"):
-        lines = stripped.splitlines()
-        if lines and lines[0].startswith("```"):
-            lines = lines[1:]
-        if lines and lines[-1].strip().startswith("```"):
-            lines = lines[:-1]
-        stripped = "\n".join(lines).strip()
-    try:
-        payload = json.loads(stripped)
-    except json.JSONDecodeError:
-        match = re.search(r"\{.*\}", stripped, re.DOTALL)
-        if not match:
-            raise ValueError("gemini planner response does not contain a JSON object")
-        payload = json.loads(match.group(0))
-    if not isinstance(payload, dict):
-        raise ValueError("gemini planner response JSON must be an object")
-    return payload
+    # Canonical implementation moved to llm_response.extract_json_object.
+    # strict=True preserves the original raise-on-failure behavior.
+    from .llm_response import extract_json_object  # noqa: F811
+    return extract_json_object(text, strict=True)
 
 
 def _validate_overrides(overrides: dict) -> None:
@@ -387,16 +443,20 @@ def _plan_with_gemini_backend(
     context_json_path: str | None,
     emit_change_set_draft: bool,
 ) -> dict:
-    api_key = os.getenv("GOOGLE_API_KEY")
-    model = os.getenv("LLM_MODEL") or os.getenv("GATEFORGE_GEMINI_MODEL") or os.getenv("GEMINI_MODEL")
-    if not api_key or not model:
-        _bootstrap_env_from_repo(allowed_keys={"GOOGLE_API_KEY", "LLM_MODEL", "GATEFORGE_GEMINI_MODEL", "GEMINI_MODEL"})
-        api_key = os.getenv("GOOGLE_API_KEY")
-        model = os.getenv("LLM_MODEL") or os.getenv("GATEFORGE_GEMINI_MODEL") or os.getenv("GEMINI_MODEL")
-    if not api_key:
+    from .llm_provider_adapter import resolve_provider_adapter, LLMProviderConfig
+    adapter, config = resolve_provider_adapter("gemini")
+    if not config.api_key:
         raise ValueError("planner-backend=gemini requires GOOGLE_API_KEY to be set")
-    if not model:
+    if not config.model:
         raise ValueError("planner-backend=gemini requires LLM_MODEL or GATEFORGE_GEMINI_MODEL or GEMINI_MODEL to be set")
+    # Use a shorter timeout for the high-level planner (not repair loop).
+    planner_config = LLMProviderConfig(
+        provider_name=config.provider_name,
+        model=config.model,
+        api_key=config.api_key,
+        temperature=config.temperature,
+        timeout_sec=30,
+    )
     prompt = (
         "You are a planning backend for GateForge.\n"
         "Return ONLY JSON object with keys: intent, proposal_id, overrides.\n"
@@ -413,39 +473,9 @@ def _plan_with_gemini_backend(
         f"user_proposal_id: {proposal_id}\n"
         f"emit_change_set_draft: {emit_change_set_draft}\n"
     )
-    req_payload = {
-        "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {"temperature": 0.1},
-    }
-    req_data = json.dumps(req_payload).encode("utf-8")
-    url = (
-        "https://generativelanguage.googleapis.com/v1beta/models/"
-        f"{model}:generateContent?key={urllib.parse.quote(api_key)}"
-    )
-    req = urllib.request.Request(
-        url,
-        data=req_data,
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            response_payload = json.loads(resp.read().decode("utf-8"))
-    except urllib.error.HTTPError as exc:
-        body = exc.read().decode("utf-8", errors="ignore")
-        raise ValueError(f"gemini API error {exc.code}: {body[:300]}") from exc
-    except urllib.error.URLError as exc:
-        raise ValueError(f"gemini API connection error: {exc.reason}") from exc
-
-    candidates = response_payload.get("candidates", [])
-    if not candidates:
-        raise ValueError("gemini response has no candidates")
-    text = (
-        candidates[0]
-        .get("content", {})
-        .get("parts", [{}])[0]
-        .get("text", "")
-    )
+    text, err = adapter.send_text_request(prompt, planner_config)
+    if err:
+        raise ValueError(f"LLM planner request failed: {err}")
     parsed = _extract_json_object(text)
     intent = parsed.get("intent")
     allowed_intents = {
@@ -484,15 +514,11 @@ def _plan_with_gemini_backend(
             "prefer_backend": prefer_backend,
             "context_path": context_json_path,
             "planner_backend": "gemini",
-            "model": model,
+            "model": planner_config.model,
             "emit_change_set_draft": emit_change_set_draft,
         },
         "context": context,
-        "raw_response": {
-            "modelVersion": response_payload.get("modelVersion"),
-            "responseId": response_payload.get("responseId"),
-            "usageMetadata": response_payload.get("usageMetadata", {}),
-        },
+        "raw_response": {},
     }
     draft = parsed.get("change_set_draft")
     if draft is not None:
@@ -608,7 +634,7 @@ def main() -> None:
                 emit_change_set_draft=args.emit_change_set_draft,
             )
         else:
-            payload = _plan_with_openai_backend_placeholder(
+            payload = _plan_with_openai_backend(
                 goal_text=goal_text,
                 context=context,
                 prefer_backend=args.prefer_backend,
