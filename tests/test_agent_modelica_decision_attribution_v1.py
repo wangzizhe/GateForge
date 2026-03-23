@@ -367,5 +367,95 @@ class TestCLIRoundtrip(unittest.TestCase):
             self.assertEqual(data["summary"]["causal_path_distribution"]["direct"], 1)
 
 
+class TestWastedRounds(unittest.TestCase):
+    def test_no_wasted_rounds_when_error_changes(self) -> None:
+        attempts = [
+            {**_attempt(1), "observed_failure_type": "model_check_error"},
+            {**_attempt(2), "observed_failure_type": "simulate_error"},
+            {**_attempt(3, check_ok=True, sim_ok=True), "observed_failure_type": ""},
+        ]
+        rec = attribute_decision(_run_result("t", "x", attempts))
+        self.assertEqual(rec["wasted_rounds"], 0)
+
+    def test_wasted_rounds_counted_when_error_repeats(self) -> None:
+        attempts = [
+            {**_attempt(1), "observed_failure_type": "simulate_error"},
+            {**_attempt(2), "observed_failure_type": "simulate_error"},
+            {**_attempt(3, check_ok=True, sim_ok=True), "observed_failure_type": "simulate_error"},
+        ]
+        rec = attribute_decision(_run_result("t", "x", attempts))
+        self.assertEqual(rec["wasted_rounds"], 2)
+
+    def test_empty_attempts_zero_wasted(self) -> None:
+        rec = attribute_decision(_run_result("t", "x", []))
+        self.assertEqual(rec["wasted_rounds"], 0)
+
+
+class TestDiagnosticProgression(unittest.TestCase):
+    def test_progression_has_round_and_type(self) -> None:
+        attempts = [
+            {**_attempt(1), "observed_failure_type": "model_check_error"},
+            {**_attempt(2, check_ok=True, sim_ok=True), "observed_failure_type": ""},
+        ]
+        rec = attribute_decision(_run_result("t", "x", attempts))
+        prog = rec["diagnostic_progression"]
+        self.assertEqual(len(prog), 2)
+        self.assertEqual(prog[0], [1, "model_check_error"])
+        self.assertEqual(prog[1], [2, ""])
+
+    def test_empty_attempts_empty_progression(self) -> None:
+        rec = attribute_decision(_run_result("t", "x", []))
+        self.assertEqual(rec["diagnostic_progression"], [])
+
+    def test_physics_contract_in_decisive(self) -> None:
+        attempt = _attempt(1, check_ok=True, sim_ok=True)
+        attempt["physics_contract_pass"] = True
+        rec = attribute_decision(_run_result("t", "x", [attempt]))
+        self.assertTrue(rec["physics_contract_in_decisive"])
+
+    def test_physics_contract_none_when_no_decisive(self) -> None:
+        rec = attribute_decision(_run_result("t", "x", [_attempt(1, check_ok=False)]))
+        self.assertIsNone(rec["physics_contract_in_decisive"])
+
+
+class TestSummaryByFailureType(unittest.TestCase):
+    def test_causal_path_by_failure_type(self) -> None:
+        records = [
+            attribute_decision(_run_result(
+                "t1", "simulate_error",
+                [_attempt(1, check_ok=True, sim_ok=True, first_plan_branch_match=True)]
+            )),
+            attribute_decision(_run_result(
+                "t2", "simulate_error",
+                [_attempt(1, check_ok=False), _attempt(2, check_ok=True, sim_ok=True)]
+            )),
+            attribute_decision(_run_result(
+                "t3", "model_check_error",
+                [_attempt(1, check_ok=False)]
+            )),
+        ]
+        summary = summarize_decision_attribution(records)
+        by_ft = summary["causal_path_by_failure_type"]
+        self.assertIn("simulate_error", by_ft)
+        self.assertIn("model_check_error", by_ft)
+        self.assertEqual(by_ft["simulate_error"].get("direct", 0), 1)
+        self.assertEqual(by_ft["simulate_error"].get("exhaustive", 0), 1)
+        self.assertEqual(by_ft["model_check_error"].get("failed", 0), 1)
+
+    def test_median_wasted_rounds_in_summary(self) -> None:
+        attempts_with_waste = [
+            {**_attempt(1), "observed_failure_type": "simulate_error"},
+            {**_attempt(2), "observed_failure_type": "simulate_error"},  # wasted: same as round 1
+            {**_attempt(3, check_ok=True, sim_ok=True), "observed_failure_type": ""},
+        ]
+        records = [
+            attribute_decision(_run_result("t1", "x", attempts_with_waste)),
+            attribute_decision(_run_result("t2", "x", [_attempt(1, check_ok=True, sim_ok=True)])),
+        ]
+        summary = summarize_decision_attribution(records)
+        # t1 has 1 wasted (round 2 repeats round 1; round 3 changes to ""), t2 has 0 → median = 0.5
+        self.assertAlmostEqual(summary["median_wasted_rounds"], 0.5)
+
+
 if __name__ == "__main__":
     unittest.main()

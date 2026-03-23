@@ -408,6 +408,18 @@ python3 -m gateforge.agent_modelica_first_failure_attribution_v1 \
   --out "$OUT_DIR/weekly/first_failure_attribution.json" \
   --report-out "$OUT_DIR/weekly/first_failure_attribution.md"
 
+python3 -m gateforge.agent_modelica_decision_attribution_v1 \
+  --run-results "$OUT_DIR/baseline/run_results.json" \
+  --out "$OUT_DIR/weekly/decision_attribution.json"
+
+python3 -m gateforge.agent_modelica_decision_quality_gate_v1 \
+  --decision-attribution "$OUT_DIR/weekly/decision_attribution.json" \
+  --min-first-plan-correct-pct 40 \
+  --max-failed-pct 30 \
+  --max-median-wasted-rounds 2.0 \
+  --out "$OUT_DIR/weekly/decision_quality_gate.json" \
+  --report-out "$OUT_DIR/weekly/decision_quality_gate.md"
+
 python3 -m gateforge.agent_modelica_script_parse_focus_taskset_v1 \
   --taskset-in "$TASKSET_FOR_BASELINE" \
   --run-results "$OUT_DIR/baseline/run_results.json" \

@@ -104,6 +104,28 @@ def _extract_decisive_actions(attempt: dict) -> list[str]:
     return applied
 
 
+def _wasted_rounds(attempts: list[dict]) -> int:
+    """Count rounds where the observed failure type did not change from the previous round."""
+    wasted = 0
+    prev_type = None
+    for attempt in attempts:
+        cur_type = str(attempt.get("observed_failure_type") or "")
+        if prev_type is not None and cur_type == prev_type and cur_type:
+            wasted += 1
+        prev_type = cur_type
+    return wasted
+
+
+def _diagnostic_progression(attempts: list[dict]) -> list[list]:
+    """Return [(round, observed_failure_type)] showing how the error type evolved."""
+    progression = []
+    for attempt in attempts:
+        rnd = int(attempt.get("round") or 0)
+        ft = str(attempt.get("observed_failure_type") or "")
+        progression.append([rnd, ft])
+    return progression
+
+
 def _causal_path(
     *,
     decisive_rnd: int | None,
@@ -153,6 +175,12 @@ def attribute_decision(run_result: dict) -> dict:
     )
     decisive_actions = _extract_decisive_actions(dec_attempt) if dec_attempt is not None else []
     llm_decisive = bool(dec_attempt.get("llm_plan_was_decisive")) if dec_attempt is not None else False
+    wasted = _wasted_rounds(attempts)
+    progression = _diagnostic_progression(attempts)
+    physics_in_decisive: bool | None = None
+    if dec_attempt is not None:
+        val = dec_attempt.get("physics_contract_pass")
+        physics_in_decisive = bool(val) if val is not None else None
 
     return {
         "schema_version": SCHEMA_VERSION,
@@ -166,6 +194,9 @@ def attribute_decision(run_result: dict) -> dict:
         "causal_path_reason": path_reason,
         "decisive_actions": decisive_actions,
         "llm_was_decisive": llm_decisive,
+        "wasted_rounds": wasted,
+        "diagnostic_progression": progression,
+        "physics_contract_in_decisive": physics_in_decisive,
     }
 
 
@@ -190,14 +221,22 @@ def summarize_decision_attribution(records: list[dict]) -> dict:
     replan_corrected_count = 0
     llm_decisive_count = 0
     rounds_to_success: list[float] = []
+    wasted_list: list[float] = []
     successful = 0
+    path_by_ft: dict[str, dict[str, int]] = {}
 
     for rec in records:
         path = str(rec.get("causal_path") or "failed")
         path_counts[path] = path_counts.get(path, 0) + 1
 
+        ft = str(rec.get("failure_type") or "unknown")
+        ft_dist = path_by_ft.setdefault(ft, {})
+        ft_dist[path] = ft_dist.get(path, 0) + 1
+
         if rec.get("first_plan_verdict") == "correct":
             first_correct += 1
+
+        wasted_list.append(float(rec.get("wasted_rounds") or 0))
 
         decisive = rec.get("decisive_round")
         if decisive is not None:
@@ -213,6 +252,7 @@ def summarize_decision_attribution(records: list[dict]) -> dict:
     replan_pct = round(replan_corrected_count / successful * 100, 1) if successful else 0.0
     llm_pct = round(llm_decisive_count / successful * 100, 1) if successful else 0.0
     median_rounds = round(statistics.median(rounds_to_success), 1) if rounds_to_success else 0.0
+    median_wasted = round(statistics.median(wasted_list), 1) if wasted_list else 0.0
 
     return {
         "schema_version": SCHEMA_VERSION,
@@ -223,6 +263,8 @@ def summarize_decision_attribution(records: list[dict]) -> dict:
         "replan_corrected_pct": replan_pct,
         "llm_decisive_pct": llm_pct,
         "median_rounds_to_success": median_rounds,
+        "median_wasted_rounds": median_wasted,
+        "causal_path_by_failure_type": path_by_ft,
     }
 
 

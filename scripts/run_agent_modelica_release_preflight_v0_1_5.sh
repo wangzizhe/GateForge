@@ -17,12 +17,19 @@ set -e
 
 EVIDENCE_RC=0
 if [ "${GATEFORGE_AGENT_RELEASE_SKIP_VERSION_EVIDENCE:-0}" != "1" ]; then
+  DQ_GATE_PATH="${GATEFORGE_AGENT_RELEASE_V015_DQ_GATE:-artifacts/agent_modelica_weekly_chain_v1/weekly/decision_quality_gate.json}"
+  DQ_GATE_ARG=""
+  if [ -f "$DQ_GATE_PATH" ]; then
+    DQ_GATE_ARG="--decision-quality-gate $DQ_GATE_PATH"
+  fi
   set +e
+  # shellcheck disable=SC2086
   python3 -m gateforge.agent_modelica_release_preflight_v0_1_5_evidence \
     --summary "$GATEFORGE_AGENT_RELEASE_OUT_DIR/release_preflight_summary.json" \
     --v4-replan-summary "$V4_REPLAN_SUMMARY" \
     --v5-gemini-summary "$V5_GEMINI_SUMMARY" \
-    --v5-rule-summary "$V5_RULE_SUMMARY"
+    --v5-rule-summary "$V5_RULE_SUMMARY" \
+    $DQ_GATE_ARG
   EVIDENCE_RC=$?
   set -e
 fi
