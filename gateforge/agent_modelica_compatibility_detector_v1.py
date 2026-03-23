@@ -7,10 +7,14 @@ previous one passing; failures propagate as ``skipped_dependency``.
 Probe chain:
   1. docker_reachable   -- Docker daemon responds
   2. docker_image       -- OMC Docker image available locally
-  3. msl_load           -- Modelica Standard Library loads in OMC
-  4. check_model        -- Known-good model passes checkModel
-  5. simulate           -- Known-good model passes simulate
-  6. whitelist_models   -- (optional) All whitelist models pass
+  3. check_model        -- Known-good model passes checkModel
+  4. simulate           -- Known-good model passes simulate
+  5. whitelist_models   -- (optional) All whitelist models pass
+
+Note: msl_load is intentionally omitted. The openmodelica minimal image
+does not bundle MSL; the whitelist models (MinimalProbe, MediumOscillator)
+do not import Modelica.* so MSL availability is not required to validate
+the compile-and-simulate pipeline.
 
 Transferable AI agent pattern: Infrastructure Probe Chain with
 structured diagnostic output and fail-fast behavior.
@@ -68,7 +72,6 @@ SCHEMA_VERSION = "agent_modelica_compatibility_detector_v1"
 _PROBE_TO_FAILURE_KIND: dict[str, str] = {
     "docker_reachable": "docker_unavailable",
     "docker_image": "docker_unavailable",
-    "msl_load": "modelica_package_unavailable",
     "check_model": "source_block_incompatible",
     "simulate": "source_block_incompatible",
 }
@@ -442,16 +445,7 @@ def run_compatibility_probes(
     else:
         probes.append(_skip("docker_image"))
 
-    # Probe 3: MSL load
-    if not failed:
-        p = _probe_msl_load(docker_image, timeout_sec=per_probe)
-        probes.append(p)
-        if p.status != "pass":
-            failed = True
-    else:
-        probes.append(_skip("msl_load"))
-
-    # Probe 4: checkModel
+    # Probe 3: checkModel
     if not failed:
         p = _probe_check_model(docker_image, timeout_sec=per_probe)
         probes.append(p)
@@ -460,7 +454,7 @@ def run_compatibility_probes(
     else:
         probes.append(_skip("check_model"))
 
-    # Probe 5: simulate
+    # Probe 4: simulate
     if not failed:
         p = _probe_simulate(docker_image, timeout_sec=per_probe)
         probes.append(p)
@@ -469,7 +463,7 @@ def run_compatibility_probes(
     else:
         probes.append(_skip("simulate"))
 
-    # Optional: whitelist models
+    # Optional probe 5: whitelist models
     if not failed and whitelist_path:
         models = _load_whitelist(whitelist_path)
         wl_results = _run_whitelist_models(models, docker_image, timeout_sec=per_probe)

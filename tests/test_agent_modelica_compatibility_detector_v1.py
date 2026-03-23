@@ -16,7 +16,6 @@ from gateforge.agent_modelica_compatibility_detector_v1 import (
     _load_whitelist,
     _probe_docker_reachable,
     _probe_docker_image,
-    _probe_msl_load,
     _probe_check_model,
     _probe_simulate,
     _run_whitelist_models,
@@ -81,27 +80,6 @@ class TestProbeDockerImage(unittest.TestCase):
         r = _probe_docker_image(_IMAGE)
         self.assertEqual(r.status, "fail")
 
-
-class TestProbeMslLoad(unittest.TestCase):
-    """msl_load probe."""
-
-    @patch(f"{_EXECUTOR}._run_omc_script_docker", return_value=(0, "true\n\"\"\n"))
-    def test_pass(self, mock_omc):
-        r = _probe_msl_load(_IMAGE)
-        self.assertEqual(r.status, "pass")
-        self.assertEqual(r.probe_id, "msl_load")
-
-    @patch(f"{_EXECUTOR}._run_omc_script_docker",
-           return_value=(0, 'false\n"Error: Modelica library not found"\n'))
-    def test_fail_error_in_output(self, mock_omc):
-        r = _probe_msl_load(_IMAGE)
-        self.assertEqual(r.status, "fail")
-        self.assertIn("Error", r.error_detail)
-
-    @patch(f"{_EXECUTOR}._run_omc_script_docker", return_value=(1, ""))
-    def test_fail_nonzero_exit(self, mock_omc):
-        r = _probe_msl_load(_IMAGE)
-        self.assertEqual(r.status, "fail")
 
 
 class TestProbeCheckModel(unittest.TestCase):
@@ -181,28 +159,12 @@ class TestProbeChainShortCircuit(unittest.TestCase):
         report = run_compatibility_probes(_IMAGE, timeout_sec=30)
         self.assertEqual(report.overall_status, "fail")
         self.assertEqual(report.first_failure, "docker_reachable")
-        self.assertEqual(len(report.probes), 5)
+        # Probe chain: docker_reachable, docker_image, check_model, simulate (4 total)
+        self.assertEqual(len(report.probes), 4)
         # First probe failed, rest skipped.
         self.assertEqual(report.probes[0].status, "fail")
         for p in report.probes[1:]:
             self.assertEqual(p.status, "skipped_dependency", f"{p.probe_id} should be skipped")
-
-    @patch(f"{_EXECUTOR}._run_omc_script_docker",
-           return_value=(1, "MSL load failed catastrophically"))
-    @patch(f"{_EXECUTOR}._run_cmd", side_effect=[
-        (0, "27.0.3\n"),           # docker info
-        (0, "sha256:abc123\n"),     # docker image inspect
-    ])
-    def test_msl_fail_skips_downstream(self, mock_cmd, mock_omc):
-        report = run_compatibility_probes(_IMAGE, timeout_sec=30)
-        self.assertEqual(report.overall_status, "fail")
-        self.assertEqual(report.first_failure, "msl_load")
-        statuses = {p.probe_id: p.status for p in report.probes}
-        self.assertEqual(statuses["docker_reachable"], "pass")
-        self.assertEqual(statuses["docker_image"], "pass")
-        self.assertEqual(statuses["msl_load"], "fail")
-        self.assertEqual(statuses["check_model"], "skipped_dependency")
-        self.assertEqual(statuses["simulate"], "skipped_dependency")
 
 
 class TestAllProbesPass(unittest.TestCase):
@@ -221,8 +183,7 @@ class TestAllProbesPass(unittest.TestCase):
             mock_root.return_value = root
 
             mock_cmd.return_value = (0, "27.0.3\n")
-            # MSL load returns true, check/simulate return success text
-            mock_omc.return_value = (0, "true\n\"\"\n")
+            mock_omc.return_value = (0, "ok\n")
             # check_model needs (True, _), simulate needs (_, True)
             mock_flags.side_effect = [(True, False), (False, True)]
 
@@ -230,7 +191,8 @@ class TestAllProbesPass(unittest.TestCase):
 
         self.assertEqual(report.overall_status, "pass")
         self.assertEqual(report.first_failure, "")
-        self.assertEqual(len(report.probes), 5)
+        # Probe chain: docker_reachable, docker_image, check_model, simulate (4 total)
+        self.assertEqual(len(report.probes), 4)
         for p in report.probes:
             self.assertEqual(p.status, "pass", f"{p.probe_id} should pass")
         self.assertEqual(report.environment_failure_kinds, [])
@@ -244,16 +206,6 @@ class TestEnvironmentFailureKinds(unittest.TestCase):
     def test_docker_failure_kind(self, mock_cmd):
         report = run_compatibility_probes(_IMAGE, timeout_sec=10)
         self.assertIn("docker_unavailable", report.environment_failure_kinds)
-
-    @patch(f"{_EXECUTOR}._run_omc_script_docker",
-           return_value=(1, "MSL not found"))
-    @patch(f"{_EXECUTOR}._run_cmd", side_effect=[
-        (0, "27.0.3\n"),
-        (0, "sha256:abc\n"),
-    ])
-    def test_msl_failure_kind(self, mock_cmd, mock_omc):
-        report = run_compatibility_probes(_IMAGE, timeout_sec=10)
-        self.assertIn("modelica_package_unavailable", report.environment_failure_kinds)
 
 
 class TestReportSerialization(unittest.TestCase):
@@ -295,18 +247,18 @@ class TestReportSerialization(unittest.TestCase):
             timestamp_utc="2026-01-01T00:00:00.000000Z",
             docker_image=_IMAGE,
             overall_status="fail",
-            first_failure="msl_load",
+            first_failure="check_model",
             total_latency_sec=2.3,
             probes=[
                 ProbeResult(
-                    probe_id="msl_load",
+                    probe_id="check_model",
                     status="fail",
                     latency_sec=1.2,
                     timestamp_utc="2026-01-01T00:00:00.000000Z",
-                    error_detail="MSL not found",
+                    error_detail="type mismatch",
                 ),
             ],
-            environment_failure_kinds=["modelica_package_unavailable"],
+            environment_failure_kinds=["source_block_incompatible"],
         )
         with tempfile.TemporaryDirectory() as td:
             json_path = str(Path(td) / "report.json")
@@ -314,10 +266,10 @@ class TestReportSerialization(unittest.TestCase):
             write_compatibility_report(report, json_path, md_path)
 
             data = json.loads(Path(json_path).read_text())
-            self.assertEqual(data["first_failure"], "msl_load")
+            self.assertEqual(data["first_failure"], "check_model")
 
             md = Path(md_path).read_text()
-            self.assertIn("msl_load", md)
+            self.assertIn("check_model", md)
             self.assertIn("fail", md)
 
 
