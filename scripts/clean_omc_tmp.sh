@@ -1,19 +1,20 @@
 #!/usr/bin/env bash
-# clean_omc_tmp.sh — Remove orphaned OMC workspace directories from system tmp.
+# clean_omc_tmp.sh — Remove orphaned OMC simulation artifacts from system tmp.
 #
-# Why this exists:
-#   GateForge runs OMC inside Docker, which writes files as root into the
-#   mounted host temp directory (gf_live_exec_* / gf_connector_fast_check_*).
-#   shutil.rmtree(ignore_errors=True) silently fails on root-owned files,
-#   leaving orphaned directories that accumulate on disk.
+# Covers two artifact sources:
 #
-# Strategy:
-#   1. Try plain rm -rf first (works for user-owned dirs).
-#   2. For any that remain, run a Docker alpine container to delete them
-#      (the container runs as root, so it can delete root-owned files).
+#   1. Subdirectory workspaces (gf_live_exec_*, gf_connector_fast_check_*,
+#      gf_mutation_valid_*): created by executor / connector / mutation matrix.
+#      With the --user Docker fix these are user-owned and auto-cleaned, but
+#      old root-owned ones need Docker to delete.
+#
+#   2. Loose files dumped directly into /tmp root: *.c *.o *_res.mat *.makefile
+#      etc. These were written by the pre-fix dataset_mutation_validation_matrix
+#      which mounted /tmp itself as the Docker workspace. User-owned; safe to
+#      delete with find -delete.
 #
 # Usage:
-#   ./scripts/clean_omc_tmp.sh              # dry-run by default
+#   ./scripts/clean_omc_tmp.sh              # dry-run (show what would be deleted)
 #   ./scripts/clean_omc_tmp.sh --force      # actually delete
 #   DOCKER_IMAGE=alpine:3.20 ./scripts/clean_omc_tmp.sh --force
 #
@@ -37,81 +38,107 @@ for arg in "$@"; do
 done
 
 DOCKER_IMAGE="${DOCKER_IMAGE:-alpine:3.20}"
-
-# Locate system tmp directory (macOS uses /private/var/folders/.../T/).
-# python3 is the most portable way to find it.
 TMPDIR_PATH="$(python3 -c 'import tempfile; print(tempfile.gettempdir())')"
 
 echo "==> Scanning: $TMPDIR_PATH"
-echo "==> Prefixes: gf_live_exec_*  gf_connector_fast_check_*"
 echo ""
 
-# Collect matching directories into a temp file (bash 3.2 compatible — no mapfile).
-TMP_LIST="$(mktemp)"
-find "$TMPDIR_PATH" -maxdepth 1 -type d \( -name 'gf_live_exec_*' -o -name 'gf_connector_fast_check_*' \) 2>/dev/null | sort > "$TMP_LIST"
+# ── Part 1: workspace subdirectories ────────────────────────────────────────
+echo "--- Part 1: workspace subdirectories (gf_live_exec_*, gf_connector_fast_check_*, gf_mutation_valid_*)"
 
-COUNT="$(wc -l < "$TMP_LIST" | tr -d ' ')"
+DIR_LIST="$(mktemp)"
+find "$TMPDIR_PATH" -maxdepth 1 -type d \( \
+    -name 'gf_live_exec_*' \
+    -o -name 'gf_connector_fast_check_*' \
+    -o -name 'gf_mutation_valid_*' \
+\) 2>/dev/null | sort > "$DIR_LIST"
 
-if [ "$COUNT" -eq 0 ]; then
-    rm -f "$TMP_LIST"
+DIR_COUNT="$(wc -l < "$DIR_LIST" | tr -d ' ')"
+
+if [ "$DIR_COUNT" -eq 0 ]; then
+    echo "  (none)"
+else
+    echo "  Found $DIR_COUNT director$([ "$DIR_COUNT" -eq 1 ] && echo y || echo ies):"
+    while IFS= read -r t; do
+        SIZE="$(du -sh "$t" 2>/dev/null | cut -f1 || echo '?')"
+        echo "    $SIZE  $t"
+    done < "$DIR_LIST"
+fi
+
+# ── Part 2: loose OMC artifact files in /tmp root ───────────────────────────
+echo ""
+echo "--- Part 2: loose OMC artifacts in /tmp root (*.c *.o *_res.mat *.makefile ...)"
+
+LOOSE_LIST="$(mktemp)"
+find "$TMPDIR_PATH" -maxdepth 1 -type f \( \
+    -name "*.c" -o -name "*.o" -o -name "*.mat" \
+    -o -name "*.makefile" -o -name "*.libs" \
+    -o -name "*_init.xml" -o -name "*_info.json" \
+    -o -name "run.mos" \
+\) 2>/dev/null | sort > "$LOOSE_LIST"
+
+LOOSE_COUNT="$(wc -l < "$LOOSE_LIST" | tr -d ' ')"
+if [ "$LOOSE_COUNT" -eq 0 ]; then
+    echo "  (none)"
+else
+    LOOSE_SIZE="$(xargs du -ch 2>/dev/null < "$LOOSE_LIST" | tail -1 | cut -f1 || echo '?')"
+    echo "  Found $LOOSE_COUNT files ($LOOSE_SIZE total)"
+    head -5 "$LOOSE_LIST" | while IFS= read -r f; do echo "    $f"; done
+    [ "$LOOSE_COUNT" -gt 5 ] && echo "    ... and $((LOOSE_COUNT - 5)) more"
+fi
+
+echo ""
+TOTAL=$((DIR_COUNT + LOOSE_COUNT))
+if [ "$TOTAL" -eq 0 ]; then
+    rm -f "$DIR_LIST" "$LOOSE_LIST"
     echo "Nothing to clean."
     exit 0
 fi
 
-echo "Found $COUNT director$([ "$COUNT" -eq 1 ] && echo y || echo ies):"
-while IFS= read -r t; do
-    SIZE="$(du -sh "$t" 2>/dev/null | cut -f1 || echo '?')"
-    echo "  $SIZE  $t"
-done < "$TMP_LIST"
-echo ""
-
 if [ "$FORCE" -eq 0 ]; then
-    rm -f "$TMP_LIST"
+    rm -f "$DIR_LIST" "$LOOSE_LIST"
     echo "Dry-run mode. Pass --force to delete."
     exit 0
 fi
 
 echo "==> Deleting..."
-FAILED_LIST="$(mktemp)"
 
+# Delete subdirectories (user-owned first, Docker fallback for root-owned)
+FAILED_LIST="$(mktemp)"
 while IFS= read -r t; do
-    if rm -rf "$t" 2>/dev/null; then
+    if [ -z "$t" ]; then continue; fi
+    if rm -rf "$t" 2>/dev/null && [ ! -e "$t" ]; then
         echo "  removed (user-owned): $t"
     else
         echo "$t" >> "$FAILED_LIST"
     fi
-done < "$TMP_LIST"
-rm -f "$TMP_LIST"
+done < "$DIR_LIST"
+rm -f "$DIR_LIST"
 
 FAILED_COUNT="$(wc -l < "$FAILED_LIST" | tr -d ' ')"
-
 if [ "$FAILED_COUNT" -gt 0 ]; then
     echo ""
-    echo "==> $FAILED_COUNT director$([ "$FAILED_COUNT" -eq 1 ] && echo y || echo ies) require Docker (root-owned files):"
-    while IFS= read -r t; do
-        echo "  $t"
-    done < "$FAILED_LIST"
-
+    echo "  $FAILED_COUNT directories need Docker (root-owned):"
     if ! command -v docker &>/dev/null; then
         rm -f "$FAILED_LIST"
-        echo ""
-        echo "ERROR: docker not found. Cannot remove root-owned directories." >&2
-        echo "Run manually: sudo rm -rf <path>" >&2
+        echo "  ERROR: docker not found. Run: sudo rm -rf <path>" >&2
         exit 1
     fi
-
     while IFS= read -r t; do
+        [ -z "$t" ] && continue
         BASENAME="$(basename "$t")"
         PARENT="$(dirname "$t")"
-        echo "  docker-removing: $t"
-        docker run --rm \
-            -v "${PARENT}:/host_tmp" \
-            "$DOCKER_IMAGE" \
-            rm -rf "/host_tmp/${BASENAME}"
+        docker run --rm -v "${PARENT}:/host_tmp" "$DOCKER_IMAGE" rm -rf "/host_tmp/${BASENAME}"
         echo "  removed (docker): $t"
     done < "$FAILED_LIST"
 fi
-
 rm -f "$FAILED_LIST"
+
+# Delete loose OMC artifact files (always user-owned)
+if [ "$LOOSE_COUNT" -gt 0 ]; then
+    xargs rm -f 2>/dev/null < "$LOOSE_LIST" && echo "  removed $LOOSE_COUNT loose artifact files"
+fi
+rm -f "$LOOSE_LIST"
+
 echo ""
 echo "Done."

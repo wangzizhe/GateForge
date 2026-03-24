@@ -2327,14 +2327,23 @@ def _run_omc_script_docker(script_text: str, timeout_sec: int, cwd: str, image: 
     else:
         cache_root = cache_root.resolve()
     cache_root.mkdir(parents=True, exist_ok=True)
+    # Run as the current host user so all files written into the workspace are
+    # user-owned. This allows shutil.rmtree to clean up the workspace after the
+    # simulation without needing Docker or sudo.
+    # HOME=/tmp gives OMC a writable home directory inside the container.
+    # The library cache is mounted at $HOME/.openmodelica/libraries so OMC finds
+    # it at the standard path relative to HOME.
+    uid_gid = f"{os.getuid()}:{os.getgid()}"
     cmd = [
         "docker",
         "run",
         "--rm",
+        "--user", uid_gid,
+        "-e", "HOME=/tmp",
         "-v",
         f"{cwd}:/workspace",
         "-v",
-        f"{str(cache_root)}:/root/.openmodelica/libraries",
+        f"{str(cache_root)}:/tmp/.openmodelica/libraries",
         "-w",
         "/workspace",
         image,
