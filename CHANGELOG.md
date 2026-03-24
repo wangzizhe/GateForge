@@ -2,18 +2,25 @@
 
 All notable changes to this project are documented in this file.
 
-## [v0.1.5] - 2026-03-22
+## [v0.1.5] - 2026-03-24
 ### Added
 - Added provider-agnostic multistep planner-contract accounting across plan, replan, and guided-search runs.
 - Added `v0.1.5` release preflight checks for `v4` replanning stability and `v5` branch-choice plus guided-search evidence.
+- Added decision attribution v1: causal path tracing that identifies which repair actions contributed to each resolved scenario.
+- Added decision quality gate: weekly attribution chain integration with a pass/needs-review/fail gate on attribution coverage.
+- Added L5 performance trend tracking with rolling N-week window, authority status (insufficient_data → calibrating → stable), and Markdown report generation.
+- Added Layer 3 State Machine as an independently testable module (`agent_modelica_stage_branch_controller_v1`), extracted from the monolithic executor using the Agent Decomposition Pattern.
+- Added `scripts/clean_omc_tmp.sh` to remove Docker root-owned OMC workspace artifacts (`gf_live_exec_*`, `gf_connector_fast_check_*`) that accumulate in system temp.
 
 ### Changed
 - Improved `v5` multistep evaluation so branch-choice, replanning, and guided-search evidence are measured against a rule baseline instead of LLM usage alone.
 - Improved release-facing evidence so planner family/adapter, branch-match quality, and guided-search contribution are explicitly separated.
+- Reduced live executor from 5,431 to 4,820 lines by extracting 13 pure Layer 3 functions and the 155-key `multistep_memory` factory.
 
 ### Validation
 - `v4` replanning authority remains saturated with non-zero switch-branch replan success.
 - `v5` release lane compares LLM-backed planner runs against a rule baseline and requires non-zero branch-aware replanning plus guided-search contribution.
+- Layer 3 extraction: 143 tests pass (94 executor + 49 controller), zero behavior change.
 
 ## [v0.1.4] - 2026-03-21
 ### Added
