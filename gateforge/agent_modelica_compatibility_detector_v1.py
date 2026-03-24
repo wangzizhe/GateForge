@@ -184,7 +184,7 @@ def _probe_msl_load(image: str, timeout_sec: int = 60) -> ProbeResult:
 
     ts = _now_utc()
     t0 = time.monotonic()
-    script = 'loadModel(Modelica); getErrorString();\n'
+    script = 'installPackage(Modelica); loadModel(Modelica); getErrorString();\n'
     with tempfile.TemporaryDirectory(prefix="gf_compat_msl_") as tmpdir:
         code, output = _run_omc_script_docker(
             script_text=script,

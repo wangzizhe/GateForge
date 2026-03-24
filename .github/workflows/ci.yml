@@ -342,6 +342,12 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e .
 
+      - name: Cache OpenModelica libraries
+        uses: actions/cache@v4
+        with:
+          path: ~/.openmodelica/libraries
+          key: omc-libraries-${{ runner.os }}-v1.26.1-minimal
+
       - name: Enable live smoke for mainline/scheduled runs
         if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.run_release_live_smoke) }}
         run: |

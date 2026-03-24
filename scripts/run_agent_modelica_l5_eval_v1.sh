@@ -41,6 +41,9 @@ L5_MIN_L3_STAGE_PCT="${GATEFORGE_AGENT_L5_MIN_L3_STAGE_PCT:-70}"
 L5_LEDGER_PATH="${GATEFORGE_AGENT_L5_LEDGER_PATH:-artifacts/private/l5_eval_ledger_v1.jsonl}"
 L5_WEEKLY_OUT_JSON="${GATEFORGE_AGENT_L5_WEEKLY_OUT_JSON:-${OUT_DIR}/l5_weekly_metrics.json}"
 L5_WEEKLY_OUT_MD="${GATEFORGE_AGENT_L5_WEEKLY_OUT_MD:-${OUT_DIR}/l5_weekly_metrics.md}"
+L5_PERF_TREND_OUT_JSON="${GATEFORGE_AGENT_L5_PERF_TREND_OUT_JSON:-${OUT_DIR}/l5_performance_trend.json}"
+L5_PERF_TREND_OUT_MD="${GATEFORGE_AGENT_L5_PERF_TREND_OUT_MD:-${OUT_DIR}/l5_performance_trend.md}"
+L5_PERF_TREND_WINDOW_WEEKS="${GATEFORGE_AGENT_L5_PERF_TREND_WINDOW_WEEKS:-4}"
 LIVE_LEDGER_PATH="${GATEFORGE_AGENT_LIVE_REQUEST_LEDGER_PATH:-${OUT_DIR}/private/live_request_ledger.json}"
 LIVE_STAGE="${GATEFORGE_AGENT_LIVE_REQUEST_STAGE:-$(basename "$OUT_DIR")}"
 
@@ -449,6 +452,19 @@ weekly_md.write_text(
 )
 PY
 
+# --- L5 Performance Trend (authority stabilization) ---
+set +e
+python3 -m gateforge.agent_modelica_l5_performance_trend_v1 \
+  --ledger "$L5_LEDGER_PATH" \
+  --window-weeks "$L5_PERF_TREND_WINDOW_WEEKS" \
+  --out "$L5_PERF_TREND_OUT_JSON" \
+  --report-out "$L5_PERF_TREND_OUT_MD"
+L5_TREND_RC=$?
+set -e
+if [ "$L5_TREND_RC" -ne 0 ]; then
+  echo "WARNING: l5_performance_trend exited with code $L5_TREND_RC" >&2
+fi
+
 python3 - "$OUT_DIR" "$L3_RC" "$L4_RC" "$L5_RC" <<'PY'
 import json
 import sys
@@ -462,6 +478,7 @@ l5_rc = int(sys.argv[4])
 
 l5_summary = json.loads((out_dir / "l5_eval_summary.json").read_text(encoding="utf-8")) if (out_dir / "l5_eval_summary.json").exists() else {}
 weekly_summary = json.loads((out_dir / "l5_weekly_metrics.json").read_text(encoding="utf-8")) if (out_dir / "l5_weekly_metrics.json").exists() else {}
+trend_summary = json.loads((out_dir / "l5_performance_trend.json").read_text(encoding="utf-8")) if (out_dir / "l5_performance_trend.json").exists() else {}
 reasons = [str(x) for x in (l5_summary.get("reasons") or []) if isinstance(x, str)]
 if l3_rc != 0:
     reasons.append("l3_regression_script_nonzero_exit")
@@ -498,12 +515,14 @@ summary = {
     "l5_reason_enum": [str(x) for x in (l5_summary.get("reason_enum") or []) if isinstance(x, str)],
     "weekly_recommendation": str(weekly_summary.get("recommendation") or ""),
     "weekly_recommendation_reason": str(weekly_summary.get("recommendation_reason") or ""),
+    "l5_performance_trend_authority_status": str(trend_summary.get("authority_status") or ""),
     "reasons": sorted(set(reasons)),
     "paths": {
         "l3_summary": str(out_dir / "l3" / "summary.json"),
         "l4_summary": str(out_dir / "l4" / "ab_compare_summary.json"),
         "l5_eval_summary": str(out_dir / "l5_eval_summary.json"),
         "weekly_summary": str(out_dir / "l5_weekly_metrics.json"),
+        "l5_performance_trend": str(out_dir / "l5_performance_trend.json"),
     },
 }
 (out_dir / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
