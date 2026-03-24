@@ -17,10 +17,5 @@ data/private_failure_corpus/
 data/private_ledger/
 benchmarks/private/
 policies/private/
-# Local longhaul planning/execution helpers (keep untracked)
-gateforge/agent_modelica_longhaul_v0.py
-scripts/run_agent_modelica_longhaul_v0.sh
-scripts/run_agent_modelica_longhaul_from_plan_v0.sh
-plans/agent_modelica_longhaul_120m_plan_v0.md
-tests/test_run_agent_modelica_longhaul_v0.py
-tests/test_run_agent_modelica_longhaul_from_plan_v0.py
+# Project context for AI sessions (private, local only)
+CLAUDE.md
