@@ -633,7 +633,10 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
                     )
                     self.assertEqual(mocked.call_count, 1)
                     cmd = mocked.call_args.args[0]
-                    self.assertIn(f"{str(cache_dir.resolve())}:/root/.openmodelica/libraries", cmd)
+                    self.assertIn(f"{str(cache_dir.resolve())}:/tmp/.openmodelica/libraries", cmd)
+                    self.assertIn("--user", cmd)
+                    self.assertIn("-e", cmd)
+                    self.assertIn("HOME=/tmp", cmd)
             finally:
                 if prev is None:
                     os.environ.pop("GATEFORGE_OM_DOCKER_LIBRARY_CACHE", None)

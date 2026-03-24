@@ -124,27 +124,36 @@ def _run_omc_script(
     model_paths: list[Path],
     docker_image: str,
 ) -> tuple[int, str]:
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".mos", encoding="utf-8", delete=False) as f:
-        f.write(script_text)
-        f.flush()
-        script_path = Path(f.name)
+    # Use a dedicated temp subdirectory as the workspace so OMC writes all
+    # compilation artifacts (.c, .o, _res.mat, .makefile, ...) into a single
+    # contained directory that can be cleaned up after the run.
+    # Previously a NamedTemporaryFile was used and its parent (/tmp) was
+    # mounted as /workspace, causing OMC artifacts to accumulate directly in
+    # the system temp directory with no cleanup.
+    import os
+    workspace = tempfile.mkdtemp(prefix="gf_mutation_valid_")
     try:
+        script_path = Path(workspace) / "run.mos"
+        script_path.write_text(script_text, encoding="utf-8")
         cmd: list[str]
         if backend == "openmodelica_docker":
             mounts = [
                 "-v",
-                f"{str(script_path.parent)}:/workspace",
+                f"{workspace}:/workspace",
             ]
-            mounted: set[Path] = {script_path.parent.resolve()}
+            mounted: set[Path] = {Path(workspace).resolve()}
             for model_path in model_paths:
                 model_parent = model_path.parent.resolve()
                 if model_parent not in mounted:
                     mounts.extend(["-v", f"{str(model_parent)}:{str(model_parent)}"])
                     mounted.add(model_parent)
+            uid_gid = f"{os.getuid()}:{os.getgid()}"
             cmd = [
                 "docker",
                 "run",
                 "--rm",
+                "--user", uid_gid,
+                "-e", "HOME=/tmp",
                 *mounts,
                 "-w",
                 "/workspace",
@@ -154,7 +163,14 @@ def _run_omc_script(
             ]
         else:
             cmd = ["omc", str(script_path)]
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=max(1, int(timeout_seconds)), check=False)
+        proc = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=max(1, int(timeout_seconds)),
+            check=False,
+            cwd=workspace,
+        )
         merged = ((proc.stdout or "") + "\n" + (proc.stderr or "")).strip()
         return int(proc.returncode), merged
     except FileNotFoundError as exc:
@@ -162,7 +178,7 @@ def _run_omc_script(
     except subprocess.TimeoutExpired:
         return 124, "TimeoutExpired"
     finally:
-        script_path.unlink(missing_ok=True)
+        shutil.rmtree(workspace, ignore_errors=True)
 
 
 def _check_model_with_omc(
