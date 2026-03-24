@@ -234,7 +234,7 @@ def main() -> None:
         reasons.append("v015_decision_quality_needs_review")
     elif dq_status == "FAIL":
         reasons.append("v015_decision_quality_fail")
-    if l5_trend_status != "PASS":
+    if l5_trend and l5_trend_status != "PASS":
         reasons.append("v015_l5_trend_authority_not_stable")
     payload["reasons"] = reasons
 
@@ -244,8 +244,9 @@ def main() -> None:
     # Decision quality FAIL also fails the release; NEEDS_REVIEW only surfaces in reasons
     if dq_status == "FAIL":
         status = "FAIL"
-    # L5 trend: NEEDS_REVIEW can move PASS -> NEEDS_REVIEW; never causes FAIL
-    if status == "PASS" and l5_trend_status == "NEEDS_REVIEW":
+    # L5 trend: NEEDS_REVIEW can move PASS -> NEEDS_REVIEW; never causes FAIL.
+    # Only applies when trend file was actually provided (opt-in).
+    if l5_trend and status == "PASS" and l5_trend_status == "NEEDS_REVIEW":
         status = "NEEDS_REVIEW"
     payload["status"] = status
 
