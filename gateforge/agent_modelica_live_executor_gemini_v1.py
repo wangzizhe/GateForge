@@ -383,6 +383,58 @@ def _apply_wave2_2_marker_repair(*, current_text: str, declared_failure_type: st
     return "".join(kept), {"applied": True, "reason": f"removed_{marker}_line", "removed_line_count": len(remove_idx)}
 
 
+def _apply_simulate_error_injection_repair(
+    *, current_text: str, declared_failure_type: str
+) -> tuple[str, dict]:
+    """Remove GateForge simulation-instability injections from mutated models.
+
+    Detects and removes lines that are part of an injected numerical instability:
+    - ``Real __gf_state_N(...)`` / ``parameter Real __gf_tau_N = ...`` declarations
+    - ``// GateForge mutation: simulation instability`` / ``zero time constant`` comments
+    - equations referencing ``__gf_state_N`` or ``__gf_tau_N``
+
+    Only fires for declared_failure_type == "simulate_error".
+    No env gate needed: ``__gf_state_*`` / ``__gf_tau_*`` names are unique to GateForge
+    mutations and will never appear in real Modelica models.
+    """
+    declared = str(declared_failure_type or "").strip().lower()
+    if declared != "simulate_error":
+        return current_text, {"applied": False, "reason": "declared_failure_type_not_simulate_error"}
+    text = str(current_text or "")
+    lines = text.splitlines(keepends=True)
+    # Collect injected variable names
+    gf_var_names: set[str] = set()
+    for line in lines:
+        m = re.search(r'\b(__gf_(?:state|tau)_\d+)\b', line)
+        if m:
+            gf_var_names.add(m.group(1))
+    if not gf_var_names:
+        return current_text, {"applied": False, "reason": "no_gf_injection_detected"}
+    gf_pat = re.compile(
+        r'\b(' + '|'.join(re.escape(v) for v in sorted(gf_var_names)) + r')\b'
+    )
+    mutation_comment_pat = re.compile(
+        r'//\s*GateForge mutation:\s*(simulation instability|zero time constant)',
+        re.IGNORECASE,
+    )
+    kept: list[str] = []
+    removed_count = 0
+    for line in lines:
+        strip = line.strip()
+        if mutation_comment_pat.search(strip) or gf_pat.search(strip):
+            removed_count += 1
+        else:
+            kept.append(line)
+    if not removed_count:
+        return current_text, {"applied": False, "reason": "no_lines_removed"}
+    return "".join(kept), {
+        "applied": True,
+        "reason": "removed_gf_simulate_injection",
+        "removed_line_count": removed_count,
+        "gf_var_names": sorted(gf_var_names),
+    }
+
+
 def _restore_parameter_binding_from_source(*, current_text: str, source_model_text: str) -> tuple[str, dict]:
     current_lines = str(current_text or "").splitlines(keepends=True)
     source_lines = str(source_model_text or "").splitlines(keepends=True)
@@ -1463,6 +1515,16 @@ def main() -> None:
             if bool(wave2_2_repair.get("applied")):
                 current_text = wave2_2_repaired_text
                 final_error = "wave2_2_marker_repair_applied_retry_pending"
+                continue
+
+            sim_injection_repaired_text, sim_injection_repair = _apply_simulate_error_injection_repair(
+                current_text=current_text,
+                declared_failure_type=str(args.failure_type),
+            )
+            attempts[-1]["simulate_error_injection_repair"] = sim_injection_repair
+            if bool(sim_injection_repair.get("applied")):
+                current_text = sim_injection_repaired_text
+                final_error = "simulate_error_injection_repair_applied_retry_pending"
                 continue
 
             multi_round_repaired_text, multi_round_repair = _apply_multi_round_layered_repair(
