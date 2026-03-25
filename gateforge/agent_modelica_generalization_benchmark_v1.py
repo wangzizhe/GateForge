@@ -63,6 +63,20 @@ def load_hardpack_cases(pack_path: str, max_cases: int = 0) -> list[dict]:
     return cases
 
 
+def load_hardpack_extra_model_loads(pack_path: str) -> list[str]:
+    """Return the ``library_load_models`` list from a hardpack JSON (empty if absent)."""
+    p = Path(str(pack_path or ""))
+    if not p.exists():
+        return []
+    try:
+        data = json.loads(p.read_text(encoding="utf-8"))
+    except Exception:
+        return []
+    if not isinstance(data, dict):
+        return []
+    return [str(m) for m in data.get("library_load_models", []) if str(m or "").strip()]
+
+
 def compute_metrics(results: list[dict]) -> dict:
     """Compute aggregate repair metrics from a list of repair result dicts.
 
@@ -259,6 +273,7 @@ def run_benchmark(
         Summary dict (also written to *out*).
     """
     cases = load_hardpack_cases(pack_path, max_cases=max_cases)
+    extra_model_loads = load_hardpack_extra_model_loads(pack_path)
     if not cases:
         summary: dict = {
             "schema_version": SCHEMA_VERSION,
@@ -300,6 +315,7 @@ def run_benchmark(
             backend=backend,
             docker_image=docker_image,
             timeout_sec=timeout_sec,
+            extra_model_loads=extra_model_loads or None,
         )
         bare_results.append({**base_entry, **result})
 

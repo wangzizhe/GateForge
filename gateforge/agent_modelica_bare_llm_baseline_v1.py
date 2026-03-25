@@ -144,6 +144,7 @@ def run_bare_repair(
     backend: str = "auto",
     docker_image: str = "",
     timeout_sec: int = 120,
+    extra_model_loads: list[str] | None = None,
 ) -> dict:
     """Run one bare-LLM repair attempt and return a result dict.
 
@@ -198,6 +199,7 @@ def run_bare_repair(
             docker_image=resolved_image,
             stop_time=0.2,
             intervals=20,
+            extra_model_loads=list(extra_model_loads or []),
         )
 
         # Step 2: single LLM call
@@ -239,6 +241,7 @@ def run_bare_repair(
             docker_image=resolved_image,
             stop_time=0.2,
             intervals=20,
+            extra_model_loads=list(extra_model_loads or []),
         )
 
         success = bool(check_ok and sim_ok)

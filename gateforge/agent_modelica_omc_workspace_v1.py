@@ -307,15 +307,22 @@ def run_check_and_simulate(
     docker_image: str,
     stop_time: float,
     intervals: int,
+    extra_model_loads: list[str] | None = None,
 ) -> tuple[int | None, str, bool, bool]:
     """Compile *and* simulate a model; return ``(rc, output, check_ok, simulate_ok)``.
 
     Selects the local ``omc`` binary when *backend* is ``"omc"``, otherwise
     uses the Docker runner.
+
+    *extra_model_loads* is an optional list of Modelica package names to load
+    after the standard ``loadModel(Modelica)`` bootstrap, e.g. ``["AixLib"]``
+    for models that depend on an external library available in the OM library cache.
     """
     bootstrap = "loadModel(Modelica);\n"
     if backend != "omc":
         bootstrap = "installPackage(Modelica);\nloadModel(Modelica);\n"
+    if extra_model_loads:
+        bootstrap += "".join(f"loadModel({m});\n" for m in extra_model_loads if str(m or "").strip())
     load_lines = "".join(
         [f'loadFile("{item}");\n' for item in model_load_files if str(item or "").strip()]
     )

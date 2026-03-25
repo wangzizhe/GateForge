@@ -47,13 +47,20 @@ from pathlib import Path
 from typing import Optional
 
 
-def _load_hardpack(pack_path: str, max_cases: int = 0) -> list[dict]:
+def _load_hardpack(pack_path: str, max_cases: int = 0) -> tuple[list[dict], list[str]]:
+    """Load hardpack cases and optional library_load_models list.
+
+    Returns ``(cases, extra_model_loads)`` where *extra_model_loads* is the
+    value of the optional ``library_load_models`` key at the hardpack root
+    (e.g. ``["AixLib"]`` for AixLib zero-shot cases).
+    """
     with open(pack_path, encoding="utf-8") as f:
         hp = json.load(f)
     cases = [c for c in hp.get("cases", []) if isinstance(c, dict)]
     if max_cases and max_cases > 0:
         cases = cases[:max_cases]
-    return cases
+    extra = [str(m) for m in hp.get("library_load_models", []) if str(m or "").strip()]
+    return cases, extra
 
 
 def _run_one_case(
@@ -62,6 +69,7 @@ def _run_one_case(
     planner_backend: str,
     max_rounds: int,
     timeout_sec: int,
+    extra_model_loads: list[str] | None = None,
 ) -> dict:
     """Run the GateForge executor on a single hardpack case.
 
@@ -115,6 +123,8 @@ def _run_one_case(
         ]
         if source_model_path and Path(source_model_path).exists():
             cmd += ["--source-model-path", source_model_path]
+        for m in extra_model_loads or []:
+            cmd += ["--extra-model-load", m]
 
         t0 = time.time()
         result = subprocess.run(
@@ -222,17 +232,20 @@ def run_batch(
     out_path: str = "",
 ) -> dict:
     """Run GateForge executor on all hardpack cases and return summary dict."""
-    cases = _load_hardpack(pack_path, max_cases)
+    cases, extra_model_loads = _load_hardpack(pack_path, max_cases)
     total = len(cases)
     results = []
 
     print(f"[GF-batch] Running {total} cases | backend={planner_backend} | "
           f"max_rounds={max_rounds} | timeout={timeout_sec}s", file=sys.stderr)
+    if extra_model_loads:
+        print(f"[GF-batch] Extra model loads: {extra_model_loads}", file=sys.stderr)
 
     for i, case in enumerate(cases, 1):
         mid = case.get("mutation_id", f"case_{i}")
         print(f"[GF-batch] [{i}/{total}] {mid} ...", end=" ", file=sys.stderr, flush=True)
-        r = _run_one_case(case, docker_image, planner_backend, max_rounds, timeout_sec)
+        r = _run_one_case(case, docker_image, planner_backend, max_rounds, timeout_sec,
+                          extra_model_loads=extra_model_loads)
         results.append(r)
         status_str = "OK" if r["success"] else f"FAIL({r.get('error') or r.get('executor_status')})"
         print(f"{status_str} ({r['elapsed_sec']:.1f}s)", file=sys.stderr)

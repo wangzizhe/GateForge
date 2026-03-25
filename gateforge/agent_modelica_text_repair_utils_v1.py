@@ -11,11 +11,27 @@ import re
 
 
 def find_primary_model_name(text: str) -> str:
-    """Return the first ``model`` declaration name found in *text*."""
-    m = re.search(r"(?im)^\s*(?:partial\s+)?model\s+([A-Za-z_]\w*)\b", text or "")
-    if not m:
+    """Return the (possibly qualified) primary model/block/class name from *text*.
+
+    Handles both standalone models (``model Foo``) and package-scoped definitions
+    (``within A.B.C; block Foo``) by prepending the ``within`` path when present.
+    Recognises ``model``, ``block``, ``class``, ``connector``, ``record``, and
+    ``type`` top-level declarations.
+    """
+    src = str(text or "")
+    # Extract optional "within X.Y.Z;" prefix
+    within_prefix = ""
+    within_m = re.search(r"(?im)^\s*within\s+([\w.]+)\s*;", src)
+    if within_m:
+        within_prefix = within_m.group(1).strip() + "."
+    # Find first non-partial top-level declaration (model/block/class/etc.)
+    decl_m = re.search(
+        r"(?im)^\s*(?:partial\s+)?(?:model|block|class|connector|record|type)\s+([A-Za-z_]\w*)\b",
+        src,
+    )
+    if not decl_m:
         return ""
-    return str(m.group(1))
+    return within_prefix + str(decl_m.group(1))
 
 
 def apply_regex_replacement_cluster(

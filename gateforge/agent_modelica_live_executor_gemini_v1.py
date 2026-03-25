@@ -590,7 +590,10 @@ def _extract_state_tokens_from_output(output: str) -> list[str]:
 
 
 def _extract_undef_tokens_from_output(output: str) -> list[str]:
-    tokens = sorted(set(re.findall(r"__gf_undef_\d+", str(output or ""))))
+    tokens = sorted(set(
+        re.findall(r"__gf_undef_\d+", str(output or ""))
+        + re.findall(r"__gf_undeclared_\d+", str(output or ""))
+    ))
     return tokens
 
 
@@ -660,12 +663,23 @@ def _apply_parse_error_pre_repair(model_text: str, output: str, failure_type: st
                     }
                 return model_text, {"applied": False, "reason": "state_token_not_detected"}
         else:
-        # Common mutant pattern: undefined synthetic symbol `__gf_undef_<id>`.
+        # Common mutant pattern: undefined synthetic symbol `__gf_undef_<id>` or `__gf_undeclared_<id>`.
             tokens = _extract_undef_tokens_from_output(output)
-            if not tokens and "__gf_undef_" in str(model_text or ""):
-                tokens = sorted(set(re.findall(r"__gf_undef_\d+", str(model_text or ""))))
+            if not tokens and any(p in str(model_text or "") for p in ("__gf_undef_", "__gf_undeclared_")):
+                tokens = sorted(set(
+                    re.findall(r"__gf_undef_\d+", str(model_text or ""))
+                    + re.findall(r"__gf_undeclared_\d+", str(model_text or ""))
+                ))
             reason_prefix = "injected_undef_tokens"
             if not tokens:
+                # Last-resort: remove any injected __gf_ symbol block generically.
+                fallback_patched, removed = _remove_gateforge_injected_symbol_block(model_text)
+                if removed > 0:
+                    return fallback_patched, {
+                        "applied": True,
+                        "reason": "removed_gateforge_injected_symbol_block_fallback",
+                        "removed_line_count": int(removed),
+                    }
                 return model_text, {"applied": False, "reason": "undef_token_not_detected"}
     else:
         return model_text, {"applied": False, "reason": "failure_type_not_supported_for_pre_repair"}
@@ -742,6 +756,9 @@ def _parse_main_args() -> argparse.Namespace:
     parser.add_argument("--backend", choices=["auto", "omc", "openmodelica_docker"], default="auto")
     parser.add_argument("--docker-image", default=os.getenv("GATEFORGE_OM_IMAGE", DEFAULT_DOCKER_IMAGE))
     parser.add_argument("--planner-backend", choices=["auto", "gemini", "openai", "rule"], default="auto")
+    parser.add_argument("--extra-model-load", action="append", default=[], dest="extra_model_loads",
+                        help="Extra Modelica package to loadModel() before the repair file (repeatable). "
+                             "E.g. --extra-model-load AixLib for AixLib-based models.")
     parser.add_argument("--out", default="")
     return parser.parse_args()
 
@@ -1290,6 +1307,7 @@ def main() -> None:
                 docker_image=str(args.docker_image),
                 stop_time=float(args.simulate_stop_time),
                 intervals=max(1, int(args.simulate_intervals)),
+                extra_model_loads=list(args.extra_model_loads or []),
             )
             diagnostic = build_diagnostic_ir_v0(
                 output=output,

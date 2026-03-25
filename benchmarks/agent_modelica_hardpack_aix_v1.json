@@ -1,0 +1,153 @@
+{
+  "schema_version": "agent_modelica_hardpack_v1",
+  "description": "Track B (AixLib zero-shot) benchmark \u2014 18 cases across small/medium scale \u00d7 3 failure types \u00d7 3 mutations",
+  "library_load_models": [
+    "AixLib"
+  ],
+  "cases": [
+    {
+      "mutation_id": "aix_iwr_701100_mce",
+      "target_scale": "small",
+      "expected_failure_type": "model_check_error",
+      "expected_stage": "check",
+      "source_model_path": "assets_private/modelica_sources/aixlib/AixLib/Utilities/Math/IntegratorWithReset.mo",
+      "mutated_model_path": "artifacts/track_b_aix/mutants/small/model_check_error/aix_iwr_701100_mce.mo"
+    },
+    {
+      "mutation_id": "aix_iwr_701101_mce",
+      "target_scale": "small",
+      "expected_failure_type": "model_check_error",
+      "expected_stage": "check",
+      "source_model_path": "assets_private/modelica_sources/aixlib/AixLib/Utilities/Math/IntegratorWithReset.mo",
+      "mutated_model_path": "artifacts/track_b_aix/mutants/small/model_check_error/aix_iwr_701101_mce.mo"
+    },
+    {
+      "mutation_id": "aix_iwr_701102_mce",
+      "target_scale": "small",
+      "expected_failure_type": "model_check_error",
+      "expected_stage": "check",
+      "source_model_path": "assets_private/modelica_sources/aixlib/AixLib/Utilities/Math/IntegratorWithReset.mo",
+      "mutated_model_path": "artifacts/track_b_aix/mutants/small/model_check_error/aix_iwr_701102_mce.mo"
+    },
+    {
+      "mutation_id": "aix_iwr_702100_se",
+      "target_scale": "small",
+      "expected_failure_type": "simulate_error",
+      "expected_stage": "simulate",
+      "source_model_path": "assets_private/modelica_sources/aixlib/AixLib/Utilities/Math/IntegratorWithReset.mo",
+      "mutated_model_path": "artifacts/track_b_aix/mutants/small/simulate_error/aix_iwr_702100_se.mo"
+    },
+    {
+      "mutation_id": "aix_iwr_702101_se",
+      "target_scale": "small",
+      "expected_failure_type": "simulate_error",
+      "expected_stage": "simulate",
+      "source_model_path": "assets_private/modelica_sources/aixlib/AixLib/Utilities/Math/IntegratorWithReset.mo",
+      "mutated_model_path": "artifacts/track_b_aix/mutants/small/simulate_error/aix_iwr_702101_se.mo"
+    },
+    {
+      "mutation_id": "aix_iwr_702102_se",
+      "target_scale": "small",
+      "expected_failure_type": "simulate_error",
+      "expected_stage": "simulate",
+      "source_model_path": "assets_private/modelica_sources/aixlib/AixLib/Utilities/Math/IntegratorWithReset.mo",
+      "mutated_model_path": "artifacts/track_b_aix/mutants/small/simulate_error/aix_iwr_702102_se.mo"
+    },
+    {
+      "mutation_id": "aix_iwr_703100_sr",
+      "target_scale": "small",
+      "expected_failure_type": "semantic_regression",
+      "expected_stage": "simulate",
+      "source_model_path": "assets_private/modelica_sources/aixlib/AixLib/Utilities/Math/IntegratorWithReset.mo",
+      "mutated_model_path": "artifacts/track_b_aix/mutants/small/semantic_regression/aix_iwr_703100_sr.mo"
+    },
+    {
+      "mutation_id": "aix_iwr_703101_sr",
+      "target_scale": "small",
+      "expected_failure_type": "semantic_regression",
+      "expected_stage": "simulate",
+      "source_model_path": "assets_private/modelica_sources/aixlib/AixLib/Utilities/Math/IntegratorWithReset.mo",
+      "mutated_model_path": "artifacts/track_b_aix/mutants/small/semantic_regression/aix_iwr_703101_sr.mo"
+    },
+    {
+      "mutation_id": "aix_iwr_703102_sr",
+      "target_scale": "small",
+      "expected_failure_type": "semantic_regression",
+      "expected_stage": "simulate",
+      "source_model_path": "assets_private/modelica_sources/aixlib/AixLib/Utilities/Math/IntegratorWithReset.mo",
+      "mutated_model_path": "artifacts/track_b_aix/mutants/small/semantic_regression/aix_iwr_703102_sr.mo"
+    },
+    {
+      "mutation_id": "aix_deriv_801100_mce",
+      "target_scale": "medium",
+      "expected_failure_type": "model_check_error",
+      "expected_stage": "check",
+      "source_model_path": "assets_private/modelica_sources/aixlib/AixLib/Controls/OBC/CDL/Reals/Derivative.mo",
+      "mutated_model_path": "artifacts/track_b_aix/mutants/medium/model_check_error/aix_deriv_801100_mce.mo"
+    },
+    {
+      "mutation_id": "aix_deriv_801101_mce",
+      "target_scale": "medium",
+      "expected_failure_type": "model_check_error",
+      "expected_stage": "check",
+      "source_model_path": "assets_private/modelica_sources/aixlib/AixLib/Controls/OBC/CDL/Reals/Derivative.mo",
+      "mutated_model_path": "artifacts/track_b_aix/mutants/medium/model_check_error/aix_deriv_801101_mce.mo"
+    },
+    {
+      "mutation_id": "aix_deriv_801102_mce",
+      "target_scale": "medium",
+      "expected_failure_type": "model_check_error",
+      "expected_stage": "check",
+      "source_model_path": "assets_private/modelica_sources/aixlib/AixLib/Controls/OBC/CDL/Reals/Derivative.mo",
+      "mutated_model_path": "artifacts/track_b_aix/mutants/medium/model_check_error/aix_deriv_801102_mce.mo"
+    },
+    {
+      "mutation_id": "aix_deriv_802100_se",
+      "target_scale": "medium",
+      "expected_failure_type": "simulate_error",
+      "expected_stage": "simulate",
+      "source_model_path": "assets_private/modelica_sources/aixlib/AixLib/Controls/OBC/CDL/Reals/Derivative.mo",
+      "mutated_model_path": "artifacts/track_b_aix/mutants/medium/simulate_error/aix_deriv_802100_se.mo"
+    },
+    {
+      "mutation_id": "aix_deriv_802101_se",
+      "target_scale": "medium",
+      "expected_failure_type": "simulate_error",
+      "expected_stage": "simulate",
+      "source_model_path": "assets_private/modelica_sources/aixlib/AixLib/Controls/OBC/CDL/Reals/Derivative.mo",
+      "mutated_model_path": "artifacts/track_b_aix/mutants/medium/simulate_error/aix_deriv_802101_se.mo"
+    },
+    {
+      "mutation_id": "aix_deriv_802102_se",
+      "target_scale": "medium",
+      "expected_failure_type": "simulate_error",
+      "expected_stage": "simulate",
+      "source_model_path": "assets_private/modelica_sources/aixlib/AixLib/Controls/OBC/CDL/Reals/Derivative.mo",
+      "mutated_model_path": "artifacts/track_b_aix/mutants/medium/simulate_error/aix_deriv_802102_se.mo"
+    },
+    {
+      "mutation_id": "aix_deriv_803100_sr",
+      "target_scale": "medium",
+      "expected_failure_type": "semantic_regression",
+      "expected_stage": "simulate",
+      "source_model_path": "assets_private/modelica_sources/aixlib/AixLib/Controls/OBC/CDL/Reals/Derivative.mo",
+      "mutated_model_path": "artifacts/track_b_aix/mutants/medium/semantic_regression/aix_deriv_803100_sr.mo"
+    },
+    {
+      "mutation_id": "aix_deriv_803101_sr",
+      "target_scale": "medium",
+      "expected_failure_type": "semantic_regression",
+      "expected_stage": "simulate",
+      "source_model_path": "assets_private/modelica_sources/aixlib/AixLib/Controls/OBC/CDL/Reals/Derivative.mo",
+      "mutated_model_path": "artifacts/track_b_aix/mutants/medium/semantic_regression/aix_deriv_803101_sr.mo"
+    },
+    {
+      "mutation_id": "aix_deriv_803102_sr",
+      "target_scale": "medium",
+      "expected_failure_type": "semantic_regression",
+      "expected_stage": "simulate",
+      "source_model_path": "assets_private/modelica_sources/aixlib/AixLib/Controls/OBC/CDL/Reals/Derivative.mo",
+      "mutated_model_path": "artifacts/track_b_aix/mutants/medium/semantic_regression/aix_deriv_803102_sr.mo"
+    }
+  ]
+}
