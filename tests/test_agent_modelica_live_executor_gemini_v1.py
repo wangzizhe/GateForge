@@ -105,7 +105,7 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="gf_live_exec_modelica_") as td:
             workspace = Path(td)
             with patch(
-                "gateforge.agent_modelica_live_executor_gemini_v1._run_omc_script_local",
+                "gateforge.agent_modelica_omc_workspace_v1.run_omc_script_local",
                 return_value=(0, "Check of A1 completed successfully.\nrecord SimulationResult\nresultFile = \"/tmp/a.mat\""),
             ) as mocked:
                 _run_check_and_simulate(
@@ -127,7 +127,7 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="gf_live_exec_modelica_docker_") as td:
             workspace = Path(td)
             with patch(
-                "gateforge.agent_modelica_live_executor_gemini_v1._run_omc_script_docker",
+                "gateforge.agent_modelica_omc_workspace_v1.run_omc_script_docker",
                 return_value=(0, "Check of A1 completed successfully.\nrecord SimulationResult\nresultFile = \"/tmp/a.mat\""),
             ) as mocked:
                 _run_check_and_simulate(
@@ -622,7 +622,7 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
             os.environ["GATEFORGE_OM_DOCKER_LIBRARY_CACHE"] = str(cache_dir)
             try:
                 with patch(
-                    "gateforge.agent_modelica_live_executor_gemini_v1._run_cmd",
+                    "gateforge.agent_modelica_omc_workspace_v1.run_cmd",
                     return_value=(0, "ok"),
                 ) as mocked:
                     _run_omc_script_docker(
@@ -1700,7 +1700,7 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
         os.environ.pop("LLM_PROVIDER", None)
         os.environ.pop("GATEFORGE_LIVE_PLANNER_BACKEND", None)
         try:
-            with patch("gateforge.agent_modelica_live_executor_gemini_v1._bootstrap_env_from_repo", return_value=0):
+            with patch("gateforge.agent_modelica_l2_plan_replan_engine_v1.bootstrap_env_from_repo", return_value=0):
                 provider, model, key = _resolve_llm_provider("auto")
             self.assertEqual(provider, "openai")
             self.assertEqual(model, "gpt-5.4")
