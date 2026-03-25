@@ -15,8 +15,8 @@ def find_primary_model_name(text: str) -> str:
 
     Handles both standalone models (``model Foo``) and package-scoped definitions
     (``within A.B.C; block Foo``) by prepending the ``within`` path when present.
-    Recognises ``model``, ``block``, ``class``, ``connector``, ``record``, and
-    ``type`` top-level declarations.
+    Recognises ``model``, ``block``, ``connector``, ``record``, and ``type``
+    top-level declarations (not bare ``class``, which is too generic).
     """
     src = str(text or "")
     # Extract optional "within X.Y.Z;" prefix
@@ -24,9 +24,9 @@ def find_primary_model_name(text: str) -> str:
     within_m = re.search(r"(?im)^\s*within\s+([\w.]+)\s*;", src)
     if within_m:
         within_prefix = within_m.group(1).strip() + "."
-    # Find first non-partial top-level declaration (model/block/class/etc.)
+    # Find first non-partial top-level declaration (model/block/etc.)
     decl_m = re.search(
-        r"(?im)^\s*(?:partial\s+)?(?:model|block|class|connector|record|type)\s+([A-Za-z_]\w*)\b",
+        r"(?im)^\s*(?:partial\s+)?(?:model|block|connector|record|type)\s+([A-Za-z_]\w*)\b",
         src,
     )
     if not decl_m:
