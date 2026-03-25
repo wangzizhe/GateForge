@@ -25,7 +25,7 @@ L5_INFRA_FAILURE_MUST_EQUAL="${GATEFORGE_AGENT_RELEASE_L5_INFRA_FAILURE_MUST_EQU
 L5_MIN_L3_PARSE_PCT="${GATEFORGE_AGENT_RELEASE_L5_MIN_L3_PARSE_PCT:-95}"
 L5_MIN_L3_TYPE_PCT="${GATEFORGE_AGENT_RELEASE_L5_MIN_L3_TYPE_PCT:-70}"
 L5_MIN_L3_STAGE_PCT="${GATEFORGE_AGENT_RELEASE_L5_MIN_L3_STAGE_PCT:-70}"
-L5_TASKSET="${GATEFORGE_AGENT_RELEASE_L5_TASKSET:-assets_private/agent_modelica_l2_freeze_pack_v0_smoke/taskset_frozen.json}"
+L5_TASKSET="${GATEFORGE_AGENT_RELEASE_L5_TASKSET:-assets_private/agent_modelica_l2_freeze_pack_v0/taskset_frozen.json}"
 if [ ! -f "$L5_TASKSET" ]; then
   L5_TASKSET="tests/fixtures/agent_modelica_l3_stability_ci_taskset_v0.json"
 fi

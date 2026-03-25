@@ -4,8 +4,13 @@ import argparse
 import json
 from datetime import datetime, timezone
 
-from .agent_modelica_behavioral_robustness_baseline_summary_v1 import _load_json
 from .agent_modelica_multi_round_evidence_v1 import _task_index, _write_json
+
+
+def _load_json(path: str) -> dict:
+    """Load JSON from file."""
+    with open(path) as f:
+        return json.load(f)
 
 
 SCHEMA_VERSION = "agent_modelica_source_blind_multistep_evidence_v1"
