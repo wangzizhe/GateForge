@@ -77,6 +77,21 @@ from .agent_modelica_behavioral_contract_evaluator_v1 import (
     evaluate_behavioral_contract_from_model_text as _evaluate_behavioral_contract_from_model_text,
     normalize_behavioral_contract_text as _normalize_behavioral_contract_text,
 )
+from .agent_modelica_omc_workspace_v1 import (
+    WorkspaceModelLayout as _WorkspaceModelLayout,
+    classify_failure as _classify_failure,
+    cleanup_workspace_best_effort as _cleanup_workspace_best_effort,
+    copytree_best_effort as _copytree_best_effort,
+    extract_om_success_flags as _extract_om_success_flags,
+    norm_path_text as _norm_path_text,
+    prepare_workspace_model_layout as _prepare_workspace_model_layout,
+    rel_mos_path as _rel_mos_path,
+    run_check_and_simulate as _run_check_and_simulate,
+    run_cmd as _run_cmd,
+    run_omc_script_docker as _run_omc_script_docker,
+    run_omc_script_local as _run_omc_script_local,
+    temporary_workspace as _temporary_workspace,
+)
 
 DEFAULT_DOCKER_IMAGE = "openmodelica/openmodelica:v1.26.1-minimal"
 ENV_KEY_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
@@ -470,203 +485,6 @@ def _apply_behavioral_robustness_source_blind_local_repair(
         source_mode=_behavioral_robustness_source_mode(),
     )
 
-
-def _norm_path_text(value: str) -> str:
-    return str(value or "").strip()
-
-
-def _rel_mos_path(path: Path, workspace: Path) -> str:
-    rel = path.relative_to(workspace)
-    return str(rel).replace(os.sep, "/")
-
-
-@dataclass
-class _WorkspaceModelLayout:
-    model_write_path: Path
-    model_load_files: list[str]
-    model_identifier: str
-    uses_external_library: bool
-
-
-def _copytree_best_effort(src: Path, dst: Path) -> bool:
-    try:
-        shutil.copytree(src, dst, dirs_exist_ok=True)
-        return True
-    except Exception:
-        return False
-
-
-def _prepare_workspace_model_layout(
-    *,
-    workspace: Path,
-    fallback_model_path: Path,
-    primary_model_name: str,
-    source_library_path: str = "",
-    source_package_name: str = "",
-    source_library_model_path: str = "",
-    source_qualified_model_name: str = "",
-) -> _WorkspaceModelLayout:
-    package_root_text = _norm_path_text(source_library_path)
-    package_name = _norm_path_text(source_package_name)
-    qualified_model_name = _norm_path_text(source_qualified_model_name)
-    source_model_in_library_text = _norm_path_text(source_library_model_path)
-
-    if package_root_text and package_name and qualified_model_name:
-        package_root = Path(package_root_text)
-        package_dir_name = package_name.split(".", 1)[0].strip() or package_root.name
-        package_mirror = workspace / package_dir_name
-        package_mirror_parent = package_mirror.parent
-        package_mirror_parent.mkdir(parents=True, exist_ok=True)
-        if package_root.exists() and _copytree_best_effort(package_root, package_mirror):
-            source_model_in_library = Path(source_model_in_library_text) if source_model_in_library_text else None
-            if source_model_in_library is not None:
-                try:
-                    rel_model_path = source_model_in_library.relative_to(package_root)
-                except Exception:
-                    rel_model_path = Path(fallback_model_path.name)
-            else:
-                rel_model_path = Path(fallback_model_path.name)
-            model_write_path = package_mirror / rel_model_path
-            model_write_path.parent.mkdir(parents=True, exist_ok=True)
-            load_files: list[str] = []
-            package_file = package_mirror / "package.mo"
-            if package_file.exists():
-                load_files.append(_rel_mos_path(package_file, workspace))
-            return _WorkspaceModelLayout(
-                model_write_path=model_write_path,
-                model_load_files=load_files + [_rel_mos_path(model_write_path, workspace)],
-                model_identifier=qualified_model_name,
-                uses_external_library=True,
-            )
-
-    model_write_path = workspace / fallback_model_path.name
-    return _WorkspaceModelLayout(
-        model_write_path=model_write_path,
-        model_load_files=[_rel_mos_path(model_write_path, workspace)],
-        model_identifier=primary_model_name,
-        uses_external_library=False,
-    )
-
-
-def _run_cmd(cmd: list[str], timeout_sec: int, cwd: str | None = None) -> tuple[int | None, str]:
-    try:
-        proc = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=max(1, int(timeout_sec)),
-            check=False,
-            cwd=cwd,
-        )
-        merged = ((proc.stdout or "") + "\n" + (proc.stderr or "")).strip()
-        return int(proc.returncode), merged
-    except subprocess.TimeoutExpired:
-        return None, "TimeoutExpired"
-    except Exception as exc:  # pragma: no cover - defensive
-        return None, f"{type(exc).__name__}:{exc}"
-
-
-def _run_omc_script_local(script_text: str, timeout_sec: int, cwd: str) -> tuple[int | None, str]:
-    script_path = Path(cwd) / "run.mos"
-    script_path.write_text(script_text, encoding="utf-8")
-    return _run_cmd(["omc", str(script_path.name)], timeout_sec=timeout_sec, cwd=cwd)
-
-
-def _run_omc_script_docker(script_text: str, timeout_sec: int, cwd: str, image: str) -> tuple[int | None, str]:
-    script_path = Path(cwd) / "run.mos"
-    script_path.write_text(script_text, encoding="utf-8")
-    cache_root_raw = str(os.getenv("GATEFORGE_OM_DOCKER_LIBRARY_CACHE") or "").strip()
-    cache_root = Path(cache_root_raw) if cache_root_raw else (Path.home() / ".openmodelica" / "libraries")
-    if not cache_root.is_absolute():
-        cache_root = (Path(cwd) / cache_root).resolve()
-    else:
-        cache_root = cache_root.resolve()
-    cache_root.mkdir(parents=True, exist_ok=True)
-    # Run as the current host user so all files written into the workspace are
-    # user-owned. This allows shutil.rmtree to clean up the workspace after the
-    # simulation without needing Docker or sudo.
-    #
-    # HOME is set to /workspace/.omc_home (pre-created below with user ownership).
-    # Mounting the library cache at /workspace/.omc_home/.openmodelica/libraries
-    # would shadow the pre-created directory, so we mount cache_root there directly.
-    # The .omc_home/ and .omc_home/.openmodelica/ dirs are pre-created by us (host
-    # user), so OMC can create cache/ and other subdirectories freely without hitting
-    # permission errors from a Docker-created root-owned /tmp/.openmodelica/.
-    omc_home_host = Path(cwd) / ".omc_home"
-    (omc_home_host / ".openmodelica" / "cache").mkdir(parents=True, exist_ok=True)
-    uid_gid = f"{os.getuid()}:{os.getgid()}"
-    cmd = [
-        "docker",
-        "run",
-        "--rm",
-        "--user", uid_gid,
-        "-e", "HOME=/workspace/.omc_home",
-        "-v",
-        f"{cwd}:/workspace",
-        "-v",
-        f"{str(cache_root)}:/workspace/.omc_home/.openmodelica/libraries",
-        "-w",
-        "/workspace",
-        image,
-        "omc",
-        "run.mos",
-    ]
-    return _run_cmd(cmd, timeout_sec=timeout_sec)
-
-
-def _extract_om_success_flags(output: str) -> tuple[bool, bool]:
-    lower = str(output or "").lower()
-    structural_mismatch = re.search(r"class\s+[a-z_][a-z0-9_]*\s+has\s+([0-9]+)\s+equation\(s\)\s+and\s+([0-9]+)\s+variable\(s\)", lower)
-    structural_balance_ok = True
-    if structural_mismatch:
-        try:
-            structural_balance_ok = int(structural_mismatch.group(1)) == int(structural_mismatch.group(2))
-        except Exception:
-            structural_balance_ok = True
-    check_ok = "check of" in lower and "completed successfully" in lower and structural_balance_ok
-    has_sim_result = "record simulationresult" in lower
-    result_file_empty = 'resultfile = ""' in lower
-    sim_error_markers = (
-        "simulation execution failed" in lower
-        or "error occurred while solving" in lower
-        or "division by zero" in lower
-        or "assertion" in lower
-        or "integrator failed" in lower
-    )
-    simulate_ok = has_sim_result and not result_file_empty and not sim_error_markers
-    return check_ok, simulate_ok
-
-
-from .llm_budget import (  # noqa: E402
-    _to_int_env,
-    _to_float_env,
-)
-
-
-from .llm_budget import (  # noqa: E402
-    LIVE_LEDGER_SCHEMA_VERSION,
-    _IN_MEMORY_LIVE_LEDGER,
-    _llm_request_timeout_sec,
-    _live_budget_config,
-    _empty_live_ledger,
-    _live_ledger_key,
-    _load_live_ledger,
-    _write_live_ledger,
-    _reserve_live_request,
-    _record_live_request_success,
-    _record_live_request_429,
-)
-
-
-def _classify_failure(output: str, check_ok: bool, simulate_ok: bool) -> tuple[str, str]:
-    diag = build_diagnostic_ir_v0(
-        output=output,
-        check_model_pass=bool(check_ok),
-        simulate_pass=bool(simulate_ok),
-        expected_stage="",
-        declared_failure_type="",
-    )
-    return str(diag.get("error_type") or "none"), str(diag.get("reason") or "")
 
 
 def _extract_json_object(text: str) -> dict:
@@ -1312,57 +1130,16 @@ def _normalize_terminal_errors(executor_status: str, error_message: str, compile
     return str(error_message or ""), str(compile_error or ""), str(simulate_error or "")
 
 
-def _run_check_and_simulate(
-    *,
-    workspace: Path,
-    model_load_files: list[str],
-    model_name: str,
-    timeout_sec: int,
-    backend: str,
-    docker_image: str,
-    stop_time: float,
-    intervals: int,
-) -> tuple[int | None, str, bool, bool]:
-    bootstrap = "loadModel(Modelica);\n"
-    if backend != "omc":
-        bootstrap = "installPackage(Modelica);\nloadModel(Modelica);\n"
-    load_lines = "".join([f'loadFile("{item}");\n' for item in model_load_files if str(item or "").strip()])
-    script = (
-        bootstrap
-        + load_lines
-        + f"checkModel({model_name});\n"
-        + f"simulate({model_name}, stopTime={float(stop_time)}, numberOfIntervals={int(intervals)});\n"
-        + "getErrorString();\n"
+
+def _parse_main_args() -> argparse.Namespace:
+    """Parse CLI arguments for the live executor.
+
+    Extracted from ``main()`` so the argument schema can be read and tested
+    without running the full executor loop.
+    """
+    parser = argparse.ArgumentParser(
+        description="Live Modelica executor with provider-configurable patching loop and OMC validation"
     )
-    if backend == "omc":
-        rc, output = _run_omc_script_local(script, timeout_sec=timeout_sec, cwd=str(workspace))
-    else:
-        rc, output = _run_omc_script_docker(script, timeout_sec=timeout_sec, cwd=str(workspace), image=docker_image)
-    check_ok, simulate_ok = _extract_om_success_flags(output)
-    return rc, output, check_ok, simulate_ok
-
-
-@contextmanager
-def _temporary_workspace(prefix: str):
-    # Docker may write root-owned files into the mounted workspace/cache, and
-    # TemporaryDirectory cleanup can raise PermissionError on CI. Use mkdtemp
-    # with best-effort cleanup that never propagates teardown failures.
-    td = tempfile.mkdtemp(prefix=prefix)
-    try:
-        yield td
-    finally:
-        _cleanup_workspace_best_effort(td)
-
-
-def _cleanup_workspace_best_effort(path: str) -> None:
-    try:
-        shutil.rmtree(path, ignore_errors=True)
-    except Exception:
-        return
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Live Modelica executor with provider-configurable patching loop and OMC validation")
     parser.add_argument("--task-id", default="")
     parser.add_argument("--failure-type", default="unknown")
     parser.add_argument("--expected-stage", default="unknown")
@@ -1381,7 +1158,465 @@ def main() -> None:
     parser.add_argument("--docker-image", default=os.getenv("GATEFORGE_OM_IMAGE", DEFAULT_DOCKER_IMAGE))
     parser.add_argument("--planner-backend", choices=["auto", "gemini", "openai", "rule"], default="auto")
     parser.add_argument("--out", default="")
-    args = parser.parse_args()
+    return parser.parse_args()
+
+
+def _build_final_payload(
+    *,
+    args: argparse.Namespace,
+    layout,
+    started: float,
+    current_text: str,
+    source_model_text: str,
+    attempts: list,
+    multistep_memory: dict,
+    final_check_ok: bool,
+    final_simulate_ok: bool,
+    final_error: str,
+    final_compile_error: str,
+    final_sim_error: str,
+    final_stderr: str,
+    executor_status: str,
+    resolved_provider: str,
+    backend: str,
+    budget_cfg: dict,
+) -> dict:
+    """Assemble the final output payload from accumulated round-loop state.
+
+    Derives all summary metrics, constructs the output JSON dict, and appends
+    live-budget ledger data.  Returns the complete payload dict; does NOT write
+    to disk or print (caller is responsible for I/O).
+    """
+    elapsed = round(time.monotonic() - started, 4)
+    final_error, final_compile_error, final_sim_error = _normalize_terminal_errors(
+        executor_status=executor_status,
+        error_message=final_error,
+        compile_error=final_compile_error,
+        simulate_error=final_sim_error,
+    )
+    behavioral_eval = None
+    if bool(final_check_ok and final_simulate_ok):
+        behavioral_eval = _evaluate_behavioral_contract_from_model_text(
+            current_text=current_text,
+            source_model_text=source_model_text,
+            failure_type=str(args.failure_type),
+        )
+    physics_contract_pass = bool(final_check_ok and final_simulate_ok)
+    physics_contract_reasons: list[str] = []
+    contract_fail_bucket = ""
+    if isinstance(behavioral_eval, dict):
+        physics_contract_pass = bool(behavioral_eval.get("pass"))
+        physics_contract_reasons = [str(x) for x in (behavioral_eval.get("reasons") or []) if str(x).strip()]
+        contract_fail_bucket = str(behavioral_eval.get("contract_fail_bucket") or "")
+        scenario_results = [dict(item) for item in (behavioral_eval.get("scenario_results") or []) if isinstance(item, dict)]
+        multi_step_stage = str(behavioral_eval.get("multi_step_stage") or "")
+        multi_step_stage_2_unlocked = bool(behavioral_eval.get("multi_step_stage_2_unlocked"))
+        multi_step_transition_seen = bool(behavioral_eval.get("multi_step_transition_seen"))
+        multi_step_transition_reason = str(behavioral_eval.get("multi_step_transition_reason") or "")
+    else:
+        scenario_results = []
+        multi_step_stage = ""
+        multi_step_stage_2_unlocked = False
+        multi_step_transition_seen = False
+        multi_step_transition_reason = ""
+    final_stage_context = _build_multistep_stage_context(
+        failure_type=str(args.failure_type),
+        behavioral_eval=behavioral_eval if isinstance(behavioral_eval, dict) else {},
+        current_round=len(attempts),
+        memory=multistep_memory,
+    )
+    local_search_audits = [
+        row.get("source_blind_multistep_local_search")
+        for row in attempts
+        if isinstance(row, dict)
+        and isinstance(row.get("source_blind_multistep_local_search"), dict)
+        and bool((row.get("source_blind_multistep_local_search") or {}).get("applied"))
+    ]
+    local_search_kinds = [
+        str((row or {}).get("search_kind") or "").strip()
+        for row in local_search_audits
+        if str((row or {}).get("search_kind") or "").strip()
+    ]
+    stage_1_unlock_via_local_search = bool(
+        multi_step_stage_2_unlocked and any(kind == "stage_1_unlock" for kind in local_search_kinds)
+    )
+    stage_2_resolution_via_local_search = bool(
+        physics_contract_pass and any(kind == "stage_2_resolution" for kind in local_search_kinds)
+    )
+    stage_1_unlock_via_adaptive_search = stage_1_unlock_via_local_search
+    stage_2_resolution_via_adaptive_search = stage_2_resolution_via_local_search
+    local_search_success_count = 1 if bool(physics_contract_pass and local_search_audits) else 0
+    successful_directions = [
+        str((row or {}).get("search_direction") or "").strip()
+        for row in local_search_audits
+        if str((row or {}).get("search_direction") or "").strip()
+    ]
+    adaptive_search_attempt_count = int(multistep_memory.get("adaptive_search_attempt_count") or len(local_search_audits) or 0)
+    adaptive_search_success_count = 1 if bool(physics_contract_pass and local_search_audits) else 0
+    search_improvement_seen = bool(stage_1_unlock_via_local_search or stage_2_resolution_via_local_search)
+    cluster_only_resolution = bool(
+        physics_contract_pass
+        and not local_search_audits
+        and any(
+            bool(((row.get("source_blind_multistep_exposure_repair") or {}) if isinstance(row, dict) else {}).get("applied"))
+            or bool(((row.get("source_blind_multistep_stage2_local_repair") or {}) if isinstance(row, dict) else {}).get("applied"))
+            for row in attempts
+            if isinstance(row, dict)
+        )
+    )
+    template_only_resolution = cluster_only_resolution
+    llm_markers = _extract_source_blind_multistep_markers(current_text)
+    llm_request_count_delta_total = int(multistep_memory.get("llm_request_count_delta_total") or 0)
+    llm_plan_used = bool(multistep_memory.get("llm_plan_used")) or llm_request_count_delta_total > 0
+    llm_plan_generated = bool(multistep_memory.get("llm_plan_generated")) or llm_request_count_delta_total > 0
+    llm_plan_parsed = bool(multistep_memory.get("llm_plan_parsed"))
+    llm_plan_followed = bool(multistep_memory.get("llm_plan_followed"))
+    llm_plan_branch_match = bool(multistep_memory.get("llm_plan_branch_match"))
+    first_plan_branch_match = bool(multistep_memory.get("first_plan_branch_match"))
+    first_plan_branch_miss = bool(llm_plan_generated and not first_plan_branch_match)
+    replan_branch_match = bool(multistep_memory.get("replan_branch_match"))
+    llm_plan_parameter_match = bool(multistep_memory.get("llm_plan_parameter_match"))
+    llm_resolution_contributed = bool(multistep_memory.get("llm_resolution_contributed")) and bool(physics_contract_pass)
+    llm_plan_helped_resolution = bool(multistep_memory.get("llm_plan_helped_resolution")) and bool(physics_contract_pass)
+    llm_replan_used = bool(multistep_memory.get("llm_replan_used"))
+    llm_replan_reason = str(multistep_memory.get("llm_replan_reason") or "")
+    llm_replan_count = int(multistep_memory.get("llm_replan_count") or 0)
+    llm_second_replan_used = bool(multistep_memory.get("llm_second_replan_used"))
+    llm_second_replan_reason = str(multistep_memory.get("llm_second_replan_reason") or "")
+    replan_helped_resolution = bool(multistep_memory.get("replan_helped_resolution")) and bool(physics_contract_pass)
+    llm_first_plan_resolved = bool(multistep_memory.get("llm_first_plan_resolved")) and bool(physics_contract_pass)
+    llm_replan_resolved = bool(multistep_memory.get("llm_replan_resolved")) and bool(physics_contract_pass)
+    previous_branch_value = str(multistep_memory.get("previous_branch") or "").strip()
+    new_branch_value = str(multistep_memory.get("new_branch") or "").strip()
+    inferred_switch_branch_resolution = bool(
+        physics_contract_pass
+        and llm_replan_used
+        and bool(multistep_memory.get("replan_switch_branch"))
+        and (
+            bool(multistep_memory.get("replan_branch_correction_used"))
+            or (
+                previous_branch_value
+                and new_branch_value
+                and previous_branch_value != new_branch_value
+            )
+        )
+    )
+    if inferred_switch_branch_resolution:
+        replan_helped_resolution = True
+        llm_replan_resolved = True
+        multistep_memory["replan_helped_resolution"] = True
+        multistep_memory["llm_replan_resolved"] = True
+    wrong_branch_entered = bool(multistep_memory.get("trap_branch_entered"))
+    wrong_branch_recovered = bool(wrong_branch_entered and multistep_memory.get("correct_branch_selected"))
+    replan_branch_corrected = bool(llm_replan_used and wrong_branch_recovered)
+    trap_escape_success = bool(multistep_memory.get("trap_branch_entered")) and bool(multistep_memory.get("correct_branch_selected"))
+    llm_guided_search_used = bool(multistep_memory.get("llm_guided_search_used"))
+    search_budget_from_llm_plan = int(multistep_memory.get("search_budget_from_llm_plan") or 0)
+    search_budget_followed = bool(multistep_memory.get("search_budget_followed"))
+    guided_search_closed_loop_observed = bool(multistep_memory.get("guided_search_closed_loop_observed"))
+    llm_budget_helped_resolution = bool(multistep_memory.get("llm_budget_helped_resolution")) and bool(physics_contract_pass)
+    inferred_guided_search_resolution = bool(
+        physics_contract_pass
+        and llm_guided_search_used
+        and search_budget_followed
+        and llm_plan_followed
+    )
+    if inferred_guided_search_resolution:
+        llm_budget_helped_resolution = True
+        multistep_memory["llm_budget_helped_resolution"] = True
+        multistep_memory["llm_guided_search_resolution"] = True
+    llm_guided_search_resolution = bool(inferred_guided_search_resolution or multistep_memory.get("llm_guided_search_resolution"))
+    guided_search_bucket_sequence = [
+        str(x).strip().lower()
+        for x in (multistep_memory.get("guided_search_bucket_sequence") or [])
+        if str(x).strip()
+    ]
+    guided_search_helped_branch_diagnosis = bool(
+        llm_guided_search_used
+        and search_budget_followed
+        and "branch_diagnosis" in guided_search_bucket_sequence
+        and (first_plan_branch_match or replan_branch_match or bool(multistep_memory.get("correct_branch_selected")))
+    )
+    guided_search_helped_trap_escape = bool(
+        llm_guided_search_used
+        and search_budget_followed
+        and "branch_escape" in guided_search_bucket_sequence
+        and (
+            trap_escape_success
+            or wrong_branch_recovered
+            or int(multistep_memory.get("branch_escape_success_count") or 0) > 0
+        )
+    )
+    guided_search_helped_replan = bool(
+        llm_guided_search_used
+        and search_budget_followed
+        and bool(multistep_memory.get("guided_search_replan_after_observation"))
+        and llm_replan_used
+    )
+    guided_search_helped_resolution = bool(llm_guided_search_resolution or llm_budget_helped_resolution)
+    guided_search_was_decisive = bool(
+        physics_contract_pass
+        and guided_search_helped_resolution
+        and not llm_first_plan_resolved
+        and not llm_replan_resolved
+    )
+    resolution_primary_contribution = ""
+    if physics_contract_pass:
+        if guided_search_was_decisive:
+            resolution_primary_contribution = "guided_search_decisive"
+        elif llm_replan_resolved and bool(multistep_memory.get("replan_switch_branch")):
+            resolution_primary_contribution = "switch_branch_replan"
+        elif llm_replan_resolved:
+            resolution_primary_contribution = "llm_replan"
+        elif llm_first_plan_resolved:
+            resolution_primary_contribution = "llm_first_plan"
+        elif guided_search_helped_resolution:
+            resolution_primary_contribution = "guided_search_assisted"
+        elif (
+            stage_2_resolution_via_local_search
+            or stage_2_resolution_via_adaptive_search
+            or cluster_only_resolution
+            or template_only_resolution
+            or local_search_success_count > 0
+            or adaptive_search_success_count > 0
+        ):
+            resolution_primary_contribution = "deterministic"
+    multistep_memory["first_plan_branch_miss"] = first_plan_branch_miss
+    multistep_memory["replan_branch_corrected"] = replan_branch_corrected
+    multistep_memory["guided_search_helped_branch_diagnosis"] = guided_search_helped_branch_diagnosis
+    multistep_memory["guided_search_helped_trap_escape"] = guided_search_helped_trap_escape
+    multistep_memory["guided_search_helped_resolution"] = guided_search_helped_resolution
+    multistep_memory["guided_search_helped_replan"] = guided_search_helped_replan
+    multistep_memory["guided_search_was_decisive"] = guided_search_was_decisive
+    multistep_memory["resolution_primary_contribution"] = resolution_primary_contribution
+    llm_only_resolution = bool(
+        llm_resolution_contributed
+        and llm_plan_followed
+        and not llm_replan_used
+        and not stage_1_unlock_via_local_search
+        and not stage_2_resolution_via_local_search
+        and not cluster_only_resolution
+    )
+    llm_plan_was_decisive = bool(llm_plan_helped_resolution and llm_only_resolution)
+    llm_called_only = bool(llm_request_count_delta_total > 0 and not llm_plan_helped_resolution)
+    payload = {
+        "task_id": str(args.task_id),
+        "failure_type": str(args.failure_type),
+        "realism_version": str(llm_markers.get("realism_version") or ""),
+        "llm_forcing": bool(llm_markers.get("llm_forcing")),
+        "llm_forcing_profile": str(llm_markers.get("llm_profile") or ""),
+        "executor_status": executor_status,
+        "planner_backend": str(args.planner_backend),
+        "resolved_llm_provider": resolved_provider,
+        "backend_used": backend,
+        "uses_external_library": bool(layout.uses_external_library) if layout is not None else False,
+        "check_model_pass": bool(final_check_ok),
+        "simulate_pass": bool(final_simulate_ok),
+        "physics_contract_pass": bool(physics_contract_pass),
+        "physics_contract_reasons": physics_contract_reasons,
+        "contract_pass": bool(physics_contract_pass),
+        "contract_fail_bucket": contract_fail_bucket,
+        "scenario_results": scenario_results,
+        "multi_step_stage": multi_step_stage,
+        "multi_step_stage_2_unlocked": multi_step_stage_2_unlocked,
+        "multi_step_transition_seen": multi_step_transition_seen,
+        "multi_step_transition_round": int(max(1, len(attempts))) if multi_step_transition_seen else 0,
+        "multi_step_transition_reason": multi_step_transition_reason,
+        "current_stage": str(final_stage_context.get("current_stage") or ""),
+        "stage_2_unlocked": bool(final_stage_context.get("stage_2_unlocked")),
+        "transition_round": int(final_stage_context.get("transition_round") or 0),
+        "transition_reason": str(final_stage_context.get("transition_reason") or ""),
+        "current_fail_bucket": str(final_stage_context.get("current_fail_bucket") or ""),
+        "next_focus": str(final_stage_context.get("next_focus") or ""),
+        "stage_1_unlock_cluster": str(multistep_memory.get("stage_1_unlock_cluster") or ""),
+        "stage_2_first_fail_bucket": str(multistep_memory.get("stage_2_first_fail_bucket") or ""),
+        "stage_2_branch": str(final_stage_context.get("stage_2_branch") or multistep_memory.get("stage_2_branch") or ""),
+        "preferred_stage_2_branch": str(final_stage_context.get("preferred_stage_2_branch") or multistep_memory.get("preferred_stage_2_branch") or ""),
+        "branch_mode": str(final_stage_context.get("branch_mode") or ""),
+        "branch_reason": str(final_stage_context.get("branch_reason") or multistep_memory.get("branch_reason") or ""),
+        "trap_branch": bool(final_stage_context.get("trap_branch")) if str(final_stage_context.get("stage_2_branch") or "").strip() else bool(multistep_memory.get("trap_branch_active")),
+        "trap_branch_entered": bool(multistep_memory.get("trap_branch_entered")),
+        "wrong_branch_entered": wrong_branch_entered,
+        "correct_branch_selected": bool(final_stage_context.get("correct_branch_selected")) if str(final_stage_context.get("stage_2_branch") or "").strip() else bool(multistep_memory.get("correct_branch_selected")),
+        "correct_branch_round": int(multistep_memory.get("correct_branch_round") or 0),
+        "wrong_branch_recovered": wrong_branch_recovered,
+        "stage_aware_control_applied": bool(multistep_memory.get("stage_aware_focus_applied")),
+        "stage_1_revisit_after_unlock": bool(multistep_memory.get("stage_1_revisit_after_unlock")),
+        "plan_stage": str(multistep_memory.get("last_plan_stage") or ""),
+        "branch_stage": str(multistep_memory.get("last_plan_stage") or "") if str(multistep_memory.get("last_plan_stage") or "").strip().lower() == "stage_2" else "",
+        "current_branch": str(final_stage_context.get("stage_2_branch") or multistep_memory.get("stage_2_branch") or ""),
+        "preferred_branch": str(final_stage_context.get("preferred_stage_2_branch") or multistep_memory.get("preferred_stage_2_branch") or ""),
+        "plan_goal": str(multistep_memory.get("last_plan_goal") or ""),
+        "plan_actions": [str(x) for x in (multistep_memory.get("last_plan_actions") or []) if isinstance(x, str)],
+        "plan_constraints": [str(x) for x in (multistep_memory.get("last_plan_constraints") or []) if isinstance(x, str)],
+        "plan_stop_condition": str(multistep_memory.get("last_plan_stop_condition") or ""),
+        "branch_plan_goal": str(multistep_memory.get("last_plan_goal") or "") if str(multistep_memory.get("last_plan_stage") or "").strip().lower() == "stage_2" else "",
+        "branch_plan_actions": [str(x) for x in (multistep_memory.get("last_plan_actions") or []) if isinstance(x, str)] if str(multistep_memory.get("last_plan_stage") or "").strip().lower() == "stage_2" else [],
+        "branch_plan_stop_condition": str(multistep_memory.get("last_plan_stop_condition") or "") if str(multistep_memory.get("last_plan_stage") or "").strip().lower() == "stage_2" else "",
+        "stage_plan_generated": bool(multistep_memory.get("stage_plan_generated")),
+        "stage_plan_followed": bool(multistep_memory.get("stage_plan_followed")),
+        "executed_plan_stage": str(multistep_memory.get("executed_plan_stage") or ""),
+        "executed_plan_action": str(multistep_memory.get("executed_plan_action") or ""),
+        "plan_followed": bool(multistep_memory.get("stage_plan_followed")),
+        "plan_conflict_rejected": bool(multistep_memory.get("plan_conflict_rejected")),
+        "plan_conflict_rejected_count": int(multistep_memory.get("plan_conflict_rejected_count") or 0),
+        "last_successful_stage_action": str(multistep_memory.get("last_successful_stage_action") or ""),
+        "tried_candidate_values": [str(x) for x in (multistep_memory.get("tried_candidate_values") or []) if str(x).strip()],
+        "bad_directions": [str(x) for x in (multistep_memory.get("bad_directions") or []) if str(x).strip()],
+        "successful_directions": successful_directions,
+        "local_search_attempt_count": int(multistep_memory.get("local_search_attempt_count") or 0),
+        "local_search_success_count": local_search_success_count,
+        "local_search_kinds": local_search_kinds,
+        "adaptive_search_attempt_count": adaptive_search_attempt_count,
+        "adaptive_search_success_count": adaptive_search_success_count,
+        "adaptive_search_success_pct": 100.0 if adaptive_search_success_count > 0 else 0.0,
+        "search_improvement_seen": search_improvement_seen,
+        "search_regression_seen": bool(multistep_memory.get("search_regression_seen")),
+        "search_bad_direction_count": int(multistep_memory.get("search_bad_direction_count") or 0),
+        "best_stage_2_fail_bucket_seen": str(multistep_memory.get("best_stage_2_fail_bucket_seen") or ""),
+        "stage_2_best_progress_seen": bool(multistep_memory.get("stage_2_best_progress_seen")),
+        "stage_1_unlock_via_local_search": stage_1_unlock_via_local_search,
+        "stage_2_resolution_via_local_search": stage_2_resolution_via_local_search,
+        "stage_1_unlock_via_adaptive_search": stage_1_unlock_via_local_search,
+        "stage_2_resolution_via_adaptive_search": stage_2_resolution_via_local_search,
+        "cluster_only_resolution": cluster_only_resolution,
+        "template_only_resolution": cluster_only_resolution,
+        "branch_history": [str(x) for x in (multistep_memory.get("branch_history") or []) if str(x).strip()],
+        "trap_branch_history": [str(x) for x in (multistep_memory.get("trap_branch_history") or []) if str(x).strip()],
+        "last_trap_escape_direction": str(multistep_memory.get("last_trap_escape_direction") or ""),
+        "last_successful_branch_correction": str(multistep_memory.get("last_successful_branch_correction") or ""),
+        "branch_bad_directions": [str(x) for x in (multistep_memory.get("branch_bad_directions") or []) if str(x).strip()],
+        "branch_reentry_count": int(multistep_memory.get("branch_reentry_count") or 0),
+        "repeated_trap_branch": bool(int(multistep_memory.get("branch_reentry_count") or 0) > 0),
+        "branch_escape_attempt_count": int(multistep_memory.get("branch_escape_attempt_count") or 0),
+        "branch_escape_success_count": int(multistep_memory.get("branch_escape_success_count") or 0),
+        "branch_escape_success_pct": round((int(multistep_memory.get("branch_escape_success_count") or 0) / max(1, int(multistep_memory.get("branch_escape_attempt_count") or 0))) * 100.0, 2) if int(multistep_memory.get("branch_escape_attempt_count") or 0) > 0 else 0.0,
+        "branch_budget_reallocated_count": int(multistep_memory.get("branch_budget_reallocated_count") or 0),
+        "branch_escape_attempted": bool(int(multistep_memory.get("branch_escape_attempt_count") or 0) > 0),
+        "branch_escape_succeeded": bool(int(multistep_memory.get("branch_escape_success_count") or 0) > 0),
+        "branch_escape_direction": str(multistep_memory.get("last_trap_escape_direction") or ""),
+        "branch_budget_reallocated": bool(int(multistep_memory.get("branch_budget_reallocated_count") or 0) > 0),
+        "llm_plan_used": llm_plan_used,
+        "llm_plan_reason": str(multistep_memory.get("llm_plan_reason") or ""),
+        "llm_plan_generated": llm_plan_generated,
+        "llm_plan_parsed": llm_plan_parsed,
+        "llm_plan_followed": llm_plan_followed,
+        "planner_contract_version": str(multistep_memory.get("planner_contract_version") or ""),
+        "planner_family": str(multistep_memory.get("planner_family") or ""),
+        "planner_adapter": str(multistep_memory.get("planner_adapter") or ""),
+        "planner_request_kind": str(multistep_memory.get("planner_request_kind") or ""),
+        "llm_plan_branch_match": llm_plan_branch_match,
+        "first_plan_branch_match": first_plan_branch_match,
+        "first_plan_branch_miss": first_plan_branch_miss,
+        "replan_branch_match": replan_branch_match,
+        "replan_branch_corrected": replan_branch_corrected,
+        "llm_plan_parameter_match": llm_plan_parameter_match,
+        "llm_plan_helped_resolution": llm_plan_helped_resolution,
+        "llm_plan_was_decisive": llm_plan_was_decisive,
+        "llm_called_only": llm_called_only,
+        "llm_plan_failure_mode": str(multistep_memory.get("llm_plan_failure_mode") or ""),
+        "llm_plan_diagnosed_stage": str(multistep_memory.get("llm_plan_diagnosed_stage") or ""),
+        "llm_plan_diagnosed_branch": str(multistep_memory.get("llm_plan_diagnosed_branch") or ""),
+        "llm_plan_preferred_branch": str(multistep_memory.get("llm_plan_preferred_branch") or ""),
+        "llm_plan_repair_goal": str(multistep_memory.get("llm_plan_repair_goal") or ""),
+        "llm_plan_candidate_parameters": [
+            str(x) for x in (multistep_memory.get("llm_plan_candidate_parameters") or []) if str(x).strip()
+        ],
+        "llm_plan_candidate_value_directions": [
+            str(x) for x in (multistep_memory.get("llm_plan_candidate_value_directions") or []) if str(x).strip()
+        ],
+        "llm_plan_why_not_other_branch": str(multistep_memory.get("llm_plan_why_not_other_branch") or ""),
+        "llm_plan_stop_condition": str(multistep_memory.get("llm_plan_stop_condition") or ""),
+        "llm_replan_used": llm_replan_used,
+        "llm_replan_reason": llm_replan_reason,
+        "llm_replan_count": llm_replan_count,
+        "llm_second_replan_used": llm_second_replan_used,
+        "llm_second_replan_reason": llm_second_replan_reason,
+        "previous_plan_failed_signal": str(multistep_memory.get("previous_plan_failed_signal") or ""),
+        "previous_branch": str(multistep_memory.get("previous_branch") or ""),
+        "new_branch": str(multistep_memory.get("new_branch") or ""),
+        "replan_goal": str(multistep_memory.get("replan_goal") or ""),
+        "replan_candidate_parameters": [
+            str(x) for x in (multistep_memory.get("replan_candidate_parameters") or []) if str(x).strip()
+        ],
+        "replan_stop_condition": str(multistep_memory.get("replan_stop_condition") or ""),
+        "branch_choice_reason": str(multistep_memory.get("branch_choice_reason") or ""),
+        "replan_budget_total": int(multistep_memory.get("replan_budget_total") or 0),
+        "replan_budget_for_branch_diagnosis": int(multistep_memory.get("replan_budget_for_branch_diagnosis") or 0),
+        "replan_budget_for_branch_escape": int(multistep_memory.get("replan_budget_for_branch_escape") or 0),
+        "replan_budget_for_resolution": int(multistep_memory.get("replan_budget_for_resolution") or 0),
+        "replan_budget_consumed": int(multistep_memory.get("replan_budget_consumed") or 0),
+        "replan_continue_current_branch": bool(multistep_memory.get("replan_continue_current_branch")),
+        "replan_switch_branch": bool(multistep_memory.get("replan_switch_branch")),
+        "replan_history": list(multistep_memory.get("replan_history") or []),
+        "replan_branch_history": [str(x) for x in (multistep_memory.get("replan_branch_history") or []) if str(x).strip()],
+        "replan_failed_directions": [str(x) for x in (multistep_memory.get("replan_failed_directions") or []) if str(x).strip()],
+        "replan_successful_directions": [str(x) for x in (multistep_memory.get("replan_successful_directions") or []) if str(x).strip()],
+        "replan_same_branch_stall_count": int(multistep_memory.get("replan_same_branch_stall_count") or 0),
+        "replan_switch_branch_count": int(multistep_memory.get("replan_switch_branch_count") or 0),
+        "replan_abandoned_branches": [str(x) for x in (multistep_memory.get("replan_abandoned_branches") or []) if str(x).strip()],
+        "backtracking_used": bool(multistep_memory.get("backtracking_used")),
+        "backtracking_reason": str(multistep_memory.get("backtracking_reason") or ""),
+        "budget_reallocated_after_replan": bool(multistep_memory.get("budget_reallocated_after_replan")),
+        "abandoned_plan_directions": [
+            str(x) for x in (multistep_memory.get("abandoned_plan_directions") or []) if str(x).strip()
+        ],
+        "replan_branch_correction_used": bool(multistep_memory.get("replan_branch_correction_used")),
+        "replan_helped_resolution": replan_helped_resolution,
+        "llm_first_plan_resolved": llm_first_plan_resolved,
+        "llm_replan_resolved": llm_replan_resolved,
+        "trap_escape_success": trap_escape_success,
+        "llm_guided_search_used": llm_guided_search_used,
+        "search_budget_from_llm_plan": search_budget_from_llm_plan,
+        "search_budget_followed": search_budget_followed,
+        "guided_search_bucket_sequence": [str(x) for x in (multistep_memory.get("guided_search_bucket_sequence") or []) if str(x).strip()],
+        "guided_search_order": str(multistep_memory.get("guided_search_order") or ""),
+        "budget_bucket_consumed": dict(multistep_memory.get("budget_bucket_consumed") or {}),
+        "budget_bucket_exhausted": [str(x) for x in (multistep_memory.get("budget_bucket_exhausted") or []) if str(x).strip()],
+        "candidate_suppressed_by_budget": int(multistep_memory.get("candidate_suppressed_by_budget") or 0),
+        "candidate_attempt_count_by_bucket": dict(multistep_memory.get("last_candidate_attempt_count_by_bucket") or {}),
+        "resolution_skipped_due_to_budget": bool(multistep_memory.get("resolution_skipped_due_to_budget")),
+        "branch_escape_skipped_due_to_budget": bool(multistep_memory.get("branch_escape_skipped_due_to_budget")),
+        "branch_frozen_by_budget": [str(x) for x in (multistep_memory.get("branch_frozen_by_budget") or []) if str(x).strip()],
+        "guided_search_observation_payload": dict(multistep_memory.get("guided_search_observation_payload") or {}),
+        "guided_search_replan_after_observation": bool(multistep_memory.get("guided_search_replan_after_observation")),
+        "guided_search_closed_loop_observed": guided_search_closed_loop_observed,
+        "guided_search_helped_branch_diagnosis": guided_search_helped_branch_diagnosis,
+        "guided_search_helped_trap_escape": guided_search_helped_trap_escape,
+        "guided_search_helped_resolution": guided_search_helped_resolution,
+        "guided_search_helped_replan": guided_search_helped_replan,
+        "guided_search_was_decisive": guided_search_was_decisive,
+        "llm_budget_helped_resolution": llm_budget_helped_resolution,
+        "llm_guided_search_resolution": llm_guided_search_resolution,
+        "resolution_primary_contribution": resolution_primary_contribution,
+        "llm_request_count_delta": llm_request_count_delta_total,
+        "llm_branch_correction_used": bool(multistep_memory.get("llm_branch_correction_used")),
+        "llm_resolution_contributed": llm_resolution_contributed,
+        "llm_only_resolution": llm_only_resolution,
+        "regression_pass": bool(final_check_ok and final_simulate_ok),
+        "elapsed_sec": elapsed,
+        "error_message": final_error,
+        "compile_error": final_compile_error,
+        "simulate_error_message": final_sim_error,
+        "stderr_snippet": final_stderr,
+        "attempts": attempts,
+        "live_budget": {
+            "max_requests_per_run": int(budget_cfg.get("max_requests_per_run") or 0),
+            "max_consecutive_429": int(budget_cfg.get("max_consecutive_429") or 0),
+            "base_backoff_sec": float(budget_cfg.get("base_backoff_sec") or 0.0),
+            "max_backoff_sec": float(budget_cfg.get("max_backoff_sec") or 0.0),
+        },
+    }
+    ledger = _load_live_ledger(budget_cfg)
+    payload["live_request_count"] = int(ledger.get("request_count") or 0)
+    payload["rate_limit_429_count"] = int(ledger.get("rate_limit_429_count") or 0)
+    payload["budget_stop_triggered"] = bool(ledger.get("budget_stop_triggered"))
+    payload["live_budget_stop_reason"] = str(ledger.get("last_stop_reason") or "")
+    return payload
+
+
+def main() -> None:
+    args = _parse_main_args()
 
     started = time.monotonic()
     model_path = Path(str(args.mutated_model_path or "").strip() or str(args.source_model_path or "").strip())
@@ -2654,431 +2889,25 @@ def main() -> None:
                 # rule backend does not mutate model text; useful for dry harness checks.
                 break
 
-    elapsed = round(time.monotonic() - started, 4)
-    final_error, final_compile_error, final_sim_error = _normalize_terminal_errors(
+    payload = _build_final_payload(
+        args=args,
+        layout=layout,
+        started=started,
+        current_text=current_text,
+        source_model_text=source_model_text,
+        attempts=attempts,
+        multistep_memory=multistep_memory,
+        final_check_ok=final_check_ok,
+        final_simulate_ok=final_simulate_ok,
+        final_error=final_error,
+        final_compile_error=final_compile_error,
+        final_sim_error=final_sim_error,
+        final_stderr=final_stderr,
         executor_status=executor_status,
-        error_message=final_error,
-        compile_error=final_compile_error,
-        simulate_error=final_sim_error,
+        resolved_provider=resolved_provider,
+        backend=backend,
+        budget_cfg=budget_cfg,
     )
-    behavioral_eval = None
-    if bool(final_check_ok and final_simulate_ok):
-        behavioral_eval = _evaluate_behavioral_contract_from_model_text(
-            current_text=current_text,
-            source_model_text=source_model_text,
-            failure_type=str(args.failure_type),
-        )
-    physics_contract_pass = bool(final_check_ok and final_simulate_ok)
-    physics_contract_reasons: list[str] = []
-    contract_fail_bucket = ""
-    if isinstance(behavioral_eval, dict):
-        physics_contract_pass = bool(behavioral_eval.get("pass"))
-        physics_contract_reasons = [str(x) for x in (behavioral_eval.get("reasons") or []) if str(x).strip()]
-        contract_fail_bucket = str(behavioral_eval.get("contract_fail_bucket") or "")
-        scenario_results = [dict(item) for item in (behavioral_eval.get("scenario_results") or []) if isinstance(item, dict)]
-        multi_step_stage = str(behavioral_eval.get("multi_step_stage") or "")
-        multi_step_stage_2_unlocked = bool(behavioral_eval.get("multi_step_stage_2_unlocked"))
-        multi_step_transition_seen = bool(behavioral_eval.get("multi_step_transition_seen"))
-        multi_step_transition_reason = str(behavioral_eval.get("multi_step_transition_reason") or "")
-    else:
-        scenario_results = []
-        multi_step_stage = ""
-        multi_step_stage_2_unlocked = False
-        multi_step_transition_seen = False
-        multi_step_transition_reason = ""
-    final_stage_context = _build_multistep_stage_context(
-        failure_type=str(args.failure_type),
-        behavioral_eval=behavioral_eval if isinstance(behavioral_eval, dict) else {},
-        current_round=len(attempts),
-        memory=multistep_memory,
-    )
-    local_search_audits = [
-        row.get("source_blind_multistep_local_search")
-        for row in attempts
-        if isinstance(row, dict)
-        and isinstance(row.get("source_blind_multistep_local_search"), dict)
-        and bool((row.get("source_blind_multistep_local_search") or {}).get("applied"))
-    ]
-    local_search_kinds = [
-        str((row or {}).get("search_kind") or "").strip()
-        for row in local_search_audits
-        if str((row or {}).get("search_kind") or "").strip()
-    ]
-    stage_1_unlock_via_local_search = bool(
-        multi_step_stage_2_unlocked and any(kind == "stage_1_unlock" for kind in local_search_kinds)
-    )
-    stage_2_resolution_via_local_search = bool(
-        physics_contract_pass and any(kind == "stage_2_resolution" for kind in local_search_kinds)
-    )
-    stage_1_unlock_via_adaptive_search = stage_1_unlock_via_local_search
-    stage_2_resolution_via_adaptive_search = stage_2_resolution_via_local_search
-    local_search_success_count = 1 if bool(physics_contract_pass and local_search_audits) else 0
-    successful_directions = [
-        str((row or {}).get("search_direction") or "").strip()
-        for row in local_search_audits
-        if str((row or {}).get("search_direction") or "").strip()
-    ]
-    adaptive_search_attempt_count = int(multistep_memory.get("adaptive_search_attempt_count") or len(local_search_audits) or 0)
-    adaptive_search_success_count = 1 if bool(physics_contract_pass and local_search_audits) else 0
-    search_improvement_seen = bool(stage_1_unlock_via_local_search or stage_2_resolution_via_local_search)
-    cluster_only_resolution = bool(
-        physics_contract_pass
-        and not local_search_audits
-        and any(
-            bool(((row.get("source_blind_multistep_exposure_repair") or {}) if isinstance(row, dict) else {}).get("applied"))
-            or bool(((row.get("source_blind_multistep_stage2_local_repair") or {}) if isinstance(row, dict) else {}).get("applied"))
-            for row in attempts
-            if isinstance(row, dict)
-        )
-    )
-    template_only_resolution = cluster_only_resolution
-    llm_markers = _extract_source_blind_multistep_markers(current_text)
-    llm_request_count_delta_total = int(multistep_memory.get("llm_request_count_delta_total") or 0)
-    llm_plan_used = bool(multistep_memory.get("llm_plan_used")) or llm_request_count_delta_total > 0
-    llm_plan_generated = bool(multistep_memory.get("llm_plan_generated")) or llm_request_count_delta_total > 0
-    llm_plan_parsed = bool(multistep_memory.get("llm_plan_parsed"))
-    llm_plan_followed = bool(multistep_memory.get("llm_plan_followed"))
-    llm_plan_branch_match = bool(multistep_memory.get("llm_plan_branch_match"))
-    first_plan_branch_match = bool(multistep_memory.get("first_plan_branch_match"))
-    first_plan_branch_miss = bool(llm_plan_generated and not first_plan_branch_match)
-    replan_branch_match = bool(multistep_memory.get("replan_branch_match"))
-    llm_plan_parameter_match = bool(multistep_memory.get("llm_plan_parameter_match"))
-    llm_resolution_contributed = bool(multistep_memory.get("llm_resolution_contributed")) and bool(physics_contract_pass)
-    llm_plan_helped_resolution = bool(multistep_memory.get("llm_plan_helped_resolution")) and bool(physics_contract_pass)
-    llm_replan_used = bool(multistep_memory.get("llm_replan_used"))
-    llm_replan_reason = str(multistep_memory.get("llm_replan_reason") or "")
-    llm_replan_count = int(multistep_memory.get("llm_replan_count") or 0)
-    llm_second_replan_used = bool(multistep_memory.get("llm_second_replan_used"))
-    llm_second_replan_reason = str(multistep_memory.get("llm_second_replan_reason") or "")
-    replan_helped_resolution = bool(multistep_memory.get("replan_helped_resolution")) and bool(physics_contract_pass)
-    llm_first_plan_resolved = bool(multistep_memory.get("llm_first_plan_resolved")) and bool(physics_contract_pass)
-    llm_replan_resolved = bool(multistep_memory.get("llm_replan_resolved")) and bool(physics_contract_pass)
-    previous_branch_value = str(multistep_memory.get("previous_branch") or "").strip()
-    new_branch_value = str(multistep_memory.get("new_branch") or "").strip()
-    inferred_switch_branch_resolution = bool(
-        physics_contract_pass
-        and llm_replan_used
-        and bool(multistep_memory.get("replan_switch_branch"))
-        and (
-            bool(multistep_memory.get("replan_branch_correction_used"))
-            or (
-                previous_branch_value
-                and new_branch_value
-                and previous_branch_value != new_branch_value
-            )
-        )
-    )
-    if inferred_switch_branch_resolution:
-        replan_helped_resolution = True
-        llm_replan_resolved = True
-        multistep_memory["replan_helped_resolution"] = True
-        multistep_memory["llm_replan_resolved"] = True
-    wrong_branch_entered = bool(multistep_memory.get("trap_branch_entered"))
-    wrong_branch_recovered = bool(wrong_branch_entered and multistep_memory.get("correct_branch_selected"))
-    replan_branch_corrected = bool(llm_replan_used and wrong_branch_recovered)
-    trap_escape_success = bool(multistep_memory.get("trap_branch_entered")) and bool(multistep_memory.get("correct_branch_selected"))
-    llm_guided_search_used = bool(multistep_memory.get("llm_guided_search_used"))
-    search_budget_from_llm_plan = int(multistep_memory.get("search_budget_from_llm_plan") or 0)
-    search_budget_followed = bool(multistep_memory.get("search_budget_followed"))
-    guided_search_closed_loop_observed = bool(multistep_memory.get("guided_search_closed_loop_observed"))
-    llm_budget_helped_resolution = bool(multistep_memory.get("llm_budget_helped_resolution")) and bool(physics_contract_pass)
-    inferred_guided_search_resolution = bool(
-        physics_contract_pass
-        and llm_guided_search_used
-        and search_budget_followed
-        and llm_plan_followed
-    )
-    if inferred_guided_search_resolution:
-        llm_budget_helped_resolution = True
-        multistep_memory["llm_budget_helped_resolution"] = True
-        multistep_memory["llm_guided_search_resolution"] = True
-    llm_guided_search_resolution = bool(inferred_guided_search_resolution or multistep_memory.get("llm_guided_search_resolution"))
-    guided_search_bucket_sequence = [
-        str(x).strip().lower()
-        for x in (multistep_memory.get("guided_search_bucket_sequence") or [])
-        if str(x).strip()
-    ]
-    guided_search_helped_branch_diagnosis = bool(
-        llm_guided_search_used
-        and search_budget_followed
-        and "branch_diagnosis" in guided_search_bucket_sequence
-        and (first_plan_branch_match or replan_branch_match or bool(multistep_memory.get("correct_branch_selected")))
-    )
-    guided_search_helped_trap_escape = bool(
-        llm_guided_search_used
-        and search_budget_followed
-        and "branch_escape" in guided_search_bucket_sequence
-        and (
-            trap_escape_success
-            or wrong_branch_recovered
-            or int(multistep_memory.get("branch_escape_success_count") or 0) > 0
-        )
-    )
-    guided_search_helped_replan = bool(
-        llm_guided_search_used
-        and search_budget_followed
-        and bool(multistep_memory.get("guided_search_replan_after_observation"))
-        and llm_replan_used
-    )
-    guided_search_helped_resolution = bool(llm_guided_search_resolution or llm_budget_helped_resolution)
-    guided_search_was_decisive = bool(
-        physics_contract_pass
-        and guided_search_helped_resolution
-        and not llm_first_plan_resolved
-        and not llm_replan_resolved
-    )
-    resolution_primary_contribution = ""
-    if physics_contract_pass:
-        if guided_search_was_decisive:
-            resolution_primary_contribution = "guided_search_decisive"
-        elif llm_replan_resolved and bool(multistep_memory.get("replan_switch_branch")):
-            resolution_primary_contribution = "switch_branch_replan"
-        elif llm_replan_resolved:
-            resolution_primary_contribution = "llm_replan"
-        elif llm_first_plan_resolved:
-            resolution_primary_contribution = "llm_first_plan"
-        elif guided_search_helped_resolution:
-            resolution_primary_contribution = "guided_search_assisted"
-        elif (
-            stage_2_resolution_via_local_search
-            or stage_2_resolution_via_adaptive_search
-            or cluster_only_resolution
-            or template_only_resolution
-            or local_search_success_count > 0
-            or adaptive_search_success_count > 0
-        ):
-            resolution_primary_contribution = "deterministic"
-    multistep_memory["first_plan_branch_miss"] = first_plan_branch_miss
-    multistep_memory["replan_branch_corrected"] = replan_branch_corrected
-    multistep_memory["guided_search_helped_branch_diagnosis"] = guided_search_helped_branch_diagnosis
-    multistep_memory["guided_search_helped_trap_escape"] = guided_search_helped_trap_escape
-    multistep_memory["guided_search_helped_resolution"] = guided_search_helped_resolution
-    multistep_memory["guided_search_helped_replan"] = guided_search_helped_replan
-    multistep_memory["guided_search_was_decisive"] = guided_search_was_decisive
-    multistep_memory["resolution_primary_contribution"] = resolution_primary_contribution
-    llm_only_resolution = bool(
-        llm_resolution_contributed
-        and llm_plan_followed
-        and not llm_replan_used
-        and not stage_1_unlock_via_local_search
-        and not stage_2_resolution_via_local_search
-        and not cluster_only_resolution
-    )
-    llm_plan_was_decisive = bool(llm_plan_helped_resolution and llm_only_resolution)
-    llm_called_only = bool(llm_request_count_delta_total > 0 and not llm_plan_helped_resolution)
-    payload = {
-        "task_id": str(args.task_id),
-        "failure_type": str(args.failure_type),
-        "realism_version": str(llm_markers.get("realism_version") or ""),
-        "llm_forcing": bool(llm_markers.get("llm_forcing")),
-        "llm_forcing_profile": str(llm_markers.get("llm_profile") or ""),
-        "executor_status": executor_status,
-        "planner_backend": str(args.planner_backend),
-        "resolved_llm_provider": resolved_provider,
-        "backend_used": backend,
-        "uses_external_library": bool(layout.uses_external_library) if "layout" in locals() else False,
-        "check_model_pass": bool(final_check_ok),
-        "simulate_pass": bool(final_simulate_ok),
-        "physics_contract_pass": bool(physics_contract_pass),
-        "physics_contract_reasons": physics_contract_reasons,
-        "contract_pass": bool(physics_contract_pass),
-        "contract_fail_bucket": contract_fail_bucket,
-        "scenario_results": scenario_results,
-        "multi_step_stage": multi_step_stage,
-        "multi_step_stage_2_unlocked": multi_step_stage_2_unlocked,
-        "multi_step_transition_seen": multi_step_transition_seen,
-        "multi_step_transition_round": int(max(1, len(attempts))) if multi_step_transition_seen else 0,
-        "multi_step_transition_reason": multi_step_transition_reason,
-        "current_stage": str(final_stage_context.get("current_stage") or ""),
-        "stage_2_unlocked": bool(final_stage_context.get("stage_2_unlocked")),
-        "transition_round": int(final_stage_context.get("transition_round") or 0),
-        "transition_reason": str(final_stage_context.get("transition_reason") or ""),
-        "current_fail_bucket": str(final_stage_context.get("current_fail_bucket") or ""),
-        "next_focus": str(final_stage_context.get("next_focus") or ""),
-        "stage_1_unlock_cluster": str(multistep_memory.get("stage_1_unlock_cluster") or ""),
-        "stage_2_first_fail_bucket": str(multistep_memory.get("stage_2_first_fail_bucket") or ""),
-        "stage_2_branch": str(final_stage_context.get("stage_2_branch") or multistep_memory.get("stage_2_branch") or ""),
-        "preferred_stage_2_branch": str(final_stage_context.get("preferred_stage_2_branch") or multistep_memory.get("preferred_stage_2_branch") or ""),
-        "branch_mode": str(final_stage_context.get("branch_mode") or ""),
-        "branch_reason": str(final_stage_context.get("branch_reason") or multistep_memory.get("branch_reason") or ""),
-        "trap_branch": bool(final_stage_context.get("trap_branch")) if str(final_stage_context.get("stage_2_branch") or "").strip() else bool(multistep_memory.get("trap_branch_active")),
-        "trap_branch_entered": bool(multistep_memory.get("trap_branch_entered")),
-        "wrong_branch_entered": wrong_branch_entered,
-        "correct_branch_selected": bool(final_stage_context.get("correct_branch_selected")) if str(final_stage_context.get("stage_2_branch") or "").strip() else bool(multistep_memory.get("correct_branch_selected")),
-        "correct_branch_round": int(multistep_memory.get("correct_branch_round") or 0),
-        "wrong_branch_recovered": wrong_branch_recovered,
-        "stage_aware_control_applied": bool(multistep_memory.get("stage_aware_focus_applied")),
-        "stage_1_revisit_after_unlock": bool(multistep_memory.get("stage_1_revisit_after_unlock")),
-        "plan_stage": str(multistep_memory.get("last_plan_stage") or ""),
-        "branch_stage": str(multistep_memory.get("last_plan_stage") or "") if str(multistep_memory.get("last_plan_stage") or "").strip().lower() == "stage_2" else "",
-        "current_branch": str(final_stage_context.get("stage_2_branch") or multistep_memory.get("stage_2_branch") or ""),
-        "preferred_branch": str(final_stage_context.get("preferred_stage_2_branch") or multistep_memory.get("preferred_stage_2_branch") or ""),
-        "plan_goal": str(multistep_memory.get("last_plan_goal") or ""),
-        "plan_actions": [str(x) for x in (multistep_memory.get("last_plan_actions") or []) if isinstance(x, str)],
-        "plan_constraints": [str(x) for x in (multistep_memory.get("last_plan_constraints") or []) if isinstance(x, str)],
-        "plan_stop_condition": str(multistep_memory.get("last_plan_stop_condition") or ""),
-        "branch_plan_goal": str(multistep_memory.get("last_plan_goal") or "") if str(multistep_memory.get("last_plan_stage") or "").strip().lower() == "stage_2" else "",
-        "branch_plan_actions": [str(x) for x in (multistep_memory.get("last_plan_actions") or []) if isinstance(x, str)] if str(multistep_memory.get("last_plan_stage") or "").strip().lower() == "stage_2" else [],
-        "branch_plan_stop_condition": str(multistep_memory.get("last_plan_stop_condition") or "") if str(multistep_memory.get("last_plan_stage") or "").strip().lower() == "stage_2" else "",
-        "stage_plan_generated": bool(multistep_memory.get("stage_plan_generated")),
-        "stage_plan_followed": bool(multistep_memory.get("stage_plan_followed")),
-        "executed_plan_stage": str(multistep_memory.get("executed_plan_stage") or ""),
-        "executed_plan_action": str(multistep_memory.get("executed_plan_action") or ""),
-        "plan_followed": bool(multistep_memory.get("stage_plan_followed")),
-        "plan_conflict_rejected": bool(multistep_memory.get("plan_conflict_rejected")),
-        "plan_conflict_rejected_count": int(multistep_memory.get("plan_conflict_rejected_count") or 0),
-        "last_successful_stage_action": str(multistep_memory.get("last_successful_stage_action") or ""),
-        "tried_candidate_values": [str(x) for x in (multistep_memory.get("tried_candidate_values") or []) if str(x).strip()],
-        "bad_directions": [str(x) for x in (multistep_memory.get("bad_directions") or []) if str(x).strip()],
-        "successful_directions": successful_directions,
-        "local_search_attempt_count": int(multistep_memory.get("local_search_attempt_count") or 0),
-        "local_search_success_count": local_search_success_count,
-        "local_search_kinds": local_search_kinds,
-        "adaptive_search_attempt_count": adaptive_search_attempt_count,
-        "adaptive_search_success_count": adaptive_search_success_count,
-        "adaptive_search_success_pct": 100.0 if adaptive_search_success_count > 0 else 0.0,
-        "search_improvement_seen": search_improvement_seen,
-        "search_regression_seen": bool(multistep_memory.get("search_regression_seen")),
-        "search_bad_direction_count": int(multistep_memory.get("search_bad_direction_count") or 0),
-        "best_stage_2_fail_bucket_seen": str(multistep_memory.get("best_stage_2_fail_bucket_seen") or ""),
-        "stage_2_best_progress_seen": bool(multistep_memory.get("stage_2_best_progress_seen")),
-        "stage_1_unlock_via_local_search": stage_1_unlock_via_local_search,
-        "stage_2_resolution_via_local_search": stage_2_resolution_via_local_search,
-        "stage_1_unlock_via_adaptive_search": stage_1_unlock_via_local_search,
-        "stage_2_resolution_via_adaptive_search": stage_2_resolution_via_local_search,
-        "cluster_only_resolution": cluster_only_resolution,
-        "template_only_resolution": cluster_only_resolution,
-        "branch_history": [str(x) for x in (multistep_memory.get("branch_history") or []) if str(x).strip()],
-        "trap_branch_history": [str(x) for x in (multistep_memory.get("trap_branch_history") or []) if str(x).strip()],
-        "last_trap_escape_direction": str(multistep_memory.get("last_trap_escape_direction") or ""),
-        "last_successful_branch_correction": str(multistep_memory.get("last_successful_branch_correction") or ""),
-        "branch_bad_directions": [str(x) for x in (multistep_memory.get("branch_bad_directions") or []) if str(x).strip()],
-        "branch_reentry_count": int(multistep_memory.get("branch_reentry_count") or 0),
-        "repeated_trap_branch": bool(int(multistep_memory.get("branch_reentry_count") or 0) > 0),
-        "branch_escape_attempt_count": int(multistep_memory.get("branch_escape_attempt_count") or 0),
-        "branch_escape_success_count": int(multistep_memory.get("branch_escape_success_count") or 0),
-        "branch_escape_success_pct": round((int(multistep_memory.get("branch_escape_success_count") or 0) / max(1, int(multistep_memory.get("branch_escape_attempt_count") or 0))) * 100.0, 2) if int(multistep_memory.get("branch_escape_attempt_count") or 0) > 0 else 0.0,
-        "branch_budget_reallocated_count": int(multistep_memory.get("branch_budget_reallocated_count") or 0),
-        "branch_escape_attempted": bool(int(multistep_memory.get("branch_escape_attempt_count") or 0) > 0),
-        "branch_escape_succeeded": bool(int(multistep_memory.get("branch_escape_success_count") or 0) > 0),
-        "branch_escape_direction": str(multistep_memory.get("last_trap_escape_direction") or ""),
-        "branch_budget_reallocated": bool(int(multistep_memory.get("branch_budget_reallocated_count") or 0) > 0),
-        "llm_plan_used": llm_plan_used,
-        "llm_plan_reason": str(multistep_memory.get("llm_plan_reason") or ""),
-        "llm_plan_generated": llm_plan_generated,
-        "llm_plan_parsed": llm_plan_parsed,
-        "llm_plan_followed": llm_plan_followed,
-        "planner_contract_version": str(multistep_memory.get("planner_contract_version") or ""),
-        "planner_family": str(multistep_memory.get("planner_family") or ""),
-        "planner_adapter": str(multistep_memory.get("planner_adapter") or ""),
-        "planner_request_kind": str(multistep_memory.get("planner_request_kind") or ""),
-        "llm_plan_branch_match": llm_plan_branch_match,
-        "first_plan_branch_match": first_plan_branch_match,
-        "first_plan_branch_miss": first_plan_branch_miss,
-        "replan_branch_match": replan_branch_match,
-        "replan_branch_corrected": replan_branch_corrected,
-        "llm_plan_parameter_match": llm_plan_parameter_match,
-        "llm_plan_helped_resolution": llm_plan_helped_resolution,
-        "llm_plan_was_decisive": llm_plan_was_decisive,
-        "llm_called_only": llm_called_only,
-        "llm_plan_failure_mode": str(multistep_memory.get("llm_plan_failure_mode") or ""),
-        "llm_plan_diagnosed_stage": str(multistep_memory.get("llm_plan_diagnosed_stage") or ""),
-        "llm_plan_diagnosed_branch": str(multistep_memory.get("llm_plan_diagnosed_branch") or ""),
-        "llm_plan_preferred_branch": str(multistep_memory.get("llm_plan_preferred_branch") or ""),
-        "llm_plan_repair_goal": str(multistep_memory.get("llm_plan_repair_goal") or ""),
-        "llm_plan_candidate_parameters": [
-            str(x) for x in (multistep_memory.get("llm_plan_candidate_parameters") or []) if str(x).strip()
-        ],
-        "llm_plan_candidate_value_directions": [
-            str(x) for x in (multistep_memory.get("llm_plan_candidate_value_directions") or []) if str(x).strip()
-        ],
-        "llm_plan_why_not_other_branch": str(multistep_memory.get("llm_plan_why_not_other_branch") or ""),
-        "llm_plan_stop_condition": str(multistep_memory.get("llm_plan_stop_condition") or ""),
-        "llm_replan_used": llm_replan_used,
-        "llm_replan_reason": llm_replan_reason,
-        "llm_replan_count": llm_replan_count,
-        "llm_second_replan_used": llm_second_replan_used,
-        "llm_second_replan_reason": llm_second_replan_reason,
-        "previous_plan_failed_signal": str(multistep_memory.get("previous_plan_failed_signal") or ""),
-        "previous_branch": str(multistep_memory.get("previous_branch") or ""),
-        "new_branch": str(multistep_memory.get("new_branch") or ""),
-        "replan_goal": str(multistep_memory.get("replan_goal") or ""),
-        "replan_candidate_parameters": [
-            str(x) for x in (multistep_memory.get("replan_candidate_parameters") or []) if str(x).strip()
-        ],
-        "replan_stop_condition": str(multistep_memory.get("replan_stop_condition") or ""),
-        "branch_choice_reason": str(multistep_memory.get("branch_choice_reason") or ""),
-        "replan_budget_total": int(multistep_memory.get("replan_budget_total") or 0),
-        "replan_budget_for_branch_diagnosis": int(multistep_memory.get("replan_budget_for_branch_diagnosis") or 0),
-        "replan_budget_for_branch_escape": int(multistep_memory.get("replan_budget_for_branch_escape") or 0),
-        "replan_budget_for_resolution": int(multistep_memory.get("replan_budget_for_resolution") or 0),
-        "replan_budget_consumed": int(multistep_memory.get("replan_budget_consumed") or 0),
-        "replan_continue_current_branch": bool(multistep_memory.get("replan_continue_current_branch")),
-        "replan_switch_branch": bool(multistep_memory.get("replan_switch_branch")),
-        "replan_history": list(multistep_memory.get("replan_history") or []),
-        "replan_branch_history": [str(x) for x in (multistep_memory.get("replan_branch_history") or []) if str(x).strip()],
-        "replan_failed_directions": [str(x) for x in (multistep_memory.get("replan_failed_directions") or []) if str(x).strip()],
-        "replan_successful_directions": [str(x) for x in (multistep_memory.get("replan_successful_directions") or []) if str(x).strip()],
-        "replan_same_branch_stall_count": int(multistep_memory.get("replan_same_branch_stall_count") or 0),
-        "replan_switch_branch_count": int(multistep_memory.get("replan_switch_branch_count") or 0),
-        "replan_abandoned_branches": [str(x) for x in (multistep_memory.get("replan_abandoned_branches") or []) if str(x).strip()],
-        "backtracking_used": bool(multistep_memory.get("backtracking_used")),
-        "backtracking_reason": str(multistep_memory.get("backtracking_reason") or ""),
-        "budget_reallocated_after_replan": bool(multistep_memory.get("budget_reallocated_after_replan")),
-        "abandoned_plan_directions": [
-            str(x) for x in (multistep_memory.get("abandoned_plan_directions") or []) if str(x).strip()
-        ],
-        "replan_branch_correction_used": bool(multistep_memory.get("replan_branch_correction_used")),
-        "replan_helped_resolution": replan_helped_resolution,
-        "llm_first_plan_resolved": llm_first_plan_resolved,
-        "llm_replan_resolved": llm_replan_resolved,
-        "trap_escape_success": trap_escape_success,
-        "llm_guided_search_used": llm_guided_search_used,
-        "search_budget_from_llm_plan": search_budget_from_llm_plan,
-        "search_budget_followed": search_budget_followed,
-        "guided_search_bucket_sequence": [str(x) for x in (multistep_memory.get("guided_search_bucket_sequence") or []) if str(x).strip()],
-        "guided_search_order": str(multistep_memory.get("guided_search_order") or ""),
-        "budget_bucket_consumed": dict(multistep_memory.get("budget_bucket_consumed") or {}),
-        "budget_bucket_exhausted": [str(x) for x in (multistep_memory.get("budget_bucket_exhausted") or []) if str(x).strip()],
-        "candidate_suppressed_by_budget": int(multistep_memory.get("candidate_suppressed_by_budget") or 0),
-        "candidate_attempt_count_by_bucket": dict(multistep_memory.get("last_candidate_attempt_count_by_bucket") or {}),
-        "resolution_skipped_due_to_budget": bool(multistep_memory.get("resolution_skipped_due_to_budget")),
-        "branch_escape_skipped_due_to_budget": bool(multistep_memory.get("branch_escape_skipped_due_to_budget")),
-        "branch_frozen_by_budget": [str(x) for x in (multistep_memory.get("branch_frozen_by_budget") or []) if str(x).strip()],
-        "guided_search_observation_payload": dict(multistep_memory.get("guided_search_observation_payload") or {}),
-        "guided_search_replan_after_observation": bool(multistep_memory.get("guided_search_replan_after_observation")),
-        "guided_search_closed_loop_observed": guided_search_closed_loop_observed,
-        "guided_search_helped_branch_diagnosis": guided_search_helped_branch_diagnosis,
-        "guided_search_helped_trap_escape": guided_search_helped_trap_escape,
-        "guided_search_helped_resolution": guided_search_helped_resolution,
-        "guided_search_helped_replan": guided_search_helped_replan,
-        "guided_search_was_decisive": guided_search_was_decisive,
-        "llm_budget_helped_resolution": llm_budget_helped_resolution,
-        "llm_guided_search_resolution": llm_guided_search_resolution,
-        "resolution_primary_contribution": resolution_primary_contribution,
-        "llm_request_count_delta": llm_request_count_delta_total,
-        "llm_branch_correction_used": bool(multistep_memory.get("llm_branch_correction_used")),
-        "llm_resolution_contributed": llm_resolution_contributed,
-        "llm_only_resolution": llm_only_resolution,
-        "regression_pass": bool(final_check_ok and final_simulate_ok),
-        "elapsed_sec": elapsed,
-        "error_message": final_error,
-        "compile_error": final_compile_error,
-        "simulate_error_message": final_sim_error,
-        "stderr_snippet": final_stderr,
-        "attempts": attempts,
-        "live_budget": {
-            "max_requests_per_run": int(budget_cfg.get("max_requests_per_run") or 0),
-            "max_consecutive_429": int(budget_cfg.get("max_consecutive_429") or 0),
-            "base_backoff_sec": float(budget_cfg.get("base_backoff_sec") or 0.0),
-            "max_backoff_sec": float(budget_cfg.get("max_backoff_sec") or 0.0),
-        },
-    }
-    ledger = _load_live_ledger(budget_cfg)
-    payload["live_request_count"] = int(ledger.get("request_count") or 0)
-    payload["rate_limit_429_count"] = int(ledger.get("rate_limit_429_count") or 0)
-    payload["budget_stop_triggered"] = bool(ledger.get("budget_stop_triggered"))
-    payload["live_budget_stop_reason"] = str(ledger.get("last_stop_reason") or "")
     if str(args.out).strip():
         out = Path(args.out)
         out.parent.mkdir(parents=True, exist_ok=True)
