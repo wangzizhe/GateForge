@@ -10,6 +10,7 @@ examples/mutants/
 
 # Private moat assets (local only, never commit)
 assets_private/
+assets_internal/
 examples_private/
 data/private_modelica/
 data/private_mutations/
