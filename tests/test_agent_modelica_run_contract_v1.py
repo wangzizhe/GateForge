@@ -1287,7 +1287,7 @@ payload = {
   "physics_contract_pass": True,
   "regression_pass": True,
   "elapsed_sec": 1.0,
-  "stderr_snippet": "__EXPERIENCE_REPLAY__|__EXPERIENCE_SOURCE__",
+  "stderr_snippet": "__EXPERIENCE_REPLAY__|__EXPERIENCE_SOURCE__|__PLANNER_EXPERIENCE_INJECTION__|__PLANNER_EXPERIENCE_MAX_TOKENS__",
   "error_message": ""
 }
 print(json.dumps(payload))
@@ -1306,6 +1306,10 @@ print(json.dumps(payload))
                     "on",
                     "--experience-source",
                     str(experience_source),
+                    "--planner-experience-injection",
+                    "on",
+                    "--planner-experience-max-tokens",
+                    "320",
                     "--live-executor-cmd",
                     live_cmd,
                     "--results-out",
@@ -1323,8 +1327,15 @@ print(json.dumps(payload))
             self.assertEqual(str(s.get("experience_replay") or ""), "on")
             self.assertEqual(str(r.get("experience_replay") or ""), "on")
             self.assertEqual(str(r.get("experience_source") or ""), str(experience_source))
+            self.assertEqual(str(s.get("planner_experience_injection") or ""), "on")
+            self.assertEqual(int(s.get("planner_experience_max_tokens") or 0), 320)
+            self.assertEqual(str(r.get("planner_experience_injection") or ""), "on")
+            self.assertEqual(int(r.get("planner_experience_max_tokens") or 0), 320)
             rec = (r.get("records") or [])[0]
-            self.assertEqual(str(rec.get("stderr_snippet") or ""), f"on|{experience_source}")
+            self.assertEqual(
+                str(rec.get("stderr_snippet") or ""),
+                f"on|{experience_source}|on|320",
+            )
 
     def test_run_contract_live_mode_parses_multiline_json_payload(self) -> None:
         with tempfile.TemporaryDirectory() as d:

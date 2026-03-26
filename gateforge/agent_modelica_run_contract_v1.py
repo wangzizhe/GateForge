@@ -918,6 +918,7 @@ def _extract_multistep_fields(payload: dict, live_attempt: dict) -> dict:
 def _extract_live_usage_fields(payload: dict, live_attempt: dict) -> dict:
     out = {
         "planner_backend": "",
+        "planner_experience_injection": {},
         "resolved_llm_provider": "",
         "live_request_count": 0,
         "rate_limit_429_count": 0,
@@ -1029,6 +1030,15 @@ def _extract_live_usage_fields(payload: dict, live_attempt: dict) -> dict:
     out["planner_request_kind"] = str(
         live_attempt.get("planner_request_kind") or payload.get("planner_request_kind") or ""
     ).strip().lower()
+    out["planner_experience_injection"] = (
+        live_attempt.get("planner_experience_injection")
+        if isinstance(live_attempt.get("planner_experience_injection"), dict)
+        else (
+            payload.get("planner_experience_injection")
+            if isinstance(payload.get("planner_experience_injection"), dict)
+            else {}
+        )
+    )
     try:
         out["live_request_count"] = max(0, int(live_attempt.get("live_request_count") or payload.get("live_request_count") or 0))
     except Exception:
@@ -1241,6 +1251,8 @@ def _build_live_template_context(
     l4_round: int = 0,
     experience_replay: str = "off",
     experience_source: str = "",
+    planner_experience_injection: str = "off",
+    planner_experience_max_tokens: int = 400,
 ) -> dict[str, str]:
     actions = [str(x) for x in (repair_actions_override or strategy.get("actions") or []) if isinstance(x, str)]
     source_model_path = str(source_model_path_override or task.get("source_model_path") or "")
@@ -1278,6 +1290,8 @@ def _build_live_template_context(
         "l4_round": str(int(l4_round) if int(l4_round or 0) > 0 else int(round_idx)),
         "experience_replay": str(experience_replay or "off"),
         "experience_source": str(experience_source or ""),
+        "planner_experience_injection": str(planner_experience_injection or "off"),
+        "planner_experience_max_tokens": str(int(planner_experience_max_tokens or 0)),
     }
     return mapping
 
@@ -1914,6 +1928,8 @@ def _run_task_live_l4(
     live_max_output_chars: int,
     experience_replay: str,
     experience_source: str,
+    planner_experience_injection: str,
+    planner_experience_max_tokens: int,
     *,
     l4_max_rounds: int,
     l4_policy_backend: str,
@@ -1952,6 +1968,8 @@ def _run_task_live_l4(
         "l4_max_rounds": max(1, int(l4_max_rounds)),
         "experience_replay": str(experience_replay or "off"),
         "experience_source": str(experience_source or ""),
+        "planner_experience_injection": str(planner_experience_injection or "off"),
+        "planner_experience_max_tokens": int(planner_experience_max_tokens or 0),
         "live_executor_configured": bool(str(task.get("live_executor_command") or "").strip() or str(live_executor_cmd).strip()),
         "live_timeout_sec": int(max(1, live_timeout_sec)),
     }
@@ -2168,6 +2186,8 @@ def _run_task_live_l4(
             l4_round=int(round_idx),
             experience_replay=str(experience_replay or "off"),
             experience_source=str(experience_source or ""),
+            planner_experience_injection=str(planner_experience_injection or "off"),
+            planner_experience_max_tokens=int(planner_experience_max_tokens or 0),
         )
         command = _render_live_command(command_template, context=context)
         timeout_for_round = min(max(1, int(live_timeout_sec)), max(1, int(max_time_sec)))
@@ -2838,6 +2858,8 @@ def _run_task_live(
     live_max_output_chars: int,
     experience_replay: str = "off",
     experience_source: str = "",
+    planner_experience_injection: str = "off",
+    planner_experience_max_tokens: int = 400,
     *,
     l4_enabled: bool = False,
     l4_max_rounds: int = 3,
@@ -2863,6 +2885,8 @@ def _run_task_live(
             live_max_output_chars=live_max_output_chars,
             experience_replay=experience_replay,
             experience_source=experience_source,
+            planner_experience_injection=planner_experience_injection,
+            planner_experience_max_tokens=planner_experience_max_tokens,
             l4_max_rounds=l4_max_rounds,
             l4_policy_backend=l4_policy_backend,
             l4_policy_profile=l4_policy_profile,
@@ -2897,6 +2921,8 @@ def _run_task_live(
         "live_timeout_sec": int(max(1, live_timeout_sec)),
         "experience_replay": str(experience_replay or "off"),
         "experience_source": str(experience_source or ""),
+        "planner_experience_injection": str(planner_experience_injection or "off"),
+        "planner_experience_max_tokens": int(planner_experience_max_tokens or 0),
         "base_success_round": None,
         "base_round_duration_sec": None,
         "adjusted_success_round": None,
@@ -2967,6 +2993,8 @@ def _run_task_live(
             max_time_sec=max_time_sec,
             experience_replay=str(experience_replay or "off"),
             experience_source=str(experience_source or ""),
+            planner_experience_injection=str(planner_experience_injection or "off"),
+            planner_experience_max_tokens=int(planner_experience_max_tokens or 0),
         )
         command = _render_live_command(command_template, context=context)
         timeout_for_round = min(max(1, int(live_timeout_sec)), max(1, int(max_time_sec)))
@@ -3253,6 +3281,7 @@ def _run_task_live(
                 "planner_family": str(live_usage_fields.get("planner_family") or ""),
                 "planner_adapter": str(live_usage_fields.get("planner_adapter") or ""),
                 "planner_request_kind": str(live_usage_fields.get("planner_request_kind") or ""),
+                "planner_experience_injection": dict(live_usage_fields.get("planner_experience_injection") or {}),
                 "live_request_count": int(live_usage_fields.get("live_request_count") or 0),
                 "rate_limit_429_count": int(live_usage_fields.get("rate_limit_429_count") or 0),
                 "budget_stop_triggered": bool(live_usage_fields.get("budget_stop_triggered")),
@@ -3641,6 +3670,8 @@ def main() -> None:
     parser.add_argument("--l4-max-actions-per-round", type=int, default=3)
     parser.add_argument("--experience-replay", choices=["on", "off"], default="off")
     parser.add_argument("--experience-source", default="")
+    parser.add_argument("--planner-experience-injection", choices=["on", "off"], default="off")
+    parser.add_argument("--planner-experience-max-tokens", type=int, default=400)
     parser.add_argument("--records-jsonl", default="")
     parser.add_argument("--resume-from-records", action="store_true")
     parser.add_argument("--strategy-effect", choices=["on", "off"], default="on")
@@ -3720,6 +3751,8 @@ def main() -> None:
                 live_max_output_chars=max(200, int(args.live_max_output_chars)),
                 experience_replay=str(args.experience_replay or "off"),
                 experience_source=str(args.experience_source or ""),
+                planner_experience_injection=str(args.planner_experience_injection or "off"),
+                planner_experience_max_tokens=int(args.planner_experience_max_tokens or 0),
                 l4_enabled=(str(args.l4_enabled) == "on"),
                 l4_max_rounds=max(1, int(args.l4_max_rounds)),
                 l4_policy_backend=str(args.l4_policy_backend or "rule"),
@@ -3785,6 +3818,8 @@ def main() -> None:
         "l4_enabled": bool(str(args.l4_enabled) == "on"),
         "experience_replay": str(args.experience_replay or "off"),
         "experience_source": str(args.experience_source or ""),
+        "planner_experience_injection": str(args.planner_experience_injection or "off"),
+        "planner_experience_max_tokens": int(args.planner_experience_max_tokens or 0),
         "l4_max_rounds": int(args.l4_max_rounds),
         "l4_policy_backend": str(args.l4_policy_backend or "rule"),
         "l4_policy_profile": str(args.l4_policy_profile or "score_v1"),
@@ -3825,6 +3860,8 @@ def main() -> None:
         "l4_enabled": bool(str(args.l4_enabled) == "on"),
         "experience_replay": str(args.experience_replay or "off"),
         "experience_source": str(args.experience_source or ""),
+        "planner_experience_injection": str(args.planner_experience_injection or "off"),
+        "planner_experience_max_tokens": int(args.planner_experience_max_tokens or 0),
         "l4_max_rounds": int(args.l4_max_rounds),
         "l4_policy_backend": str(args.l4_policy_backend or "rule"),
         "l4_policy_profile": str(args.l4_policy_profile or "score_v1"),
