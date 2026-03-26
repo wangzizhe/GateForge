@@ -1342,6 +1342,7 @@ print(json.dumps(payload))
             root = Path(d)
             taskset = root / "taskset.json"
             results = root / "results.json"
+            experience_out = root / "experience.json"
             summary = root / "summary.json"
             taskset.write_text(
                 json.dumps(
@@ -1403,6 +1404,7 @@ print(json.dumps(payload))
             root = Path(d)
             taskset = root / "taskset.json"
             results = root / "results.json"
+            experience_out = root / "experience.json"
             summary = root / "summary.json"
             taskset.write_text(
                 json.dumps(
