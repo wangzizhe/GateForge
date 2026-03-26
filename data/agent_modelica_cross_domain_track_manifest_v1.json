@@ -1,0 +1,31 @@
+{
+  "schema_version": "agent_modelica_cross_domain_track_manifest_v1",
+  "tracks": [
+    {
+      "track_id": "buildings_v1",
+      "library": "Buildings",
+      "source_manifest_source_id": "modelica_buildings_cross_domain",
+      "include_patterns": [
+        "modelica_buildings_cross_domain",
+        "Buildings/"
+      ],
+      "library_load_models": [
+        "Buildings"
+      ],
+      "pack_label": "Buildings Cross-Domain"
+    },
+    {
+      "track_id": "openipsl_v1",
+      "library": "OpenIPSL",
+      "source_manifest_source_id": "openipsl_cross_domain",
+      "include_patterns": [
+        "openipsl_cross_domain",
+        "OpenIPSL/"
+      ],
+      "library_load_models": [
+        "OpenIPSL"
+      ],
+      "pack_label": "OpenIPSL Cross-Domain"
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "schema_version": "modelica_open_source_seed_sources_v1",
+  "sources": [
+    {
+      "source_id": "modelica_buildings_cross_domain",
+      "mode": "local",
+      "local_path": "assets_private/modelica_sources/modelica_buildings",
+      "license": "BSD-3-Clause",
+      "scale_hint": "large",
+      "package_roots": [
+        "Buildings/Fluid",
+        "Buildings/ThermalZones",
+        "Buildings/Electrical",
+        "Buildings/Controls",
+        "Buildings/Examples"
+      ]
+    },
+    {
+      "source_id": "openipsl_cross_domain",
+      "mode": "local",
+      "local_path": "assets_private/modelica_sources/openipsl",
+      "license": "BSD-3-Clause",
+      "scale_hint": "large",
+      "package_roots": [
+        "OpenIPSL/Electrical",
+        "OpenIPSL/Controls",
+        "OpenIPSL/Examples",
+        "OpenIPSL/Tests"
+      ]
+    }
+  ]
+}
