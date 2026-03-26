@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -272,6 +273,72 @@ class TestRunOneCase(unittest.TestCase):
             result["experience_replay"]["priority_reason"],
             "rules_reordered_by_experience",
         )
+
+    def test_includes_planner_experience_injection_summary_from_executor_payload(self) -> None:
+        case = {
+            "mutation_id": "m1",
+            "target_scale": "small",
+            "expected_failure_type": "model_check_error",
+            "expected_stage": "check",
+            "source_model_path": "src.mo",
+            "mutated_model_path": "mut.mo",
+        }
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            (root / ".git").mkdir()
+            src = root / "src.mo"
+            mut = root / "mut.mo"
+            src.write_text("model X\nend X;\n", encoding="utf-8")
+            mut.write_text("model X\nend X;\n", encoding="utf-8")
+            case["source_model_path"] = str(src.relative_to(root))
+            case["mutated_model_path"] = str(mut.relative_to(root))
+            out = root / "executor.json"
+            out.write_text(
+                json.dumps(
+                    {
+                        "executor_status": "PASS",
+                        "attempts": [],
+                        "planner_experience_injection": {
+                            "enabled": True,
+                            "used": True,
+                            "hint_count": 2,
+                            "caution_count": 1,
+                            "prompt_token_estimate": 180,
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            completed = subprocess.CompletedProcess(
+                args=[],
+                returncode=0,
+                stdout="",
+                stderr="",
+            )
+            with mock.patch(
+                "gateforge.agent_modelica_gf_hardpack_runner_v1.subprocess.run",
+                return_value=completed,
+            ):
+                with mock.patch(
+                    "gateforge.agent_modelica_gf_hardpack_runner_v1.tempfile.NamedTemporaryFile"
+                ) as tmp_mock:
+                    tmp_ctx = mock.MagicMock()
+                    tmp_ctx.__enter__.return_value.name = str(out)
+                    tmp_mock.return_value = tmp_ctx
+                    result = _run_one_case(
+                        case=case,
+                        pack_path=str(root / "pack.json"),
+                        docker_image="img",
+                        planner_backend="gemini",
+                        max_rounds=1,
+                        timeout_sec=1,
+                    )
+            self.assertTrue(result["planner_experience_injection"]["used"])
+            self.assertEqual(
+                result["planner_experience_injection"]["prompt_token_estimate"],
+                180,
+            )
 
 
 if __name__ == "__main__":

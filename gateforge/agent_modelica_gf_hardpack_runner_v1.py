@@ -234,6 +234,7 @@ def _run_one_case(
             "simulate_pass": payload.get("simulate_pass"),
             "rounds_used": len(payload.get("attempts", [])),
             "experience_replay": payload.get("experience_replay") or {},
+            "planner_experience_injection": payload.get("planner_experience_injection") or {},
         }
 
     except subprocess.TimeoutExpired:

@@ -55,6 +55,68 @@ class AgentModelicaHardpackLockV1Tests(unittest.TestCase):
             cbs = payload.get("counts_by_scale", {})
             self.assertEqual(cbs, {"small": 3, "medium": 3, "large": 3})
 
+    def test_hardpack_lock_filters_rows_by_include_pattern_and_sets_metadata(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            manifest = root / "manifest.json"
+            out = root / "hardpack.json"
+            rows = [
+                {
+                    "mutation_id": "m_buildings_1",
+                    "target_model_id": "osm_modelica_buildings_aaa",
+                    "target_scale": "medium",
+                    "expected_failure_type": "model_check_error",
+                    "expected_stage": "check",
+                    "source_model_path": "assets_private/modelica_sources/modelica_buildings/Buildings/Examples/X.mo",
+                    "mutated_model_path": "mutants/buildings/m1.mo",
+                },
+                {
+                    "mutation_id": "m_openipsl_1",
+                    "target_model_id": "osm_openipsl_bbb",
+                    "target_scale": "medium",
+                    "expected_failure_type": "model_check_error",
+                    "expected_stage": "check",
+                    "source_model_path": "assets_private/modelica_sources/openipsl/OpenIPSL/Examples/Y.mo",
+                    "mutated_model_path": "mutants/openipsl/m1.mo",
+                },
+            ]
+            manifest.write_text(json.dumps({"mutations": rows}), encoding="utf-8")
+
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.agent_modelica_hardpack_lock_v1",
+                    "--mutation-manifest",
+                    str(manifest),
+                    "--include-pattern",
+                    "modelica_buildings|Buildings/",
+                    "--per-scale-total",
+                    "1",
+                    "--per-scale-failure-targets",
+                    "1,0,0",
+                    "--track-id",
+                    "buildings_v1",
+                    "--pack-label",
+                    "Buildings Cross-Domain",
+                    "--library-load-model",
+                    "Buildings",
+                    "--out",
+                    str(out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            payload = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(payload.get("track_id"), "buildings_v1")
+            self.assertEqual(payload.get("pack_label"), "Buildings Cross-Domain")
+            self.assertEqual(payload.get("library_load_models"), ["Buildings"])
+            self.assertEqual(payload.get("filtered_row_count"), 1)
+            self.assertEqual(len(payload.get("cases") or []), 1)
+            self.assertEqual(payload["cases"][0]["mutation_id"], "m_buildings_1")
+
 
 if __name__ == "__main__":
     unittest.main()

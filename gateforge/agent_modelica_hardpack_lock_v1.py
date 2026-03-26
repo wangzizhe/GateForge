@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -85,6 +86,30 @@ def _to_case(row: dict) -> dict:
     }
 
 
+def _matches_include_patterns(row: dict, patterns: list[str]) -> bool:
+    if not patterns:
+        return True
+    haystacks = [
+        str(row.get("mutation_id") or ""),
+        str(row.get("target_model_id") or ""),
+        str(row.get("model_id") or ""),
+        str(row.get("source_model_path") or ""),
+        str(row.get("mutated_model_path") or ""),
+        str(row.get("recipe_id") or ""),
+        str(row.get("operator_family") or ""),
+        str(row.get("operator") or ""),
+    ]
+    text = "\n".join(haystacks)
+    for pattern in patterns:
+        try:
+            if re.search(pattern, text, flags=re.IGNORECASE):
+                return True
+        except re.error:
+            if pattern.lower() in text.lower():
+                return True
+    return False
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Lock a deterministic Modelica hard-case benchmark pack")
     parser.add_argument("--mutation-manifest", required=True)
@@ -94,6 +119,10 @@ def main() -> None:
     parser.add_argument("--failure-types", default=",".join(DEFAULT_FAILURE_TYPES))
     parser.add_argument("--per-scale-total", type=int, default=12)
     parser.add_argument("--per-scale-failure-targets", default="4,4,4")
+    parser.add_argument("--include-pattern", action="append", default=[])
+    parser.add_argument("--track-id", default="")
+    parser.add_argument("--pack-label", default="")
+    parser.add_argument("--library-load-model", action="append", default=[])
     parser.add_argument("--out", default=_default_hardpack_out_path())
     parser.add_argument("--report-out", default=None)
     args = parser.parse_args()
@@ -111,9 +140,11 @@ def main() -> None:
 
     paths = [str(args.mutation_manifest), *[str(x) for x in (args.extra_mutation_manifest or []) if str(x).strip()]]
     rows = _collect_rows(paths)
+    include_patterns = [str(x).strip() for x in (args.include_pattern or []) if str(x).strip()]
+    filtered_rows = [row for row in rows if _matches_include_patterns(row, include_patterns)]
     buckets: dict[str, dict[str, list[dict]]] = {s: {f: [] for f in failure_types} for s in scales}
     for row in sorted(
-        rows,
+        filtered_rows,
         key=lambda x: (
             str(x.get("target_scale") or "").lower(),
             str(x.get("expected_failure_type") or "").lower(),
@@ -172,11 +203,17 @@ def main() -> None:
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
         "status": status,
         "hardpack_version": str(args.hardpack_version),
+        "track_id": str(args.track_id or "").strip(),
+        "pack_label": str(args.pack_label or "").strip(),
         "scales": scales,
         "failure_types": failure_types,
         "per_scale_total_target": per_scale_total,
         "per_scale_failure_targets": target_by_type,
         "total_cases": len(selected),
+        "input_row_count": len(rows),
+        "filtered_row_count": len(filtered_rows),
+        "include_patterns": include_patterns,
+        "library_load_models": [str(x) for x in (args.library_load_model or []) if str(x).strip()],
         "counts_by_scale": counts_by_scale,
         "counts_by_scale_failure_type": counts_by_scale_failure,
         "missing_targets": missing_targets,
