@@ -497,6 +497,22 @@ if run_live_smoke and enable_l5_gate:
         elif status != "FAIL":
             status = "NEEDS_REVIEW"
 
+if (
+    run_live_smoke
+    and live_status != "PASS"
+    and l3_gate_status == "PASS"
+    and l5_gate_status == "PASS"
+):
+    reasons = [x for x in reasons if x != "live_smoke_not_pass"]
+    if "live_smoke_needs_review_with_downstream_gates_pass" not in reasons:
+        reasons.append("live_smoke_needs_review_with_downstream_gates_pass")
+    hard_failure_reasons = [
+        x
+        for x in reasons
+        if x not in {"live_smoke_infra_unavailable", "live_smoke_needs_review_with_downstream_gates_pass"}
+    ]
+    status = "NEEDS_REVIEW" if not hard_failure_reasons else "FAIL"
+
 payload = {
     "status": status,
     "profile_path": str(((learning.get("inputs") or {}).get("profile")) or ""),

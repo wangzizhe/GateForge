@@ -312,6 +312,7 @@ class RunAgentModelicaReleasePreflightV011Tests(unittest.TestCase):
         self.assertIn('"l5_primary_reason"', script)
         self.assertIn("live_smoke_infra_unavailable", script)
         self.assertIn('"live_smoke_infra_reason"', script)
+        self.assertIn("live_smoke_needs_review_with_downstream_gates_pass", script)
 
     def test_script_runs_live_smoke_path_with_mock_executor(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
