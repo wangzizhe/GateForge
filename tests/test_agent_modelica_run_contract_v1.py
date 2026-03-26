@@ -586,6 +586,7 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
             root = Path(d)
             taskset = root / "taskset.json"
             results = root / "results.json"
+            experience_out = root / "experience.json"
             summary = root / "summary.json"
             taskset.write_text(
                 json.dumps(
@@ -633,6 +634,7 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
             root = Path(d)
             taskset = root / "taskset.json"
             results = root / "results.json"
+            experience_out = root / "experience.json"
             summary = root / "summary.json"
             taskset.write_text(
                 json.dumps(
@@ -1181,6 +1183,7 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
             root = Path(d)
             taskset = root / "taskset.json"
             results = root / "results.json"
+            experience_out = root / "experience.json"
             summary = root / "summary.json"
             taskset.write_text(
                 json.dumps(
@@ -1227,6 +1230,8 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
                     live_cmd,
                     "--results-out",
                     str(results),
+                    "--experience-out",
+                    str(experience_out),
                     "--out",
                     str(summary),
                 ],
@@ -1296,6 +1301,8 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
                     live_cmd,
                     "--results-out",
                     str(results),
+                    "--experience-out",
+                    str(experience_out),
                     "--out",
                     str(summary),
                 ],
@@ -1376,6 +1383,8 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
                     live_cmd,
                     "--results-out",
                     str(results),
+                    "--experience-out",
+                    str(experience_out),
                     "--out",
                     str(summary),
                 ],
@@ -1920,6 +1929,7 @@ print(json.dumps(payload))
             root = Path(d)
             taskset = root / "taskset.json"
             results = root / "results.json"
+            experience_out = root / "experience.json"
             summary = root / "summary.json"
             model_path = root / "A1.mo"
             model_path.write_text(
@@ -2019,6 +2029,8 @@ print(json.dumps(payload))
                     live_cmd,
                     "--results-out",
                     str(results),
+                    "--experience-out",
+                    str(experience_out),
                     "--out",
                     str(summary),
                 ],
@@ -2034,6 +2046,7 @@ print(json.dumps(payload))
             self.assertEqual(str(s.get("l4_policy_profile") or ""), "score_v1")
             self.assertEqual(int(s.get("l4_llm_fallback_threshold") or 0), 2)
             self.assertGreaterEqual(int(s.get("experience_record_count") or 0), 1)
+            self.assertEqual(str(s.get("experience_out") or ""), str(experience_out))
             self.assertIn("median_quality_score", s)
             contrib = s.get("action_contribution_distribution") if isinstance(s.get("action_contribution_distribution"), dict) else {}
             self.assertIn("advancing", contrib)
@@ -2055,6 +2068,8 @@ print(json.dumps(payload))
             exp_record = (experience.get("records") or [])[0] if isinstance(experience.get("records"), list) else {}
             self.assertIn("repair_quality_score", exp_record)
             self.assertIsInstance(exp_record.get("action_contributions"), list)
+            exp_artifact = json.loads(experience_out.read_text(encoding="utf-8"))
+            self.assertGreaterEqual(len(exp_artifact.get("records") or []), 1)
             mem = r.get("repair_memory_v2") if isinstance(r.get("repair_memory_v2"), dict) else {}
             self.assertGreaterEqual(len(mem.get("trajectory_rows") or []), 1)
 

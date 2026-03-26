@@ -77,6 +77,13 @@ def _default_md_path(out_json: str) -> str:
     return f"{out_json}.md"
 
 
+def _default_experience_path(results_json: str) -> str:
+    out = Path(results_json)
+    if out.suffix == ".json":
+        return str(out.with_name(f"{out.stem}.experience.json"))
+    return f"{results_json}.experience.json"
+
+
 def _write_markdown(path: str, payload: dict) -> None:
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
@@ -3618,6 +3625,7 @@ def main() -> None:
     parser.add_argument("--resume-from-records", action="store_true")
     parser.add_argument("--strategy-effect", choices=["on", "off"], default="on")
     parser.add_argument("--results-out", default="artifacts/agent_modelica_run_contract_v1/results.json")
+    parser.add_argument("--experience-out", default=None)
     parser.add_argument("--out", default="artifacts/agent_modelica_run_contract_v1/summary.json")
     parser.add_argument("--report-out", default=None)
     args = parser.parse_args()
@@ -3737,6 +3745,7 @@ def main() -> None:
     if args.mode == "live" and str(args.l4_enabled) == "on":
         repair_memory_v2_payload = build_repair_memory_v2_from_records({"records": records})
     experience_v1_payload = build_experience_payload({"records": records})
+    experience_out_path = str(args.experience_out or _default_experience_path(str(args.results_out)))
 
     results_payload = {
         "schema_version": "agent_modelica_run_results_v1",
@@ -3767,6 +3776,7 @@ def main() -> None:
         "records": records,
     }
     _write_json(args.results_out, results_payload)
+    _write_json(experience_out_path, experience_v1_payload)
 
     summary = {
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
@@ -3825,6 +3835,7 @@ def main() -> None:
         "resumed_count": resumed_count,
         "mode": args.mode,
         "strategy_effect": args.strategy_effect,
+        "experience_out": experience_out_path,
         "max_rounds": max_rounds,
         "max_time_sec": max_time_sec,
         "runtime_threshold": float(args.runtime_threshold),
@@ -3849,6 +3860,7 @@ def main() -> None:
             "l4_max_actions_per_round": int(args.l4_max_actions_per_round),
             "records_jsonl": records_jsonl_path,
             "resume_from_records": bool(args.resume_from_records),
+            "experience_out": experience_out_path,
         },
     }
     _write_json(args.out, summary)
