@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 import unittest
+from dataclasses import dataclass
 
 from gateforge.agent_modelica_rule_engine_v1 import (
+    BaseRepairRule,
+    RepairRuleRegistry,
     RuleContext,
+    RuleResult,
     RuleTier,
     apply_generic_parse_error_repair,
     apply_gf_injected_symbol_cleanup_repair,
@@ -34,6 +38,25 @@ class TestAgentModelicaRuleEngineV1(unittest.TestCase):
         self.assertFalse(registry.rules[1].replay_eligible)
         self.assertEqual(registry.rules[-1].rule_tier, RuleTier.DOMAIN_GENERAL_RULE)
         self.assertTrue(registry.rules[-1].replay_eligible)
+
+    def test_resolve_rule_order_prioritizes_recommended_rule_ids(self) -> None:
+        registry = build_default_rule_registry()
+        ordered = registry.resolve_rule_order(
+            {
+                "recommended_rule_order": [
+                    "rule_multi_round_layered_repair",
+                    "rule_parse_error_pre_repair",
+                ]
+            }
+        )
+        self.assertEqual(
+            [rule.rule_id for rule in ordered[:3]],
+            [
+                "rule_multi_round_layered_repair",
+                "rule_parse_error_pre_repair",
+                "rule_gf_injected_symbol_cleanup_repair",
+            ],
+        )
 
     def test_registry_stops_after_first_applied_rule(self) -> None:
         registry = build_default_rule_registry()
@@ -171,6 +194,63 @@ class TestAgentModelicaRuleEngineV1(unittest.TestCase):
         self.assertTrue(audit["applied"])
         self.assertEqual(audit["reason"], "removed_gateforge_injected_symbol_block")
         self.assertNotIn("__gf_state_17", patched)
+
+    def test_try_repairs_uses_priority_context_to_change_first_applied_rule(self) -> None:
+        @dataclass(frozen=True)
+        class StubRule(BaseRepairRule):
+            applied_text: str
+
+            def apply(self, ctx: RuleContext) -> RuleResult:
+                return RuleResult(
+                    new_text=self.applied_text,
+                    applied=True,
+                    rule_id=self.rule_id,
+                    action_key=self.action_key,
+                    attempt_field=self.attempt_field,
+                    rule_tier=self.rule_tier,
+                    replay_eligible=self.replay_eligible,
+                    audit_dict={
+                        "applied": True,
+                        "rule_id": self.rule_id,
+                        "action_key": self.action_key,
+                        "attempt_field": self.attempt_field,
+                        "rule_tier": str(self.rule_tier.value),
+                        "replay_eligible": bool(self.replay_eligible),
+                        "failure_bucket_before": str(ctx.failure_bucket_before or ""),
+                        "failure_bucket_after": "retry_pending",
+                    },
+                    failure_bucket_before=str(ctx.failure_bucket_before or ""),
+                    failure_bucket_after="retry_pending",
+                )
+
+        registry = RepairRuleRegistry(
+            rules=[
+                StubRule(
+                    rule_id="rule_a",
+                    action_key="repair|a|test",
+                    attempt_field="rule_a",
+                    rule_tier=RuleTier.DOMAIN_GENERAL_RULE,
+                    replay_eligible=True,
+                    applied_text="A",
+                ),
+                StubRule(
+                    rule_id="rule_b",
+                    action_key="repair|b|test",
+                    attempt_field="rule_b",
+                    rule_tier=RuleTier.DOMAIN_GENERAL_RULE,
+                    replay_eligible=True,
+                    applied_text="B",
+                ),
+            ]
+        )
+        ctx = RuleContext(current_text="x", declared_failure_type="model_check_error", failure_bucket_before="model_check_error")
+
+        default_results = registry.try_repairs(ctx)
+        replay_results = registry.try_repairs(ctx, priority_context={"recommended_rule_order": ["rule_b", "rule_a"]})
+
+        self.assertEqual(default_results[0].rule_id, "rule_a")
+        self.assertEqual(replay_results[0].rule_id, "rule_b")
+        self.assertEqual(replay_results[0].new_text, "B")
 
 
 if __name__ == "__main__":

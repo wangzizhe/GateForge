@@ -561,9 +561,26 @@ class MultiRoundLayeredRepairRule(BaseRepairRule):
 class RepairRuleRegistry:
     rules: list[RepairRule] = field(default_factory=list)
 
-    def try_repairs(self, ctx: RuleContext) -> list[RuleResult]:
+    def resolve_rule_order(self, priority_context: dict | None = None) -> list[RepairRule]:
+        order = priority_context.get("recommended_rule_order") if isinstance(priority_context, dict) else []
+        recommended_rule_order = [str(rule_id or "").strip() for rule_id in order if str(rule_id or "").strip()]
+        base_rules = list(self.rules)
+        if not recommended_rule_order:
+            return base_rules
+        order_index = {rule_id: idx for idx, rule_id in enumerate(recommended_rule_order)}
+        original_index = {id(rule): idx for idx, rule in enumerate(base_rules)}
+        return sorted(
+            base_rules,
+            key=lambda rule: (
+                0 if str(rule.rule_id or "") in order_index else 1,
+                order_index.get(str(rule.rule_id or ""), 0),
+                original_index.get(id(rule), 0),
+            ),
+        )
+
+    def try_repairs(self, ctx: RuleContext, *, priority_context: dict | None = None) -> list[RuleResult]:
         results: list[RuleResult] = []
-        for rule in self.rules:
+        for rule in self.resolve_rule_order(priority_context):
             if not rule.matches(ctx):
                 continue
             result = rule.apply(ctx)
