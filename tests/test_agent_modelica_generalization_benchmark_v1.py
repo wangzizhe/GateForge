@@ -1,11 +1,14 @@
 """Unit tests for agent_modelica_generalization_benchmark_v1 pure helpers."""
 from __future__ import annotations
 
+import contextlib
+import io
 import json
 import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from gateforge.agent_modelica_generalization_benchmark_v1 import (
     compute_metrics,
@@ -269,7 +272,7 @@ class TestRunBenchmarkPreflight(unittest.TestCase):
             )
             out = root / "summary.json"
 
-            with unittest.mock.patch(
+            with mock.patch(
                 "gateforge.agent_modelica_generalization_benchmark_v1.run_bare_repair"
             ) as run_bare:
                 summary = run_benchmark(
@@ -284,6 +287,59 @@ class TestRunBenchmarkPreflight(unittest.TestCase):
         self.assertEqual(summary["pack_validation"]["missing_mutated_model_count"], 1)
         run_bare.assert_not_called()
         self.assertEqual(payload["verdict"], "PACK_INCOMPLETE")
+
+    def test_success_path_emits_bare_batch_progress(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / ".git").mkdir()
+            mutated = root / "artifacts" / "ok.mo"
+            mutated.parent.mkdir(parents=True, exist_ok=True)
+            mutated.write_text("model Ok end Ok;", encoding="utf-8")
+            pack = root / "benchmarks" / "private" / "pack.json"
+            pack.parent.mkdir(parents=True, exist_ok=True)
+            pack.write_text(
+                json.dumps(
+                    {
+                        "schema_version": "hardpack_v1",
+                        "cases": [
+                            {
+                                "mutation_id": "ok",
+                                "target_scale": "small",
+                                "expected_failure_type": "model_check_error",
+                                "mutated_model_path": "artifacts/ok.mo",
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            out = root / "summary.json"
+            stderr = io.StringIO()
+
+            with mock.patch(
+                "gateforge.agent_modelica_generalization_benchmark_v1.run_bare_repair",
+                return_value={
+                    "success": True,
+                    "repaired_text": "model Ok end Ok;",
+                    "omc_error": "",
+                    "error": "",
+                    "provider": "gemini",
+                    "model_name": "Ok",
+                    "elapsed_sec": 1.25,
+                },
+            ):
+                with contextlib.redirect_stderr(stderr):
+                    summary = run_benchmark(
+                        pack_path=str(pack),
+                        backend="gemini",
+                        out=str(out),
+                    )
+
+        self.assertEqual(summary["status"], "PASS")
+        log = stderr.getvalue()
+        self.assertIn("[Bare-batch] Running 1 cases", log)
+        self.assertIn("[Bare-batch] [1/1] ok ... OK", log)
+        self.assertIn("[Bare-batch] Done: 1/1 = 100.0%", log)
 
 
 if __name__ == "__main__":

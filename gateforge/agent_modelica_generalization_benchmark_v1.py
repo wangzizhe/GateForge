@@ -16,6 +16,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -318,7 +320,15 @@ def run_benchmark(
         return summary
 
     bare_results: list[dict] = []
-    for case in cases:
+    total = len(cases)
+    print(
+        f"[Bare-batch] Running {total} cases | backend={backend} | timeout={timeout_sec}s",
+        file=sys.stderr,
+    )
+    if extra_model_loads:
+        print(f"[Bare-batch] Extra model loads: {extra_model_loads}", file=sys.stderr)
+
+    for idx, case in enumerate(cases, 1):
         mutated_path = resolve_case_path(pack_path, case, "mutated_model_path")
 
         base_entry = {
@@ -326,8 +336,16 @@ def run_benchmark(
             "target_scale": str(case.get("target_scale", "") or ""),
             "expected_failure_type": str(case.get("expected_failure_type", "") or ""),
         }
+        mutation_id = base_entry["mutation_id"] or f"case_{idx}"
+        print(
+            f"[Bare-batch] [{idx}/{total}] {mutation_id} ...",
+            end=" ",
+            file=sys.stderr,
+            flush=True,
+        )
 
         if not mutated_path.exists():
+            print("FAIL(missing_file) (0.0s)", file=sys.stderr)
             bare_results.append(
                 {**base_entry, "success": False, "error": f"model_file_not_found:{mutated_path}"}
             )
@@ -336,6 +354,7 @@ def run_benchmark(
         model_text = mutated_path.read_text(encoding="utf-8")
         model_name = extract_model_name(model_text)
 
+        t0 = time.time()
         result = run_bare_repair(
             model_text=model_text,
             model_name=model_name,
@@ -344,9 +363,21 @@ def run_benchmark(
             timeout_sec=timeout_sec,
             extra_model_loads=extra_model_loads or None,
         )
+        elapsed = round(time.time() - t0, 2)
+        if result.get("success"):
+            status_str = "OK"
+        else:
+            error = str(result.get("error", "") or "failed")
+            status_str = f"FAIL({error})"
+        print(f"{status_str} ({elapsed:.1f}s)", file=sys.stderr)
         bare_results.append({**base_entry, **result})
 
     bare_metrics = compute_metrics(bare_results)
+    print(
+        f"[Bare-batch] Done: {bare_metrics['success']}/{bare_metrics['total']} = "
+        f"{bare_metrics['repair_rate']:.1%}",
+        file=sys.stderr,
+    )
 
     # Load optional pre-computed GateForge results
     gf_metrics: dict | None = None
