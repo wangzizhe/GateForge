@@ -198,6 +198,11 @@ def _config_sort_key(label: str) -> tuple[int, str]:
 
 def build_validation_summary(spec: dict) -> dict:
     tracks = spec.get("tracks") if isinstance(spec.get("tracks"), list) else []
+    experiment_expectations = (
+        spec.get("experiment_expectations")
+        if isinstance(spec.get("experiment_expectations"), dict)
+        else {}
+    )
     track_summaries: list[dict] = []
 
     for track in tracks:
@@ -246,6 +251,7 @@ def build_validation_summary(spec: dict) -> dict:
                 "provider_noise_counts": {},
                 "replay_signal_coverage_counts": {},
                 "planner_injection_reason_counts": {},
+                "insufficient_signal_coverage_track_count": 0,
                 "no_regression_vs_baseline": True,
                 "track_rows": [],
             },
@@ -264,6 +270,13 @@ def build_validation_summary(spec: dict) -> dict:
             bucket["replay_signal_coverage_counts"][str(key)] = int(bucket["replay_signal_coverage_counts"].get(str(key), 0)) + _to_int(value)
         for key, value in (diag.get("planner_injection_reason_counts") or {}).items():
             bucket["planner_injection_reason_counts"][str(key)] = int(bucket["planner_injection_reason_counts"].get(str(key), 0)) + _to_int(value)
+        if str(row.get("config_label") or "") == "replay_only":
+            coverage_counts = diag.get("replay_signal_coverage_counts") if isinstance(diag.get("replay_signal_coverage_counts"), dict) else {}
+            sufficient = _to_int(coverage_counts.get("sufficient_signal_coverage"), 0)
+            result_count = max(1, _to_int(diag.get("result_count"), 0))
+            sufficient_rate_pct = round((sufficient / result_count) * 100.0, 2)
+            if sufficient_rate_pct < 5.0:
+                bucket["insufficient_signal_coverage_track_count"] += 1
 
         baseline = baseline_by_track.get(str(row.get("track_id") or ""))
         if baseline and label != "baseline":
@@ -290,6 +303,7 @@ def build_validation_summary(spec: dict) -> dict:
                 "provider_noise_counts": _sorted_int_map(bucket["provider_noise_counts"]),
                 "replay_signal_coverage_counts": _sorted_int_map(bucket["replay_signal_coverage_counts"]),
                 "planner_injection_reason_counts": _sorted_int_map(bucket["planner_injection_reason_counts"]),
+                "insufficient_signal_coverage_track_count": int(bucket["insufficient_signal_coverage_track_count"]),
             }
         )
 
@@ -310,6 +324,7 @@ def build_validation_summary(spec: dict) -> dict:
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
         "status": status,
         "reasons": reasons,
+        "experiment_expectations": experiment_expectations,
         "track_summaries": track_summaries,
         "aggregate_by_config": ordered_aggregate,
         "sources": {
@@ -327,13 +342,21 @@ def render_markdown(summary: dict) -> str:
     reasons = summary.get("reasons") if isinstance(summary.get("reasons"), list) else []
     if reasons:
         lines.append(f"- reasons: `{', '.join(str(x) for x in reasons)}`")
+    expectations = summary.get("experiment_expectations") if isinstance(summary.get("experiment_expectations"), dict) else {}
+    if expectations:
+        replay_note = str(expectations.get("replay_signal_expectation") or "").strip()
+        planner_note = str(expectations.get("planner_injection_expectation") or "").strip()
+        if replay_note:
+            lines.append(f"- replay_signal_expectation: `{replay_note}`")
+        if planner_note:
+            lines.append(f"- planner_injection_expectation: `{planner_note}`")
     lines.extend(
         [
             "",
             "## Aggregate by Config",
             "",
-            "| config | tracks | total_cases | gf_rate | bare_rate | delta_pp | advantage_tracks | no_regression_vs_baseline |",
-            "|---|---:|---:|---:|---:|---:|---:|---|",
+            "| config | tracks | total_cases | gf_rate | bare_rate | delta_pp | advantage_tracks | low_signal_tracks | no_regression_vs_baseline |",
+            "|---|---:|---:|---:|---:|---:|---:|---:|---|",
         ]
     )
     for row in summary.get("aggregate_by_config") or []:
@@ -341,7 +364,7 @@ def render_markdown(summary: dict) -> str:
             continue
         lines.append(
             "| {config_label} | {track_count} | {total_cases} | {gateforge_repair_rate:.1%} | "
-            "{bare_llm_repair_rate:.1%} | {delta_pp:.2f} | {advantage_track_count} | {no_regression_vs_baseline} |".format(
+            "{bare_llm_repair_rate:.1%} | {delta_pp:.2f} | {advantage_track_count} | {insufficient_signal_coverage_track_count} | {no_regression_vs_baseline} |".format(
                 **row
             )
         )

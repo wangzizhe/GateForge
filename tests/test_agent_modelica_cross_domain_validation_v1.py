@@ -116,6 +116,9 @@ class AgentModelicaCrossDomainValidationV1Tests(unittest.TestCase):
 
             summary = build_validation_summary(
                 {
+                    "experiment_expectations": {
+                        "replay_signal_expectation": "low-signal replay may be inconclusive"
+                    },
                     "tracks": [
                         {
                             "track_id": "openipsl",
@@ -137,6 +140,10 @@ class AgentModelicaCrossDomainValidationV1Tests(unittest.TestCase):
         agg = {str(x.get("config_label")): x for x in summary.get("aggregate_by_config") or [] if isinstance(x, dict)}
         self.assertEqual(summary["status"], "NEEDS_REVIEW")
         self.assertIn("config_regression_detected", summary["reasons"])
+        self.assertEqual(
+            summary["experiment_expectations"]["replay_signal_expectation"],
+            "low-signal replay may be inconclusive",
+        )
         self.assertFalse(agg["replay_only"]["no_regression_vs_baseline"])
 
     def test_run_validation_writes_summary_and_markdown(self) -> None:
@@ -184,6 +191,63 @@ class AgentModelicaCrossDomainValidationV1Tests(unittest.TestCase):
             self.assertTrue(out.with_suffix(".md").exists())
             md = render_markdown(summary)
             self.assertIn("Aggregate by Config", md)
+            self.assertIn("low_signal_tracks", md)
+
+    def test_replay_only_counts_low_signal_tracks(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            cmp_path = root / "cmp.json"
+            gf_path = root / "gf.json"
+            cmp_path.write_text(
+                json.dumps(
+                    {
+                        "status": "PASS",
+                        "verdict": "GATEFORGE_ADVANTAGE",
+                        "bare_llm_metrics": {"repair_rate": 0.5, "total": 10},
+                        "gateforge_metrics": {"repair_rate": 1.0, "total": 10},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            gf_path.write_text(
+                json.dumps(
+                    {
+                        "metrics": {"repair_rate": 1.0, "total": 10},
+                        "results": [
+                            {
+                                "experience_replay": {
+                                    "used": False,
+                                    "signal_coverage_status": "insufficient_signal_coverage",
+                                }
+                            }
+                            for _ in range(10)
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            summary = build_validation_summary(
+                {
+                    "tracks": [
+                        {
+                            "track_id": "buildings",
+                            "library": "Buildings",
+                            "configs": {
+                                "baseline": {
+                                    "comparison_summary": str(cmp_path),
+                                    "gateforge_results": str(gf_path),
+                                },
+                                "replay_only": {
+                                    "comparison_summary": str(cmp_path),
+                                    "gateforge_results": str(gf_path),
+                                },
+                            },
+                        }
+                    ]
+                }
+            )
+        agg = {str(x.get("config_label")): x for x in summary.get("aggregate_by_config") or [] if isinstance(x, dict)}
+        self.assertEqual(agg["replay_only"]["insufficient_signal_coverage_track_count"], 1)
 
     def test_cli_runs(self) -> None:
         with tempfile.TemporaryDirectory() as d:

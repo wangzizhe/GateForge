@@ -1,0 +1,54 @@
+{
+  "schema_version": "agent_modelica_cross_domain_validation_spec_v1",
+  "experiment_expectations": {
+    "replay_signal_expectation": "replay_only may show low or near-zero delta when replay-eligible rule coverage is sparse; interpret low delta together with replay signal coverage before concluding replay is ineffective",
+    "planner_injection_expectation": "planner_only is expected to show earlier measurable effects than replay_only because planner context can influence all LLM-mediated cases",
+    "provider_instability_note": "treat provider instability as a quantified nuisance variable; compare repeated-run variance or a low-variance control before attributing small deltas to capability changes"
+  },
+  "tracks": [
+    {
+      "track_id": "buildings_v1",
+      "library": "Buildings",
+      "configs": {
+        "baseline": {
+          "comparison_summary": "artifacts/cross_domain/buildings/baseline/comparison.json",
+          "gateforge_results": "artifacts/cross_domain/buildings/baseline/gf_results.json"
+        },
+        "replay_only": {
+          "comparison_summary": "artifacts/cross_domain/buildings/replay_only/comparison.json",
+          "gateforge_results": "artifacts/cross_domain/buildings/replay_only/gf_results.json"
+        },
+        "planner_only": {
+          "comparison_summary": "artifacts/cross_domain/buildings/planner_only/comparison.json",
+          "gateforge_results": "artifacts/cross_domain/buildings/planner_only/gf_results.json"
+        },
+        "replay_plus_planner": {
+          "comparison_summary": "artifacts/cross_domain/buildings/replay_plus_planner/comparison.json",
+          "gateforge_results": "artifacts/cross_domain/buildings/replay_plus_planner/gf_results.json"
+        }
+      }
+    },
+    {
+      "track_id": "openipsl_v1",
+      "library": "OpenIPSL",
+      "configs": {
+        "baseline": {
+          "comparison_summary": "artifacts/cross_domain/openipsl/baseline/comparison.json",
+          "gateforge_results": "artifacts/cross_domain/openipsl/baseline/gf_results.json"
+        },
+        "replay_only": {
+          "comparison_summary": "artifacts/cross_domain/openipsl/replay_only/comparison.json",
+          "gateforge_results": "artifacts/cross_domain/openipsl/replay_only/gf_results.json"
+        },
+        "planner_only": {
+          "comparison_summary": "artifacts/cross_domain/openipsl/planner_only/comparison.json",
+          "gateforge_results": "artifacts/cross_domain/openipsl/planner_only/gf_results.json"
+        },
+        "replay_plus_planner": {
+          "comparison_summary": "artifacts/cross_domain/openipsl/replay_plus_planner/comparison.json",
+          "gateforge_results": "artifacts/cross_domain/openipsl/replay_plus_planner/gf_results.json"
+        }
+      }
+    }
+  ]
+}
