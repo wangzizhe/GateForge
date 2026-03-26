@@ -1239,6 +1239,8 @@ def _build_live_template_context(
     l4_policy_profile: str = "",
     l4_llm_fallback_threshold: int = 2,
     l4_round: int = 0,
+    experience_replay: str = "off",
+    experience_source: str = "",
 ) -> dict[str, str]:
     actions = [str(x) for x in (repair_actions_override or strategy.get("actions") or []) if isinstance(x, str)]
     source_model_path = str(source_model_path_override or task.get("source_model_path") or "")
@@ -1274,6 +1276,8 @@ def _build_live_template_context(
         "l4_policy_profile": str(l4_policy_profile or "score_v1"),
         "l4_llm_fallback_threshold": str(max(1, int(l4_llm_fallback_threshold))),
         "l4_round": str(int(l4_round) if int(l4_round or 0) > 0 else int(round_idx)),
+        "experience_replay": str(experience_replay or "off"),
+        "experience_source": str(experience_source or ""),
     }
     return mapping
 
@@ -1908,6 +1912,8 @@ def _run_task_live_l4(
     live_executor_cmd: str,
     live_timeout_sec: int,
     live_max_output_chars: int,
+    experience_replay: str,
+    experience_source: str,
     *,
     l4_max_rounds: int,
     l4_policy_backend: str,
@@ -1944,6 +1950,8 @@ def _run_task_live_l4(
         "l4_llm_fallback_threshold": max(1, int(l4_llm_fallback_threshold)),
         "l4_max_actions_per_round": max(1, int(l4_max_actions_per_round)),
         "l4_max_rounds": max(1, int(l4_max_rounds)),
+        "experience_replay": str(experience_replay or "off"),
+        "experience_source": str(experience_source or ""),
         "live_executor_configured": bool(str(task.get("live_executor_command") or "").strip() or str(live_executor_cmd).strip()),
         "live_timeout_sec": int(max(1, live_timeout_sec)),
     }
@@ -2158,6 +2166,8 @@ def _run_task_live_l4(
             l4_policy_profile=str(l4_policy_profile or "score_v1"),
             l4_llm_fallback_threshold=max(1, int(l4_llm_fallback_threshold)),
             l4_round=int(round_idx),
+            experience_replay=str(experience_replay or "off"),
+            experience_source=str(experience_source or ""),
         )
         command = _render_live_command(command_template, context=context)
         timeout_for_round = min(max(1, int(live_timeout_sec)), max(1, int(max_time_sec)))
@@ -2826,6 +2836,8 @@ def _run_task_live(
     live_executor_cmd: str,
     live_timeout_sec: int,
     live_max_output_chars: int,
+    experience_replay: str = "off",
+    experience_source: str = "",
     *,
     l4_enabled: bool = False,
     l4_max_rounds: int = 3,
@@ -2849,6 +2861,8 @@ def _run_task_live(
             live_executor_cmd=live_executor_cmd,
             live_timeout_sec=live_timeout_sec,
             live_max_output_chars=live_max_output_chars,
+            experience_replay=experience_replay,
+            experience_source=experience_source,
             l4_max_rounds=l4_max_rounds,
             l4_policy_backend=l4_policy_backend,
             l4_policy_profile=l4_policy_profile,
@@ -2881,6 +2895,8 @@ def _run_task_live(
         **capability_audit,
         "live_executor_configured": bool(str(task.get("live_executor_command") or "").strip() or str(live_executor_cmd).strip()),
         "live_timeout_sec": int(max(1, live_timeout_sec)),
+        "experience_replay": str(experience_replay or "off"),
+        "experience_source": str(experience_source or ""),
         "base_success_round": None,
         "base_round_duration_sec": None,
         "adjusted_success_round": None,
@@ -2949,6 +2965,8 @@ def _run_task_live(
             round_idx=idx,
             max_rounds=max_rounds,
             max_time_sec=max_time_sec,
+            experience_replay=str(experience_replay or "off"),
+            experience_source=str(experience_source or ""),
         )
         command = _render_live_command(command_template, context=context)
         timeout_for_round = min(max(1, int(live_timeout_sec)), max(1, int(max_time_sec)))
@@ -3621,6 +3639,8 @@ def main() -> None:
     parser.add_argument("--l4-policy-profile", default="score_v1")
     parser.add_argument("--l4-llm-fallback-threshold", type=int, default=2)
     parser.add_argument("--l4-max-actions-per-round", type=int, default=3)
+    parser.add_argument("--experience-replay", choices=["on", "off"], default="off")
+    parser.add_argument("--experience-source", default="")
     parser.add_argument("--records-jsonl", default="")
     parser.add_argument("--resume-from-records", action="store_true")
     parser.add_argument("--strategy-effect", choices=["on", "off"], default="on")
@@ -3698,6 +3718,8 @@ def main() -> None:
                 live_executor_cmd=str(args.live_executor_cmd or ""),
                 live_timeout_sec=max(1, int(args.live_timeout_sec)),
                 live_max_output_chars=max(200, int(args.live_max_output_chars)),
+                experience_replay=str(args.experience_replay or "off"),
+                experience_source=str(args.experience_source or ""),
                 l4_enabled=(str(args.l4_enabled) == "on"),
                 l4_max_rounds=max(1, int(args.l4_max_rounds)),
                 l4_policy_backend=str(args.l4_policy_backend or "rule"),
@@ -3761,6 +3783,8 @@ def main() -> None:
         "live_timeout_sec": int(args.live_timeout_sec),
         "live_max_output_chars": int(args.live_max_output_chars),
         "l4_enabled": bool(str(args.l4_enabled) == "on"),
+        "experience_replay": str(args.experience_replay or "off"),
+        "experience_source": str(args.experience_source or ""),
         "l4_max_rounds": int(args.l4_max_rounds),
         "l4_policy_backend": str(args.l4_policy_backend or "rule"),
         "l4_policy_profile": str(args.l4_policy_profile or "score_v1"),
@@ -3799,6 +3823,8 @@ def main() -> None:
         "live_timeout_sec": int(args.live_timeout_sec),
         "live_max_output_chars": int(args.live_max_output_chars),
         "l4_enabled": bool(str(args.l4_enabled) == "on"),
+        "experience_replay": str(args.experience_replay or "off"),
+        "experience_source": str(args.experience_source or ""),
         "l4_max_rounds": int(args.l4_max_rounds),
         "l4_policy_backend": str(args.l4_policy_backend or "rule"),
         "l4_policy_profile": str(args.l4_policy_profile or "score_v1"),
@@ -3853,6 +3879,8 @@ def main() -> None:
             "live_timeout_sec": int(args.live_timeout_sec),
             "live_max_output_chars": int(args.live_max_output_chars),
             "l4_enabled": bool(str(args.l4_enabled) == "on"),
+            "experience_replay": str(args.experience_replay or "off"),
+            "experience_source": str(args.experience_source or ""),
             "l4_max_rounds": int(args.l4_max_rounds),
             "l4_policy_backend": str(args.l4_policy_backend or "rule"),
             "l4_policy_profile": str(args.l4_policy_profile or "score_v1"),

@@ -1256,6 +1256,76 @@ class AgentModelicaRunContractV1Tests(unittest.TestCase):
             pre_repair = first_attempt.get("pre_repair") if isinstance(first_attempt.get("pre_repair"), dict) else {}
             self.assertTrue(bool(pre_repair.get("applied")))
 
+    def test_run_contract_live_mode_supports_experience_replay_flags(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            taskset = root / "taskset.json"
+            results = root / "results.json"
+            summary = root / "summary.json"
+            experience_source = root / "memory.json"
+            experience_source.write_text("{}", encoding="utf-8")
+            taskset.write_text(
+                json.dumps(
+                    {
+                        "tasks": [
+                            {
+                                "task_id": "t_live_replay",
+                                "scale": "small",
+                                "failure_type": "model_check_error",
+                                "source_model_path": "assets_private/modelica/Minimal.mo",
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            code = """
+import json
+payload = {
+  "check_model_pass": True,
+  "simulate_pass": True,
+  "physics_contract_pass": True,
+  "regression_pass": True,
+  "elapsed_sec": 1.0,
+  "stderr_snippet": "__EXPERIENCE_REPLAY__|__EXPERIENCE_SOURCE__",
+  "error_message": ""
+}
+print(json.dumps(payload))
+""".strip()
+            live_cmd = f"python3 -c {shlex.quote(code)}"
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.agent_modelica_run_contract_v1",
+                    "--taskset",
+                    str(taskset),
+                    "--mode",
+                    "live",
+                    "--experience-replay",
+                    "on",
+                    "--experience-source",
+                    str(experience_source),
+                    "--live-executor-cmd",
+                    live_cmd,
+                    "--results-out",
+                    str(results),
+                    "--out",
+                    str(summary),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            s = json.loads(summary.read_text(encoding="utf-8"))
+            r = json.loads(results.read_text(encoding="utf-8"))
+            self.assertEqual(str(s.get("experience_replay") or ""), "on")
+            self.assertEqual(str(r.get("experience_replay") or ""), "on")
+            self.assertEqual(str(r.get("experience_source") or ""), str(experience_source))
+            rec = (r.get("records") or [])[0]
+            self.assertEqual(str(rec.get("stderr_snippet") or ""), f"on|{experience_source}")
+
     def test_run_contract_live_mode_parses_multiline_json_payload(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
