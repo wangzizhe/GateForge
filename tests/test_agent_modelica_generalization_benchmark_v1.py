@@ -11,6 +11,7 @@ from gateforge.agent_modelica_generalization_benchmark_v1 import (
     compute_metrics,
     load_hardpack_cases,
     render_markdown,
+    run_benchmark,
     verdict,
 )
 
@@ -241,6 +242,48 @@ class TestRenderMarkdown(unittest.TestCase):
         md = render_markdown(self._make_summary())
         self.assertIn("model_check_error", md)
         self.assertIn("simulate_error", md)
+
+
+class TestRunBenchmarkPreflight(unittest.TestCase):
+    def test_fails_when_pack_is_incomplete(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / ".git").mkdir()
+            pack = root / "benchmarks" / "private" / "pack.json"
+            pack.parent.mkdir(parents=True, exist_ok=True)
+            pack.write_text(
+                json.dumps(
+                    {
+                        "schema_version": "hardpack_v1",
+                        "cases": [
+                            {
+                                "mutation_id": "missing",
+                                "target_scale": "small",
+                                "expected_failure_type": "model_check_error",
+                                "mutated_model_path": "artifacts/missing.mo",
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            out = root / "summary.json"
+
+            with unittest.mock.patch(
+                "gateforge.agent_modelica_generalization_benchmark_v1.run_bare_repair"
+            ) as run_bare:
+                summary = run_benchmark(
+                    pack_path=str(pack),
+                    backend="rule",
+                    out=str(out),
+                )
+                payload = json.loads(out.read_text(encoding="utf-8"))
+
+        self.assertEqual(summary["status"], "FAIL")
+        self.assertEqual(summary["verdict"], "PACK_INCOMPLETE")
+        self.assertEqual(summary["pack_validation"]["missing_mutated_model_count"], 1)
+        run_bare.assert_not_called()
+        self.assertEqual(payload["verdict"], "PACK_INCOMPLETE")
 
 
 if __name__ == "__main__":

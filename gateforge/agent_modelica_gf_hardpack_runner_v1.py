@@ -47,6 +47,55 @@ from pathlib import Path
 from typing import Optional
 
 
+def infer_project_root_from_pack(pack_path: str) -> Path:
+    """Infer project root by walking upward from the hardpack location."""
+    pack_parent = Path(str(pack_path or "")).resolve().parent
+    for candidate in [pack_parent, *pack_parent.parents]:
+        if (candidate / ".git").exists():
+            return candidate
+    return pack_parent.parent if pack_parent.parent != pack_parent else pack_parent
+
+
+def resolve_case_path(pack_path: str, case: dict, key: str) -> Path:
+    """Resolve a case file path relative to the inferred project root."""
+    raw = str(case.get(key, "") or "").strip()
+    if not raw:
+        return Path("")
+    path = Path(raw)
+    if path.is_absolute():
+        return path
+    return infer_project_root_from_pack(pack_path) / path
+
+
+def validate_hardpack_cases(pack_path: str, cases: list[dict]) -> dict:
+    """Validate that every case points to an existing mutated model file."""
+    missing_cases: list[dict] = []
+    for idx, case in enumerate(cases, 1):
+        mutation_id = str(case.get("mutation_id", "") or f"case_{idx}")
+        resolved = resolve_case_path(pack_path, case, "mutated_model_path")
+        if not str(resolved) or not resolved.exists():
+            missing_cases.append(
+                {
+                    "mutation_id": mutation_id,
+                    "expected_failure_type": str(case.get("expected_failure_type", "") or ""),
+                    "target_scale": str(case.get("target_scale", "") or ""),
+                    "mutated_model_path": str(case.get("mutated_model_path", "") or ""),
+                    "resolved_mutated_model_path": str(resolved),
+                }
+            )
+
+    total = len(cases)
+    missing = len(missing_cases)
+    return {
+        "status": "PASS" if missing == 0 else "FAIL",
+        "is_complete": missing == 0,
+        "total_cases": total,
+        "missing_mutated_model_count": missing,
+        "present_mutated_model_count": total - missing,
+        "missing_cases": missing_cases,
+    }
+
+
 def _load_hardpack(pack_path: str, max_cases: int = 0) -> tuple[list[dict], list[str]]:
     """Load hardpack cases and optional library_load_models list.
 
@@ -65,6 +114,7 @@ def _load_hardpack(pack_path: str, max_cases: int = 0) -> tuple[list[dict], list
 
 def _run_one_case(
     case: dict,
+    pack_path: str,
     docker_image: str,
     planner_backend: str,
     max_rounds: int,
@@ -81,8 +131,8 @@ def _run_one_case(
     mutation_id = case.get("mutation_id", "")
     target_scale = case.get("target_scale", "")
     expected_failure_type = case.get("expected_failure_type", "")
-    mutated_model_path = case.get("mutated_model_path", "")
-    source_model_path = case.get("source_model_path", "")
+    mutated_model_path = str(resolve_case_path(pack_path, case, "mutated_model_path"))
+    source_model_path = str(resolve_case_path(pack_path, case, "source_model_path"))
     expected_stage = case.get("expected_stage", "")
 
     base = {
@@ -230,9 +280,35 @@ def run_batch(
     timeout_sec: int = 300,
     max_cases: int = 0,
     out_path: str = "",
+    allow_missing_files: bool = False,
 ) -> dict:
     """Run GateForge executor on all hardpack cases and return summary dict."""
     cases, extra_model_loads = _load_hardpack(pack_path, max_cases)
+    pack_validation = validate_hardpack_cases(pack_path, cases)
+    if not pack_validation["is_complete"] and not allow_missing_files:
+        summary = {
+            "schema_version": "agent_modelica_gf_hardpack_runner_v1",
+            "generated_at_utc": datetime.now(timezone.utc).isoformat(),
+            "status": "FAIL",
+            "error": "hardpack_incomplete",
+            "pack_path": pack_path,
+            "planner_backend": planner_backend,
+            "max_rounds": max_rounds,
+            "timeout_sec": timeout_sec,
+            "pack_validation": pack_validation,
+            "metrics": _compute_metrics([]),
+            "results": [],
+        }
+        print(
+            f"[GF-batch] FAIL: hardpack incomplete "
+            f"({pack_validation['missing_mutated_model_count']}/{pack_validation['total_cases']} missing)",
+            file=sys.stderr,
+        )
+        if out_path:
+            Path(out_path).write_text(json.dumps(summary, indent=2), encoding="utf-8")
+            print(f"[GF-batch] Results written to {out_path}", file=sys.stderr)
+        return summary
+
     total = len(cases)
     results = []
 
@@ -244,7 +320,7 @@ def run_batch(
     for i, case in enumerate(cases, 1):
         mid = case.get("mutation_id", f"case_{i}")
         print(f"[GF-batch] [{i}/{total}] {mid} ...", end=" ", file=sys.stderr, flush=True)
-        r = _run_one_case(case, docker_image, planner_backend, max_rounds, timeout_sec,
+        r = _run_one_case(case, pack_path, docker_image, planner_backend, max_rounds, timeout_sec,
                           extra_model_loads=extra_model_loads)
         results.append(r)
         status_str = "OK" if r["success"] else f"FAIL({r.get('error') or r.get('executor_status')})"
@@ -264,6 +340,7 @@ def run_batch(
         "planner_backend": planner_backend,
         "max_rounds": max_rounds,
         "timeout_sec": timeout_sec,
+        "pack_validation": pack_validation,
         "metrics": metrics,
         "results": results,
     }
@@ -288,6 +365,11 @@ def main() -> None:
     parser.add_argument("--timeout-sec", type=int, default=300)
     parser.add_argument("--max-cases", type=int, default=0, help="Cap cases (0 = all)")
     parser.add_argument("--out", default="", help="Output JSON path")
+    parser.add_argument(
+        "--allow-missing-files",
+        action="store_true",
+        help="Continue even when the hardpack references missing mutated model files",
+    )
     args = parser.parse_args()
 
     summary = run_batch(
@@ -298,13 +380,17 @@ def main() -> None:
         timeout_sec=args.timeout_sec,
         max_cases=args.max_cases,
         out_path=args.out,
+        allow_missing_files=args.allow_missing_files,
     )
     print(json.dumps({
-        "status": "OK",
+        "status": summary.get("status", "OK"),
         "repair_rate": summary["metrics"]["repair_rate"],
         "success": summary["metrics"]["success"],
         "total": summary["metrics"]["total"],
+        "error": summary.get("error"),
     }))
+    if summary.get("status") == "FAIL":
+        raise SystemExit(2)
 
 
 if __name__ == "__main__":

@@ -6,12 +6,14 @@ excluded — they are exercised by the pre-existing Docker integration tests.
 """
 from __future__ import annotations
 
+import os
 import tempfile
 import unittest
 from pathlib import Path
 
 from gateforge.agent_modelica_omc_workspace_v1 import (
     WorkspaceModelLayout,
+    _workspace_tmp_root,
     classify_failure,
     cleanup_workspace_best_effort,
     copytree_best_effort,
@@ -281,6 +283,28 @@ class TestTemporaryWorkspace(unittest.TestCase):
         except ValueError:
             pass
         self.assertFalse(Path(captured[0]).exists())
+
+    def test_defaults_to_repo_tmp_docker_root(self):
+        root = _workspace_tmp_root()
+        self.assertIsNotNone(root)
+        self.assertEqual(root, Path(__file__).resolve().parents[1] / "tmp" / "docker")
+        with temporary_workspace(prefix="gf_repo_tmp_") as td:
+            self.assertTrue(str(td).startswith(str(root)))
+
+    def test_env_override_changes_workspace_root(self):
+        with tempfile.TemporaryDirectory(prefix="gf_custom_tmp_root_") as td:
+            prev = os.environ.get("GATEFORGE_AGENT_TMP_ROOT")
+            os.environ["GATEFORGE_AGENT_TMP_ROOT"] = td
+            try:
+                root = _workspace_tmp_root()
+                self.assertEqual(root, Path(td))
+                with temporary_workspace(prefix="gf_env_tmp_") as workspace:
+                    self.assertTrue(str(workspace).startswith(td))
+            finally:
+                if prev is None:
+                    os.environ.pop("GATEFORGE_AGENT_TMP_ROOT", None)
+                else:
+                    os.environ["GATEFORGE_AGENT_TMP_ROOT"] = prev
 
 
 if __name__ == "__main__":

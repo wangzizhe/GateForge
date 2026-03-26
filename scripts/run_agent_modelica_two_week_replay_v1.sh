@@ -8,7 +8,9 @@ OUT_DIR="${GATEFORGE_AGENT_TWO_WEEK_REPLAY_OUT_DIR:-artifacts/agent_modelica_two
 WEEK1_TAG="${GATEFORGE_AGENT_WEEK1_TAG:-replay_w1}"
 WEEK2_TAG="${GATEFORGE_AGENT_WEEK2_TAG:-replay_w2}"
 DEFAULT_HARDPACK_PATH="benchmarks/agent_modelica_hardpack_v1.json"
-if [ -f "benchmarks/private/agent_modelica_hardpack_v1.json" ]; then
+if [ -f "assets_private/agent_modelica_track_a_valid32_fixture_v1/hardpack_frozen.json" ]; then
+  DEFAULT_HARDPACK_PATH="assets_private/agent_modelica_track_a_valid32_fixture_v1/hardpack_frozen.json"
+elif [ -f "benchmarks/private/agent_modelica_hardpack_v1.json" ]; then
   DEFAULT_HARDPACK_PATH="benchmarks/private/agent_modelica_hardpack_v1.json"
 fi
 HARDPACK_PATH="${GATEFORGE_AGENT_HARDPACK_PATH:-$DEFAULT_HARDPACK_PATH}"

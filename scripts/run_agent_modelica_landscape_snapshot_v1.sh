@@ -8,7 +8,9 @@ OUT_DIR="${GATEFORGE_AGENT_LANDSCAPE_OUT_DIR:-artifacts/agent_modelica_landscape
 WEEKLY_DIR="${GATEFORGE_AGENT_WEEKLY_CHAIN_OUT_DIR:-artifacts/agent_modelica_weekly_chain_v1}"
 TWO_WEEK_DIR="${GATEFORGE_AGENT_TWO_WEEK_REPLAY_OUT_DIR:-artifacts/agent_modelica_two_week_replay_v1}"
 DEFAULT_HARDPACK_PATH="benchmarks/agent_modelica_hardpack_v1.json"
-if [ -f "benchmarks/private/agent_modelica_hardpack_v1.json" ]; then
+if [ -f "assets_private/agent_modelica_track_a_valid32_fixture_v1/hardpack_frozen.json" ]; then
+  DEFAULT_HARDPACK_PATH="assets_private/agent_modelica_track_a_valid32_fixture_v1/hardpack_frozen.json"
+elif [ -f "benchmarks/private/agent_modelica_hardpack_v1.json" ]; then
   DEFAULT_HARDPACK_PATH="benchmarks/private/agent_modelica_hardpack_v1.json"
 fi
 HARDPACK_PATH="${GATEFORGE_AGENT_HARDPACK_PATH:-$DEFAULT_HARDPACK_PATH}"

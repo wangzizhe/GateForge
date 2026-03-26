@@ -123,7 +123,9 @@ PER_SCALE_FAILURE_TARGETS="${GATEFORGE_AGENT_PER_SCALE_FAILURE_TARGETS:-${PROFIL
 REPLAY_MAX="${GATEFORGE_AGENT_REPLAY_MAX:-6}"
 REPLAY_MIN_PER_FAILURE_TYPE="${GATEFORGE_AGENT_REPLAY_MIN_PER_FAILURE_TYPE:-1}"
 DEFAULT_HARDPACK_PATH="benchmarks/agent_modelica_hardpack_v1.json"
-if [ -f "benchmarks/private/agent_modelica_hardpack_v1.json" ]; then
+if [ -f "assets_private/agent_modelica_track_a_valid32_fixture_v1/hardpack_frozen.json" ]; then
+  DEFAULT_HARDPACK_PATH="assets_private/agent_modelica_track_a_valid32_fixture_v1/hardpack_frozen.json"
+elif [ -f "benchmarks/private/agent_modelica_hardpack_v1.json" ]; then
   DEFAULT_HARDPACK_PATH="benchmarks/private/agent_modelica_hardpack_v1.json"
 fi
 HARDPACK_PATH="${GATEFORGE_AGENT_HARDPACK_PATH:-${PROFILE_HARDPACK_PATH:-$DEFAULT_HARDPACK_PATH}}"

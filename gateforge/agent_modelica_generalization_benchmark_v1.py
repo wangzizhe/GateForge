@@ -20,6 +20,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from .agent_modelica_bare_llm_baseline_v1 import extract_model_name, run_bare_repair
+from .agent_modelica_gf_hardpack_runner_v1 import (
+    resolve_case_path,
+    validate_hardpack_cases,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -238,11 +242,6 @@ def _write_json(path: str, data: object) -> None:
     p.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
 
-def _resolve_project_root(pack_path: str) -> Path:
-    """Infer project root as two levels above the pack file (benchmarks/ → root)."""
-    return Path(pack_path).resolve().parent.parent
-
-
 # ---------------------------------------------------------------------------
 # Batch benchmark runner
 # ---------------------------------------------------------------------------
@@ -285,14 +284,42 @@ def run_benchmark(
         _write_json(out, summary)
         return summary
 
-    project_root = _resolve_project_root(pack_path)
+    pack_validation = validate_hardpack_cases(pack_path, cases)
+    if not pack_validation["is_complete"]:
+        summary = {
+            "schema_version": SCHEMA_VERSION,
+            "generated_at_utc": datetime.now(timezone.utc).isoformat(),
+            "status": "FAIL",
+            "verdict": "PACK_INCOMPLETE",
+            "error": (
+                "hardpack_incomplete:"
+                f"{pack_validation['missing_mutated_model_count']}_missing_mutated_models"
+            ),
+            "pack_validation": pack_validation,
+            "sources": {
+                "pack_path": str(pack_path),
+                "gateforge_results_path": gateforge_results_path,
+            },
+        }
+        _write_json(out, summary)
+        md_path = str(Path(out).with_suffix(".md"))
+        Path(md_path).parent.mkdir(parents=True, exist_ok=True)
+        Path(md_path).write_text(render_markdown(summary), encoding="utf-8")
+        print(
+            json.dumps(
+                {
+                    "status": "FAIL",
+                    "verdict": "PACK_INCOMPLETE",
+                    "missing_mutated_model_count": pack_validation["missing_mutated_model_count"],
+                    "total_cases": pack_validation["total_cases"],
+                }
+            )
+        )
+        return summary
 
     bare_results: list[dict] = []
     for case in cases:
-        mutated_rel = str(case.get("mutated_model_path", "") or "")
-        mutated_path = Path(mutated_rel)
-        if not mutated_path.is_absolute():
-            mutated_path = project_root / mutated_path
+        mutated_path = resolve_case_path(pack_path, case, "mutated_model_path")
 
         base_entry = {
             "mutation_id": str(case.get("mutation_id", "") or ""),
@@ -358,6 +385,7 @@ def run_benchmark(
         "bare_llm_metrics": bare_metrics,
         "gateforge_metrics": gf_metrics,
         "bare_llm_results": bare_results,
+        "pack_validation": pack_validation,
         "sources": {
             "pack_path": str(pack_path),
             "gateforge_results_path": gateforge_results_path,

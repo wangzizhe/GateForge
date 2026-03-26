@@ -16,6 +16,20 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .agent_modelica_diagnostic_ir_v0 import build_diagnostic_ir_v0
+from .agent_modelica_rule_engine_v1 import (
+    RuleContext as _RuleContext,
+    apply_parse_error_pre_repair as _rule_engine_apply_parse_error_pre_repair,
+    apply_simulate_error_injection_repair as _rule_engine_apply_simulate_error_injection_repair,
+    apply_multi_round_layered_repair as _rule_engine_apply_multi_round_layered_repair,
+    apply_wave2_1_marker_repair as _rule_engine_apply_wave2_1_marker_repair,
+    apply_wave2_2_marker_repair as _rule_engine_apply_wave2_2_marker_repair,
+    apply_wave2_marker_repair as _rule_engine_apply_wave2_marker_repair,
+    build_default_rule_registry as _build_default_rule_registry,
+    multi_round_deterministic_repair_enabled as _rule_engine_multi_round_deterministic_repair_enabled,
+    wave2_1_deterministic_repair_enabled as _rule_engine_wave2_1_deterministic_repair_enabled,
+    wave2_2_deterministic_repair_enabled as _rule_engine_wave2_2_deterministic_repair_enabled,
+    wave2_deterministic_repair_enabled as _rule_engine_wave2_deterministic_repair_enabled,
+)
 from .agent_modelica_repair_action_policy_v0 import (
     build_multistep_llm_plan_prompt_hints_v1,
     build_multistep_repair_plan_v0,
@@ -301,19 +315,19 @@ def _apply_source_model_repair(
 
 
 def _wave2_deterministic_repair_enabled() -> bool:
-    return str(os.getenv("GATEFORGE_AGENT_WAVE2_DETERMINISTIC_REPAIR") or "").strip() == "1"
+    return _rule_engine_wave2_deterministic_repair_enabled()
 
 
 def _wave2_1_deterministic_repair_enabled() -> bool:
-    return str(os.getenv("GATEFORGE_AGENT_WAVE2_1_DETERMINISTIC_REPAIR") or "").strip() == "1"
+    return _rule_engine_wave2_1_deterministic_repair_enabled()
 
 
 def _wave2_2_deterministic_repair_enabled() -> bool:
-    return str(os.getenv("GATEFORGE_AGENT_WAVE2_2_DETERMINISTIC_REPAIR") or "").strip() == "1"
+    return _rule_engine_wave2_2_deterministic_repair_enabled()
 
 
 def _multi_round_deterministic_repair_enabled() -> bool:
-    return str(os.getenv("GATEFORGE_AGENT_MULTI_ROUND_DETERMINISTIC_REPAIR") or "").strip() == "1"
+    return _rule_engine_multi_round_deterministic_repair_enabled()
 
 
 def _behavioral_contract_deterministic_repair_enabled() -> bool:
@@ -325,153 +339,33 @@ def _behavioral_robustness_deterministic_repair_enabled() -> bool:
 
 
 def _apply_wave2_marker_repair(*, current_text: str, declared_failure_type: str) -> tuple[str, dict]:
-    if not _wave2_deterministic_repair_enabled():
-        return current_text, {"applied": False, "reason": "wave2_deterministic_repair_disabled"}
-    declared = str(declared_failure_type or "").strip().lower()
-    marker_map = {
-        "overconstrained_system": "gateforge_overconstrained_system",
-        "array_dimension_mismatch": "gateforge_array_dimension_mismatch",
-    }
-    marker = marker_map.get(declared, "")
-    if not marker:
-        return current_text, {"applied": False, "reason": "declared_failure_type_not_supported"}
-    lines = str(current_text or "").splitlines(keepends=True)
-    remove_idx = {idx for idx, line in enumerate(lines) if marker in line.lower()}
-    if not remove_idx:
-        return current_text, {"applied": False, "reason": "marker_not_detected"}
-    kept = [line for idx, line in enumerate(lines) if idx not in remove_idx]
-    return "".join(kept), {"applied": True, "reason": f"removed_{marker}_line", "removed_line_count": len(remove_idx)}
+    return _rule_engine_apply_wave2_marker_repair(
+        current_text=current_text,
+        declared_failure_type=declared_failure_type,
+    )
 
 
 def _apply_wave2_1_marker_repair(*, current_text: str, declared_failure_type: str) -> tuple[str, dict]:
-    if not _wave2_1_deterministic_repair_enabled():
-        return current_text, {"applied": False, "reason": "wave2_1_deterministic_repair_disabled"}
-    declared = str(declared_failure_type or "").strip().lower()
-    marker_map = {
-        "solver_sensitive_simulate_failure": "gateforge_solver_sensitive_simulate_failure",
-        "event_logic_error": "gateforge_event_logic_error",
-        "semantic_drift_after_compile_pass": "gateforge_semantic_drift_after_compile_pass",
-    }
-    marker = marker_map.get(declared, "")
-    if not marker:
-        return current_text, {"applied": False, "reason": "declared_failure_type_not_supported"}
-    lines = str(current_text or "").splitlines(keepends=True)
-    remove_idx = {idx for idx, line in enumerate(lines) if marker in line.lower()}
-    if not remove_idx:
-        return current_text, {"applied": False, "reason": "marker_not_detected"}
-    kept = [line for idx, line in enumerate(lines) if idx not in remove_idx]
-    return "".join(kept), {"applied": True, "reason": f"removed_{marker}_line", "removed_line_count": len(remove_idx)}
+    return _rule_engine_apply_wave2_1_marker_repair(
+        current_text=current_text,
+        declared_failure_type=declared_failure_type,
+    )
 
 
 def _apply_wave2_2_marker_repair(*, current_text: str, declared_failure_type: str) -> tuple[str, dict]:
-    if not _wave2_2_deterministic_repair_enabled():
-        return current_text, {"applied": False, "reason": "wave2_2_deterministic_repair_disabled"}
-    declared = str(declared_failure_type or "").strip().lower()
-    marker_map = {
-        "cross_component_parameter_coupling_error": "gateforge_cross_component_parameter_coupling_error",
-        "control_loop_sign_semantic_drift": "gateforge_control_loop_sign_semantic_drift",
-        "mode_switch_guard_logic_error": "gateforge_mode_switch_guard_logic_error",
-    }
-    marker = marker_map.get(declared, "")
-    if not marker:
-        return current_text, {"applied": False, "reason": "declared_failure_type_not_supported"}
-    lines = str(current_text or "").splitlines(keepends=True)
-    remove_idx = {idx for idx, line in enumerate(lines) if marker in line.lower()}
-    if not remove_idx:
-        return current_text, {"applied": False, "reason": "marker_not_detected"}
-    kept = [line for idx, line in enumerate(lines) if idx not in remove_idx]
-    return "".join(kept), {"applied": True, "reason": f"removed_{marker}_line", "removed_line_count": len(remove_idx)}
+    return _rule_engine_apply_wave2_2_marker_repair(
+        current_text=current_text,
+        declared_failure_type=declared_failure_type,
+    )
 
 
 def _apply_simulate_error_injection_repair(
     *, current_text: str, declared_failure_type: str
 ) -> tuple[str, dict]:
-    """Remove GateForge simulation-instability injections from mutated models.
-
-    Detects and removes lines that are part of an injected numerical instability:
-    - ``Real __gf_state_N(...)`` / ``parameter Real __gf_tau_N = ...`` declarations
-    - ``// GateForge mutation: simulation instability`` / ``zero time constant`` comments
-    - equations referencing ``__gf_state_N`` or ``__gf_tau_N``
-
-    Only fires for declared_failure_type == "simulate_error".
-    No env gate needed: ``__gf_state_*`` / ``__gf_tau_*`` names are unique to GateForge
-    mutations and will never appear in real Modelica models.
-    """
-    declared = str(declared_failure_type or "").strip().lower()
-    if declared != "simulate_error":
-        return current_text, {"applied": False, "reason": "declared_failure_type_not_simulate_error"}
-    text = str(current_text or "")
-    lines = text.splitlines(keepends=True)
-    # Collect injected variable names
-    gf_var_names: set[str] = set()
-    for line in lines:
-        m = re.search(r'\b(__gf_(?:state|tau)_\d+)\b', line)
-        if m:
-            gf_var_names.add(m.group(1))
-    if not gf_var_names:
-        return current_text, {"applied": False, "reason": "no_gf_injection_detected"}
-    gf_pat = re.compile(
-        r'\b(' + '|'.join(re.escape(v) for v in sorted(gf_var_names)) + r')\b'
+    return _rule_engine_apply_simulate_error_injection_repair(
+        current_text=current_text,
+        declared_failure_type=declared_failure_type,
     )
-    mutation_comment_pat = re.compile(
-        r'//\s*GateForge mutation:\s*(simulation instability|zero time constant)',
-        re.IGNORECASE,
-    )
-    kept: list[str] = []
-    removed_count = 0
-    for line in lines:
-        strip = line.strip()
-        if mutation_comment_pat.search(strip) or gf_pat.search(strip):
-            removed_count += 1
-        else:
-            kept.append(line)
-    if not removed_count:
-        return current_text, {"applied": False, "reason": "no_lines_removed"}
-    return "".join(kept), {
-        "applied": True,
-        "reason": "removed_gf_simulate_injection",
-        "removed_line_count": removed_count,
-        "gf_var_names": sorted(gf_var_names),
-    }
-
-
-def _restore_parameter_binding_from_source(*, current_text: str, source_model_text: str) -> tuple[str, dict]:
-    current_lines = str(current_text or "").splitlines(keepends=True)
-    source_lines = str(source_model_text or "").splitlines(keepends=True)
-    if not current_lines or not source_lines:
-        return current_text, {"applied": False, "reason": "source_or_current_text_missing"}
-    updated = list(current_lines)
-    replaced = 0
-    for idx, line in enumerate(current_lines):
-        lower = line.lower()
-        if "gateforge_parameter_binding_error" not in lower:
-            continue
-        match = re.search(r"\b([A-Za-z_][A-Za-z0-9_]*)\s*\(", line)
-        instance_name = str(match.group(1) or "").strip() if match else ""
-        replacement = ""
-        if instance_name:
-            for source_line in source_lines:
-                if "gateforge_parameter_binding_error" in source_line.lower():
-                    continue
-                if f"{instance_name}(" in source_line:
-                    replacement = source_line
-                    break
-        if not replacement:
-            continue
-        updated[idx] = replacement
-        replaced += 1
-    if replaced <= 0:
-        return current_text, {"applied": False, "reason": "parameter_binding_source_line_not_found"}
-    return "".join(updated), {"applied": True, "reason": "restored_parameter_binding_from_source", "replaced_line_count": replaced}
-
-
-def _remove_lines_with_marker(*, current_text: str, marker: str) -> tuple[str, dict]:
-    lines = str(current_text or "").splitlines(keepends=True)
-    remove_idx = {idx for idx, line in enumerate(lines) if marker in line.lower()}
-    if not remove_idx:
-        return current_text, {"applied": False, "reason": f"{marker}_not_detected"}
-    kept = [line for idx, line in enumerate(lines) if idx not in remove_idx]
-    return "".join(kept), {"applied": True, "reason": f"removed_{marker}_line", "removed_line_count": len(remove_idx)}
 
 
 def _apply_multi_round_layered_repair(
@@ -481,61 +375,12 @@ def _apply_multi_round_layered_repair(
     declared_failure_type: str,
     current_round: int,
 ) -> tuple[str, dict]:
-    if not _multi_round_deterministic_repair_enabled():
-        return current_text, {"applied": False, "reason": "multi_round_deterministic_repair_disabled"}
-    try:
-        round_idx = max(1, int(current_round))
-    except Exception:
-        round_idx = 1
-    if round_idx < 2:
-        return current_text, {"applied": False, "reason": "multi_round_layered_repair_deferred_until_round_2"}
-    declared = str(declared_failure_type or "").strip().lower()
-    lower = str(current_text or "").lower()
-    if declared == "cascading_structural_failure":
-        if "gateforge_overconstrained_system" in lower:
-            patched, audit = _remove_lines_with_marker(
-                current_text=current_text,
-                marker="gateforge_overconstrained_system",
-            )
-            if bool(audit.get("applied")):
-                audit["reason"] = "multi_round_removed_overconstrained_layer"
-                return patched, audit
-        if "gateforge_solver_sensitive_simulate_failure" in lower:
-            patched, audit = _remove_lines_with_marker(
-                current_text=current_text,
-                marker="gateforge_solver_sensitive_simulate_failure",
-            )
-            if bool(audit.get("applied")):
-                audit["reason"] = "multi_round_removed_solver_sensitive_layer"
-                return patched, audit
-        return current_text, {"applied": False, "reason": "multi_round_cascade_no_supported_layer_detected"}
-    if declared == "coupled_conflict_failure":
-        if "gateforge_parameter_binding_error" in lower:
-            patched, audit = _restore_parameter_binding_from_source(
-                current_text=current_text,
-                source_model_text=source_model_text,
-            )
-            if bool(audit.get("applied")):
-                audit["reason"] = "multi_round_restored_parameter_binding_layer"
-                return patched, audit
-        if "gateforge_control_loop_sign_semantic_drift" in lower:
-            patched, audit = _remove_lines_with_marker(
-                current_text=current_text,
-                marker="gateforge_control_loop_sign_semantic_drift",
-            )
-            if bool(audit.get("applied")):
-                audit["reason"] = "multi_round_removed_control_loop_layer"
-                return patched, audit
-        if "gateforge_cross_component_parameter_coupling_error" in lower:
-            patched, audit = _remove_lines_with_marker(
-                current_text=current_text,
-                marker="gateforge_cross_component_parameter_coupling_error",
-            )
-            if bool(audit.get("applied")):
-                audit["reason"] = "multi_round_removed_cross_component_layer"
-                return patched, audit
-        return current_text, {"applied": False, "reason": "multi_round_conflict_no_supported_layer_detected"}
-    return current_text, {"applied": False, "reason": "declared_failure_type_not_supported"}
+    return _rule_engine_apply_multi_round_layered_repair(
+        current_text=current_text,
+        source_model_text=source_model_text,
+        declared_failure_type=declared_failure_type,
+        current_round=current_round,
+    )
 
 
 
@@ -584,143 +429,8 @@ def _parse_repair_actions(raw: str) -> list[str]:
     return [x.strip() for x in text.split("|") if x.strip()]
 
 
-def _extract_state_tokens_from_output(output: str) -> list[str]:
-    tokens = sorted(set(re.findall(r"__gf_state_\d+", str(output or ""))))
-    return tokens
-
-
-def _extract_undef_tokens_from_output(output: str) -> list[str]:
-    tokens = sorted(set(
-        re.findall(r"__gf_undef_\d+", str(output or ""))
-        + re.findall(r"__gf_undeclared_\d+", str(output or ""))
-    ))
-    return tokens
-
-
-def _remove_gateforge_injected_symbol_block(model_text: str) -> tuple[str, int]:
-    lines = str(model_text or "").splitlines(keepends=True)
-    if not lines:
-        return str(model_text or ""), 0
-    remove_idx: set[int] = set()
-    for i, line in enumerate(lines):
-        if "__gf_" in line:
-            remove_idx.add(i)
-            # Remove nearby mutation comment/equation headers that usually wrap injected block.
-            for j in (i - 2, i - 1, i + 1, i + 2):
-                if j < 0 or j >= len(lines):
-                    continue
-                text = lines[j].strip()
-                if "GateForge mutation" in text:
-                    remove_idx.add(j)
-                if text == "equation":
-                    remove_idx.add(j)
-    if not remove_idx:
-        return str(model_text or ""), 0
-    kept = [line for idx, line in enumerate(lines) if idx not in remove_idx]
-    return "".join(kept), len(remove_idx)
-
-
 def _apply_parse_error_pre_repair(model_text: str, output: str, failure_type: str) -> tuple[str, dict]:
-    failure = str(failure_type or "").strip().lower()
-    lower = str(output or "").lower()
-
-    tokens: list[str] = []
-    reason_prefix = ""
-    if failure == "script_parse_error":
-        if "no viable alternative near token" not in lower:
-            return model_text, {"applied": False, "reason": "parse_error_without_expected_marker"}
-        tokens = _extract_state_tokens_from_output(output)
-        reason_prefix = "injected_state_tokens"
-        if not tokens:
-            # Fallback for parse errors where OMC reports generic token (`parameter`, `equation`)
-            # but injected mutant symbols still exist in model text.
-            fallback_patched, removed = _remove_gateforge_injected_symbol_block(model_text)
-            if removed > 0:
-                return fallback_patched, {
-                    "applied": True,
-                    "reason": "removed_gateforge_injected_symbol_block",
-                    "removed_line_count": int(removed),
-                }
-            return model_text, {"applied": False, "reason": "state_token_not_detected"}
-    elif failure == "model_check_error":
-        # Some OMC parser errors can be mapped to model_check_error by the
-        # diagnostic classifier. Recover these the same way as parse errors.
-        parse_markers = ("no viable alternative near token", "lexer failed to recognize")
-        if any(marker in lower for marker in parse_markers):
-            state_tokens = _extract_state_tokens_from_output(output)
-            if not state_tokens and "__gf_state_" in str(model_text or ""):
-                state_tokens = sorted(set(re.findall(r"__gf_state_\d+", str(model_text or ""))))
-            if state_tokens:
-                tokens = state_tokens
-                reason_prefix = "injected_state_tokens"
-            else:
-                fallback_patched, removed = _remove_gateforge_injected_symbol_block(model_text)
-                if removed > 0:
-                    return fallback_patched, {
-                        "applied": True,
-                        "reason": "removed_gateforge_injected_symbol_block",
-                        "removed_line_count": int(removed),
-                    }
-                return model_text, {"applied": False, "reason": "state_token_not_detected"}
-        else:
-        # Common mutant pattern: undefined synthetic symbol `__gf_undef_<id>` or `__gf_undeclared_<id>`.
-            tokens = _extract_undef_tokens_from_output(output)
-            if not tokens and any(p in str(model_text or "") for p in ("__gf_undef_", "__gf_undeclared_")):
-                tokens = sorted(set(
-                    re.findall(r"__gf_undef_\d+", str(model_text or ""))
-                    + re.findall(r"__gf_undeclared_\d+", str(model_text or ""))
-                ))
-            reason_prefix = "injected_undef_tokens"
-            if not tokens:
-                # Last-resort: remove any injected __gf_ symbol block generically.
-                fallback_patched, removed = _remove_gateforge_injected_symbol_block(model_text)
-                if removed > 0:
-                    return fallback_patched, {
-                        "applied": True,
-                        "reason": "removed_gateforge_injected_symbol_block_fallback",
-                        "removed_line_count": int(removed),
-                    }
-                return model_text, {"applied": False, "reason": "undef_token_not_detected"}
-    else:
-        return model_text, {"applied": False, "reason": "failure_type_not_supported_for_pre_repair"}
-
-    patched = str(model_text or "")
-    # Prefer dropping full lines carrying injected state token to avoid
-    # leaving broken fragments like `der() = ...;` after direct token removal.
-    lines = patched.splitlines(keepends=True)
-    kept_lines: list[str] = []
-    removed_line_count = 0
-    for line in lines:
-        if any(tok in line for tok in tokens):
-            removed_line_count += 1
-            continue
-        kept_lines.append(line)
-    if removed_line_count > 0:
-        return "".join(kept_lines), {
-            "applied": True,
-            "reason": f"removed_lines_with_{reason_prefix}",
-            "detected_tokens": tokens,
-            "removed_line_count": int(removed_line_count),
-        }
-
-    removed_count = 0
-    for token in tokens:
-        patched, replaced = re.subn(rf"\b{re.escape(token)}\b", "", patched)
-        removed_count += int(replaced)
-
-    if removed_count <= 0:
-        return model_text, {
-            "applied": False,
-            "reason": "detected_token_not_found_in_model_text",
-            "detected_tokens": tokens,
-        }
-
-    return patched, {
-        "applied": True,
-        "reason": f"removed_{reason_prefix}_inline",
-        "detected_tokens": tokens,
-        "removed_count": int(removed_count),
-    }
+    return _rule_engine_apply_parse_error_pre_repair(model_text, output, failure_type)
 
 
 def _normalize_terminal_errors(executor_status: str, error_message: str, compile_error: str, simulate_error: str) -> tuple[str, str, str]:
@@ -1283,6 +993,7 @@ def main() -> None:
     executor_status = "FAILED"
     budget_cfg = _live_budget_config()
     resolved_provider = "rule" if str(args.planner_backend) == "rule" else _resolve_llm_provider(str(args.planner_backend))[0]
+    rule_registry = _build_default_rule_registry()
 
     with _temporary_workspace(prefix="gf_live_exec_") as td:
         workspace = Path(td)
@@ -1484,77 +1195,26 @@ def main() -> None:
             if round_idx >= max(1, int(args.max_rounds)):
                 break
 
-            pre_repaired_text, pre_repair = _apply_parse_error_pre_repair(
-                model_text=current_text,
-                output=str(output or ""),
-                failure_type=ftype,
+            rule_results = rule_registry.try_repairs(
+                _RuleContext(
+                    current_text=current_text,
+                    declared_failure_type=str(args.failure_type),
+                    output=str(output or ""),
+                    source_model_text=source_model_text,
+                    observed_failure_type=ftype,
+                    current_round=round_idx,
+                    failure_bucket_before=str(final_error or ""),
+                )
             )
-            attempts[-1]["pre_repair"] = pre_repair
-            if bool(pre_repair.get("applied")):
-                current_text = pre_repaired_text
-                final_error = "pre_repair_applied_retry_pending"
-                continue
-
-            init_repaired_text, init_repair = _apply_initialization_marker_repair(
-                current_text=current_text,
-                declared_failure_type=str(args.failure_type),
-            )
-            attempts[-1]["initialization_marker_repair"] = init_repair
-            if bool(init_repair.get("applied")):
-                current_text = init_repaired_text
-                final_error = "initialization_marker_repair_applied_retry_pending"
-                continue
-
-            wave2_repaired_text, wave2_repair = _apply_wave2_marker_repair(
-                current_text=current_text,
-                declared_failure_type=str(args.failure_type),
-            )
-            attempts[-1]["wave2_marker_repair"] = wave2_repair
-            if bool(wave2_repair.get("applied")):
-                current_text = wave2_repaired_text
-                final_error = "wave2_marker_repair_applied_retry_pending"
-                continue
-
-            wave2_1_repaired_text, wave2_1_repair = _apply_wave2_1_marker_repair(
-                current_text=current_text,
-                declared_failure_type=str(args.failure_type),
-            )
-            attempts[-1]["wave2_1_marker_repair"] = wave2_1_repair
-            if bool(wave2_1_repair.get("applied")):
-                current_text = wave2_1_repaired_text
-                final_error = "wave2_1_marker_repair_applied_retry_pending"
-                continue
-
-            wave2_2_repaired_text, wave2_2_repair = _apply_wave2_2_marker_repair(
-                current_text=current_text,
-                declared_failure_type=str(args.failure_type),
-            )
-            attempts[-1]["wave2_2_marker_repair"] = wave2_2_repair
-            if bool(wave2_2_repair.get("applied")):
-                current_text = wave2_2_repaired_text
-                final_error = "wave2_2_marker_repair_applied_retry_pending"
-                continue
-
-            sim_injection_repaired_text, sim_injection_repair = _apply_simulate_error_injection_repair(
-                current_text=current_text,
-                declared_failure_type=str(args.failure_type),
-            )
-            attempts[-1]["simulate_error_injection_repair"] = sim_injection_repair
-            if bool(sim_injection_repair.get("applied")):
-                current_text = sim_injection_repaired_text
-                final_error = "simulate_error_injection_repair_applied_retry_pending"
-                continue
-
-            multi_round_repaired_text, multi_round_repair = _apply_multi_round_layered_repair(
-                current_text=current_text,
-                source_model_text=source_model_text,
-                declared_failure_type=str(args.failure_type),
-                current_round=round_idx,
-            )
-            attempts[-1]["multi_round_layered_repair"] = multi_round_repair
-            if bool(multi_round_repair.get("applied")):
-                current_text = multi_round_repaired_text
-                final_error = "multi_round_layered_repair_applied_retry_pending"
+            applied_rule_result = None
+            for rule_result in rule_results:
+                attempts[-1][rule_result.attempt_field] = dict(rule_result.audit_dict)
+                if bool(rule_result.applied):
+                    applied_rule_result = rule_result
+                    break
+            if applied_rule_result is not None:
+                current_text = applied_rule_result.new_text
+                final_error = f"{applied_rule_result.attempt_field}_applied_retry_pending"
                 continue
 
             pre_stage_context = _build_multistep_stage_context(

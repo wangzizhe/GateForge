@@ -1,4 +1,5 @@
 import unittest
+from pathlib import Path
 
 from gateforge import agent_modelica_hardpack_lock_v1
 from gateforge import agent_modelica_landscape_snapshot_v1
@@ -14,9 +15,13 @@ class AgentModelicaPrivateDefaultsV1Tests(unittest.TestCase):
         )
 
     def test_hardpack_defaults_prefer_private_path(self) -> None:
+        expected_hardpack = "benchmarks/private/agent_modelica_hardpack_v1.json"
+        frozen = Path("assets_private/agent_modelica_track_a_valid32_fixture_v1/hardpack_frozen.json")
+        if frozen.exists():
+            expected_hardpack = str(frozen)
         self.assertEqual(
             agent_modelica_landscape_snapshot_v1._default_hardpack_path(),
-            "benchmarks/private/agent_modelica_hardpack_v1.json",
+            expected_hardpack,
         )
         self.assertEqual(
             agent_modelica_hardpack_lock_v1._default_hardpack_out_path(),

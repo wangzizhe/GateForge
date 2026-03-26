@@ -7,6 +7,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+import gateforge.agent_modelica_live_executor_gemini_v1 as _executor_module
 from gateforge.agent_modelica_live_executor_gemini_v1 import (
     _IN_MEMORY_LIVE_LEDGER,
     _apply_source_blind_multistep_branch_escape_search,
@@ -25,6 +26,7 @@ from gateforge.agent_modelica_live_executor_gemini_v1 import (
     _apply_multi_round_layered_repair,
     _apply_parse_error_pre_repair,
     _apply_source_model_repair,
+    _apply_wave2_marker_repair,
     _apply_wave2_1_marker_repair,
     _apply_wave2_2_marker_repair,
     _bootstrap_env_from_repo,
@@ -1459,6 +1461,67 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
         self.assertEqual(str(audit.get("reason") or ""), "initialization_marker_not_detected")
         self.assertEqual(patched, model_text)
 
+    def test_apply_wave2_marker_repair_removes_overconstrained_lines(self) -> None:
+        prev = os.environ.get("GATEFORGE_AGENT_WAVE2_DETERMINISTIC_REPAIR")
+        os.environ["GATEFORGE_AGENT_WAVE2_DETERMINISTIC_REPAIR"] = "1"
+        try:
+            model_text = (
+                "model A\n"
+                "  Real x;\n"
+                "equation\n"
+                "  connect(a, b); // gateforge_overconstrained_system\n"
+                "  x = 1;\n"
+                "end A;\n"
+            )
+            patched, audit = _apply_wave2_marker_repair(
+                current_text=model_text,
+                declared_failure_type="overconstrained_system",
+            )
+            self.assertTrue(bool(audit.get("applied")))
+            self.assertEqual(str(audit.get("reason") or ""), "removed_gateforge_overconstrained_system_line")
+            self.assertNotIn("gateforge_overconstrained_system", patched)
+        finally:
+            if prev is None:
+                os.environ.pop("GATEFORGE_AGENT_WAVE2_DETERMINISTIC_REPAIR", None)
+            else:
+                os.environ["GATEFORGE_AGENT_WAVE2_DETERMINISTIC_REPAIR"] = prev
+
+    def test_apply_wave2_marker_repair_skips_when_disabled(self) -> None:
+        prev = os.environ.get("GATEFORGE_AGENT_WAVE2_DETERMINISTIC_REPAIR")
+        os.environ.pop("GATEFORGE_AGENT_WAVE2_DETERMINISTIC_REPAIR", None)
+        try:
+            model_text = "model A\n  // gateforge_overconstrained_system\nend A;\n"
+            patched, audit = _apply_wave2_marker_repair(
+                current_text=model_text,
+                declared_failure_type="overconstrained_system",
+            )
+            self.assertFalse(bool(audit.get("applied")))
+            self.assertEqual(str(audit.get("reason") or ""), "wave2_deterministic_repair_disabled")
+            self.assertEqual(patched, model_text)
+        finally:
+            if prev is None:
+                os.environ.pop("GATEFORGE_AGENT_WAVE2_DETERMINISTIC_REPAIR", None)
+            else:
+                os.environ["GATEFORGE_AGENT_WAVE2_DETERMINISTIC_REPAIR"] = prev
+
+    def test_apply_wave2_marker_repair_skips_for_unsupported_failure_type(self) -> None:
+        prev = os.environ.get("GATEFORGE_AGENT_WAVE2_DETERMINISTIC_REPAIR")
+        os.environ["GATEFORGE_AGENT_WAVE2_DETERMINISTIC_REPAIR"] = "1"
+        try:
+            model_text = "model A\n  // gateforge_overconstrained_system\nend A;\n"
+            patched, audit = _apply_wave2_marker_repair(
+                current_text=model_text,
+                declared_failure_type="event_logic_error",
+            )
+            self.assertFalse(bool(audit.get("applied")))
+            self.assertEqual(str(audit.get("reason") or ""), "declared_failure_type_not_supported")
+            self.assertEqual(patched, model_text)
+        finally:
+            if prev is None:
+                os.environ.pop("GATEFORGE_AGENT_WAVE2_DETERMINISTIC_REPAIR", None)
+            else:
+                os.environ["GATEFORGE_AGENT_WAVE2_DETERMINISTIC_REPAIR"] = prev
+
     def test_apply_wave2_1_marker_repair_removes_dynamic_marker_lines(self) -> None:
         prev = os.environ.get("GATEFORGE_AGENT_WAVE2_1_DETERMINISTIC_REPAIR")
         os.environ["GATEFORGE_AGENT_WAVE2_1_DETERMINISTIC_REPAIR"] = "1"
@@ -1474,6 +1537,42 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
             patched, audit = _apply_wave2_1_marker_repair(current_text=model_text, declared_failure_type="event_logic_error")
             self.assertTrue(bool(audit.get("applied")))
             self.assertNotIn("gateforge_event_logic_error", patched)
+        finally:
+            if prev is None:
+                os.environ.pop("GATEFORGE_AGENT_WAVE2_1_DETERMINISTIC_REPAIR", None)
+            else:
+                os.environ["GATEFORGE_AGENT_WAVE2_1_DETERMINISTIC_REPAIR"] = prev
+
+    def test_apply_wave2_1_marker_repair_skips_when_disabled(self) -> None:
+        prev = os.environ.get("GATEFORGE_AGENT_WAVE2_1_DETERMINISTIC_REPAIR")
+        os.environ.pop("GATEFORGE_AGENT_WAVE2_1_DETERMINISTIC_REPAIR", None)
+        try:
+            model_text = "model A\n  // gateforge_event_logic_error\nend A;\n"
+            patched, audit = _apply_wave2_1_marker_repair(
+                current_text=model_text,
+                declared_failure_type="event_logic_error",
+            )
+            self.assertFalse(bool(audit.get("applied")))
+            self.assertEqual(str(audit.get("reason") or ""), "wave2_1_deterministic_repair_disabled")
+            self.assertEqual(patched, model_text)
+        finally:
+            if prev is None:
+                os.environ.pop("GATEFORGE_AGENT_WAVE2_1_DETERMINISTIC_REPAIR", None)
+            else:
+                os.environ["GATEFORGE_AGENT_WAVE2_1_DETERMINISTIC_REPAIR"] = prev
+
+    def test_apply_wave2_1_marker_repair_skips_when_marker_not_found(self) -> None:
+        prev = os.environ.get("GATEFORGE_AGENT_WAVE2_1_DETERMINISTIC_REPAIR")
+        os.environ["GATEFORGE_AGENT_WAVE2_1_DETERMINISTIC_REPAIR"] = "1"
+        try:
+            model_text = "model A\n  Real x;\nend A;\n"
+            patched, audit = _apply_wave2_1_marker_repair(
+                current_text=model_text,
+                declared_failure_type="event_logic_error",
+            )
+            self.assertFalse(bool(audit.get("applied")))
+            self.assertEqual(str(audit.get("reason") or ""), "gateforge_event_logic_error_not_detected")
+            self.assertEqual(patched, model_text)
         finally:
             if prev is None:
                 os.environ.pop("GATEFORGE_AGENT_WAVE2_1_DETERMINISTIC_REPAIR", None)
@@ -1514,6 +1613,42 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
             patched, audit = _apply_wave2_2_marker_repair(current_text=model_text, declared_failure_type="mode_switch_guard_logic_error")
             self.assertTrue(bool(audit.get("applied")))
             self.assertNotIn("gateforge_mode_switch_guard_logic_error", patched)
+        finally:
+            if prev is None:
+                os.environ.pop("GATEFORGE_AGENT_WAVE2_2_DETERMINISTIC_REPAIR", None)
+            else:
+                os.environ["GATEFORGE_AGENT_WAVE2_2_DETERMINISTIC_REPAIR"] = prev
+
+    def test_apply_wave2_2_marker_repair_skips_when_disabled(self) -> None:
+        prev = os.environ.get("GATEFORGE_AGENT_WAVE2_2_DETERMINISTIC_REPAIR")
+        os.environ.pop("GATEFORGE_AGENT_WAVE2_2_DETERMINISTIC_REPAIR", None)
+        try:
+            model_text = "model A\n  // gateforge_mode_switch_guard_logic_error\nend A;\n"
+            patched, audit = _apply_wave2_2_marker_repair(
+                current_text=model_text,
+                declared_failure_type="mode_switch_guard_logic_error",
+            )
+            self.assertFalse(bool(audit.get("applied")))
+            self.assertEqual(str(audit.get("reason") or ""), "wave2_2_deterministic_repair_disabled")
+            self.assertEqual(patched, model_text)
+        finally:
+            if prev is None:
+                os.environ.pop("GATEFORGE_AGENT_WAVE2_2_DETERMINISTIC_REPAIR", None)
+            else:
+                os.environ["GATEFORGE_AGENT_WAVE2_2_DETERMINISTIC_REPAIR"] = prev
+
+    def test_apply_wave2_2_marker_repair_skips_when_marker_not_found(self) -> None:
+        prev = os.environ.get("GATEFORGE_AGENT_WAVE2_2_DETERMINISTIC_REPAIR")
+        os.environ["GATEFORGE_AGENT_WAVE2_2_DETERMINISTIC_REPAIR"] = "1"
+        try:
+            model_text = "model A\n  Real x;\nend A;\n"
+            patched, audit = _apply_wave2_2_marker_repair(
+                current_text=model_text,
+                declared_failure_type="mode_switch_guard_logic_error",
+            )
+            self.assertFalse(bool(audit.get("applied")))
+            self.assertEqual(str(audit.get("reason") or ""), "gateforge_mode_switch_guard_logic_error_not_detected")
+            self.assertEqual(patched, model_text)
         finally:
             if prev is None:
                 os.environ.pop("GATEFORGE_AGENT_WAVE2_2_DETERMINISTIC_REPAIR", None)
@@ -1862,6 +1997,75 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
             self.assertTrue(out_path.exists())
             out_payload = json.loads(out_path.read_text(encoding="utf-8"))
             self.assertEqual(out_payload.get("task_id"), "demo-task")
+
+    def test_main_emits_canonical_rule_metadata_in_attempts(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="gf_live_exec_rule_meta_") as td:
+            root = Path(td)
+            model_path = root / "Demo.mo"
+            out_path = root / "out.json"
+            model_path.write_text(
+                "model Demo\n"
+                "  Real x;\n"
+                "  Real __gf_state_17(start=0.0);\n"
+                "equation\n"
+                "  der(__gf_state_17) = x;\n"
+                "end Demo;\n",
+                encoding="utf-8",
+            )
+
+            run_side_effects = [
+                (1, "Error: No viable alternative near token __gf_state_17", False, False),
+                (0, "Check of Demo completed successfully.\nrecord SimulationResult\nresultFile = \"/tmp/demo.mat\"", True, True),
+            ]
+            diagnostic_side_effects = [
+                {"error_type": "script_parse_error", "reason": "parse_failed"},
+                {"error_type": "none", "reason": ""},
+            ]
+
+            with patch.object(
+                sys,
+                "argv",
+                [
+                    "agent_modelica_live_executor_gemini_v1",
+                    "--task-id",
+                    "rule-meta-demo",
+                    "--mutated-model-path",
+                    str(model_path),
+                    "--failure-type",
+                    "script_parse_error",
+                    "--planner-backend",
+                    "rule",
+                    "--max-rounds",
+                    "2",
+                    "--backend",
+                    "omc",
+                    "--out",
+                    str(out_path),
+                ],
+            ), patch(
+                "gateforge.agent_modelica_live_executor_gemini_v1._run_check_and_simulate",
+                side_effect=run_side_effects,
+            ), patch(
+                "gateforge.agent_modelica_live_executor_gemini_v1.build_diagnostic_ir_v0",
+                side_effect=diagnostic_side_effects,
+            ), patch("builtins.print"):
+                _executor_module.main()
+
+            payload = json.loads(out_path.read_text(encoding="utf-8"))
+            self.assertTrue(bool(payload.get("check_model_pass")))
+            attempts = payload.get("attempts")
+            self.assertIsInstance(attempts, list)
+            self.assertGreaterEqual(len(attempts), 1)
+            first_attempt = attempts[0]
+            pre_repair = first_attempt.get("pre_repair")
+            self.assertIsInstance(pre_repair, dict)
+            self.assertTrue(bool(pre_repair.get("applied")))
+            self.assertEqual(pre_repair.get("rule_id"), "rule_parse_error_pre_repair")
+            self.assertEqual(pre_repair.get("action_key"), "repair|parse_error_pre_repair|rule_engine_v1")
+            self.assertEqual(pre_repair.get("rule_tier"), "domain_general_rule")
+            self.assertTrue(bool(pre_repair.get("replay_eligible")))
+            self.assertEqual(pre_repair.get("failure_bucket_after"), "retry_pending")
+            self.assertEqual(pre_repair.get("rounds_consumed"), 1)
 
 
 if __name__ == "__main__":

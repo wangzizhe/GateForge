@@ -348,6 +348,27 @@ def run_check_and_simulate(
 # ---------------------------------------------------------------------------
 
 
+def _workspace_tmp_root() -> Path | None:
+    """Return the preferred root directory for temporary OMC workspaces.
+
+    Priority:
+    1. ``GATEFORGE_AGENT_TMP_ROOT`` if set.
+    2. Repo-local ``tmp/docker`` when running inside the GateForge repo.
+    3. ``None`` -> fall back to the system temp dir.
+    """
+    env_root = str(os.getenv("GATEFORGE_AGENT_TMP_ROOT") or "").strip()
+    if env_root:
+        root = Path(env_root).expanduser()
+        if not root.is_absolute():
+            root = root.resolve()
+        return root
+
+    repo_root = Path(__file__).resolve().parents[1]
+    if (repo_root / ".git").exists():
+        return repo_root / "tmp" / "docker"
+    return None
+
+
 @contextmanager
 def temporary_workspace(prefix: str):
     """Context manager that creates and cleans up an isolated temp directory.
@@ -357,7 +378,12 @@ def temporary_workspace(prefix: str):
     :exc:`PermissionError` on CI.  This implementation uses :func:`os.mkdtemp`
     with a best-effort cleanup that never propagates teardown failures.
     """
-    td = tempfile.mkdtemp(prefix=prefix)
+    root = _workspace_tmp_root()
+    if root is not None:
+        root.mkdir(parents=True, exist_ok=True)
+        td = tempfile.mkdtemp(prefix=prefix, dir=str(root))
+    else:
+        td = tempfile.mkdtemp(prefix=prefix)
     try:
         yield td
     finally:

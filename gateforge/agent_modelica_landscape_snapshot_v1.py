@@ -7,6 +7,7 @@ from pathlib import Path
 
 DEFAULT_PUBLIC_HARDPACK_PATH = "benchmarks/agent_modelica_hardpack_v1.json"
 DEFAULT_PRIVATE_HARDPACK_PATH = "benchmarks/private/agent_modelica_hardpack_v1.json"
+DEFAULT_FROZEN_TRACK_A_HARDPACK_PATH = "assets_private/agent_modelica_track_a_valid32_fixture_v1/hardpack_frozen.json"
 
 
 def _load_json(path: str) -> dict:
@@ -52,7 +53,11 @@ def _write_markdown(path: str, payload: dict) -> None:
     p.write_text("\n".join(lines), encoding="utf-8")
 
 def _default_hardpack_path() -> str:
-    return DEFAULT_PRIVATE_HARDPACK_PATH
+    if Path(DEFAULT_FROZEN_TRACK_A_HARDPACK_PATH).exists():
+        return DEFAULT_FROZEN_TRACK_A_HARDPACK_PATH
+    if Path(DEFAULT_PRIVATE_HARDPACK_PATH).exists():
+        return DEFAULT_PRIVATE_HARDPACK_PATH
+    return DEFAULT_PUBLIC_HARDPACK_PATH
 
 
 def main() -> None:
