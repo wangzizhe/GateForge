@@ -21,3 +21,4 @@ benchmarks/private/
 policies/private/
 # Project context for AI sessions (private, local only)
 CLAUDE.md
+.claude
