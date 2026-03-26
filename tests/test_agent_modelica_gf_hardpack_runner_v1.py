@@ -8,6 +8,7 @@ from pathlib import Path
 from unittest import mock
 
 from gateforge.agent_modelica_gf_hardpack_runner_v1 import (
+    _run_one_case,
     infer_project_root_from_pack,
     run_batch,
     validate_hardpack_cases,
@@ -121,6 +122,114 @@ class TestRunBatchPreflight(unittest.TestCase):
         _, kwargs = run_one_case.call_args
         self.assertEqual(kwargs["experience_replay"], "on")
         self.assertEqual(kwargs["experience_source"], "artifacts/replay.json")
+
+    def test_run_batch_preserves_replay_diagnostics(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / ".git").mkdir()
+            mutated = root / "artifacts" / "ok.mo"
+            mutated.parent.mkdir(parents=True, exist_ok=True)
+            mutated.write_text("model Ok end Ok;", encoding="utf-8")
+            pack = root / "benchmarks" / "private" / "pack.json"
+            _write_pack(
+                pack,
+                [{"mutation_id": "ok", "mutated_model_path": "artifacts/ok.mo"}],
+            )
+            out = root / "out.json"
+
+            with mock.patch(
+                "gateforge.agent_modelica_gf_hardpack_runner_v1._run_one_case",
+                return_value={
+                    "mutation_id": "ok",
+                    "target_scale": "",
+                    "expected_failure_type": "",
+                    "success": True,
+                    "executor_status": "PASS",
+                    "elapsed_sec": 1.0,
+                    "error": None,
+                    "experience_replay": {
+                        "enabled": True,
+                        "used": True,
+                        "signal_coverage_status": "sufficient_signal_coverage",
+                    },
+                },
+            ):
+                summary = run_batch(
+                    str(pack),
+                    out_path=str(out),
+                    experience_replay="on",
+                    experience_source="artifacts/replay.json",
+                )
+                payload = json.loads(out.read_text(encoding="utf-8"))
+
+        self.assertTrue(summary["results"][0]["experience_replay"]["used"])
+        self.assertEqual(
+            payload["results"][0]["experience_replay"]["signal_coverage_status"],
+            "sufficient_signal_coverage",
+        )
+
+
+class TestRunOneCase(unittest.TestCase):
+    def test_includes_experience_replay_summary_from_executor_payload(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / ".git").mkdir()
+            mutated = root / "artifacts" / "ok.mo"
+            mutated.parent.mkdir(parents=True, exist_ok=True)
+            mutated.write_text("model Ok end Ok;", encoding="utf-8")
+            pack = root / "benchmarks" / "private" / "pack.json"
+            _write_pack(
+                pack,
+                [{"mutation_id": "ok", "mutated_model_path": "artifacts/ok.mo"}],
+            )
+            case = {"mutation_id": "ok", "mutated_model_path": "artifacts/ok.mo"}
+
+            def _fake_subprocess_run(cmd, **kwargs):
+                out_path = Path(cmd[cmd.index("--out") + 1])
+                out_path.write_text(
+                    json.dumps(
+                        {
+                            "executor_status": "PASS",
+                            "check_model_pass": True,
+                            "simulate_pass": True,
+                            "attempts": [{}, {}],
+                            "experience_replay": {
+                                "enabled": True,
+                                "used": True,
+                                "signal_coverage_status": "sufficient_signal_coverage",
+                                "priority_reason": "rules_reordered_by_experience",
+                            },
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+                return mock.Mock(returncode=0, stdout="", stderr="")
+
+            with mock.patch(
+                "gateforge.agent_modelica_gf_hardpack_runner_v1.subprocess.run",
+                side_effect=_fake_subprocess_run,
+            ):
+                result = _run_one_case(
+                    case,
+                    str(pack),
+                    "openmodelica/openmodelica:v1.26.1-minimal",
+                    "gemini",
+                    8,
+                    300,
+                    experience_replay="on",
+                    experience_source="artifacts/replay.json",
+                )
+
+        self.assertTrue(result["success"])
+        self.assertEqual(result["rounds_used"], 2)
+        self.assertEqual(
+            result["experience_replay"]["signal_coverage_status"],
+            "sufficient_signal_coverage",
+        )
+        self.assertEqual(
+            result["experience_replay"]["priority_reason"],
+            "rules_reordered_by_experience",
+        )
 
 
 if __name__ == "__main__":
