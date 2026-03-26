@@ -395,6 +395,37 @@ import json
 import sys
 from pathlib import Path
 
+def _infer_live_smoke_infra_reason(payload: dict) -> str:
+    text = " ".join(
+        [
+            str(payload.get("error_message") or ""),
+            str(payload.get("compile_error") or ""),
+            str(payload.get("simulate_error_message") or ""),
+            str(payload.get("stderr_snippet") or ""),
+            str(payload.get("log_excerpt") or ""),
+        ]
+    ).lower()
+    attempts = payload.get("attempts") if isinstance(payload.get("attempts"), list) else []
+    for attempt in attempts:
+        if not isinstance(attempt, dict):
+            continue
+        text += " " + " ".join(
+            [
+                str(attempt.get("reason") or ""),
+                str(attempt.get("stderr_snippet") or ""),
+                str(attempt.get("log_excerpt") or ""),
+            ]
+        ).lower()
+    if "permission denied while trying to connect to the docker api" in text:
+        return "docker_permission_denied"
+    if "includes invalid characters for a local volume name" in text:
+        return "docker_volume_mount_invalid"
+    if "mount" in text and "permission denied" in text:
+        return "mount_permission_denied"
+    if "timed out" in text or "timeoutexpired" in text or "live_executor_timeout" in text:
+        return "timeout"
+    return ""
+
 out_dir = Path(sys.argv[1])
 run_live_smoke = str(sys.argv[2]).strip() == "1"
 require_real_omc = str(sys.argv[3]).strip() == "1"
@@ -431,6 +462,7 @@ else:
         status = "NEEDS_REVIEW"
 
 live_backend = str(live_smoke.get("backend_used") or "").strip().lower()
+live_infra_reason = _infer_live_smoke_infra_reason(live_smoke)
 if run_live_smoke and require_real_omc and live_status == "PASS" and live_backend not in {"omc", "openmodelica_docker"}:
     status = "FAIL"
     reasons.append("live_smoke_backend_not_real_omc")
@@ -439,6 +471,13 @@ live_fallback = bool(live_smoke.get("backend_fallback_to_syntax"))
 if run_live_smoke and require_real_omc and live_status == "PASS" and live_fallback:
     status = "FAIL"
     reasons.append("live_smoke_backend_fallback_to_syntax")
+
+if run_live_smoke and live_status != "PASS" and live_infra_reason:
+    reasons = [x for x in reasons if x != "live_smoke_not_pass"]
+    if "live_smoke_infra_unavailable" not in reasons:
+        reasons.append("live_smoke_infra_unavailable")
+    hard_failure_reasons = [x for x in reasons if x not in {"live_smoke_infra_unavailable"}]
+    status = "NEEDS_REVIEW" if not hard_failure_reasons else "FAIL"
 
 l3_gate_status = str(l3_gate.get("status") or "").strip()
 if run_live_smoke and enable_l3_gate:
@@ -465,6 +504,7 @@ payload = {
     "private_asset_guard_status": str(private_guard.get("status") or ""),
     "live_smoke_status": live_status or "SKIPPED",
     "live_smoke_backend_used": live_backend,
+    "live_smoke_infra_reason": live_infra_reason,
     "require_real_omc_backend": require_real_omc,
     "l3_diagnostic_gate_enabled": enable_l3_gate,
     "l3_diagnostic_gate_enforced": enforce_l3_gate,
