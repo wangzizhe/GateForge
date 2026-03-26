@@ -123,6 +123,8 @@ from .agent_modelica_l2_plan_replan_engine_v1 import (
     resolve_llm_provider as _resolve_llm_provider,
     send_with_budget as _send_with_budget,
 )
+from .agent_modelica_experience_writer_v1 import build_experience_record as _build_experience_record
+from .agent_modelica_repair_quality_score_v1 import compute_repair_quality_breakdown as _compute_repair_quality_breakdown
 from .llm_budget import (
     _IN_MEMORY_LIVE_LEDGER,
     _live_budget_config,
@@ -924,6 +926,11 @@ def _build_final_payload(
     payload["rate_limit_429_count"] = int(ledger.get("rate_limit_429_count") or 0)
     payload["budget_stop_triggered"] = bool(ledger.get("budget_stop_triggered"))
     payload["live_budget_stop_reason"] = str(ledger.get("last_stop_reason") or "")
+    quality_breakdown = _compute_repair_quality_breakdown(payload)
+    experience_record = _build_experience_record(payload)
+    payload["repair_quality_score"] = float(quality_breakdown.get("repair_quality_score") or 0.0)
+    payload["repair_quality_breakdown"] = quality_breakdown
+    payload["action_contributions"] = list(experience_record.get("action_contributions") or [])
     return payload
 
 
@@ -935,6 +942,8 @@ def main() -> None:
     if not model_path.exists():
         payload = {
             "task_id": args.task_id,
+            "failure_type": str(args.failure_type),
+            "executor_status": "FAILED",
             "check_model_pass": False,
             "simulate_pass": False,
             "physics_contract_pass": False,
@@ -944,7 +953,12 @@ def main() -> None:
             "compile_error": "model_path_missing",
             "simulate_error_message": "",
             "stderr_snippet": str(model_path),
+            "attempts": [],
+            "live_request_count": 0,
         }
+        payload["repair_quality_breakdown"] = _compute_repair_quality_breakdown(payload)
+        payload["repair_quality_score"] = float(payload["repair_quality_breakdown"].get("repair_quality_score") or 0.0)
+        payload["action_contributions"] = []
         if str(args.out).strip():
             Path(args.out).write_text(json.dumps(payload, indent=2), encoding="utf-8")
         print(json.dumps(payload))
@@ -965,6 +979,8 @@ def main() -> None:
     if not model_name:
         payload = {
             "task_id": args.task_id,
+            "failure_type": str(args.failure_type),
+            "executor_status": "FAILED",
             "check_model_pass": False,
             "simulate_pass": False,
             "physics_contract_pass": False,
@@ -974,7 +990,12 @@ def main() -> None:
             "compile_error": "model_name_not_found",
             "simulate_error_message": "",
             "stderr_snippet": "",
+            "attempts": [],
+            "live_request_count": 0,
         }
+        payload["repair_quality_breakdown"] = _compute_repair_quality_breakdown(payload)
+        payload["repair_quality_score"] = float(payload["repair_quality_breakdown"].get("repair_quality_score") or 0.0)
+        payload["action_contributions"] = []
         if str(args.out).strip():
             Path(args.out).write_text(json.dumps(payload, indent=2), encoding="utf-8")
         print(json.dumps(payload))

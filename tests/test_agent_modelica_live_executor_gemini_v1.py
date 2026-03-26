@@ -2066,6 +2066,13 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
             self.assertTrue(bool(pre_repair.get("replay_eligible")))
             self.assertEqual(pre_repair.get("failure_bucket_after"), "retry_pending")
             self.assertEqual(pre_repair.get("rounds_consumed"), 1)
+            self.assertGreater(float(payload.get("repair_quality_score") or 0.0), 0.0)
+            self.assertIsInstance(payload.get("repair_quality_breakdown"), dict)
+            action_contributions = payload.get("action_contributions")
+            self.assertIsInstance(action_contributions, list)
+            self.assertGreaterEqual(len(action_contributions), 1)
+            self.assertEqual(action_contributions[0].get("rule_id"), "rule_parse_error_pre_repair")
+            self.assertEqual(action_contributions[0].get("contribution"), "advancing")
 
 
 if __name__ == "__main__":

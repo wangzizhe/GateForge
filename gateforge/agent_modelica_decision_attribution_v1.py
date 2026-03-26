@@ -181,6 +181,8 @@ def attribute_decision(run_result: dict) -> dict:
     if dec_attempt is not None:
         val = dec_attempt.get("physics_contract_pass")
         physics_in_decisive = bool(val) if val is not None else None
+    action_contributions = run_result.get("action_contributions") if isinstance(run_result.get("action_contributions"), list) else []
+    action_contributions = [row for row in action_contributions if isinstance(row, dict)]
 
     return {
         "schema_version": SCHEMA_VERSION,
@@ -197,6 +199,13 @@ def attribute_decision(run_result: dict) -> dict:
         "wasted_rounds": wasted,
         "diagnostic_progression": progression,
         "physics_contract_in_decisive": physics_in_decisive,
+        "repair_quality_score": float(run_result.get("repair_quality_score") or 0.0),
+        "action_contribution_count": len(action_contributions),
+        "action_contribution_distribution": {
+            "advancing": len([row for row in action_contributions if str(row.get("contribution") or "") == "advancing"]),
+            "neutral": len([row for row in action_contributions if str(row.get("contribution") or "") == "neutral"]),
+            "regressing": len([row for row in action_contributions if str(row.get("contribution") or "") == "regressing"]),
+        },
     }
 
 
@@ -224,6 +233,9 @@ def summarize_decision_attribution(records: list[dict]) -> dict:
     wasted_list: list[float] = []
     successful = 0
     path_by_ft: dict[str, dict[str, int]] = {}
+    quality_scores: list[float] = []
+    quality_distribution = {"high": 0, "medium": 0, "low": 0, "zero": 0}
+    action_contribution_distribution = {"advancing": 0, "neutral": 0, "regressing": 0}
 
     for rec in records:
         path = str(rec.get("causal_path") or "failed")
@@ -237,6 +249,19 @@ def summarize_decision_attribution(records: list[dict]) -> dict:
             first_correct += 1
 
         wasted_list.append(float(rec.get("wasted_rounds") or 0))
+        quality = float(rec.get("repair_quality_score") or 0.0)
+        quality_scores.append(quality)
+        if quality >= 0.8:
+            quality_distribution["high"] += 1
+        elif quality >= 0.5:
+            quality_distribution["medium"] += 1
+        elif quality > 0.0:
+            quality_distribution["low"] += 1
+        else:
+            quality_distribution["zero"] += 1
+        contrib = rec.get("action_contribution_distribution") if isinstance(rec.get("action_contribution_distribution"), dict) else {}
+        for key in action_contribution_distribution:
+            action_contribution_distribution[key] += int(contrib.get(key) or 0)
 
         decisive = rec.get("decisive_round")
         if decisive is not None:
@@ -264,6 +289,9 @@ def summarize_decision_attribution(records: list[dict]) -> dict:
         "llm_decisive_pct": llm_pct,
         "median_rounds_to_success": median_rounds,
         "median_wasted_rounds": median_wasted,
+        "median_quality_score": round(statistics.median(quality_scores), 4) if quality_scores else 0.0,
+        "quality_distribution": quality_distribution,
+        "action_contribution_distribution": action_contribution_distribution,
         "causal_path_by_failure_type": path_by_ft,
     }
 

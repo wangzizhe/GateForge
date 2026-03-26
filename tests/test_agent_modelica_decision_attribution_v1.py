@@ -58,11 +58,14 @@ class TestDirectPath(unittest.TestCase):
             "simulate_error",
             [_attempt(1, check_ok=True, sim_ok=True, first_plan_branch_match=True)],
         )
+        result["repair_quality_score"] = 1.0
+        result["action_contributions"] = [{"contribution": "advancing"}]
         rec = attribute_decision(result)
         self.assertEqual(rec["causal_path"], "direct")
         self.assertEqual(rec["decisive_round"], 1)
         self.assertEqual(rec["first_plan_verdict"], "correct")
         self.assertFalse(rec["replan_corrected"])
+        self.assertEqual(rec["repair_quality_score"], 1.0)
 
     def test_direct_path_requires_first_plan_correct(self) -> None:
         # Round 1 passes but first_plan_branch_match=False => not "direct"
@@ -317,6 +320,12 @@ class TestSummarizeMixed(unittest.TestCase):
         summary = summarize_decision_attribution([])
         self.assertEqual(summary["total_tasks"], 0)
         self.assertEqual(summary["median_rounds_to_success"], 0.0)
+
+    def test_summary_includes_quality_and_contribution_fields(self) -> None:
+        summary = summarize_decision_attribution(self._make_records())
+        self.assertIn("median_quality_score", summary)
+        self.assertIn("quality_distribution", summary)
+        self.assertIn("action_contribution_distribution", summary)
 
 
 class TestCLIRoundtrip(unittest.TestCase):

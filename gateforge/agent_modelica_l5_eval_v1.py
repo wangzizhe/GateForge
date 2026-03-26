@@ -179,13 +179,23 @@ def _summarize_run_results(run_results_payload: dict) -> dict:
 
     rounds: list[float] = []
     times: list[float] = []
+    quality_scores: list[float] = []
     attempt_count = 0
     infra_count = 0
     infra_by_reason: dict[str, int] = {}
+    action_contribution_distribution = {"advancing": 0, "neutral": 0, "regressing": 0}
 
     for rec in records:
         rounds.append(_to_float(rec.get("rounds_used"), 0.0))
         times.append(_to_float(rec.get("elapsed_sec"), 0.0))
+        quality_scores.append(_to_float(rec.get("repair_quality_score"), 0.0))
+        action_rows = rec.get("action_contributions") if isinstance(rec.get("action_contributions"), list) else []
+        for row in action_rows:
+            if not isinstance(row, dict):
+                continue
+            contribution = str(row.get("contribution") or "").strip().lower()
+            if contribution in action_contribution_distribution:
+                action_contribution_distribution[contribution] += 1
         attempts = rec.get("attempts") if isinstance(rec.get("attempts"), list) else []
         for attempt in attempts:
             if not isinstance(attempt, dict):
@@ -208,9 +218,11 @@ def _summarize_run_results(run_results_payload: dict) -> dict:
         "regression_fail_rate_pct": _ratio(regression_fail_count, total),
         "median_rounds": _median(rounds),
         "median_time_to_pass_sec": _median(times),
+        "median_quality_score": _median(quality_scores),
         "attempt_count": attempt_count,
         "infra_failure_count": infra_count,
         "infra_failure_by_reason": dict(sorted(infra_by_reason.items())),
+        "action_contribution_distribution": action_contribution_distribution,
     }
 
 
@@ -247,6 +259,7 @@ def _write_markdown(path: str, payload: dict) -> None:
         "",
         f"- median_rounds: `{cost_metrics.get('median_rounds', 0.0)}`",
         f"- median_time_to_pass_sec: `{cost_metrics.get('median_time_to_pass_sec', 0.0)}`",
+        f"- median_quality_score: `{cost_metrics.get('median_quality_score', 0.0)}`",
         "",
         "## Thresholds",
         "",
@@ -386,6 +399,7 @@ def evaluate_l5_eval_v1(
 
     median_rounds = _to_float(run_summary.get("median_repair_rounds"), run_results_summary.get("median_rounds", 0.0))
     median_time = _to_float(run_summary.get("median_time_to_pass_sec"), run_results_summary.get("median_time_to_pass_sec", 0.0))
+    median_quality_score = _to_float(run_summary.get("median_quality_score"), run_results_summary.get("median_quality_score", 0.0))
 
     hard_reasons: list[str] = []
     soft_reasons: list[str] = []
@@ -523,8 +537,10 @@ def evaluate_l5_eval_v1(
         "cost_metrics": {
             "median_rounds": median_rounds,
             "median_time_to_pass_sec": median_time,
+            "median_quality_score": median_quality_score,
         },
         "run_results_stats": run_results_summary,
+        "action_contribution_distribution": run_results_summary.get("action_contribution_distribution") if isinstance(run_results_summary.get("action_contribution_distribution"), dict) else {},
         "thresholds": {
             "acceptance_mode": acceptance_mode_norm,
             "absolute_success_target_pct": float(absolute_success_target_pct),
