@@ -23,6 +23,7 @@ from .agent_modelica_diagnostic_ir_v0 import build_diagnostic_ir_v0, canonical_e
 from .agent_modelica_repair_action_policy_v0 import recommend_repair_actions_v0
 from .agent_modelica_orchestrator_guard_v0 import detect_no_progress_v0, prioritize_repair_actions_v0
 from .agent_modelica_l4_orchestrator_v0 import run_l4_orchestrator_v0
+from .agent_modelica_experience_writer_v1 import build_experience_payload
 from .agent_modelica_repair_memory_v2 import build_repair_memory_v2_from_records
 from .regression import compare_evidence, load_json as _load_evidence_json
 
@@ -3735,6 +3736,7 @@ def main() -> None:
     repair_memory_v2_payload = {}
     if args.mode == "live" and str(args.l4_enabled) == "on":
         repair_memory_v2_payload = build_repair_memory_v2_from_records({"records": records})
+    experience_v1_payload = build_experience_payload({"records": records})
 
     results_payload = {
         "schema_version": "agent_modelica_run_results_v1",
@@ -3760,6 +3762,7 @@ def main() -> None:
         "resumed_count": resumed_count,
         "mode": args.mode,
         "strategy_effect": args.strategy_effect,
+        "experience_v1": experience_v1_payload if isinstance(experience_v1_payload, dict) else {},
         "repair_memory_v2": repair_memory_v2_payload if isinstance(repair_memory_v2_payload, dict) else {},
         "records": records,
     }
@@ -3797,6 +3800,26 @@ def main() -> None:
         "l4_action_effectiveness_rows": len(repair_memory_v2_payload.get("action_effectiveness") or [])
         if isinstance(repair_memory_v2_payload, dict)
         else 0,
+        "experience_record_count": len(experience_v1_payload.get("records") or [])
+        if isinstance(experience_v1_payload, dict)
+        else 0,
+        "experience_replay_eligible_action_count": (
+            ((experience_v1_payload.get("summary") or {}).get("replay_eligible_action_count"))
+            if isinstance(experience_v1_payload, dict)
+            else 0
+        )
+        or 0,
+        "median_quality_score": (
+            ((experience_v1_payload.get("summary") or {}).get("median_quality_score"))
+            if isinstance(experience_v1_payload, dict)
+            else 0.0
+        )
+        or 0.0,
+        "action_contribution_distribution": (
+            ((experience_v1_payload.get("summary") or {}).get("action_contribution_distribution"))
+            if isinstance(experience_v1_payload, dict)
+            else {"advancing": 0, "neutral": 0, "regressing": 0}
+        ),
         "records_jsonl": records_jsonl_path,
         "resume_from_records": bool(args.resume_from_records),
         "resumed_count": resumed_count,

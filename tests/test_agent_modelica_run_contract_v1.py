@@ -2033,6 +2033,10 @@ print(json.dumps(payload))
             self.assertTrue(bool(s.get("l4_enabled")))
             self.assertEqual(str(s.get("l4_policy_profile") or ""), "score_v1")
             self.assertEqual(int(s.get("l4_llm_fallback_threshold") or 0), 2)
+            self.assertGreaterEqual(int(s.get("experience_record_count") or 0), 1)
+            self.assertIn("median_quality_score", s)
+            contrib = s.get("action_contribution_distribution") if isinstance(s.get("action_contribution_distribution"), dict) else {}
+            self.assertIn("advancing", contrib)
             rec = (r.get("records") or [])[0]
             self.assertTrue(bool(rec.get("passed")))
             self.assertGreaterEqual(int(rec.get("rounds_used") or 0), 2)
@@ -2044,6 +2048,13 @@ print(json.dumps(payload))
             self.assertIsInstance(l4.get("banned_action_signatures"), list)
             self.assertIn("llm_fallback_used", l4)
             self.assertGreaterEqual(len(l4.get("trajectory_rows") or []), 1)
+            experience = r.get("experience_v1") if isinstance(r.get("experience_v1"), dict) else {}
+            self.assertGreaterEqual(len(experience.get("records") or []), 1)
+            exp_summary = experience.get("summary") if isinstance(experience.get("summary"), dict) else {}
+            self.assertIn("median_quality_score", exp_summary)
+            exp_record = (experience.get("records") or [])[0] if isinstance(experience.get("records"), list) else {}
+            self.assertIn("repair_quality_score", exp_record)
+            self.assertIsInstance(exp_record.get("action_contributions"), list)
             mem = r.get("repair_memory_v2") if isinstance(r.get("repair_memory_v2"), dict) else {}
             self.assertGreaterEqual(len(mem.get("trajectory_rows") or []), 1)
 
