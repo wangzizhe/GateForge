@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import argparse
+import json
+import statistics
 from datetime import datetime, timezone
-from typing import Any
+from pathlib import Path
 
 from .agent_modelica_repair_quality_score_v1 import compute_repair_quality_breakdown
 
@@ -11,6 +14,19 @@ SCHEMA_VERSION = "agent_modelica_experience_writer_v1"
 
 def _now_utc() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _load_json(path: str) -> dict:
+    p = Path(path)
+    if not p.exists():
+        return {}
+    return json.loads(p.read_text(encoding="utf-8"))
+
+
+def _write_json(path: str, payload: object) -> None:
+    p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
 def _attempts(run_result: dict) -> list[dict]:
@@ -136,3 +152,59 @@ def build_experience_record(run_result: dict) -> dict:
         "repair_quality_breakdown": quality,
         "action_contributions": build_action_contribution_rows(run_result),
     }
+
+
+def summarize_experience_records(records: list[dict]) -> dict:
+    quality_scores = [float(row.get("repair_quality_score") or 0.0) for row in records if isinstance(row, dict)]
+    action_rows = [
+        action
+        for row in records
+        if isinstance(row, dict)
+        for action in ((row.get("action_contributions") or []) if isinstance(row.get("action_contributions"), list) else [])
+        if isinstance(action, dict)
+    ]
+    contribution_distribution = {"advancing": 0, "neutral": 0, "regressing": 0}
+    for action in action_rows:
+        contribution = str(action.get("contribution") or "").strip().lower()
+        if contribution in contribution_distribution:
+            contribution_distribution[contribution] += 1
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "generated_at_utc": _now_utc(),
+        "total_records": len([row for row in records if isinstance(row, dict)]),
+        "median_quality_score": round(float(statistics.median(quality_scores)), 4) if quality_scores else 0.0,
+        "action_contribution_distribution": contribution_distribution,
+        "replay_eligible_action_count": len([row for row in action_rows if bool(row.get("replay_eligible"))]),
+    }
+
+
+def build_experience_payload(run_results_payload: dict) -> dict:
+    records_raw = run_results_payload.get("records") if isinstance(run_results_payload.get("records"), list) else []
+    if not records_raw and isinstance(run_results_payload, dict) and (
+        "attempts" in run_results_payload or "task_id" in run_results_payload
+    ):
+        records_raw = [run_results_payload]
+    records = [build_experience_record(row) for row in records_raw if isinstance(row, dict)]
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "generated_at_utc": _now_utc(),
+        "summary": summarize_experience_records(records),
+        "records": records,
+    }
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Build canonical experience records from executor run results")
+    parser.add_argument("--run-results", required=True)
+    parser.add_argument("--out", required=True)
+    args = parser.parse_args()
+
+    run_results = _load_json(str(args.run_results))
+    payload = build_experience_payload(run_results)
+    _write_json(str(args.out), payload)
+    print(json.dumps(payload.get("summary") or {}, indent=2))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
