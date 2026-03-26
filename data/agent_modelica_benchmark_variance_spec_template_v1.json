@@ -1,0 +1,37 @@
+{
+  "schema_version": "agent_modelica_benchmark_variance_spec_v1",
+  "groups": [
+    {
+      "group_id": "track_a_baseline_repeats",
+      "library": "MSL Track A",
+      "config_label": "baseline",
+      "role": "control",
+      "runs": [
+        {
+          "comparison_summary": "artifacts/benchmark_track_a/comparison_repeat_01.json",
+          "gateforge_results": "artifacts/benchmark_track_a/gf_results_repeat_01.json"
+        },
+        {
+          "comparison_summary": "artifacts/benchmark_track_a/comparison_repeat_02.json",
+          "gateforge_results": "artifacts/benchmark_track_a/gf_results_repeat_02.json"
+        }
+      ]
+    },
+    {
+      "group_id": "track_a_planner_only_repeats",
+      "library": "MSL Track A",
+      "config_label": "planner_only",
+      "role": "candidate",
+      "runs": [
+        {
+          "comparison_summary": "artifacts/benchmark_track_a/planner_only_comparison_repeat_01.json",
+          "gateforge_results": "artifacts/benchmark_track_a/planner_only_gf_results_repeat_01.json"
+        },
+        {
+          "comparison_summary": "artifacts/benchmark_track_a/planner_only_comparison_repeat_02.json",
+          "gateforge_results": "artifacts/benchmark_track_a/planner_only_gf_results_repeat_02.json"
+        }
+      ]
+    }
+  ]
+}
