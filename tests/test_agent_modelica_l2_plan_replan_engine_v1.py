@@ -21,6 +21,7 @@ from gateforge.agent_modelica_l2_plan_replan_engine_v1 import (
     behavioral_robustness_source_mode,
     bootstrap_env_from_repo,
     build_source_blind_multistep_planner_contract,
+    build_source_blind_multistep_planner_prompt,
     gemini_repair_model_text,
     llm_round_constraints,
     openai_repair_model_text,
@@ -257,6 +258,38 @@ class TestBuildPlannerContract(unittest.TestCase):
             llm_reason="",
         )
         self.assertEqual(contract["replan_count_before"], 0)
+
+    def test_prompt_includes_planner_experience_summary_and_hints(self) -> None:
+        prompt, contract = build_source_blind_multistep_planner_prompt(
+            original_text="model Demo end Demo;",
+            failure_type="model_check_error",
+            expected_stage="check",
+            error_excerpt="some error",
+            repair_actions=["repair|parse_error_pre_repair|rule_engine_v1"],
+            model_name="Demo",
+            current_round=1,
+            stage_context={"current_stage": "stage_1"},
+            llm_reason="initial_plan",
+            request_kind="plan",
+            replan_context=None,
+            resolved_provider="gemini",
+            planner_experience_context={
+                "used": True,
+                "positive_hint_count": 1,
+                "caution_hint_count": 1,
+                "prompt_token_estimate": 42,
+                "truncated": False,
+                "prompt_context_text": (
+                    "Historical experience hints for similar failures:\n"
+                    "- Historical success: parse_error_pre_repair advanced similar repairs.\n"
+                    "- Historical caution: multi_round_layered_repair regressed similar repairs.\n"
+                ),
+            },
+        )
+        self.assertEqual(contract["schema_version"], MULTISTEP_PLANNER_CONTRACT_VERSION)
+        self.assertIn("planner_experience_summary", prompt)
+        self.assertIn("Historical success", prompt)
+        self.assertIn("Historical caution", prompt)
 
 
 class TestLlmRoundConstraints(unittest.TestCase):

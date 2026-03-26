@@ -247,6 +247,7 @@ def build_source_blind_multistep_planner_prompt(
     request_kind: str,
     replan_context: dict | None,
     resolved_provider: str,
+    planner_experience_context: dict | None = None,
 ) -> tuple[str, dict]:
     """Build (prompt_text, planner_contract) for plan/replan LLM requests."""
     from .agent_modelica_repair_action_policy_v0 import build_multistep_llm_plan_prompt_hints_v1
@@ -271,6 +272,27 @@ def build_source_blind_multistep_planner_prompt(
         replan_count=int((replan_context or {}).get("replan_count_before") or 0),
         guided_search_observation_available=bool((replan_context or {}).get("guided_search_observation")),
     )
+    planner_experience_block = ""
+    planner_experience_summary = {
+        "used": False,
+        "positive_hint_count": 0,
+        "caution_hint_count": 0,
+        "prompt_token_estimate": 0,
+        "truncated": False,
+    }
+    if isinstance(planner_experience_context, dict) and planner_experience_context:
+        planner_experience_summary = {
+            "used": bool(planner_experience_context.get("used")),
+            "positive_hint_count": int(planner_experience_context.get("positive_hint_count") or 0),
+            "caution_hint_count": int(planner_experience_context.get("caution_hint_count") or 0),
+            "prompt_token_estimate": int(planner_experience_context.get("prompt_token_estimate") or 0),
+            "truncated": bool(planner_experience_context.get("truncated")),
+        }
+        if bool(planner_experience_context.get("used")):
+            planner_experience_block = (
+                "Planner experience hints below are advisory only; prefer current diagnostic evidence when they conflict.\n"
+                f"{str(planner_experience_context.get('prompt_context_text') or '').strip()}\n"
+            )
     prompt = (
         "You are planning a Modelica repair.\n"
         "Return ONLY a JSON object with keys:\n"
@@ -281,6 +303,7 @@ def build_source_blind_multistep_planner_prompt(
         "- candidate_value_directions should describe small-step directions like increase/decrease/normalize.\n"
         f"- planner_contract: {json.dumps(planner_contract, ensure_ascii=True)}\n"
         f"- prompt_hints: {json.dumps(prompt_hints, ensure_ascii=True)}\n"
+        f"- planner_experience_summary: {json.dumps(planner_experience_summary, ensure_ascii=True)}\n"
         f"- expected_stage: {expected_stage}\n"
         f"- current_round: {current_round}\n"
         f"- previous_branch: {str((replan_context or {}).get('previous_branch') or '')}\n"
@@ -294,6 +317,7 @@ def build_source_blind_multistep_planner_prompt(
         f"- replan_budget_for_resolution_hint: {int((replan_context or {}).get('replan_budget_for_resolution') or 0)}\n"
         f"- suggested_actions: {json.dumps(repair_actions, ensure_ascii=True)}\n"
         f"- error_excerpt: {error_excerpt[:1200]}\n"
+        f"{planner_experience_block}"
         "Model text below:\n"
         "-----BEGIN_MODEL-----\n"
         f"{original_text}\n"
@@ -522,6 +546,7 @@ def llm_generate_repair_plan(
     llm_reason: str,
     request_kind: str = "plan",
     replan_context: dict | None = None,
+    planner_experience_context: dict | None = None,
 ) -> tuple[dict | None, str, str]:
     """Generate a structured repair plan (or replan) via LLM.
 
@@ -550,6 +575,7 @@ def llm_generate_repair_plan(
         request_kind=request_kind,
         replan_context=replan_context,
         resolved_provider=provider,
+        planner_experience_context=planner_experience_context,
     )
     text, err = send_with_budget(adapter, prompt, config)
     if err:

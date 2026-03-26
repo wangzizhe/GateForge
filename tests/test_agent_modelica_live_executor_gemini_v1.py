@@ -2136,6 +2136,10 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
                     "rule",
                     "--experience-replay",
                     "on",
+                    "--planner-experience-injection",
+                    "on",
+                    "--planner-experience-max-tokens",
+                    "120",
                     "--experience-source",
                     str(experience_path),
                     "--max-rounds",
@@ -2156,8 +2160,17 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
 
             payload = json.loads(out_path.read_text(encoding="utf-8"))
             replay = payload.get("experience_replay") if isinstance(payload.get("experience_replay"), dict) else {}
+            planner_injection = (
+                payload.get("planner_experience_injection")
+                if isinstance(payload.get("planner_experience_injection"), dict)
+                else {}
+            )
             self.assertTrue(bool(replay.get("enabled")))
             self.assertTrue(bool(replay.get("used")))
+            self.assertTrue(bool(planner_injection.get("enabled")))
+            self.assertFalse(bool(planner_injection.get("used")))
+            self.assertEqual(str(planner_injection.get("injection_reason") or ""), "planner_experience_not_invoked")
+            self.assertEqual(str(planner_injection.get("source") or ""), str(experience_path))
             self.assertEqual((replay.get("default_rule_order") or [None])[0], "rule_parse_error_pre_repair")
             self.assertEqual((replay.get("reordered_rule_order") or [None])[0], "rule_multi_round_layered_repair")
             first_attempt = (payload.get("attempts") or [])[0]

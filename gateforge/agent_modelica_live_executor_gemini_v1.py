@@ -128,6 +128,9 @@ from .agent_modelica_experience_replay_v1 import (
     build_rule_priority_context as _build_rule_priority_context,
     summarize_signal_coverage as _summarize_signal_coverage,
 )
+from .agent_modelica_planner_experience_context_v1 import (
+    build_planner_experience_context as _build_planner_experience_context,
+)
 from .agent_modelica_repair_quality_score_v1 import compute_repair_quality_breakdown as _compute_repair_quality_breakdown
 from .llm_budget import (
     _IN_MEMORY_LIVE_LEDGER,
@@ -474,6 +477,8 @@ def _parse_main_args() -> argparse.Namespace:
     parser.add_argument("--planner-backend", choices=["auto", "gemini", "openai", "rule"], default="auto")
     parser.add_argument("--experience-replay", choices=["on", "off"], default="off")
     parser.add_argument("--experience-source", default="")
+    parser.add_argument("--planner-experience-injection", choices=["on", "off"], default="off")
+    parser.add_argument("--planner-experience-max-tokens", type=int, default=400)
     parser.add_argument("--extra-model-load", action="append", default=[], dest="extra_model_loads",
                         help="Extra Modelica package to loadModel() before the repair file (repeatable). "
                              "E.g. --extra-model-load AixLib for AixLib-based models.")
@@ -501,6 +506,7 @@ def _build_final_payload(
     backend: str,
     budget_cfg: dict,
     experience_replay_summary: dict | None = None,
+    planner_experience_summary: dict | None = None,
 ) -> dict:
     """Assemble the final output payload from accumulated round-loop state.
 
@@ -729,6 +735,7 @@ def _build_final_payload(
         "executor_status": executor_status,
         "planner_backend": str(args.planner_backend),
         "experience_replay": dict(experience_replay_summary or {}),
+        "planner_experience_injection": dict(planner_experience_summary or {}),
         "resolved_llm_provider": resolved_provider,
         "backend_used": backend,
         "uses_external_library": bool(layout.uses_external_library) if layout is not None else False,
@@ -1025,7 +1032,10 @@ def main() -> None:
     rule_registry = _build_default_rule_registry()
     default_rule_order = [str(rule.rule_id or "") for rule in rule_registry.rules]
     experience_payload = {}
-    if str(args.experience_replay) == "on" and str(args.experience_source or "").strip():
+    if (
+        str(args.experience_replay) == "on"
+        or str(args.planner_experience_injection) == "on"
+    ) and str(args.experience_source or "").strip():
         experience_payload = _load_json(Path(str(args.experience_source)))
     if isinstance(experience_payload, dict) and experience_payload:
         experience_coverage = _summarize_signal_coverage(experience_payload)
@@ -1045,6 +1055,21 @@ def main() -> None:
         "default_rule_order": list(default_rule_order),
         "reordered_rule_order": list(default_rule_order),
         "priority_reason": "experience_replay_disabled" if str(args.experience_replay) != "on" else "no_experience_source",
+    }
+    planner_experience_summary = {
+        "enabled": bool(str(args.planner_experience_injection) == "on"),
+        "source": str(args.experience_source or ""),
+        "used": False,
+        "positive_hint_count": 0,
+        "caution_hint_count": 0,
+        "prompt_token_estimate": 0,
+        "max_context_tokens": int(args.planner_experience_max_tokens or 0),
+        "truncated": False,
+        "injection_reason": (
+            "planner_experience_injection_disabled"
+            if str(args.planner_experience_injection) != "on"
+            else ("planner_experience_not_invoked" if isinstance(experience_payload, dict) and experience_payload else "no_experience_source")
+        ),
     }
 
     with _temporary_workspace(prefix="gf_live_exec_") as td:
@@ -1812,6 +1837,56 @@ def main() -> None:
                     if llm_request_kind == "replan":
                         attempts[-1]["guided_search_replan_after_observation"] = True
                         multistep_memory["guided_search_replan_after_observation"] = True
+                planner_experience_context = {}
+                if (
+                    bool(str(args.planner_experience_injection) == "on")
+                    and isinstance(experience_payload, dict)
+                    and experience_payload
+                ):
+                    planner_experience_context = _build_planner_experience_context(
+                        experience_payload,
+                        failure_type=str(args.failure_type),
+                        error_subtype=str(diagnostic.get("error_subtype") or ""),
+                        max_context_tokens=int(args.planner_experience_max_tokens or 400),
+                    )
+                    planner_injection_reason = (
+                        "planner_experience_context_injected"
+                        if bool(planner_experience_context.get("used"))
+                        else "no_matching_planner_experience_hints"
+                    )
+                    attempts[-1]["planner_experience_injection"] = {
+                        "enabled": True,
+                        "used": bool(planner_experience_context.get("used")),
+                        "source": str(args.experience_source or ""),
+                        "positive_hint_count": int(planner_experience_context.get("positive_hint_count") or 0),
+                        "caution_hint_count": int(planner_experience_context.get("caution_hint_count") or 0),
+                        "prompt_token_estimate": int(planner_experience_context.get("prompt_token_estimate") or 0),
+                        "max_context_tokens": int(args.planner_experience_max_tokens or 0),
+                        "truncated": bool(planner_experience_context.get("truncated")),
+                        "injection_reason": planner_injection_reason,
+                    }
+                    planner_experience_summary.update(
+                        {
+                            "used": bool(planner_experience_context.get("used")),
+                            "positive_hint_count": int(planner_experience_context.get("positive_hint_count") or 0),
+                            "caution_hint_count": int(planner_experience_context.get("caution_hint_count") or 0),
+                            "prompt_token_estimate": int(planner_experience_context.get("prompt_token_estimate") or 0),
+                            "truncated": bool(planner_experience_context.get("truncated")),
+                            "injection_reason": planner_injection_reason,
+                        }
+                    )
+                else:
+                    attempts[-1]["planner_experience_injection"] = {
+                        "enabled": bool(str(args.planner_experience_injection) == "on"),
+                        "used": False,
+                        "source": str(args.experience_source or ""),
+                        "positive_hint_count": 0,
+                        "caution_hint_count": 0,
+                        "prompt_token_estimate": 0,
+                        "max_context_tokens": int(args.planner_experience_max_tokens or 0),
+                        "truncated": False,
+                        "injection_reason": str(planner_experience_summary.get("injection_reason") or ""),
+                    }
                 llm_request_count_before = int(_load_live_ledger(budget_cfg).get("request_count") or 0)
                 llm_plan_payload, llm_err, resolved_provider = _llm_generate_repair_plan(
                     planner_backend=str(args.planner_backend),
@@ -1837,6 +1912,7 @@ def main() -> None:
                         "replan_budget_for_branch_escape": int(replan_budget_context.get("replan_budget_for_branch_escape") or 0),
                         "replan_budget_for_resolution": int(replan_budget_context.get("replan_budget_for_resolution") or 0),
                     },
+                    planner_experience_context=planner_experience_context,
                 )
                 llm_request_count_after = int(_load_live_ledger(budget_cfg).get("request_count") or 0)
                 llm_request_delta = max(0, llm_request_count_after - llm_request_count_before)
@@ -2276,6 +2352,7 @@ def main() -> None:
         backend=backend,
         budget_cfg=budget_cfg,
         experience_replay_summary=experience_replay_summary,
+        planner_experience_summary=planner_experience_summary,
     )
     if str(args.out).strip():
         out = Path(args.out)
