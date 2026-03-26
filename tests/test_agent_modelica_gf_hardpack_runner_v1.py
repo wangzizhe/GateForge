@@ -80,6 +80,48 @@ class TestRunBatchPreflight(unittest.TestCase):
         self.assertEqual(payload["status"], "FAIL")
         self.assertEqual(payload["error"], "hardpack_incomplete")
 
+    def test_run_batch_forwards_experience_replay_flags(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / ".git").mkdir()
+            mutated = root / "artifacts" / "ok.mo"
+            mutated.parent.mkdir(parents=True, exist_ok=True)
+            mutated.write_text("model Ok end Ok;", encoding="utf-8")
+            pack = root / "benchmarks" / "private" / "pack.json"
+            _write_pack(
+                pack,
+                [{"mutation_id": "ok", "mutated_model_path": "artifacts/ok.mo"}],
+            )
+            out = root / "out.json"
+
+            with mock.patch(
+                "gateforge.agent_modelica_gf_hardpack_runner_v1._run_one_case",
+                return_value={
+                    "mutation_id": "ok",
+                    "target_scale": "",
+                    "expected_failure_type": "",
+                    "success": True,
+                    "executor_status": "PASS",
+                    "elapsed_sec": 1.0,
+                    "error": None,
+                },
+            ) as run_one_case:
+                summary = run_batch(
+                    str(pack),
+                    out_path=str(out),
+                    experience_replay="on",
+                    experience_source="artifacts/replay.json",
+                )
+                payload = json.loads(out.read_text(encoding="utf-8"))
+
+        self.assertEqual(summary["experience_replay"], "on")
+        self.assertEqual(summary["experience_source"], "artifacts/replay.json")
+        self.assertEqual(payload["experience_replay"], "on")
+        self.assertEqual(payload["experience_source"], "artifacts/replay.json")
+        _, kwargs = run_one_case.call_args
+        self.assertEqual(kwargs["experience_replay"], "on")
+        self.assertEqual(kwargs["experience_source"], "artifacts/replay.json")
+
 
 if __name__ == "__main__":
     unittest.main()

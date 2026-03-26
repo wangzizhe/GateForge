@@ -120,6 +120,8 @@ def _run_one_case(
     max_rounds: int,
     timeout_sec: int,
     extra_model_loads: list[str] | None = None,
+    experience_replay: str = "off",
+    experience_source: str = "",
 ) -> dict:
     """Run the GateForge executor on a single hardpack case.
 
@@ -171,6 +173,10 @@ def _run_one_case(
             "--timeout-sec", str(timeout_sec),
             "--out", out_path,
         ]
+        if str(experience_replay or "off") == "on":
+            cmd += ["--experience-replay", "on"]
+        if str(experience_source or "").strip():
+            cmd += ["--experience-source", str(experience_source)]
         if source_model_path and Path(source_model_path).exists():
             cmd += ["--source-model-path", source_model_path]
         for m in extra_model_loads or []:
@@ -281,6 +287,8 @@ def run_batch(
     max_cases: int = 0,
     out_path: str = "",
     allow_missing_files: bool = False,
+    experience_replay: str = "off",
+    experience_source: str = "",
 ) -> dict:
     """Run GateForge executor on all hardpack cases and return summary dict."""
     cases, extra_model_loads = _load_hardpack(pack_path, max_cases)
@@ -293,6 +301,8 @@ def run_batch(
             "error": "hardpack_incomplete",
             "pack_path": pack_path,
             "planner_backend": planner_backend,
+            "experience_replay": str(experience_replay or "off"),
+            "experience_source": str(experience_source or ""),
             "max_rounds": max_rounds,
             "timeout_sec": timeout_sec,
             "pack_validation": pack_validation,
@@ -321,7 +331,9 @@ def run_batch(
         mid = case.get("mutation_id", f"case_{i}")
         print(f"[GF-batch] [{i}/{total}] {mid} ...", end=" ", file=sys.stderr, flush=True)
         r = _run_one_case(case, pack_path, docker_image, planner_backend, max_rounds, timeout_sec,
-                          extra_model_loads=extra_model_loads)
+                          extra_model_loads=extra_model_loads,
+                          experience_replay=str(experience_replay or "off"),
+                          experience_source=str(experience_source or ""))
         results.append(r)
         status_str = "OK" if r["success"] else f"FAIL({r.get('error') or r.get('executor_status')})"
         print(f"{status_str} ({r['elapsed_sec']:.1f}s)", file=sys.stderr)
@@ -338,6 +350,8 @@ def run_batch(
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
         "pack_path": pack_path,
         "planner_backend": planner_backend,
+        "experience_replay": str(experience_replay or "off"),
+        "experience_source": str(experience_source or ""),
         "max_rounds": max_rounds,
         "timeout_sec": timeout_sec,
         "pack_validation": pack_validation,
@@ -364,6 +378,8 @@ def main() -> None:
     parser.add_argument("--max-rounds", type=int, default=8)
     parser.add_argument("--timeout-sec", type=int, default=300)
     parser.add_argument("--max-cases", type=int, default=0, help="Cap cases (0 = all)")
+    parser.add_argument("--experience-replay", choices=["on", "off"], default="off")
+    parser.add_argument("--experience-source", default="")
     parser.add_argument("--out", default="", help="Output JSON path")
     parser.add_argument(
         "--allow-missing-files",
@@ -381,6 +397,8 @@ def main() -> None:
         max_cases=args.max_cases,
         out_path=args.out,
         allow_missing_files=args.allow_missing_files,
+        experience_replay=str(args.experience_replay or "off"),
+        experience_source=str(args.experience_source or ""),
     )
     print(json.dumps({
         "status": summary.get("status", "OK"),
