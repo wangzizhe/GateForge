@@ -123,6 +123,48 @@ class TestRunBatchPreflight(unittest.TestCase):
         self.assertEqual(kwargs["experience_replay"], "on")
         self.assertEqual(kwargs["experience_source"], "artifacts/replay.json")
 
+    def test_run_batch_forwards_planner_experience_flags(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / ".git").mkdir()
+            mutated = root / "artifacts" / "ok.mo"
+            mutated.parent.mkdir(parents=True, exist_ok=True)
+            mutated.write_text("model Ok end Ok;", encoding="utf-8")
+            pack = root / "benchmarks" / "private" / "pack.json"
+            _write_pack(
+                pack,
+                [{"mutation_id": "ok", "mutated_model_path": "artifacts/ok.mo"}],
+            )
+            out = root / "out.json"
+
+            with mock.patch(
+                "gateforge.agent_modelica_gf_hardpack_runner_v1._run_one_case",
+                return_value={
+                    "mutation_id": "ok",
+                    "target_scale": "",
+                    "expected_failure_type": "",
+                    "success": True,
+                    "executor_status": "PASS",
+                    "elapsed_sec": 1.0,
+                    "error": None,
+                },
+            ) as run_one_case:
+                summary = run_batch(
+                    str(pack),
+                    out_path=str(out),
+                    planner_experience_injection="on",
+                    planner_experience_max_tokens=320,
+                )
+                payload = json.loads(out.read_text(encoding="utf-8"))
+
+        self.assertEqual(summary["planner_experience_injection"], "on")
+        self.assertEqual(int(summary["planner_experience_max_tokens"] or 0), 320)
+        self.assertEqual(payload["planner_experience_injection"], "on")
+        self.assertEqual(int(payload["planner_experience_max_tokens"] or 0), 320)
+        _, kwargs = run_one_case.call_args
+        self.assertEqual(kwargs["planner_experience_injection"], "on")
+        self.assertEqual(int(kwargs["planner_experience_max_tokens"] or 0), 320)
+
     def test_run_batch_preserves_replay_diagnostics(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

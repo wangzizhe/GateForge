@@ -122,6 +122,8 @@ def _run_one_case(
     extra_model_loads: list[str] | None = None,
     experience_replay: str = "off",
     experience_source: str = "",
+    planner_experience_injection: str = "off",
+    planner_experience_max_tokens: int = 400,
 ) -> dict:
     """Run the GateForge executor on a single hardpack case.
 
@@ -177,6 +179,10 @@ def _run_one_case(
             cmd += ["--experience-replay", "on"]
         if str(experience_source or "").strip():
             cmd += ["--experience-source", str(experience_source)]
+        if str(planner_experience_injection or "off") == "on":
+            cmd += ["--planner-experience-injection", "on"]
+        if int(planner_experience_max_tokens or 0) > 0:
+            cmd += ["--planner-experience-max-tokens", str(int(planner_experience_max_tokens))]
         if source_model_path and Path(source_model_path).exists():
             cmd += ["--source-model-path", source_model_path]
         for m in extra_model_loads or []:
@@ -290,6 +296,8 @@ def run_batch(
     allow_missing_files: bool = False,
     experience_replay: str = "off",
     experience_source: str = "",
+    planner_experience_injection: str = "off",
+    planner_experience_max_tokens: int = 400,
 ) -> dict:
     """Run GateForge executor on all hardpack cases and return summary dict."""
     cases, extra_model_loads = _load_hardpack(pack_path, max_cases)
@@ -304,6 +312,8 @@ def run_batch(
             "planner_backend": planner_backend,
             "experience_replay": str(experience_replay or "off"),
             "experience_source": str(experience_source or ""),
+            "planner_experience_injection": str(planner_experience_injection or "off"),
+            "planner_experience_max_tokens": int(planner_experience_max_tokens or 0),
             "max_rounds": max_rounds,
             "timeout_sec": timeout_sec,
             "pack_validation": pack_validation,
@@ -334,7 +344,9 @@ def run_batch(
         r = _run_one_case(case, pack_path, docker_image, planner_backend, max_rounds, timeout_sec,
                           extra_model_loads=extra_model_loads,
                           experience_replay=str(experience_replay or "off"),
-                          experience_source=str(experience_source or ""))
+                          experience_source=str(experience_source or ""),
+                          planner_experience_injection=str(planner_experience_injection or "off"),
+                          planner_experience_max_tokens=int(planner_experience_max_tokens or 0))
         results.append(r)
         status_str = "OK" if r["success"] else f"FAIL({r.get('error') or r.get('executor_status')})"
         print(f"{status_str} ({r['elapsed_sec']:.1f}s)", file=sys.stderr)
@@ -353,6 +365,8 @@ def run_batch(
         "planner_backend": planner_backend,
         "experience_replay": str(experience_replay or "off"),
         "experience_source": str(experience_source or ""),
+        "planner_experience_injection": str(planner_experience_injection or "off"),
+        "planner_experience_max_tokens": int(planner_experience_max_tokens or 0),
         "max_rounds": max_rounds,
         "timeout_sec": timeout_sec,
         "pack_validation": pack_validation,
@@ -381,6 +395,8 @@ def main() -> None:
     parser.add_argument("--max-cases", type=int, default=0, help="Cap cases (0 = all)")
     parser.add_argument("--experience-replay", choices=["on", "off"], default="off")
     parser.add_argument("--experience-source", default="")
+    parser.add_argument("--planner-experience-injection", choices=["on", "off"], default="off")
+    parser.add_argument("--planner-experience-max-tokens", type=int, default=400)
     parser.add_argument("--out", default="", help="Output JSON path")
     parser.add_argument(
         "--allow-missing-files",
@@ -400,6 +416,8 @@ def main() -> None:
         allow_missing_files=args.allow_missing_files,
         experience_replay=str(args.experience_replay or "off"),
         experience_source=str(args.experience_source or ""),
+        planner_experience_injection=str(args.planner_experience_injection or "off"),
+        planner_experience_max_tokens=int(args.planner_experience_max_tokens or 0),
     )
     print(json.dumps({
         "status": summary.get("status", "OK"),
