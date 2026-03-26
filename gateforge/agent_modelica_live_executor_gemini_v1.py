@@ -124,6 +124,10 @@ from .agent_modelica_l2_plan_replan_engine_v1 import (
     send_with_budget as _send_with_budget,
 )
 from .agent_modelica_experience_writer_v1 import build_experience_record as _build_experience_record
+from .agent_modelica_experience_replay_v1 import (
+    build_rule_priority_context as _build_rule_priority_context,
+    summarize_signal_coverage as _summarize_signal_coverage,
+)
 from .agent_modelica_repair_quality_score_v1 import compute_repair_quality_breakdown as _compute_repair_quality_breakdown
 from .llm_budget import (
     _IN_MEMORY_LIVE_LEDGER,
@@ -468,6 +472,8 @@ def _parse_main_args() -> argparse.Namespace:
     parser.add_argument("--backend", choices=["auto", "omc", "openmodelica_docker"], default="auto")
     parser.add_argument("--docker-image", default=os.getenv("GATEFORGE_OM_IMAGE", DEFAULT_DOCKER_IMAGE))
     parser.add_argument("--planner-backend", choices=["auto", "gemini", "openai", "rule"], default="auto")
+    parser.add_argument("--experience-replay", choices=["on", "off"], default="off")
+    parser.add_argument("--experience-source", default="")
     parser.add_argument("--extra-model-load", action="append", default=[], dest="extra_model_loads",
                         help="Extra Modelica package to loadModel() before the repair file (repeatable). "
                              "E.g. --extra-model-load AixLib for AixLib-based models.")
@@ -494,6 +500,7 @@ def _build_final_payload(
     resolved_provider: str,
     backend: str,
     budget_cfg: dict,
+    experience_replay_summary: dict | None = None,
 ) -> dict:
     """Assemble the final output payload from accumulated round-loop state.
 
@@ -721,6 +728,7 @@ def _build_final_payload(
         "llm_forcing_profile": str(llm_markers.get("llm_profile") or ""),
         "executor_status": executor_status,
         "planner_backend": str(args.planner_backend),
+        "experience_replay": dict(experience_replay_summary or {}),
         "resolved_llm_provider": resolved_provider,
         "backend_used": backend,
         "uses_external_library": bool(layout.uses_external_library) if layout is not None else False,
@@ -1015,6 +1023,29 @@ def main() -> None:
     budget_cfg = _live_budget_config()
     resolved_provider = "rule" if str(args.planner_backend) == "rule" else _resolve_llm_provider(str(args.planner_backend))[0]
     rule_registry = _build_default_rule_registry()
+    default_rule_order = [str(rule.rule_id or "") for rule in rule_registry.rules]
+    experience_payload = {}
+    if str(args.experience_replay) == "on" and str(args.experience_source or "").strip():
+        experience_payload = _load_json(Path(str(args.experience_source)))
+    if isinstance(experience_payload, dict) and experience_payload:
+        experience_coverage = _summarize_signal_coverage(experience_payload)
+    else:
+        experience_coverage = {
+            "signal_coverage_status": "no_experience_source",
+            "replay_eligible_action_count": 0,
+            "replay_eligible_trigger_rate_pct": 0.0,
+        }
+    experience_replay_summary = {
+        "enabled": bool(str(args.experience_replay) == "on"),
+        "source": str(args.experience_source or ""),
+        "used": False,
+        "signal_coverage_status": str(experience_coverage.get("signal_coverage_status") or ""),
+        "replay_eligible_action_count": int(experience_coverage.get("replay_eligible_action_count") or 0),
+        "replay_eligible_trigger_rate_pct": float(experience_coverage.get("replay_eligible_trigger_rate_pct") or 0.0),
+        "default_rule_order": list(default_rule_order),
+        "reordered_rule_order": list(default_rule_order),
+        "priority_reason": "experience_replay_disabled" if str(args.experience_replay) != "on" else "no_experience_source",
+    }
 
     with _temporary_workspace(prefix="gf_live_exec_") as td:
         workspace = Path(td)
@@ -1216,6 +1247,48 @@ def main() -> None:
             if round_idx >= max(1, int(args.max_rounds)):
                 break
 
+            priority_context = None
+            reordered_rule_order = list(default_rule_order)
+            priority_reason = "no_priority_context"
+            if bool(str(args.experience_replay) == "on") and isinstance(experience_payload, dict) and experience_payload:
+                priority_context = _build_rule_priority_context(
+                    experience_payload,
+                    failure_type=str(args.failure_type),
+                    error_subtype=str(diagnostic.get("error_subtype") or ""),
+                )
+                recommended = priority_context.get("recommended_rule_order") if isinstance(priority_context, dict) else []
+                recommended = [str(rule_id or "") for rule_id in recommended if str(rule_id or "").strip()]
+                resolved_rules = rule_registry.resolve_rule_order(priority_context)
+                reordered_rule_order = [str(rule.rule_id or "") for rule in resolved_rules]
+                if recommended:
+                    priority_reason = "rules_reordered_by_experience" if reordered_rule_order != default_rule_order else "experience_replay_no_order_change"
+                else:
+                    priority_reason = str((priority_context or {}).get("coverage", {}).get("signal_coverage_status") or "no_replay_signal")
+                attempts[-1]["experience_replay"] = {
+                    "enabled": True,
+                    "used": bool(recommended),
+                    "source": str(args.experience_source or ""),
+                    "signal_coverage_status": str((priority_context or {}).get("coverage", {}).get("signal_coverage_status") or ""),
+                    "default_rule_order": list(default_rule_order),
+                    "reordered_rule_order": list(reordered_rule_order),
+                    "recommended_rule_order": list(recommended),
+                    "priority_reason": priority_reason,
+                }
+                experience_replay_summary["used"] = bool(recommended)
+                experience_replay_summary["reordered_rule_order"] = list(reordered_rule_order)
+                experience_replay_summary["priority_reason"] = priority_reason
+            else:
+                attempts[-1]["experience_replay"] = {
+                    "enabled": bool(str(args.experience_replay) == "on"),
+                    "used": False,
+                    "source": str(args.experience_source or ""),
+                    "signal_coverage_status": str(experience_replay_summary.get("signal_coverage_status") or ""),
+                    "default_rule_order": list(default_rule_order),
+                    "reordered_rule_order": list(default_rule_order),
+                    "recommended_rule_order": [],
+                    "priority_reason": str(experience_replay_summary.get("priority_reason") or ""),
+                }
+
             rule_results = rule_registry.try_repairs(
                 _RuleContext(
                     current_text=current_text,
@@ -1225,7 +1298,8 @@ def main() -> None:
                     observed_failure_type=ftype,
                     current_round=round_idx,
                     failure_bucket_before=str(final_error or ""),
-                )
+                ),
+                priority_context=priority_context,
             )
             applied_rule_result = None
             for rule_result in rule_results:
@@ -2201,6 +2275,7 @@ def main() -> None:
         resolved_provider=resolved_provider,
         backend=backend,
         budget_cfg=budget_cfg,
+        experience_replay_summary=experience_replay_summary,
     )
     if str(args.out).strip():
         out = Path(args.out)

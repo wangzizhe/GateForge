@@ -2063,6 +2063,109 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
             self.assertEqual(pre_repair.get("rule_id"), "rule_parse_error_pre_repair")
             self.assertEqual(pre_repair.get("action_key"), "repair|parse_error_pre_repair|rule_engine_v1")
             self.assertEqual(pre_repair.get("rule_tier"), "domain_general_rule")
+
+    def test_main_emits_experience_replay_order_when_enabled(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="gf_live_exec_replay_") as td:
+            root = Path(td)
+            model_path = root / "Demo.mo"
+            out_path = root / "out.json"
+            experience_path = root / "experience.json"
+            model_path.write_text(
+                "model Demo\n"
+                "  Real x;\n"
+                "  Real __gf_state_17(start=0.0);\n"
+                "equation\n"
+                "  der(__gf_state_17) = x;\n"
+                "end Demo;\n",
+                encoding="utf-8",
+            )
+            experience_path.write_text(
+                json.dumps(
+                    {
+                        "records": [
+                            {
+                                "task_id": "exp-1",
+                                "failure_type": "script_parse_error",
+                                "repair_quality_score": 0.95,
+                                "action_contributions": [
+                                    {
+                                        "rule_id": "rule_multi_round_layered_repair",
+                                        "action_key": "repair|multi_round_layered_repair|rule_engine_v1",
+                                        "rule_tier": "domain_general_rule",
+                                        "replay_eligible": True,
+                                        "failure_type": "script_parse_error",
+                                        "contribution": "advancing",
+                                    },
+                                    {
+                                        "rule_id": "rule_parse_error_pre_repair",
+                                        "action_key": "repair|parse_error_pre_repair|rule_engine_v1",
+                                        "rule_tier": "domain_general_rule",
+                                        "replay_eligible": True,
+                                        "failure_type": "script_parse_error",
+                                        "contribution": "neutral",
+                                    },
+                                ],
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            run_side_effects = [
+                (1, "Error: No viable alternative near token __gf_state_17", False, False),
+                (0, "Check of Demo completed successfully.\nrecord SimulationResult\nresultFile = \"/tmp/demo.mat\"", True, True),
+            ]
+            diagnostic_side_effects = [
+                {"error_type": "script_parse_error", "error_subtype": "parse_lexer_error", "reason": "parse_failed"},
+                {"error_type": "none", "reason": ""},
+            ]
+
+            with patch.object(
+                sys,
+                "argv",
+                [
+                    "agent_modelica_live_executor_gemini_v1",
+                    "--task-id",
+                    "replay-demo",
+                    "--mutated-model-path",
+                    str(model_path),
+                    "--failure-type",
+                    "script_parse_error",
+                    "--planner-backend",
+                    "rule",
+                    "--experience-replay",
+                    "on",
+                    "--experience-source",
+                    str(experience_path),
+                    "--max-rounds",
+                    "2",
+                    "--backend",
+                    "omc",
+                    "--out",
+                    str(out_path),
+                ],
+            ), patch(
+                "gateforge.agent_modelica_live_executor_gemini_v1._run_check_and_simulate",
+                side_effect=run_side_effects,
+            ), patch(
+                "gateforge.agent_modelica_live_executor_gemini_v1.build_diagnostic_ir_v0",
+                side_effect=diagnostic_side_effects,
+            ), patch("builtins.print"):
+                _executor_module.main()
+
+            payload = json.loads(out_path.read_text(encoding="utf-8"))
+            replay = payload.get("experience_replay") if isinstance(payload.get("experience_replay"), dict) else {}
+            self.assertTrue(bool(replay.get("enabled")))
+            self.assertTrue(bool(replay.get("used")))
+            self.assertEqual((replay.get("default_rule_order") or [None])[0], "rule_parse_error_pre_repair")
+            self.assertEqual((replay.get("reordered_rule_order") or [None])[0], "rule_multi_round_layered_repair")
+            first_attempt = (payload.get("attempts") or [])[0]
+            pre_repair = first_attempt.get("pre_repair")
+            self.assertIsInstance(pre_repair, dict)
+            attempt_replay = first_attempt.get("experience_replay") if isinstance(first_attempt.get("experience_replay"), dict) else {}
+            self.assertEqual((attempt_replay.get("recommended_rule_order") or [None])[0], "rule_multi_round_layered_repair")
+            self.assertEqual(str(attempt_replay.get("priority_reason") or ""), "rules_reordered_by_experience")
             self.assertTrue(bool(pre_repair.get("replay_eligible")))
             self.assertEqual(pre_repair.get("failure_bucket_after"), "retry_pending")
             self.assertEqual(pre_repair.get("rounds_consumed"), 1)

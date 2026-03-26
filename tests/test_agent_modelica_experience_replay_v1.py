@@ -115,6 +115,11 @@ class AgentModelicaExperienceReplayV1Tests(unittest.TestCase):
         )
         self.assertEqual(context.get("recommended_rule_order"), [])
 
+    def test_build_rule_priority_context_supports_repair_memory_payload_shape(self) -> None:
+        payload = {"experience_records": self._experience_payload()["records"]}
+        context = build_rule_priority_context(payload, failure_type="model_check_error", min_quality_score=0.6)
+        self.assertEqual((context.get("recommended_rule_order") or [None])[0], "rule_parse_error_pre_repair")
+
     def test_cli_writes_priority_context(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)

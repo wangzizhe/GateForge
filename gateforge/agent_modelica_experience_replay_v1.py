@@ -28,6 +28,8 @@ def _write_json(path: str, payload: object) -> None:
 
 def _experience_records(payload: dict) -> list[dict]:
     records = payload.get("records") if isinstance(payload.get("records"), list) else []
+    if not records:
+        records = payload.get("experience_records") if isinstance(payload.get("experience_records"), list) else []
     return [row for row in records if isinstance(row, dict)]
 
 
