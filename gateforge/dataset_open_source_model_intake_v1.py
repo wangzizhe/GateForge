@@ -52,6 +52,29 @@ def _sha256_text(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
+def _looks_like_partial_model(candidate: dict) -> bool:
+    candidate_paths = [
+        str(candidate.get("local_path") or "").strip(),
+        str(candidate.get("source_library_model_path") or "").strip(),
+    ]
+    for raw_path in candidate_paths:
+        if not raw_path:
+            continue
+        path = Path(raw_path)
+        if not path.exists() or not path.is_file():
+            continue
+        try:
+            for line in path.read_text(encoding="utf-8", errors="ignore").splitlines()[:12]:
+                stripped = line.strip().lower()
+                if not stripped or stripped.startswith("//"):
+                    continue
+                if stripped.startswith("partial model "):
+                    return True
+        except Exception:
+            continue
+    return False
+
+
 def _decision(candidate: dict) -> tuple[str, list[str]]:
     reasons: list[str] = []
 
@@ -70,6 +93,9 @@ def _decision(candidate: dict) -> tuple[str, list[str]]:
     source = str(candidate.get("source_url") or candidate.get("source") or "").strip()
     if not source:
         reasons.append("source_missing")
+
+    if _looks_like_partial_model(candidate):
+        reasons.append("partial_model_not_runnable")
 
     if reasons:
         return "REJECT", reasons
