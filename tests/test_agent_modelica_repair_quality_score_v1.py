@@ -54,6 +54,22 @@ class AgentModelicaRepairQualityScoreV1Tests(unittest.TestCase):
         breakdown = compute_repair_quality_breakdown(payload)
         self.assertEqual(breakdown["repair_quality_score"], 0.0)
 
+    def test_passed_flag_and_hard_checks_count_as_success(self) -> None:
+        payload = {
+            "passed": True,
+            "hard_checks": {
+                "check_model_pass": True,
+                "simulate_pass": True,
+                "physics_contract_pass": True,
+                "regression_pass": True,
+            },
+            "rounds_used": 1,
+            "live_request_count": 1,
+        }
+        breakdown = compute_repair_quality_breakdown(payload)
+        self.assertTrue(breakdown["metrics"]["hard_success"])
+        self.assertGreater(breakdown["repair_quality_score"], 0.0)
+
 
 if __name__ == "__main__":
     unittest.main()

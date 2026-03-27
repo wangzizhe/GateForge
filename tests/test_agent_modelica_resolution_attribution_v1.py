@@ -90,6 +90,25 @@ class AgentModelicaResolutionAttributionV1Tests(unittest.TestCase):
         self.assertTrue(payload["planner_decisive"])
         self.assertEqual(payload["planner_decisive_method"], "weak_supervision_proxy_heuristic")
 
+    def test_build_resolution_attribution_uses_passed_and_hard_checks(self) -> None:
+        payload = build_resolution_attribution(
+            {
+                "passed": True,
+                "hard_checks": {
+                    "check_model_pass": True,
+                    "simulate_pass": True,
+                    "physics_contract_pass": True,
+                    "regression_pass": True,
+                },
+                "llm_request_count_delta": 1,
+                "llm_plan_generated": True,
+                "llm_plan_used": True,
+            }
+        )
+        self.assertEqual(payload["resolution_path"], "llm_planner_assisted")
+        self.assertTrue(payload["planner_invoked"])
+        self.assertTrue(payload["planner_used"])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -14,6 +14,16 @@ def _attempts(run_result: dict) -> list[dict]:
 
 
 def _success(run_result: dict) -> bool:
+    if bool(run_result.get("passed")):
+        return True
+    hard_checks = run_result.get("hard_checks") if isinstance(run_result.get("hard_checks"), dict) else {}
+    if hard_checks:
+        return bool(
+            hard_checks.get("check_model_pass")
+            and hard_checks.get("simulate_pass")
+            and hard_checks.get("physics_contract_pass", True)
+            and hard_checks.get("regression_pass", True)
+        )
     return bool(
         run_result.get("check_model_pass")
         and run_result.get("simulate_pass")

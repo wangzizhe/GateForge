@@ -27,6 +27,16 @@ def _to_int(value: Any, default: int = 0) -> int:
 
 
 def _hard_success(run_result: dict) -> bool:
+    if bool(run_result.get("passed")):
+        return True
+    hard_checks = run_result.get("hard_checks") if isinstance(run_result.get("hard_checks"), dict) else {}
+    if hard_checks:
+        return bool(
+            hard_checks.get("check_model_pass")
+            and hard_checks.get("simulate_pass")
+            and hard_checks.get("physics_contract_pass", True)
+            and hard_checks.get("regression_pass", True)
+        )
     return bool(
         bool(run_result.get("check_model_pass"))
         and bool(run_result.get("simulate_pass"))
@@ -41,6 +51,9 @@ def _attempts(run_result: dict) -> list[dict]:
 
 
 def _rounds_used(run_result: dict) -> int:
+    explicit_rounds = _to_int(run_result.get("rounds_used"), 0)
+    if explicit_rounds > 0:
+        return explicit_rounds
     attempts = _attempts(run_result)
     for attempt in attempts:
         if bool(attempt.get("check_model_pass")) and bool(attempt.get("simulate_pass")):
@@ -113,4 +126,3 @@ def compute_repair_quality_breakdown(run_result: dict) -> dict:
             "hard_success": hard_success,
         },
     }
-
