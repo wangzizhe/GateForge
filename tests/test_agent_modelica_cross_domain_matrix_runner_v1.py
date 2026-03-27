@@ -54,10 +54,9 @@ class AgentModelicaCrossDomainMatrixRunnerV1Tests(unittest.TestCase):
     def test_run_matrix_requires_experience_source_for_non_baseline(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             out_dir = Path(d) / "matrix"
-            completed = subprocess.CompletedProcess(args=[], returncode=0, stdout="{}", stderr="")
             with mock.patch(
-                "gateforge.agent_modelica_cross_domain_matrix_runner_v1.subprocess.run",
-                return_value=completed,
+                "gateforge.agent_modelica_cross_domain_matrix_runner_v1._run",
+                return_value=(0, "{}", ""),
             ):
                 summary = run_matrix(
                     track_id="buildings_v1",
@@ -73,10 +72,9 @@ class AgentModelicaCrossDomainMatrixRunnerV1Tests(unittest.TestCase):
     def test_run_matrix_executes_runner_and_comparison(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             out_dir = Path(d) / "matrix"
-            completed = subprocess.CompletedProcess(args=[], returncode=0, stdout="{}", stderr="")
             with mock.patch(
-                "gateforge.agent_modelica_cross_domain_matrix_runner_v1.subprocess.run",
-                return_value=completed,
+                "gateforge.agent_modelica_cross_domain_matrix_runner_v1._run",
+                return_value=(0, "{}", ""),
             ) as run_mock:
                 summary = run_matrix(
                     track_id="buildings_v1",

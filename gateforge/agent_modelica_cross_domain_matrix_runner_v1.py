@@ -124,8 +124,22 @@ def build_config_commands(
 
 
 def _run(cmd: list[str]) -> tuple[int, str, str]:
-    proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
-    return int(proc.returncode), str(proc.stdout or ""), str(proc.stderr or "")
+    proc = subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+    )
+    combined_lines: list[str] = []
+    assert proc.stdout is not None
+    for line in proc.stdout:
+        combined_lines.append(line)
+        print(line, end="", file=sys.stderr)
+    proc.stdout.close()
+    proc.wait()
+    combined = "".join(combined_lines)
+    return int(proc.returncode), combined, ""
 
 
 def run_matrix(
@@ -157,7 +171,8 @@ def run_matrix(
 
     status = "PASS"
     config_rows: list[dict] = []
-    for row in rows:
+    total_configs = len(rows)
+    for idx, row in enumerate(rows, start=1):
         Path(row["gateforge_results"]).parent.mkdir(parents=True, exist_ok=True)
         Path(row["comparison_summary"]).parent.mkdir(parents=True, exist_ok=True)
         entry = {
@@ -180,6 +195,11 @@ def run_matrix(
                 config_rows.append(entry)
                 status = "FAIL"
                 break
+        print(
+            f"[Matrix] [{idx}/{total_configs}] {row['config_label']} runner "
+            f"(replay={row['experience_replay']}, planner={row['planner_experience_injection']})",
+            file=sys.stderr,
+        )
         rc1, stdout1, stderr1 = _run(row["runner_cmd"])
         entry["runner_exit_code"] = rc1
         entry["runner_stdout_tail"] = stdout1[-500:]
@@ -190,6 +210,7 @@ def run_matrix(
             config_rows.append(entry)
             status = "FAIL"
             break
+        print(f"[Matrix] [{idx}/{total_configs}] {row['config_label']} comparison", file=sys.stderr)
         rc2, stdout2, stderr2 = _run(row["comparison_cmd"])
         entry["comparison_exit_code"] = rc2
         entry["comparison_stdout_tail"] = stdout2[-500:]
@@ -200,6 +221,7 @@ def run_matrix(
             status = "FAIL"
             config_rows.append(entry)
             break
+        print(f"[Matrix] [{idx}/{total_configs}] {row['config_label']} PASS", file=sys.stderr)
         config_rows.append(entry)
 
     summary = {
