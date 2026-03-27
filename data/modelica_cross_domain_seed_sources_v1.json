@@ -53,8 +53,8 @@
       "license": "BSD-3-Clause",
       "scale_hint": "medium",
       "package_roots": [
-        "OpenIPSL/Tests/BaseClasses",
-        "OpenIPSL/Tests/Branches/PSAT"
+        "OpenIPSL/Tests/Branches/PSAT",
+        "OpenIPSL/Tests/Controls/PSAT/AVR"
       ]
     },
     {
@@ -65,7 +65,7 @@
       "scale_hint": "large",
       "package_roots": [
         "OpenIPSL/Examples/DAEMode/N44_Base_Case_Systems",
-        "OpenIPSL/Electrical/Machines/PSSE"
+        "OpenIPSL/Examples/Microgrids/UniversityCampus/CampusA"
       ]
     }
   ]
