@@ -186,6 +186,14 @@ def remove_gateforge_injected_symbol_block(model_text: str) -> tuple[str, int]:
     lines = str(model_text or "").splitlines(keepends=True)
     if not lines:
         return str(model_text or ""), 0
+
+    def _next_nonblank_line(idx: int) -> str:
+        for cursor in range(idx + 1, len(lines)):
+            text = lines[cursor].strip()
+            if text:
+                return text
+        return ""
+
     remove_idx: set[int] = set()
     for i, line in enumerate(lines):
         if "__gf_" in line:
@@ -197,16 +205,31 @@ def remove_gateforge_injected_symbol_block(model_text: str) -> tuple[str, int]:
                 if "GateForge mutation" in text:
                     remove_idx.add(j)
                 if text == "equation":
-                    remove_idx.add(j)
+                    previous_equation_exists = any(lines[k].strip() == "equation" for k in range(j))
+                    next_nonblank = _next_nonblank_line(j)
+                    if previous_equation_exists or "__gf_" in next_nonblank:
+                        remove_idx.add(j)
     if not remove_idx:
         return str(model_text or ""), 0
     kept = [line for idx, line in enumerate(lines) if idx not in remove_idx]
     return "".join(kept), len(remove_idx)
 
 
+def _has_parse_like_output(output: str) -> bool:
+    lower = str(output or "").lower()
+    parse_markers = (
+        "no viable alternative near token",
+        "lexer failed to recognize",
+        "compile/syntax error",
+        "parse error",
+    )
+    return any(marker in lower for marker in parse_markers)
+
+
 def apply_generic_parse_error_repair(model_text: str, output: str, failure_type: str) -> tuple[str, dict]:
     failure = str(failure_type or "").strip().lower()
     lower = str(output or "").lower()
+    parse_like_output = _has_parse_like_output(output)
 
     tokens: list[str] = []
     reason_prefix = ""
@@ -217,9 +240,8 @@ def apply_generic_parse_error_repair(model_text: str, output: str, failure_type:
         reason_prefix = "injected_state_tokens"
         if not tokens:
             return model_text, {"applied": False, "reason": "state_token_not_detected"}
-    elif failure == "model_check_error":
-        parse_markers = ("no viable alternative near token", "lexer failed to recognize")
-        if any(marker in lower for marker in parse_markers):
+    elif failure in {"model_check_error", "semantic_regression", "simulate_error"}:
+        if parse_like_output:
             state_tokens = extract_state_tokens_from_output(output)
             if not state_tokens and "__gf_state_" in str(model_text or ""):
                 state_tokens = sorted(set(re.findall(r"__gf_state_\d+", str(model_text or ""))))
@@ -227,8 +249,16 @@ def apply_generic_parse_error_repair(model_text: str, output: str, failure_type:
                 tokens = state_tokens
                 reason_prefix = "injected_state_tokens"
             else:
-                return model_text, {"applied": False, "reason": "state_token_not_detected"}
-        else:
+                tokens = extract_undef_tokens_from_output(output)
+                if not tokens and any(p in str(model_text or "") for p in ("__gf_undef_", "__gf_undeclared_")):
+                    tokens = sorted(set(
+                        re.findall(r"__gf_undef_\d+", str(model_text or ""))
+                        + re.findall(r"__gf_undeclared_\d+", str(model_text or ""))
+                    ))
+                reason_prefix = "injected_undef_tokens"
+                if not tokens:
+                    return model_text, {"applied": False, "reason": "parse_like_output_without_gf_token"}
+        elif failure == "model_check_error":
             tokens = extract_undef_tokens_from_output(output)
             if not tokens and any(p in str(model_text or "") for p in ("__gf_undef_", "__gf_undeclared_")):
                 tokens = sorted(set(
@@ -238,6 +268,8 @@ def apply_generic_parse_error_repair(model_text: str, output: str, failure_type:
             reason_prefix = "injected_undef_tokens"
             if not tokens:
                 return model_text, {"applied": False, "reason": "undef_token_not_detected"}
+        else:
+            return model_text, {"applied": False, "reason": "failure_type_not_supported_without_parse_like_output"}
     else:
         return model_text, {"applied": False, "reason": "failure_type_not_supported_for_pre_repair"}
 
@@ -281,21 +313,23 @@ def apply_generic_parse_error_repair(model_text: str, output: str, failure_type:
 def apply_gf_injected_symbol_cleanup_repair(model_text: str, output: str, failure_type: str) -> tuple[str, dict]:
     failure = str(failure_type or "").strip().lower()
     lower = str(output or "").lower()
-    if failure not in {"script_parse_error", "model_check_error"}:
+    parse_like_output = _has_parse_like_output(output)
+    if failure not in {"script_parse_error", "model_check_error", "semantic_regression", "simulate_error"}:
         return model_text, {"applied": False, "reason": "failure_type_not_supported_for_gf_cleanup"}
 
-    parse_markers = ("no viable alternative near token", "lexer failed to recognize")
     if failure == "script_parse_error" and "no viable alternative near token" not in lower:
         return model_text, {"applied": False, "reason": "gf_cleanup_without_parse_marker"}
-    if failure == "model_check_error" and not any(marker in lower for marker in parse_markers) and not (
+    if failure == "model_check_error" and not parse_like_output and not (
         "__gf_undef_" in str(model_text or "") or "__gf_undeclared_" in str(model_text or "")
     ):
         return model_text, {"applied": False, "reason": "gf_cleanup_without_supported_marker"}
+    if failure in {"semantic_regression", "simulate_error"} and not parse_like_output:
+        return model_text, {"applied": False, "reason": "gf_cleanup_without_parse_like_output"}
 
     fallback_patched, removed = remove_gateforge_injected_symbol_block(model_text)
     if removed > 0:
         reason = "removed_gateforge_injected_symbol_block"
-        if failure == "model_check_error" and not any(marker in lower for marker in parse_markers):
+        if failure == "model_check_error" and not parse_like_output:
             reason = "removed_gateforge_injected_symbol_block_fallback"
         return fallback_patched, {
             "applied": True,

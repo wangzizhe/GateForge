@@ -175,6 +175,34 @@ class TestAgentModelicaRuleEngineV1(unittest.TestCase):
         self.assertTrue(audit["applied"])
         self.assertEqual(audit["reason"], "removed_gateforge_injected_symbol_block")
         self.assertNotIn("__gf_state_17", patched)
+        self.assertIn("equation\n", patched)
+
+    def test_gf_cleanup_repair_keeps_primary_equation_boundary(self) -> None:
+        model_text = (
+            "within Buildings.Fluid.Actuators.Dampers.Examples;\n"
+            "model VAVBoxExponential\n"
+            "  Real x;\n"
+            "  // GateForge mutation: model check failure\n"
+            "  __gf_undef_301100 = 1.0;\n"
+            "equation\n"
+            "  x = 1.0;\n"
+            "end VAVBoxExponential;\n"
+        )
+        patched, audit = apply_gf_injected_symbol_cleanup_repair(
+            model_text,
+            "compile/syntax error",
+            "model_check_error",
+        )
+        self.assertTrue(audit["applied"])
+        self.assertIn(
+            audit["reason"],
+            {
+                "removed_gateforge_injected_symbol_block",
+                "removed_gateforge_injected_symbol_block_fallback",
+            },
+        )
+        self.assertNotIn("__gf_undef_301100", patched)
+        self.assertIn("equation\n  x = 1.0;\n", patched)
 
     def test_legacy_parse_wrapper_preserves_fallback_behavior(self) -> None:
         model_text = (
@@ -194,6 +222,30 @@ class TestAgentModelicaRuleEngineV1(unittest.TestCase):
         self.assertTrue(audit["applied"])
         self.assertEqual(audit["reason"], "removed_gateforge_injected_symbol_block")
         self.assertNotIn("__gf_state_17", patched)
+
+    def test_semantic_regression_parse_like_output_triggers_cleanup(self) -> None:
+        model_text = (
+            "model Demo\n"
+            "  Real x;\n"
+            "  Real __gf_state_301300(start=0.0);\n"
+            "  // GateForge mutation: semantic regression\n"
+            "equation\n"
+            "  der(__gf_state_301300) = x;\n"
+            "  x = 1.0;\n"
+            "end Demo;\n"
+        )
+        patched, audit = apply_parse_error_pre_repair(
+            model_text,
+            "compile/syntax error",
+            "semantic_regression",
+        )
+        self.assertTrue(audit["applied"])
+        self.assertIn(audit["reason"], {
+            "removed_lines_with_injected_state_tokens",
+            "removed_gateforge_injected_symbol_block",
+        })
+        self.assertNotIn("__gf_state_301300", patched)
+        self.assertIn("equation\n", patched)
 
     def test_try_repairs_uses_priority_context_to_change_first_applied_rule(self) -> None:
         @dataclass(frozen=True)
