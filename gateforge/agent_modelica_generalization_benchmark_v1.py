@@ -362,6 +362,12 @@ def run_benchmark(
             docker_image=docker_image,
             timeout_sec=timeout_sec,
             extra_model_loads=extra_model_loads or None,
+            source_library_path=str(resolve_case_path(pack_path, case, "source_library_path")),
+            source_package_name=str(case.get("source_package_name") or ""),
+            source_library_model_path=str(
+                resolve_case_path(pack_path, case, "source_library_model_path")
+            ),
+            source_qualified_model_name=str(case.get("source_qualified_model_name") or ""),
         )
         elapsed = round(time.time() - t0, 2)
         if result.get("success"):

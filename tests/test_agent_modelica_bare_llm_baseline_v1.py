@@ -1,14 +1,19 @@
-"""Unit tests for agent_modelica_bare_llm_baseline_v1 pure helpers."""
+"""Unit tests for agent_modelica_bare_llm_baseline_v1."""
 from __future__ import annotations
 
 import json
+import tempfile
 import unittest
+from pathlib import Path
+from unittest import mock
 
 from gateforge.agent_modelica_bare_llm_baseline_v1 import (
     build_bare_prompt,
     extract_model_name,
     parse_bare_response,
+    run_bare_repair,
 )
+from gateforge.agent_modelica_omc_workspace_v1 import WorkspaceModelLayout
 
 
 class TestExtractModelName(unittest.TestCase):
@@ -128,6 +133,62 @@ class TestParseBareResponse(unittest.TestCase):
         payload = {"repaired_model_text": "model A\nend A;"}
         raw = f"Response: {json.dumps(payload)} End."
         self.assertEqual(parse_bare_response(raw), "model A\nend A;")
+
+
+class TestRunBareRepair(unittest.TestCase):
+    def test_uses_external_library_layout_when_metadata_present(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            mirrored_model = workspace / "Buildings" / "Examples" / "Demo.mo"
+            mirrored_model.parent.mkdir(parents=True, exist_ok=True)
+            layout = WorkspaceModelLayout(
+                model_write_path=mirrored_model,
+                model_load_files=["Buildings/package.mo", "Buildings/Examples/Demo.mo"],
+                model_identifier="Buildings.Examples.Demo",
+                uses_external_library=True,
+            )
+
+            with mock.patch(
+                "gateforge.agent_modelica_bare_llm_baseline_v1.resolve_provider_adapter",
+                return_value=(
+                    object(),
+                    mock.Mock(provider_name="gemini", api_key="set"),
+                ),
+            ), mock.patch(
+                "gateforge.agent_modelica_bare_llm_baseline_v1.prepare_workspace_model_layout",
+                return_value=layout,
+            ) as prepare_layout, mock.patch(
+                "gateforge.agent_modelica_bare_llm_baseline_v1.run_check_and_simulate",
+                side_effect=[
+                    (0, "Error", False, False),
+                    (0, "OK", True, True),
+                ],
+            ) as run_check, mock.patch(
+                "gateforge.agent_modelica_bare_llm_baseline_v1.send_with_budget",
+                return_value=(json.dumps({"repaired_model_text": "model Demo end Demo;"}), ""),
+            ):
+                result = run_bare_repair(
+                    model_text="model Demo end Demo;",
+                    model_name="Demo",
+                    backend="gemini",
+                    source_library_path="/repo/Buildings",
+                    source_package_name="Buildings",
+                    source_library_model_path="/repo/Buildings/Examples/Demo.mo",
+                    source_qualified_model_name="Buildings.Examples.Demo",
+                )
+                written_text = mirrored_model.read_text(encoding="utf-8")
+
+        self.assertTrue(result["success"])
+        prepare_layout.assert_called_once()
+        first_call = run_check.call_args_list[0].kwargs
+        second_call = run_check.call_args_list[1].kwargs
+        self.assertEqual(
+            first_call["model_load_files"],
+            ["Buildings/package.mo", "Buildings/Examples/Demo.mo"],
+        )
+        self.assertEqual(first_call["model_name"], "Buildings.Examples.Demo")
+        self.assertEqual(second_call["model_name"], "Buildings.Examples.Demo")
+        self.assertEqual(written_text, "model Demo end Demo;")
 
 
 if __name__ == "__main__":

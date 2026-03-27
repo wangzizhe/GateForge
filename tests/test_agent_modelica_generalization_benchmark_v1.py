@@ -341,6 +341,74 @@ class TestRunBenchmarkPreflight(unittest.TestCase):
         self.assertIn("[Bare-batch] [1/1] ok ... OK", log)
         self.assertIn("[Bare-batch] Done: 1/1 = 100.0%", log)
 
+    def test_success_path_forwards_library_layout_fields(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / ".git").mkdir()
+            library_root = root / "assets_private" / "modelica_sources" / "Buildings"
+            model_path = library_root / "Examples" / "Demo.mo"
+            model_path.parent.mkdir(parents=True, exist_ok=True)
+            model_path.write_text("model Demo end Demo;", encoding="utf-8")
+            mutated = root / "artifacts" / "mutant.mo"
+            mutated.parent.mkdir(parents=True, exist_ok=True)
+            mutated.write_text("model Demo end Demo;", encoding="utf-8")
+            pack = root / "benchmarks" / "private" / "pack.json"
+            pack.parent.mkdir(parents=True, exist_ok=True)
+            pack.write_text(
+                json.dumps(
+                    {
+                        "schema_version": "hardpack_v1",
+                        "cases": [
+                            {
+                                "mutation_id": "ok",
+                                "target_scale": "small",
+                                "expected_failure_type": "model_check_error",
+                                "mutated_model_path": "artifacts/mutant.mo",
+                                "source_library_path": "assets_private/modelica_sources/Buildings",
+                                "source_package_name": "Buildings",
+                                "source_library_model_path": "assets_private/modelica_sources/Buildings/Examples/Demo.mo",
+                                "source_qualified_model_name": "Buildings.Examples.Demo",
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            out = root / "summary.json"
+
+            with mock.patch(
+                "gateforge.agent_modelica_generalization_benchmark_v1.run_bare_repair",
+                return_value={
+                    "success": True,
+                    "repaired_text": "model Demo end Demo;",
+                    "omc_error": "",
+                    "error": "",
+                    "provider": "gemini",
+                    "model_name": "Demo",
+                    "elapsed_sec": 1.0,
+                },
+            ) as run_bare:
+                summary = run_benchmark(
+                    pack_path=str(pack),
+                    backend="gemini",
+                    out=str(out),
+                )
+
+        self.assertEqual(summary["status"], "PASS")
+        kwargs = run_bare.call_args.kwargs
+        self.assertEqual(
+            Path(kwargs["source_library_path"]).resolve(),
+            library_root.resolve(),
+        )
+        self.assertEqual(kwargs["source_package_name"], "Buildings")
+        self.assertEqual(
+            Path(kwargs["source_library_model_path"]).resolve(),
+            model_path.resolve(),
+        )
+        self.assertEqual(
+            kwargs["source_qualified_model_name"], "Buildings.Examples.Demo"
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

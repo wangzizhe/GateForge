@@ -474,6 +474,10 @@ def main() -> None:
                 "mutated_checksum_sha256": mutated_checksum,
                 "model_id": model_id,
                 "failure_type": failure_type,
+                "source_library_path": str(model.get("source_library_path") or ""),
+                "source_package_name": str(model.get("source_package_name") or ""),
+                "source_library_model_path": str(model.get("source_library_model_path") or ""),
+                "source_qualified_model_name": str(model.get("source_qualified_model_name") or ""),
             }
             row["repro_command"] = _probe_command(str(mutated_model_path))
             mutations.append(row)

@@ -137,6 +137,8 @@ def _run_one_case(
     expected_failure_type = case.get("expected_failure_type", "")
     mutated_model_path = str(resolve_case_path(pack_path, case, "mutated_model_path"))
     source_model_path = str(resolve_case_path(pack_path, case, "source_model_path"))
+    source_library_path = str(resolve_case_path(pack_path, case, "source_library_path"))
+    source_library_model_path = str(resolve_case_path(pack_path, case, "source_library_model_path"))
     expected_stage = case.get("expected_stage", "")
 
     base = {
@@ -185,6 +187,14 @@ def _run_one_case(
             cmd += ["--planner-experience-max-tokens", str(int(planner_experience_max_tokens))]
         if source_model_path and Path(source_model_path).exists():
             cmd += ["--source-model-path", source_model_path]
+        if source_library_path and Path(source_library_path).exists():
+            cmd += ["--source-library-path", source_library_path]
+        if str(case.get("source_package_name") or "").strip():
+            cmd += ["--source-package-name", str(case.get("source_package_name") or "")]
+        if source_library_model_path and Path(source_library_model_path).exists():
+            cmd += ["--source-library-model-path", source_library_model_path]
+        if str(case.get("source_qualified_model_name") or "").strip():
+            cmd += ["--source-qualified-model-name", str(case.get("source_qualified_model_name") or "")]
         for m in extra_model_loads or []:
             cmd += ["--extra-model-load", m]
 

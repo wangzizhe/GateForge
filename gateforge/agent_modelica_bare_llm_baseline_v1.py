@@ -23,6 +23,7 @@ from pathlib import Path
 
 from .agent_modelica_l2_plan_replan_engine_v1 import send_with_budget
 from .agent_modelica_omc_workspace_v1 import (
+    prepare_workspace_model_layout,
     run_check_and_simulate,
     temporary_workspace,
 )
@@ -145,6 +146,10 @@ def run_bare_repair(
     docker_image: str = "",
     timeout_sec: int = 120,
     extra_model_loads: list[str] | None = None,
+    source_library_path: str = "",
+    source_package_name: str = "",
+    source_library_model_path: str = "",
+    source_qualified_model_name: str = "",
 ) -> dict:
     """Run one bare-LLM repair attempt and return a result dict.
 
@@ -185,15 +190,23 @@ def run_bare_repair(
     with temporary_workspace("gf_bare_repair_") as ws:
         ws_path = Path(ws)
 
-        # Write broken model
-        model_file = ws_path / f"{model_name_str}.mo"
-        model_file.write_text(model_text_str, encoding="utf-8")
+        fallback_model = Path(f"{model_name_str}.mo")
+        layout = prepare_workspace_model_layout(
+            workspace=ws_path,
+            fallback_model_path=fallback_model,
+            primary_model_name=model_name_str,
+            source_library_path=str(source_library_path or ""),
+            source_package_name=str(source_package_name or ""),
+            source_library_model_path=str(source_library_model_path or ""),
+            source_qualified_model_name=str(source_qualified_model_name or ""),
+        )
+        layout.model_write_path.write_text(model_text_str, encoding="utf-8")
 
         # Step 1: get OMC error on broken model
         _rc, omc_out, _check_ok, _sim_ok = run_check_and_simulate(
             workspace=ws_path,
-            model_load_files=[model_file.name],
-            model_name=model_name_str,
+            model_load_files=list(layout.model_load_files),
+            model_name=layout.model_identifier,
             timeout_sec=half,
             backend=omc_backend,
             docker_image=resolved_image,
@@ -229,13 +242,12 @@ def run_bare_repair(
             )
 
         # Step 3: validate repair
-        repair_file = ws_path / f"{model_name_str}_repaired.mo"
-        repair_file.write_text(repaired_text, encoding="utf-8")
+        layout.model_write_path.write_text(repaired_text, encoding="utf-8")
 
         _rc2, _out2, check_ok, sim_ok = run_check_and_simulate(
             workspace=ws_path,
-            model_load_files=[repair_file.name],
-            model_name=model_name_str,
+            model_load_files=list(layout.model_load_files),
+            model_name=layout.model_identifier,
             timeout_sec=half,
             backend=omc_backend,
             docker_image=resolved_image,

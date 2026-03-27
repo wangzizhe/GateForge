@@ -83,6 +83,10 @@ def _to_case(row: dict) -> dict:
         "source_model_path": str(row.get("source_model_path") or ""),
         "mutated_model_path": str(row.get("mutated_model_path") or ""),
         "repro_command": str(row.get("repro_command") or ""),
+        "source_library_path": str(row.get("source_library_path") or ""),
+        "source_package_name": str(row.get("source_package_name") or ""),
+        "source_library_model_path": str(row.get("source_library_model_path") or ""),
+        "source_qualified_model_name": str(row.get("source_qualified_model_name") or ""),
     }
 
 

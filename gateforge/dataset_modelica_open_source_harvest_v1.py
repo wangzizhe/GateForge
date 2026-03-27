@@ -234,6 +234,14 @@ def _to_candidate(
         manifest_scale = "small"
     inferred_scale = _infer_scale(score, medium_threshold=medium_threshold, large_threshold=large_threshold)
     scale = _effective_scale(manifest_scale, inferred_scale)
+    path_parts = [part for part in Path(rel_in_repo).parts if str(part).strip()]
+    source_package_name = path_parts[0] if path_parts else ""
+    source_library_path = str((repo_root_resolved / source_package_name)) if source_package_name else ""
+    source_library_model_path = str(model_path_resolved)
+    qualified_parts = list(path_parts)
+    if qualified_parts and qualified_parts[-1].lower().endswith(".mo"):
+        qualified_parts[-1] = Path(qualified_parts[-1]).stem
+    source_qualified_model_name = ".".join(qualified_parts)
 
     stem = _slug(model_path.stem, default="model")
     model_id = f"osm_{source_id}_{stem}_{checksum[:8]}"
@@ -245,8 +253,13 @@ def _to_candidate(
         "local_path": str(export_path),
         "source_url": _source_url(source, rel_in_repo),
         "source_repo": str(source.get("repo_url") or source.get("local_path") or ""),
+        "source_rel_path": rel_in_repo,
         "source_commit": str(source.get("ref") or ""),
         "license": str(source.get("license") or source.get("license_tag") or "UNKNOWN"),
+        "source_library_path": source_library_path,
+        "source_package_name": source_package_name,
+        "source_library_model_path": source_library_model_path,
+        "source_qualified_model_name": source_qualified_model_name,
         "scale_hint": scale,
         "expected_scale": scale,
         "checksum_sha256": checksum,
