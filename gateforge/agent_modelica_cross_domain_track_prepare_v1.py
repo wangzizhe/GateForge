@@ -100,6 +100,7 @@ def build_prepare_commands(
 ) -> list[dict]:
     harvest_dir = Path(out_dir) / "harvest"
     intake_dir = Path(out_dir) / "intake"
+    selection_dir = Path(out_dir) / "selection"
     mutation_dir = Path(out_dir) / "mutation"
     hardpack_dir = Path(out_dir) / "hardpack"
 
@@ -107,6 +108,10 @@ def build_prepare_commands(
     library_load_models = [str(x) for x in (track_entry.get("library_load_models") or []) if str(x).strip()]
     pack_label = str(track_entry.get("pack_label") or track_entry.get("library") or track_entry.get("track_id") or "")
     track_id = str(track_entry.get("track_id") or "").strip()
+    scale_list = [x.strip().lower() for x in str(target_scales).split(",") if x.strip()]
+    selection_max_models = min(int(max_models), len(scale_list)) if scale_list else int(max_models)
+    if selection_max_models <= 0:
+        selection_max_models = len(scale_list) or 1
 
     commands: list[dict] = [
         {
@@ -146,6 +151,30 @@ def build_prepare_commands(
             ],
         },
         {
+            "name": "build_selection_plan",
+            "cmd": [
+                sys.executable,
+                "-m",
+                "gateforge.dataset_mutation_model_selection_plan_v1",
+                "--executable-registry",
+                str(intake_dir / "accepted_registry_rows.json"),
+                "--target-scales",
+                str(target_scales),
+                "--max-models",
+                str(selection_max_models),
+                "--min-covered-scales",
+                str(len(scale_list) or 1),
+                "--min-covered-families",
+                "1",
+                "--min-source-buckets",
+                "1",
+                "--plan-out",
+                str(selection_dir / "selection_plan.json"),
+                "--out",
+                str(selection_dir / "summary.json"),
+            ],
+        },
+        {
             "name": "materialize_mutations",
             "cmd": [
                 sys.executable,
@@ -153,6 +182,8 @@ def build_prepare_commands(
                 "gateforge.dataset_mutation_model_materializer_v1",
                 "--model-registry",
                 str(intake_dir / "accepted_registry_rows.json"),
+                "--selection-plan",
+                str(selection_dir / "selection_plan.json"),
                 "--target-scales",
                 str(target_scales),
                 "--failure-types",
@@ -317,6 +348,7 @@ def run_prepare_track(
         "artifacts": {
             "harvest_summary": str(out_root / "harvest" / "summary.json"),
             "intake_summary": str(out_root / "intake" / "summary.json"),
+            "selection_summary": str(out_root / "selection" / "summary.json"),
             "mutation_summary": str(out_root / "mutation" / "summary.json"),
             "hardpack_path": str(out_root / "hardpack" / "hardpack.json"),
             "frozen_hardpack_path": str(Path(effective_frozen_root) / "hardpack_frozen.json"),

@@ -31,12 +31,13 @@ class AgentModelicaCrossDomainTrackPrepareV1Tests(unittest.TestCase):
             "schema_version": "seed",
             "sources": [
                 {"source_id": "modelica_buildings_cross_domain"},
+                {"source_id": "modelica_buildings_cross_domain", "scale_hint": "medium"},
                 {"source_id": "openipsl_cross_domain"},
             ],
         }
-        filtered = build_filtered_source_manifest(manifest, "openipsl_cross_domain")
-        self.assertEqual(len(filtered["sources"]), 1)
-        self.assertEqual(filtered["sources"][0]["source_id"], "openipsl_cross_domain")
+        filtered = build_filtered_source_manifest(manifest, "modelica_buildings_cross_domain")
+        self.assertEqual(len(filtered["sources"]), 2)
+        self.assertTrue(all(x["source_id"] == "modelica_buildings_cross_domain" for x in filtered["sources"]))
 
     def test_build_prepare_commands_includes_track_filters(self) -> None:
         cmds = build_prepare_commands(
@@ -59,10 +60,13 @@ class AgentModelicaCrossDomainTrackPrepareV1Tests(unittest.TestCase):
             valid_only=True,
         )
         self.assertEqual(cmds[0]["name"], "harvest")
-        self.assertEqual(cmds[3]["name"], "lock_hardpack")
-        self.assertEqual(cmds[3]["include_patterns"], ["Buildings/"])
-        self.assertEqual(cmds[3]["library_load_models"], ["Buildings"])
-        self.assertIn("--valid-only", cmds[4]["cmd"])
+        self.assertEqual(cmds[2]["name"], "build_selection_plan")
+        self.assertIn("--min-covered-scales", cmds[2]["cmd"])
+        self.assertEqual(cmds[4]["name"], "lock_hardpack")
+        self.assertEqual(cmds[4]["include_patterns"], ["Buildings/"])
+        self.assertEqual(cmds[4]["library_load_models"], ["Buildings"])
+        self.assertIn("--selection-plan", cmds[3]["cmd"])
+        self.assertIn("--valid-only", cmds[5]["cmd"])
 
     def test_run_prepare_track_dry_run_writes_summary(self) -> None:
         with tempfile.TemporaryDirectory() as d:
@@ -111,7 +115,7 @@ class AgentModelicaCrossDomainTrackPrepareV1Tests(unittest.TestCase):
             )
             self.assertEqual(summary["status"], "PASS")
             self.assertTrue((out_dir / "summary.json").exists())
-            self.assertEqual(len(summary["steps"]), 5)
+            self.assertEqual(len(summary["steps"]), 6)
             self.assertEqual(summary["steps"][0]["status"], "PLANNED")
 
     def test_cli_dry_run(self) -> None:

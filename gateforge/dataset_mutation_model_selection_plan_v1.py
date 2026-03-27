@@ -99,11 +99,42 @@ def _extract_models(payload: dict) -> list[dict]:
     return [x for x in rows if isinstance(x, dict) and str(x.get("asset_type") or "") == "model_source"]
 
 
+def _pick_best_for_scale(
+    rows: list[dict],
+    *,
+    selected_ids: set[str],
+    family_counts: Counter[str],
+    source_counts: Counter[str],
+) -> dict | None:
+    remaining = [r for r in rows if str(r.get("model_id") or "") not in selected_ids]
+    if not remaining:
+        return None
+    best: dict | None = None
+    best_key: tuple[float, float, str] | None = None
+    for row in remaining:
+        family = str(row.get("_family") or "other")
+        source_bucket = str(row.get("_source_bucket") or "repo:root")
+        base_score = float(row.get("_base_score") or 0.0)
+        bonus = 0.0
+        if family_counts.get(family, 0) == 0:
+            bonus += 18.0
+        if source_counts.get(source_bucket, 0) == 0:
+            bonus += 12.0
+        penalty = float(family_counts.get(family, 0) * 14 + source_counts.get(source_bucket, 0) * 10)
+        composite = base_score + bonus - penalty
+        key = (composite, base_score, str(row.get("model_id") or ""))
+        if best_key is None or key > best_key:
+            best = row
+            best_key = key
+    return best
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Build balanced mutation model selection plan for medium/large real models")
     parser.add_argument("--executable-registry", required=True)
     parser.add_argument("--target-scales", default="medium,large")
     parser.add_argument("--max-models", type=int, default=0)
+    parser.add_argument("--min-covered-scales", type=int, default=0)
     parser.add_argument("--min-large-ratio-pct", type=float, default=25.0)
     parser.add_argument("--min-covered-families", type=int, default=4)
     parser.add_argument("--min-source-buckets", type=int, default=2)
@@ -153,10 +184,36 @@ def main() -> None:
 
     selected: list[dict] = []
     selected_ids: set[str] = set()
+    scale_counts: Counter[str] = Counter()
     family_counts: Counter[str] = Counter()
     source_counts: Counter[str] = Counter()
     selected_large = 0
     min_large_ratio = max(0.0, min(1.0, float(args.min_large_ratio_pct) / 100.0))
+
+    required_scale_count = min(len(target_scales), max(0, int(args.min_covered_scales)))
+    if required_scale_count > 0 and target_count > 0:
+        preferred_scales = [s for s in ("small", "medium", "large") if s in target_scales]
+        for scale in preferred_scales:
+            if len(selected) >= target_count:
+                break
+            best_for_scale = _pick_best_for_scale(
+                [r for r in candidates if str(r.get("_scale") or "") == scale],
+                selected_ids=selected_ids,
+                family_counts=family_counts,
+                source_counts=source_counts,
+            )
+            if best_for_scale is None:
+                continue
+            best_model_id = str(best_for_scale.get("model_id") or "")
+            selected.append(best_for_scale)
+            selected_ids.add(best_model_id)
+            scale_counts[str(best_for_scale.get("_scale") or "small")] += 1
+            family_counts[str(best_for_scale.get("_family") or "other")] += 1
+            source_counts[str(best_for_scale.get("_source_bucket") or "repo:root")] += 1
+            if str(best_for_scale.get("_scale") or "") == "large":
+                selected_large += 1
+            if len(scale_counts) >= required_scale_count:
+                break
 
     while len(selected) < target_count:
         remaining = [r for r in candidates if str(r.get("model_id") or "") not in selected_ids]
@@ -175,6 +232,8 @@ def main() -> None:
             base_score = float(row.get("_base_score") or 0.0)
 
             bonus = 0.0
+            if scale_counts.get(scale, 0) == 0:
+                bonus += 48.0
             if family_counts.get(family, 0) == 0:
                 bonus += 18.0
             if source_counts.get(source_bucket, 0) == 0:
@@ -197,6 +256,7 @@ def main() -> None:
         best_model_id = str(best.get("model_id") or "")
         selected.append(best)
         selected_ids.add(best_model_id)
+        scale_counts[str(best.get("_scale") or "small")] += 1
         family_counts[str(best.get("_family") or "other")] += 1
         source_counts[str(best.get("_source_bucket") or "repo:root")] += 1
         if str(best.get("_scale") or "") == "large":
@@ -217,6 +277,7 @@ def main() -> None:
     selected_model_ids = [str(r.get("model_id") or "") for r in selected_rows if str(r.get("model_id") or "")]
     selected_large_models = len([r for r in selected_rows if str(r.get("suggested_scale") or "") == "large"])
     selected_large_ratio_pct = round((selected_large_models / max(1, len(selected_rows))) * 100.0, 2)
+    selected_scale_counts = dict(sorted(scale_counts.items(), key=lambda kv: kv[0]))
     selected_family_counts = dict(sorted(family_counts.items(), key=lambda kv: (-kv[1], kv[0])))
     selected_source_bucket_counts = dict(sorted(source_counts.items(), key=lambda kv: (-kv[1], kv[0])))
     max_family_share_pct = round((max(family_counts.values()) / max(1, len(selected_rows))) * 100.0, 2) if family_counts else 0.0
@@ -228,6 +289,8 @@ def main() -> None:
         alerts.append("selected_models_empty")
     if selected_large_ratio_pct < float(args.min_large_ratio_pct):
         alerts.append("selected_large_ratio_below_threshold")
+    if int(args.min_covered_scales) > 0 and len(selected_scale_counts) < int(args.min_covered_scales):
+        alerts.append("selected_scale_coverage_below_threshold")
     if len(selected_family_counts) < int(args.min_covered_families):
         alerts.append("selected_family_coverage_below_threshold")
     if len(selected_source_bucket_counts) < int(args.min_source_buckets):
@@ -255,6 +318,7 @@ def main() -> None:
         "selected_models": len(selected_rows),
         "selected_large_models": selected_large_models,
         "selected_large_ratio_pct": selected_large_ratio_pct,
+        "selected_scale_counts": selected_scale_counts,
         "selected_families": len(selected_family_counts),
         "selected_source_buckets": len(selected_source_bucket_counts),
         "selected_family_counts": selected_family_counts,
@@ -269,6 +333,7 @@ def main() -> None:
             "executable_registry": args.executable_registry,
             "target_scales": sorted(target_scales),
             "max_models": int(args.max_models),
+            "min_covered_scales": int(args.min_covered_scales),
             "min_large_ratio_pct": float(args.min_large_ratio_pct),
             "min_covered_families": int(args.min_covered_families),
             "min_source_buckets": int(args.min_source_buckets),

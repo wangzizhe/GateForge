@@ -6,13 +6,55 @@
       "mode": "local",
       "local_path": "assets_private/modelica_sources/modelica_buildings",
       "license": "BSD-3-Clause",
+      "scale_hint": "small",
+      "package_roots": [
+        "Buildings/Examples/ChillerPlant/BaseClasses/Controls/Examples",
+        "Buildings/Electrical/AC/OnePhase/Examples",
+        "Buildings/Fluid/Actuators/BaseClasses/Examples"
+      ]
+    },
+    {
+      "source_id": "modelica_buildings_cross_domain",
+      "mode": "local",
+      "local_path": "assets_private/modelica_sources/modelica_buildings",
+      "license": "BSD-3-Clause",
+      "scale_hint": "medium",
+      "package_roots": [
+        "Buildings/Controls/Continuous/Examples",
+        "Buildings/ThermalZones/Detailed/BaseClasses/Examples"
+      ]
+    },
+    {
+      "source_id": "modelica_buildings_cross_domain",
+      "mode": "local",
+      "local_path": "assets_private/modelica_sources/modelica_buildings",
+      "license": "BSD-3-Clause",
       "scale_hint": "large",
       "package_roots": [
-        "Buildings/Fluid",
-        "Buildings/ThermalZones",
-        "Buildings/Electrical",
-        "Buildings/Controls",
-        "Buildings/Examples"
+        "Buildings/ThermalZones/Detailed/BaseClasses",
+        "Buildings/Fluid/Actuators/Dampers"
+      ]
+    },
+    {
+      "source_id": "openipsl_cross_domain",
+      "mode": "local",
+      "local_path": "assets_private/modelica_sources/openipsl",
+      "license": "BSD-3-Clause",
+      "scale_hint": "small",
+      "package_roots": [
+        "OpenIPSL/Tests/Loads/PSAT",
+        "OpenIPSL/Tests/Controls/PSAT/TG"
+      ]
+    },
+    {
+      "source_id": "openipsl_cross_domain",
+      "mode": "local",
+      "local_path": "assets_private/modelica_sources/openipsl",
+      "license": "BSD-3-Clause",
+      "scale_hint": "medium",
+      "package_roots": [
+        "OpenIPSL/Tests/BaseClasses",
+        "OpenIPSL/Tests/Branches/PSAT"
       ]
     },
     {
@@ -22,10 +64,8 @@
       "license": "BSD-3-Clause",
       "scale_hint": "large",
       "package_roots": [
-        "OpenIPSL/Electrical",
-        "OpenIPSL/Controls",
-        "OpenIPSL/Examples",
-        "OpenIPSL/Tests"
+        "OpenIPSL/Examples/DAEMode/N44_Base_Case_Systems",
+        "OpenIPSL/Electrical/Machines/PSSE"
       ]
     }
   ]

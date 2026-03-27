@@ -175,7 +175,7 @@ def _collect_mo_files(repo_root: Path, package_roots: list[str], max_models_per_
     rows: list[Path] = []
     for root in scan_roots:
         for p in root.rglob("*.mo"):
-            if p.is_file():
+            if p.is_file() and p.name.lower() != "package.mo":
                 rows.append(p)
     rows = sorted(set(rows))
     if int(max_models_per_source) > 0:
