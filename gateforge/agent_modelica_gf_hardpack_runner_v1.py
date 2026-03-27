@@ -337,7 +337,9 @@ def run_batch(
             file=sys.stderr,
         )
         if out_path:
-            Path(out_path).write_text(json.dumps(summary, indent=2), encoding="utf-8")
+            out_file = Path(out_path)
+            out_file.parent.mkdir(parents=True, exist_ok=True)
+            out_file.write_text(json.dumps(summary, indent=2), encoding="utf-8")
             print(f"[GF-batch] Results written to {out_path}", file=sys.stderr)
         return summary
 
@@ -386,7 +388,9 @@ def run_batch(
     }
 
     if out_path:
-        Path(out_path).write_text(json.dumps(summary, indent=2), encoding="utf-8")
+        out_file = Path(out_path)
+        out_file.parent.mkdir(parents=True, exist_ok=True)
+        out_file.write_text(json.dumps(summary, indent=2), encoding="utf-8")
         print(f"[GF-batch] Results written to {out_path}", file=sys.stderr)
 
     return summary
