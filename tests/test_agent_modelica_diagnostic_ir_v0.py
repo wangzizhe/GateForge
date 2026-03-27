@@ -16,6 +16,7 @@ class AgentModelicaDiagnosticIRV0Tests(unittest.TestCase):
         self.assertEqual(payload.get("error_subtype"), "parse_lexer_error")
         self.assertEqual(payload.get("error_type_legacy"), "script_parse_error")
         self.assertEqual(payload.get("stage"), "check")
+        self.assertEqual(payload.get("dominant_stage_subtype"), "stage_1_parse_syntax")
         self.assertEqual(payload.get("observed_phase"), "check")
         objects = payload.get("objects") if isinstance(payload.get("objects"), dict) else {}
         self.assertIn("__gf_state_301500", objects.get("injected_states") or [])
@@ -33,6 +34,7 @@ class AgentModelicaDiagnosticIRV0Tests(unittest.TestCase):
         self.assertEqual(payload.get("error_type"), "numerical_instability")
         self.assertEqual(payload.get("error_subtype"), "solver_divergence")
         self.assertEqual(payload.get("stage"), "simulate")
+        self.assertEqual(payload.get("dominant_stage_subtype"), "stage_5_runtime_numerical_instability")
         self.assertEqual(payload.get("observed_phase"), "simulate")
         self.assertIn("stabilize solver-facing dynamics", " | ".join(payload.get("suggested_actions") or []))
 
@@ -59,6 +61,7 @@ class AgentModelicaDiagnosticIRV0Tests(unittest.TestCase):
         )
         self.assertEqual(payload.get("error_type"), "model_check_error")
         self.assertEqual(payload.get("error_subtype"), "connector_mismatch")
+        self.assertEqual(payload.get("dominant_stage_subtype"), "stage_3_type_connector_semantic")
         objects = payload.get("objects") if isinstance(payload.get("objects"), dict) else {}
         self.assertTrue(bool(objects.get("connector_hints")))
 
@@ -109,6 +112,7 @@ class AgentModelicaDiagnosticIRV0Tests(unittest.TestCase):
         )
         self.assertEqual(payload.get("error_type"), "simulate_error")
         self.assertEqual(payload.get("error_subtype"), "init_failure")
+        self.assertEqual(payload.get("dominant_stage_subtype"), "stage_4_initialization_singularity")
         self.assertEqual(payload.get("stage"), "simulate")
         self.assertEqual(payload.get("observed_phase"), "simulate")
         objects = payload.get("objects") if isinstance(payload.get("objects"), dict) else {}
@@ -124,6 +128,7 @@ class AgentModelicaDiagnosticIRV0Tests(unittest.TestCase):
         )
         self.assertEqual(payload.get("error_type"), "model_check_error")
         self.assertEqual(payload.get("error_subtype"), "underconstrained_system")
+        self.assertEqual(payload.get("dominant_stage_subtype"), "stage_2_structural_balance_reference")
         self.assertEqual(payload.get("stage"), "check")
         self.assertEqual(payload.get("observed_phase"), "check")
         self.assertIn("restore dropped connects", " | ".join(payload.get("suggested_actions") or []))

@@ -245,6 +245,13 @@ def _run_one_case(
             "rounds_used": len(payload.get("attempts", [])),
             "experience_replay": payload.get("experience_replay") or {},
             "planner_experience_injection": payload.get("planner_experience_injection") or {},
+            "resolution_attribution": payload.get("resolution_attribution") or {},
+            "resolution_path": str(payload.get("resolution_path") or ""),
+            "dominant_stage_subtype": str(payload.get("dominant_stage_subtype") or ""),
+            "planner_invoked": bool(payload.get("planner_invoked")),
+            "planner_used": bool(payload.get("planner_used")),
+            "planner_decisive": bool(payload.get("planner_decisive")),
+            "replay_used": bool(payload.get("replay_used")),
         }
 
     except subprocess.TimeoutExpired:

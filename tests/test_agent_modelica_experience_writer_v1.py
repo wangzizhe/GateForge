@@ -94,6 +94,8 @@ class AgentModelicaExperienceWriterV1Tests(unittest.TestCase):
         record = build_experience_record(run_result)
         self.assertIn("repair_quality_score", record)
         self.assertEqual(len(record["action_contributions"]), 1)
+        self.assertEqual(record["resolution_path"], "deterministic_rule_only")
+        self.assertEqual(record["dominant_stage_subtype"], "stage_0_none")
 
     def test_build_experience_payload_wraps_records_and_summary(self) -> None:
         payload = build_experience_payload(
@@ -115,6 +117,8 @@ class AgentModelicaExperienceWriterV1Tests(unittest.TestCase):
         self.assertEqual(len(payload["records"]), 1)
         self.assertIn("summary", payload)
         self.assertEqual(payload["summary"]["total_records"], 1)
+        self.assertIn("resolution_path_distribution", payload["summary"])
+        self.assertIn("planner_invoked_rate_pct", payload["summary"])
 
     def test_cli_writes_experience_payload(self) -> None:
         with tempfile.TemporaryDirectory() as d:

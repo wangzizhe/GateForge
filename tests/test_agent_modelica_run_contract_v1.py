@@ -2131,6 +2131,9 @@ print(json.dumps(payload))
             self.assertGreaterEqual(int(s.get("experience_record_count") or 0), 1)
             self.assertEqual(str(s.get("experience_out") or ""), str(experience_out))
             self.assertIn("median_quality_score", s)
+            self.assertIn("resolution_path_distribution", s)
+            self.assertIn("dominant_stage_subtype_distribution", s)
+            self.assertIn("planner_invoked_rate_pct", s)
             contrib = s.get("action_contribution_distribution") if isinstance(s.get("action_contribution_distribution"), dict) else {}
             self.assertIn("advancing", contrib)
             rec = (r.get("records") or [])[0]
@@ -2151,6 +2154,8 @@ print(json.dumps(payload))
             exp_record = (experience.get("records") or [])[0] if isinstance(experience.get("records"), list) else {}
             self.assertIn("repair_quality_score", exp_record)
             self.assertIsInstance(exp_record.get("action_contributions"), list)
+            self.assertIn("resolution_path", exp_record)
+            self.assertIn("dominant_stage_subtype", exp_record)
             exp_artifact = json.loads(experience_out.read_text(encoding="utf-8"))
             self.assertGreaterEqual(len(exp_artifact.get("records") or []), 1)
             mem = r.get("repair_memory_v2") if isinstance(r.get("repair_memory_v2"), dict) else {}

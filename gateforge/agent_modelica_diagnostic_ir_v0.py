@@ -18,6 +18,12 @@ CANONICAL_ERROR_TYPES = {
 LEGACY_TO_CANONICAL = {
     "script_parse_error": "model_check_error",
 }
+STAGE_SUBTYPE_NONE = "stage_0_none"
+STAGE_SUBTYPE_PARSE = "stage_1_parse_syntax"
+STAGE_SUBTYPE_STRUCTURAL = "stage_2_structural_balance_reference"
+STAGE_SUBTYPE_SEMANTIC = "stage_3_type_connector_semantic"
+STAGE_SUBTYPE_INIT = "stage_4_initialization_singularity"
+STAGE_SUBTYPE_RUNTIME = "stage_5_runtime_numerical_instability"
 
 
 def canonical_error_type_v0(error_type: str) -> str:
@@ -43,6 +49,49 @@ def canonical_stage_from_failure_type_v0(error_type: str) -> str:
     if et == "constraint_violation":
         return "none"
     return "none"
+
+
+def dominant_stage_subtype_v0(*, error_type: str, error_subtype: str, observed_phase: str = "") -> str:
+    et = canonical_error_type_v0(error_type)
+    sub = str(error_subtype or "").strip().lower()
+    phase = str(observed_phase or "").strip().lower()
+
+    if et == "none":
+        return STAGE_SUBTYPE_NONE
+    if sub.startswith("parse_"):
+        return STAGE_SUBTYPE_PARSE
+    if sub in {"underconstrained_system", "overconstrained_system", "undefined_symbol", "compile_failure_unknown"}:
+        return STAGE_SUBTYPE_STRUCTURAL
+    if sub in {
+        "connector_mismatch",
+        "array_dimension_mismatch",
+        "parameter_binding_error",
+        "unit_inconsistency",
+        "assertion_violation",
+        "event_logic_error",
+        "semantic_drift_after_compile_pass",
+        "cross_component_parameter_coupling_error",
+        "control_loop_sign_semantic_drift",
+        "mode_switch_guard_logic_error",
+        "coupled_conflict_failure",
+        "false_friend_patch_trap",
+    }:
+        return STAGE_SUBTYPE_SEMANTIC
+    if sub in {"init_failure", "cascading_structural_failure"}:
+        return STAGE_SUBTYPE_INIT
+    if sub in {"timeout", "division_by_zero", "solver_divergence", "solver_sensitive_simulate_failure"}:
+        return STAGE_SUBTYPE_RUNTIME
+    if et == "semantic_regression":
+        return STAGE_SUBTYPE_SEMANTIC
+    if et == "constraint_violation":
+        return STAGE_SUBTYPE_SEMANTIC
+    if et == "numerical_instability":
+        return STAGE_SUBTYPE_RUNTIME
+    if et == "simulate_error":
+        return STAGE_SUBTYPE_INIT if phase == "simulate" else STAGE_SUBTYPE_SEMANTIC
+    if et == "model_check_error":
+        return STAGE_SUBTYPE_STRUCTURAL if phase == "check" else STAGE_SUBTYPE_SEMANTIC
+    return STAGE_SUBTYPE_SEMANTIC
 
 
 def _token_set(text: str) -> set[str]:
@@ -615,6 +664,16 @@ def build_diagnostic_ir_v0(
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
         "error_type": canonical_error_type_v0(err_type),
         "error_subtype": err_subtype,
+        "stage_subtype": dominant_stage_subtype_v0(
+            error_type=err_type,
+            error_subtype=err_subtype,
+            observed_phase=observed_phase,
+        ),
+        "dominant_stage_subtype": dominant_stage_subtype_v0(
+            error_type=err_type,
+            error_subtype=err_subtype,
+            observed_phase=observed_phase,
+        ),
         "error_type_legacy": legacy_type,
         "stage": stage,
         "observed_phase": observed_phase,

@@ -6,6 +6,7 @@ import statistics
 from datetime import datetime, timezone
 from pathlib import Path
 
+from .agent_modelica_resolution_attribution_v1 import build_resolution_attribution
 from .agent_modelica_repair_quality_score_v1 import compute_repair_quality_breakdown
 
 
@@ -141,7 +142,9 @@ def build_action_contribution_rows(run_result: dict) -> list[dict]:
 
 
 def build_experience_record(run_result: dict) -> dict:
+    action_rows = build_action_contribution_rows(run_result)
     quality = compute_repair_quality_breakdown(run_result)
+    resolution = build_resolution_attribution(run_result, action_rows=action_rows)
     return {
         "schema_version": SCHEMA_VERSION,
         "generated_at_utc": _now_utc(),
@@ -150,7 +153,14 @@ def build_experience_record(run_result: dict) -> dict:
         "executor_status": str(run_result.get("executor_status") or ""),
         "repair_quality_score": float(quality.get("repair_quality_score") or 0.0),
         "repair_quality_breakdown": quality,
-        "action_contributions": build_action_contribution_rows(run_result),
+        "action_contributions": action_rows,
+        "resolution_attribution": resolution,
+        "resolution_path": str(resolution.get("resolution_path") or ""),
+        "planner_invoked": bool(resolution.get("planner_invoked")),
+        "planner_used": bool(resolution.get("planner_used")),
+        "planner_decisive": bool(resolution.get("planner_decisive")),
+        "replay_used": bool(resolution.get("replay_used")),
+        "dominant_stage_subtype": str(resolution.get("dominant_stage_subtype") or ""),
     }
 
 
@@ -164,17 +174,43 @@ def summarize_experience_records(records: list[dict]) -> dict:
         if isinstance(action, dict)
     ]
     contribution_distribution = {"advancing": 0, "neutral": 0, "regressing": 0}
+    resolution_path_distribution: dict[str, int] = {}
+    dominant_stage_subtype_distribution: dict[str, int] = {}
+    planner_invoked_count = 0
+    planner_used_count = 0
+    planner_decisive_count = 0
     for action in action_rows:
         contribution = str(action.get("contribution") or "").strip().lower()
         if contribution in contribution_distribution:
             contribution_distribution[contribution] += 1
+    total_records = len([row for row in records if isinstance(row, dict)])
+    for row in records:
+        if not isinstance(row, dict):
+            continue
+        resolution_path = str(row.get("resolution_path") or "").strip()
+        if resolution_path:
+            resolution_path_distribution[resolution_path] = resolution_path_distribution.get(resolution_path, 0) + 1
+        stage_subtype = str(row.get("dominant_stage_subtype") or "").strip()
+        if stage_subtype:
+            dominant_stage_subtype_distribution[stage_subtype] = dominant_stage_subtype_distribution.get(stage_subtype, 0) + 1
+        if bool(row.get("planner_invoked")):
+            planner_invoked_count += 1
+        if bool(row.get("planner_used")):
+            planner_used_count += 1
+        if bool(row.get("planner_decisive")):
+            planner_decisive_count += 1
     return {
         "schema_version": SCHEMA_VERSION,
         "generated_at_utc": _now_utc(),
-        "total_records": len([row for row in records if isinstance(row, dict)]),
+        "total_records": total_records,
         "median_quality_score": round(float(statistics.median(quality_scores)), 4) if quality_scores else 0.0,
         "action_contribution_distribution": contribution_distribution,
         "replay_eligible_action_count": len([row for row in action_rows if bool(row.get("replay_eligible"))]),
+        "resolution_path_distribution": resolution_path_distribution,
+        "dominant_stage_subtype_distribution": dominant_stage_subtype_distribution,
+        "planner_invoked_rate_pct": round((planner_invoked_count / total_records) * 100.0, 2) if total_records else 0.0,
+        "planner_used_rate_pct": round((planner_used_count / total_records) * 100.0, 2) if total_records else 0.0,
+        "planner_decisive_rate_pct": round((planner_decisive_count / total_records) * 100.0, 2) if total_records else 0.0,
     }
 
 

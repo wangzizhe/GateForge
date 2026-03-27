@@ -24,6 +24,7 @@ from .agent_modelica_repair_action_policy_v0 import recommend_repair_actions_v0
 from .agent_modelica_orchestrator_guard_v0 import detect_no_progress_v0, prioritize_repair_actions_v0
 from .agent_modelica_l4_orchestrator_v0 import run_l4_orchestrator_v0
 from .agent_modelica_experience_writer_v1 import build_experience_payload
+from .agent_modelica_resolution_attribution_v1 import build_resolution_attribution
 from .agent_modelica_repair_memory_v2 import build_repair_memory_v2_from_records
 from .regression import compare_evidence, load_json as _load_evidence_json
 
@@ -3773,6 +3774,14 @@ def main() -> None:
                 retrieval_policy_payload=retrieval_policy_payload,
                 strategy_effect_enabled=(args.strategy_effect == "on"),
             )
+        resolution_attribution = build_resolution_attribution(record)
+        record["resolution_attribution"] = resolution_attribution
+        record["resolution_path"] = str(resolution_attribution.get("resolution_path") or "")
+        record["planner_invoked"] = bool(resolution_attribution.get("planner_invoked"))
+        record["planner_used"] = bool(resolution_attribution.get("planner_used"))
+        record["planner_decisive"] = bool(resolution_attribution.get("planner_decisive"))
+        record["replay_used"] = bool(resolution_attribution.get("replay_used"))
+        record["dominant_stage_subtype"] = str(resolution_attribution.get("dominant_stage_subtype") or "")
         records.append(record)
         if records_jsonl_path:
             _append_record_jsonl(records_jsonl_path, record)
@@ -3892,6 +3901,31 @@ def main() -> None:
             ((experience_v1_payload.get("summary") or {}).get("action_contribution_distribution"))
             if isinstance(experience_v1_payload, dict)
             else {"advancing": 0, "neutral": 0, "regressing": 0}
+        ),
+        "resolution_path_distribution": (
+            ((experience_v1_payload.get("summary") or {}).get("resolution_path_distribution"))
+            if isinstance(experience_v1_payload, dict)
+            else {}
+        ),
+        "dominant_stage_subtype_distribution": (
+            ((experience_v1_payload.get("summary") or {}).get("dominant_stage_subtype_distribution"))
+            if isinstance(experience_v1_payload, dict)
+            else {}
+        ),
+        "planner_invoked_rate_pct": (
+            ((experience_v1_payload.get("summary") or {}).get("planner_invoked_rate_pct"))
+            if isinstance(experience_v1_payload, dict)
+            else 0.0
+        ),
+        "planner_used_rate_pct": (
+            ((experience_v1_payload.get("summary") or {}).get("planner_used_rate_pct"))
+            if isinstance(experience_v1_payload, dict)
+            else 0.0
+        ),
+        "planner_decisive_rate_pct": (
+            ((experience_v1_payload.get("summary") or {}).get("planner_decisive_rate_pct"))
+            if isinstance(experience_v1_payload, dict)
+            else 0.0
         ),
         "records_jsonl": records_jsonl_path,
         "resume_from_records": bool(args.resume_from_records),

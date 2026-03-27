@@ -946,6 +946,13 @@ def _build_final_payload(
     payload["repair_quality_score"] = float(quality_breakdown.get("repair_quality_score") or 0.0)
     payload["repair_quality_breakdown"] = quality_breakdown
     payload["action_contributions"] = list(experience_record.get("action_contributions") or [])
+    payload["resolution_attribution"] = dict(experience_record.get("resolution_attribution") or {})
+    payload["resolution_path"] = str(experience_record.get("resolution_path") or "")
+    payload["planner_invoked"] = bool(experience_record.get("planner_invoked"))
+    payload["planner_used"] = bool(experience_record.get("planner_used"))
+    payload["planner_decisive"] = bool(experience_record.get("planner_decisive"))
+    payload["replay_used"] = bool(experience_record.get("replay_used"))
+    payload["dominant_stage_subtype"] = str(experience_record.get("dominant_stage_subtype") or "")
     return payload
 
 
@@ -973,7 +980,15 @@ def main() -> None:
         }
         payload["repair_quality_breakdown"] = _compute_repair_quality_breakdown(payload)
         payload["repair_quality_score"] = float(payload["repair_quality_breakdown"].get("repair_quality_score") or 0.0)
-        payload["action_contributions"] = []
+        experience_record = _build_experience_record(payload)
+        payload["action_contributions"] = list(experience_record.get("action_contributions") or [])
+        payload["resolution_attribution"] = dict(experience_record.get("resolution_attribution") or {})
+        payload["resolution_path"] = str(experience_record.get("resolution_path") or "")
+        payload["planner_invoked"] = bool(experience_record.get("planner_invoked"))
+        payload["planner_used"] = bool(experience_record.get("planner_used"))
+        payload["planner_decisive"] = bool(experience_record.get("planner_decisive"))
+        payload["replay_used"] = bool(experience_record.get("replay_used"))
+        payload["dominant_stage_subtype"] = str(experience_record.get("dominant_stage_subtype") or "")
         if str(args.out).strip():
             Path(args.out).write_text(json.dumps(payload, indent=2), encoding="utf-8")
         print(json.dumps(payload))
@@ -1010,7 +1025,15 @@ def main() -> None:
         }
         payload["repair_quality_breakdown"] = _compute_repair_quality_breakdown(payload)
         payload["repair_quality_score"] = float(payload["repair_quality_breakdown"].get("repair_quality_score") or 0.0)
-        payload["action_contributions"] = []
+        experience_record = _build_experience_record(payload)
+        payload["action_contributions"] = list(experience_record.get("action_contributions") or [])
+        payload["resolution_attribution"] = dict(experience_record.get("resolution_attribution") or {})
+        payload["resolution_path"] = str(experience_record.get("resolution_path") or "")
+        payload["planner_invoked"] = bool(experience_record.get("planner_invoked"))
+        payload["planner_used"] = bool(experience_record.get("planner_used"))
+        payload["planner_decisive"] = bool(experience_record.get("planner_decisive"))
+        payload["replay_used"] = bool(experience_record.get("replay_used"))
+        payload["dominant_stage_subtype"] = str(experience_record.get("dominant_stage_subtype") or "")
         if str(args.out).strip():
             Path(args.out).write_text(json.dumps(payload, indent=2), encoding="utf-8")
         print(json.dumps(payload))
