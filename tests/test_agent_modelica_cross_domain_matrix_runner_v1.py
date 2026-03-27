@@ -89,6 +89,8 @@ class AgentModelicaCrossDomainMatrixRunnerV1Tests(unittest.TestCase):
             self.assertEqual(summary["status"], "PASS")
             self.assertEqual(run_mock.call_count, 8)
             self.assertEqual(summary["configs"][-1]["status"], "PASS")
+            self.assertTrue((out_dir / "baseline").exists())
+            self.assertTrue((out_dir / "replay_plus_planner").exists())
 
     def test_cli_dry_run(self) -> None:
         with tempfile.TemporaryDirectory() as d:

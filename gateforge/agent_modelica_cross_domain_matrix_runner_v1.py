@@ -158,6 +158,8 @@ def run_matrix(
     status = "PASS"
     config_rows: list[dict] = []
     for row in rows:
+        Path(row["gateforge_results"]).parent.mkdir(parents=True, exist_ok=True)
+        Path(row["comparison_summary"]).parent.mkdir(parents=True, exist_ok=True)
         entry = {
             "config_label": row["config_label"],
             "experience_replay": row["experience_replay"],
