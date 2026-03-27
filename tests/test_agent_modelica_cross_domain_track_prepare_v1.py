@@ -60,13 +60,15 @@ class AgentModelicaCrossDomainTrackPrepareV1Tests(unittest.TestCase):
             valid_only=True,
         )
         self.assertEqual(cmds[0]["name"], "harvest")
-        self.assertEqual(cmds[2]["name"], "build_selection_plan")
-        self.assertIn("--min-covered-scales", cmds[2]["cmd"])
-        self.assertEqual(cmds[4]["name"], "lock_hardpack")
-        self.assertEqual(cmds[4]["include_patterns"], ["Buildings/"])
-        self.assertEqual(cmds[4]["library_load_models"], ["Buildings"])
-        self.assertIn("--selection-plan", cmds[3]["cmd"])
-        self.assertIn("--valid-only", cmds[5]["cmd"])
+        self.assertEqual(cmds[2]["name"], "source_viability_filter")
+        self.assertIn("--extra-model-load", cmds[2]["cmd"])
+        self.assertEqual(cmds[3]["name"], "build_selection_plan")
+        self.assertIn("--min-covered-scales", cmds[3]["cmd"])
+        self.assertEqual(cmds[5]["name"], "lock_hardpack")
+        self.assertEqual(cmds[5]["include_patterns"], ["Buildings/"])
+        self.assertEqual(cmds[5]["library_load_models"], ["Buildings"])
+        self.assertIn("--selection-plan", cmds[4]["cmd"])
+        self.assertIn("--valid-only", cmds[6]["cmd"])
 
     def test_run_prepare_track_dry_run_writes_summary(self) -> None:
         with tempfile.TemporaryDirectory() as d:
@@ -115,7 +117,7 @@ class AgentModelicaCrossDomainTrackPrepareV1Tests(unittest.TestCase):
             )
             self.assertEqual(summary["status"], "PASS")
             self.assertTrue((out_dir / "summary.json").exists())
-            self.assertEqual(len(summary["steps"]), 6)
+            self.assertEqual(len(summary["steps"]), 7)
             self.assertEqual(summary["steps"][0]["status"], "PLANNED")
 
     def test_cli_dry_run(self) -> None:

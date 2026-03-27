@@ -101,6 +101,7 @@ def build_prepare_commands(
     harvest_dir = Path(out_dir) / "harvest"
     intake_dir = Path(out_dir) / "intake"
     selection_dir = Path(out_dir) / "selection"
+    viability_dir = Path(out_dir) / "viability"
     mutation_dir = Path(out_dir) / "mutation"
     hardpack_dir = Path(out_dir) / "hardpack"
 
@@ -151,13 +152,38 @@ def build_prepare_commands(
             ],
         },
         {
+            "name": "source_viability_filter",
+            "cmd": [
+                sys.executable,
+                "-m",
+                "gateforge.agent_modelica_cross_domain_source_viability_filter_v1",
+                "--registry",
+                str(intake_dir / "accepted_registry_rows.json"),
+                "--registry-out",
+                str(viability_dir / "accepted_registry_rows.json"),
+                "--out",
+                str(viability_dir / "summary.json"),
+                "--backend",
+                "openmodelica_docker",
+                "--docker-image",
+                "openmodelica/openmodelica:v1.26.1-minimal",
+                "--timeout-sec",
+                "300",
+                "--stop-time",
+                "0.2",
+                "--intervals",
+                "20",
+            ]
+            + sum([["--extra-model-load", item] for item in library_load_models], []),
+        },
+        {
             "name": "build_selection_plan",
             "cmd": [
                 sys.executable,
                 "-m",
                 "gateforge.dataset_mutation_model_selection_plan_v1",
                 "--executable-registry",
-                str(intake_dir / "accepted_registry_rows.json"),
+                str(viability_dir / "accepted_registry_rows.json"),
                 "--target-scales",
                 str(target_scales),
                 "--max-models",
@@ -181,7 +207,7 @@ def build_prepare_commands(
                 "-m",
                 "gateforge.dataset_mutation_model_materializer_v1",
                 "--model-registry",
-                str(intake_dir / "accepted_registry_rows.json"),
+                str(viability_dir / "accepted_registry_rows.json"),
                 "--selection-plan",
                 str(selection_dir / "selection_plan.json"),
                 "--target-scales",
