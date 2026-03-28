@@ -22,6 +22,8 @@ class AgentModelicaCrossDomainValidationSpecBuilderV1Tests(unittest.TestCase):
                     {
                         "track_id": "buildings_v1",
                         "library": "Buildings",
+                        "layer_sidecar": "layer_metadata.json",
+                        "layer_sidecar_summary_path": "layer_summary.json",
                         "configs": [
                             {
                                 "config_label": "baseline",
@@ -42,6 +44,7 @@ class AgentModelicaCrossDomainValidationSpecBuilderV1Tests(unittest.TestCase):
             )
             self.assertEqual(spec["experiment_expectations"]["replay_signal_expectation"], "x")
             self.assertEqual(spec["tracks"][0]["configs"]["baseline"]["comparison_summary"], "cmp.json")
+            self.assertEqual(spec["tracks"][0]["layer_sidecar"], "layer_metadata.json")
 
     def test_cli_writes_spec(self) -> None:
         with tempfile.TemporaryDirectory() as d:

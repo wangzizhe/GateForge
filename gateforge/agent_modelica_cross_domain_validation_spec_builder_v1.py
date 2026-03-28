@@ -88,6 +88,8 @@ def build_spec(
             {
                 "track_id": track_id,
                 "library": library,
+                "layer_sidecar": str(summary.get("layer_sidecar") or ""),
+                "layer_sidecar_summary_path": str(summary.get("layer_sidecar_summary_path") or ""),
                 "configs": configs,
             }
         )

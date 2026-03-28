@@ -147,6 +147,40 @@ def _aggregate_case_diagnostics(gf_results: dict) -> dict:
     }
 
 
+def _track_layer_profile(track_id: str, library: str, sidecar: dict, sidecar_path: str) -> dict:
+    annotations = sidecar.get("annotations") if isinstance(sidecar.get("annotations"), list) else []
+    layer_counts: dict[str, int] = {}
+    source_counts: dict[str, int] = {}
+    present_layers: set[str] = set()
+    for row in annotations:
+        if not isinstance(row, dict):
+            continue
+        layer = str(row.get("difficulty_layer") or "").strip()
+        if layer:
+            layer_counts[layer] = int(layer_counts.get(layer, 0)) + 1
+            present_layers.add(layer)
+        source = str(row.get("difficulty_layer_source") or "").strip().lower()
+        if source:
+            source_counts[source] = int(source_counts.get(source, 0)) + 1
+    total = len([row for row in annotations if isinstance(row, dict)])
+    inferred = int(source_counts.get("inferred", 0))
+    override = int(source_counts.get("override", 0))
+    observed = int(source_counts.get("observed", 0))
+    return {
+        "track_id": str(track_id or "").strip(),
+        "library": str(library or "").strip(),
+        "sidecar_path": str(sidecar_path or ""),
+        "total_items": total,
+        "present_layers": sorted(present_layers),
+        "missing_layers": [layer for layer in ("layer_1", "layer_2", "layer_3", "layer_4") if layer not in present_layers],
+        "layer_counts": _sorted_int_map(layer_counts),
+        "source_counts": _sorted_int_map(source_counts),
+        "observed_ratio": round((observed / total) * 100.0, 2) if total else 0.0,
+        "override_ratio": round((override / total) * 100.0, 2) if total else 0.0,
+        "inferred_ratio": round((inferred / total) * 100.0, 2) if total else 0.0,
+    }
+
+
 def summarize_track_config(
     *,
     track_id: str,
@@ -204,12 +238,18 @@ def build_validation_summary(spec: dict) -> dict:
         else {}
     )
     track_summaries: list[dict] = []
+    track_layer_profiles: list[dict] = []
 
     for track in tracks:
         if not isinstance(track, dict):
             continue
         track_id = str(track.get("track_id") or "").strip() or "unknown_track"
         library = str(track.get("library") or track_id).strip()
+        sidecar_path = str(track.get("layer_sidecar") or "").strip()
+        if sidecar_path:
+            sidecar = _load_json(sidecar_path)
+            if sidecar:
+                track_layer_profiles.append(_track_layer_profile(track_id, library, sidecar, sidecar_path))
         configs = track.get("configs") if isinstance(track.get("configs"), dict) else {}
         for config_label, config in sorted(configs.items(), key=lambda item: _config_sort_key(item[0])):
             if not isinstance(config, dict):
@@ -319,6 +359,14 @@ def build_validation_summary(spec: dict) -> dict:
         status = "NEEDS_REVIEW"
         reasons.append("config_regression_detected")
 
+    layer_coverage_gap: dict[str, list[str]] = {}
+    for profile in track_layer_profiles:
+        if not isinstance(profile, dict):
+            continue
+        for layer in profile.get("missing_layers") or []:
+            rows = layer_coverage_gap.setdefault(str(layer), [])
+            rows.append(str(profile.get("track_id") or ""))
+
     return {
         "schema_version": SCHEMA_VERSION,
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
@@ -326,6 +374,8 @@ def build_validation_summary(spec: dict) -> dict:
         "reasons": reasons,
         "experiment_expectations": experiment_expectations,
         "track_summaries": track_summaries,
+        "track_layer_profiles": track_layer_profiles,
+        "layer_coverage_gap": {key: sorted(value) for key, value in sorted(layer_coverage_gap.items())},
         "aggregate_by_config": ordered_aggregate,
         "sources": {
             "spec_path": str(spec.get("_source_path") or ""),
@@ -371,6 +421,28 @@ def render_markdown(summary: dict) -> str:
     lines.extend(
         [
             "",
+            "## Track Layer Profiles",
+            "",
+            "| track | library | present_layers | observed_ratio | override_ratio | inferred_ratio |",
+            "|---|---|---|---:|---:|---:|",
+        ]
+    )
+    for row in summary.get("track_layer_profiles") or []:
+        if not isinstance(row, dict):
+            continue
+        lines.append(
+            "| {track_id} | {library} | {present_layers} | {observed_ratio:.2f} | {override_ratio:.2f} | {inferred_ratio:.2f} |".format(
+                track_id=row.get("track_id"),
+                library=row.get("library"),
+                present_layers=",".join(row.get("present_layers") or []) or "none",
+                observed_ratio=float(row.get("observed_ratio") or 0.0),
+                override_ratio=float(row.get("override_ratio") or 0.0),
+                inferred_ratio=float(row.get("inferred_ratio") or 0.0),
+            )
+        )
+    lines.extend(
+        [
+            "",
             "## Per-Track Rows",
             "",
             "| track | library | config | status | verdict | gf_rate | bare_rate | delta_pp |",
@@ -385,6 +457,13 @@ def render_markdown(summary: dict) -> str:
             "{bare_llm_repair_rate:.1%} | {delta_pp:.2f} |".format(**row)
         )
     lines.append("")
+    gap = summary.get("layer_coverage_gap") if isinstance(summary.get("layer_coverage_gap"), dict) else {}
+    if gap:
+        lines.append("## Layer Coverage Gap")
+        lines.append("")
+        for layer, track_ids in gap.items():
+            lines.append(f"- {layer}: `{', '.join(track_ids)}`")
+        lines.append("")
     return "\n".join(lines)
 
 

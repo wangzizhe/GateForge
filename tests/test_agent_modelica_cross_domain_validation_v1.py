@@ -89,6 +89,7 @@ class AgentModelicaCrossDomainValidationV1Tests(unittest.TestCase):
             base_gf = root / "base_gf.json"
             replay_cmp = root / "replay_cmp.json"
             replay_gf = root / "replay_gf.json"
+            sidecar = root / "sidecar.json"
             base_cmp.write_text(
                 json.dumps(
                     {
@@ -113,6 +114,25 @@ class AgentModelicaCrossDomainValidationV1Tests(unittest.TestCase):
                 encoding="utf-8",
             )
             replay_gf.write_text(json.dumps({"metrics": {"repair_rate": 0.75, "total": 4}}), encoding="utf-8")
+            sidecar.write_text(
+                json.dumps(
+                    {
+                        "annotations": [
+                            {
+                                "item_id": "m1",
+                                "difficulty_layer": "layer_3",
+                                "difficulty_layer_source": "observed",
+                            },
+                            {
+                                "item_id": "m2",
+                                "difficulty_layer": "layer_4",
+                                "difficulty_layer_source": "inferred",
+                            },
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
 
             summary = build_validation_summary(
                 {
@@ -123,6 +143,7 @@ class AgentModelicaCrossDomainValidationV1Tests(unittest.TestCase):
                         {
                             "track_id": "openipsl",
                             "library": "OpenIPSL",
+                            "layer_sidecar": str(sidecar),
                             "configs": {
                                 "baseline": {
                                     "comparison_summary": str(base_cmp),
@@ -145,6 +166,8 @@ class AgentModelicaCrossDomainValidationV1Tests(unittest.TestCase):
             "low-signal replay may be inconclusive",
         )
         self.assertFalse(agg["replay_only"]["no_regression_vs_baseline"])
+        self.assertEqual(summary["track_layer_profiles"][0]["present_layers"], ["layer_3", "layer_4"])
+        self.assertEqual(summary["track_layer_profiles"][0]["observed_ratio"], 50.0)
 
     def test_run_validation_writes_summary_and_markdown(self) -> None:
         with tempfile.TemporaryDirectory() as d:
@@ -192,6 +215,27 @@ class AgentModelicaCrossDomainValidationV1Tests(unittest.TestCase):
             md = render_markdown(summary)
             self.assertIn("Aggregate by Config", md)
             self.assertIn("low_signal_tracks", md)
+
+    def test_render_markdown_includes_track_layer_profiles(self) -> None:
+        summary = {
+            "status": "PASS",
+            "aggregate_by_config": [],
+            "track_summaries": [],
+            "track_layer_profiles": [
+                {
+                    "track_id": "buildings",
+                    "library": "Buildings",
+                    "present_layers": ["layer_1", "layer_3"],
+                    "observed_ratio": 50.0,
+                    "override_ratio": 0.0,
+                    "inferred_ratio": 50.0,
+                }
+            ],
+            "layer_coverage_gap": {"layer_4": ["buildings"]},
+        }
+        md = render_markdown(summary)
+        self.assertIn("Track Layer Profiles", md)
+        self.assertIn("Layer Coverage Gap", md)
 
     def test_replay_only_counts_low_signal_tracks(self) -> None:
         with tempfile.TemporaryDirectory() as d:
