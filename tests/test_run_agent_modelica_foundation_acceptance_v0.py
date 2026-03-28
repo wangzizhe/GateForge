@@ -7,6 +7,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
 
 class RunAgentModelicaFoundationAcceptanceV0ScriptTests(unittest.TestCase):
     def _write_json(self, path: Path, payload: object) -> None:
@@ -69,7 +71,7 @@ class RunAgentModelicaFoundationAcceptanceV0ScriptTests(unittest.TestCase):
             env["GATEFORGE_AGENT_FOUNDATION_ACCEPTANCE_OUT"] = str(out)
             result = subprocess.run(
                 ["bash", "scripts/run_agent_modelica_foundation_acceptance_v0.sh"],
-                cwd="/Users/meow/Documents/GateForge",
+                cwd=str(REPO_ROOT),
                 env=env,
                 capture_output=True,
                 text=True,

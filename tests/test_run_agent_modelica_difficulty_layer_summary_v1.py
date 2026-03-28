@@ -5,6 +5,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
 
 class RunAgentModelicaDifficultyLayerSummaryV1Tests(unittest.TestCase):
     def test_wrapper_runs(self) -> None:
@@ -33,7 +35,7 @@ class RunAgentModelicaDifficultyLayerSummaryV1Tests(unittest.TestCase):
             subprocess.run(
                 ["bash", "scripts/run_agent_modelica_difficulty_layer_summary_v1.sh"],
                 check=True,
-                cwd="/Users/meow/Documents/GateForge",
+                cwd=str(REPO_ROOT),
                 env=env,
             )
             payload = json.loads((root / "out" / "summary.json").read_text(encoding="utf-8"))

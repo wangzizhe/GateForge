@@ -5,6 +5,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
 
 class RunAgentModelicaDifficultyLayerSidecarBuilderV1Tests(unittest.TestCase):
     def test_wrapper_builds_summary(self) -> None:
@@ -33,7 +35,7 @@ class RunAgentModelicaDifficultyLayerSidecarBuilderV1Tests(unittest.TestCase):
             subprocess.run(
                 ["bash", "scripts/run_agent_modelica_difficulty_layer_sidecar_builder_v1.sh"],
                 check=True,
-                cwd="/Users/meow/Documents/GateForge",
+                cwd=str(REPO_ROOT),
                 env=env,
             )
             summary = json.loads((root / "out" / "summary.json").read_text(encoding="utf-8"))
@@ -78,7 +80,7 @@ class RunAgentModelicaDifficultyLayerSidecarBuilderV1Tests(unittest.TestCase):
             subprocess.run(
                 ["bash", "scripts/run_agent_modelica_difficulty_layer_sidecar_builder_v1.sh"],
                 check=True,
-                cwd="/Users/meow/Documents/GateForge",
+                cwd=str(REPO_ROOT),
                 env=env,
             )
             sidecar = json.loads((root / "out" / "layer_metadata.json").read_text(encoding="utf-8"))
@@ -123,7 +125,7 @@ class RunAgentModelicaDifficultyLayerSidecarBuilderV1Tests(unittest.TestCase):
             subprocess.run(
                 ["bash", "scripts/run_agent_modelica_difficulty_layer_sidecar_builder_v1.sh"],
                 check=True,
-                cwd="/Users/meow/Documents/GateForge",
+                cwd=str(REPO_ROOT),
                 env=env,
             )
             summary = json.loads((root / "out" / "summary.json").read_text(encoding="utf-8"))
