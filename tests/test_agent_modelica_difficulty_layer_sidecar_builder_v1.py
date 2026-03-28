@@ -132,6 +132,115 @@ class AgentModelicaDifficultyLayerSidecarBuilderV1Tests(unittest.TestCase):
             self.assertEqual(row["expected_layer_reason"], "inferred_from_custom_failure_type")
             self.assertEqual(summary["inferred_count"], 1)
 
+    def test_build_sidecar_applies_override_when_no_observed_result(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            substrate = root / "hardpack.json"
+            substrate.write_text(
+                json.dumps(
+                    {
+                        "cases": [
+                            {
+                                "mutation_id": "m1",
+                                "expected_failure_type": "semantic_regression",
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            override_path = root / "override.json"
+            override_path.write_text(
+                json.dumps(
+                    {
+                        "overrides": [
+                            {
+                                "item_id": "m1",
+                                "difficulty_layer": "layer_4",
+                                "layer_reason": "manual_initial_review",
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            out_sidecar = root / "sidecar.json"
+            summary = build_sidecar(
+                substrate_path=str(substrate),
+                results_paths=[],
+                out_sidecar=str(out_sidecar),
+                override_path=str(override_path),
+            )
+            payload = json.loads(out_sidecar.read_text(encoding="utf-8"))
+            row = payload["annotations"][0]
+            self.assertEqual(row["difficulty_layer"], "layer_4")
+            self.assertEqual(row["difficulty_layer_source"], "override")
+            self.assertTrue(row["override_applied"])
+            self.assertEqual(summary["override_count"], 1)
+            self.assertEqual(summary["inferred_count"], 0)
+
+    def test_build_sidecar_prefers_observed_over_override(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            substrate = root / "hardpack.json"
+            substrate.write_text(
+                json.dumps(
+                    {
+                        "cases": [
+                            {
+                                "mutation_id": "m1",
+                                "expected_failure_type": "semantic_regression",
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            results = root / "results.json"
+            results.write_text(
+                json.dumps(
+                    {
+                        "results": [
+                            {
+                                "mutation_id": "m1",
+                                "resolution_attribution": {
+                                    "dominant_stage_subtype": "stage_3_behavioral_contract_semantic"
+                                }
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            override_path = root / "override.json"
+            override_path.write_text(
+                json.dumps(
+                    {
+                        "overrides": {
+                            "m1": {
+                                "difficulty_layer": "layer_4",
+                                "layer_reason": "manual_initial_review"
+                            }
+                        }
+                    }
+                ),
+                encoding="utf-8",
+            )
+            out_sidecar = root / "sidecar.json"
+            summary = build_sidecar(
+                substrate_path=str(substrate),
+                results_paths=[str(results)],
+                out_sidecar=str(out_sidecar),
+                override_path=str(override_path),
+            )
+            payload = json.loads(out_sidecar.read_text(encoding="utf-8"))
+            row = payload["annotations"][0]
+            self.assertEqual(row["difficulty_layer"], "layer_3")
+            self.assertEqual(row["difficulty_layer_source"], "observed")
+            self.assertFalse(row["override_applied"])
+            self.assertEqual(summary["observed_count"], 1)
+            self.assertEqual(summary["override_count"], 0)
+
 
 if __name__ == "__main__":
     unittest.main()

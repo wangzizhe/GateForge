@@ -40,6 +40,27 @@ def _load_hint_rules(path: str | Path | None) -> dict:
     return payload if payload else {}
 
 
+def _load_overrides(path: str | Path | None) -> dict[str, dict]:
+    payload = _load_json(path) if path else {}
+    if not payload:
+        return {}
+    raw = payload.get("overrides")
+    out: dict[str, dict] = {}
+    if isinstance(raw, dict):
+        for item_id, row in raw.items():
+            if isinstance(row, dict) and str(item_id).strip():
+                out[str(item_id).strip()] = dict(row)
+        return out
+    if isinstance(raw, list):
+        for row in raw:
+            if not isinstance(row, dict):
+                continue
+            item_id = str(row.get("item_id") or "").strip()
+            if item_id:
+                out[item_id] = dict(row)
+    return out
+
+
 def _write_json(path: str | Path, payload: object) -> None:
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
@@ -137,17 +158,26 @@ def _observed_candidates(results_paths: list[str]) -> dict[str, dict]:
     return observed
 
 
-def build_sidecar(*, substrate_path: str, results_paths: list[str], out_sidecar: str, hint_rules_path: str = "") -> dict:
+def build_sidecar(
+    *,
+    substrate_path: str,
+    results_paths: list[str],
+    out_sidecar: str,
+    hint_rules_path: str = "",
+    override_path: str = "",
+) -> dict:
     substrate_payload = _load_json(substrate_path)
     substrate_kind, rows, id_key = _substrate_rows(substrate_payload)
     observed = _observed_candidates(results_paths)
     hint_rules = _load_hint_rules(hint_rules_path)
+    overrides = _load_overrides(override_path)
 
     annotations: list[dict] = []
     inferred_count = 0
     observed_count = 0
+    override_count = 0
     layer_counts: dict[str, int] = {}
-    source_counts: dict[str, int] = {"observed": 0, "inferred": 0}
+    source_counts: dict[str, int] = {"observed": 0, "override": 0, "inferred": 0}
 
     for row in rows:
         item_id = str(row.get(id_key) or "").strip()
@@ -164,13 +194,35 @@ def build_sidecar(*, substrate_path: str, results_paths: list[str], out_sidecar:
             "dominant_stage_subtype_source": "",
             "expected_layer_hint": expected_layer_hint,
             "expected_layer_reason": expected_layer_reason,
+            "override_applied": False,
+            "override_path": "",
         }
         observed_row = observed.get(item_id)
         if observed_row:
             annotation.update(observed_row)
             observed_count += 1
             source_counts["observed"] += 1
-        elif expected_layer_hint:
+        else:
+            override_row = overrides.get(item_id)
+            if isinstance(override_row, dict) and str(override_row.get("difficulty_layer") or "").strip():
+                annotation["difficulty_layer"] = str(override_row.get("difficulty_layer") or "").strip()
+                annotation["layer_reason"] = str(override_row.get("layer_reason") or "manual_initial_review").strip()
+                annotation["difficulty_layer_source"] = "override"
+                dominant_stage_subtype = str(override_row.get("dominant_stage_subtype") or "").strip()
+                if dominant_stage_subtype:
+                    annotation["dominant_stage_subtype"] = dominant_stage_subtype
+                    annotation["dominant_stage_subtype_source"] = "override"
+                expected_layer_override = str(override_row.get("expected_layer_hint") or "").strip()
+                if expected_layer_override:
+                    annotation["expected_layer_hint"] = expected_layer_override
+                expected_layer_reason_override = str(override_row.get("expected_layer_reason") or "").strip()
+                if expected_layer_reason_override:
+                    annotation["expected_layer_reason"] = expected_layer_reason_override
+                annotation["override_applied"] = True
+                annotation["override_path"] = str(override_path or "")
+                override_count += 1
+                source_counts["override"] += 1
+        if not annotation["difficulty_layer"] and expected_layer_hint:
             annotation["difficulty_layer"] = expected_layer_hint
             annotation["layer_reason"] = expected_layer_reason
             annotation["difficulty_layer_source"] = "inferred"
@@ -193,12 +245,15 @@ def build_sidecar(*, substrate_path: str, results_paths: list[str], out_sidecar:
         "summary": {
             "total_items": total,
             "observed_count": observed_count,
+            "override_count": override_count,
             "inferred_count": inferred_count,
+            "override_ratio": round((override_count / total) * 100.0, 2) if total else 0.0,
             "inferred_ratio": round((inferred_count / total) * 100.0, 2) if total else 0.0,
             "source_counts": source_counts,
             "layer_counts": dict(sorted(layer_counts.items())),
             "results_paths": [str(path) for path in results_paths],
             "hint_rules_path": str(hint_rules_path or DEFAULT_HINT_RULES_PATH),
+            "override_path": str(override_path or ""),
         },
     }
     _write_json(out_sidecar, sidecar)
@@ -212,6 +267,7 @@ def main() -> None:
     parser.add_argument("--out-sidecar", required=True)
     parser.add_argument("--out-summary", default="")
     parser.add_argument("--hint-rules", default="")
+    parser.add_argument("--override", default="")
     args = parser.parse_args()
 
     summary = build_sidecar(
@@ -219,6 +275,7 @@ def main() -> None:
         results_paths=[str(path) for path in (args.results or []) if str(path).strip()],
         out_sidecar=str(args.out_sidecar),
         hint_rules_path=str(args.hint_rules or ""),
+        override_path=str(args.override or ""),
     )
     out_summary = str(args.out_summary or "")
     if out_summary:

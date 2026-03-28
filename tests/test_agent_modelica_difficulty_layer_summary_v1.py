@@ -23,7 +23,7 @@ class AgentModelicaDifficultyLayerSummaryV1Tests(unittest.TestCase):
                             {
                                 "item_id": "m2",
                                 "difficulty_layer": "layer_3",
-                                "difficulty_layer_source": "inferred",
+                                "difficulty_layer_source": "override",
                             },
                         ]
                     }
@@ -49,7 +49,7 @@ class AgentModelicaDifficultyLayerSummaryV1Tests(unittest.TestCase):
             lane = payload["lanes"][0]
             self.assertEqual(lane["per_layer"]["layer_2"]["gateforge_success_rate_pct"], 100.0)
             self.assertEqual(lane["per_layer"]["layer_3"]["bare_success_rate_pct"], 100.0)
-            self.assertEqual(lane["per_layer"]["layer_3"]["inferred_ratio"], 100.0)
+            self.assertEqual(lane["per_layer"]["layer_3"]["override_ratio"], 100.0)
             self.assertIn("layer_1", lane["missing_layers"])
 
     def test_build_summary_uses_run_results_for_planner_metrics(self) -> None:

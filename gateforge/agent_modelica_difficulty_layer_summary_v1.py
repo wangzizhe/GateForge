@@ -126,7 +126,9 @@ def summarize_lane(lane: dict) -> dict:
             {
                 "case_count": 0,
                 "observed_count": 0,
+                "override_count": 0,
                 "inferred_count": 0,
+                "override_ratio": 0.0,
                 "inferred_ratio": 0.0,
                 "gateforge_success_count": 0,
                 "gateforge_success_rate_pct": 0.0,
@@ -142,6 +144,8 @@ def summarize_lane(lane: dict) -> dict:
         source = str(row.get("difficulty_layer_source") or "").strip().lower()
         if source == "observed":
             bucket["observed_count"] += 1
+        elif source == "override":
+            bucket["override_count"] += 1
         elif source == "inferred":
             bucket["inferred_count"] += 1
         item_id = str(row.get("item_id") or "").strip()
@@ -158,6 +162,7 @@ def summarize_lane(lane: dict) -> dict:
 
     for bucket in per_layer.values():
         total = int(bucket["case_count"])
+        bucket["override_ratio"] = _ratio(int(bucket["override_count"]), total)
         bucket["inferred_ratio"] = _ratio(int(bucket["inferred_count"]), total)
         bucket["gateforge_success_rate_pct"] = _ratio(int(bucket["gateforge_success_count"]), total)
         bucket["bare_success_rate_pct"] = _ratio(int(bucket["bare_success_count"]), total)
@@ -218,7 +223,7 @@ def _write_markdown(path: str | Path, payload: dict) -> None:
         lines.append(f"- missing_layers: `{','.join(lane.get('missing_layers') or []) or 'none'}`")
         lines.append("")
         for layer, bucket in (lane.get("per_layer") or {}).items():
-            lines.append(f"- {layer}: cases=`{bucket.get('case_count')}`, inferred_ratio=`{bucket.get('inferred_ratio')}`, gateforge_success_rate_pct=`{bucket.get('gateforge_success_rate_pct')}`, bare_success_rate_pct=`{bucket.get('bare_success_rate_pct')}`, planner_invoked_rate_pct=`{bucket.get('planner_invoked_rate_pct')}`")
+            lines.append(f"- {layer}: cases=`{bucket.get('case_count')}`, override_ratio=`{bucket.get('override_ratio')}`, inferred_ratio=`{bucket.get('inferred_ratio')}`, gateforge_success_rate_pct=`{bucket.get('gateforge_success_rate_pct')}`, bare_success_rate_pct=`{bucket.get('bare_success_rate_pct')}`, planner_invoked_rate_pct=`{bucket.get('planner_invoked_rate_pct')}`")
         lines.append("")
     lines.append("## Coverage Gap")
     lines.append("")
