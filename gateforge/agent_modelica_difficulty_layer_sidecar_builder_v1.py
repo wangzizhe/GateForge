@@ -98,6 +98,9 @@ def _infer_expected_layer(row: dict, *, hint_rules: dict) -> tuple[str, str]:
     family_rule = task_family_rules.get(family) if family else None
     if isinstance(family_rule, dict):
         return str(family_rule.get("layer") or ""), str(family_rule.get("reason") or "inferred_from_task_family")
+    fallback_family_rule = task_family_rules.get(failure_type) if failure_type else None
+    if isinstance(fallback_family_rule, dict):
+        return str(fallback_family_rule.get("layer") or ""), str(fallback_family_rule.get("reason") or "inferred_from_task_family")
 
     failure_rule = failure_type_rules.get(failure_type) if failure_type else None
     if isinstance(failure_rule, dict) and failure_type != "model_check_error":

@@ -5,6 +5,8 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
+from .agent_modelica_difficulty_layer_sidecar_builder_v1 import build_sidecar
+
 
 SCHEMA_VERSION = "agent_modelica_planner_sensitive_taskset_builder_v1"
 
@@ -70,6 +72,7 @@ def build_planner_sensitive_taskset(
     out_taskset_path: str,
     max_tasks: int = 24,
     planner_invoked_target_pct: float = 50.0,
+    out_layer_sidecar_path: str = "",
 ) -> dict:
     task_by_id: dict[str, dict] = {}
     task_sources: dict[str, str] = {}
@@ -147,6 +150,7 @@ def build_planner_sensitive_taskset(
         status = "PASS"
         validation_reason = "planner_invoked_rate_met"
 
+    layer_sidecar_path = str(out_layer_sidecar_path or Path(out_taskset_path).with_name("layer_metadata.json"))
     taskset_payload = {
         "schema_version": "agent_modelica_taskset_frozen_v1",
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
@@ -159,11 +163,17 @@ def build_planner_sensitive_taskset(
             "selection_count": len(selected_rows),
             "validation_status": status,
             "validation_reason": validation_reason,
+            "layer_sidecar_path": layer_sidecar_path,
         },
         "task_count": len(selected_tasks),
         "tasks": selected_tasks,
     }
     _write_json(out_taskset_path, taskset_payload)
+    layer_sidecar_summary = build_sidecar(
+        substrate_path=str(out_taskset_path),
+        results_paths=[str(path) for path in results_paths],
+        out_sidecar=layer_sidecar_path,
+    )
 
     return {
         "schema_version": SCHEMA_VERSION,
@@ -175,6 +185,8 @@ def build_planner_sensitive_taskset(
         "out_taskset_path": str(out_taskset_path),
         "planner_invoked_target_pct": float(planner_invoked_target_pct),
         "planner_invoked_rate_pct": planner_invoked_rate_pct,
+        "layer_sidecar_path": layer_sidecar_path,
+        "layer_sidecar_summary": layer_sidecar_summary,
         "selected_task_count": len(selected_rows),
         "selected_rows": selected_rows,
         "missing_results": missing_results,
@@ -190,6 +202,7 @@ def main() -> None:
     parser.add_argument("--out-summary", default="")
     parser.add_argument("--max-tasks", type=int, default=24)
     parser.add_argument("--planner-invoked-target-pct", type=float, default=50.0)
+    parser.add_argument("--out-layer-sidecar", default="")
     args = parser.parse_args()
 
     out_summary = str(args.out_summary or "")
@@ -201,6 +214,7 @@ def main() -> None:
         out_taskset_path=str(args.out_taskset),
         max_tasks=int(args.max_tasks or 0),
         planner_invoked_target_pct=float(args.planner_invoked_target_pct or 0.0),
+        out_layer_sidecar_path=str(args.out_layer_sidecar or ""),
     )
     _write_json(out_summary, summary)
     print(json.dumps({"status": summary.get("status"), "selected_task_count": summary.get("selected_task_count")}))

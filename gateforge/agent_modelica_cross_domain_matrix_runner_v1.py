@@ -7,6 +7,8 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+from .agent_modelica_difficulty_layer_sidecar_builder_v1 import build_sidecar
+
 
 SCHEMA_VERSION = "agent_modelica_cross_domain_matrix_runner_v1"
 CONFIG_MATRIX = (
@@ -238,7 +240,23 @@ def run_matrix(
         "planner_experience_max_tokens": int(planner_experience_max_tokens),
         "dry_run": bool(dry_run),
         "configs": config_rows,
+        "layer_sidecar": "",
+        "layer_sidecar_summary": {},
     }
+    sidecar_path = str(Path(out_dir) / "layer_metadata.json")
+    sidecar_summary_path = str(Path(out_dir) / "layer_summary.json")
+    summary["layer_sidecar"] = sidecar_path
+    summary["layer_sidecar_summary_path"] = sidecar_summary_path
+    if not dry_run and str(status) == "PASS" and config_rows:
+        baseline_results = str(config_rows[0].get("gateforge_results") or "")
+        if baseline_results:
+            sidecar_summary = build_sidecar(
+                substrate_path=str(pack_path),
+                results_paths=[baseline_results],
+                out_sidecar=sidecar_path,
+            )
+            summary["layer_sidecar_summary"] = sidecar_summary
+            _write_json(sidecar_summary_path, sidecar_summary)
     out_path = Path(out_dir) / "matrix_summary.json"
     _write_json(out_path, summary)
     _write_markdown(_default_md_path(out_path), summary)

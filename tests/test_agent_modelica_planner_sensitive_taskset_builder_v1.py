@@ -48,6 +48,8 @@ class AgentModelicaPlannerSensitiveTasksetBuilderV1Tests(unittest.TestCase):
             selected_ids = [row["task_id"] for row in out_payload.get("tasks") or []]
             self.assertEqual(selected_ids, ["t2", "t1"])
             self.assertEqual(summary["status"], "PASS")
+            self.assertTrue(Path(summary["layer_sidecar_path"]).exists())
+            self.assertEqual(summary["layer_sidecar_summary"]["inferred_count"], 2)
 
     def test_build_planner_sensitive_taskset_marks_empty_selection_as_fail(self) -> None:
         with tempfile.TemporaryDirectory() as d:
