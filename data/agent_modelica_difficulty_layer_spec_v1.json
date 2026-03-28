@@ -1,0 +1,67 @@
+{
+  "schema_version": "agent_modelica_difficulty_layer_spec_v1",
+  "description": "Difficulty-stratified evaluation taxonomy for agent-modelica benchmarks. Stage subtypes describe where an error manifests in the compile/simulate pipeline; difficulty layers describe the task difficulty presented to the agent.",
+  "concepts": {
+    "dominant_stage_subtype": "Diagnostic-stage label derived from compiler/simulator evidence. This is not a difficulty label.",
+    "difficulty_layer": "Benchmark difficulty label describing the agent-facing cognitive/control difficulty. This is not a raw diagnostic stage."
+  },
+  "layers": {
+    "layer_1": {
+      "label": "Layer 1",
+      "definition": "Parse, syntax, undefined symbol, or shallow structural failures."
+    },
+    "layer_2": {
+      "label": "Layer 2",
+      "definition": "Balance, reference, connector, and declarative consistency failures."
+    },
+    "layer_3": {
+      "label": "Layer 3",
+      "definition": "Semantic, behavioral, or branch-sensitive failures where single-round LLM assistance still has a realistic chance."
+    },
+    "layer_4": {
+      "label": "Layer 4",
+      "definition": "Initialization singularity, deep numerical instability, or structurally hard failures where single-round LLM usually fails and multi-round strategy or stronger tool guidance is typically required."
+    }
+  },
+  "stage_subtypes": {
+    "stage_0_none": {
+      "default_layer": "",
+      "default_layer_reason": ""
+    },
+    "stage_1_parse_syntax": {
+      "default_layer": "layer_1",
+      "default_layer_reason": "default_from_stage_subtype"
+    },
+    "stage_2_structural_balance_reference": {
+      "default_layer": "layer_2",
+      "default_layer_reason": "default_from_stage_subtype"
+    },
+    "stage_3_type_connector_consistency": {
+      "default_layer": "layer_2",
+      "default_layer_reason": "default_from_stage_subtype"
+    },
+    "stage_3_behavioral_contract_semantic": {
+      "default_layer": "layer_3",
+      "default_layer_reason": "default_from_stage_subtype"
+    },
+    "stage_3_type_connector_semantic": {
+      "default_layer": "layer_2",
+      "default_layer_reason": "default_from_stage_subtype_legacy_stage3"
+    },
+    "stage_4_initialization_singularity": {
+      "default_layer": "layer_4",
+      "default_layer_reason": "default_from_stage_subtype"
+    },
+    "stage_5_runtime_numerical_instability": {
+      "default_layer": "layer_4",
+      "default_layer_reason": "default_from_stage_subtype"
+    }
+  },
+  "notes": {
+    "stage_vs_layer": "Stage and layer are related but not equivalent. The mapping above is a default only; future sidecar metadata may override it based on observed or inferred evidence.",
+    "layer_4_detail": [
+      "stage_4_initialization_singularity",
+      "stage_5_runtime_numerical_instability"
+    ]
+  }
+}

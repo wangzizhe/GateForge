@@ -8,6 +8,7 @@ from pathlib import Path
 
 SCHEMA_VERSION = "agent_modelica_planner_sensitive_pack_builder_v1"
 DEFAULT_TARGET_STAGE_SUBTYPES = (
+    "stage_3_behavioral_contract_semantic",
     "stage_3_type_connector_semantic",
     "stage_4_initialization_singularity",
 )
@@ -33,9 +34,11 @@ def _write_json(path: str | Path, payload: object) -> None:
 
 def _stage_priority(stage_subtype: str) -> int:
     stage = str(stage_subtype or "").strip().lower()
+    if stage == "stage_3_behavioral_contract_semantic":
+        return 2
     if stage == "stage_4_initialization_singularity":
         return 2
-    if stage == "stage_3_type_connector_semantic":
+    if stage in {"stage_3_type_connector_consistency", "stage_3_type_connector_semantic"}:
         return 1
     return 0
 

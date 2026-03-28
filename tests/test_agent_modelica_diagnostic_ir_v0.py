@@ -61,9 +61,21 @@ class AgentModelicaDiagnosticIRV0Tests(unittest.TestCase):
         )
         self.assertEqual(payload.get("error_type"), "model_check_error")
         self.assertEqual(payload.get("error_subtype"), "connector_mismatch")
-        self.assertEqual(payload.get("dominant_stage_subtype"), "stage_3_type_connector_semantic")
+        self.assertEqual(payload.get("dominant_stage_subtype"), "stage_3_type_connector_consistency")
         objects = payload.get("objects") if isinstance(payload.get("objects"), dict) else {}
         self.assertTrue(bool(objects.get("connector_hints")))
+
+    def test_build_diagnostic_detects_behavioral_semantic_stage3_subtype(self) -> None:
+        payload = build_diagnostic_ir_v0(
+            output="Simulation terminated by assertion: gateforge_voltage_limit",
+            check_model_pass=True,
+            simulate_pass=False,
+            expected_stage="simulate",
+            declared_failure_type="constraint_violation",
+        )
+        self.assertEqual(payload.get("error_type"), "constraint_violation")
+        self.assertEqual(payload.get("error_subtype"), "assertion_violation")
+        self.assertEqual(payload.get("dominant_stage_subtype"), "stage_3_behavioral_contract_semantic")
 
     def test_build_diagnostic_normalizes_declared_connector_mismatch_undefined_symbol(self) -> None:
         payload = build_diagnostic_ir_v0(

@@ -42,7 +42,7 @@ class AgentModelicaPlannerSensitivePackBuilderV1Tests(unittest.TestCase):
                                 "mutation_id": "b",
                                 "resolution_attribution": {
                                     "resolution_path": "rule_then_llm",
-                                    "dominant_stage_subtype": "stage_3_type_connector_semantic",
+                                    "dominant_stage_subtype": "stage_3_behavioral_contract_semantic",
                                     "planner_invoked": True,
                                     "planner_used": True,
                                     "llm_request_count": 1,
@@ -96,7 +96,7 @@ class AgentModelicaPlannerSensitivePackBuilderV1Tests(unittest.TestCase):
                                 "mutation_id": "a",
                                 "resolution_attribution": {
                                     "resolution_path": "rule_then_llm",
-                                    "dominant_stage_subtype": "stage_3_type_connector_semantic",
+                                    "dominant_stage_subtype": "stage_3_behavioral_contract_semantic",
                                     "planner_invoked": True,
                                 },
                             },
@@ -104,7 +104,7 @@ class AgentModelicaPlannerSensitivePackBuilderV1Tests(unittest.TestCase):
                                 "mutation_id": "b",
                                 "resolution_attribution": {
                                     "resolution_path": "rule_then_llm",
-                                    "dominant_stage_subtype": "stage_3_type_connector_semantic",
+                                    "dominant_stage_subtype": "stage_3_behavioral_contract_semantic",
                                     "planner_invoked": False,
                                 },
                             },

@@ -83,7 +83,7 @@ class AgentModelicaResolutionAttributionV1Tests(unittest.TestCase):
                 "llm_plan_was_decisive": True,
                 "resolution_primary_contribution": "llm_first_plan",
                 "planner_experience_injection": {"enabled": True, "used": True},
-                "attempts": [{"diagnostic_ir": {"dominant_stage_subtype": "stage_3_type_connector_semantic"}}],
+                "attempts": [{"diagnostic_ir": {"dominant_stage_subtype": "stage_3_behavioral_contract_semantic"}}],
             }
         )
         self.assertEqual(payload["resolution_path"], "llm_planner_assisted")

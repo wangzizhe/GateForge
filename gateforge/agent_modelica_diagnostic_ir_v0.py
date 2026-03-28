@@ -6,6 +6,16 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 
+from .agent_modelica_difficulty_layer_spec_v1 import (
+    STAGE_SUBTYPE_INIT,
+    STAGE_SUBTYPE_NONE,
+    STAGE_SUBTYPE_PARSE,
+    STAGE_SUBTYPE_RUNTIME,
+    STAGE_SUBTYPE_STAGE3_BEHAVIORAL,
+    STAGE_SUBTYPE_STAGE3_TYPE_CONNECTOR,
+    STAGE_SUBTYPE_STRUCTURAL,
+)
+
 
 SCHEMA_VERSION = "agent_modelica_diagnostic_ir_v0"
 CANONICAL_ERROR_TYPES = {
@@ -18,14 +28,6 @@ CANONICAL_ERROR_TYPES = {
 LEGACY_TO_CANONICAL = {
     "script_parse_error": "model_check_error",
 }
-STAGE_SUBTYPE_NONE = "stage_0_none"
-STAGE_SUBTYPE_PARSE = "stage_1_parse_syntax"
-STAGE_SUBTYPE_STRUCTURAL = "stage_2_structural_balance_reference"
-STAGE_SUBTYPE_SEMANTIC = "stage_3_type_connector_semantic"
-STAGE_SUBTYPE_INIT = "stage_4_initialization_singularity"
-STAGE_SUBTYPE_RUNTIME = "stage_5_runtime_numerical_instability"
-
-
 def canonical_error_type_v0(error_type: str) -> str:
     et = str(error_type or "").strip().lower()
     if not et:
@@ -67,6 +69,9 @@ def dominant_stage_subtype_v0(*, error_type: str, error_subtype: str, observed_p
         "array_dimension_mismatch",
         "parameter_binding_error",
         "unit_inconsistency",
+    }:
+        return STAGE_SUBTYPE_STAGE3_TYPE_CONNECTOR
+    if sub in {
         "assertion_violation",
         "event_logic_error",
         "semantic_drift_after_compile_pass",
@@ -76,22 +81,22 @@ def dominant_stage_subtype_v0(*, error_type: str, error_subtype: str, observed_p
         "coupled_conflict_failure",
         "false_friend_patch_trap",
     }:
-        return STAGE_SUBTYPE_SEMANTIC
+        return STAGE_SUBTYPE_STAGE3_BEHAVIORAL
     if sub in {"init_failure", "cascading_structural_failure"}:
         return STAGE_SUBTYPE_INIT
     if sub in {"timeout", "division_by_zero", "solver_divergence", "solver_sensitive_simulate_failure"}:
         return STAGE_SUBTYPE_RUNTIME
     if et == "semantic_regression":
-        return STAGE_SUBTYPE_SEMANTIC
+        return STAGE_SUBTYPE_STAGE3_BEHAVIORAL
     if et == "constraint_violation":
-        return STAGE_SUBTYPE_SEMANTIC
+        return STAGE_SUBTYPE_STAGE3_BEHAVIORAL
     if et == "numerical_instability":
         return STAGE_SUBTYPE_RUNTIME
     if et == "simulate_error":
-        return STAGE_SUBTYPE_INIT if phase == "simulate" else STAGE_SUBTYPE_SEMANTIC
+        return STAGE_SUBTYPE_INIT if phase == "simulate" else STAGE_SUBTYPE_STAGE3_BEHAVIORAL
     if et == "model_check_error":
-        return STAGE_SUBTYPE_STRUCTURAL if phase == "check" else STAGE_SUBTYPE_SEMANTIC
-    return STAGE_SUBTYPE_SEMANTIC
+        return STAGE_SUBTYPE_STRUCTURAL if phase == "check" else STAGE_SUBTYPE_STAGE3_TYPE_CONNECTOR
+    return STAGE_SUBTYPE_STAGE3_BEHAVIORAL
 
 
 def _token_set(text: str) -> set[str]:
