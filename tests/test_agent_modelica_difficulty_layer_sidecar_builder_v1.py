@@ -88,6 +88,50 @@ class AgentModelicaDifficultyLayerSidecarBuilderV1Tests(unittest.TestCase):
             self.assertEqual(summary["observed_count"], 0)
             self.assertEqual(summary["inferred_count"], 1)
 
+    def test_build_sidecar_uses_custom_hint_rules_table(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            substrate = root / "hardpack.json"
+            substrate.write_text(
+                json.dumps(
+                    {
+                        "cases": [
+                            {
+                                "mutation_id": "m1",
+                                "expected_failure_type": "semantic_regression",
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            hint_rules = root / "hint_rules.json"
+            hint_rules.write_text(
+                json.dumps(
+                    {
+                        "failure_types": {
+                            "semantic_regression": {
+                                "layer": "layer_4",
+                                "reason": "inferred_from_custom_failure_type"
+                            }
+                        }
+                    }
+                ),
+                encoding="utf-8",
+            )
+            out_sidecar = root / "sidecar.json"
+            summary = build_sidecar(
+                substrate_path=str(substrate),
+                results_paths=[],
+                out_sidecar=str(out_sidecar),
+                hint_rules_path=str(hint_rules),
+            )
+            payload = json.loads(out_sidecar.read_text(encoding="utf-8"))
+            row = payload["annotations"][0]
+            self.assertEqual(row["difficulty_layer"], "layer_4")
+            self.assertEqual(row["expected_layer_reason"], "inferred_from_custom_failure_type")
+            self.assertEqual(summary["inferred_count"], 1)
+
 
 if __name__ == "__main__":
     unittest.main()

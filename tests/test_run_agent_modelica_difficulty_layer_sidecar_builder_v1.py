@@ -40,6 +40,51 @@ class RunAgentModelicaDifficultyLayerSidecarBuilderV1Tests(unittest.TestCase):
             self.assertEqual(summary["total_items"], 1)
             self.assertEqual(summary["inferred_count"], 1)
 
+    def test_wrapper_accepts_custom_hint_rules(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            substrate = root / "hardpack.json"
+            substrate.write_text(
+                json.dumps(
+                    {
+                        "cases": [
+                            {
+                                "mutation_id": "m1",
+                                "expected_failure_type": "semantic_regression",
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            hint_rules = root / "hint_rules.json"
+            hint_rules.write_text(
+                json.dumps(
+                    {
+                        "failure_types": {
+                            "semantic_regression": {
+                                "layer": "layer_4",
+                                "reason": "inferred_from_custom_failure_type"
+                            }
+                        }
+                    }
+                ),
+                encoding="utf-8",
+            )
+            env = os.environ.copy()
+            env["GATEFORGE_AGENT_DIFFICULTY_LAYER_SIDECAR_SUBSTRATE"] = str(substrate)
+            env["GATEFORGE_AGENT_DIFFICULTY_LAYER_SIDECAR_OUT_DIR"] = str(root / "out")
+            env["GATEFORGE_AGENT_DIFFICULTY_LAYER_SIDECAR_HINT_RULES"] = str(hint_rules)
+            subprocess.run(
+                ["bash", "scripts/run_agent_modelica_difficulty_layer_sidecar_builder_v1.sh"],
+                check=True,
+                cwd="/Users/meow/Documents/GateForge",
+                env=env,
+            )
+            sidecar = json.loads((root / "out" / "layer_metadata.json").read_text(encoding="utf-8"))
+            row = sidecar["annotations"][0]
+            self.assertEqual(row["difficulty_layer"], "layer_4")
+
 
 if __name__ == "__main__":
     unittest.main()

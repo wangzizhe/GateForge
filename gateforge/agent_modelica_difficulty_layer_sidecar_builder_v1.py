@@ -17,12 +17,7 @@ from .agent_modelica_difficulty_layer_spec_v1 import (
 
 
 SCHEMA_VERSION = "agent_modelica_difficulty_layer_sidecar_builder_v1"
-
-MULTISTEP_LAYER_3_FAMILIES = {
-    "stability_then_behavior",
-    "behavior_then_robustness",
-    "switch_then_recovery",
-}
+DEFAULT_HINT_RULES_PATH = "data/agent_modelica_expected_layer_hint_rules_v1.json"
 
 
 def _load_json(path: str | Path) -> dict:
@@ -34,6 +29,15 @@ def _load_json(path: str | Path) -> dict:
     except Exception:
         return {}
     return payload if isinstance(payload, dict) else {}
+
+
+def _load_hint_rules(path: str | Path | None) -> dict:
+    if path:
+        payload = _load_json(path)
+        if payload:
+            return payload
+    payload = _load_json(DEFAULT_HINT_RULES_PATH)
+    return payload if payload else {}
 
 
 def _write_json(path: str | Path, payload: object) -> None:
@@ -62,21 +66,38 @@ def _read_text(path: str | Path) -> str:
         return ""
 
 
-def _infer_expected_layer(row: dict) -> tuple[str, str]:
+def _infer_expected_layer(row: dict, *, hint_rules: dict) -> tuple[str, str]:
     failure_type = str(row.get("expected_failure_type") or row.get("failure_type") or "").strip().lower()
     family = str(row.get("multi_step_family") or "").strip().lower()
-    if family in MULTISTEP_LAYER_3_FAMILIES or failure_type in MULTISTEP_LAYER_3_FAMILIES:
-        return LAYER_3, "inferred_from_task_family"
-    if failure_type in {"semantic_regression", "constraint_violation"}:
-        return LAYER_3, "inferred_from_failure_type"
-    if failure_type in {"simulate_error", "numerical_instability"}:
-        return LAYER_4, "inferred_from_failure_type"
+    task_family_rules = hint_rules.get("task_families") if isinstance(hint_rules.get("task_families"), dict) else {}
+    failure_type_rules = hint_rules.get("failure_types") if isinstance(hint_rules.get("failure_types"), dict) else {}
+    mutation_token_rules = hint_rules.get("mutation_tokens") if isinstance(hint_rules.get("mutation_tokens"), list) else []
+    model_check_default = hint_rules.get("model_check_default") if isinstance(hint_rules.get("model_check_default"), dict) else {}
+
+    family_rule = task_family_rules.get(family) if family else None
+    if isinstance(family_rule, dict):
+        return str(family_rule.get("layer") or ""), str(family_rule.get("reason") or "inferred_from_task_family")
+
+    failure_rule = failure_type_rules.get(failure_type) if failure_type else None
+    if isinstance(failure_rule, dict) and failure_type != "model_check_error":
+        return str(failure_rule.get("layer") or ""), str(failure_rule.get("reason") or "inferred_from_failure_type")
+
     if failure_type == "model_check_error":
         mutated_model_path = str(row.get("mutated_model_path") or "").strip()
         model_text = _read_text(mutated_model_path)
-        if "__gf_undef_" in model_text:
-            return LAYER_1, "inferred_from_mutation_family"
-        return LAYER_2, "inferred_from_failure_type"
+        for token_rule in mutation_token_rules:
+            if not isinstance(token_rule, dict):
+                continue
+            token = str(token_rule.get("token") or "")
+            token_failure_type = str(token_rule.get("failure_type") or "").strip().lower()
+            if not token or (token_failure_type and token_failure_type != failure_type):
+                continue
+            if token in model_text:
+                return str(token_rule.get("layer") or ""), str(token_rule.get("reason") or "inferred_from_mutation_family")
+        if isinstance(model_check_default, dict):
+            return str(model_check_default.get("layer") or ""), str(model_check_default.get("reason") or "inferred_from_failure_type")
+        if isinstance(failure_rule, dict):
+            return str(failure_rule.get("layer") or ""), str(failure_rule.get("reason") or "inferred_from_failure_type")
     return "", ""
 
 
@@ -116,10 +137,11 @@ def _observed_candidates(results_paths: list[str]) -> dict[str, dict]:
     return observed
 
 
-def build_sidecar(*, substrate_path: str, results_paths: list[str], out_sidecar: str) -> dict:
+def build_sidecar(*, substrate_path: str, results_paths: list[str], out_sidecar: str, hint_rules_path: str = "") -> dict:
     substrate_payload = _load_json(substrate_path)
     substrate_kind, rows, id_key = _substrate_rows(substrate_payload)
     observed = _observed_candidates(results_paths)
+    hint_rules = _load_hint_rules(hint_rules_path)
 
     annotations: list[dict] = []
     inferred_count = 0
@@ -131,7 +153,7 @@ def build_sidecar(*, substrate_path: str, results_paths: list[str], out_sidecar:
         item_id = str(row.get(id_key) or "").strip()
         if not item_id:
             continue
-        expected_layer_hint, expected_layer_reason = _infer_expected_layer(row)
+        expected_layer_hint, expected_layer_reason = _infer_expected_layer(row, hint_rules=hint_rules)
         annotation = {
             "item_id": item_id,
             "item_kind": substrate_kind,
@@ -176,6 +198,7 @@ def build_sidecar(*, substrate_path: str, results_paths: list[str], out_sidecar:
             "source_counts": source_counts,
             "layer_counts": dict(sorted(layer_counts.items())),
             "results_paths": [str(path) for path in results_paths],
+            "hint_rules_path": str(hint_rules_path or DEFAULT_HINT_RULES_PATH),
         },
     }
     _write_json(out_sidecar, sidecar)
@@ -188,12 +211,14 @@ def main() -> None:
     parser.add_argument("--results", action="append", default=[])
     parser.add_argument("--out-sidecar", required=True)
     parser.add_argument("--out-summary", default="")
+    parser.add_argument("--hint-rules", default="")
     args = parser.parse_args()
 
     summary = build_sidecar(
         substrate_path=str(args.substrate),
         results_paths=[str(path) for path in (args.results or []) if str(path).strip()],
         out_sidecar=str(args.out_sidecar),
+        hint_rules_path=str(args.hint_rules or ""),
     )
     out_summary = str(args.out_summary or "")
     if out_summary:
