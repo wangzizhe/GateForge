@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+bash scripts/run_agent_modelica_foundation_acceptance_v0_3_0.sh
+bash scripts/run_agent_modelica_layer4_family_spec_v0_3_0.sh
+bash scripts/run_agent_modelica_layer4_hard_lane_v0_3_0.sh
+bash scripts/run_agent_modelica_layer_balance_refresh_v0_3_0.sh
+bash scripts/run_agent_modelica_track_c_pilot_v0_3_0.sh
+
+python3 -m gateforge.agent_modelica_v0_3_0_release_summary
