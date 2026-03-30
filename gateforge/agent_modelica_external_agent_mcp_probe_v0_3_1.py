@@ -161,9 +161,12 @@ def run_probe(
             stderr += str(add_proc.stderr or "")
             if add_proc.returncode == 0:
                 last_message_path = out_root / "codex_last_message.json"
+                # Append server-name hint so Codex routes to the probe-specific server,
+                # not any globally registered server with overlapping tools.
+                codex_prompt = prompt + f"\n\nIMPORTANT: Use only the MCP server named `{server_name}` for all OpenModelica tool calls."
                 exec_proc = _run_subprocess(
                     _build_codex_exec_command(
-                        prompt=prompt,
+                        prompt=codex_prompt,
                         output_schema_path=str(schema_path.resolve()),
                         last_message_path=str(last_message_path),
                         model_id=model_id,

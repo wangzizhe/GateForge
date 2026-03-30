@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import subprocess
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -75,24 +76,16 @@ class AgentModelicaOmcMcpServerV1Tests(unittest.TestCase):
             proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
             def _send(payload: dict) -> None:
-                raw = json.dumps(payload).encode("utf-8")
+                raw = json.dumps(payload, separators=(",", ":")).encode("utf-8")
                 assert proc.stdin is not None
-                proc.stdin.write(f"Content-Length: {len(raw)}\r\n\r\n".encode("utf-8"))
-                proc.stdin.write(raw)
+                proc.stdin.write(raw + b"\n")
                 proc.stdin.flush()
 
             def _recv() -> dict:
-                headers = {}
                 assert proc.stdout is not None
-                while True:
-                    line = proc.stdout.readline()
-                    if line in {b"\r\n", b"\n"}:
-                        break
-                    text = line.decode("utf-8").strip()
-                    key, value = text.split(":", 1)
-                    headers[key.lower()] = value.strip()
-                size = int(headers["content-length"])
-                return json.loads(proc.stdout.read(size).decode("utf-8"))
+                line = proc.stdout.readline()
+                self.assertTrue(line)
+                return json.loads(line.decode("utf-8"))
 
             try:
                 _send(
@@ -128,6 +121,37 @@ class AgentModelicaOmcMcpServerV1Tests(unittest.TestCase):
             self.assertIn(("in", "tools/list"), methods)
             self.assertIn(1, response_ids)
             self.assertIn(2, response_ids)
+
+    def test_server_does_not_exit_immediately_on_startup_eof(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="gf_omc_mcp_eof_") as td:
+            root = Path(td)
+            cmd = [
+                "python3",
+                "-m",
+                "gateforge.agent_modelica_omc_mcp_server_v1",
+                "--backend",
+                "omc",
+                "--artifact-root",
+                str(root / "artifacts"),
+                "--ledger-path",
+                str(root / "ledger.json"),
+                "--startup-eof-grace-sec",
+                "0.5",
+            ]
+            proc = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            try:
+                time.sleep(0.15)
+                self.assertIsNone(proc.poll())
+                time.sleep(0.55)
+                self.assertIsNotNone(proc.poll())
+            finally:
+                if proc.poll() is None:
+                    proc.terminate()
+                    proc.wait(timeout=5)
+                if proc.stdout is not None:
+                    proc.stdout.close()
+                if proc.stderr is not None:
+                    proc.stderr.close()
 
 
 if __name__ == "__main__":

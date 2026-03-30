@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -299,7 +300,26 @@ class OmcMcpServer:
 
 
 def _read_message() -> dict | None:
+    # MCP stdio transport uses newline-delimited JSON (one JSON object per line).
+    # Some older / manual callers use Content-Length framing (LSP-style).
+    # We support both: if the first non-empty line starts with '{' it is raw JSON;
+    # otherwise we fall through to the header-parsing path.
+    first_line = sys.stdin.buffer.readline()
+    if not first_line:
+        return None
+    stripped = first_line.strip()
+    if stripped.startswith(b"{"):
+        # Raw newline-delimited JSON (Claude Code / MCP spec path)
+        try:
+            return json.loads(stripped.decode("utf-8"))
+        except json.JSONDecodeError:
+            return None
+    # Content-Length framing path (backward-compatible with manual test callers)
     headers: dict[str, str] = {}
+    text = stripped.decode("utf-8")
+    if text and ":" in text:
+        k, v = text.split(":", 1)
+        headers[k.strip().lower()] = v.strip()
     while True:
         line = sys.stdin.buffer.readline()
         if not line:
@@ -320,9 +340,10 @@ def _read_message() -> dict | None:
 
 
 def _write_message(payload: dict) -> None:
-    raw = json.dumps(payload).encode("utf-8")
-    sys.stdout.buffer.write(f"Content-Length: {len(raw)}\r\n\r\n".encode("utf-8"))
-    sys.stdout.buffer.write(raw)
+    # Send newline-delimited JSON to match the MCP stdio transport spec.
+    # Claude Code expects this format; Content-Length framing is not used here.
+    raw = json.dumps(payload, separators=(",", ":"))
+    sys.stdout.buffer.write((raw + "\n").encode("utf-8"))
     sys.stdout.buffer.flush()
 
 
@@ -334,11 +355,22 @@ def _error_response(message_id: object, code: int, message: str) -> dict:
     return {"jsonrpc": "2.0", "id": message_id, "error": {"code": code, "message": message}}
 
 
-def serve_stdio(server: OmcMcpServer) -> None:
+def serve_stdio(server: OmcMcpServer, *, startup_eof_grace_sec: float = 2.0) -> None:
+    saw_first_message = False
+    startup_eof_deadline: float | None = None
     while True:
         message = _read_message()
         if message is None:
+            if not saw_first_message and float(startup_eof_grace_sec or 0.0) > 0.0:
+                if startup_eof_deadline is None:
+                    startup_eof_deadline = time.monotonic() + float(startup_eof_grace_sec)
+                remaining = startup_eof_deadline - time.monotonic()
+                if remaining > 0.0:
+                    time.sleep(min(0.05, remaining))
+                    continue
             return
+        saw_first_message = True
+        startup_eof_deadline = None
         server.trace_protocol(direction="in", message=message)
         method = _norm(message.get("method"))
         message_id = message.get("id")
@@ -417,6 +449,7 @@ def main() -> None:
     parser.add_argument("--default-intervals", type=int, default=500)
     parser.add_argument("--ledger-path", default="")
     parser.add_argument("--protocol-trace-path", default="")
+    parser.add_argument("--startup-eof-grace-sec", type=float, default=2.0)
     args = parser.parse_args()
     serve_stdio(
         OmcMcpServer(
@@ -428,7 +461,8 @@ def main() -> None:
             default_intervals=int(args.default_intervals),
             ledger_path=str(args.ledger_path),
             protocol_trace_path=str(args.protocol_trace_path),
-        )
+        ),
+        startup_eof_grace_sec=float(args.startup_eof_grace_sec),
     )
 
 

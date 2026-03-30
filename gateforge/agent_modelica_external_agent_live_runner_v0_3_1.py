@@ -335,8 +335,9 @@ def _build_codex_exec_command(
         "--skip-git-repo-check",
         "-C",
         str(cwd),
-        "-s",
-        "read-only",
+        # MCP tool calls require full-access mode; read-only sandbox blocks them
+        # even when approval=never is set in config.toml.
+        "--dangerously-bypass-approvals-and-sandbox",
         "--output-schema",
         str(output_schema_path),
         "-o",
@@ -471,9 +472,12 @@ def run_external_agent_live(
                     task_result["infra_failure_reason"] = "mcp_config_failed"
                 else:
                     last_message_path = task_root / "codex_last_message.json"
+                    # Append server-name hint so Codex routes tool calls through the
+                    # task-specific registered server rather than any globally registered one.
+                    codex_prompt = prompt + f"\n\nIMPORTANT: Use only the MCP server named `{server_name}` for all OpenModelica tool calls."
                     exec_proc = _run_subprocess(
                         _build_codex_exec_command(
-                            prompt=prompt,
+                            prompt=codex_prompt,
                             output_schema_path=str(schema_path),
                             last_message_path=str(last_message_path),
                             model_id=model_id,
