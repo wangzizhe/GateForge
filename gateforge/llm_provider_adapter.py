@@ -25,6 +25,7 @@ from typing import Protocol
 
 ENV_KEY_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 OPENAI_MODEL_HINT_PATTERN = re.compile(r"^(gpt|o[0-9]|chatgpt|gpt-5)", re.IGNORECASE)
+ANTHROPIC_MODEL_HINT_PATTERN = re.compile(r"^(claude)", re.IGNORECASE)
 
 
 def _parse_env_assignment(line: str) -> tuple[str, str] | tuple[None, None]:
@@ -237,11 +238,70 @@ class OpenAIProviderAdapter:
         return text, ""
 
 
+# ---- Anthropic adapter ----
+
+class AnthropicProviderAdapter:
+    """Transport adapter for the Anthropic Messages API."""
+
+    @property
+    def provider_name(self) -> str:
+        return "anthropic"
+
+    @staticmethod
+    def _extract_response_text(payload: dict) -> str:
+        content = payload.get("content") if isinstance(payload.get("content"), list) else []
+        parts: list[str] = []
+        for item in content:
+            if not isinstance(item, dict):
+                continue
+            if str(item.get("type") or "") == "text" and isinstance(item.get("text"), str):
+                parts.append(str(item.get("text")))
+        return "\n".join([x for x in parts if x.strip()]).strip()
+
+    def send_text_request(
+        self,
+        prompt: str,
+        config: LLMProviderConfig,
+    ) -> tuple[str, str]:
+        req_payload = {
+            "model": config.model,
+            "max_tokens": int(config.extra.get("max_tokens") or 1024),
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": config.temperature,
+        }
+        req = urllib.request.Request(
+            "https://api.anthropic.com/v1/messages",
+            data=json.dumps(req_payload).encode("utf-8"),
+            headers={
+                "Content-Type": "application/json",
+                "x-api-key": config.api_key,
+                "anthropic-version": "2023-06-01",
+            },
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=config.timeout_sec) as resp:
+                response_payload = json.loads(resp.read().decode("utf-8"))
+        except TimeoutError:
+            return "", "anthropic_request_timeout"
+        except urllib.error.HTTPError as exc:
+            body = exc.read().decode("utf-8", errors="ignore")
+            if int(exc.code) == 429:
+                return "", f"anthropic_rate_limited:{body[:180]}"
+            return "", f"anthropic_http_error:{exc.code}:{body[:180]}"
+        except urllib.error.URLError as exc:
+            return "", f"anthropic_url_error:{exc.reason}"
+
+        text = self._extract_response_text(response_payload)
+        return text, ""
+
+
 # ---- adapter factory ----
 
 _ADAPTERS: dict[str, type] = {
     "gemini": GeminiProviderAdapter,
     "openai": OpenAIProviderAdapter,
+    "anthropic": AnthropicProviderAdapter,
 }
 
 
@@ -270,10 +330,12 @@ def resolve_provider_adapter(
             "GOOGLE_API_KEY",
             "GEMINI_API_KEY",
             "OPENAI_API_KEY",
+            "ANTHROPIC_API_KEY",
             "LLM_MODEL",
             "GATEFORGE_GEMINI_MODEL",
             "GEMINI_MODEL",
             "OPENAI_MODEL",
+            "ANTHROPIC_MODEL",
             "LLM_PROVIDER",
             "GATEFORGE_LIVE_PLANNER_BACKEND",
         }
@@ -287,34 +349,42 @@ def resolve_provider_adapter(
     model = (
         str(os.getenv("LLM_MODEL") or "").strip()
         or str(os.getenv("OPENAI_MODEL") or "").strip()
+        or str(os.getenv("ANTHROPIC_MODEL") or "").strip()
         or str(os.getenv("GATEFORGE_GEMINI_MODEL") or "").strip()
         or str(os.getenv("GEMINI_MODEL") or "").strip()
     )
-    explicit = requested if requested in {"gemini", "openai"} else ""
+    explicit = requested if requested in {"gemini", "openai", "anthropic"} else ""
     if not explicit:
         explicit = str(
             os.getenv("LLM_PROVIDER")
             or os.getenv("GATEFORGE_LIVE_PLANNER_BACKEND")
             or ""
         ).strip().lower()
-    if explicit not in {"gemini", "openai"}:
+    if explicit not in {"gemini", "openai", "anthropic"}:
         has_openai = bool(str(os.getenv("OPENAI_API_KEY") or "").strip())
+        has_anthropic = bool(str(os.getenv("ANTHROPIC_API_KEY") or "").strip())
         has_gemini = bool(
             str(os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY") or "").strip()
         )
         if model and OPENAI_MODEL_HINT_PATTERN.search(model) and has_openai:
             explicit = "openai"
+        elif model and ANTHROPIC_MODEL_HINT_PATTERN.search(model) and has_anthropic:
+            explicit = "anthropic"
         elif model and "gemini" in model.lower() and has_gemini:
             explicit = "gemini"
-        elif has_openai and not has_gemini:
+        elif has_openai and not has_gemini and not has_anthropic:
             explicit = "openai"
-        elif has_gemini and not has_openai:
+        elif has_anthropic and not has_openai and not has_gemini:
+            explicit = "anthropic"
+        elif has_gemini and not has_openai and not has_anthropic:
             explicit = "gemini"
         else:
             explicit = "gemini"
 
     if explicit == "openai":
         api_key = str(os.getenv("OPENAI_API_KEY") or "").strip()
+    elif explicit == "anthropic":
+        api_key = str(os.getenv("ANTHROPIC_API_KEY") or "").strip()
     else:
         api_key = str(
             os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY") or ""
