@@ -13,6 +13,7 @@ from .agent_modelica_planner_bottleneck_analysis_v0_3_4 import build_planner_bot
 
 SCHEMA_VERSION = "agent_modelica_v0_3_4_dev_priorities"
 DEFAULT_OUT_DIR = "artifacts/agent_modelica_v0_3_4_dev_priorities"
+PROMOTE_MULTI_ROUND_REPAIR_MIN_RESCUES = 2
 
 
 def _now_utc() -> str:
@@ -71,13 +72,26 @@ def build_v0_3_4_dev_priorities(
 
     next_actions: list[str] = []
     multi_round_action = str(multi_round_audit.get("recommended_action") or "").strip()
+    multi_round_metrics = multi_round_audit.get("metrics") if isinstance(multi_round_audit.get("metrics"), dict) else {}
+    multi_round_rescues = int(multi_round_metrics.get("deterministic_multi_round_rescue_count") or 0)
+    promoted_primary_lever = ""
+    if multi_round_action == "promote_multi_round_deterministic_repair_validation" and multi_round_rescues >= PROMOTE_MULTI_ROUND_REPAIR_MIN_RESCUES:
+        promoted_primary_lever = "multi_round_deterministic_repair_validation"
     if multi_round_action == "promote_multi_round_deterministic_repair_validation":
         next_actions.append(
             "Promote multi-round deterministic repair validation; live evidence shows at least one multi-round family case is rescued without planner or replay."
         )
-    if top_lever.get("lever"):
+    if promoted_primary_lever:
+        next_actions.append(
+            f"Treat `{promoted_primary_lever}` as the primary v0.3.4 repair lever; deterministic rescues reached `{multi_round_rescues}` validated cases."
+        )
+    elif top_lever.get("lever"):
         next_actions.append(
             f"Start with `{top_lever.get('lever')}`; it covers `{top_lever.get('case_count')}` currently classified planner-sensitive failures."
+        )
+    if promoted_primary_lever and top_lever.get("lever"):
+        next_actions.append(
+            f"Keep `{top_lever.get('lever')}` as a secondary follow-up lever for planner-sensitive unresolved failures."
         )
     if best_lane.get("family_id"):
         next_actions.append(
@@ -96,15 +110,23 @@ def build_v0_3_4_dev_priorities(
             "refreshed_candidate_taskset_path": str(Path(refreshed_candidate_taskset_path).resolve()) if Path(refreshed_candidate_taskset_path).exists() else str(refreshed_candidate_taskset_path),
         },
         "top_bottleneck_lever": top_lever,
+        "primary_repair_lever": {
+            "lever": promoted_primary_lever or str(top_lever.get("lever") or ""),
+            "promotion_reason": (
+                f"validated deterministic multi-round rescues >= {PROMOTE_MULTI_ROUND_REPAIR_MIN_RESCUES}"
+                if promoted_primary_lever
+                else "fallback_to_failure_classifier_bottleneck"
+            ),
+        },
         "evidence_backed_repair_lever": {
             "lever": "multi_round_deterministic_repair_validation" if multi_round_action == "promote_multi_round_deterministic_repair_validation" else "",
             "source": "multi_round_repair_audit" if multi_round_action else "",
             "recommended_action": multi_round_action,
-            "metrics": (multi_round_audit.get("metrics") or {}) if isinstance(multi_round_audit, dict) else {},
+            "metrics": multi_round_metrics if isinstance(multi_round_audit, dict) else {},
         },
         "best_harder_lane": best_lane,
         "failure_classifier_metrics": classifier.get("metrics") or {},
-        "multi_round_repair_audit_metrics": (multi_round_audit.get("metrics") or {}) if isinstance(multi_round_audit, dict) else {},
+        "multi_round_repair_audit_metrics": multi_round_metrics if isinstance(multi_round_audit, dict) else {},
         "harder_lane_status_counts": {
             str(row.get("status")): len([item for item in lane_rows if isinstance(item, dict) and str(item.get("status")) == str(row.get("status"))])
             for row in lane_rows
@@ -122,6 +144,7 @@ def render_markdown(payload: dict) -> str:
         "# Agent Modelica v0.3.4 Dev Priorities",
         "",
         f"- status: `{payload.get('status')}`",
+        f"- primary_repair_lever: `{(payload.get('primary_repair_lever') or {}).get('lever')}`",
         f"- top_bottleneck_lever: `{(payload.get('top_bottleneck_lever') or {}).get('lever')}`",
         f"- evidence_backed_repair_lever: `{(payload.get('evidence_backed_repair_lever') or {}).get('lever')}`",
         f"- best_harder_lane: `{(payload.get('best_harder_lane') or {}).get('family_id')}`",

@@ -79,6 +79,46 @@ class AgentModelicaMultiRoundRepairAuditV034Tests(unittest.TestCase):
         rows = summary.get("rows") if isinstance(summary.get("rows"), list) else []
         self.assertEqual(rows[0].get("classification"), "not_applicable")
 
+    def test_build_multi_round_repair_audit_supports_directory_input(self) -> None:
+        payload_a = {
+            "task_id": "case_a",
+            "failure_type": "coupled_conflict_failure",
+            "executor_status": "PASS",
+            "check_model_pass": True,
+            "simulate_pass": True,
+            "resolution_path": "deterministic_rule_only",
+            "live_request_count": 0,
+            "rounds_used": 2,
+            "attempts": [
+                {"check_model_pass": False, "simulate_pass": False},
+                {"check_model_pass": True, "simulate_pass": True, "source_repair": {"applied": True}},
+            ],
+        }
+        payload_b = {
+            "task_id": "case_b",
+            "failure_type": "cascading_structural_failure",
+            "executor_status": "PASS",
+            "check_model_pass": True,
+            "simulate_pass": True,
+            "resolution_path": "deterministic_rule_only",
+            "live_request_count": 0,
+            "rounds_used": 2,
+            "attempts": [
+                {"check_model_pass": True, "simulate_pass": False},
+                {"check_model_pass": True, "simulate_pass": True, "source_repair": {"applied": True}},
+            ],
+        }
+        with tempfile.TemporaryDirectory(prefix="gf_multiround_audit_dir_") as td:
+            input_dir = Path(td) / "inputs"
+            input_dir.mkdir(parents=True, exist_ok=True)
+            (input_dir / "a.json").write_text(json.dumps(payload_a), encoding="utf-8")
+            (input_dir / "b.json").write_text(json.dumps(payload_b), encoding="utf-8")
+            summary = build_multi_round_repair_audit(input_path=str(input_dir), out_dir=str(Path(td) / "out"))
+        metrics = summary.get("metrics") if isinstance(summary.get("metrics"), dict) else {}
+        self.assertEqual(summary.get("input_kind"), "directory")
+        self.assertEqual(metrics.get("applicable_multi_round_rows"), 2)
+        self.assertEqual(metrics.get("deterministic_multi_round_rescue_count"), 2)
+
 
 if __name__ == "__main__":
     unittest.main()

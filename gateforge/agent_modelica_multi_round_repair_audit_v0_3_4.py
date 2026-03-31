@@ -47,6 +47,16 @@ def _iter_payload_rows(payload: object) -> list[dict]:
     return []
 
 
+def _load_rows_from_input(path: str | Path) -> list[dict]:
+    p = Path(path)
+    if p.is_dir():
+        rows: list[dict] = []
+        for child in sorted(p.glob("*.json")):
+            rows.extend(_iter_payload_rows(_load_json(child)))
+        return rows
+    return _iter_payload_rows(_load_json(p))
+
+
 def _first_attempt_failed(attempts: list[dict]) -> bool:
     if not attempts:
         return False
@@ -109,7 +119,7 @@ def _classify_row(row: dict) -> dict:
 
 
 def build_multi_round_repair_audit(*, input_path: str, out_dir: str = DEFAULT_OUT_DIR) -> dict:
-    rows = [_classify_row(row) for row in _iter_payload_rows(_load_json(input_path))]
+    rows = [_classify_row(row) for row in _load_rows_from_input(input_path)]
     applicable = [row for row in rows if str(row.get("failure_type") or "") in _MULTI_ROUND_FAILURE_TYPES]
     rescued = [row for row in applicable if row.get("classification") == "deterministic_multi_round_rescue"]
     unresolved = [row for row in applicable if row.get("classification") == "still_unresolved_multi_round"]
@@ -118,6 +128,7 @@ def build_multi_round_repair_audit(*, input_path: str, out_dir: str = DEFAULT_OU
         "generated_at_utc": _now_utc(),
         "status": "PASS",
         "input_path": str(Path(input_path).resolve()),
+        "input_kind": "directory" if Path(input_path).is_dir() else "file",
         "rows": rows,
         "metrics": {
             "total_rows": len(rows),
