@@ -339,16 +339,21 @@ def run_primary_slice(
         max_deterministic_only_pct=max_deterministic_only_pct,
     )
     out_root = Path(out_dir)
-    _write_json(out_root / "summary.json", payload)
     admitted_rows = payload.get("admitted_rows") if isinstance(payload.get("admitted_rows"), list) else []
-    _write_json(
-        out_root / "taskset_frozen_candidate.json",
-        {
-            "schema_version": SCHEMA_VERSION,
-            "generated_at_utc": _now_utc(),
-            "tasks": admitted_rows,
-        },
-    )
+    taskset_payload = {
+        "schema_version": SCHEMA_VERSION,
+        "generated_at_utc": _now_utc(),
+        "tasks": admitted_rows,
+    }
+    taskset_frozen_path = out_root / "taskset_frozen.json"
+    legacy_candidate_path = out_root / "taskset_frozen_candidate.json"
+    _write_json(taskset_frozen_path, taskset_payload)
+    _write_json(legacy_candidate_path, taskset_payload)
+    payload = {
+        **payload,
+        "taskset_frozen_path": str(taskset_frozen_path.resolve()),
+    }
+    _write_json(out_root / "summary.json", payload)
     _write_text(out_root / "summary.md", _render_markdown(payload))
     return payload
 

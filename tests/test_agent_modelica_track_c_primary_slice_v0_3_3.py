@@ -141,7 +141,9 @@ class AgentModelicaTrackCPrimarySliceV033Tests(unittest.TestCase):
             self.assertEqual(payload["status"], "PRIMARY_READY")
             self.assertTrue((root / "out" / "summary.json").exists())
             self.assertTrue((root / "out" / "summary.md").exists())
+            self.assertTrue((root / "out" / "taskset_frozen.json").exists())
             self.assertTrue((root / "out" / "taskset_frozen_candidate.json").exists())
+            self.assertEqual(payload["taskset_frozen_path"], str((root / "out" / "taskset_frozen.json").resolve()))
 
 
 if __name__ == "__main__":
