@@ -56,6 +56,25 @@ class RepairRule(Protocol):
         ...
 
 
+def build_failure_type_rule_priority_context(*, failure_type: str, current_round: int) -> dict:
+    failure = str(failure_type or "").strip().lower()
+    try:
+        round_idx = max(1, int(current_round))
+    except Exception:
+        round_idx = 1
+    if failure not in {"cascading_structural_failure", "coupled_conflict_failure", "false_friend_patch_trap"}:
+        return {}
+    if round_idx < 2:
+        return {}
+    return {
+        "priority_reason": "failure_type_multi_round_round2_plus_priority",
+        "recommended_rule_order": [
+            "rule_multi_round_layered_repair",
+            "rule_parse_error_pre_repair",
+        ],
+    }
+
+
 def _make_action_key(reason_tag: str, source: str = "rule_engine_v1") -> str:
     return f"repair|{reason_tag}|{source}"
 

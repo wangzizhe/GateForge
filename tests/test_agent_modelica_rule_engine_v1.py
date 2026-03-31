@@ -12,6 +12,7 @@ from gateforge.agent_modelica_rule_engine_v1 import (
     apply_generic_parse_error_repair,
     apply_gf_injected_symbol_cleanup_repair,
     apply_parse_error_pre_repair,
+    build_failure_type_rule_priority_context,
     build_default_rule_registry,
 )
 
@@ -57,6 +58,23 @@ class TestAgentModelicaRuleEngineV1(unittest.TestCase):
                 "rule_gf_injected_symbol_cleanup_repair",
             ],
         )
+
+    def test_build_failure_type_rule_priority_context_promotes_multi_round_rule_after_round_one(self) -> None:
+        payload = build_failure_type_rule_priority_context(
+            failure_type="coupled_conflict_failure",
+            current_round=2,
+        )
+        self.assertEqual(
+            payload.get("recommended_rule_order"),
+            ["rule_multi_round_layered_repair", "rule_parse_error_pre_repair"],
+        )
+
+    def test_build_failure_type_rule_priority_context_is_empty_in_round_one(self) -> None:
+        payload = build_failure_type_rule_priority_context(
+            failure_type="coupled_conflict_failure",
+            current_round=1,
+        )
+        self.assertEqual(payload, {})
 
     def test_registry_stops_after_first_applied_rule(self) -> None:
         registry = build_default_rule_registry()

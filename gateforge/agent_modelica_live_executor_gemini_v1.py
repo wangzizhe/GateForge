@@ -25,6 +25,7 @@ from .agent_modelica_rule_engine_v1 import (
     apply_wave2_2_marker_repair as _rule_engine_apply_wave2_2_marker_repair,
     apply_wave2_marker_repair as _rule_engine_apply_wave2_marker_repair,
     build_default_rule_registry as _build_default_rule_registry,
+    build_failure_type_rule_priority_context as _build_failure_type_rule_priority_context,
     multi_round_deterministic_repair_enabled as _rule_engine_multi_round_deterministic_repair_enabled,
     wave2_1_deterministic_repair_enabled as _rule_engine_wave2_1_deterministic_repair_enabled,
     wave2_2_deterministic_repair_enabled as _rule_engine_wave2_2_deterministic_repair_enabled,
@@ -1298,6 +1299,10 @@ def main() -> None:
             priority_context = None
             reordered_rule_order = list(default_rule_order)
             priority_reason = "no_priority_context"
+            fallback_priority_context = _build_failure_type_rule_priority_context(
+                failure_type=str(args.failure_type),
+                current_round=round_idx,
+            )
             if bool(str(args.experience_replay) == "on") and isinstance(experience_payload, dict) and experience_payload:
                 priority_context = _build_rule_priority_context(
                     experience_payload,
@@ -1326,15 +1331,21 @@ def main() -> None:
                 experience_replay_summary["reordered_rule_order"] = list(reordered_rule_order)
                 experience_replay_summary["priority_reason"] = priority_reason
             else:
+                if isinstance(fallback_priority_context, dict) and list(fallback_priority_context.get("recommended_rule_order") or []):
+                    priority_context = dict(fallback_priority_context)
+                    reordered_rule_order = [
+                        str(rule.rule_id or "") for rule in rule_registry.resolve_rule_order(priority_context)
+                    ]
+                    priority_reason = str(priority_context.get("priority_reason") or "failure_type_priority_fallback")
                 attempts[-1]["experience_replay"] = {
                     "enabled": bool(str(args.experience_replay) == "on"),
-                    "used": False,
+                    "used": bool(priority_context and priority_context.get("recommended_rule_order")),
                     "source": str(args.experience_source or ""),
                     "signal_coverage_status": str(experience_replay_summary.get("signal_coverage_status") or ""),
                     "default_rule_order": list(default_rule_order),
-                    "reordered_rule_order": list(default_rule_order),
-                    "recommended_rule_order": [],
-                    "priority_reason": str(experience_replay_summary.get("priority_reason") or ""),
+                    "reordered_rule_order": list(reordered_rule_order),
+                    "recommended_rule_order": list((priority_context or {}).get("recommended_rule_order") or []),
+                    "priority_reason": priority_reason if priority_context else str(experience_replay_summary.get("priority_reason") or ""),
                 }
 
             rule_results = rule_registry.try_repairs(
