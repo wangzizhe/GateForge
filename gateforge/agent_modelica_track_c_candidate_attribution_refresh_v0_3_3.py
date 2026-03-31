@@ -81,7 +81,11 @@ def refresh_candidate_attribution(
         planner_invoked = bool(result.get("planner_invoked"))
         planner_decisive = bool(result.get("planner_decisive"))
         rounds_used = int(result.get("rounds_used") or 0)
-        llm_request_count = int(result.get("llm_request_count") or 0)
+        llm_request_count = int(
+            result.get("llm_request_count")
+            or result.get("llm_request_count_delta")
+            or 0
+        )
         if result:
             matched += 1
         if resolution_path or planner_invoked or rounds_used or llm_request_count:

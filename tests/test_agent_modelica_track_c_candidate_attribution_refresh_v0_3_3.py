@@ -41,6 +41,37 @@ class AgentModelicaTrackCCandidateAttributionRefreshV033Tests(unittest.TestCase)
             self.assertEqual(row["attribution_status"], "attributed")
             self.assertEqual(payload["metrics"]["attributed_count"], 1)
 
+    def test_refresh_candidate_attribution_reads_llm_request_count_delta(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="gf_v033_attr_delta_") as td:
+            root = Path(td)
+            candidates = root / "candidates.json"
+            results = root / "results.json"
+            candidates.write_text(json.dumps({"tasks": [{"task_id": "cand_b"}]}), encoding="utf-8")
+            results.write_text(
+                json.dumps(
+                    {
+                        "results": [
+                            {
+                                "task_id": "cand_b",
+                                "resolution_path": "unresolved",
+                                "planner_invoked": True,
+                                "rounds_used": 2,
+                                "llm_request_count_delta": 1,
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            payload = refresh_candidate_attribution(
+                candidate_taskset_path=str(candidates),
+                results_paths=[str(results)],
+                out_dir=str(root / "out"),
+            )
+            row = payload["tasks"][0]
+            self.assertEqual(row["llm_request_count"], 1)
+            self.assertEqual(row["attribution_status"], "attributed")
+
 
 if __name__ == "__main__":
     unittest.main()
