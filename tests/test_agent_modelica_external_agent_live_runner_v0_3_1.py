@@ -25,7 +25,10 @@ class AgentModelicaExternalAgentLiveRunnerV031Tests(unittest.TestCase):
                 "failure_type": "runtime",
                 "expected_stage": "simulate",
                 "model_name": "M",
+                "source_library_path": "/tmp/Buildings",
                 "source_package_name": "Buildings",
+                "source_library_model_path": "/tmp/Buildings/Electrical/ACSimpleGrid.mo",
+                "source_qualified_model_name": "Buildings.Electrical.Examples.M",
                 "extra_model_loads": ["Buildings"],
                 "model_text": "model M end M;",
             },
@@ -35,6 +38,10 @@ class AgentModelicaExternalAgentLiveRunnerV031Tests(unittest.TestCase):
         self.assertIn("OpenModelica MCP tools", prompt)
         self.assertIn("max_omc_tool_calls: 6", prompt)
         self.assertIn("Work in short iterations", prompt)
+        self.assertIn("source_library_path: /tmp/Buildings", prompt)
+        self.assertIn("source_library_model_path: /tmp/Buildings/Electrical/ACSimpleGrid.mo", prompt)
+        self.assertIn("source_qualified_model_name: Buildings.Electrical.Examples.M", prompt)
+        self.assertIn("Library-context fields to preserve on every OMC tool call", prompt)
 
     def test_run_external_agent_live_normalizes_claude_bundle(self) -> None:
         with tempfile.TemporaryDirectory(prefix="gf_external_live_") as td:

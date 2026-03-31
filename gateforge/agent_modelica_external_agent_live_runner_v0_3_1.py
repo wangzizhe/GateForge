@@ -128,7 +128,10 @@ def _arm_prompt(task_ctx: dict, *, arm_id: str, budget: dict) -> str:
         f"- failure_type: {task_ctx['failure_type']}",
         f"- expected_stage: {task_ctx['expected_stage']}",
         f"- model_name: {task_ctx['model_name']}",
+        f"- source_library_path: {task_ctx['source_library_path'] or 'none'}",
         f"- source_package_name: {task_ctx['source_package_name'] or 'none'}",
+        f"- source_library_model_path: {task_ctx['source_library_model_path'] or 'none'}",
+        f"- source_qualified_model_name: {task_ctx['source_qualified_model_name'] or 'none'}",
         f"- extra_model_loads: {json.dumps(task_ctx['extra_model_loads'])}",
     ]
     prompt_lines = [
@@ -149,6 +152,12 @@ def _arm_prompt(task_ctx: dict, *, arm_id: str, budget: dict) -> str:
         "```modelica",
         task_ctx["model_text"],
         "```",
+        "",
+        "Library-context fields to preserve on every OMC tool call when they are not `none`:",
+        "- `source_library_path`",
+        "- `source_package_name`",
+        "- `source_library_model_path`",
+        "- `source_qualified_model_name`",
     ]
     if arm_id == "arm2_frozen_structured_prompt":
         prompt_lines += [
