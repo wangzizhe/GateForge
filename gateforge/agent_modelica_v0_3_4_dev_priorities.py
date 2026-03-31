@@ -7,6 +7,7 @@ from pathlib import Path
 
 from .agent_modelica_failure_classifier_v0_3_4 import build_failure_classifier
 from .agent_modelica_harder_lane_gate_v0_3_4 import build_harder_lane_gate
+from .agent_modelica_multi_round_repair_audit_v0_3_4 import build_multi_round_repair_audit
 from .agent_modelica_planner_bottleneck_analysis_v0_3_4 import build_planner_bottleneck_analysis
 
 
@@ -36,6 +37,7 @@ def build_v0_3_4_dev_priorities(
     refreshed_candidate_taskset_path: str,
     out_dir: str = DEFAULT_OUT_DIR,
     min_freeze_ready_cases: int = 5,
+    multi_round_audit_input_path: str = "",
 ) -> dict:
     out_root = Path(out_dir)
     classifier = build_failure_classifier(
@@ -51,6 +53,12 @@ def build_v0_3_4_dev_priorities(
         out_dir=str(out_root / "harder_lane_gate"),
         min_freeze_ready_cases=int(min_freeze_ready_cases),
     )
+    multi_round_audit: dict = {}
+    if str(multi_round_audit_input_path or "").strip():
+        multi_round_audit = build_multi_round_repair_audit(
+            input_path=str(multi_round_audit_input_path),
+            out_dir=str(out_root / "multi_round_repair_audit"),
+        )
 
     ranked_levers = bottlenecks.get("ranked_levers") if isinstance(bottlenecks.get("ranked_levers"), list) else []
     lane_rows = lane_gate.get("lane_rows") if isinstance(lane_gate.get("lane_rows"), list) else []
@@ -62,6 +70,11 @@ def build_v0_3_4_dev_priorities(
     )
 
     next_actions: list[str] = []
+    multi_round_action = str(multi_round_audit.get("recommended_action") or "").strip()
+    if multi_round_action == "promote_multi_round_deterministic_repair_validation":
+        next_actions.append(
+            "Promote multi-round deterministic repair validation; live evidence shows at least one multi-round family case is rescued without planner or replay."
+        )
     if top_lever.get("lever"):
         next_actions.append(
             f"Start with `{top_lever.get('lever')}`; it covers `{top_lever.get('case_count')}` currently classified planner-sensitive failures."
@@ -83,8 +96,15 @@ def build_v0_3_4_dev_priorities(
             "refreshed_candidate_taskset_path": str(Path(refreshed_candidate_taskset_path).resolve()) if Path(refreshed_candidate_taskset_path).exists() else str(refreshed_candidate_taskset_path),
         },
         "top_bottleneck_lever": top_lever,
+        "evidence_backed_repair_lever": {
+            "lever": "multi_round_deterministic_repair_validation" if multi_round_action == "promote_multi_round_deterministic_repair_validation" else "",
+            "source": "multi_round_repair_audit" if multi_round_action else "",
+            "recommended_action": multi_round_action,
+            "metrics": (multi_round_audit.get("metrics") or {}) if isinstance(multi_round_audit, dict) else {},
+        },
         "best_harder_lane": best_lane,
         "failure_classifier_metrics": classifier.get("metrics") or {},
+        "multi_round_repair_audit_metrics": (multi_round_audit.get("metrics") or {}) if isinstance(multi_round_audit, dict) else {},
         "harder_lane_status_counts": {
             str(row.get("status")): len([item for item in lane_rows if isinstance(item, dict) and str(item.get("status")) == str(row.get("status"))])
             for row in lane_rows
@@ -103,6 +123,7 @@ def render_markdown(payload: dict) -> str:
         "",
         f"- status: `{payload.get('status')}`",
         f"- top_bottleneck_lever: `{(payload.get('top_bottleneck_lever') or {}).get('lever')}`",
+        f"- evidence_backed_repair_lever: `{(payload.get('evidence_backed_repair_lever') or {}).get('lever')}`",
         f"- best_harder_lane: `{(payload.get('best_harder_lane') or {}).get('family_id')}`",
         "",
         "## Next Actions",
@@ -120,12 +141,14 @@ def main() -> None:
     parser.add_argument("--refreshed-candidate-taskset", required=True)
     parser.add_argument("--out-dir", default=DEFAULT_OUT_DIR)
     parser.add_argument("--min-freeze-ready-cases", type=int, default=5)
+    parser.add_argument("--multi-round-audit-input", default="")
     args = parser.parse_args()
     payload = build_v0_3_4_dev_priorities(
         failure_input_path=str(args.failure_input),
         refreshed_candidate_taskset_path=str(args.refreshed_candidate_taskset),
         out_dir=str(args.out_dir),
         min_freeze_ready_cases=int(args.min_freeze_ready_cases),
+        multi_round_audit_input_path=str(args.multi_round_audit_input),
     )
     print(json.dumps({"status": payload.get("status"), "top_bottleneck_lever": (payload.get("top_bottleneck_lever") or {}).get("lever")}))
 

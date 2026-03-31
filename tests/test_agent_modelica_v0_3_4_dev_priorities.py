@@ -14,6 +14,7 @@ class AgentModelicaV034DevPrioritiesTests(unittest.TestCase):
             root = Path(td)
             failure_input = root / "failures.json"
             refreshed = root / "refreshed.json"
+            multi_round = root / "multi_round.json"
             failure_input.write_text(
                 json.dumps(
                     {
@@ -55,15 +56,46 @@ class AgentModelicaV034DevPrioritiesTests(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
+            multi_round.write_text(
+                json.dumps(
+                    {
+                        "task_id": "mr_case",
+                        "failure_type": "coupled_conflict_failure",
+                        "executor_status": "PASS",
+                        "check_model_pass": True,
+                        "simulate_pass": True,
+                        "resolution_path": "deterministic_rule_only",
+                        "live_request_count": 0,
+                        "rounds_used": 2,
+                        "attempts": [
+                            {"check_model_pass": False, "simulate_pass": False},
+                            {
+                                "check_model_pass": True,
+                                "simulate_pass": True,
+                                "source_repair": {"applied": True},
+                            },
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
             payload = build_v0_3_4_dev_priorities(
                 failure_input_path=str(failure_input),
                 refreshed_candidate_taskset_path=str(refreshed),
                 out_dir=str(root / "out"),
                 min_freeze_ready_cases=5,
+                multi_round_audit_input_path=str(multi_round),
             )
             self.assertEqual(payload["top_bottleneck_lever"]["lever"], "l2_replan")
+            self.assertEqual(
+                payload["evidence_backed_repair_lever"]["lever"],
+                "multi_round_deterministic_repair_validation",
+            )
             self.assertEqual(payload["best_harder_lane"]["family_id"], "runtime_numerical_instability")
             self.assertTrue(payload["next_actions"])
+            self.assertTrue(
+                any("Promote multi-round deterministic repair validation" in str(item) for item in payload["next_actions"])
+            )
 
 
 if __name__ == "__main__":
