@@ -2184,6 +2184,7 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
             self.assertEqual(pre_repair.get("rounds_consumed"), 1)
             self.assertGreater(float(payload.get("repair_quality_score") or 0.0), 0.0)
             self.assertIsInstance(payload.get("repair_quality_breakdown"), dict)
+            self.assertEqual(int(payload.get("rounds_used") or 0), len(payload.get("attempts") or []))
             self.assertEqual(str(payload.get("resolution_path") or ""), "deterministic_rule_only")
             self.assertEqual(str(payload.get("dominant_stage_subtype") or ""), "stage_1_parse_syntax")
             resolution = payload.get("resolution_attribution") if isinstance(payload.get("resolution_attribution"), dict) else {}

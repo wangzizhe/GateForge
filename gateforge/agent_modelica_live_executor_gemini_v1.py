@@ -924,6 +924,7 @@ def _build_final_payload(
         "llm_resolution_contributed": llm_resolution_contributed,
         "llm_only_resolution": llm_only_resolution,
         "regression_pass": bool(final_check_ok and final_simulate_ok),
+        "rounds_used": int(len(attempts)),
         "elapsed_sec": elapsed,
         "error_message": final_error,
         "compile_error": final_compile_error,
