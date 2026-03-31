@@ -48,6 +48,7 @@ def build_v0_3_3_closeout(
     claude_stability_summary_path: str,
     claim_gate_summary_path: str,
     out_dir: str = DEFAULT_OUT_DIR,
+    prefer_development_shift: bool = False,
 ) -> dict:
     primary_slice = _load_json(primary_slice_summary_path)
     paper_matrix = _load_json(paper_matrix_summary_path)
@@ -65,6 +66,7 @@ def build_v0_3_3_closeout(
     codex = by_provider.get("codex", {})
 
     primary_ready = _norm(primary_slice.get("status")) == "PRIMARY_READY"
+    primary_metrics = primary_slice.get("metrics") if isinstance(primary_slice.get("metrics"), dict) else {}
     claude_stable = _norm(stability.get("classification")) == "STABLE"
     claude_clean_runs = int((stability.get("metrics") or {}).get("clean_run_count") or 0)
     claude_main_table_eligible = bool(claude.get("main_table_eligible"))
@@ -72,8 +74,12 @@ def build_v0_3_3_closeout(
 
     if primary_ready and claude_stable and claude_clean_runs >= 3 and claude_main_table_eligible:
         classification = "paper_usable_comparative_path"
+    elif bool(prefer_development_shift) and primary_ready:
+        classification = "development_priorities_shifted_comparative_path_retained"
     elif switch_required:
         classification = "cli_unstable_api_direct_fallback"
+    elif primary_ready:
+        classification = "development_priorities_shifted_comparative_path_retained"
     else:
         classification = "comparative_path_retained_provisional"
 
@@ -88,9 +94,9 @@ def build_v0_3_3_closeout(
         "claim_gate_summary_path": str(Path(claim_gate_summary_path).resolve()) if Path(claim_gate_summary_path).exists() else str(claim_gate_summary_path),
         "metrics": {
             "primary_slice_status": _norm(primary_slice.get("status")),
-            "primary_slice_admitted_count": int(primary_slice.get("admitted_count") or 0),
-            "planner_sensitive_pct": float(primary_slice.get("planner_sensitive_pct") or 0.0),
-            "deterministic_only_pct": float(primary_slice.get("deterministic_only_pct") or 0.0),
+            "primary_slice_admitted_count": int(primary_metrics.get("admitted_count") or primary_slice.get("admitted_count") or 0),
+            "planner_sensitive_pct": float(primary_metrics.get("planner_sensitive_pct") or primary_slice.get("planner_sensitive_pct") or 0.0),
+            "deterministic_only_pct": float(primary_metrics.get("deterministic_only_pct") or primary_slice.get("deterministic_only_pct") or 0.0),
             "gateforge_median_success_rate_pct": float(gateforge.get("median_infra_normalized_success_rate_pct") or 0.0),
             "claude_median_success_rate_pct": float(claude.get("median_infra_normalized_success_rate_pct") or 0.0),
             "codex_median_success_rate_pct": float(codex.get("median_infra_normalized_success_rate_pct") or 0.0),
@@ -103,6 +109,7 @@ def build_v0_3_3_closeout(
         "notes": [
             "paper_usable_comparative_path requires a PRIMARY_READY slice plus a stable Claude baseline with at least 3 clean runs.",
             "cli_unstable_api_direct_fallback is triggered only when the Claude stability gate requests a switch.",
+            "development_priorities_shifted_comparative_path_retained means the comparative route is technically preserved, but remaining version budget is better spent on core development than full repeated-run completion.",
             "Codex remains supplementary for v0.3.3 and does not block the primary release classification.",
         ],
     }
@@ -136,6 +143,7 @@ def main() -> None:
     parser.add_argument("--claude-stability-summary", required=True)
     parser.add_argument("--claim-gate-summary", required=True)
     parser.add_argument("--out-dir", default=DEFAULT_OUT_DIR)
+    parser.add_argument("--prefer-development-shift", action="store_true")
     args = parser.parse_args()
     payload = build_v0_3_3_closeout(
         primary_slice_summary_path=str(args.primary_slice_summary),
@@ -143,6 +151,7 @@ def main() -> None:
         claude_stability_summary_path=str(args.claude_stability_summary),
         claim_gate_summary_path=str(args.claim_gate_summary),
         out_dir=str(args.out_dir),
+        prefer_development_shift=bool(args.prefer_development_shift),
     )
     print(json.dumps({"status": payload.get("status"), "classification": payload.get("classification")}))
 
