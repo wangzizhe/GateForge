@@ -97,6 +97,17 @@ def _sha256_text(text: str) -> str:
     return hashlib.sha256(str(text or "").encode("utf-8")).hexdigest()
 
 
+def _variant_suffix(variant_tag: str) -> str:
+    return _slug(_norm(variant_tag))
+
+
+def _variant_index(variant_tag: str, *, failure_type: str, modulo: int) -> int:
+    if modulo <= 0 or not _norm(variant_tag):
+        return 0
+    digest = _sha256_text(f"{failure_type}:{_norm(variant_tag)}")
+    return int(digest[:8], 16) % modulo
+
+
 def _rewrite_count(objects: list[dict]) -> int:
     count = 0
     for item in objects:
@@ -167,12 +178,16 @@ def _select_combo(
     token: str,
     connect_rows: list[dict],
     dependency_endpoints: list[str],
+    variant_tag: str = "",
 ) -> tuple[str, list[dict], list[str], float]:
     combo_candidates = {
         "cascading_structural_failure": [["over", "solver", "cross"], ["over", "event", "guard"]],
         "coupled_conflict_failure": [["param", "cross", "control"], ["array", "cross", "guard"]],
         "false_friend_patch_trap": [["event", "control", "guard"], ["sem", "control", "cross"]],
     }[failure_type]
+    if _norm(variant_tag):
+        shift = _variant_index(variant_tag, failure_type=failure_type, modulo=len(combo_candidates))
+        combo_candidates = combo_candidates[shift:] + combo_candidates[:shift]
     best: tuple[str, list[dict], list[str], float] | None = None
     best_score = (-1, -1)
     for combo in combo_candidates:
@@ -222,6 +237,8 @@ def build_multi_round_failure_taskset(
     holdout_ratio: float,
     seed: str,
     exclude_task_ids_json: str | None = None,
+    variant_tag: str = "",
+    allow_partial_taskset: bool = False,
 ) -> dict:
     payload = load_multi_round_failure_manifest(manifest_path)
     libraries, manifest_reasons = validate_multi_round_failure_manifest(payload)
@@ -289,15 +306,19 @@ def build_multi_round_failure_taskset(
 
         for failure_type in failure_types:
             meta = FAILURE_METADATA[failure_type]
-            token = _slug(_sha256_text(f"{library_id}:{model_id}:{failure_type}")[:10]) or "mrf"
+            variant_suffix = _variant_suffix(variant_tag)
+            token = _slug(_sha256_text(f"{library_id}:{model_id}:{failure_type}:{variant_suffix}")[:10]) or "mrf"
             mutated_text, mutated_objects, used_dependencies, failure_signal_delay_sec = _select_combo(
                 failure_type=failure_type,
                 source_text=source_text,
                 token=token,
                 connect_rows=connect_rows,
                 dependency_endpoints=dependency_endpoints,
+                variant_tag=variant_suffix,
             )
             task_id = f"multi_round_{library_id}_{model_id}_{failure_type}"
+            if variant_suffix:
+                task_id = f"{task_id}_{variant_suffix}"
             if task_id in excluded_task_ids:
                 rejected_candidates.append(
                     {
@@ -310,7 +331,10 @@ def build_multi_round_failure_taskset(
                 )
                 rejection_reasons["excluded_by_easy_task_exclusions"] = int(rejection_reasons.get("excluded_by_easy_task_exclusions", 0)) + 1
                 continue
-            mutated_path = mutants_dir / failure_type / f"{library_id}_{model_id}_{failure_type}.mo"
+            filename = f"{library_id}_{model_id}_{failure_type}"
+            if variant_suffix:
+                filename = f"{filename}_{variant_suffix}"
+            mutated_path = mutants_dir / failure_type / f"{filename}.mo"
             _write_text(mutated_path, mutated_text)
             mutation_span_count = len(mutated_objects)
             source_rewrite_count = _rewrite_count(mutated_objects)
@@ -418,6 +442,7 @@ def build_multi_round_failure_taskset(
         "schema_version": SCHEMA_VERSION,
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
         "status": status,
+        "variant_tag": _norm(variant_tag),
         "mode": "multi_round_failure_frozen",
         "manifest_schema_version": MANIFEST_SCHEMA_VERSION,
         "manifest_path": manifest_real_path,
@@ -438,6 +463,7 @@ def build_multi_round_failure_taskset(
         "taskset_frozen_path": str((out_root / "taskset_frozen.json").resolve()),
         "task_construction_rejections_path": str((out_root / "task_construction_rejections.json").resolve()),
         "reasons": sorted(set(reasons)),
+        "allow_partial_taskset": bool(allow_partial_taskset),
     }
     frozen_payload = {"schema_version": SCHEMA_VERSION, "mode": "multi_round_failure_frozen", "tasks": taskset_tasks}
     unfrozen_payload = {"schema_version": SCHEMA_VERSION, "mode": "multi_round_failure_unfrozen", "tasks": taskset_tasks}
@@ -465,8 +491,6 @@ def build_multi_round_failure_taskset(
     ]
     Path(_default_md_path(str((out_root / "summary.json").resolve()))).write_text("\n".join(markdown) + "\n", encoding="utf-8")
     print(json.dumps({"status": status, "total_tasks": len(taskset_tasks), "counts_by_failure_type": counts_by_failure}))
-    if status != "PASS":
-        raise SystemExit(1)
     return summary
 
 
@@ -478,16 +502,22 @@ def main() -> None:
     parser.add_argument("--holdout-ratio", type=float, default=0.15)
     parser.add_argument("--seed", default="agent_modelica_multi_round_failure_taskset_v1")
     parser.add_argument("--exclude-task-ids-json")
+    parser.add_argument("--variant-tag", default="")
+    parser.add_argument("--allow-partial-taskset", action="store_true")
     args = parser.parse_args()
     failure_types = [item.strip().lower() for item in str(args.failure_types or "").split(",") if item.strip()]
-    build_multi_round_failure_taskset(
+    summary = build_multi_round_failure_taskset(
         manifest_path=str(args.manifest),
         out_dir=str(args.out_dir),
         failure_types=failure_types,
         holdout_ratio=float(args.holdout_ratio),
         seed=str(args.seed),
         exclude_task_ids_json=str(args.exclude_task_ids_json) if args.exclude_task_ids_json else None,
+        variant_tag=str(args.variant_tag or ""),
+        allow_partial_taskset=bool(args.allow_partial_taskset),
     )
+    if summary.get("status") != "PASS" and not bool(args.allow_partial_taskset):
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

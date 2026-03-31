@@ -110,6 +110,62 @@ class AgentModelicaWave21HarderDynamicsTasksetV1Tests(unittest.TestCase):
             self.assertTrue(first.get("dynamic_error_family"))
             self.assertTrue(first.get("diagnostic_expectation"))
 
+    def test_variant_tag_changes_task_identity(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            manifest = root / "manifest.json"
+            manifest.write_text(json.dumps(_manifest_payload(root), indent=2), encoding="utf-8")
+            out_dir = root / "out"
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.agent_modelica_wave2_1_harder_dynamics_taskset_v1",
+                    "--manifest",
+                    str(manifest),
+                    "--out-dir",
+                    str(out_dir),
+                    "--variant-tag",
+                    "w15a",
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            summary = json.loads((out_dir / "summary.json").read_text(encoding="utf-8"))
+            taskset = json.loads((out_dir / "taskset_frozen.json").read_text(encoding="utf-8"))
+            self.assertEqual(summary.get("variant_tag"), "w15a")
+            self.assertTrue(all(str(row.get("task_id")).endswith("_w15a") for row in taskset["tasks"]))
+
+    def test_allow_partial_taskset_keeps_partial_generation_runnable(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            manifest = root / "manifest.json"
+            manifest.write_text(json.dumps(_manifest_payload(root), indent=2), encoding="utf-8")
+            out_dir = root / "out"
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.agent_modelica_wave2_1_harder_dynamics_taskset_v1",
+                    "--manifest",
+                    str(manifest),
+                    "--out-dir",
+                    str(out_dir),
+                    "--failure-types",
+                    "solver_sensitive_simulate_failure",
+                    "--allow-partial-taskset",
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+            summary = json.loads((out_dir / "summary.json").read_text(encoding="utf-8"))
+            self.assertEqual(summary.get("status"), "FAIL")
+            self.assertTrue(summary.get("allow_partial_taskset"))
+
 
 if __name__ == "__main__":
     unittest.main()

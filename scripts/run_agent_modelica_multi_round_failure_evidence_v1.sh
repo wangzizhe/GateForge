@@ -10,15 +10,26 @@ REPAIR_MEMORY_PATH="${GATEFORGE_AGENT_REPAIR_MEMORY_PATH:-data/private_failure_c
 FAILURE_TYPES="${GATEFORGE_AGENT_MULTI_ROUND_FAILURE_TYPES:-cascading_structural_failure,coupled_conflict_failure,false_friend_patch_trap}"
 HOLDOUT_RATIO="${GATEFORGE_AGENT_MULTI_ROUND_HOLDOUT_RATIO:-0.15}"
 SPLIT_SEED="${GATEFORGE_AGENT_MULTI_ROUND_SPLIT_SEED:-agent_modelica_multi_round_failure_taskset_v1}"
+VARIANT_TAG="${GATEFORGE_AGENT_MULTI_ROUND_VARIANT_TAG:-}"
+ALLOW_PARTIAL_TASKSET="${GATEFORGE_AGENT_MULTI_ROUND_ALLOW_PARTIAL_TASKSET:-0}"
 
 mkdir -p "$OUT_DIR"
 
-python3 -m gateforge.agent_modelica_multi_round_failure_taskset_v1 \
+TASKSET_CMD=(
+  python3 -m gateforge.agent_modelica_multi_round_failure_taskset_v1
   --manifest "$MANIFEST_PATH" \
   --out-dir "$OUT_DIR/challenge" \
   --failure-types "$FAILURE_TYPES" \
   --holdout-ratio "$HOLDOUT_RATIO" \
   --seed "$SPLIT_SEED"
+)
+if [ -n "$VARIANT_TAG" ]; then
+  TASKSET_CMD+=(--variant-tag "$VARIANT_TAG")
+fi
+if [ "$ALLOW_PARTIAL_TASKSET" = "1" ]; then
+  TASKSET_CMD+=(--allow-partial-taskset)
+fi
+"${TASKSET_CMD[@]}"
 
 python3 -m gateforge.agent_modelica_multi_round_curated_retrieval_v1 \
   --manifest "$MANIFEST_PATH" \

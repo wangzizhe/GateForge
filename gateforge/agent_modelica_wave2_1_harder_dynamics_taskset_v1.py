@@ -77,6 +77,17 @@ def _sha256_text(text: str) -> str:
     return hashlib.sha256(str(text or "").encode("utf-8")).hexdigest()
 
 
+def _variant_suffix(variant_tag: str) -> str:
+    return _slug(_norm(variant_tag))
+
+
+def _variant_index(variant_tag: str, *, failure_type: str, modulo: int) -> int:
+    if modulo <= 0 or not _norm(variant_tag):
+        return 0
+    digest = _sha256_text(f"{failure_type}:{_norm(variant_tag)}")
+    return int(digest[:8], 16) % modulo
+
+
 def _inject_dynamic_block(model_text: str, *, decl_lines: list[str], eq_lines: list[str]) -> str:
     lines = model_text.splitlines()
     equation_idx = next((idx for idx, line in enumerate(lines) if re.match(r"^\s*equation\s*$", line)), None)
@@ -92,9 +103,11 @@ def _inject_dynamic_block(model_text: str, *, decl_lines: list[str], eq_lines: l
     return "\n".join(lines) + "\n"
 
 
-def _mutate_solver_sensitive_simulate_failure(model_text: str, token: str) -> tuple[str, list[dict], str]:
+def _mutate_solver_sensitive_simulate_failure(model_text: str, token: str, *, variant_tag: str = "") -> tuple[str, list[dict], str]:
+    tau_values = ("1e-12", "5e-13", "2e-12")
+    tau = tau_values[_variant_index(variant_tag, failure_type="solver_sensitive_simulate_failure", modulo=len(tau_values))]
     decl = [
-        f"  parameter Real __gf_tau_{token} = 1e-12; // gateforge_solver_sensitive_simulate_failure",
+        f"  parameter Real __gf_tau_{token} = {tau}; // gateforge_solver_sensitive_simulate_failure",
         f"  Real __gf_state_{token}(start=1.0);",
     ]
     eq = [
@@ -105,22 +118,27 @@ def _mutate_solver_sensitive_simulate_failure(model_text: str, token: str) -> tu
     return patched, objects, "gateforge_solver_sensitive_simulate_failure"
 
 
-def _mutate_event_logic_error(model_text: str, token: str) -> tuple[str, list[dict], str]:
+def _mutate_event_logic_error(model_text: str, token: str, *, variant_tag: str = "") -> tuple[str, list[dict], str]:
+    thresholds = ("0.5", "0.35", "0.65")
+    threshold = thresholds[_variant_index(variant_tag, failure_type="event_logic_error", modulo=len(thresholds))]
     decl = [f"  Real __gf_event_state_{token}(start=0.0);"]
     eq = [
         f"  der(__gf_event_state_{token}) = 1.0; // gateforge_event_logic_error",
-        f'  when __gf_event_state_{token} > 0.5 then assert(false, "gateforge_event_logic_error_{token}"); end when;',
+        f'  when __gf_event_state_{token} > {threshold} then assert(false, "gateforge_event_logic_error_{token}"); end when;',
     ]
     patched = _inject_dynamic_block(model_text, decl_lines=decl, eq_lines=eq)
     objects = [{"kind": "event_threshold", "effect": "event_logic_error", "name": f"__gf_event_state_{token}"}]
     return patched, objects, "gateforge_event_logic_error"
 
 
-def _mutate_semantic_drift_after_compile_pass(model_text: str, token: str) -> tuple[str, list[dict], str]:
+def _mutate_semantic_drift_after_compile_pass(model_text: str, token: str, *, variant_tag: str = "") -> tuple[str, list[dict], str]:
+    decay_values = ("-1.0", "-1.5", "-0.5")
+    threshold_values = ("-1.0e-6", "-1.0e-5", "-5.0e-7")
+    idx = _variant_index(variant_tag, failure_type="semantic_drift_after_compile_pass", modulo=len(decay_values))
     decl = [f"  Real __gf_sem_state_{token}(start=1.0);"]
     eq = [
-        f"  der(__gf_sem_state_{token}) = -1.0 * __gf_sem_state_{token}; // gateforge_semantic_drift_after_compile_pass",
-        f'  assert(__gf_sem_state_{token} < -1.0e-6, "gateforge_semantic_drift_after_compile_pass_{token}");',
+        f"  der(__gf_sem_state_{token}) = {decay_values[idx]} * __gf_sem_state_{token}; // gateforge_semantic_drift_after_compile_pass",
+        f'  assert(__gf_sem_state_{token} < {threshold_values[idx]}, "gateforge_semantic_drift_after_compile_pass_{token}");',
     ]
     patched = _inject_dynamic_block(model_text, decl_lines=decl, eq_lines=eq)
     objects = [{"kind": "semantic_sign_flip", "effect": "semantic_drift_after_compile_pass", "name": f"__gf_sem_state_{token}"}]
@@ -135,6 +153,8 @@ def build_wave2_1_harder_dynamics_taskset(
     holdout_ratio: float,
     seed: str,
     exclude_models_path: str = "",
+    variant_tag: str = "",
+    allow_partial_taskset: bool = False,
 ) -> dict:
     payload = load_wave2_1_harder_dynamics_manifest(manifest_path)
     libraries, manifest_reasons = validate_wave2_1_harder_dynamics_manifest(payload)
@@ -198,15 +218,21 @@ def build_wave2_1_harder_dynamics_taskset(
 
         for failure_type in failure_types:
             meta = FAILURE_METADATA[failure_type]
-            token = _slug(_sha256_text(f"{library_id}:{model_id}:{failure_type}")[:10]) or "dyn"
+            variant_suffix = _variant_suffix(variant_tag)
+            token = _slug(_sha256_text(f"{library_id}:{model_id}:{failure_type}:{variant_suffix}")[:10]) or "dyn"
             if failure_type == "solver_sensitive_simulate_failure":
-                mutated_text, mutated_objects, mutation_excerpt = _mutate_solver_sensitive_simulate_failure(source_text, token)
+                mutated_text, mutated_objects, mutation_excerpt = _mutate_solver_sensitive_simulate_failure(source_text, token, variant_tag=variant_suffix)
             elif failure_type == "event_logic_error":
-                mutated_text, mutated_objects, mutation_excerpt = _mutate_event_logic_error(source_text, token)
+                mutated_text, mutated_objects, mutation_excerpt = _mutate_event_logic_error(source_text, token, variant_tag=variant_suffix)
             else:
-                mutated_text, mutated_objects, mutation_excerpt = _mutate_semantic_drift_after_compile_pass(source_text, token)
+                mutated_text, mutated_objects, mutation_excerpt = _mutate_semantic_drift_after_compile_pass(source_text, token, variant_tag=variant_suffix)
             task_id = f"wave2_1_{library_id}_{model_id}_{failure_type}"
-            mutated_path = mutants_dir / failure_type / f"{library_id}_{model_id}_{failure_type}.mo"
+            if variant_suffix:
+                task_id = f"{task_id}_{variant_suffix}"
+            filename = f"{library_id}_{model_id}_{failure_type}"
+            if variant_suffix:
+                filename = f"{filename}_{variant_suffix}"
+            mutated_path = mutants_dir / failure_type / f"{filename}.mo"
             _write_text(mutated_path, mutated_text)
             task = {
                 "task_id": task_id,
@@ -263,6 +289,7 @@ def build_wave2_1_harder_dynamics_taskset(
         "schema_version": SCHEMA_VERSION,
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
         "status": status,
+        "variant_tag": _norm(variant_tag),
         "manifest_schema_version": MANIFEST_SCHEMA_VERSION,
         "manifest_path": manifest_real_path,
         "failure_types": list(failure_types),
@@ -279,6 +306,7 @@ def build_wave2_1_harder_dynamics_taskset(
         "records": records,
         "reasons": sorted(set(reasons)),
         "taskset_frozen_path": str((out_root / "taskset_frozen.json").resolve()),
+        "allow_partial_taskset": bool(allow_partial_taskset),
     }
     taskset_unfrozen = {"schema_version": SCHEMA_VERSION, "generated_at_utc": summary["generated_at_utc"], "tasks": taskset_tasks}
     taskset_frozen = dict(taskset_unfrozen)
@@ -299,6 +327,8 @@ def main() -> None:
     parser.add_argument("--holdout-ratio", type=float, default=0.15)
     parser.add_argument("--seed", default="agent_modelica_wave2_1_harder_dynamics_taskset_v1")
     parser.add_argument("--exclude-models-json", default="")
+    parser.add_argument("--variant-tag", default="")
+    parser.add_argument("--allow-partial-taskset", action="store_true")
     args = parser.parse_args()
     failure_types = [item.strip().lower() for item in str(args.failure_types or "").split(",") if item.strip()]
     if not failure_types:
@@ -310,9 +340,11 @@ def main() -> None:
         holdout_ratio=float(args.holdout_ratio),
         seed=str(args.seed),
         exclude_models_path=str(args.exclude_models_json or ""),
+        variant_tag=str(args.variant_tag or ""),
+        allow_partial_taskset=bool(args.allow_partial_taskset),
     )
     print(json.dumps({"status": summary.get("status"), "total_tasks": summary.get("total_tasks"), "library_count": summary.get("library_count")}))
-    if str(summary.get("status")) != "PASS":
+    if str(summary.get("status")) != "PASS" and not bool(args.allow_partial_taskset):
         raise SystemExit(1)
 
 
