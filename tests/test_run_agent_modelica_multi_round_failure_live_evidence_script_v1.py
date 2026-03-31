@@ -12,6 +12,10 @@ class RunAgentModelicaMultiRoundFailureLiveEvidenceScriptV1Tests(unittest.TestCa
         self.assertIn("GATEFORGE_AGENT_MULTI_ROUND_DETERMINISTIC_REPAIR=1", content)
         self.assertIn("RETRIEVAL_EXECUTOR_CMD", content)
         self.assertIn("task_construction_still_too_easy", content)
+        self.assertIn("GATEFORGE_AGENT_MULTI_ROUND_VARIANT_TAG", content)
+        self.assertIn("--variant-tag", content)
+        self.assertIn("GATEFORGE_AGENT_MULTI_ROUND_ALLOW_PARTIAL_TASKSET", content)
+        self.assertIn("--allow-partial-taskset", content)
 
 
 if __name__ == "__main__":
