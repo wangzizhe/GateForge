@@ -6,9 +6,9 @@ from pathlib import Path
 
 class RunAgentModelicaV034MultiRoundValidationBatchScriptTests(unittest.TestCase):
     def test_script_uses_current_workorder_and_enables_multi_round_deterministic_repair(self) -> None:
-        content = Path(
-            "/Users/meow/Documents/GateForge/scripts/run_agent_modelica_v0_3_4_multi_round_validation_batch.sh"
-        ).read_text(encoding="utf-8")
+        repo_root = Path(__file__).resolve().parents[1]
+        script_path = repo_root / "scripts" / "run_agent_modelica_v0_3_4_multi_round_validation_batch.sh"
+        content = script_path.read_text(encoding="utf-8")
         self.assertIn("agent_modelica_multi_round_validation_workorder_v0_3_4_current/summary.json", content)
         self.assertIn("taskset_candidates_refreshed.json", content)
         self.assertIn("GATEFORGE_AGENT_MULTI_ROUND_DETERMINISTIC_REPAIR=1", content)
