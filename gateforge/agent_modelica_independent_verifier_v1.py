@@ -540,6 +540,111 @@ def verify_branch_switch_forcing_flow_v0_3_8(
     return payload
 
 
+def verify_v0_3_9_replacement_hypothesis_flow(
+    *,
+    manifests_summary_path: str,
+    mainline_manifest_path: str,
+    contrast_manifest_path: str,
+    absorbed_classifier_summary_path: str,
+    block_b_decision_summary_path: str,
+    out_dir: str = DEFAULT_OUT_DIR,
+) -> dict:
+    verifier_profile = get_agent_profile("evidence-verifier")
+    manifests = _load_json(manifests_summary_path)
+    mainline = _load_json(mainline_manifest_path)
+    contrast = _load_json(contrast_manifest_path)
+    classifier = _load_json(absorbed_classifier_summary_path)
+    decision = _load_json(block_b_decision_summary_path)
+
+    manifests_metrics = manifests.get("metrics") if isinstance(manifests.get("metrics"), dict) else {}
+    classifier_metrics = classifier.get("metrics") if isinstance(classifier.get("metrics"), dict) else {}
+    primary_bucket_counts = classifier_metrics.get("primary_bucket_counts") if isinstance(classifier_metrics.get("primary_bucket_counts"), dict) else {}
+
+    mainline_count = int(mainline.get("task_count") or 0)
+    contrast_count = int(contrast.get("task_count") or 0)
+    classifier_total = int(classifier_metrics.get("total_rows") or 0)
+    top_coverage = float((decision.get("metrics") or {}).get("top_bucket_coverage_pct") or 0.0)
+    residual_pct = float((decision.get("metrics") or {}).get("residual_pct") or 0.0)
+
+    checks = [
+        {
+            "name": "verifier_profile_is_evidence_verifier",
+            "passed": verifier_profile.profile_id == "evidence-verifier",
+            "details": {"profile_id": verifier_profile.profile_id},
+        },
+        {
+            "name": "mainline_manifest_matches_manifests_summary",
+            "passed": mainline_count == int(manifests_metrics.get("mainline_task_count") or 0),
+            "details": {
+                "mainline_manifest_task_count": mainline_count,
+                "manifests_summary_mainline_task_count": manifests_metrics.get("mainline_task_count"),
+            },
+        },
+        {
+            "name": "contrast_manifest_matches_classifier_total",
+            "passed": contrast_count == classifier_total,
+            "details": {
+                "contrast_manifest_task_count": contrast_count,
+                "classifier_total_rows": classifier_total,
+            },
+        },
+        {
+            "name": "absorbed_classifier_primary_buckets_are_exhaustive",
+            "passed": sum(int(value or 0) for value in primary_bucket_counts.values()) == classifier_total,
+            "details": {
+                "primary_bucket_count_sum": sum(int(value or 0) for value in primary_bucket_counts.values()),
+                "classifier_total_rows": classifier_total,
+            },
+        },
+        {
+            "name": "block_b_decision_is_replacement_supported",
+            "passed": str(decision.get("decision") or "") == "replacement_hypothesis_supported",
+            "details": {"decision": decision.get("decision")},
+        },
+        {
+            "name": "replacement_hypothesis_meets_coverage_rule",
+            "passed": top_coverage >= 80.0 and residual_pct <= 20.0,
+            "details": {"top_bucket_coverage_pct": top_coverage, "residual_pct": residual_pct},
+        },
+        {
+            "name": "mainline_manifest_meets_minimum_size",
+            "passed": mainline_count >= 8,
+            "details": {"mainline_task_count": mainline_count},
+        },
+    ]
+
+    contract = build_verification_contract(
+        verifier_profile_id=verifier_profile.profile_id,
+        verified_flow="v0_3_9_replacement_hypothesis_flow",
+        inputs={
+            "manifests_summary_path": str(Path(manifests_summary_path).resolve()) if Path(manifests_summary_path).exists() else str(manifests_summary_path),
+            "mainline_manifest_path": str(Path(mainline_manifest_path).resolve()) if Path(mainline_manifest_path).exists() else str(mainline_manifest_path),
+            "contrast_manifest_path": str(Path(contrast_manifest_path).resolve()) if Path(contrast_manifest_path).exists() else str(contrast_manifest_path),
+            "absorbed_classifier_summary_path": str(Path(absorbed_classifier_summary_path).resolve()) if Path(absorbed_classifier_summary_path).exists() else str(absorbed_classifier_summary_path),
+            "block_b_decision_summary_path": str(Path(block_b_decision_summary_path).resolve()) if Path(block_b_decision_summary_path).exists() else str(block_b_decision_summary_path),
+        },
+        checks=checks,
+    )
+
+    out_root = Path(out_dir)
+    payload = {
+        "schema_version": SCHEMA_VERSION,
+        "status": contract.get("status"),
+        "verified_flow": contract.get("verified_flow"),
+        "verifier_profile_id": contract.get("verifier_profile_id"),
+        "summary": {
+            "all_checks_passed": contract.get("status") == "PASS",
+            "check_count": len(checks),
+            "failed_checks": [item.get("name") for item in checks if not bool(item.get("passed"))],
+        },
+        "verification_contract": contract,
+    }
+    _write_json(out_root / "summary.json", payload)
+    write_verification_contract(out_root / "verification_contract.json", contract)
+    _write_text(out_root / "summary.md", "\n".join(["# Independent Verifier Summary v0.3.9", "", f"- status: `{payload['status']}`", f"- verified_flow: `{payload['verified_flow']}`", ""]))
+    return payload
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run the independent verifier over a narrow GateForge evidence flow.")
     parser.add_argument("--lane-summary", required=True)
