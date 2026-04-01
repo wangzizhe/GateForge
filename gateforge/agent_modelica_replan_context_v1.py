@@ -51,6 +51,7 @@ class AgentModelicaReplanContext:
     replan_count: int
     remaining_replan_budget: int
     decision_reason_code: str
+    abandoned_branch: str = ""
 
     @classmethod
     def create(
@@ -68,6 +69,7 @@ class AgentModelicaReplanContext:
         replan_count: int,
         remaining_replan_budget: int,
         decision_reason_code: str,
+        abandoned_branch: str = "",
     ) -> "AgentModelicaReplanContext":
         normalized_branches: list[dict] = []
         for branch in candidate_branches:
@@ -101,6 +103,8 @@ class AgentModelicaReplanContext:
             raise ValueError("one of continue_current_branch or switch_branch must be true")
         if switch_branch and not _norm(selected_branch):
             raise ValueError("selected_branch is required when switch_branch is true")
+        if _norm(abandoned_branch) and _norm(abandoned_branch) == _norm(selected_branch):
+            raise ValueError("abandoned_branch must differ from selected_branch")
 
         return cls(
             schema_version=SCHEMA_VERSION,
@@ -117,6 +121,7 @@ class AgentModelicaReplanContext:
             replan_count=int(replan_count),
             remaining_replan_budget=int(remaining_replan_budget),
             decision_reason_code=_norm(decision_reason_code),
+            abandoned_branch=_norm(abandoned_branch),
         )
 
     def to_dict(self) -> dict:

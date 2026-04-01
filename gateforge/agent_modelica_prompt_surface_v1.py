@@ -123,3 +123,43 @@ def build_branch_switch_replan_prompt(*, task_ctx: dict, replan_ctx: dict, budge
         "- Return a structured decision payload only.",
     ]
     return "\n".join(prompt_lines)
+
+
+def build_branch_switch_forcing_replan_prompt(*, task_ctx: dict, replan_ctx: dict, budget: dict | None = None) -> str:
+    branch_rows = replan_ctx.get("candidate_branches") if isinstance(replan_ctx.get("candidate_branches"), list) else []
+    prompt_lines = [
+        "You are handling one behavior-forcing GateForge replan case.",
+        "Focus only on explicit branch switch after stalled progress.",
+        "",
+        "Task Context:",
+        f"- task_id: {task_ctx.get('task_id')}",
+        f"- failure_type: {task_ctx.get('failure_type')}",
+        f"- expected_stage: {task_ctx.get('expected_stage')}",
+        "",
+        "Structured Branch Context:",
+        f"- current_branch: {replan_ctx.get('current_branch')}",
+        f"- previous_successful_action: {replan_ctx.get('previous_successful_action')}",
+        f"- stall_signal: {replan_ctx.get('stall_signal')}",
+        f"- replan_count: {replan_ctx.get('replan_count')}",
+        f"- remaining_replan_budget: {replan_ctx.get('remaining_replan_budget')}",
+        "- candidate_next_branches_json:",
+        json.dumps(branch_rows, indent=2),
+    ]
+    if isinstance(budget, dict) and budget:
+        prompt_lines += [
+            "",
+            "Budget:",
+            f"- max_replan_rounds: {int(budget.get('max_replan_rounds') or 0)}",
+            f"- max_followup_actions: {int(budget.get('max_followup_actions') or 0)}",
+        ]
+    prompt_lines += [
+        "",
+        "Output requirements:",
+        "- Return structured fields only.",
+        "- `candidate_next_branches` must not be rewritten as free-form prose.",
+        "- `selected_branch` must be one of the provided branch ids.",
+        "- `abandoned_branch` must be empty or one of the provided branch ids.",
+        "- `abandoned_branch` and `selected_branch` must differ when branch switch is true.",
+        "- If you cannot justify a switch from the structured evidence, do not invent one.",
+    ]
+    return "\n".join(prompt_lines)

@@ -3,6 +3,7 @@ from __future__ import annotations
 import unittest
 
 from gateforge.agent_modelica_prompt_surface_v1 import (
+    build_branch_switch_forcing_replan_prompt,
     build_branch_switch_replan_prompt,
     build_external_agent_probe_prompt,
     build_external_agent_repair_prompt,
@@ -70,6 +71,30 @@ class AgentModelicaPromptSurfaceV1Tests(unittest.TestCase):
         self.assertIn("candidate_branches_json", prompt)
         self.assertIn("\"branch_id\": \"switch_to_C\"", prompt)
         self.assertIn("Do not invent new branch ids", prompt)
+
+    def test_build_branch_switch_forcing_replan_prompt_keeps_outputs_structured(self) -> None:
+        prompt = build_branch_switch_forcing_replan_prompt(
+            task_ctx={
+                "task_id": "t1",
+                "failure_type": "simulate_error",
+                "expected_stage": "simulate",
+            },
+            replan_ctx={
+                "current_branch": "continue_on_R",
+                "previous_successful_action": "increase_R",
+                "stall_signal": "stalled_search_after_progress",
+                "replan_count": 1,
+                "remaining_replan_budget": 2,
+                "candidate_branches": [
+                    {"branch_id": "continue_on_R", "branch_kind": "continue_current_line"},
+                    {"branch_id": "switch_to_C", "branch_kind": "branch_switch_candidate"},
+                ],
+            },
+            budget={"max_replan_rounds": 2, "max_followup_actions": 3},
+        )
+        self.assertIn("candidate_next_branches_json", prompt)
+        self.assertIn("selected_branch", prompt)
+        self.assertIn("abandoned_branch", prompt)
 
 
 if __name__ == "__main__":

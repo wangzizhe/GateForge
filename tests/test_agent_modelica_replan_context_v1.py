@@ -69,6 +69,30 @@ class AgentModelicaReplanContextV1Tests(unittest.TestCase):
                 decision_reason_code="stall_then_branch_switch",
             )
 
+    def test_selected_and_abandoned_branch_must_differ(self) -> None:
+        with self.assertRaises(ValueError):
+            AgentModelicaReplanContext.create(
+                task_id="case_1",
+                run_id="run_a",
+                previous_successful_action="numeric_sweep:R_up",
+                stall_signal="stalled_search_after_progress",
+                current_branch="continue_current",
+                candidate_branches=[
+                    {
+                        "branch_id": "switch_to_c",
+                        "branch_kind": "parameter_branch",
+                        "trigger_signal": "stalled_search_after_progress",
+                    }
+                ],
+                continue_current_branch=False,
+                switch_branch=True,
+                selected_branch="switch_to_c",
+                abandoned_branch="switch_to_c",
+                replan_count=1,
+                remaining_replan_budget=2,
+                decision_reason_code="stall_then_branch_switch",
+            )
+
     def test_context_can_be_written_to_json(self) -> None:
         with tempfile.TemporaryDirectory(prefix="gf_replan_ctx_") as td:
             root = Path(td)
