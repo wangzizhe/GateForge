@@ -70,6 +70,82 @@ def _item_id(row: dict) -> str:
     return _norm(row.get("task_id") or row.get("mutation_id") or row.get("item_id"))
 
 
+def _attempts(row: dict) -> list[dict]:
+    attempts = row.get("attempts")
+    if isinstance(attempts, list):
+        return [attempt for attempt in attempts if isinstance(attempt, dict)]
+    return []
+
+
+def _first_llm_guided_round(attempts: list[dict]) -> int:
+    for attempt in attempts:
+        params = attempt.get("llm_plan_candidate_parameters")
+        directions = attempt.get("llm_plan_candidate_value_directions")
+        if (isinstance(params, list) and params) or (isinstance(directions, list) and directions):
+            return int(attempt.get("round") or 0)
+    return 0
+
+
+def _infer_single_sweep_fields(result: dict) -> dict:
+    direct_outcome = _norm(result.get("single_sweep_outcome"))
+    direct_first_success = result.get("first_correction_success")
+    direct_residual = result.get("residual_failure_after_first_correction")
+    if direct_outcome or direct_first_success is not None or direct_residual is not None:
+        return {
+            "single_sweep_outcome": direct_outcome,
+            "first_correction_success": bool(direct_first_success),
+            "residual_failure_after_first_correction": bool(direct_residual),
+        }
+
+    attempts = _attempts(result)
+    if not attempts:
+        return {
+            "single_sweep_outcome": "",
+            "first_correction_success": False,
+            "residual_failure_after_first_correction": False,
+        }
+
+    first_guided_round = _first_llm_guided_round(attempts)
+    if first_guided_round <= 0:
+        return {
+            "single_sweep_outcome": "",
+            "first_correction_success": False,
+            "residual_failure_after_first_correction": False,
+        }
+
+    later_attempts = [
+        attempt for attempt in attempts
+        if int(attempt.get("round") or 0) > first_guided_round
+    ]
+    if not later_attempts:
+        return {
+            "single_sweep_outcome": "",
+            "first_correction_success": False,
+            "residual_failure_after_first_correction": False,
+        }
+
+    last_attempt = later_attempts[-1]
+    any_intermediate_failure = any(not bool(attempt.get("simulate_pass")) for attempt in later_attempts[:-1])
+    final_success = bool(last_attempt.get("simulate_pass"))
+    if final_success and any_intermediate_failure:
+        return {
+            "single_sweep_outcome": "residual_failure_after_first_correction",
+            "first_correction_success": True,
+            "residual_failure_after_first_correction": True,
+        }
+    if final_success:
+        return {
+            "single_sweep_outcome": "resolved",
+            "first_correction_success": True,
+            "residual_failure_after_first_correction": False,
+        }
+    return {
+        "single_sweep_outcome": "",
+        "first_correction_success": False,
+        "residual_failure_after_first_correction": False,
+    }
+
+
 def refresh_post_restore_candidates(
     *,
     candidate_taskset_path: str,
@@ -87,6 +163,7 @@ def refresh_post_restore_candidates(
         for row in _result_rows(results_payload)
         if _item_id(row)
     }
+    result_dir = Path(results_path).resolve().parent if Path(results_path).exists() else Path(results_path).parent
     classifier_index = {
         _item_id(row): row
         for row in _classifier_rows(classifier_payload)
@@ -105,7 +182,11 @@ def refresh_post_restore_candidates(
 
     for row in tasks:
         item_id = _item_id(row)
-        result = results_index.get(item_id, {})
+        result = dict(results_index.get(item_id, {}) or {})
+        sidecar_result_path = result_dir / f"{item_id}_result.json"
+        sidecar_result = _load_json(sidecar_result_path)
+        if sidecar_result:
+            result = {**sidecar_result, **result}
         classifier = classifier_index.get(item_id, {})
         if result:
             matched_result_count += 1
@@ -118,6 +199,7 @@ def refresh_post_restore_candidates(
             else {}
         )
         protocol = row_protocol or top_protocol or row.get("baseline_measurement_protocol") or {}
+        inferred = _infer_single_sweep_fields(result)
 
         merged = {
             **row,
@@ -130,15 +212,15 @@ def refresh_post_restore_candidates(
                 or row.get("llm_request_count")
                 or 0
             ),
-            "single_sweep_outcome": _norm(result.get("single_sweep_outcome") or row.get("single_sweep_outcome")),
+            "single_sweep_outcome": _norm(inferred.get("single_sweep_outcome") or row.get("single_sweep_outcome")),
             "first_correction_success": bool(
-                result.get("first_correction_success")
-                if "first_correction_success" in result
+                inferred.get("first_correction_success")
+                if "first_correction_success" in inferred
                 else row.get("first_correction_success")
             ),
             "residual_failure_after_first_correction": bool(
-                result.get("residual_failure_after_first_correction")
-                if "residual_failure_after_first_correction" in result
+                inferred.get("residual_failure_after_first_correction")
+                if "residual_failure_after_first_correction" in inferred
                 else row.get("residual_failure_after_first_correction")
             ),
             "baseline_measurement_protocol": protocol,

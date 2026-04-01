@@ -140,6 +140,68 @@ class AgentModelicaPostRestoreCandidateRefreshV036Tests(unittest.TestCase):
             protocol = payload["tasks"][0]["baseline_measurement_protocol"]
             self.assertEqual(protocol["protocol_version"], "v0_3_6_single_sweep_baseline_authority_v1")
 
+    def test_refresh_infers_single_sweep_fields_from_sidecar_attempts(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="gf_v036_refresh_sidecar_") as td:
+            root = Path(td)
+            candidates = root / "candidates.json"
+            results = root / "results.json"
+            candidates.write_text(
+                json.dumps(
+                    {
+                        "tasks": [
+                            {
+                                "task_id": "case_a",
+                                "v0_3_6_family_id": "post_restore_residual_semantic_conflict",
+                                "dominant_stage_subtype": "stage_5_runtime_numerical_instability",
+                                "dual_layer_mutation": True,
+                                "declared_failure_type": "simulate_error",
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            results.write_text(
+                json.dumps(
+                    {
+                        "baseline_measurement_protocol": _protocol(),
+                        "results": [
+                            {
+                                "task_id": "case_a",
+                                "resolution_path": "rule_then_llm",
+                                "planner_invoked": True,
+                                "rounds_used": 4,
+                                "llm_request_count": 2,
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (root / "case_a_result.json").write_text(
+                json.dumps(
+                    {
+                        "task_id": "case_a",
+                        "attempts": [
+                            {"round": 1, "simulate_pass": False},
+                            {"round": 2, "simulate_pass": False, "llm_plan_candidate_parameters": ["R"], "llm_plan_candidate_value_directions": ["increase"]},
+                            {"round": 3, "simulate_pass": False, "llm_plan_candidate_parameters": ["C"], "llm_plan_candidate_value_directions": ["increase"]},
+                            {"round": 4, "simulate_pass": True},
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            payload = refresh_post_restore_candidates(
+                candidate_taskset_path=str(candidates),
+                results_path=str(results),
+                out_dir=str(root / "out"),
+            )
+            row = payload["tasks"][0]
+            self.assertEqual(row["single_sweep_outcome"], "residual_failure_after_first_correction")
+            self.assertTrue(row["first_correction_success"])
+            self.assertTrue(row["residual_failure_after_first_correction"])
+
 
 if __name__ == "__main__":
     unittest.main()
