@@ -203,6 +203,8 @@ def refresh_post_restore_candidates(
 
         merged = {
             **row,
+            "verdict": _norm(result.get("verdict") or row.get("verdict")),
+            "executor_status": _norm(result.get("executor_status") or row.get("executor_status")),
             "resolution_path": _norm(result.get("resolution_path") or row.get("resolution_path")),
             "planner_invoked": result.get("planner_invoked") if "planner_invoked" in result else row.get("planner_invoked"),
             "rounds_used": int(result.get("rounds_used") or row.get("rounds_used") or 0),
@@ -224,6 +226,11 @@ def refresh_post_restore_candidates(
                 else row.get("residual_failure_after_first_correction")
             ),
             "baseline_measurement_protocol": protocol,
+            "check_model_pass": result.get("check_model_pass") if "check_model_pass" in result else row.get("check_model_pass"),
+            "simulate_pass": result.get("simulate_pass") if "simulate_pass" in result else row.get("simulate_pass"),
+            "wrong_branch_entered": result.get("wrong_branch_entered") if "wrong_branch_entered" in result else row.get("wrong_branch_entered"),
+            "correct_branch_selected": result.get("correct_branch_selected") if "correct_branch_selected" in result else row.get("correct_branch_selected"),
+            "error_message": _norm(result.get("error_message") or row.get("error_message")),
             "post_restore_failure_bucket": _norm(
                 classifier.get("post_restore_failure_bucket")
                 or result.get("post_restore_failure_bucket")

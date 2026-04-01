@@ -202,6 +202,76 @@ class AgentModelicaPostRestoreCandidateRefreshV036Tests(unittest.TestCase):
             self.assertTrue(row["first_correction_success"])
             self.assertTrue(row["residual_failure_after_first_correction"])
 
+    def test_refresh_surfaces_sidecar_execution_fields(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="gf_v036_refresh_fields_") as td:
+            root = Path(td)
+            candidates = root / "candidates.json"
+            results = root / "results.json"
+            candidates.write_text(
+                json.dumps(
+                    {
+                        "tasks": [
+                            {
+                                "task_id": "case_b",
+                                "v0_3_6_family_id": "post_restore_residual_semantic_conflict",
+                                "dominant_stage_subtype": "stage_5_runtime_numerical_instability",
+                                "dual_layer_mutation": True,
+                                "declared_failure_type": "simulate_error",
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            results.write_text(
+                json.dumps(
+                    {
+                        "baseline_measurement_protocol": _protocol(),
+                        "results": [
+                            {
+                                "task_id": "case_b",
+                                "verdict": "FAILED",
+                                "resolution_path": "unresolved",
+                                "planner_invoked": True,
+                                "rounds_used": 2,
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (root / "case_b_result.json").write_text(
+                json.dumps(
+                    {
+                        "task_id": "case_b",
+                        "executor_status": "FAILED",
+                        "check_model_pass": True,
+                        "simulate_pass": False,
+                        "wrong_branch_entered": True,
+                        "correct_branch_selected": False,
+                        "error_message": "branch mismatch",
+                        "attempts": [
+                            {"round": 1, "simulate_pass": False},
+                            {"round": 2, "simulate_pass": False, "llm_plan_candidate_parameters": ["R"], "llm_plan_candidate_value_directions": ["increase"]},
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            payload = refresh_post_restore_candidates(
+                candidate_taskset_path=str(candidates),
+                results_path=str(results),
+                out_dir=str(root / "out"),
+            )
+            row = payload["tasks"][0]
+            self.assertEqual(row["verdict"], "FAILED")
+            self.assertEqual(row["executor_status"], "FAILED")
+            self.assertTrue(row["check_model_pass"])
+            self.assertFalse(row["simulate_pass"])
+            self.assertTrue(row["wrong_branch_entered"])
+            self.assertFalse(row["correct_branch_selected"])
+            self.assertEqual(row["error_message"], "branch mismatch")
+
 
 if __name__ == "__main__":
     unittest.main()
