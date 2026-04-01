@@ -7,6 +7,7 @@ from pathlib import Path
 
 from gateforge.agent_modelica_independent_verifier_v1 import (
     verify_post_restore_evidence_flow,
+    verify_post_restore_frontier_flow_v0_3_6,
 )
 
 
@@ -88,3 +89,101 @@ class AgentModelicaIndependentVerifierV1Tests(unittest.TestCase):
             )
         self.assertEqual(payload.get("status"), "FAIL")
         self.assertIn("counts_align_across_summaries", (payload.get("summary") or {}).get("failed_checks") or [])
+
+    def test_verify_post_restore_frontier_flow_v0_3_6_passes_on_aligned_inputs(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="gf_independent_verifier_v1_v036_") as td:
+            root = Path(td)
+            refreshed = root / "refreshed.json"
+            classifier = root / "classifier.json"
+            dev = root / "dev.json"
+            refreshed.write_text(
+                json.dumps(
+                    {
+                        "lane_summary": {
+                            "total_candidate_count": 3,
+                            "composition": {"single_sweep_success_rate_pct": 33.3},
+                        }
+                    }
+                ),
+                encoding="utf-8",
+            )
+            classifier.write_text(
+                json.dumps(
+                    {
+                        "metrics": {
+                            "total_rows": 3,
+                            "success_beyond_single_sweep_count": 2,
+                            "failure_bucket_counts": {
+                                "stalled_search_after_progress": 1,
+                            },
+                        }
+                    }
+                ),
+                encoding="utf-8",
+            )
+            dev.write_text(
+                json.dumps(
+                    {
+                        "primary_harder_direction": {"operator": "paired_value_collapse"},
+                        "next_bottleneck": {"lever": "guided_replan_after_progress"},
+                        "deterministic_coverage_explanation": {"present": True},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            payload = verify_post_restore_frontier_flow_v0_3_6(
+                refreshed_summary_path=str(refreshed),
+                classifier_summary_path=str(classifier),
+                dev_priorities_summary_path=str(dev),
+                out_dir=str(root / "out"),
+            )
+        self.assertEqual(payload.get("status"), "PASS")
+        self.assertEqual((payload.get("summary") or {}).get("failed_checks"), [])
+
+    def test_verify_post_restore_frontier_flow_v0_3_6_fails_when_bucket_missing(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="gf_independent_verifier_v1_v036_fail_") as td:
+            root = Path(td)
+            refreshed = root / "refreshed.json"
+            classifier = root / "classifier.json"
+            dev = root / "dev.json"
+            refreshed.write_text(
+                json.dumps(
+                    {
+                        "lane_summary": {
+                            "total_candidate_count": 2,
+                            "composition": {"single_sweep_success_rate_pct": 0.0},
+                        }
+                    }
+                ),
+                encoding="utf-8",
+            )
+            classifier.write_text(
+                json.dumps(
+                    {
+                        "metrics": {
+                            "total_rows": 2,
+                            "success_beyond_single_sweep_count": 0,
+                            "failure_bucket_counts": {},
+                        }
+                    }
+                ),
+                encoding="utf-8",
+            )
+            dev.write_text(
+                json.dumps(
+                    {
+                        "primary_harder_direction": {"operator": "paired_value_collapse"},
+                        "next_bottleneck": {"lever": "guided_replan_after_progress"},
+                        "deterministic_coverage_explanation": {"present": False},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            payload = verify_post_restore_frontier_flow_v0_3_6(
+                refreshed_summary_path=str(refreshed),
+                classifier_summary_path=str(classifier),
+                dev_priorities_summary_path=str(dev),
+                out_dir=str(root / "out"),
+            )
+        self.assertEqual(payload.get("status"), "FAIL")
+        self.assertIn("next_bottleneck_has_supporting_bucket", (payload.get("summary") or {}).get("failed_checks") or [])
