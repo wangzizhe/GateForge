@@ -21,6 +21,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import argparse
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
@@ -60,8 +61,7 @@ def _planner_backend() -> str | None:
     return None
 
 
-def _load_taskset() -> list[dict]:
-    taskset_path = DEFAULT_TASKSET_DIR / "taskset.json"
+def _load_taskset(taskset_path: pathlib.Path) -> list[dict]:
     if not taskset_path.exists():
         build_post_restore_taskset(out_dir=str(DEFAULT_TASKSET_DIR))
     payload = json.loads(taskset_path.read_text(encoding="utf-8"))
@@ -174,21 +174,28 @@ def run_one(task: dict, out_dir: pathlib.Path) -> dict:
 
 def main() -> int:
     _load_dotenv()
+    parser = argparse.ArgumentParser(description="Run the v0.3.6 Block A baseline authority setup.")
+    parser.add_argument("--taskset", default=str(DEFAULT_TASKSET_DIR / "taskset.json"))
+    parser.add_argument("--out-dir", default=str(DEFAULT_RESULTS_DIR))
+    args = parser.parse_args()
+
     backend = _planner_backend()
     if not backend:
         print("ERROR: Set GEMINI_API_KEY/GOOGLE_API_KEY or OPENAI_API_KEY before running.")
         return 1
 
-    tasks = _load_taskset()
+    taskset_path = pathlib.Path(args.taskset)
+    tasks = _load_taskset(taskset_path)
     if not tasks:
         print("ERROR: No tasks available for v0.3.6 Block A run.")
         return 1
 
-    out_dir = DEFAULT_RESULTS_DIR
+    out_dir = pathlib.Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     print(f"Running GateForge on {len(tasks)} v0.3.6 candidates")
     print(f"  planner backend: {backend}")
     print(f"  results dir: {out_dir}")
+    print(f"  taskset: {taskset_path}")
 
     rows = [run_one(task, out_dir) for task in tasks]
     total = len(rows)
