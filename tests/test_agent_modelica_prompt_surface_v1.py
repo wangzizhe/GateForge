@@ -7,6 +7,7 @@ from gateforge.agent_modelica_prompt_surface_v1 import (
     build_branch_switch_replan_prompt,
     build_external_agent_probe_prompt,
     build_external_agent_repair_prompt,
+    build_same_branch_continuity_prompt,
 )
 
 
@@ -95,6 +96,28 @@ class AgentModelicaPromptSurfaceV1Tests(unittest.TestCase):
         self.assertIn("candidate_next_branches_json", prompt)
         self.assertIn("selected_branch", prompt)
         self.assertIn("abandoned_branch", prompt)
+
+    def test_build_same_branch_continuity_prompt_keeps_branch_identity_explicit(self) -> None:
+        prompt = build_same_branch_continuity_prompt(
+            task_ctx={
+                "task_id": "t1",
+                "failure_type": "simulate_error",
+                "expected_stage": "simulate",
+            },
+            continuity_ctx={
+                "current_branch_id": "continue_on_A",
+                "selected_branch_id": "continue_on_A",
+                "previous_successful_same_branch_step": "round_2",
+                "same_branch_refinement_event_count": 1,
+                "continuation_refinement_target": "A",
+                "continuation_outcome_state": "same_branch_one_shot_or_accidental_success",
+                "branch_identity_continuous": True,
+            },
+            budget={"max_continuation_rounds": 2, "max_followup_actions": 3},
+        )
+        self.assertIn("current_branch_id", prompt)
+        self.assertIn("selected_branch_id", prompt)
+        self.assertIn("same_branch_refinement_event_count", prompt)
 
 
 if __name__ == "__main__":

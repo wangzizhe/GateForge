@@ -10,6 +10,7 @@ from gateforge.agent_modelica_independent_verifier_v1 import (
     verify_branch_switch_forcing_flow_v0_3_8,
     verify_post_restore_evidence_flow,
     verify_post_restore_frontier_flow_v0_3_6,
+    verify_v0_3_10_continuity_flow,
 )
 
 
@@ -299,6 +300,54 @@ class AgentModelicaIndependentVerifierV1Tests(unittest.TestCase):
                 refreshed_summary_path=str(refreshed),
                 classifier_summary_path=str(classifier),
                 dev_priorities_summary_path=str(dev),
+                out_dir=str(root / "out"),
+            )
+        self.assertEqual(payload.get("status"), "PASS")
+        self.assertEqual((payload.get("summary") or {}).get("failed_checks"), [])
+
+    def test_verify_v0_3_10_continuity_flow_passes_on_aligned_inputs(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="gf_independent_verifier_v1_v0310_") as td:
+            root = Path(td)
+            lane = root / "lane.json"
+            refreshed = root / "refreshed.json"
+            classifier = root / "classifier.json"
+            decision = root / "decision.json"
+            lane.write_text(json.dumps({"family_id": "same_branch_continuity_after_partial_progress"}), encoding="utf-8")
+            refreshed.write_text(
+                json.dumps(
+                    {
+                        "metrics": {
+                            "total_rows": 3,
+                            "successful_case_count": 3,
+                            "success_after_same_branch_continuation_count": 0,
+                            "success_with_explicit_branch_switch_evidence_pct": 0.0,
+                        }
+                    }
+                ),
+                encoding="utf-8",
+            )
+            classifier.write_text(
+                json.dumps(
+                    {
+                        "metrics": {
+                            "total_rows": 3,
+                            "primary_bucket_counts": {
+                                "true_same_branch_multi_step_success": 0,
+                                "same_branch_one_shot_or_accidental_success": 3,
+                                "hidden_branch_change_misclassified_as_continuity": 0,
+                                "stalled_unresolved_same_branch_failure": 0,
+                            },
+                        }
+                    }
+                ),
+                encoding="utf-8",
+            )
+            decision.write_text(json.dumps({"decision": "narrower_replacement_hypothesis_supported"}), encoding="utf-8")
+            payload = verify_v0_3_10_continuity_flow(
+                lane_summary_path=str(lane),
+                refreshed_summary_path=str(refreshed),
+                classifier_summary_path=str(classifier),
+                block_b_decision_summary_path=str(decision),
                 out_dir=str(root / "out"),
             )
         self.assertEqual(payload.get("status"), "PASS")

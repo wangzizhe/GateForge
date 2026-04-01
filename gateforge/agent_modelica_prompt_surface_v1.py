@@ -163,3 +163,40 @@ def build_branch_switch_forcing_replan_prompt(*, task_ctx: dict, replan_ctx: dic
         "- If you cannot justify a switch from the structured evidence, do not invent one.",
     ]
     return "\n".join(prompt_lines)
+
+
+def build_same_branch_continuity_prompt(*, task_ctx: dict, continuity_ctx: dict, budget: dict | None = None) -> str:
+    prompt_lines = [
+        "You are handling one narrow GateForge same-branch continuity case.",
+        "Focus only on continuation after partial progress on the same branch.",
+        "",
+        "Task Context:",
+        f"- task_id: {task_ctx.get('task_id')}",
+        f"- failure_type: {task_ctx.get('failure_type')}",
+        f"- expected_stage: {task_ctx.get('expected_stage')}",
+        "",
+        "Structured Continuity Context:",
+        f"- current_branch_id: {continuity_ctx.get('current_branch_id')}",
+        f"- selected_branch_id: {continuity_ctx.get('selected_branch_id')}",
+        f"- previous_successful_same_branch_step: {continuity_ctx.get('previous_successful_same_branch_step')}",
+        f"- same_branch_refinement_event_count: {continuity_ctx.get('same_branch_refinement_event_count')}",
+        f"- continuation_refinement_target: {continuity_ctx.get('continuation_refinement_target')}",
+        f"- continuation_outcome_state: {continuity_ctx.get('continuation_outcome_state')}",
+        f"- branch_identity_continuous: {continuity_ctx.get('branch_identity_continuous')}",
+    ]
+    if isinstance(budget, dict) and budget:
+        prompt_lines += [
+            "",
+            "Budget:",
+            f"- max_continuation_rounds: {int(budget.get('max_continuation_rounds') or 0)}",
+            f"- max_followup_actions: {int(budget.get('max_followup_actions') or 0)}",
+        ]
+    prompt_lines += [
+        "",
+        "Output requirements:",
+        "- Focus on additional refinement on the same branch.",
+        "- Do not introduce branch-switch behavior unless explicitly justified elsewhere.",
+        "- Return structured continuity fields only.",
+        "- `current_branch_id` and `selected_branch_id` must stay explicit in the output.",
+    ]
+    return "\n".join(prompt_lines)

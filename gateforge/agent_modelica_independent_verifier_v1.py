@@ -645,6 +645,103 @@ def verify_v0_3_9_replacement_hypothesis_flow(
     return payload
 
 
+def verify_v0_3_10_continuity_flow(
+    *,
+    lane_summary_path: str,
+    refreshed_summary_path: str,
+    classifier_summary_path: str,
+    block_b_decision_summary_path: str,
+    out_dir: str = DEFAULT_OUT_DIR,
+) -> dict:
+    verifier_profile = get_agent_profile("evidence-verifier")
+    lane = _load_json(lane_summary_path)
+    refreshed = _load_json(refreshed_summary_path)
+    classifier = _load_json(classifier_summary_path)
+    decision = _load_json(block_b_decision_summary_path)
+
+    refreshed_metrics = refreshed.get("metrics") if isinstance(refreshed.get("metrics"), dict) else {}
+    classifier_metrics = classifier.get("metrics") if isinstance(classifier.get("metrics"), dict) else {}
+    primary_bucket_counts = classifier_metrics.get("primary_bucket_counts") if isinstance(classifier_metrics.get("primary_bucket_counts"), dict) else {}
+    total_rows = int(refreshed_metrics.get("total_rows") or 0)
+    classifier_total = int(classifier_metrics.get("total_rows") or 0)
+    continuity_count = int(refreshed_metrics.get("success_after_same_branch_continuation_count") or 0)
+    switch_pct = float(refreshed_metrics.get("success_with_explicit_branch_switch_evidence_pct") or 0.0)
+
+    checks = [
+        {
+            "name": "verifier_profile_is_evidence_verifier",
+            "passed": verifier_profile.profile_id == "evidence-verifier",
+            "details": {"profile_id": verifier_profile.profile_id},
+        },
+        {
+            "name": "lane_summary_has_expected_family",
+            "passed": str(lane.get("family_id") or "") == "same_branch_continuity_after_partial_progress",
+            "details": {"family_id": lane.get("family_id")},
+        },
+        {
+            "name": "refreshed_and_classifier_totals_align",
+            "passed": total_rows == classifier_total,
+            "details": {"refreshed_total_rows": total_rows, "classifier_total_rows": classifier_total},
+        },
+        {
+            "name": "classifier_primary_buckets_are_exhaustive",
+            "passed": sum(int(value or 0) for value in primary_bucket_counts.values()) == classifier_total,
+            "details": {
+                "primary_bucket_count_sum": sum(int(value or 0) for value in primary_bucket_counts.values()),
+                "classifier_total_rows": classifier_total,
+            },
+        },
+        {
+            "name": "block_b_decision_is_allowed",
+            "passed": str(decision.get("decision") or "") in {
+                "continuity_promotion_supported",
+                "narrower_replacement_hypothesis_supported",
+                "blocked",
+            },
+            "details": {"decision": decision.get("decision")},
+        },
+        {
+            "name": "continuity_metrics_are_consistent",
+            "passed": continuity_count <= int(refreshed_metrics.get("successful_case_count") or 0) and switch_pct >= 0.0,
+            "details": {
+                "continuity_success_count": continuity_count,
+                "successful_case_count": refreshed_metrics.get("successful_case_count"),
+                "switch_evidence_pct": switch_pct,
+            },
+        },
+    ]
+
+    contract = build_verification_contract(
+        verifier_profile_id=verifier_profile.profile_id,
+        verified_flow="v0_3_10_continuity_flow",
+        inputs={
+            "lane_summary_path": str(Path(lane_summary_path).resolve()) if Path(lane_summary_path).exists() else str(lane_summary_path),
+            "refreshed_summary_path": str(Path(refreshed_summary_path).resolve()) if Path(refreshed_summary_path).exists() else str(refreshed_summary_path),
+            "classifier_summary_path": str(Path(classifier_summary_path).resolve()) if Path(classifier_summary_path).exists() else str(classifier_summary_path),
+            "block_b_decision_summary_path": str(Path(block_b_decision_summary_path).resolve()) if Path(block_b_decision_summary_path).exists() else str(block_b_decision_summary_path),
+        },
+        checks=checks,
+    )
+
+    out_root = Path(out_dir)
+    payload = {
+        "schema_version": SCHEMA_VERSION,
+        "status": contract.get("status"),
+        "verified_flow": contract.get("verified_flow"),
+        "verifier_profile_id": contract.get("verifier_profile_id"),
+        "summary": {
+            "all_checks_passed": contract.get("status") == "PASS",
+            "check_count": len(checks),
+            "failed_checks": [item.get("name") for item in checks if not bool(item.get("passed"))],
+        },
+        "verification_contract": contract,
+    }
+    _write_json(out_root / "summary.json", payload)
+    write_verification_contract(out_root / "verification_contract.json", contract)
+    _write_text(out_root / "summary.md", "\n".join(["# Independent Verifier Summary v0.3.10", "", f"- status: `{payload['status']}`", f"- verified_flow: `{payload['verified_flow']}`", ""]))
+    return payload
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run the independent verifier over a narrow GateForge evidence flow.")
     parser.add_argument("--lane-summary", required=True)
