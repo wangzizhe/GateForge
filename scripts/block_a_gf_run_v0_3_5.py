@@ -23,6 +23,8 @@ import subprocess
 import tempfile
 import time
 
+from gateforge.agent_modelica_runtime_context_v1 import AgentModelicaRuntimeContext
+
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
 CANDIDATES_DIR = REPO_ROOT / "artifacts" / "agent_modelica_block_a_dual_layer_candidates_v0_3_5"
 
@@ -73,24 +75,33 @@ def run_one(task_path: pathlib.Path, out_dir: pathlib.Path) -> dict:
 
         result_file = out_dir / f"{task_id}_result.json"
 
-        cmd = [
-            sys.executable, "-m",
-            "gateforge.agent_modelica_live_executor_gemini_v1",
-            "--task-id", task_id,
-            "--failure-type", task.get("declared_failure_type", "post_restore_init_residual"),
-            "--expected-stage", task.get("expected_stage", "simulate"),
-            "--mutated-model-path", str(mutated_mo),
-            "--source-model-path", str(source_mo),
-            "--backend", "openmodelica_docker",
-            "--docker-image", DOCKER_IMAGE,
-            "--planner-backend", _planner_backend(),
-            "--max-rounds", "5",
-            "--simulate-stop-time", "10.0",
-            "--simulate-intervals", "500",
-            "--out", str(result_file),
-        ]
+        runtime_context = AgentModelicaRuntimeContext.create(
+            task_id=task_id,
+            run_id=f"{task_id}_authority_run",
+            arm_kind="gateforge",
+            artifact_root=out_dir,
+            source_model_path=source_mo,
+            mutated_model_path=mutated_mo,
+            result_path=result_file,
+            declared_failure_type=task.get("declared_failure_type", "post_restore_init_residual"),
+            expected_stage=task.get("expected_stage", "simulate"),
+            max_rounds=5,
+            simulate_stop_time=10.0,
+            simulate_intervals=500,
+            timeout_sec=600,
+            planner_backend=_planner_backend(),
+            omc_backend="openmodelica_docker",
+            docker_image=DOCKER_IMAGE,
+            enabled_policy_flags={
+                "allow_baseline_single_sweep": True,
+                "allow_new_multistep_policy": False,
+            },
+        )
+        runtime_context.write_json(out_dir / f"{task_id}_runtime_context.json")
 
-        print(f"  planner-backend: {_planner_backend()}")
+        cmd = runtime_context.executor_command()
+
+        print(f"  planner-backend: {runtime_context.planner_backend}")
         t0 = time.time()
         try:
             proc = subprocess.run(
@@ -197,6 +208,20 @@ def main():
         "deterministic_only_count": det_only,
         "deterministic_only_pct": round(100 * det_only / total, 1) if total else 0,
         "sc1_deterministic_le_40pct": (det_only / total <= 0.4) if total else False,
+        "baseline_measurement_protocol": {
+            "protocol_version": "v0_3_6_single_sweep_baseline_authority_v1",
+            "baseline_lever_name": "simulate_error_parameter_recovery_sweep",
+            "baseline_reference_version": "v0.3.5",
+            "planner_backend": backend,
+            "max_rounds": 5,
+            "timeout_sec": 600,
+            "simulate_stop_time": 10.0,
+            "simulate_intervals": 500,
+            "enabled_policy_flags": {
+                "allow_baseline_single_sweep": True,
+                "allow_new_multistep_policy": False,
+            },
+        },
         "results": all_results,
     }
 
