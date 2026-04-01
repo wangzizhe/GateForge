@@ -6,6 +6,7 @@ import unittest
 from pathlib import Path
 
 from gateforge.agent_modelica_independent_verifier_v1 import (
+    verify_branch_switch_frontier_flow_v0_3_7,
     verify_post_restore_evidence_flow,
     verify_post_restore_frontier_flow_v0_3_6,
 )
@@ -187,3 +188,53 @@ class AgentModelicaIndependentVerifierV1Tests(unittest.TestCase):
             )
         self.assertEqual(payload.get("status"), "FAIL")
         self.assertIn("next_bottleneck_has_supporting_bucket", (payload.get("summary") or {}).get("failed_checks") or [])
+
+    def test_verify_branch_switch_frontier_flow_v0_3_7_passes_on_aligned_inputs(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="gf_independent_verifier_v1_v037_") as td:
+            root = Path(td)
+            lane = root / "lane.json"
+            refreshed = root / "refreshed.json"
+            classifier = root / "classifier.json"
+            dev = root / "dev.json"
+            lane.write_text(json.dumps({"lane_status": "CANDIDATE_READY"}), encoding="utf-8")
+            refreshed.write_text(
+                json.dumps(
+                    {
+                        "metrics": {"total_rows": 2},
+                        "tasks": [
+                            {"task_id": "a", "baseline_measurement_protocol": {"protocol_version": "x"}},
+                            {"task_id": "b", "baseline_measurement_protocol": {"protocol_version": "x"}},
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            classifier.write_text(
+                json.dumps(
+                    {
+                        "metrics": {
+                            "total_rows": 2,
+                            "failure_bucket_counts": {"stalled_search_after_progress": 2},
+                        }
+                    }
+                ),
+                encoding="utf-8",
+            )
+            dev.write_text(
+                json.dumps(
+                    {
+                        "primary_replan_direction": {"family_id": "post_restore_branch_switch_after_stall"},
+                        "next_bottleneck": {"lever": "branch_switch_replan_after_stall"},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            payload = verify_branch_switch_frontier_flow_v0_3_7(
+                lane_summary_path=str(lane),
+                refreshed_summary_path=str(refreshed),
+                classifier_summary_path=str(classifier),
+                dev_priorities_summary_path=str(dev),
+                out_dir=str(root / "out"),
+            )
+        self.assertEqual(payload.get("status"), "PASS")
+        self.assertEqual((payload.get("summary") or {}).get("failed_checks"), [])
