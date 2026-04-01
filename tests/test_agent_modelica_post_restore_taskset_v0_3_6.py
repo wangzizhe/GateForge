@@ -10,18 +10,18 @@ from gateforge.agent_modelica_post_restore_taskset_v0_3_6 import (
 
 
 class AgentModelicaPostRestoreTasksetV036Tests(unittest.TestCase):
-    def test_build_post_restore_taskset_writes_ten_tasks(self) -> None:
+    def test_build_post_restore_taskset_writes_fifteen_tasks(self) -> None:
         with tempfile.TemporaryDirectory(prefix="gf_v036_taskset_") as td:
             payload = build_post_restore_taskset(out_dir=td)
             self.assertEqual(payload["status"], "PASS")
-            self.assertEqual(payload["task_count"], 10)
+            self.assertEqual(payload["task_count"], 15)
             self.assertEqual(payload["family_id"], "post_restore_residual_semantic_conflict")
             self.assertIn("paired_value_collapse", payload["operators_used"])
             self.assertIn("paired_value_bias_shift", payload["operators_used"])
             taskset_path = Path(td) / "taskset.json"
             self.assertTrue(taskset_path.exists())
             tasks_dir = Path(td) / "tasks"
-            self.assertEqual(len(list(tasks_dir.glob("*.json"))), 10)
+            self.assertEqual(len(list(tasks_dir.glob("*.json"))), 15)
 
     def test_generated_tasks_carry_v036_fields(self) -> None:
         with tempfile.TemporaryDirectory(prefix="gf_v036_taskset_fields_") as td:
