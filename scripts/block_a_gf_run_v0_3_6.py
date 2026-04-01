@@ -22,13 +22,14 @@ import sys
 import tempfile
 import time
 
+REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(REPO_ROOT))
+
 from gateforge.agent_modelica_post_restore_taskset_v0_3_6 import (
     build_post_restore_taskset,
 )
 from gateforge.agent_modelica_runtime_context_v1 import AgentModelicaRuntimeContext
 
-
-REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
 DEFAULT_TASKSET_DIR = REPO_ROOT / "artifacts" / "agent_modelica_post_restore_taskset_v0_3_6"
 DEFAULT_RESULTS_DIR = REPO_ROOT / "artifacts" / "agent_modelica_block_a_gf_results_v0_3_6"
 DOCKER_IMAGE = os.environ.get(
