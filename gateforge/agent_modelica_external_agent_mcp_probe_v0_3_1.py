@@ -18,6 +18,7 @@ from .agent_modelica_external_agent_live_runner_v0_3_1 import (
     _run_subprocess,
     _server_command,
 )
+from .agent_modelica_prompt_surface_v1 import build_external_agent_probe_prompt
 
 
 SCHEMA_VERSION = "agent_modelica_external_agent_mcp_probe_v0_3_1"
@@ -63,15 +64,7 @@ def _schema() -> dict:
 
 
 def _prompt(tool_name: str) -> str:
-    return "\n".join(
-        [
-            "Use the shared OpenModelica MCP tool plane.",
-            f"Call `{tool_name}` exactly once.",
-            "Do not use shell, file editing, or any non-MCP path.",
-            "After the MCP call, return only JSON matching the required schema.",
-            f"Set `tool_name` to `{tool_name}` and `tool_used` to true only if you actually called it.",
-        ]
-    )
+    return build_external_agent_probe_prompt(tool_name=tool_name)
 
 
 def _extract_probe_payload(text: str) -> dict:

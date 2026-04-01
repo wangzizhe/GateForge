@@ -11,6 +11,7 @@ from pathlib import Path
 
 from .agent_modelica_external_agent_runner_v1 import normalize_external_agent_run
 from .agent_modelica_omc_mcp_server_v1 import OmcMcpServer
+from .agent_modelica_prompt_surface_v1 import build_external_agent_repair_prompt
 
 
 SCHEMA_VERSION = "agent_modelica_external_agent_live_runner_v0_3_1"
@@ -118,63 +119,7 @@ def _output_schema() -> dict:
 
 
 def _arm_prompt(task_ctx: dict, *, arm_id: str, budget: dict) -> str:
-    budget_lines = [
-        f"- max_agent_rounds: {int(budget.get('max_agent_rounds') or 0)}",
-        f"- max_omc_tool_calls: {int(budget.get('max_omc_tool_calls') or 0)}",
-        f"- max_wall_clock_sec: {int(budget.get('max_wall_clock_sec') or 0)}",
-    ]
-    task_lines = [
-        f"- task_id: {task_ctx['task_id']}",
-        f"- failure_type: {task_ctx['failure_type']}",
-        f"- expected_stage: {task_ctx['expected_stage']}",
-        f"- model_name: {task_ctx['model_name']}",
-        f"- source_library_path: {task_ctx['source_library_path'] or 'none'}",
-        f"- source_package_name: {task_ctx['source_package_name'] or 'none'}",
-        f"- source_library_model_path: {task_ctx['source_library_model_path'] or 'none'}",
-        f"- source_qualified_model_name: {task_ctx['source_qualified_model_name'] or 'none'}",
-        f"- extra_model_loads: {json.dumps(task_ctx['extra_model_loads'])}",
-    ]
-    prompt_lines = [
-        "You are repairing one broken Modelica model.",
-        "You may only use the provided OpenModelica MCP tools as your diagnostic oracle.",
-        "Do not rely on shell commands, local file editing, or any non-MCP diagnostic path.",
-        "You must call at least one OpenModelica MCP tool before returning a final answer. A zero-tool final answer is invalid.",
-        "On every OMC tool call, pass the full current candidate model in the `model_text` field.",
-        "Keep the library-context fields unchanged across calls when they are provided.",
-        "",
-        "Budget:",
-        *budget_lines,
-        "",
-        "Task Context:",
-        *task_lines,
-        "",
-        "Broken Modelica model text:",
-        "```modelica",
-        task_ctx["model_text"],
-        "```",
-        "",
-        "Library-context fields to preserve on every OMC tool call when they are not `none`:",
-        "- `source_library_path`",
-        "- `source_package_name`",
-        "- `source_library_model_path`",
-        "- `source_qualified_model_name`",
-    ]
-    if arm_id == "arm2_frozen_structured_prompt":
-        prompt_lines += [
-            "",
-            "Work in short iterations:",
-            "1. Call `omc_check_model` or `omc_simulate_model` on the current candidate text.",
-            "2. Apply one repair hypothesis.",
-            "3. Re-check before making another change.",
-            "4. Stop when the model passes or the budget is exhausted.",
-        ]
-    prompt_lines += [
-        "",
-        "Before returning, you must have used `omc_check_model` or `omc_simulate_model` at least once on your final or near-final candidate.",
-        "Return only JSON matching the required schema.",
-        "If you cannot repair the model within budget, return the best candidate text you found and set `task_status` to `BUDGET_EXHAUSTED` or `FAIL`.",
-    ]
-    return "\n".join(prompt_lines)
+    return build_external_agent_repair_prompt(task_ctx=task_ctx, arm_id=arm_id, budget=budget)
 
 
 def _task_infra_reason(text: str) -> str:

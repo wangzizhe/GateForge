@@ -562,7 +562,9 @@ def llm_generate_repair_plan(
         return None, f"{provider}_api_key_missing", provider
     if not config.model:
         return None, f"{provider}_model_missing", provider
-    prompt, _planner_contract = build_source_blind_multistep_planner_prompt(
+    from .agent_modelica_prompt_surface_v1 import build_planner_prompt_surface
+
+    prompt, _planner_contract = build_planner_prompt_surface(
         original_text=original_text,
         failure_type=failure_type,
         expected_stage=expected_stage,
