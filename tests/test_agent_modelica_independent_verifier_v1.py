@@ -7,6 +7,7 @@ from pathlib import Path
 
 from gateforge.agent_modelica_independent_verifier_v1 import (
     verify_branch_switch_frontier_flow_v0_3_7,
+    verify_branch_switch_forcing_flow_v0_3_8,
     verify_post_restore_evidence_flow,
     verify_post_restore_frontier_flow_v0_3_6,
 )
@@ -230,6 +231,70 @@ class AgentModelicaIndependentVerifierV1Tests(unittest.TestCase):
                 encoding="utf-8",
             )
             payload = verify_branch_switch_frontier_flow_v0_3_7(
+                lane_summary_path=str(lane),
+                refreshed_summary_path=str(refreshed),
+                classifier_summary_path=str(classifier),
+                dev_priorities_summary_path=str(dev),
+                out_dir=str(root / "out"),
+            )
+        self.assertEqual(payload.get("status"), "PASS")
+        self.assertEqual((payload.get("summary") or {}).get("failed_checks"), [])
+
+    def test_verify_branch_switch_forcing_flow_v0_3_8_passes_on_aligned_inputs(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="gf_independent_verifier_v1_v038_") as td:
+            root = Path(td)
+            lane = root / "lane.json"
+            refreshed = root / "refreshed.json"
+            classifier = root / "classifier.json"
+            dev = root / "dev.json"
+            lane.write_text(json.dumps({"lane_status": "CANDIDATE_READY"}), encoding="utf-8")
+            refreshed.write_text(
+                json.dumps(
+                    {
+                        "metrics": {"total_rows": 2},
+                        "tasks": [
+                            {
+                                "task_id": "a",
+                                "baseline_measurement_protocol": {"protocol_version": "x"},
+                                "success_after_branch_switch": True,
+                                "success_without_branch_switch_evidence": False,
+                            },
+                            {
+                                "task_id": "b",
+                                "baseline_measurement_protocol": {"protocol_version": "x"},
+                                "success_after_branch_switch": False,
+                                "success_without_branch_switch_evidence": True,
+                            },
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            classifier.write_text(
+                json.dumps(
+                    {
+                        "bucket_schema_version": "v0_3_8_branch_switch_primary_buckets_v1",
+                        "frozen_mainline_task_ids": ["a", "b"],
+                        "metrics": {
+                            "total_rows": 2,
+                            "failure_bucket_counts": {
+                                "success_after_branch_switch": 1,
+                                "success_without_branch_switch_evidence": 1,
+                            },
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            dev.write_text(
+                json.dumps(
+                    {
+                        "primary_direction": {"family_id": "post_restore_explicit_branch_switch_after_stall"},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            payload = verify_branch_switch_forcing_flow_v0_3_8(
                 lane_summary_path=str(lane),
                 refreshed_summary_path=str(refreshed),
                 classifier_summary_path=str(classifier),

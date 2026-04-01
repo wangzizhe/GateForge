@@ -176,6 +176,29 @@ def build_lane_summary(candidates: list[dict]) -> dict:
     }
 
 
+def evaluate_behavior_forcing_gate(refreshed_summary: dict) -> dict:
+    metrics = refreshed_summary.get("metrics") if isinstance(refreshed_summary.get("metrics"), dict) else {}
+    total_rows = int(metrics.get("total_rows") or 0)
+    successful_case_count = int(metrics.get("successful_case_count") or 0)
+    gates = {
+        "deterministic_only_zero": float(metrics.get("deterministic_only_pct") or 0.0) == 0.0,
+        "planner_invoked_pct_ge_80": float(metrics.get("planner_invoked_pct") or 0.0) >= 80.0,
+        "success_without_branch_switch_evidence_pct_le_30": float(metrics.get("success_without_branch_switch_evidence_pct") or 0.0) <= 30.0,
+        "branch_switch_evidenced_success_pct_ge_40": float(metrics.get("branch_switch_evidenced_success_pct") or 0.0) >= 40.0,
+        "stall_event_observed_count_ge_3": int(metrics.get("stall_event_observed_count") or 0) >= 3,
+        "success_after_branch_switch_count_ge_3": int(metrics.get("success_after_branch_switch_count") or 0) >= 3,
+        "candidate_ready_floor_met": total_rows >= MIN_CANDIDATE_READY_CASES,
+        "successful_cases_present": successful_case_count > 0,
+    }
+    admission_valid = all(gates.values())
+    lane_status = "ADMISSION_VALID" if admission_valid else "CANDIDATE_READY" if total_rows >= MIN_CANDIDATE_READY_CASES else "NEEDS_MORE_GENERATION"
+    return {
+        "lane_status": lane_status,
+        "admission_valid": admission_valid,
+        "gates": gates,
+    }
+
+
 def build_lane_summary_from_taskset(*, candidate_taskset_path: str, out_dir: str = DEFAULT_OUT_DIR) -> dict:
     payload = _load_json(candidate_taskset_path)
     rows = payload.get("tasks")

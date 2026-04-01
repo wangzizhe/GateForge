@@ -427,6 +427,102 @@ def verify_branch_switch_frontier_flow_v0_3_7(
     return payload
 
 
+def verify_branch_switch_forcing_flow_v0_3_8(
+    *,
+    lane_summary_path: str,
+    refreshed_summary_path: str,
+    classifier_summary_path: str,
+    dev_priorities_summary_path: str,
+    out_dir: str = DEFAULT_OUT_DIR,
+) -> dict:
+    verifier_profile = get_agent_profile("evidence-verifier")
+    lane = _load_json(lane_summary_path)
+    refreshed = _load_json(refreshed_summary_path)
+    classifier = _load_json(classifier_summary_path)
+    dev = _load_json(dev_priorities_summary_path)
+
+    refreshed_metrics = refreshed.get("metrics") if isinstance(refreshed.get("metrics"), dict) else {}
+    classifier_metrics = classifier.get("metrics") if isinstance(classifier.get("metrics"), dict) else {}
+    total_rows = int(refreshed_metrics.get("total_rows") or 0)
+    classifier_total = int(classifier_metrics.get("total_rows") or 0)
+    tasks = refreshed.get("tasks") if isinstance(refreshed.get("tasks"), list) else []
+    protocol_present = bool(tasks) and isinstance(tasks[0].get("baseline_measurement_protocol"), dict)
+    branch_fields_consistent = True
+    for row in tasks:
+        success_after = bool(row.get("success_after_branch_switch"))
+        success_without = bool(row.get("success_without_branch_switch_evidence"))
+        if success_after and success_without:
+            branch_fields_consistent = False
+            break
+    checks = [
+        {
+            "name": "verifier_profile_is_evidence_verifier",
+            "passed": verifier_profile.profile_id == "evidence-verifier",
+            "details": {"profile_id": verifier_profile.profile_id},
+        },
+        {
+            "name": "lane_is_candidate_ready_or_better",
+            "passed": str(lane.get("lane_status") or "") in {"CANDIDATE_READY", "ADMISSION_VALID", "FREEZE_READY"},
+            "details": {"lane_status": lane.get("lane_status")},
+        },
+        {
+            "name": "refreshed_and_classifier_totals_align",
+            "passed": total_rows == classifier_total,
+            "details": {"refreshed_total_rows": total_rows, "classifier_total_rows": classifier_total},
+        },
+        {
+            "name": "baseline_protocol_is_embedded_in_refreshed_tasks",
+            "passed": protocol_present,
+            "details": {"protocol_present": protocol_present},
+        },
+        {
+            "name": "classifier_bucket_schema_is_frozen",
+            "passed": bool(classifier.get("bucket_schema_version")),
+            "details": {"bucket_schema_version": classifier.get("bucket_schema_version")},
+        },
+        {
+            "name": "branch_event_fields_are_logically_consistent",
+            "passed": branch_fields_consistent,
+            "details": {"branch_fields_consistent": branch_fields_consistent},
+        },
+        {
+            "name": "dev_priorities_reference_mainline_family",
+            "passed": bool(((dev.get("primary_direction") or {}).get("family_id"))),
+            "details": {"family_id": (dev.get("primary_direction") or {}).get("family_id")},
+        },
+    ]
+
+    contract = build_verification_contract(
+        verifier_profile_id=verifier_profile.profile_id,
+        verified_flow="branch_switch_forcing_v0_3_8_frontier",
+        inputs={
+            "lane_summary_path": str(Path(lane_summary_path).resolve()) if Path(lane_summary_path).exists() else str(lane_summary_path),
+            "refreshed_summary_path": str(Path(refreshed_summary_path).resolve()) if Path(refreshed_summary_path).exists() else str(refreshed_summary_path),
+            "classifier_summary_path": str(Path(classifier_summary_path).resolve()) if Path(classifier_summary_path).exists() else str(classifier_summary_path),
+            "dev_priorities_summary_path": str(Path(dev_priorities_summary_path).resolve()) if Path(dev_priorities_summary_path).exists() else str(dev_priorities_summary_path),
+        },
+        checks=checks,
+    )
+
+    out_root = Path(out_dir)
+    payload = {
+        "schema_version": SCHEMA_VERSION,
+        "status": contract.get("status"),
+        "verified_flow": contract.get("verified_flow"),
+        "verifier_profile_id": contract.get("verifier_profile_id"),
+        "summary": {
+            "all_checks_passed": contract.get("status") == "PASS",
+            "check_count": len(checks),
+            "failed_checks": [item.get("name") for item in checks if not bool(item.get("passed"))],
+        },
+        "verification_contract": contract,
+    }
+    _write_json(out_root / "summary.json", payload)
+    write_verification_contract(out_root / "verification_contract.json", contract)
+    _write_text(out_root / "summary.md", "\n".join(["# Independent Verifier Summary v0.3.8", "", f"- status: `{payload['status']}`", f"- verified_flow: `{payload['verified_flow']}`", ""]))
+    return payload
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run the independent verifier over a narrow GateForge evidence flow.")
     parser.add_argument("--lane-summary", required=True)
