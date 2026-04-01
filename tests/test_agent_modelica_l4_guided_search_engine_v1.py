@@ -10,6 +10,7 @@ import unittest
 from gateforge.agent_modelica_l4_guided_search_engine_v1 import (
     adaptive_parameter_target_pools,
     apply_behavioral_robustness_source_blind_local_repair,
+    apply_simulate_error_parameter_recovery,
     apply_source_blind_multistep_branch_escape_search,
     apply_source_blind_multistep_exposure_repair,
     apply_source_blind_multistep_llm_plan,
@@ -216,6 +217,57 @@ class TestBuildAdaptiveSearchCandidates(unittest.TestCase):
             search_kind="test",
         )
         self.assertEqual(candidates, [])
+
+
+class TestApplySimulateErrorParameterRecovery(unittest.TestCase):
+    def test_recovers_zero_parameter_by_increase_direction(self) -> None:
+        text = (
+            "model DualLayerRC\n"
+            "  parameter Real R = 0.0;\n"
+            "  parameter Real C = 0.001;\n"
+            "equation\n"
+            "  R * C * der(v) = -v;\n"
+            "end DualLayerRC;\n"
+        )
+        patched, audit = apply_simulate_error_parameter_recovery(
+            current_text=text,
+            llm_plan={"candidate_parameters": ["R"], "candidate_value_directions": ["increase"]},
+            simulate_error_message="division by zero",
+            search_memory={},
+        )
+        self.assertTrue(audit.get("applied"))
+        self.assertIn("R=1", str(audit.get("candidate_values") or []))
+        self.assertIn("parameter Real R = 1;", patched)
+
+    def test_recovers_negative_initial_equation_by_increase_direction(self) -> None:
+        text = (
+            "model DualLayerLogOsc\n"
+            "  Real y(start = 2.0);\n"
+            "initial equation\n"
+            "  y = -(2.0);\n"
+            "equation\n"
+            "  der(y) = -log(y) * y;\n"
+            "end DualLayerLogOsc;\n"
+        )
+        patched, audit = apply_simulate_error_parameter_recovery(
+            current_text=text,
+            llm_plan={"candidate_parameters": ["y"], "candidate_value_directions": ["increase"]},
+            simulate_error_message="initialization failed",
+            search_memory={},
+        )
+        self.assertTrue(audit.get("applied"))
+        self.assertIn("y = 2;", patched)
+
+    def test_skips_tried_candidate_keys(self) -> None:
+        text = "model A\n  parameter Real R = 0.0;\nend A;\n"
+        patched, audit = apply_simulate_error_parameter_recovery(
+            current_text=text,
+            llm_plan={"candidate_parameters": ["R"], "candidate_value_directions": ["increase"]},
+            simulate_error_message="division by zero",
+            search_memory={"tried_candidate_values": ["simulate_error_parameter_recovery:R:1"]},
+        )
+        self.assertTrue(audit.get("applied"))
+        self.assertNotEqual(str(audit.get("target_value") or ""), "1")
 
 
 # ===================================================================

@@ -234,6 +234,115 @@ def build_adaptive_search_candidates(
     return candidates
 
 
+def _parse_simple_numeric_expr(expr: str) -> float | None:
+    text = str(expr or "").strip()
+    if not text:
+        return None
+    if text.startswith("-(") and text.endswith(")"):
+        inner = text[2:-1].strip()
+        try:
+            return -float(inner)
+        except ValueError:
+            return None
+    try:
+        return float(text)
+    except ValueError:
+        return None
+
+
+def _simulate_error_recovery_target_values(*, current_value: float, direction: str) -> list[float]:
+    dir_norm = str(direction or "").strip().lower()
+    if dir_norm == "decrease":
+        if current_value > 1.0:
+            candidates = [current_value / 10.0, current_value / 2.0, 1.0, 0.1]
+        elif current_value > 0.0:
+            candidates = [current_value / 2.0, current_value / 10.0, 0.1]
+        else:
+            candidates = [0.1, 1.0]
+    else:
+        if current_value < 0.0:
+            candidates = [abs(current_value), max(abs(current_value) * 10.0, 1.0), 1.0, 0.1]
+        elif current_value == 0.0:
+            candidates = [1.0, 0.1, 10.0]
+        elif current_value < 1.0:
+            candidates = [1.0, current_value * 10.0, current_value * 100.0]
+        else:
+            candidates = [current_value * 2.0, current_value * 10.0, 10.0]
+    seen: set[str] = set()
+    ordered: list[float] = []
+    for value in candidates:
+        key = format_numeric_candidate(float(value))
+        if key in seen:
+            continue
+        seen.add(key)
+        ordered.append(float(value))
+    return ordered
+
+
+def apply_simulate_error_parameter_recovery(
+    *,
+    current_text: str,
+    llm_plan: dict,
+    simulate_error_message: str,
+    search_memory: dict,
+) -> tuple[str, dict]:
+    """Apply a small parameter-value sweep after LLM diagnosed a simulate_error direction."""
+    requested = [str(x).strip() for x in (llm_plan.get("candidate_parameters") or []) if str(x).strip()]
+    directions = [str(x).strip() for x in (llm_plan.get("candidate_value_directions") or []) if str(x).strip()]
+    if not requested:
+        return current_text, {"applied": False, "reason": "no_candidate_parameters_from_llm_plan"}
+    tried_keys = {
+        str(x).strip()
+        for x in (search_memory.get("tried_candidate_values") or [])
+        if str(x).strip()
+    }
+    lines = current_text.splitlines(keepends=True)
+    for idx, name in enumerate(requested):
+        direction = directions[idx] if idx < len(directions) else "increase"
+        decl_re = re.compile(
+            rf"^(\s*(?:parameter\s+Real|Real)\s+{re.escape(name)}(?:\([^)]*\))?\s*=\s*)([^;]+)(;\s*(?://.*)?)(\r?\n?)$"
+        )
+        init_re = re.compile(
+            rf"^(\s*{re.escape(name)}\s*=\s*)([^;]+)(;\s*(?://.*)?)(\r?\n?)$"
+        )
+        for line_index, line in enumerate(lines):
+            match = decl_re.match(line) or init_re.match(line)
+            if not match:
+                continue
+            current_rhs = str(match.group(2) or "").strip()
+            current_value = _parse_simple_numeric_expr(current_rhs)
+            if current_value is None:
+                continue
+            for target_value in _simulate_error_recovery_target_values(
+                current_value=current_value,
+                direction=direction,
+            ):
+                target_str = format_numeric_candidate(float(target_value))
+                if target_str == current_rhs:
+                    continue
+                candidate_key = f"simulate_error_parameter_recovery:{name}:{target_str}"
+                if candidate_key in tried_keys:
+                    continue
+                patched_lines = list(lines)
+                patched_lines[line_index] = f"{match.group(1)}{target_str}{match.group(3)}{match.group(4)}"
+                return "".join(patched_lines), {
+                    "applied": True,
+                    "reason": "simulate_error_parameter_recovery_applied",
+                    "candidate_origin": "simulate_error_parameter_recovery",
+                    "candidate_key": candidate_key,
+                    "parameter_names": [name],
+                    "candidate_values": [f"{name}={target_str}"],
+                    "search_direction": str(direction or "increase"),
+                    "current_value": current_rhs,
+                    "target_value": target_str,
+                    "line_index": line_index,
+                    "simulate_error_message": str(simulate_error_message or ""),
+                    "llm_plan_candidate_parameters": requested,
+                    "llm_plan_candidate_value_directions": directions,
+                }
+    return current_text, {"applied": False, "reason": "no_simulate_error_parameter_recovery_candidate_applicable"}
+
+
 # ---------------------------------------------------------------------------
 # C: Template-based search
 # ---------------------------------------------------------------------------

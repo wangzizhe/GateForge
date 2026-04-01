@@ -44,6 +44,7 @@ from .agent_modelica_l4_guided_search_engine_v1 import (
     apply_source_blind_multistep_llm_plan as _apply_source_blind_multistep_llm_plan,
     apply_source_blind_multistep_llm_resolution as _apply_source_blind_multistep_llm_resolution,
     apply_source_blind_multistep_local_search as _apply_source_blind_multistep_local_search,
+    apply_simulate_error_parameter_recovery as _apply_simulate_error_parameter_recovery,
     apply_source_blind_multistep_stage2_local_repair as _apply_source_blind_multistep_stage2_local_repair,
     behavioral_robustness_local_repair_clusters as _behavioral_robustness_local_repair_clusters,
     build_adaptive_search_candidates as _build_adaptive_search_candidates,
@@ -2350,6 +2351,29 @@ def main() -> None:
                         final_error = str(patch_guard.get("reason") or "robustness_patch_rejected")
                         continue
                 else:
+                    attempts[-1]["simulate_error_parameter_recovery"] = {
+                        "applied": False,
+                        "reason": "not_attempted",
+                    }
+                    if (
+                        str(args.failure_type or "").strip().lower() == "simulate_error"
+                        and bool(llm_request_delta > 0)
+                        and bool(llm_plan)
+                    ):
+                        recovery_text, recovery_audit = _apply_simulate_error_parameter_recovery(
+                            current_text=current_text,
+                            llm_plan=llm_plan,
+                            simulate_error_message=str(final_sim_error or ""),
+                            search_memory=multistep_memory,
+                        )
+                        attempts[-1]["simulate_error_parameter_recovery"] = recovery_audit
+                        if bool(recovery_audit.get("applied")):
+                            current_text = recovery_text
+                            candidate_key = str(recovery_audit.get("candidate_key") or "").strip()
+                            if candidate_key:
+                                multistep_memory["tried_candidate_values"] = list(multistep_memory.get("tried_candidate_values") or []) + [candidate_key]
+                            final_error = "simulate_error_parameter_recovery_applied_retry_pending"
+                            continue
                     final_error = llm_err or f"{resolved_provider}_patch_generation_failed"
                     attempts[-1]["llm_plan_failure_mode"] = str(final_error or "")
                     multistep_memory["llm_plan_failure_mode"] = str(final_error or "")
