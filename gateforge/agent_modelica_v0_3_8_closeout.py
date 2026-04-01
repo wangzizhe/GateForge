@@ -74,7 +74,7 @@ def build_v0_3_8_closeout(
     elif gate_eval["admission_valid"] and dev_status == "PASS":
         classification = "branch_switch_behavior_forced_and_promoted"
         status = "PASS"
-    elif gate_eval["admission_valid"] and dev_status != "PASS":
+    elif success_after_switch >= 3 and gate_eval["lane_status"] in {"CANDIDATE_READY", "ADMISSION_VALID"}:
         classification = "branch_switch_behavior_forced_partial"
         status = "PASS"
     elif gate_eval["lane_status"] in {"CANDIDATE_READY", "ADMISSION_VALID"} and success_without > 0 and success_after_switch == 0:

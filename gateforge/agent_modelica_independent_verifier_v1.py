@@ -445,6 +445,10 @@ def verify_branch_switch_forcing_flow_v0_3_8(
     classifier_metrics = classifier.get("metrics") if isinstance(classifier.get("metrics"), dict) else {}
     total_rows = int(refreshed_metrics.get("total_rows") or 0)
     classifier_total = int(classifier_metrics.get("total_rows") or 0)
+    success_after_switch_count = int(refreshed_metrics.get("success_after_branch_switch_count") or 0)
+    success_without_switch_count = int(refreshed_metrics.get("success_without_branch_switch_evidence_count") or 0)
+    classifier_success_after = int(classifier_metrics.get("success_after_branch_switch_count") or 0)
+    classifier_success_without = int(classifier_metrics.get("success_without_branch_switch_evidence_count") or 0)
     tasks = refreshed.get("tasks") if isinstance(refreshed.get("tasks"), list) else []
     protocol_present = bool(tasks) and isinstance(tasks[0].get("baseline_measurement_protocol"), dict)
     branch_fields_consistent = True
@@ -484,6 +488,19 @@ def verify_branch_switch_forcing_flow_v0_3_8(
             "name": "branch_event_fields_are_logically_consistent",
             "passed": branch_fields_consistent,
             "details": {"branch_fields_consistent": branch_fields_consistent},
+        },
+        {
+            "name": "success_mode_counts_align_between_refresh_and_classifier",
+            "passed": (
+                success_after_switch_count == classifier_success_after
+                and success_without_switch_count == classifier_success_without
+            ),
+            "details": {
+                "refresh_success_after_branch_switch_count": success_after_switch_count,
+                "classifier_success_after_branch_switch_count": classifier_success_after,
+                "refresh_success_without_branch_switch_evidence_count": success_without_switch_count,
+                "classifier_success_without_branch_switch_evidence_count": classifier_success_without,
+            },
         },
         {
             "name": "dev_priorities_reference_mainline_family",

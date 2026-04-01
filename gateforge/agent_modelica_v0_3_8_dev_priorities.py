@@ -61,6 +61,9 @@ def build_v0_3_8_dev_priorities(
         next_lever = "branch_switch_replan_after_stall"
         reason = "explicit_branch_switch_success_is_mainline"
         status = "PASS"
+    elif success_after_switch >= 3:
+        next_lever = "branch_switch_replan_after_stall"
+        reason = "explicit_branch_switch_signal_present_but_not_dominant"
     elif success_without_evidence > 0:
         next_lever = "alternative_absorption_mechanism_analysis"
         reason = "success_still_absorbed_without_branch_switch_evidence"
