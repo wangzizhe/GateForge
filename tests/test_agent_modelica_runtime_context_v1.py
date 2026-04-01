@@ -33,6 +33,7 @@ class AgentModelicaRuntimeContextV1Tests(unittest.TestCase):
                 task_id="case_a",
                 run_id="run_01",
                 arm_kind="gateforge",
+                profile_id="repair-executor",
                 artifact_root=root,
                 source_model_path=src,
                 mutated_model_path=mutated,
@@ -51,10 +52,12 @@ class AgentModelicaRuntimeContextV1Tests(unittest.TestCase):
             )
             self.assertEqual(ctx.planner_backend, "gemini")
             self.assertEqual(ctx.arm_kind, "gateforge")
+            self.assertEqual(ctx.profile_id, "repair-executor")
             self.assertEqual(
                 ctx.baseline_measurement_protocol["baseline_lever_name"],
                 "simulate_error_parameter_recovery_sweep",
             )
+            self.assertEqual(ctx.baseline_measurement_protocol["profile_id"], "repair-executor")
             self.assertFalse(ctx.baseline_measurement_protocol["enabled_policy_flags"]["allow_new_multistep_policy"])
             cmd = ctx.executor_command()
             self.assertIn("--planner-backend", cmd)
@@ -75,6 +78,7 @@ class AgentModelicaRuntimeContextV1Tests(unittest.TestCase):
                 task_id="case_b",
                 run_id="run_02",
                 arm_kind="gateforge",
+                profile_id="repair-executor",
                 artifact_root=root,
                 source_model_path=src,
                 mutated_model_path=mutated,

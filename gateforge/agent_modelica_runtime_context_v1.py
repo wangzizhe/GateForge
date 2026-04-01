@@ -7,6 +7,7 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
+from .agent_modelica_agent_profile_registry_v1 import get_agent_profile
 
 SCHEMA_VERSION = "agent_modelica_runtime_context_v1"
 DEFAULT_DOCKER_IMAGE = "openmodelica/openmodelica:v1.26.1-minimal"
@@ -31,6 +32,7 @@ class AgentModelicaRuntimeContext:
     task_id: str
     run_id: str
     arm_kind: str
+    profile_id: str
     artifact_root: str
     planner_backend: str
     omc_backend: str
@@ -53,6 +55,7 @@ class AgentModelicaRuntimeContext:
         task_id: str,
         run_id: str,
         arm_kind: str,
+        profile_id: str,
         artifact_root: str | Path,
         source_model_path: str | Path,
         mutated_model_path: str | Path,
@@ -70,11 +73,20 @@ class AgentModelicaRuntimeContext:
         enabled_policy_flags: dict | None = None,
     ) -> "AgentModelicaRuntimeContext":
         backend = str(planner_backend or resolve_planner_backend_from_env()).strip()
-        policy_flags = dict(enabled_policy_flags or {})
+        profile = get_agent_profile(profile_id)
+        policy_flags = {
+            "source_restore_allowed": profile.source_restore_allowed,
+            "deterministic_rules_enabled": profile.deterministic_rules_enabled,
+            "replay_enabled": profile.replay_enabled,
+            "planner_injection_enabled": profile.planner_injection_enabled,
+            "behavioral_contract_required": profile.behavioral_contract_required,
+        }
+        policy_flags.update(dict(enabled_policy_flags or {}))
         baseline_protocol = {
             "protocol_version": str(protocol_version),
             "baseline_lever_name": "simulate_error_parameter_recovery_sweep",
             "baseline_reference_version": "v0.3.5",
+            "profile_id": profile.profile_id,
             "max_rounds": int(max_rounds),
             "timeout_sec": int(timeout_sec),
             "simulate_stop_time": float(simulate_stop_time),
@@ -88,6 +100,7 @@ class AgentModelicaRuntimeContext:
             task_id=str(task_id),
             run_id=str(run_id),
             arm_kind=str(arm_kind),
+            profile_id=profile.profile_id,
             artifact_root=str(Path(artifact_root).resolve()),
             planner_backend=backend,
             omc_backend=str(omc_backend),
@@ -142,4 +155,3 @@ class AgentModelicaRuntimeContext:
             "--out",
             self.result_path,
         ]
-
