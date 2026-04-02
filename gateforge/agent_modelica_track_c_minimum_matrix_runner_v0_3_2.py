@@ -60,18 +60,42 @@ def run_minimum_matrix(
     out_dir: str = DEFAULT_OUT_DIR,
     taskset_path: str = DEFAULT_TASKSET,
     gateforge_results_paths: list[str],
-    claude_probe_summary_path: str,
-    codex_probe_summary_path: str = "",
+    primary_probe_summary_path: str = "",
+    secondary_probe_summary_path: str = "",
     slice_summary_path: str = "",
     repeat_count: int = 3,
     providers: list[str] | None = None,
     provider_model_ids: dict[str, str] | None = None,
     skip_existing: bool = True,
+    primary_provider_name: str = "",
+    secondary_provider_name: str = "",
+    primary_model_id: str = "",
+    secondary_model_id: str = "",
 ) -> dict:
     out_root = Path(out_dir)
     runs_root = out_root / "runs"
-    providers = [str(x).strip().lower() for x in (providers or ["claude", "codex"]) if str(x).strip()]
-    provider_model_ids = {str(k).strip().lower(): str(v) for k, v in (provider_model_ids or {}).items()}
+    primary_provider_name = _norm(primary_provider_name).lower()
+    secondary_provider_name = _norm(secondary_provider_name).lower()
+    primary_probe_summary_path = _norm(primary_probe_summary_path)
+    secondary_probe_summary_path = _norm(secondary_probe_summary_path)
+    if providers is None:
+        providers = []
+        if primary_provider_name:
+            providers.append(primary_provider_name)
+        if secondary_provider_name and secondary_provider_name not in providers:
+            providers.append(secondary_provider_name)
+    providers = [str(x).strip().lower() for x in providers if str(x).strip()]
+    if not providers:
+        raise ValueError("provider_names_required_for_track_c_minimum_matrix")
+    if not primary_provider_name:
+        primary_provider_name = providers[0]
+    if not secondary_provider_name:
+        secondary_provider_name = next((name for name in providers if name != primary_provider_name), "")
+    resolved_model_ids = {
+        primary_provider_name: str(primary_model_id),
+        secondary_provider_name: str(secondary_model_id),
+    }
+    resolved_model_ids.update({str(k).strip().lower(): str(v) for k, v in (provider_model_ids or {}).items()})
 
     gateforge_bundle_path = out_root / "gateforge_authority_bundle.json"
     build_gateforge_bundle_from_results_paths(
@@ -104,7 +128,7 @@ def run_minimum_matrix(
                 provider_name=provider_name,
                 taskset_path=str(taskset_path),
                 out_dir=str(run_dir),
-                model_id=provider_model_ids.get(provider_name, ""),
+                model_id=resolved_model_ids.get(provider_name, ""),
             )
             proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
             run_record = {
@@ -124,11 +148,13 @@ def run_minimum_matrix(
     matrix_summary = summarize_track_c_matrix(bundle_paths=bundle_paths, out_dir=str(out_root / "matrix"))
     decision_summary = build_may_checkpoint_decision(
         matrix_summary_path=str(out_root / "matrix" / "summary.json"),
-        claude_probe_summary_path=str(claude_probe_summary_path),
-        codex_probe_summary_path=str(codex_probe_summary_path),
+        primary_probe_summary_path=str(primary_probe_summary_path),
+        secondary_probe_summary_path=str(secondary_probe_summary_path),
         slice_summary_path=str(slice_summary_path),
         out_dir=str(out_root / "decision"),
         min_repeated_runs=int(repeat_count),
+        primary_provider_name=primary_provider_name,
+        secondary_provider_name=secondary_provider_name,
     )
     payload = {
         "schema_version": SCHEMA_VERSION,
@@ -150,13 +176,15 @@ def main() -> None:
     parser.add_argument("--out-dir", default=DEFAULT_OUT_DIR)
     parser.add_argument("--taskset", default=DEFAULT_TASKSET)
     parser.add_argument("--gateforge-results", action="append", default=[])
-    parser.add_argument("--claude-probe-summary", required=True)
-    parser.add_argument("--codex-probe-summary", default="")
+    parser.add_argument("--primary-probe-summary", default="")
+    parser.add_argument("--secondary-probe-summary", default="")
+    parser.add_argument("--primary-provider-name", default="")
+    parser.add_argument("--secondary-provider-name", default="")
+    parser.add_argument("--primary-model-id", default="")
+    parser.add_argument("--secondary-model-id", default="")
     parser.add_argument("--slice-summary", default="")
     parser.add_argument("--repeat-count", type=int, default=3)
     parser.add_argument("--provider", action="append", default=[])
-    parser.add_argument("--claude-model-id", default="")
-    parser.add_argument("--codex-model-id", default="")
     parser.add_argument("--no-skip-existing", action="store_true")
     args = parser.parse_args()
 
@@ -164,16 +192,17 @@ def main() -> None:
         out_dir=str(args.out_dir),
         taskset_path=str(args.taskset),
         gateforge_results_paths=[str(x) for x in (args.gateforge_results or []) if str(x).strip()],
-        claude_probe_summary_path=str(args.claude_probe_summary),
-        codex_probe_summary_path=str(args.codex_probe_summary),
+        primary_probe_summary_path=str(args.primary_probe_summary),
+        secondary_probe_summary_path=str(args.secondary_probe_summary),
         slice_summary_path=str(args.slice_summary),
         repeat_count=int(args.repeat_count),
-        providers=[str(x) for x in (args.provider or []) if str(x).strip()] or ["claude", "codex"],
-        provider_model_ids={
-            "claude": str(args.claude_model_id),
-            "codex": str(args.codex_model_id),
-        },
+        providers=[str(x) for x in (args.provider or []) if str(x).strip()],
+        provider_model_ids={},
         skip_existing=not bool(args.no_skip_existing),
+        primary_provider_name=str(args.primary_provider_name),
+        secondary_provider_name=str(args.secondary_provider_name),
+        primary_model_id=str(args.primary_model_id),
+        secondary_model_id=str(args.secondary_model_id),
     )
     print(json.dumps({"status": payload.get("status"), "classification": payload.get("classification")}))
 

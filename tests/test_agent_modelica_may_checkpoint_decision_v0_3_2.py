@@ -40,16 +40,16 @@ class AgentModelicaMayCheckpointDecisionV032Tests(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
-            claude_probe = root / "claude_probe.json"
-            claude_probe.write_text(json.dumps({"shared_tool_plane_reached": True}), encoding="utf-8")
-            codex_probe = root / "codex_probe.json"
-            codex_probe.write_text(json.dumps({"shared_tool_plane_reached": True}), encoding="utf-8")
+            primary_probe = root / "primary_probe.json"
+            primary_probe.write_text(json.dumps({"shared_tool_plane_reached": True}), encoding="utf-8")
+            secondary_probe = root / "secondary_probe.json"
+            secondary_probe.write_text(json.dumps({"shared_tool_plane_reached": True}), encoding="utf-8")
             slice_summary = root / "slice.json"
             slice_summary.write_text(json.dumps({"status": "PASS"}), encoding="utf-8")
             decision = build_may_checkpoint_decision(
                 matrix_summary_path=str(matrix),
-                claude_probe_summary_path=str(claude_probe),
-                codex_probe_summary_path=str(codex_probe),
+                primary_probe_summary_path=str(primary_probe),
+                secondary_probe_summary_path=str(secondary_probe),
                 slice_summary_path=str(slice_summary),
                 out_dir=str(root / "out"),
             )
@@ -87,11 +87,11 @@ class AgentModelicaMayCheckpointDecisionV032Tests(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
-            claude_probe = root / "claude_probe.json"
-            claude_probe.write_text(json.dumps({"shared_tool_plane_reached": True}), encoding="utf-8")
+            primary_probe = root / "primary_probe.json"
+            primary_probe.write_text(json.dumps({"shared_tool_plane_reached": True}), encoding="utf-8")
             decision = build_may_checkpoint_decision(
                 matrix_summary_path=str(matrix),
-                claude_probe_summary_path=str(claude_probe),
+                primary_probe_summary_path=str(primary_probe),
                 out_dir=str(root / "out"),
             )
             self.assertEqual(decision["classification"], "fallback_path_locked")
@@ -127,13 +127,13 @@ class AgentModelicaMayCheckpointDecisionV032Tests(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
-            claude_probe = root / "claude_probe.json"
-            claude_probe.write_text(json.dumps({"shared_tool_plane_reached": True}), encoding="utf-8")
+            primary_probe = root / "primary_probe.json"
+            primary_probe.write_text(json.dumps({"shared_tool_plane_reached": True}), encoding="utf-8")
             slice_summary = root / "slice.json"
             slice_summary.write_text(json.dumps({"status": "PRELIMINARY_NEEDS_MORE_EVIDENCE"}), encoding="utf-8")
             decision = build_may_checkpoint_decision(
                 matrix_summary_path=str(matrix),
-                claude_probe_summary_path=str(claude_probe),
+                primary_probe_summary_path=str(primary_probe),
                 slice_summary_path=str(slice_summary),
                 out_dir=str(root / "out"),
             )

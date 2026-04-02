@@ -19,6 +19,7 @@ DEFAULT_TASKSET = "artifacts/agent_modelica_layer4_holdout_v0_3_1/taskset_frozen
 DEFAULT_OUT_DIR = "artifacts/agent_modelica_external_agent_live_runner_v0_3_1"
 DEFAULT_BUDGET = "artifacts/agent_modelica_v0_3_0_seal_v1/summary.json"
 DEFAULT_DOCKER_IMAGE = "openmodelica/openmodelica:v1.24.4-ompython"
+SUPPORTED_EXTERNAL_PROVIDERS = ("claude", "codex")
 
 
 def _load_json(path: str | Path) -> dict:
@@ -191,7 +192,7 @@ def _extract_json_payload(text: str) -> dict:
     return {}
 
 
-def _claude_mcp_config(server_cmd: list[str]) -> dict:
+def _provider_mcp_config(server_cmd: list[str]) -> dict:
     return {
         "mcpServers": {
             "omc": {
@@ -225,14 +226,18 @@ def _server_command(*, docker_image: str, artifact_root: str, ledger_path: str) 
     ]
 
 
-def _build_claude_command(
+def _build_provider_inline_mcp_command(
     *,
+    provider_name: str,
     prompt: str,
     mcp_config_path: str,
     output_schema_path: str,
     model_id: str,
     server_name: str = "omc",
 ) -> list[str]:
+    provider = _norm(provider_name).lower()
+    if provider != "claude":
+        raise ValueError(f"inline_mcp_config_unsupported_provider:{provider_name}")
     allowed_tools = ",".join(
         [
             f"mcp__{server_name}__omc_check_model",
@@ -242,7 +247,7 @@ def _build_claude_command(
         ]
     )
     cmd = [
-        "claude",
+        provider,
         "-p",
         "--output-format",
         "json",
@@ -260,9 +265,14 @@ def _build_claude_command(
     return cmd
 
 
-def _build_codex_add_command(*, server_name: str, server_cmd: list[str]) -> list[str]:
+def _build_provider_registered_server_add_command(
+    *, provider_name: str, server_name: str, server_cmd: list[str]
+) -> list[str]:
+    provider = _norm(provider_name).lower()
+    if provider != "codex":
+        raise ValueError(f"registered_server_add_unsupported_provider:{provider_name}")
     return [
-        "codex",
+        provider,
         "mcp",
         "add",
         str(server_name),
@@ -271,20 +281,27 @@ def _build_codex_add_command(*, server_name: str, server_cmd: list[str]) -> list
     ]
 
 
-def _build_codex_remove_command(*, server_name: str) -> list[str]:
-    return ["codex", "mcp", "remove", str(server_name)]
+def _build_provider_registered_server_remove_command(*, provider_name: str, server_name: str) -> list[str]:
+    provider = _norm(provider_name).lower()
+    if provider != "codex":
+        raise ValueError(f"registered_server_remove_unsupported_provider:{provider_name}")
+    return [provider, "mcp", "remove", str(server_name)]
 
 
-def _build_codex_exec_command(
+def _build_provider_registered_server_exec_command(
     *,
+    provider_name: str,
     prompt: str,
     output_schema_path: str,
     last_message_path: str,
     model_id: str,
     cwd: str,
 ) -> list[str]:
+    provider = _norm(provider_name).lower()
+    if provider != "codex":
+        raise ValueError(f"registered_server_exec_unsupported_provider:{provider_name}")
     cmd = [
-        "codex",
+        provider,
         "exec",
         "--skip-git-repo-check",
         "-C",
@@ -301,6 +318,13 @@ def _build_codex_exec_command(
         cmd += ["-m", str(model_id)]
     cmd += [prompt]
     return cmd
+
+
+def _append_provider_server_hint(*, provider_name: str, prompt: str, server_name: str) -> str:
+    provider = _norm(provider_name).lower()
+    if provider == "codex":
+        return prompt + f"\n\nIMPORTANT: Use only the MCP server named `{server_name}` for all OpenModelica tool calls."
+    return prompt
 
 
 def _run_subprocess(cmd: list[str], *, timeout_sec: int) -> subprocess.CompletedProcess[str]:
@@ -366,7 +390,7 @@ def run_external_agent_live(
 
     raw_records: list[dict] = []
     provider = _norm(provider_name).lower()
-    if provider not in {"claude", "codex"}:
+    if provider not in SUPPORTED_EXTERNAL_PROVIDERS:
         raise ValueError(f"unsupported_provider:{provider_name}")
 
     for task in tasks:
@@ -399,9 +423,10 @@ def run_external_agent_live(
         parsed_payload: dict = {}
         try:
             if provider == "claude":
-                mcp_config_path = task_root / "claude_mcp.json"
-                _write_json(mcp_config_path, _claude_mcp_config(server_cmd))
-                cmd = _build_claude_command(
+                mcp_config_path = task_root / "provider_mcp_config.json"
+                _write_json(mcp_config_path, _provider_mcp_config(server_cmd))
+                cmd = _build_provider_inline_mcp_command(
+                    provider_name=provider,
                     prompt=prompt,
                     mcp_config_path=str(mcp_config_path.resolve()),
                     output_schema_path=str(schema_path.resolve()),
@@ -418,20 +443,32 @@ def run_external_agent_live(
                 parsed_payload = _extract_json_payload(provider_output)
             else:
                 server_name = f"gateforge_omc_{uuid.uuid4().hex[:8]}"
-                add_proc = _run_subprocess(_build_codex_add_command(server_name=server_name, server_cmd=server_cmd), timeout_sec=30)
+                add_proc = _run_subprocess(
+                    _build_provider_registered_server_add_command(
+                        provider_name=provider,
+                        server_name=server_name,
+                        server_cmd=server_cmd,
+                    ),
+                    timeout_sec=30,
+                )
                 if add_proc.returncode != 0:
                     provider_output = str(add_proc.stdout or "")
                     provider_err = str(add_proc.stderr or "")
                     task_result["infra_failure"] = True
                     task_result["infra_failure_reason"] = "mcp_config_failed"
                 else:
-                    last_message_path = task_root / "codex_last_message.json"
-                    # Append server-name hint so Codex routes tool calls through the
-                    # task-specific registered server rather than any globally registered one.
-                    codex_prompt = prompt + f"\n\nIMPORTANT: Use only the MCP server named `{server_name}` for all OpenModelica tool calls."
+                    last_message_path = task_root / "provider_last_message.json"
+                    # Some provider CLIs register MCP servers globally. Add a server-name
+                    # hint so the run uses the task-specific server instead of a stale one.
+                    provider_prompt = _append_provider_server_hint(
+                        provider_name=provider,
+                        prompt=prompt,
+                        server_name=server_name,
+                    )
                     exec_proc = _run_subprocess(
-                        _build_codex_exec_command(
-                            prompt=codex_prompt,
+                        _build_provider_registered_server_exec_command(
+                            provider_name=provider,
+                            prompt=provider_prompt,
                             output_schema_path=str(schema_path),
                             last_message_path=str(last_message_path),
                             model_id=model_id,
@@ -448,7 +485,13 @@ def run_external_agent_live(
                         task_result["infra_failure_reason"] = _task_infra_reason(provider_output + "\n" + provider_err)
                     if last_message_path.exists():
                         parsed_payload = _extract_json_payload(last_message_path.read_text(encoding="utf-8"))
-                    _run_subprocess(_build_codex_remove_command(server_name=server_name), timeout_sec=30)
+                    _run_subprocess(
+                        _build_provider_registered_server_remove_command(
+                            provider_name=provider,
+                            server_name=server_name,
+                        ),
+                        timeout_sec=30,
+                    )
         except subprocess.TimeoutExpired:
             task_result["infra_failure"] = True
             task_result["infra_failure_reason"] = "provider_timeout"
@@ -515,7 +558,7 @@ def run_external_agent_live(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run one external-agent Track C arm on the v0.3.1 holdout slice.")
-    parser.add_argument("--provider", choices=["claude", "codex"], required=True)
+    parser.add_argument("--provider", choices=list(SUPPORTED_EXTERNAL_PROVIDERS), required=True)
     parser.add_argument("--arm-id", choices=["arm1_general_agent", "arm2_frozen_structured_prompt"], required=True)
     parser.add_argument("--taskset", default=DEFAULT_TASKSET)
     parser.add_argument("--out-dir", default=DEFAULT_OUT_DIR)

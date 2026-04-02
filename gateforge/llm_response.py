@@ -1,7 +1,7 @@
 """Shared LLM response parsing utilities.
 
 Consolidates JSON extraction logic previously duplicated across
-agent_modelica_live_executor_gemini_v1 and llm_planner.
+agent_modelica_live_executor_v1 and llm_planner.
 """
 
 from __future__ import annotations

@@ -30,6 +30,15 @@ class LLMProviderAdapterTests(unittest.TestCase):
         self.assertEqual(config.provider_name, "anthropic")
         self.assertEqual(config.api_key, "anth-test")
 
+    def test_resolve_provider_adapter_requires_llm_model(self) -> None:
+        with mock.patch("gateforge.llm_provider_adapter._bootstrap_env_from_repo", return_value=0), mock.patch.dict(
+            os.environ,
+            {"OPENAI_API_KEY": "sk-test"},
+            clear=True,
+        ):
+            with self.assertRaisesRegex(ValueError, "missing_llm_model"):
+                resolve_provider_adapter("")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -43,7 +43,7 @@ class AgentModelicaExternalAgentLiveRunnerV031Tests(unittest.TestCase):
         self.assertIn("source_qualified_model_name: Buildings.Electrical.Examples.M", prompt)
         self.assertIn("Library-context fields to preserve on every OMC tool call", prompt)
 
-    def test_run_external_agent_live_normalizes_claude_bundle(self) -> None:
+    def test_run_external_agent_live_normalizes_inline_mcp_provider_bundle(self) -> None:
         with tempfile.TemporaryDirectory(prefix="gf_external_live_") as td:
             root = Path(td)
             mutant = root / "mutant.mo"
@@ -121,6 +121,8 @@ class AgentModelicaExternalAgentLiveRunnerV031Tests(unittest.TestCase):
             normalized = json.loads((root / "out" / "normalized_bundle.json").read_text(encoding="utf-8"))
             self.assertEqual(normalized["provider_name"], "claude")
             self.assertEqual(normalized["summary"]["success_count"], 1)
+            self.assertTrue((root / "out" / "tasks" / "t1" / "provider_mcp_config.json").exists())
+            self.assertFalse((root / "out" / "tasks" / "t1" / "claude_mcp.json").exists())
 
 
 if __name__ == "__main__":

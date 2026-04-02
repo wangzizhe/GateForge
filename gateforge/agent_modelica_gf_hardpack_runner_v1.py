@@ -165,7 +165,7 @@ def _run_one_case(
         cmd = [
             sys.executable,
             "-m",
-            "gateforge.agent_modelica_live_executor_gemini_v1",
+            "gateforge.agent_modelica_live_executor_v1",
             "--task-id", mutation_id,
             "--failure-type", expected_failure_type,
             "--expected-stage", expected_stage,
@@ -306,7 +306,7 @@ def _compute_metrics(results: list[dict]) -> dict:
 def run_batch(
     pack_path: str,
     docker_image: str = "openmodelica/openmodelica:v1.26.1-minimal",
-    planner_backend: str = "gemini",
+    planner_backend: str = "auto",
     max_rounds: int = 8,
     timeout_sec: int = 300,
     max_cases: int = 0,
@@ -408,7 +408,7 @@ def main() -> None:
     parser.add_argument("--pack", required=True, help="Path to hardpack JSON")
     parser.add_argument(
         "--planner-backend",
-        default="gemini",
+        default="auto",
         choices=["auto", "gemini", "openai", "rule"],
     )
     parser.add_argument("--docker-image", default="openmodelica/openmodelica:v1.26.1-minimal")

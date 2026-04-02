@@ -613,7 +613,7 @@ def _maybe_refresh_realism_summary(run_root: Path) -> dict:
 
 def _bootstrap_runtime_env() -> None:
     try:
-        from .agent_modelica_live_executor_gemini_v1 import _bootstrap_env_from_repo
+        from .agent_modelica_live_executor_v1 import _bootstrap_env_from_repo
     except Exception:
         return
     _bootstrap_env_from_repo(
@@ -680,7 +680,7 @@ def _runtime_config(run_root: Path) -> dict:
             persisted_runtime.get("challenge_planner_backend")
             or os.environ.get("GATEFORGE_AGENT_L4_UPLIFT_CHALLENGE_PLANNER_BACKEND")
             or challenge.get("baseline_provenance", {}).get("planner_backend")
-            or "gemini"
+            or "auto"
         ),
         "main_planner_backend": str(
             persisted_runtime.get("main_planner_backend")
@@ -690,7 +690,7 @@ def _runtime_config(run_root: Path) -> dict:
         "night_planner_backend": str(
             persisted_runtime.get("night_planner_backend")
             or os.environ.get("GATEFORGE_AGENT_L4_UPLIFT_NIGHT_PLANNER_BACKEND")
-            or "gemini"
+            or "auto"
         ),
         "realism_mode": str(
             persisted_runtime.get("realism_mode")

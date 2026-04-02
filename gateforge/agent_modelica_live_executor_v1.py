@@ -133,6 +133,29 @@ from .agent_modelica_experience_replay_v1 import (
 from .agent_modelica_planner_experience_context_v1 import (
     build_planner_experience_context as _build_planner_experience_context,
 )
+from .agent_modelica_operation_policy_v1 import (
+    is_planner_event as _is_planner_event,
+    operation_summary as _operation_summary,
+)
+from .agent_modelica_operation_taxonomy_v1 import (
+    get_operation as _get_operation,
+)
+from .agent_modelica_repair_checkpoint_v1 import (
+    CheckpointManager as _CheckpointManager,
+    checkpoint_summary as _checkpoint_summary,
+)
+from .agent_modelica_repair_rollback_policy_v1 import (
+    ROLLBACK_REASON_NONE as _ROLLBACK_REASON_NONE,
+    rollback_reason as _rollback_reason,
+)
+from .agent_modelica_repair_safety_classifier_v1 import (
+    classify_repair_safety as _classify_repair_safety,
+)
+from .agent_modelica_prompt_input_hygiene_v1 import (
+    default_context_truncation_summary as _default_context_truncation_summary,
+    truncate_planner_experience_context as _truncate_planner_experience_context,
+    truncate_replan_context_for_prompt as _truncate_replan_context_for_prompt,
+)
 from .agent_modelica_repair_quality_score_v1 import compute_repair_quality_breakdown as _compute_repair_quality_breakdown
 from .llm_budget import (
     _IN_MEMORY_LIVE_LEDGER,
@@ -488,6 +511,59 @@ def _parse_main_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def _summarize_executor_runtime_hygiene(*, attempts: list[dict]) -> dict:
+    """Summarize runtime safety and prompt-hygiene evidence from attempt rows."""
+    planner_event_count = 0
+    repair_safety_event_count = 0
+    repair_safety_blocked_count = 0
+    candidate_text_checkpoint_count = 0
+    rollback_evaluated_count = 0
+    rollback_applied_count = 0
+    planner_experience_context_truncated_count = 0
+    replan_context_truncated_count = 0
+    for row in attempts:
+        if not isinstance(row, dict):
+            continue
+        if isinstance(row.get("planner_event"), dict):
+            planner_event_count += 1
+        repair_safety_events = row.get("repair_safety_events")
+        if isinstance(repair_safety_events, list):
+            repair_safety_event_count += len(repair_safety_events)
+        if bool(row.get("repair_safety_blocked")):
+            repair_safety_blocked_count += 1
+        if isinstance(row.get("candidate_text_checkpoint"), dict):
+            candidate_text_checkpoint_count += 1
+        if bool(row.get("rollback_evaluated")):
+            rollback_evaluated_count += 1
+        if bool(row.get("rollback_applied")):
+            rollback_applied_count += 1
+        planner_injection = row.get("planner_experience_injection")
+        context_truncation = (
+            planner_injection.get("context_truncation")
+            if isinstance(planner_injection, dict)
+            else None
+        )
+        if isinstance(context_truncation, dict) and bool(context_truncation.get("was_truncated")):
+            planner_experience_context_truncated_count += 1
+        replan_caps = row.get("replan_context_prompt_caps")
+        if isinstance(replan_caps, dict) and bool(replan_caps.get("was_truncated")):
+            replan_context_truncated_count += 1
+    return {
+        "planner_event_count": int(planner_event_count),
+        "repair_safety_event_count": int(repair_safety_event_count),
+        "repair_safety_blocked_count": int(repair_safety_blocked_count),
+        "candidate_text_checkpoint_count": int(candidate_text_checkpoint_count),
+        "rollback_evaluated_count": int(rollback_evaluated_count),
+        "rollback_applied_count": int(rollback_applied_count),
+        "planner_experience_context_truncated_count": int(planner_experience_context_truncated_count),
+        "replan_context_truncated_count": int(replan_context_truncated_count),
+        "context_hygiene_truncation_seen": bool(
+            planner_experience_context_truncated_count > 0
+            or replan_context_truncated_count > 0
+        ),
+    }
+
+
 def _build_final_payload(
     *,
     args: argparse.Namespace,
@@ -728,6 +804,7 @@ def _build_final_payload(
     )
     llm_plan_was_decisive = bool(llm_plan_helped_resolution and llm_only_resolution)
     llm_called_only = bool(llm_request_count_delta_total > 0 and not llm_plan_helped_resolution)
+    executor_runtime_hygiene = _summarize_executor_runtime_hygiene(attempts=attempts)
     payload = {
         "task_id": str(args.task_id),
         "failure_type": str(args.failure_type),
@@ -927,6 +1004,7 @@ def _build_final_payload(
         "regression_pass": bool(final_check_ok and final_simulate_ok),
         "rounds_used": int(len(attempts)),
         "elapsed_sec": elapsed,
+        "executor_runtime_hygiene": executor_runtime_hygiene,
         "error_message": final_error,
         "compile_error": final_compile_error,
         "simulate_error_message": final_sim_error,
@@ -1046,6 +1124,7 @@ def main() -> None:
     attempts: list[dict] = []
     current_text = original_text
     multistep_memory = make_multistep_memory()
+    max_rounds = max(1, int(args.max_rounds))
     final_check_ok = False
     final_simulate_ok = False
     final_error = ""
@@ -1054,7 +1133,44 @@ def main() -> None:
     final_stderr = ""
     executor_status = "FAILED"
     budget_cfg = _live_budget_config()
-    resolved_provider = "rule" if str(args.planner_backend) == "rule" else _resolve_llm_provider(str(args.planner_backend))[0]
+    try:
+        resolved_provider = (
+            "rule"
+            if str(args.planner_backend) == "rule"
+            else _resolve_llm_provider(str(args.planner_backend))[0]
+        )
+    except ValueError as exc:
+        payload = {
+            "task_id": args.task_id,
+            "failure_type": str(args.failure_type),
+            "executor_status": "FAILED",
+            "check_model_pass": False,
+            "simulate_pass": False,
+            "physics_contract_pass": False,
+            "regression_pass": False,
+            "elapsed_sec": round(time.monotonic() - started, 4),
+            "error_message": str(exc),
+            "compile_error": str(exc),
+            "simulate_error_message": "",
+            "stderr_snippet": "",
+            "attempts": [],
+            "live_request_count": 0,
+        }
+        payload["repair_quality_breakdown"] = _compute_repair_quality_breakdown(payload)
+        payload["repair_quality_score"] = float(payload["repair_quality_breakdown"].get("repair_quality_score") or 0.0)
+        experience_record = _build_experience_record(payload)
+        payload["action_contributions"] = list(experience_record.get("action_contributions") or [])
+        payload["resolution_attribution"] = dict(experience_record.get("resolution_attribution") or {})
+        payload["resolution_path"] = str(experience_record.get("resolution_path") or "")
+        payload["planner_invoked"] = bool(experience_record.get("planner_invoked"))
+        payload["planner_used"] = bool(experience_record.get("planner_used"))
+        payload["planner_decisive"] = bool(experience_record.get("planner_decisive"))
+        payload["replay_used"] = bool(experience_record.get("replay_used"))
+        payload["dominant_stage_subtype"] = str(experience_record.get("dominant_stage_subtype") or "")
+        if str(args.out).strip():
+            Path(args.out).write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        print(json.dumps(payload))
+        return
     rule_registry = _build_default_rule_registry()
     default_rule_order = [str(rule.rule_id or "") for rule in rule_registry.rules]
     experience_payload = {}
@@ -1091,12 +1207,123 @@ def main() -> None:
         "prompt_token_estimate": 0,
         "max_context_tokens": int(args.planner_experience_max_tokens or 0),
         "truncated": False,
+        "context_truncation": _default_context_truncation_summary(),
         "injection_reason": (
             "planner_experience_injection_disabled"
             if str(args.planner_experience_injection) != "on"
             else ("planner_experience_not_invoked" if isinstance(experience_payload, dict) and experience_payload else "no_experience_source")
         ),
     }
+    checkpoint_manager = _CheckpointManager(max_retained=3)
+    pending_rollback: dict | None = None
+
+    def _planner_profile_name() -> str:
+        return "planner_heavy" if resolved_provider in {"gemini", "openai"} else "default"
+
+    def _capture_checkpoint_for_attempt(*, round_number: int, operation_name: str, attempt_row: dict) -> None:
+        nonlocal pending_rollback
+        checkpoint = checkpoint_manager.capture_if_needed(round_number, operation_name, current_text)
+        if checkpoint is None:
+            return
+        scenario_results = attempt_row.get("scenario_results") if isinstance(attempt_row.get("scenario_results"), list) else []
+        attempt_row["candidate_text_checkpoint"] = {
+            **_checkpoint_summary(checkpoint),
+            "operation_name": operation_name,
+        }
+        pending_rollback = {
+            "round_number": int(round_number),
+            "operation_name": str(operation_name),
+            "pre_check_ok": bool(attempt_row.get("check_model_pass")),
+            "pre_simulate_ok": (
+                bool(attempt_row.get("simulate_pass")) if "simulate_pass" in attempt_row else None
+            ),
+            "pre_contract_pass": (
+                bool(attempt_row.get("physics_contract_pass"))
+                if "physics_contract_pass" in attempt_row
+                else None
+            ),
+            "pre_scenario_pass_count": (
+                _count_passed_scenarios(scenario_results)
+                if "scenario_results" in attempt_row
+                else None
+            ),
+        }
+
+    def _apply_candidate_patch_to_current_text(
+        *,
+        round_number: int,
+        operation_name: str,
+        attempt_row: dict,
+        patched_text: str,
+    ) -> bool:
+        nonlocal current_text
+        try:
+            spec = _get_operation(operation_name)
+        except KeyError:
+            spec = None
+        profile = _planner_profile_name()
+        if spec is not None:
+            policy_summary = _operation_summary(spec, profile=profile)
+            if bool(policy_summary.get("requires_safety_gate")):
+                safety_result = _classify_repair_safety(
+                    current_text,
+                    patched_text,
+                    profile=profile,
+                )
+                safety_event = {
+                    "operation_name": operation_name,
+                    "gate_required": True,
+                    "verdict": str(safety_result.verdict),
+                    "is_safe": bool(safety_result.is_safe),
+                    "violation_ids": list(safety_result.violation_ids),
+                    "violations": [
+                        {
+                            "pattern_id": str(v.pattern_id),
+                            "description": str(v.description),
+                            "verdict": str(v.verdict),
+                            "detail": str(v.detail),
+                        }
+                        for v in safety_result.violations
+                    ],
+                    "profile": str(safety_result.profile),
+                    "original_line_count": int(safety_result.original_line_count),
+                    "proposed_line_count": int(safety_result.proposed_line_count),
+                    "original_char_count": int(safety_result.original_char_count),
+                    "proposed_char_count": int(safety_result.proposed_char_count),
+                }
+                existing_events = attempt_row.get("repair_safety_events")
+                if not isinstance(existing_events, list):
+                    existing_events = []
+                existing_events.append(safety_event)
+                attempt_row["repair_safety_events"] = existing_events
+                attempt_row["repair_safety_last"] = dict(safety_event)
+                if "repair_safety_blocked" not in attempt_row:
+                    attempt_row["repair_safety_blocked"] = False
+                if not safety_result.is_safe:
+                    attempt_row["repair_safety_blocked"] = True
+                    attempt_row["repair_safety_blocked_operation"] = str(operation_name)
+                    attempt_row["repair_safety_blocked_verdict"] = str(safety_result.verdict)
+                    attempt_row["repair_safety_blocked_violation_ids"] = list(safety_result.violation_ids)
+                    return False
+        _capture_checkpoint_for_attempt(
+            round_number=round_number,
+            operation_name=operation_name,
+            attempt_row=attempt_row,
+        )
+        current_text = patched_text
+        return True
+
+    def _record_planner_event(*, attempt_row: dict, operation_name: str) -> None:
+        try:
+            spec = _get_operation(operation_name)
+        except KeyError:
+            return
+        if not _is_planner_event(spec):
+            return
+        attempt_row["planner_event"] = _operation_summary(
+            spec,
+            profile=_planner_profile_name(),
+        )
 
     with _temporary_workspace(prefix="gf_live_exec_") as td:
         workspace = Path(td)
@@ -1109,7 +1336,7 @@ def main() -> None:
             source_library_model_path=str(args.source_library_model_path or ""),
             source_qualified_model_name=str(args.source_qualified_model_name or ""),
         )
-        for round_idx in range(1, max(1, int(args.max_rounds)) + 1):
+        for round_idx in range(1, max_rounds + 1):
             behavioral_eval = None
             layout.model_write_path.write_text(current_text, encoding="utf-8")
             rc, output, check_ok, simulate_ok = _run_check_and_simulate(
@@ -1260,6 +1487,51 @@ def main() -> None:
                     multistep_memory["plan_conflict_rejected_count"] = int(stage_plan_fields.get("plan_conflict_rejected_count") or 0)
                     if str(stage_context.get("current_stage") or "") == "passed":
                         multistep_memory["last_successful_stage_action"] = "stop_editing"
+                if pending_rollback is not None and round_idx < max_rounds:
+                    post_contract_pass = (
+                        bool(attempts[-1].get("physics_contract_pass"))
+                        if "physics_contract_pass" in attempts[-1]
+                        else None
+                    )
+                    post_scenario_results = (
+                        attempts[-1].get("scenario_results")
+                        if isinstance(attempts[-1].get("scenario_results"), list)
+                        else []
+                    )
+                    rollback_reason = _rollback_reason(
+                        pre_check_ok=bool(pending_rollback.get("pre_check_ok")),
+                        post_check_ok=bool(check_ok),
+                        pre_simulate_ok=pending_rollback.get("pre_simulate_ok"),
+                        post_simulate_ok=bool(simulate_ok),
+                        pre_contract_pass=pending_rollback.get("pre_contract_pass"),
+                        post_contract_pass=post_contract_pass,
+                        pre_scenario_pass_count=pending_rollback.get("pre_scenario_pass_count"),
+                        post_scenario_pass_count=(
+                            _count_passed_scenarios(post_scenario_results)
+                            if "scenario_results" in attempts[-1]
+                            else None
+                        ),
+                    )
+                    attempts[-1]["rollback_evaluated"] = True
+                    attempts[-1]["rollback_reason"] = str(rollback_reason)
+                    attempts[-1]["rollback_against_round"] = int(pending_rollback.get("round_number") or 0)
+                    attempts[-1]["rollback_source_operation"] = str(pending_rollback.get("operation_name") or "")
+                    if rollback_reason != _ROLLBACK_REASON_NONE:
+                        restored_text = checkpoint_manager.restore_at_round(int(pending_rollback.get("round_number") or 0))
+                        checkpoint = checkpoint_manager.at_round(int(pending_rollback.get("round_number") or 0))
+                        attempts[-1]["rollback_applied"] = bool(isinstance(restored_text, str) and restored_text.strip())
+                        if checkpoint is not None:
+                            attempts[-1]["rollback_checkpoint"] = {
+                                **_checkpoint_summary(checkpoint),
+                                "operation_name": str(pending_rollback.get("operation_name") or ""),
+                            }
+                        if isinstance(restored_text, str) and restored_text.strip():
+                            current_text = restored_text
+                        final_error = f"{rollback_reason}_rollback_applied"
+                        pending_rollback = None
+                        continue
+                    attempts[-1]["rollback_applied"] = False
+                    pending_rollback = None
                 if not isinstance(behavioral_eval, dict) or bool(behavioral_eval.get("pass")):
                     if isinstance(behavioral_eval, dict):
                         if (
@@ -1294,8 +1566,39 @@ def main() -> None:
             if check_ok and not simulate_ok:
                 final_sim_error = reason or "simulate_failed"
                 final_stderr = str(output or "")[-1200:]
+            if pending_rollback is not None and round_idx < max_rounds and not (check_ok and simulate_ok):
+                rollback_reason = _rollback_reason(
+                    pre_check_ok=bool(pending_rollback.get("pre_check_ok")),
+                    post_check_ok=bool(check_ok),
+                    pre_simulate_ok=pending_rollback.get("pre_simulate_ok"),
+                    post_simulate_ok=bool(simulate_ok),
+                    pre_contract_pass=pending_rollback.get("pre_contract_pass"),
+                    post_contract_pass=None,
+                    pre_scenario_pass_count=pending_rollback.get("pre_scenario_pass_count"),
+                    post_scenario_pass_count=None,
+                )
+                attempts[-1]["rollback_evaluated"] = True
+                attempts[-1]["rollback_reason"] = str(rollback_reason)
+                attempts[-1]["rollback_against_round"] = int(pending_rollback.get("round_number") or 0)
+                attempts[-1]["rollback_source_operation"] = str(pending_rollback.get("operation_name") or "")
+                if rollback_reason != _ROLLBACK_REASON_NONE:
+                    restored_text = checkpoint_manager.restore_at_round(int(pending_rollback.get("round_number") or 0))
+                    checkpoint = checkpoint_manager.at_round(int(pending_rollback.get("round_number") or 0))
+                    attempts[-1]["rollback_applied"] = bool(isinstance(restored_text, str) and restored_text.strip())
+                    if checkpoint is not None:
+                        attempts[-1]["rollback_checkpoint"] = {
+                            **_checkpoint_summary(checkpoint),
+                            "operation_name": str(pending_rollback.get("operation_name") or ""),
+                        }
+                    if isinstance(restored_text, str) and restored_text.strip():
+                        current_text = restored_text
+                    final_error = f"{rollback_reason}_rollback_applied"
+                    pending_rollback = None
+                    continue
+                attempts[-1]["rollback_applied"] = False
+                pending_rollback = None
 
-            if round_idx >= max(1, int(args.max_rounds)):
+            if round_idx >= max_rounds:
                 break
 
             priority_context = None
@@ -1369,9 +1672,14 @@ def main() -> None:
                     applied_rule_result = rule_result
                     break
             if applied_rule_result is not None:
-                current_text = applied_rule_result.new_text
-                final_error = f"{applied_rule_result.attempt_field}_applied_retry_pending"
-                continue
+                if _apply_candidate_patch_to_current_text(
+                    round_number=round_idx,
+                    operation_name="apply_repair",
+                    attempt_row=attempts[-1],
+                    patched_text=applied_rule_result.new_text,
+                ):
+                    final_error = f"{applied_rule_result.attempt_field}_applied_retry_pending"
+                    continue
 
             pre_stage_context = _build_multistep_stage_context(
                 failure_type=str(args.failure_type),
@@ -1541,9 +1849,14 @@ def main() -> None:
                 )
                 attempts[-1]["patch_guard"] = patch_guard
                 if isinstance(guarded_patched, str) and guarded_patched.strip():
-                    current_text = guarded_patched
-                    final_error = "source_blind_multistep_local_search_applied_retry_pending"
-                    continue
+                    if _apply_candidate_patch_to_current_text(
+                        round_number=round_idx,
+                        operation_name="apply_repair",
+                        attempt_row=attempts[-1],
+                        patched_text=guarded_patched,
+                    ):
+                        final_error = "source_blind_multistep_local_search_applied_retry_pending"
+                        continue
                 if direction:
                     multistep_memory["bad_directions"] = list(multistep_memory.get("bad_directions") or []) + [direction]
                 multistep_memory["search_regression_seen"] = True
@@ -1563,9 +1876,14 @@ def main() -> None:
             if bool(multistep_repair.get("applied")):
                 if str(multistep_repair.get("cluster_name") or "").strip():
                     multistep_memory["stage_1_unlock_cluster"] = str(multistep_repair.get("cluster_name") or "").strip()
-                current_text = multistep_repaired_text
-                final_error = "source_blind_multistep_exposure_repair_applied_retry_pending"
-                continue
+                if _apply_candidate_patch_to_current_text(
+                    round_number=round_idx,
+                    operation_name="apply_repair",
+                    attempt_row=attempts[-1],
+                    patched_text=multistep_repaired_text,
+                ):
+                    final_error = "source_blind_multistep_exposure_repair_applied_retry_pending"
+                    continue
 
             source_blind_repaired_text, source_blind_repair = _apply_behavioral_robustness_source_blind_local_repair(
                 current_text=current_text,
@@ -1574,9 +1892,14 @@ def main() -> None:
             )
             attempts[-1]["source_blind_local_repair"] = source_blind_repair
             if bool(source_blind_repair.get("applied")):
-                current_text = source_blind_repaired_text
-                final_error = "source_blind_local_repair_applied_retry_pending"
-                continue
+                if _apply_candidate_patch_to_current_text(
+                    round_number=round_idx,
+                    operation_name="apply_repair",
+                    attempt_row=attempts[-1],
+                    patched_text=source_blind_repaired_text,
+                ):
+                    final_error = "source_blind_local_repair_applied_retry_pending"
+                    continue
 
             source_repaired_text, source_repair = _apply_source_model_repair(
                 current_text=current_text,
@@ -1589,9 +1912,14 @@ def main() -> None:
                 source_repaired_text = current_text
             attempts[-1]["source_repair"] = source_repair
             if bool(source_repair.get("applied")):
-                current_text = source_repaired_text
-                final_error = "source_repair_applied_retry_pending"
-                continue
+                if _apply_candidate_patch_to_current_text(
+                    round_number=round_idx,
+                    operation_name="apply_repair",
+                    attempt_row=attempts[-1],
+                    patched_text=source_repaired_text,
+                ):
+                    final_error = "source_repair_applied_retry_pending"
+                    continue
 
             if resolved_provider in {"gemini", "openai"}:
                 stage_context = _build_multistep_stage_context(
@@ -1700,11 +2028,16 @@ def main() -> None:
                             )
                             attempts[-1]["patch_guard"] = patch_guard
                             if isinstance(guarded_patched, str) and guarded_patched.strip():
-                                current_text = guarded_patched
-                                if str(stage_plan_fields.get("executed_plan_action") or ""):
-                                    multistep_memory["last_successful_stage_action"] = str(stage_plan_fields.get("executed_plan_action") or "")
-                                final_error = "source_blind_multistep_branch_escape_applied_retry_pending"
-                                continue
+                                if _apply_candidate_patch_to_current_text(
+                                    round_number=round_idx,
+                                    operation_name="apply_repair",
+                                    attempt_row=attempts[-1],
+                                    patched_text=guarded_patched,
+                                ):
+                                    if str(stage_plan_fields.get("executed_plan_action") or ""):
+                                        multistep_memory["last_successful_stage_action"] = str(stage_plan_fields.get("executed_plan_action") or "")
+                                    final_error = "source_blind_multistep_branch_escape_applied_retry_pending"
+                                    continue
                             if direction:
                                 multistep_memory["branch_bad_directions"] = list(multistep_memory.get("branch_bad_directions") or []) + [direction]
                             multistep_memory["search_regression_seen"] = True
@@ -1749,11 +2082,16 @@ def main() -> None:
                         )
                         attempts[-1]["patch_guard"] = patch_guard
                         if isinstance(guarded_patched, str) and guarded_patched.strip():
-                            current_text = guarded_patched
-                            if str(stage_plan_fields.get("executed_plan_action") or ""):
-                                multistep_memory["last_successful_stage_action"] = str(stage_plan_fields.get("executed_plan_action") or "")
-                            final_error = "source_blind_multistep_local_search_applied_retry_pending"
-                            continue
+                            if _apply_candidate_patch_to_current_text(
+                                round_number=round_idx,
+                                operation_name="apply_repair",
+                                attempt_row=attempts[-1],
+                                patched_text=guarded_patched,
+                            ):
+                                if str(stage_plan_fields.get("executed_plan_action") or ""):
+                                    multistep_memory["last_successful_stage_action"] = str(stage_plan_fields.get("executed_plan_action") or "")
+                                final_error = "source_blind_multistep_local_search_applied_retry_pending"
+                                continue
                         if direction:
                             multistep_memory["bad_directions"] = list(multistep_memory.get("bad_directions") or []) + [direction]
                         multistep_memory["search_regression_seen"] = True
@@ -1786,11 +2124,16 @@ def main() -> None:
                     )
                     attempts[-1]["patch_guard"] = patch_guard
                     if isinstance(guarded_patched, str) and guarded_patched.strip():
-                        current_text = guarded_patched
-                        if str(stage_plan_fields.get("executed_plan_action") or ""):
-                            multistep_memory["last_successful_stage_action"] = str(stage_plan_fields.get("executed_plan_action") or "")
-                        final_error = "source_blind_multistep_stage2_local_repair_applied_retry_pending"
-                        continue
+                        if _apply_candidate_patch_to_current_text(
+                            round_number=round_idx,
+                            operation_name="apply_repair",
+                            attempt_row=attempts[-1],
+                            patched_text=guarded_patched,
+                        ):
+                            if str(stage_plan_fields.get("executed_plan_action") or ""):
+                                multistep_memory["last_successful_stage_action"] = str(stage_plan_fields.get("executed_plan_action") or "")
+                            final_error = "source_blind_multistep_stage2_local_repair_applied_retry_pending"
+                            continue
                     multistep_memory["search_regression_seen"] = True
                     multistep_memory["search_bad_direction_count"] = int(multistep_memory.get("search_bad_direction_count") or 0) + 1
                 llm_request_kind = "replan" if bool(llm_replan_context.get("should_force_replan")) else "plan"
@@ -1885,6 +2228,9 @@ def main() -> None:
                         error_subtype=str(diagnostic.get("error_subtype") or ""),
                         max_context_tokens=int(args.planner_experience_max_tokens or 400),
                     )
+                    planner_experience_context, planner_context_truncation = _truncate_planner_experience_context(
+                        planner_experience_context
+                    )
                     planner_injection_reason = (
                         "planner_experience_context_injected"
                         if bool(planner_experience_context.get("used"))
@@ -1899,6 +2245,7 @@ def main() -> None:
                         "prompt_token_estimate": int(planner_experience_context.get("prompt_token_estimate") or 0),
                         "max_context_tokens": int(args.planner_experience_max_tokens or 0),
                         "truncated": bool(planner_experience_context.get("truncated")),
+                        "context_truncation": dict(planner_context_truncation),
                         "injection_reason": planner_injection_reason,
                     }
                     planner_experience_summary.update(
@@ -1908,6 +2255,7 @@ def main() -> None:
                             "caution_hint_count": int(planner_experience_context.get("caution_hint_count") or 0),
                             "prompt_token_estimate": int(planner_experience_context.get("prompt_token_estimate") or 0),
                             "truncated": bool(planner_experience_context.get("truncated")),
+                            "context_truncation": dict(planner_context_truncation),
                             "injection_reason": planner_injection_reason,
                         }
                     )
@@ -1921,8 +2269,25 @@ def main() -> None:
                         "prompt_token_estimate": 0,
                         "max_context_tokens": int(args.planner_experience_max_tokens or 0),
                         "truncated": False,
+                        "context_truncation": _default_context_truncation_summary(),
                         "injection_reason": str(planner_experience_summary.get("injection_reason") or ""),
                     }
+                prompt_replan_context = {
+                    "previous_plan_failed_signal": str(llm_replan_context.get("previous_plan_failed_signal") or ""),
+                    "previous_branch": str(llm_replan_context.get("previous_branch") or ""),
+                    "previous_candidate_parameters": list(multistep_memory.get("last_llm_plan_candidate_parameters") or []),
+                    "previous_candidate_value_directions": list(multistep_memory.get("last_llm_plan_candidate_value_directions") or []),
+                    "branch_choice_reason": str(replan_budget_context.get("branch_choice_reason") or ""),
+                    "guided_search_observation": guided_search_observation,
+                    "replan_budget_total": int(replan_budget_context.get("replan_budget_total") or 0),
+                    "replan_budget_for_branch_diagnosis": int(replan_budget_context.get("replan_budget_for_branch_diagnosis") or 0),
+                    "replan_budget_for_branch_escape": int(replan_budget_context.get("replan_budget_for_branch_escape") or 0),
+                    "replan_budget_for_resolution": int(replan_budget_context.get("replan_budget_for_resolution") or 0),
+                }
+                prompt_replan_context, prompt_replan_context_summary = _truncate_replan_context_for_prompt(
+                    prompt_replan_context
+                )
+                attempts[-1]["replan_context_prompt_caps"] = dict(prompt_replan_context_summary)
                 llm_request_count_before = int(_load_live_ledger(budget_cfg).get("request_count") or 0)
                 llm_plan_payload, llm_err, resolved_provider = _llm_generate_repair_plan(
                     planner_backend=str(args.planner_backend),
@@ -1936,22 +2301,16 @@ def main() -> None:
                     stage_context=stage_context,
                     llm_reason=llm_request_reason,
                     request_kind=llm_request_kind,
-                    replan_context={
-                        "previous_plan_failed_signal": str(llm_replan_context.get("previous_plan_failed_signal") or ""),
-                        "previous_branch": str(llm_replan_context.get("previous_branch") or ""),
-                        "previous_candidate_parameters": list(multistep_memory.get("last_llm_plan_candidate_parameters") or []),
-                        "previous_candidate_value_directions": list(multistep_memory.get("last_llm_plan_candidate_value_directions") or []),
-                        "branch_choice_reason": str(replan_budget_context.get("branch_choice_reason") or ""),
-                        "guided_search_observation": guided_search_observation,
-                        "replan_budget_total": int(replan_budget_context.get("replan_budget_total") or 0),
-                        "replan_budget_for_branch_diagnosis": int(replan_budget_context.get("replan_budget_for_branch_diagnosis") or 0),
-                        "replan_budget_for_branch_escape": int(replan_budget_context.get("replan_budget_for_branch_escape") or 0),
-                        "replan_budget_for_resolution": int(replan_budget_context.get("replan_budget_for_resolution") or 0),
-                    },
+                    replan_context=prompt_replan_context,
                     planner_experience_context=planner_experience_context,
                 )
                 llm_request_count_after = int(_load_live_ledger(budget_cfg).get("request_count") or 0)
                 llm_request_delta = max(0, llm_request_count_after - llm_request_count_before)
+                if llm_request_delta > 0:
+                    _record_planner_event(
+                        attempt_row=attempts[-1],
+                        operation_name="planner_invoke",
+                    )
                 attempts[-1]["planner_backend"] = str(args.planner_backend or "")
                 attempts[-1]["resolved_llm_provider"] = str(resolved_provider or "")
                 planner_contract = _build_source_blind_multistep_planner_contract(
@@ -2262,32 +2621,37 @@ def main() -> None:
                     )
                     attempts[-1]["patch_guard"] = patch_guard
                     if isinstance(guarded_patched, str) and guarded_patched.strip():
-                        current_text = guarded_patched
-                        if llm_request_delta > 0 and llm_request_kind in {"plan", "replan"}:
-                            multistep_memory["last_llm_plan_round"] = int(round_idx)
-                            multistep_memory["last_llm_request_kind"] = str(llm_request_kind)
-                            multistep_memory["last_llm_plan_branch"] = str(
-                                attempts[-1].get("new_branch")
-                                or llm_plan.get("switch_to_branch")
-                                or llm_plan.get("new_branch")
-                                or stage_context.get("stage_2_branch")
-                                or ""
-                            )
-                            multistep_memory["last_llm_plan_fail_bucket"] = str(stage_context.get("current_fail_bucket") or "")
-                            multistep_memory["last_llm_plan_pass_count"] = _count_passed_scenarios(pre_stage_scenario_results)
-                            multistep_memory["last_llm_plan_candidate_parameters"] = [
-                                str(x) for x in (llm_resolution_audit.get("llm_plan_execution_parameters") or []) if str(x).strip()
-                            ]
-                            multistep_memory["last_llm_plan_candidate_value_directions"] = [
-                                str(x) for x in (llm_plan.get("candidate_value_directions") or []) if str(x).strip()
-                            ]
-                            if llm_request_kind == "replan" and bool(attempts[-1].get("replan_switch_branch")):
-                                multistep_memory["last_successful_branch_correction"] = str(
+                        if _apply_candidate_patch_to_current_text(
+                            round_number=round_idx,
+                            operation_name="apply_repair",
+                            attempt_row=attempts[-1],
+                            patched_text=guarded_patched,
+                        ):
+                            if llm_request_delta > 0 and llm_request_kind in {"plan", "replan"}:
+                                multistep_memory["last_llm_plan_round"] = int(round_idx)
+                                multistep_memory["last_llm_request_kind"] = str(llm_request_kind)
+                                multistep_memory["last_llm_plan_branch"] = str(
                                     attempts[-1].get("new_branch")
                                     or llm_plan.get("switch_to_branch")
                                     or llm_plan.get("new_branch")
+                                    or stage_context.get("stage_2_branch")
                                     or ""
                                 )
+                                multistep_memory["last_llm_plan_fail_bucket"] = str(stage_context.get("current_fail_bucket") or "")
+                                multistep_memory["last_llm_plan_pass_count"] = _count_passed_scenarios(pre_stage_scenario_results)
+                                multistep_memory["last_llm_plan_candidate_parameters"] = [
+                                    str(x) for x in (llm_resolution_audit.get("llm_plan_execution_parameters") or []) if str(x).strip()
+                                ]
+                                multistep_memory["last_llm_plan_candidate_value_directions"] = [
+                                    str(x) for x in (llm_plan.get("candidate_value_directions") or []) if str(x).strip()
+                                ]
+                                if llm_request_kind == "replan" and bool(attempts[-1].get("replan_switch_branch")):
+                                    multistep_memory["last_successful_branch_correction"] = str(
+                                        attempts[-1].get("new_branch")
+                                        or llm_plan.get("switch_to_branch")
+                                        or llm_plan.get("new_branch")
+                                        or ""
+                                    )
                 elif (
                     llm_request_kind == "replan"
                     and str(llm_replan_context.get("realism_version") or llm_context.get("realism_version") or "").strip().lower() == "v4"
@@ -2307,18 +2671,23 @@ def main() -> None:
                         )
                         attempts[-1]["patch_guard"] = patch_guard
                         if isinstance(guarded_patched, str) and guarded_patched.strip():
-                            current_text = guarded_patched
-                            multistep_memory["llm_plan_followed"] = True
-                            multistep_memory["llm_guided_search_used"] = True
-                            multistep_memory["search_budget_from_llm_plan"] = max(
-                                int(multistep_memory.get("search_budget_from_llm_plan") or 0),
-                                len(llm_resolution_audit.get("parameter_names") or []),
-                            )
-                            multistep_memory["search_budget_followed"] = True
-                            if str(stage_plan_fields.get("executed_plan_action") or ""):
-                                multistep_memory["last_successful_stage_action"] = str(stage_plan_fields.get("executed_plan_action") or "")
-                            final_error = "llm_first_plan_applied_retry_pending"
-                            continue
+                            if _apply_candidate_patch_to_current_text(
+                                round_number=round_idx,
+                                operation_name="apply_repair",
+                                attempt_row=attempts[-1],
+                                patched_text=guarded_patched,
+                            ):
+                                multistep_memory["llm_plan_followed"] = True
+                                multistep_memory["llm_guided_search_used"] = True
+                                multistep_memory["search_budget_from_llm_plan"] = max(
+                                    int(multistep_memory.get("search_budget_from_llm_plan") or 0),
+                                    len(llm_resolution_audit.get("parameter_names") or []),
+                                )
+                                multistep_memory["search_budget_followed"] = True
+                                if str(stage_plan_fields.get("executed_plan_action") or ""):
+                                    multistep_memory["last_successful_stage_action"] = str(stage_plan_fields.get("executed_plan_action") or "")
+                                final_error = "llm_first_plan_applied_retry_pending"
+                                continue
                         if llm_request_delta > 0:
                             attempts[-1]["llm_resolution_contributed"] = True
                             multistep_memory["llm_resolution_contributed"] = True

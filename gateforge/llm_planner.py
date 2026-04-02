@@ -151,6 +151,8 @@ def _load_env_file(path: Path, allowed_keys: set[str] | None = None) -> int:
 
 
 def _bootstrap_env_from_repo(allowed_keys: set[str] | None = None) -> int:
+    if str(os.getenv("GATEFORGE_DISABLE_ENV_BOOTSTRAP") or "").strip() == "1":
+        return 0
     repo_root = Path(__file__).resolve().parents[1]
     candidates = [Path.cwd() / ".env", repo_root / ".env"]
     loaded = 0

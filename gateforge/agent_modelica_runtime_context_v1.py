@@ -18,10 +18,25 @@ def _now_utc() -> str:
 
 
 def resolve_planner_backend_from_env() -> str:
-    if os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY"):
-        return "gemini"
-    if os.environ.get("OPENAI_API_KEY"):
+    explicit = str(
+        os.environ.get("LLM_PROVIDER")
+        or os.environ.get("GATEFORGE_LIVE_PLANNER_BACKEND")
+        or ""
+    ).strip().lower()
+    if explicit in {"rule", "gemini", "openai"}:
+        return explicit
+
+    model = (
+        str(os.environ.get("LLM_MODEL") or "").strip()
+        or str(os.environ.get("OPENAI_MODEL") or "").strip()
+        or str(os.environ.get("GATEFORGE_GEMINI_MODEL") or "").strip()
+        or str(os.environ.get("GEMINI_MODEL") or "").strip()
+    )
+    lower = model.lower()
+    if lower.startswith("gpt"):
         return "openai"
+    if "gemini" in lower:
+        return "gemini"
     return ""
 
 
@@ -72,7 +87,7 @@ class AgentModelicaRuntimeContext:
         protocol_version: str = "v0_3_6_single_sweep_baseline_authority_v1",
         enabled_policy_flags: dict | None = None,
     ) -> "AgentModelicaRuntimeContext":
-        backend = str(planner_backend or resolve_planner_backend_from_env()).strip()
+        backend = str(planner_backend or resolve_planner_backend_from_env() or "auto").strip()
         profile = get_agent_profile(profile_id)
         policy_flags = {
             "source_restore_allowed": profile.source_restore_allowed,
@@ -129,7 +144,7 @@ class AgentModelicaRuntimeContext:
         return [
             sys.executable,
             "-m",
-            "gateforge.agent_modelica_live_executor_gemini_v1",
+            "gateforge.agent_modelica_live_executor_v1",
             "--task-id",
             self.task_id,
             "--failure-type",

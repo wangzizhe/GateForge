@@ -1,6 +1,6 @@
 """Layer 3 Stage/Branch State Machine for multistep repair.
 
-Extracted from agent_modelica_live_executor_gemini_v1.py to enable
+Extracted from agent_modelica_live_executor_v1.py to enable
 independent testing and reuse. All functions are pure: they consume
 plain dicts and return plain dicts, with no I/O, Docker, LLM, or OMC
 dependencies.

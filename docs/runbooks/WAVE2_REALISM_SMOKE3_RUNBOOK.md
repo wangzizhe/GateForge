@@ -4,7 +4,15 @@ This runbook defines the minimum live smoke for `wave2 realism v1`.
 
 ## Goal
 
-Validate the real `Gemini + Docker + OMC` path on one representative task per new error family before launching the full `baseline_off_live` run.
+Validate the real live `LLM + Docker + OMC` path on one representative task per new error family before launching the full `baseline_off_live` run.
+
+Default expectation:
+
+- provider selection is runtime-configured
+- `LLM_MODEL` must be set
+- planner backend may remain `auto` so provider family is inferred from `LLM_MODEL`
+
+If you need a provider-pinned reproduction lane, set `GATEFORGE_AGENT_LIVE_PLANNER_BACKEND` explicitly before running the smoke.
 
 The smoke taskset is fixed to these three tasks:
 
@@ -37,12 +45,13 @@ PY
 ## Run Baseline Smoke
 
 ```bash
-export GATEFORGE_AGENT_LIVE_PLANNER_BACKEND=gemini
+export GATEFORGE_AGENT_LIVE_PLANNER_BACKEND="${GATEFORGE_AGENT_LIVE_PLANNER_BACKEND:-auto}"
 export GATEFORGE_AGENT_LIVE_OM_BACKEND=openmodelica_docker
 export GATEFORGE_AGENT_LIVE_OM_DOCKER_IMAGE=openmodelica/openmodelica:v1.26.1-minimal
 export GATEFORGE_AGENT_LIVE_LLM_REQUEST_TIMEOUT_SEC=120
+export LLM_MODEL="${LLM_MODEL:?set LLM_MODEL before running this smoke}"
 
-LIVE_EXECUTOR_CMD='python3 -m gateforge.agent_modelica_live_executor_gemini_v1 --task-id "__TASK_ID__" --failure-type "__FAILURE_TYPE__" --expected-stage "__EXPECTED_STAGE__" --source-model-path "__SOURCE_MODEL_PATH__" --mutated-model-path "__MUTATED_MODEL_PATH__" --source-library-path "__SOURCE_LIBRARY_PATH__" --source-package-name "__SOURCE_PACKAGE_NAME__" --source-library-model-path "__SOURCE_LIBRARY_MODEL_PATH__" --source-qualified-model-name "__SOURCE_QUALIFIED_MODEL_NAME__" --repair-actions __REPAIR_ACTIONS_SHQ__ --max-rounds "__MAX_ROUNDS__" --timeout-sec "__MAX_TIME_SEC__" --planner-backend "'"${GATEFORGE_AGENT_LIVE_PLANNER_BACKEND}"'" --backend "'"${GATEFORGE_AGENT_LIVE_OM_BACKEND}"'" --docker-image "'"${GATEFORGE_AGENT_LIVE_OM_DOCKER_IMAGE}"'"'
+LIVE_EXECUTOR_CMD='python3 -m gateforge.agent_modelica_live_executor_v1 --task-id "__TASK_ID__" --failure-type "__FAILURE_TYPE__" --expected-stage "__EXPECTED_STAGE__" --source-model-path "__SOURCE_MODEL_PATH__" --mutated-model-path "__MUTATED_MODEL_PATH__" --source-library-path "__SOURCE_LIBRARY_PATH__" --source-package-name "__SOURCE_PACKAGE_NAME__" --source-library-model-path "__SOURCE_LIBRARY_MODEL_PATH__" --source-qualified-model-name "__SOURCE_QUALIFIED_MODEL_NAME__" --repair-actions __REPAIR_ACTIONS_SHQ__ --max-rounds "__MAX_ROUNDS__" --timeout-sec "__MAX_TIME_SEC__" --planner-backend "'"${GATEFORGE_AGENT_LIVE_PLANNER_BACKEND}"'" --backend "'"${GATEFORGE_AGENT_LIVE_OM_BACKEND}"'" --docker-image "'"${GATEFORGE_AGENT_LIVE_OM_DOCKER_IMAGE}"'"'
 
 python3 -m gateforge.agent_modelica_run_contract_v1 \
   --taskset artifacts/agent_modelica_wave2_smoke3/taskset_frozen.json \
@@ -55,6 +64,16 @@ python3 -m gateforge.agent_modelica_run_contract_v1 \
   --live-max-output-chars 2400 \
   --results-out artifacts/agent_modelica_wave2_smoke3/results.json \
   --out artifacts/agent_modelica_wave2_smoke3/summary.json
+```
+
+Optional provider-pinned reproduction examples:
+
+```bash
+export GATEFORGE_AGENT_LIVE_PLANNER_BACKEND=gemini
+```
+
+```bash
+export GATEFORGE_AGENT_LIVE_PLANNER_BACKEND=openai
 ```
 
 ## Read Results

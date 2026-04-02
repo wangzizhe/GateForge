@@ -13,13 +13,17 @@ from gateforge.agent_modelica_runtime_context_v1 import (
 
 
 class AgentModelicaRuntimeContextV1Tests(unittest.TestCase):
-    def test_resolve_planner_backend_from_env_prefers_gemini(self) -> None:
-        with patch.dict("os.environ", {"GEMINI_API_KEY": "x"}, clear=False):
+    def test_resolve_planner_backend_from_env_inferrs_gemini_from_model(self) -> None:
+        with patch.dict("os.environ", {"LLM_MODEL": "gemini-2.5-pro", "GEMINI_API_KEY": "x"}, clear=True):
             self.assertEqual(resolve_planner_backend_from_env(), "gemini")
 
-    def test_resolve_planner_backend_from_env_uses_openai(self) -> None:
-        with patch.dict("os.environ", {"OPENAI_API_KEY": "x", "GEMINI_API_KEY": ""}, clear=False):
+    def test_resolve_planner_backend_from_env_uses_openai_model_hint(self) -> None:
+        with patch.dict("os.environ", {"LLM_MODEL": "gpt-5.4", "OPENAI_API_KEY": "x", "GEMINI_API_KEY": ""}, clear=True):
             self.assertEqual(resolve_planner_backend_from_env(), "openai")
+
+    def test_resolve_planner_backend_from_env_does_not_guess_from_key_only(self) -> None:
+        with patch.dict("os.environ", {"OPENAI_API_KEY": "x", "LLM_MODEL": ""}, clear=True):
+            self.assertEqual(resolve_planner_backend_from_env(), "")
 
     def test_create_builds_protocol_and_command(self) -> None:
         with tempfile.TemporaryDirectory(prefix="gf_runtime_ctx_") as td:

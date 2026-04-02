@@ -1,6 +1,6 @@
 """OMC workspace management for the GateForge Modelica agent.
 
-Extracted from ``agent_modelica_live_executor_gemini_v1`` using the
+Extracted from ``agent_modelica_live_executor_v1`` using the
 **I/O Boundary Inversion Pattern**: all subprocess / Docker / filesystem
 operations are isolated here so the decision layer (L2/L3/L4) can be
 tested without real OMC or Docker.

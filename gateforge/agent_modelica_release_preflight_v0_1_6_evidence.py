@@ -97,7 +97,7 @@ def _l4_import_symmetry_status() -> tuple[str, list[str], dict]:
     reasons: list[str] = []
     missing: list[str] = []
     try:
-        executor = importlib.import_module("gateforge.agent_modelica_live_executor_gemini_v1")
+        executor = importlib.import_module("gateforge.agent_modelica_live_executor_v1")
         l4 = importlib.import_module("gateforge.agent_modelica_l4_guided_search_engine_v1")
     except ImportError as exc:
         return "FAIL", [f"import_error:{exc}"], {"missing": [], "checked": 0}
@@ -133,7 +133,7 @@ def _l4_import_symmetry_status() -> tuple[str, list[str], dict]:
 
 def _executor_line_count_status(max_lines: int = 3200) -> tuple[str, list[str], dict]:
     reasons: list[str] = []
-    executor_path = _REPO_ROOT / "gateforge" / "agent_modelica_live_executor_gemini_v1.py"
+    executor_path = _REPO_ROOT / "gateforge" / "agent_modelica_live_executor_v1.py"
     if not executor_path.exists():
         return "FAIL", ["executor_file_missing"], {"line_count": 0, "max_lines": max_lines}
     line_count = sum(1 for _ in executor_path.open(encoding="utf-8"))
@@ -215,7 +215,7 @@ def _bc_import_symmetry_status() -> tuple[str, list[str], dict]:
     reasons: list[str] = []
     missing: list[str] = []
     try:
-        executor = importlib.import_module("gateforge.agent_modelica_live_executor_gemini_v1")
+        executor = importlib.import_module("gateforge.agent_modelica_live_executor_v1")
         bc = importlib.import_module("gateforge.agent_modelica_behavioral_contract_evaluator_v1")
     except ImportError as exc:
         return "FAIL", [f"import_error:{exc}"], {"missing": [], "checked": 0}

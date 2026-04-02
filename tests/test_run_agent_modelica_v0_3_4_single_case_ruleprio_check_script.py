@@ -10,7 +10,7 @@ class RunAgentModelicaV034SingleCaseRuleprioCheckScriptTests(unittest.TestCase):
         self.assertIn("GATEFORGE_AGENT_MULTI_ROUND_DETERMINISTIC_REPAIR=1", content)
         self.assertIn("multi_round_ibpsa_acsimplegrid_coupled_conflict_failure_v034_ruleprio", content)
         self.assertIn("coupled_conflict_failure", content)
-        self.assertIn("agent_modelica_live_executor_gemini_v1", content)
+        self.assertIn("agent_modelica_live_executor_v1", content)
         self.assertIn("--planner-backend gemini", content)
 
 

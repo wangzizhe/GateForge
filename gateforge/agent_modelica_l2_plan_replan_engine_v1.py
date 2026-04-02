@@ -7,7 +7,7 @@ Provides:
 - Unified repair-text generation (Adapter Unification Pattern)
 - Multistep plan generation (plan / replan request kinds)
 
-Extracted from agent_modelica_live_executor_gemini_v1 using the
+Extracted from agent_modelica_live_executor_v1 using the
 Planner-as-Module Pattern and Adapter Unification Pattern.
 
 Adapter Unification Pattern:
@@ -156,25 +156,27 @@ def resolve_llm_provider(requested_backend: str) -> tuple[str, str, str]:
         or str(os.getenv("GATEFORGE_GEMINI_MODEL") or "").strip()
         or str(os.getenv("GEMINI_MODEL") or "").strip()
     )
+    if not model:
+        raise ValueError("missing_llm_model")
     explicit = requested if requested in {"gemini", "openai"} else ""
     if not explicit:
         explicit = str(os.getenv("LLM_PROVIDER") or os.getenv("GATEFORGE_LIVE_PLANNER_BACKEND") or "").strip().lower()
     if explicit not in {"gemini", "openai"}:
-        has_openai = bool(str(os.getenv("OPENAI_API_KEY") or "").strip())
-        has_gemini = bool(str(os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY") or "").strip())
-        if model and _OPENAI_MODEL_HINT_PATTERN.search(model) and has_openai:
+        if _OPENAI_MODEL_HINT_PATTERN.search(model):
             explicit = "openai"
-        elif model and "gemini" in model.lower() and has_gemini:
-            explicit = "gemini"
-        elif has_openai and not has_gemini:
-            explicit = "openai"
-        elif has_gemini and not has_openai:
+        elif "gemini" in model.lower():
             explicit = "gemini"
         else:
-            explicit = "gemini"
+            raise ValueError(f"unsupported_llm_model:{model}")
     if explicit == "openai":
-        return explicit, model, str(os.getenv("OPENAI_API_KEY") or "").strip()
-    return explicit, model, str(os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY") or "").strip()
+        api_key = str(os.getenv("OPENAI_API_KEY") or "").strip()
+        if not api_key:
+            raise ValueError("missing_openai_api_key")
+        return explicit, model, api_key
+    api_key = str(os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY") or "").strip()
+    if not api_key:
+        raise ValueError("missing_gemini_api_key")
+    return explicit, model, api_key
 
 
 # ---------------------------------------------------------------------------

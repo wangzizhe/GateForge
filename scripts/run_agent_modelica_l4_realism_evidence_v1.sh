@@ -78,7 +78,7 @@ bootstrap_env_exports() {
   python3 - <<'PY'
 import json
 import os
-from gateforge.agent_modelica_live_executor_gemini_v1 import _bootstrap_env_from_repo
+from gateforge.agent_modelica_live_executor_v1 import _bootstrap_env_from_repo
 
 keys = [
     "GOOGLE_API_KEY",
@@ -102,21 +102,13 @@ PY
 
 eval "$(bootstrap_env_exports)"
 
-GLOBAL_LIVE_PLANNER_BACKEND="${GATEFORGE_AGENT_LIVE_PLANNER_BACKEND:-${LLM_PROVIDER:-}}"
-if [ -z "$GLOBAL_LIVE_PLANNER_BACKEND" ]; then
-  GLOBAL_LIVE_PLANNER_BACKEND="$(python3 - <<'PY'
-from gateforge.agent_modelica_live_executor_gemini_v1 import _resolve_llm_provider
-provider, _, _ = _resolve_llm_provider("auto")
-print(provider)
-PY
-)"
-fi
-CHALLENGE_PLANNER_BACKEND="${GATEFORGE_AGENT_L4_UPLIFT_CHALLENGE_PLANNER_BACKEND:-${GLOBAL_LIVE_PLANNER_BACKEND:-gemini}}"
-MAIN_PLANNER_BACKEND="${GATEFORGE_AGENT_L4_UPLIFT_MAIN_PLANNER_BACKEND:-${GLOBAL_LIVE_PLANNER_BACKEND:-gemini}}"
-NIGHT_PLANNER_BACKEND="${GATEFORGE_AGENT_L4_UPLIFT_NIGHT_PLANNER_BACKEND:-${GLOBAL_LIVE_PLANNER_BACKEND:-gemini}}"
-L4_POLICY_BACKEND="${GATEFORGE_AGENT_L4_UPLIFT_L4_POLICY_BACKEND:-${MAIN_PLANNER_BACKEND:-gemini}}"
+GLOBAL_LIVE_PLANNER_BACKEND="${GATEFORGE_AGENT_LIVE_PLANNER_BACKEND:-${LLM_PROVIDER:-auto}}"
+CHALLENGE_PLANNER_BACKEND="${GATEFORGE_AGENT_L4_UPLIFT_CHALLENGE_PLANNER_BACKEND:-${GLOBAL_LIVE_PLANNER_BACKEND:-auto}}"
+MAIN_PLANNER_BACKEND="${GATEFORGE_AGENT_L4_UPLIFT_MAIN_PLANNER_BACKEND:-${GLOBAL_LIVE_PLANNER_BACKEND:-auto}}"
+NIGHT_PLANNER_BACKEND="${GATEFORGE_AGENT_L4_UPLIFT_NIGHT_PLANNER_BACKEND:-${GLOBAL_LIVE_PLANNER_BACKEND:-auto}}"
+L4_POLICY_BACKEND="${GATEFORGE_AGENT_L4_UPLIFT_L4_POLICY_BACKEND:-${MAIN_PLANNER_BACKEND:-auto}}"
 
-CHALLENGE_LLM_MODEL="${GATEFORGE_AGENT_L4_UPLIFT_CHALLENGE_LLM_MODEL:-${LLM_MODEL:-${OPENAI_MODEL:-${GATEFORGE_GEMINI_MODEL:-${GEMINI_MODEL:-}}}}}"
+CHALLENGE_LLM_MODEL="${GATEFORGE_AGENT_L4_UPLIFT_CHALLENGE_LLM_MODEL:-${LLM_MODEL:-}}"
 
 release_run_lock() {
   python3 - "$LOCK_PATH" "$$" <<'PY'
@@ -377,20 +369,25 @@ planner_backends = [str(x or "").strip().lower() for x in sys.argv[2:]]
 blockers = []
 if not challenge_llm_model:
     blockers.append("missing_llm_model")
-needs_openai = any(x == "openai" for x in planner_backends)
-needs_gemini = any(x == "gemini" for x in planner_backends)
-needs_auto = any(x == "auto" for x in planner_backends)
+model_lower = challenge_llm_model.lower()
+resolved_auto_provider = ""
+if model_lower.startswith("gpt"):
+    resolved_auto_provider = "openai"
+elif "gemini" in model_lower:
+    resolved_auto_provider = "gemini"
+elif challenge_llm_model:
+    blockers.append("unsupported_llm_model")
+needs_openai = any(x == "openai" for x in planner_backends) or (
+    any(x == "auto" for x in planner_backends) and resolved_auto_provider == "openai"
+)
+needs_gemini = any(x == "gemini" for x in planner_backends) or (
+    any(x == "auto" for x in planner_backends) and resolved_auto_provider == "gemini"
+)
 if needs_openai and not os.environ.get("OPENAI_API_KEY"):
     blockers.append("missing_openai_api_key")
 if needs_gemini and not (os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")):
     blockers.append("missing_gemini_api_key")
-if needs_auto and not (
-    os.environ.get("OPENAI_API_KEY")
-    or os.environ.get("GOOGLE_API_KEY")
-    or os.environ.get("GEMINI_API_KEY")
-):
-    blockers.append("missing_llm_api_key")
-print(json.dumps(blockers))
+print(json.dumps(sorted(set(blockers))))
 PY
 )"
   fi

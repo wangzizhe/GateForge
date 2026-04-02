@@ -10,6 +10,8 @@ from gateforge.agent_modelica_api_direct_generic_runner_v0_3_2 import (
     APIDirectToolCall,
     APIDirectTurnResult,
     AnthropicMessagesToolClient,
+    OpenAIResponsesToolClient,
+    _build_client,
     build_api_direct_task_prompt,
     build_anthropic_tools,
     build_openai_function_tools,
@@ -49,6 +51,19 @@ class _FakeToolExecutor:
 
 
 class AgentModelicaApiDirectGenericRunnerV032Tests(unittest.TestCase):
+    def test_build_client_accepts_auto_provider_family(self) -> None:
+        with mock.patch(
+            "gateforge.agent_modelica_api_direct_generic_runner_v0_3_2.resolve_provider_adapter",
+            return_value=(
+                mock.Mock(provider_name="openai"),
+                LLMProviderConfig(provider_name="openai", model="gpt-5.4", api_key="sk-test"),
+            ),
+        ):
+            client, provider_name, resolved_model = _build_client(provider_family="auto", model_id="")
+        self.assertIsInstance(client, OpenAIResponsesToolClient)
+        self.assertEqual(provider_name, "openai")
+        self.assertEqual(resolved_model, "gpt-5.4")
+
     def test_build_openai_function_tools_covers_shared_omc_surface(self) -> None:
         tools = build_openai_function_tools()
         tool_names = {row["name"] for row in tools}

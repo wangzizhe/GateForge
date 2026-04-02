@@ -595,7 +595,7 @@ def run_api_direct_generic_runner(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run a minimal API-direct generic-agent baseline on the shared OMC tool surface.")
-    parser.add_argument("--provider-family", choices=["openai", "anthropic"], default="openai")
+    parser.add_argument("--provider-family", choices=["auto", "openai", "anthropic"], default="auto")
     parser.add_argument("--arm-id", default="arm_api_direct_generic")
     parser.add_argument("--taskset", default=DEFAULT_TASKSET)
     parser.add_argument("--out-dir", default=DEFAULT_OUT_DIR)

@@ -24,7 +24,7 @@ pip install -e .
 
 ```bash
 python -m unittest \
-  tests.test_agent_modelica_live_executor_gemini_v1 \
+  tests.test_agent_modelica_live_executor_v1 \
   tests.test_agent_modelica_rule_engine_v1 \
   -v
 ```
@@ -32,7 +32,7 @@ python -m unittest \
 ### 3. Run the live executor
 
 ```bash
-python -m gateforge.agent_modelica_live_executor_gemini_v1 \
+python -m gateforge.agent_modelica_live_executor_v1 \
   --task-id demo \
   --failure-type model_check_error \
   --expected-stage check \
@@ -47,7 +47,7 @@ python -m gateforge.agent_modelica_live_executor_gemini_v1 \
 ```bash
 python -m gateforge.agent_modelica_gf_hardpack_runner_v1 \
   --pack assets_private/agent_modelica_track_a_valid32_fixture_v1/hardpack_frozen.json \
-  --planner-backend gemini \
+  --planner-backend auto \
   --out artifacts/benchmark_track_a/gf_results.json
 
 python -m gateforge.agent_modelica_generalization_benchmark_v1 \

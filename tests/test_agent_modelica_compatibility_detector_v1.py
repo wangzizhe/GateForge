@@ -25,7 +25,7 @@ from gateforge.agent_modelica_compatibility_detector_v1 import (
 )
 
 _MODULE = "gateforge.agent_modelica_compatibility_detector_v1"
-_EXECUTOR = "gateforge.agent_modelica_live_executor_gemini_v1"
+_EXECUTOR = "gateforge.agent_modelica_live_executor_v1"
 _IMAGE = "openmodelica/openmodelica:v1.26.1-minimal"
 
 

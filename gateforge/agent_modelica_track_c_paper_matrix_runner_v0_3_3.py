@@ -61,14 +61,24 @@ def run_paper_matrix(
     taskset_path: str = DEFAULT_TASKSET,
     gateforge_results_paths: list[str],
     out_dir: str = DEFAULT_OUT_DIR,
-    claude_repeat: int = 3,
-    codex_repeat: int = 1,
-    claude_model_id: str = "",
-    codex_model_id: str = "",
+    primary_provider: str = "",
+    secondary_provider: str = "",
+    primary_repeat: int = 3,
+    secondary_repeat: int = 1,
+    primary_model_id: str = "",
+    secondary_model_id: str = "",
     skip_existing: bool = True,
 ) -> dict:
     out_root = Path(out_dir)
     runs_root = out_root / "runs"
+    primary_provider = _norm(primary_provider).lower()
+    secondary_provider = _norm(secondary_provider).lower()
+    if not primary_provider:
+        raise ValueError("primary_provider_required_for_track_c_paper_matrix")
+    primary_repeat = int(primary_repeat)
+    secondary_repeat = int(secondary_repeat)
+    primary_model_id = _norm(primary_model_id)
+    secondary_model_id = _norm(secondary_model_id)
 
     gateforge_bundle_path = out_root / "gateforge_authority_bundle.json"
     build_gateforge_bundle_from_results_paths(
@@ -81,12 +91,12 @@ def run_paper_matrix(
     bundle_paths = [str(gateforge_bundle_path.resolve())]
     run_records: list[dict] = []
     provider_repeats = {
-        "claude": max(0, int(claude_repeat)),
-        "codex": max(0, int(codex_repeat)),
+        primary_provider: max(0, int(primary_repeat)),
+        secondary_provider: max(0, int(secondary_repeat)),
     }
     provider_models = {
-        "claude": str(claude_model_id),
-        "codex": str(codex_model_id),
+        primary_provider: str(primary_model_id),
+        secondary_provider: str(secondary_model_id),
     }
 
     for provider_name, repeat_count in provider_repeats.items():
@@ -132,9 +142,9 @@ def run_paper_matrix(
     paper_matrix = summarize_paper_matrix(
         bundle_paths=bundle_paths,
         out_dir=str(out_root / "paper_matrix"),
-        primary_provider="claude",
-        primary_min_clean_runs=max(1, int(claude_repeat)) if int(claude_repeat) > 0 else 1,
-        supplementary_min_clean_runs=max(1, int(codex_repeat)) if int(codex_repeat) > 0 else 1,
+        primary_provider=primary_provider,
+        primary_min_clean_runs=max(1, int(primary_repeat)) if int(primary_repeat) > 0 else 1,
+        supplementary_min_clean_runs=max(1, int(secondary_repeat)) if int(secondary_repeat) > 0 else 1,
     )
     payload = {
         "schema_version": SCHEMA_VERSION,
@@ -156,20 +166,24 @@ def main() -> None:
     parser.add_argument("--taskset", default=DEFAULT_TASKSET)
     parser.add_argument("--gateforge-results", action="append", default=[])
     parser.add_argument("--out-dir", default=DEFAULT_OUT_DIR)
-    parser.add_argument("--claude-repeat", type=int, default=3)
-    parser.add_argument("--codex-repeat", type=int, default=1)
-    parser.add_argument("--claude-model-id", default="")
-    parser.add_argument("--codex-model-id", default="")
+    parser.add_argument("--primary-provider", default="")
+    parser.add_argument("--secondary-provider", default="")
+    parser.add_argument("--primary-repeat", type=int, default=3)
+    parser.add_argument("--secondary-repeat", type=int, default=1)
+    parser.add_argument("--primary-model-id", default="")
+    parser.add_argument("--secondary-model-id", default="")
     parser.add_argument("--no-skip-existing", action="store_true")
     args = parser.parse_args()
     payload = run_paper_matrix(
         taskset_path=str(args.taskset),
         gateforge_results_paths=[str(x) for x in (args.gateforge_results or []) if _norm(x)],
         out_dir=str(args.out_dir),
-        claude_repeat=int(args.claude_repeat),
-        codex_repeat=int(args.codex_repeat),
-        claude_model_id=str(args.claude_model_id),
-        codex_model_id=str(args.codex_model_id),
+        primary_provider=str(args.primary_provider),
+        secondary_provider=str(args.secondary_provider),
+        primary_repeat=int(args.primary_repeat),
+        secondary_repeat=int(args.secondary_repeat),
+        primary_model_id=str(args.primary_model_id),
+        secondary_model_id=str(args.secondary_model_id),
         skip_existing=not bool(args.no_skip_existing),
     )
     print(json.dumps({"status": payload.get("status"), "provider_rows": len(payload.get("provider_rows") or [])}))

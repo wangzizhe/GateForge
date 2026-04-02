@@ -1,6 +1,6 @@
 """Behavioral Contract Evaluator — pure evaluation functions for v1.
 
-Extracted from agent_modelica_live_executor_gemini_v1.py using the
+Extracted from agent_modelica_live_executor_v1.py using the
 Pure Evaluation Extraction Pattern. All functions are stateless and
 deterministic; no Docker/LLM/OMC calls.
 

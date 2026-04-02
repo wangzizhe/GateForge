@@ -14,7 +14,7 @@ if [ ! -f "$MODEL_PATH" ]; then
   exit 1
 fi
 
-python3 -m gateforge.agent_modelica_live_executor_gemini_v1 \
+python3 -m gateforge.agent_modelica_live_executor_v1 \
   --task-id "l2-omc-adapter-smoke" \
   --failure-type "none" \
   --expected-stage "check" \

@@ -109,7 +109,7 @@ def _skip(probe_id: str) -> ProbeResult:
 
 def _probe_docker_reachable(timeout_sec: int = 15) -> ProbeResult:
     """Check that the Docker daemon is reachable."""
-    from .agent_modelica_live_executor_gemini_v1 import _run_cmd
+    from .agent_modelica_live_executor_v1 import _run_cmd
 
     ts = _now_utc()
     t0 = time.monotonic()
@@ -137,7 +137,7 @@ def _probe_docker_reachable(timeout_sec: int = 15) -> ProbeResult:
 
 def _probe_docker_image(image: str, pull_timeout_sec: int = 120) -> ProbeResult:
     """Check that the OMC Docker image is available locally."""
-    from .agent_modelica_live_executor_gemini_v1 import _run_cmd
+    from .agent_modelica_live_executor_v1 import _run_cmd
 
     ts = _now_utc()
     t0 = time.monotonic()
@@ -180,7 +180,7 @@ def _probe_docker_image(image: str, pull_timeout_sec: int = 120) -> ProbeResult:
 
 def _probe_msl_load(image: str, timeout_sec: int = 60) -> ProbeResult:
     """Check that the Modelica Standard Library loads in OMC."""
-    from .agent_modelica_live_executor_gemini_v1 import _run_omc_script_docker
+    from .agent_modelica_live_executor_v1 import _run_omc_script_docker
 
     ts = _now_utc()
     t0 = time.monotonic()
@@ -212,7 +212,7 @@ def _probe_msl_load(image: str, timeout_sec: int = 60) -> ProbeResult:
 
 def _probe_check_model(image: str, timeout_sec: int = 60) -> ProbeResult:
     """Check that a known-good model passes checkModel."""
-    from .agent_modelica_live_executor_gemini_v1 import (
+    from .agent_modelica_live_executor_v1 import (
         _run_omc_script_docker,
         _extract_om_success_flags,
     )
@@ -263,7 +263,7 @@ def _probe_check_model(image: str, timeout_sec: int = 60) -> ProbeResult:
 
 def _probe_simulate(image: str, timeout_sec: int = 60) -> ProbeResult:
     """Check that a known-good model passes simulate."""
-    from .agent_modelica_live_executor_gemini_v1 import (
+    from .agent_modelica_live_executor_v1 import (
         _run_omc_script_docker,
         _extract_om_success_flags,
     )
@@ -334,7 +334,7 @@ def _run_whitelist_models(
     timeout_sec: int,
 ) -> list[ProbeResult]:
     """Run checkModel + simulate for each whitelist model."""
-    from .agent_modelica_live_executor_gemini_v1 import (
+    from .agent_modelica_live_executor_v1 import (
         _run_omc_script_docker,
         _extract_om_success_flags,
     )

@@ -12,7 +12,7 @@ class RunAgentModelicaV034MultiRoundValidationBatchScriptTests(unittest.TestCase
         self.assertIn("agent_modelica_multi_round_validation_workorder_v0_3_4_current/summary.json", content)
         self.assertIn("taskset_candidates_refreshed.json", content)
         self.assertIn("GATEFORGE_AGENT_MULTI_ROUND_DETERMINISTIC_REPAIR=1", content)
-        self.assertIn("python3 -m gateforge.agent_modelica_live_executor_gemini_v1", content)
+        self.assertIn("python3 -m gateforge.agent_modelica_live_executor_v1", content)
 
 
 if __name__ == "__main__":

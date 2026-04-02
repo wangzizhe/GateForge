@@ -192,6 +192,8 @@ class PlannerTests(unittest.TestCase):
             out = Path(d) / "intent.json"
             env = os.environ.copy()
             env.pop("OPENAI_API_KEY", None)
+            env["LLM_MODEL"] = "gpt-5-mini"
+            env["GATEFORGE_DISABLE_ENV_BOOTSTRAP"] = "1"
             proc = subprocess.run(
                 [
                     sys.executable,
@@ -210,7 +212,7 @@ class PlannerTests(unittest.TestCase):
                 env=env,
             )
             self.assertNotEqual(proc.returncode, 0)
-            self.assertIn("requires OPENAI_API_KEY", proc.stderr + proc.stdout)
+            self.assertIn("missing_openai_api_key", proc.stderr + proc.stdout)
             self.assertFalse(out.exists())
 
     def test_planner_gemini_backend_requires_api_key(self) -> None:
@@ -218,6 +220,9 @@ class PlannerTests(unittest.TestCase):
             out = Path(d) / "intent.json"
             env = os.environ.copy()
             env.pop("GOOGLE_API_KEY", None)
+            env.pop("GEMINI_API_KEY", None)
+            env["LLM_MODEL"] = "gemini-2.5-pro"
+            env["GATEFORGE_DISABLE_ENV_BOOTSTRAP"] = "1"
             proc = subprocess.run(
                 [
                     sys.executable,
@@ -236,7 +241,7 @@ class PlannerTests(unittest.TestCase):
                 env=env,
             )
             self.assertNotEqual(proc.returncode, 0)
-            self.assertIn("requires GOOGLE_API_KEY", proc.stderr + proc.stdout)
+            self.assertIn("missing_gemini_api_key", proc.stderr + proc.stdout)
             self.assertFalse(out.exists())
 
     def test_planner_rule_emits_change_set_draft(self) -> None:

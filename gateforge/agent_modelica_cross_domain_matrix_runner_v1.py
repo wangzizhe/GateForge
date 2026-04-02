@@ -150,8 +150,8 @@ def run_matrix(
     library: str,
     pack_path: str,
     out_dir: str,
-    planner_backend: str = "gemini",
-    comparison_backend: str = "gemini",
+    planner_backend: str = "auto",
+    comparison_backend: str = "auto",
     max_rounds: int = 8,
     timeout_sec: int = 300,
     comparison_timeout_sec: int = 120,
@@ -269,8 +269,8 @@ def main() -> None:
     parser.add_argument("--library", required=True)
     parser.add_argument("--pack", required=True)
     parser.add_argument("--out-dir", required=True)
-    parser.add_argument("--planner-backend", default="gemini")
-    parser.add_argument("--comparison-backend", default="gemini")
+    parser.add_argument("--planner-backend", default="auto")
+    parser.add_argument("--comparison-backend", default="auto")
     parser.add_argument("--max-rounds", type=int, default=8)
     parser.add_argument("--timeout-sec", type=int, default=300)
     parser.add_argument("--comparison-timeout-sec", type=int, default=120)

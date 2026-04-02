@@ -22,7 +22,7 @@ LIVE_TIMEOUT_SEC="${GATEFORGE_AGENT_L5_EVAL_LIVE_TIMEOUT_SEC:-90}"
 LIVE_MAX_OUTPUT_CHARS="${GATEFORGE_AGENT_L5_EVAL_LIVE_MAX_OUTPUT_CHARS:-1600}"
 RUNTIME_THRESHOLD="${GATEFORGE_AGENT_L5_EVAL_RUNTIME_THRESHOLD:-0.2}"
 
-L3_LIVE_EXECUTOR_CMD="${GATEFORGE_AGENT_L5_EVAL_L3_LIVE_EXECUTOR_CMD:-python3 -m gateforge.agent_modelica_live_executor_gemini_v1 --task-id \"__TASK_ID__\" --failure-type \"__FAILURE_TYPE__\" --expected-stage \"__EXPECTED_STAGE__\" --source-model-path \"__SOURCE_MODEL_PATH__\" --mutated-model-path \"__MUTATED_MODEL_PATH__\" --repair-actions __REPAIR_ACTIONS_SHQ__ --max-rounds \"__MAX_ROUNDS__\" --timeout-sec \"__MAX_TIME_SEC__\" --planner-backend \"${PLANNER_BACKEND}\" --backend \"${BACKEND}\" --docker-image \"${OM_DOCKER_IMAGE}\"}"
+L3_LIVE_EXECUTOR_CMD="${GATEFORGE_AGENT_L5_EVAL_L3_LIVE_EXECUTOR_CMD:-python3 -m gateforge.agent_modelica_live_executor_v1 --task-id \"__TASK_ID__\" --failure-type \"__FAILURE_TYPE__\" --expected-stage \"__EXPECTED_STAGE__\" --source-model-path \"__SOURCE_MODEL_PATH__\" --mutated-model-path \"__MUTATED_MODEL_PATH__\" --repair-actions __REPAIR_ACTIONS_SHQ__ --max-rounds \"__MAX_ROUNDS__\" --timeout-sec \"__MAX_TIME_SEC__\" --planner-backend \"${PLANNER_BACKEND}\" --backend \"${BACKEND}\" --docker-image \"${OM_DOCKER_IMAGE}\"}"
 L4_LIVE_EXECUTOR_CMD="${GATEFORGE_AGENT_L5_EVAL_L4_LIVE_EXECUTOR_CMD:-${L3_LIVE_EXECUTOR_CMD}}"
 
 L5_GATE_MODE="${GATEFORGE_AGENT_L5_GATE_MODE:-strict}"

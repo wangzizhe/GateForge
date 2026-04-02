@@ -10,7 +10,7 @@ from pathlib import Path
 from .agent_modelica_action_applier_v0 import apply_repair_actions_to_modelica_v0
 from .agent_modelica_diagnostic_ir_v0 import build_diagnostic_ir_v0
 from .agent_modelica_l4_orchestrator_v0 import build_provenance_repair_candidates_v0
-from .agent_modelica_live_executor_gemini_v1 import (
+from .agent_modelica_live_executor_v1 import (
     DEFAULT_DOCKER_IMAGE,
     _find_primary_model_name,
     _read_text,

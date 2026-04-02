@@ -16,7 +16,7 @@ OUT_PATH="$OUT_DIR/ibpsa_acsimplegrid_coupled_conflict_failure.json"
 
 env \
   GATEFORGE_AGENT_MULTI_ROUND_DETERMINISTIC_REPAIR=1 \
-  python3 -m gateforge.agent_modelica_live_executor_gemini_v1 \
+  python3 -m gateforge.agent_modelica_live_executor_v1 \
     --task-id "$TASK_ID" \
     --failure-type coupled_conflict_failure \
     --expected-stage simulate \

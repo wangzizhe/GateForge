@@ -154,14 +154,13 @@ class TestResolveLlmProvider(unittest.TestCase):
         finally:
             self._restore_env(prev)
 
-    def test_defaults_to_gemini_when_only_gemini_key_present(self) -> None:
+    def test_missing_model_raises_even_when_provider_key_exists(self) -> None:
         prev = self._clear_provider_env()
         os.environ["GOOGLE_API_KEY"] = "google-key"
         try:
             with patch("gateforge.agent_modelica_l2_plan_replan_engine_v1.bootstrap_env_from_repo", return_value=0):
-                provider, model, key = resolve_llm_provider("auto")
-            self.assertEqual(provider, "gemini")
-            self.assertEqual(key, "google-key")
+                with self.assertRaisesRegex(ValueError, "missing_llm_model"):
+                    resolve_llm_provider("auto")
         finally:
             self._restore_env(prev)
 

@@ -433,6 +433,7 @@ class RunAgentModelicaL5EvalV1ScriptTests(unittest.TestCase):
             root = Path(d)
             taskset = root / "taskset.json"
             out_dir = root / "out_weekly_hold"
+            ledger = root / "private" / "ledger.jsonl"
             taskset.write_text(
                 json.dumps(
                     {
@@ -447,6 +448,7 @@ class RunAgentModelicaL5EvalV1ScriptTests(unittest.TestCase):
                 **os.environ,
                 "GATEFORGE_AGENT_L5_EVAL_TASKSET": str(taskset),
                 "GATEFORGE_AGENT_L5_EVAL_OUT_DIR": str(out_dir),
+                "GATEFORGE_AGENT_L5_LEDGER_PATH": str(ledger),
                 "GATEFORGE_AGENT_L5_EVAL_MAX_ROUNDS": "1",
                 "GATEFORGE_AGENT_L5_EVAL_MAX_TIME_SEC": "20",
                 "GATEFORGE_AGENT_L5_EVAL_LIVE_TIMEOUT_SEC": "20",

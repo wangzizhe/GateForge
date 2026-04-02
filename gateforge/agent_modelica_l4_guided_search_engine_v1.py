@@ -1,6 +1,6 @@
 """Layer 4 Guided Search Engine for multistep repair.
 
-Extracted from agent_modelica_live_executor_gemini_v1.py to enable
+Extracted from agent_modelica_live_executor_v1.py to enable
 independent testing and reuse.  All functions are pure: they consume
 plain dicts/strings and return plain dicts/strings, with no Docker,
 LLM, or OMC dependencies.

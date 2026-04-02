@@ -222,6 +222,8 @@ class RunAgentModelicaL4RealismEvidenceV1Tests(unittest.TestCase):
             self.assertEqual(proc.returncode, 2, msg=proc.stderr or proc.stdout)
             self.assertTrue(run_root.exists())
             self.assertTrue((run_root / "run_manifest.json").exists())
+            preflight = json.loads((run_root / "environment_preflight_summary.json").read_text(encoding="utf-8"))
+            self.assertIn("missing_llm_model", preflight.get("blockers") or [])
 
     def test_blocked_run_is_run_scoped_and_does_not_update_latest(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
@@ -247,9 +249,11 @@ class RunAgentModelicaL4RealismEvidenceV1Tests(unittest.TestCase):
             self.assertEqual(proc.returncode, 2, msg=proc.stderr or proc.stdout)
             final_summary = json.loads((run_root / "final_run_summary.json").read_text(encoding="utf-8"))
             run_status = json.loads((run_root / "run_status.json").read_text(encoding="utf-8"))
+            preflight = json.loads((run_root / "environment_preflight_summary.json").read_text(encoding="utf-8"))
             self.assertEqual(final_summary.get("status"), "BLOCKED")
             self.assertEqual(final_summary.get("primary_reason"), "environment_preflight_failed")
             self.assertTrue(bool(run_status.get("finalized")))
+            self.assertIn("missing_llm_model", preflight.get("blockers") or [])
             self.assertFalse((out_dir / "latest_summary.json").exists())
             self.assertFalse((out_dir / "latest_run.json").exists())
 
@@ -1105,6 +1109,34 @@ class RunAgentModelicaL4RealismEvidenceV1Tests(unittest.TestCase):
             self.assertEqual(cfg.get("main_planner_backend"), "gemini")
             self.assertEqual(cfg.get("night_planner_backend"), "gemini")
             self.assertEqual(cfg.get("l4_policy_backend"), "gemini")
+
+    def test_runtime_config_defaults_to_auto_when_no_planner_backend_is_persisted(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            run_root = Path(d) / "runs" / "resume_cfg_auto01"
+            (run_root / "challenge").mkdir(parents=True, exist_ok=True)
+            _write_json(
+                run_root / "challenge" / "frozen_summary.json",
+                {
+                    "schema_version": "agent_modelica_l4_challenge_pack_v0",
+                    "status": "PASS",
+                    "baseline_off_success_at_k_pct": 70.0,
+                    "baseline_meets_minimum": True,
+                    "baseline_has_headroom": True,
+                },
+            )
+            with mock.patch.dict(
+                os.environ,
+                {
+                    "GATEFORGE_AGENT_L4_UPLIFT_CHALLENGE_PLANNER_BACKEND": "",
+                    "GATEFORGE_AGENT_L4_UPLIFT_MAIN_PLANNER_BACKEND": "",
+                    "GATEFORGE_AGENT_L4_UPLIFT_NIGHT_PLANNER_BACKEND": "",
+                },
+                clear=False,
+            ):
+                cfg = _runtime_config(run_root)
+            self.assertEqual(cfg.get("challenge_planner_backend"), "auto")
+            self.assertEqual(cfg.get("main_planner_backend"), "rule")
+            self.assertEqual(cfg.get("night_planner_backend"), "auto")
 
     def test_plain_realism_run_infers_and_propagates_gemini_backend_from_env(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]

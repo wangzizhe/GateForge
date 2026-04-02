@@ -1,6 +1,6 @@
 """Shared text-repair utility functions for the Modelica repair agent.
 
-Extracted from agent_modelica_live_executor_gemini_v1.py to serve as a
+Extracted from agent_modelica_live_executor_v1.py to serve as a
 leaf dependency for both the executor and the L4 guided search engine.
 All functions are pure: they consume strings/dicts and return
 strings/dicts, with no I/O, Docker, LLM, or OMC dependencies.

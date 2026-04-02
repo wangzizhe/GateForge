@@ -7,8 +7,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-import gateforge.agent_modelica_live_executor_gemini_v1 as _executor_module
-from gateforge.agent_modelica_live_executor_gemini_v1 import (
+import gateforge.agent_modelica_live_executor_v1 as _executor_module
+from gateforge.agent_modelica_live_executor_v1 import (
     _IN_MEMORY_LIVE_LEDGER,
     _apply_source_blind_multistep_branch_escape_search,
     _apply_source_blind_multistep_llm_plan,
@@ -55,12 +55,43 @@ from gateforge.agent_modelica_live_executor_gemini_v1 import (
     _reserve_live_request,
     _run_omc_script_docker,
     _run_check_and_simulate,
+    _summarize_executor_runtime_hygiene,
     _select_initial_llm_plan_parameters,
     _temporary_workspace,
 )
 
 
 class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
+    def test_summarize_executor_runtime_hygiene_counts_audit_signals(self) -> None:
+        summary = _summarize_executor_runtime_hygiene(
+            attempts=[
+                {
+                    "planner_event": {"operation_name": "planner_invoke"},
+                    "repair_safety_events": [{"operation_name": "apply_repair"}],
+                    "repair_safety_blocked": True,
+                    "candidate_text_checkpoint": {"round_number": 1},
+                    "planner_experience_injection": {
+                        "context_truncation": {"was_truncated": True},
+                    },
+                    "replan_context_prompt_caps": {"was_truncated": True},
+                },
+                {
+                    "rollback_evaluated": True,
+                    "rollback_applied": True,
+                    "repair_safety_events": [{"operation_name": "restore_source"}],
+                },
+            ]
+        )
+        self.assertEqual(int(summary.get("planner_event_count") or 0), 1)
+        self.assertEqual(int(summary.get("repair_safety_event_count") or 0), 2)
+        self.assertEqual(int(summary.get("repair_safety_blocked_count") or 0), 1)
+        self.assertEqual(int(summary.get("candidate_text_checkpoint_count") or 0), 1)
+        self.assertEqual(int(summary.get("rollback_evaluated_count") or 0), 1)
+        self.assertEqual(int(summary.get("rollback_applied_count") or 0), 1)
+        self.assertEqual(int(summary.get("planner_experience_context_truncated_count") or 0), 1)
+        self.assertEqual(int(summary.get("replan_context_truncated_count") or 0), 1)
+        self.assertTrue(bool(summary.get("context_hygiene_truncation_seen")))
+
     def test_diagnostic_context_hints_from_model_detects_underconstrained_probe_and_when_initial(self) -> None:
         hints = _diagnostic_context_hints_from_model(
             failure_type="underconstrained_system",
@@ -79,7 +110,7 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
 
     def test_temporary_workspace_cleanup_swallows_permission_error(self) -> None:
         with patch(
-            "gateforge.agent_modelica_live_executor_gemini_v1.shutil.rmtree",
+            "gateforge.agent_modelica_live_executor_v1.shutil.rmtree",
             side_effect=PermissionError("denied"),
         ):
             with _temporary_workspace(prefix="gf_live_exec_test_tmp_perm_") as td:
@@ -1974,7 +2005,7 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
                 [
                     sys.executable,
                     "-m",
-                    "gateforge.agent_modelica_live_executor_gemini_v1",
+                    "gateforge.agent_modelica_live_executor_v1",
                     "--task-id",
                     "demo-task",
                     "--mutated-model-path",
@@ -2026,7 +2057,7 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
                 sys,
                 "argv",
                 [
-                    "agent_modelica_live_executor_gemini_v1",
+                    "agent_modelica_live_executor_v1",
                     "--task-id",
                     "rule-meta-demo",
                     "--mutated-model-path",
@@ -2043,10 +2074,10 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
                     str(out_path),
                 ],
             ), patch(
-                "gateforge.agent_modelica_live_executor_gemini_v1._run_check_and_simulate",
+                "gateforge.agent_modelica_live_executor_v1._run_check_and_simulate",
                 side_effect=run_side_effects,
             ), patch(
-                "gateforge.agent_modelica_live_executor_gemini_v1.build_diagnostic_ir_v0",
+                "gateforge.agent_modelica_live_executor_v1.build_diagnostic_ir_v0",
                 side_effect=diagnostic_side_effects,
             ), patch("builtins.print"):
                 _executor_module.main()
@@ -2063,6 +2094,197 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
             self.assertEqual(pre_repair.get("rule_id"), "rule_parse_error_pre_repair")
             self.assertEqual(pre_repair.get("action_key"), "repair|parse_error_pre_repair|rule_engine_v1")
             self.assertEqual(pre_repair.get("rule_tier"), "domain_general_rule")
+            checkpoint = first_attempt.get("candidate_text_checkpoint")
+            self.assertIsInstance(checkpoint, dict)
+            self.assertEqual(str(checkpoint.get("operation_name") or ""), "apply_repair")
+            self.assertEqual(int(checkpoint.get("round_number") or 0), 1)
+
+    def test_main_rolls_back_regressive_patch_on_next_round(self) -> None:
+        class _NoOpRegistry:
+            def __init__(self) -> None:
+                self.rules = []
+
+            def try_repairs(self, *_args, **_kwargs):
+                return []
+
+            def resolve_rule_order(self, *_args, **_kwargs):
+                return []
+
+        with tempfile.TemporaryDirectory(prefix="gf_live_exec_rollback_") as td:
+            root = Path(td)
+            model_path = root / "Demo.mo"
+            out_path = root / "out.json"
+            model_path.write_text(
+                "model Demo\n"
+                "  parameter Real k=1;\n"
+                "equation\n"
+                "  annotation(Documentation(info=\"demo\"));\n"
+                "end Demo;\n",
+                encoding="utf-8",
+            )
+
+            run_side_effects = [
+                (1, "Simulation failed", True, False),
+                (1, "Compile failed after bad patch", False, False),
+                (1, "Simulation failed again after rollback", True, False),
+            ]
+            diagnostic_side_effects = [
+                {"error_type": "parameter_binding_error", "reason": "simulate_failed"},
+                {"error_type": "script_parse_error", "reason": "compile_failed"},
+                {"error_type": "parameter_binding_error", "reason": "simulate_failed_again"},
+            ]
+
+            with patch.object(
+                sys,
+                "argv",
+                [
+                    "agent_modelica_live_executor_v1",
+                    "--task-id",
+                    "rollback-demo",
+                    "--mutated-model-path",
+                    str(model_path),
+                    "--failure-type",
+                    "parameter_binding_error",
+                    "--planner-backend",
+                    "rule",
+                    "--max-rounds",
+                    "3",
+                    "--backend",
+                    "omc",
+                    "--out",
+                    str(out_path),
+                ],
+            ), patch(
+                "gateforge.agent_modelica_live_executor_v1._build_default_rule_registry",
+                return_value=_NoOpRegistry(),
+            ), patch(
+                "gateforge.agent_modelica_live_executor_v1._run_check_and_simulate",
+                side_effect=run_side_effects,
+            ), patch(
+                "gateforge.agent_modelica_live_executor_v1.build_diagnostic_ir_v0",
+                side_effect=diagnostic_side_effects,
+            ), patch(
+                "gateforge.agent_modelica_live_executor_v1._apply_source_model_repair",
+                return_value=("model Demo\n  broken := ;\nend Demo;\n", {"applied": True, "reason": "test_bad_patch"}),
+            ), patch("builtins.print"):
+                _executor_module.main()
+
+            payload = json.loads(out_path.read_text(encoding="utf-8"))
+            attempts = payload.get("attempts")
+            self.assertIsInstance(attempts, list)
+            self.assertEqual(len(attempts), 3)
+            first_attempt = attempts[0]
+            second_attempt = attempts[1]
+            self.assertIsInstance(first_attempt.get("candidate_text_checkpoint"), dict)
+            self.assertTrue(bool(second_attempt.get("rollback_evaluated")))
+            self.assertTrue(bool(second_attempt.get("rollback_applied")))
+            self.assertEqual(str(second_attempt.get("rollback_reason") or ""), "check_regression")
+            self.assertEqual(int(second_attempt.get("rollback_against_round") or 0), 1)
+            rollback_checkpoint = second_attempt.get("rollback_checkpoint")
+            self.assertIsInstance(rollback_checkpoint, dict)
+            self.assertEqual(str(rollback_checkpoint.get("operation_name") or ""), "apply_repair")
+            runtime_hygiene = payload.get("executor_runtime_hygiene")
+            self.assertIsInstance(runtime_hygiene, dict)
+            self.assertEqual(int(runtime_hygiene.get("candidate_text_checkpoint_count") or 0), 1)
+            self.assertEqual(int(runtime_hygiene.get("rollback_evaluated_count") or 0), 1)
+            self.assertEqual(int(runtime_hygiene.get("rollback_applied_count") or 0), 1)
+
+    def test_main_blocks_unsafe_patch_under_planner_heavy_profile(self) -> None:
+        class _NoOpRegistry:
+            def __init__(self) -> None:
+                self.rules = []
+
+            def try_repairs(self, *_args, **_kwargs):
+                return []
+
+            def resolve_rule_order(self, *_args, **_kwargs):
+                return []
+
+        with tempfile.TemporaryDirectory(prefix="gf_live_exec_safety_") as td:
+            root = Path(td)
+            model_path = root / "Demo.mo"
+            out_path = root / "out.json"
+            model_path.write_text(
+                "model Demo\n"
+                "  parameter Real k=1;\n"
+                "equation\n"
+                "  annotation(Documentation(info=\"demo\"));\n"
+                "end Demo;\n",
+                encoding="utf-8",
+            )
+
+            with patch.object(
+                sys,
+                "argv",
+                [
+                    "agent_modelica_live_executor_v1",
+                    "--task-id",
+                    "safety-demo",
+                    "--mutated-model-path",
+                    str(model_path),
+                    "--failure-type",
+                    "parameter_binding_error",
+                    "--planner-backend",
+                    "gemini",
+                    "--max-rounds",
+                    "2",
+                    "--backend",
+                    "omc",
+                    "--out",
+                    str(out_path),
+                ],
+            ), patch(
+                "gateforge.agent_modelica_live_executor_v1._resolve_llm_provider",
+                return_value=("gemini", "", ""),
+            ), patch(
+                "gateforge.agent_modelica_live_executor_v1._build_default_rule_registry",
+                return_value=_NoOpRegistry(),
+            ), patch(
+                "gateforge.agent_modelica_live_executor_v1._run_check_and_simulate",
+                side_effect=[
+                    (1, "Simulation failed", True, False),
+                    (1, "Simulation failed again", True, False),
+                ],
+            ), patch(
+                "gateforge.agent_modelica_live_executor_v1.build_diagnostic_ir_v0",
+                side_effect=[
+                    {"error_type": "parameter_binding_error", "reason": "simulate_failed"},
+                    {"error_type": "parameter_binding_error", "reason": "simulate_failed_again"},
+                ],
+            ), patch(
+                "gateforge.agent_modelica_live_executor_v1._apply_source_blind_multistep_local_search",
+                return_value=("", {"applied": False, "reason": "not_applicable"}),
+            ), patch(
+                "gateforge.agent_modelica_live_executor_v1._apply_source_blind_multistep_exposure_repair",
+                return_value=("", {"applied": False, "reason": "not_applicable"}),
+            ), patch(
+                "gateforge.agent_modelica_live_executor_v1._apply_behavioral_robustness_source_blind_local_repair",
+                return_value=("", {"applied": False, "reason": "not_applicable"}),
+            ), patch(
+                "gateforge.agent_modelica_live_executor_v1._apply_source_model_repair",
+                return_value=("", {"applied": True, "reason": "test_unsafe_patch"}),
+            ), patch(
+                "gateforge.agent_modelica_live_executor_v1._llm_generate_repair_plan",
+                return_value=({}, "llm_plan_skipped", "gemini"),
+            ), patch("builtins.print"):
+                _executor_module.main()
+
+            payload = json.loads(out_path.read_text(encoding="utf-8"))
+            attempts = payload.get("attempts")
+            self.assertIsInstance(attempts, list)
+            self.assertEqual(len(attempts), 1)
+            first_attempt = attempts[0]
+            self.assertTrue(bool(first_attempt.get("repair_safety_blocked")))
+            self.assertEqual(str(first_attempt.get("repair_safety_blocked_operation") or ""), "apply_repair")
+            self.assertEqual(str(first_attempt.get("repair_safety_blocked_verdict") or ""), "reject")
+            self.assertIn("EMPTY_REPAIR", list(first_attempt.get("repair_safety_blocked_violation_ids") or []))
+            self.assertNotIn("candidate_text_checkpoint", first_attempt)
+            safety_events = first_attempt.get("repair_safety_events")
+            self.assertIsInstance(safety_events, list)
+            self.assertEqual(len(safety_events), 1)
+            self.assertEqual(str(safety_events[0].get("profile") or ""), "planner_heavy")
+            self.assertEqual(str(safety_events[0].get("verdict") or ""), "reject")
+            self.assertIn("EMPTY_REPAIR", list(safety_events[0].get("violation_ids") or []))
 
     def test_main_emits_experience_replay_order_when_enabled(self) -> None:
         with tempfile.TemporaryDirectory(prefix="gf_live_exec_replay_") as td:
@@ -2125,7 +2347,7 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
                 sys,
                 "argv",
                 [
-                    "agent_modelica_live_executor_gemini_v1",
+                    "agent_modelica_live_executor_v1",
                     "--task-id",
                     "replay-demo",
                     "--mutated-model-path",
@@ -2150,10 +2372,10 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
                     str(out_path),
                 ],
             ), patch(
-                "gateforge.agent_modelica_live_executor_gemini_v1._run_check_and_simulate",
+                "gateforge.agent_modelica_live_executor_v1._run_check_and_simulate",
                 side_effect=run_side_effects,
             ), patch(
-                "gateforge.agent_modelica_live_executor_gemini_v1.build_diagnostic_ir_v0",
+                "gateforge.agent_modelica_live_executor_v1.build_diagnostic_ir_v0",
                 side_effect=diagnostic_side_effects,
             ), patch("builtins.print"):
                 _executor_module.main()
@@ -2194,6 +2416,274 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
             self.assertGreaterEqual(len(action_contributions), 1)
             self.assertEqual(action_contributions[0].get("rule_id"), "rule_parse_error_pre_repair")
             self.assertEqual(action_contributions[0].get("contribution"), "advancing")
+
+    def test_main_truncates_planner_experience_context_before_llm_call(self) -> None:
+        class _NoOpRegistry:
+            def __init__(self) -> None:
+                self.rules = []
+
+            def try_repairs(self, *_args, **_kwargs):
+                return []
+
+            def resolve_rule_order(self, *_args, **_kwargs):
+                return []
+
+        captured: dict = {}
+
+        def _fake_llm_generate_repair_plan(**kwargs):
+            captured["planner_experience_context"] = kwargs.get("planner_experience_context")
+            return {}, "llm_plan_skipped", "gemini"
+
+        with tempfile.TemporaryDirectory(prefix="gf_live_exec_planner_trunc_") as td:
+            root = Path(td)
+            model_path = root / "Demo.mo"
+            out_path = root / "out.json"
+            experience_path = root / "experience.json"
+            model_path.write_text(
+                "model Demo\n"
+                "  parameter Real k=1;\n"
+                "equation\n"
+                "  annotation(Documentation(info=\"demo\"));\n"
+                "end Demo;\n",
+                encoding="utf-8",
+            )
+            experience_path.write_text(json.dumps({"records": [{"id": "demo"}]}), encoding="utf-8")
+            huge_context = "\n".join(f"hint line {i}" for i in range(250))
+
+            with patch.object(
+                sys,
+                "argv",
+                [
+                    "agent_modelica_live_executor_v1",
+                    "--task-id",
+                    "planner-trunc-demo",
+                    "--mutated-model-path",
+                    str(model_path),
+                    "--failure-type",
+                    "parameter_binding_error",
+                    "--planner-backend",
+                    "gemini",
+                    "--planner-experience-injection",
+                    "on",
+                    "--experience-source",
+                    str(experience_path),
+                    "--max-rounds",
+                    "2",
+                    "--backend",
+                    "omc",
+                    "--out",
+                    str(out_path),
+                ],
+            ), patch(
+                "gateforge.agent_modelica_live_executor_v1._resolve_llm_provider",
+                return_value=("gemini", "", ""),
+            ), patch(
+                "gateforge.agent_modelica_live_executor_v1._build_default_rule_registry",
+                return_value=_NoOpRegistry(),
+            ), patch(
+                "gateforge.agent_modelica_live_executor_v1._run_check_and_simulate",
+                side_effect=[
+                    (1, "Simulation failed", True, False),
+                    (1, "Simulation failed again", True, False),
+                ],
+            ), patch(
+                "gateforge.agent_modelica_live_executor_v1.build_diagnostic_ir_v0",
+                side_effect=[
+                    {"error_type": "parameter_binding_error", "reason": "simulate_failed"},
+                    {"error_type": "parameter_binding_error", "reason": "simulate_failed_again"},
+                ],
+            ), patch(
+                "gateforge.agent_modelica_live_executor_v1._apply_source_blind_multistep_local_search",
+                return_value=("", {"applied": False, "reason": "not_applicable"}),
+            ), patch(
+                "gateforge.agent_modelica_live_executor_v1._apply_source_blind_multistep_exposure_repair",
+                return_value=("", {"applied": False, "reason": "not_applicable"}),
+            ), patch(
+                "gateforge.agent_modelica_live_executor_v1._apply_behavioral_robustness_source_blind_local_repair",
+                return_value=("", {"applied": False, "reason": "not_applicable"}),
+            ), patch(
+                "gateforge.agent_modelica_live_executor_v1._apply_source_model_repair",
+                return_value=("", {"applied": False, "reason": "not_applicable"}),
+            ), patch(
+                "gateforge.agent_modelica_live_executor_v1._build_planner_experience_context",
+                return_value={
+                    "used": True,
+                    "positive_hint_count": 1,
+                    "caution_hint_count": 0,
+                    "prompt_token_estimate": 999,
+                    "truncated": False,
+                    "prompt_context_text": huge_context,
+                },
+            ), patch(
+                "gateforge.agent_modelica_live_executor_v1._llm_generate_repair_plan",
+                side_effect=_fake_llm_generate_repair_plan,
+            ), patch("builtins.print"):
+                _executor_module.main()
+
+            payload = json.loads(out_path.read_text(encoding="utf-8"))
+            planner_injection = (
+                payload.get("planner_experience_injection")
+                if isinstance(payload.get("planner_experience_injection"), dict)
+                else {}
+            )
+            truncation = (
+                planner_injection.get("context_truncation")
+                if isinstance(planner_injection.get("context_truncation"), dict)
+                else {}
+            )
+            self.assertTrue(bool(planner_injection.get("enabled")))
+            self.assertTrue(bool(planner_injection.get("used")))
+            self.assertTrue(bool(planner_injection.get("truncated")))
+            self.assertTrue(bool(truncation.get("was_truncated")))
+            self.assertEqual(str(truncation.get("truncation_reason") or ""), "line_cap")
+            runtime_hygiene = payload.get("executor_runtime_hygiene")
+            self.assertIsInstance(runtime_hygiene, dict)
+            self.assertEqual(
+                int(runtime_hygiene.get("planner_experience_context_truncated_count") or 0),
+                1,
+            )
+            self.assertTrue(bool(runtime_hygiene.get("context_hygiene_truncation_seen")))
+            passed_context = captured.get("planner_experience_context")
+            self.assertIsInstance(passed_context, dict)
+            prompt_context_text = str(passed_context.get("prompt_context_text") or "")
+            self.assertIn("planner_experience_context", prompt_context_text)
+            self.assertIn("line_cap", prompt_context_text)
+            self.assertLessEqual(len(prompt_context_text.splitlines()), 201)
+
+    def test_main_caps_replan_context_lists_before_llm_call(self) -> None:
+        class _NoOpRegistry:
+            def __init__(self) -> None:
+                self.rules = []
+
+            def try_repairs(self, *_args, **_kwargs):
+                return []
+
+            def resolve_rule_order(self, *_args, **_kwargs):
+                return []
+
+        captured: dict = {}
+
+        def _fake_llm_generate_repair_plan(**kwargs):
+            captured["replan_context"] = kwargs.get("replan_context")
+            return {}, "llm_plan_skipped", "gemini"
+
+        with tempfile.TemporaryDirectory(prefix="gf_live_exec_replan_cap_") as td:
+            root = Path(td)
+            model_path = root / "Demo.mo"
+            out_path = root / "out.json"
+            model_path.write_text(
+                "model Demo\n"
+                "  parameter Real k=1;\n"
+                "equation\n"
+                "  annotation(Documentation(info=\"demo\"));\n"
+                "end Demo;\n",
+                encoding="utf-8",
+            )
+            long_parameters = [f"p{i}" for i in range(10)]
+            long_directions = [f"d{i}" for i in range(9)]
+            long_observation = {
+                "guided_search_bucket_sequence": [f"bucket_{i}" for i in range(8)],
+                "no_progress_buckets": [f"np_{i}" for i in range(7)],
+                "abandoned_branches": [f"branch_{i}" for i in range(9)],
+                "branch_frozen_by_budget": [f"frozen_{i}" for i in range(8)],
+            }
+
+            with patch.object(
+                sys,
+                "argv",
+                [
+                    "agent_modelica_live_executor_v1",
+                    "--task-id",
+                    "replan-cap-demo",
+                    "--mutated-model-path",
+                    str(model_path),
+                    "--failure-type",
+                    "parameter_binding_error",
+                    "--planner-backend",
+                    "gemini",
+                    "--max-rounds",
+                    "2",
+                    "--backend",
+                    "omc",
+                    "--out",
+                    str(out_path),
+                ],
+            ), patch(
+                "gateforge.agent_modelica_live_executor_v1._resolve_llm_provider",
+                return_value=("gemini", "", ""),
+            ), patch(
+                "gateforge.agent_modelica_live_executor_v1._build_default_rule_registry",
+                return_value=_NoOpRegistry(),
+            ), patch(
+                "gateforge.agent_modelica_live_executor_v1._run_check_and_simulate",
+                side_effect=[
+                    (1, "Simulation failed", True, False),
+                    (1, "Simulation failed again", True, False),
+                ],
+            ), patch(
+                "gateforge.agent_modelica_live_executor_v1.build_diagnostic_ir_v0",
+                side_effect=[
+                    {"error_type": "parameter_binding_error", "reason": "simulate_failed"},
+                    {"error_type": "parameter_binding_error", "reason": "simulate_failed_again"},
+                ],
+            ), patch(
+                "gateforge.agent_modelica_live_executor_v1._apply_source_blind_multistep_local_search",
+                return_value=("", {"applied": False, "reason": "not_applicable"}),
+            ), patch(
+                "gateforge.agent_modelica_live_executor_v1._apply_source_blind_multistep_exposure_repair",
+                return_value=("", {"applied": False, "reason": "not_applicable"}),
+            ), patch(
+                "gateforge.agent_modelica_live_executor_v1._apply_behavioral_robustness_source_blind_local_repair",
+                return_value=("", {"applied": False, "reason": "not_applicable"}),
+            ), patch(
+                "gateforge.agent_modelica_live_executor_v1._apply_source_model_repair",
+                return_value=("", {"applied": False, "reason": "not_applicable"}),
+            ), patch(
+                "gateforge.agent_modelica_live_executor_v1.make_multistep_memory",
+                return_value={
+                    "last_llm_plan_candidate_parameters": long_parameters,
+                    "last_llm_plan_candidate_value_directions": long_directions,
+                },
+            ), patch(
+                "gateforge.agent_modelica_live_executor_v1._build_source_blind_multistep_llm_replan_context",
+                return_value={
+                    "should_force_replan": True,
+                    "llm_replan_reason": "same_branch_stall",
+                    "previous_plan_failed_signal": "same_stage_2_branch_stall_after_first_plan",
+                    "previous_branch": "behavior_branch",
+                },
+            ), patch(
+                "gateforge.agent_modelica_live_executor_v1._build_guided_search_observation_payload",
+                return_value=long_observation,
+            ), patch(
+                "gateforge.agent_modelica_live_executor_v1._llm_generate_repair_plan",
+                side_effect=_fake_llm_generate_repair_plan,
+            ), patch("builtins.print"):
+                _executor_module.main()
+
+            payload = json.loads(out_path.read_text(encoding="utf-8"))
+            attempts = payload.get("attempts")
+            self.assertIsInstance(attempts, list)
+            self.assertEqual(len(attempts), 1)
+            first_attempt = attempts[0]
+            replan_caps = first_attempt.get("replan_context_prompt_caps")
+            self.assertIsInstance(replan_caps, dict)
+            self.assertTrue(bool(replan_caps.get("was_truncated")))
+            runtime_hygiene = payload.get("executor_runtime_hygiene")
+            self.assertIsInstance(runtime_hygiene, dict)
+            self.assertEqual(int(runtime_hygiene.get("replan_context_truncated_count") or 0), 1)
+            self.assertTrue(bool(runtime_hygiene.get("context_hygiene_truncation_seen")))
+
+            passed_context = captured.get("replan_context")
+            self.assertIsInstance(passed_context, dict)
+            self.assertLessEqual(len(passed_context.get("previous_candidate_parameters") or []), 6)
+            self.assertLessEqual(len(passed_context.get("previous_candidate_value_directions") or []), 6)
+            guided_search = passed_context.get("guided_search_observation")
+            self.assertIsInstance(guided_search, dict)
+            self.assertLessEqual(len(guided_search.get("guided_search_bucket_sequence") or []), 6)
+            self.assertLessEqual(len(guided_search.get("no_progress_buckets") or []), 6)
+            self.assertLessEqual(len(guided_search.get("abandoned_branches") or []), 6)
+            self.assertLessEqual(len(guided_search.get("branch_frozen_by_budget") or []), 6)
 
 
 if __name__ == "__main__":

@@ -16,7 +16,7 @@ class RunAgentModelicaElectricalLiveLearningV0Tests(unittest.TestCase):
         self.assertIn("agent_modelica_diagnostic_quality_v0", content)
         self.assertIn("--mutation-style \"$MUTATION_STYLE\"", content)
         self.assertIn("--repair-actions __REPAIR_ACTIONS_SHQ__", content)
-        self.assertIn("GATEFORGE_AGENT_LIVE_PLANNER_BACKEND:-gemini", content)
+        self.assertIn("GATEFORGE_AGENT_LIVE_PLANNER_BACKEND:-auto", content)
 
 
 if __name__ == "__main__":

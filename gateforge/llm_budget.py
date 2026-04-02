@@ -3,7 +3,7 @@
 Manages per-run request caps, 429-rate-limit exponential backoff,
 and ledger persistence (in-memory or file-based). Provider-agnostic.
 
-Extracted from agent_modelica_live_executor_gemini_v1.
+Extracted from agent_modelica_live_executor_v1.
 """
 
 from __future__ import annotations

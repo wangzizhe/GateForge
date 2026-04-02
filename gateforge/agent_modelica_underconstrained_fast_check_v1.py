@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from .agent_modelica_diagnostic_ir_v0 import build_diagnostic_ir_v0
-from .agent_modelica_live_executor_gemini_v1 import (
+from .agent_modelica_live_executor_v1 import (
     DEFAULT_DOCKER_IMAGE,
     _diagnostic_context_hints_from_model,
     _find_primary_model_name,

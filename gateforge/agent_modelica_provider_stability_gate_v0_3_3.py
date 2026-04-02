@@ -7,8 +7,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 
-SCHEMA_VERSION = "agent_modelica_claude_stability_gate_v0_3_3"
-DEFAULT_OUT_DIR = "artifacts/agent_modelica_claude_stability_gate_v0_3_3"
+SCHEMA_VERSION = "agent_modelica_provider_stability_gate_v0_3_3"
+DEFAULT_OUT_DIR = "artifacts/agent_modelica_provider_stability_gate_v0_3_3"
 AUTH_SESSION_REASON_HINTS = ("auth", "login", "session")
 RUN_INDEX_PATTERN = re.compile(r"run(\d+)", re.IGNORECASE)
 
@@ -73,7 +73,7 @@ def _is_auth_session_failure(row: dict) -> bool:
     return "not logged in" in output_text or "/login" in output_text or "session" in output_text
 
 
-def summarize_claude_stability(
+def summarize_provider_stability(
     *,
     bundle_paths: list[str],
     out_dir: str = DEFAULT_OUT_DIR,
@@ -153,7 +153,7 @@ def summarize_claude_stability(
         out_root / "summary.md",
         "\n".join(
             [
-                "# Claude Stability Gate v0.3.3",
+                "# Provider Stability Gate v0.3.3",
                 "",
                 f"- classification: `{payload['classification']}`",
                 f"- clean_run_count: `{payload['metrics']['clean_run_count']}`",
@@ -167,9 +167,8 @@ def summarize_claude_stability(
     )
     return payload
 
-
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Summarize Claude repeated-run stability for v0.3.3.")
+    parser = argparse.ArgumentParser(description="Summarize repeated-run provider stability for v0.3.3.")
     parser.add_argument("--bundle", action="append", default=[])
     parser.add_argument("--out-dir", default=DEFAULT_OUT_DIR)
     parser.add_argument("--min-clean-runs", type=int, default=3)
@@ -179,7 +178,7 @@ def main() -> None:
     parser.add_argument("--working-days-elapsed", type=int, default=0)
     parser.add_argument("--working-days-limit", type=int, default=3)
     args = parser.parse_args()
-    payload = summarize_claude_stability(
+    payload = summarize_provider_stability(
         bundle_paths=[str(x) for x in (args.bundle or []) if str(x).strip()],
         out_dir=str(args.out_dir),
         min_clean_runs=int(args.min_clean_runs),

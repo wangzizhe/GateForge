@@ -48,7 +48,7 @@ PY
   out_path="$OUT_DIR/${task_id}.json"
   env \
     GATEFORGE_AGENT_MULTI_ROUND_DETERMINISTIC_REPAIR=1 \
-    python3 -m gateforge.agent_modelica_live_executor_gemini_v1 \
+    python3 -m gateforge.agent_modelica_live_executor_v1 \
       --task-id "${task_id}_v034_multiround_validation" \
       --failure-type "$failure_type" \
       --expected-stage "$expected_stage" \

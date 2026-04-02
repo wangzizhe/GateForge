@@ -83,7 +83,7 @@ def build_multi_round_validation_workorder(
         "tasks": selected_rows,
         "command_template": (
             "env GATEFORGE_AGENT_MULTI_ROUND_DETERMINISTIC_REPAIR=1 "
-            "python3 -m gateforge.agent_modelica_live_executor_gemini_v1 "
+            "python3 -m gateforge.agent_modelica_live_executor_v1 "
             "--model-path <MODEL_PATH> --failure-type <FAILURE_TYPE> --source-model-path <SOURCE_MODEL_PATH> --source-qualified-model-name <MODEL_NAME>"
         ),
         "next_actions": [

@@ -20,10 +20,10 @@ class AgentModelicaTrackCMinimumMatrixRunnerV032Tests(unittest.TestCase):
                 json.dumps({"records": [{"task_id": "t1", "passed": True, "rounds_used": 1, "elapsed_sec": 1.0}]}),
                 encoding="utf-8",
             )
-            claude_probe = root / "claude_probe.json"
-            claude_probe.write_text(json.dumps({"shared_tool_plane_reached": True}), encoding="utf-8")
-            codex_probe = root / "codex_probe.json"
-            codex_probe.write_text(json.dumps({"shared_tool_plane_reached": True}), encoding="utf-8")
+            primary_probe = root / "primary_probe.json"
+            primary_probe.write_text(json.dumps({"shared_tool_plane_reached": True}), encoding="utf-8")
+            secondary_probe = root / "secondary_probe.json"
+            secondary_probe.write_text(json.dumps({"shared_tool_plane_reached": True}), encoding="utf-8")
             slice_summary = root / "slice.json"
             slice_summary.write_text(json.dumps({"status": "NEEDS_MORE_GENERATION"}), encoding="utf-8")
             existing_run_dir = root / "out" / "runs" / "claude_run1"
@@ -49,8 +49,8 @@ class AgentModelicaTrackCMinimumMatrixRunnerV032Tests(unittest.TestCase):
                     out_dir=str(root / "out"),
                     taskset_path=str(taskset),
                     gateforge_results_paths=[str(gateforge_results)],
-                    claude_probe_summary_path=str(claude_probe),
-                    codex_probe_summary_path=str(codex_probe),
+                    primary_probe_summary_path=str(primary_probe),
+                    secondary_probe_summary_path=str(secondary_probe),
                     slice_summary_path=str(slice_summary),
                     repeat_count=1,
                     providers=["claude"],

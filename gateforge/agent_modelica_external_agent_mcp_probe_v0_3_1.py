@@ -10,11 +10,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from .agent_modelica_external_agent_live_runner_v0_3_1 import (
-    _build_claude_command,
-    _build_codex_add_command,
-    _build_codex_exec_command,
-    _build_codex_remove_command,
-    _claude_mcp_config,
+    SUPPORTED_EXTERNAL_PROVIDERS,
+    _append_provider_server_hint,
+    _build_provider_inline_mcp_command,
+    _build_provider_registered_server_add_command,
+    _build_provider_registered_server_exec_command,
+    _build_provider_registered_server_remove_command,
+    _provider_mcp_config,
     _run_subprocess,
     _server_command,
 )
@@ -104,7 +106,7 @@ def run_probe(
     use_global_server_name: str = "",
 ) -> dict:
     provider = str(provider_name).strip().lower()
-    if provider not in {"claude", "codex"}:
+    if provider not in SUPPORTED_EXTERNAL_PROVIDERS:
         raise ValueError(f"unsupported_provider:{provider_name}")
     out_root = Path(out_dir)
     schema_path = out_root / "response_schema.json"
@@ -128,9 +130,10 @@ def run_probe(
         if provider == "claude":
             mcp_config_path = ""
             if not use_global_server_name:
-                mcp_config_path = str((out_root / "claude_mcp.json").resolve())
-                _write_json(mcp_config_path, _claude_mcp_config(server_cmd))
-            cmd = _build_claude_command(
+                mcp_config_path = str((out_root / "provider_mcp_config.json").resolve())
+                _write_json(mcp_config_path, _provider_mcp_config(server_cmd))
+            cmd = _build_provider_inline_mcp_command(
+                provider_name=provider,
                 prompt=prompt,
                 mcp_config_path=str(mcp_config_path),
                 output_schema_path=str(schema_path.resolve()),
@@ -147,19 +150,29 @@ def run_probe(
                 added_here = True
             add_proc = None
             if added_here:
-                add_proc = _run_subprocess(_build_codex_add_command(server_name=server_name, server_cmd=server_cmd), timeout_sec=30)
+                add_proc = _run_subprocess(
+                    _build_provider_registered_server_add_command(
+                        provider_name=provider,
+                        server_name=server_name,
+                        server_cmd=server_cmd,
+                    ),
+                    timeout_sec=30,
+                )
             else:
                 add_proc = subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
             stdout += str(add_proc.stdout or "")
             stderr += str(add_proc.stderr or "")
             if add_proc.returncode == 0:
-                last_message_path = out_root / "codex_last_message.json"
-                # Append server-name hint so Codex routes to the probe-specific server,
-                # not any globally registered server with overlapping tools.
-                codex_prompt = prompt + f"\n\nIMPORTANT: Use only the MCP server named `{server_name}` for all OpenModelica tool calls."
+                last_message_path = out_root / "provider_last_message.json"
+                provider_prompt = _append_provider_server_hint(
+                    provider_name=provider,
+                    prompt=prompt,
+                    server_name=server_name,
+                )
                 exec_proc = _run_subprocess(
-                    _build_codex_exec_command(
-                        prompt=codex_prompt,
+                    _build_provider_registered_server_exec_command(
+                        provider_name=provider,
+                        prompt=provider_prompt,
                         output_schema_path=str(schema_path.resolve()),
                         last_message_path=str(last_message_path),
                         model_id=model_id,
@@ -172,7 +185,13 @@ def run_probe(
                 if last_message_path.exists():
                     payload = _extract_probe_payload(last_message_path.read_text(encoding="utf-8"))
                 if added_here:
-                    _run_subprocess(_build_codex_remove_command(server_name=server_name), timeout_sec=30)
+                    _run_subprocess(
+                        _build_provider_registered_server_remove_command(
+                            provider_name=provider,
+                            server_name=server_name,
+                        ),
+                        timeout_sec=30,
+                    )
     except subprocess.TimeoutExpired:
         timed_out = True
 
@@ -207,7 +226,7 @@ def run_probe(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Probe whether an external provider can actually call the shared OMC MCP tool plane.")
-    parser.add_argument("--provider", choices=["claude", "codex"], required=True)
+    parser.add_argument("--provider", choices=list(SUPPORTED_EXTERNAL_PROVIDERS), required=True)
     parser.add_argument("--tool-name", default="omc_get_error_string")
     parser.add_argument("--out-dir", default=DEFAULT_OUT_DIR)
     parser.add_argument("--model-id", default="")

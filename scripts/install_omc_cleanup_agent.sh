@@ -6,7 +6,7 @@
 #   ./scripts/install_omc_cleanup_agent.sh          # install
 #   ./scripts/install_omc_cleanup_agent.sh --remove  # uninstall
 #
-# After the Docker --user fix (agent_modelica_live_executor_gemini_v1.py),
+# After the Docker --user fix (agent_modelica_live_executor_v1.py),
 # new workspace files are user-owned and cleaned up automatically. This agent
 # acts as a safety net for any pre-fix orphaned directories.
 

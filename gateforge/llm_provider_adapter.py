@@ -5,7 +5,7 @@ different LLM providers behind a unified interface. Provider-specific wire
 format details are encapsulated in each adapter, keeping the agent core
 provider-agnostic.
 
-Extracted from agent_modelica_live_executor_gemini_v1 and llm_planner.
+Extracted from agent_modelica_live_executor_v1 and llm_planner.
 """
 
 from __future__ import annotations
@@ -68,6 +68,8 @@ def _load_env_file(path: Path, allowed_keys: set[str] | None = None) -> int:
 
 
 def _bootstrap_env_from_repo(allowed_keys: set[str] | None = None) -> int:
+    if str(os.getenv("GATEFORGE_DISABLE_ENV_BOOTSTRAP") or "").strip() == "1":
+        return 0
     repo_root = Path(__file__).resolve().parents[1]
     candidates = [Path.cwd() / ".env", repo_root / ".env"]
     loaded = 0
@@ -353,6 +355,8 @@ def resolve_provider_adapter(
         or str(os.getenv("GATEFORGE_GEMINI_MODEL") or "").strip()
         or str(os.getenv("GEMINI_MODEL") or "").strip()
     )
+    if not model:
+        raise ValueError("missing_llm_model")
     explicit = requested if requested in {"gemini", "openai", "anthropic"} else ""
     if not explicit:
         explicit = str(
@@ -361,25 +365,14 @@ def resolve_provider_adapter(
             or ""
         ).strip().lower()
     if explicit not in {"gemini", "openai", "anthropic"}:
-        has_openai = bool(str(os.getenv("OPENAI_API_KEY") or "").strip())
-        has_anthropic = bool(str(os.getenv("ANTHROPIC_API_KEY") or "").strip())
-        has_gemini = bool(
-            str(os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY") or "").strip()
-        )
-        if model and OPENAI_MODEL_HINT_PATTERN.search(model) and has_openai:
+        if OPENAI_MODEL_HINT_PATTERN.search(model):
             explicit = "openai"
-        elif model and ANTHROPIC_MODEL_HINT_PATTERN.search(model) and has_anthropic:
+        elif ANTHROPIC_MODEL_HINT_PATTERN.search(model):
             explicit = "anthropic"
-        elif model and "gemini" in model.lower() and has_gemini:
-            explicit = "gemini"
-        elif has_openai and not has_gemini and not has_anthropic:
-            explicit = "openai"
-        elif has_anthropic and not has_openai and not has_gemini:
-            explicit = "anthropic"
-        elif has_gemini and not has_openai and not has_anthropic:
+        elif "gemini" in model.lower():
             explicit = "gemini"
         else:
-            explicit = "gemini"
+            raise ValueError(f"unsupported_llm_model:{model}")
 
     if explicit == "openai":
         api_key = str(os.getenv("OPENAI_API_KEY") or "").strip()
@@ -389,6 +382,8 @@ def resolve_provider_adapter(
         api_key = str(
             os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY") or ""
         ).strip()
+    if not api_key:
+        raise ValueError(f"missing_{explicit}_api_key")
 
     adapter_cls = _ADAPTERS.get(explicit)
     if adapter_cls is None:

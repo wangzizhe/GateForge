@@ -56,8 +56,10 @@ class AgentModelicaTrackCPaperMatrixRunnerV033Tests(unittest.TestCase):
                     taskset_path=str(taskset),
                     gateforge_results_paths=[str(gateforge_results)],
                     out_dir=str(root / "out"),
-                    claude_repeat=1,
-                    codex_repeat=0,
+                    primary_provider="claude",
+                    secondary_provider="codex",
+                    primary_repeat=1,
+                    secondary_repeat=0,
                     skip_existing=True,
                 )
 

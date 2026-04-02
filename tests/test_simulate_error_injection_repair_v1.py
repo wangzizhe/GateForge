@@ -10,7 +10,7 @@ Covers:
 
 import unittest
 
-from gateforge.agent_modelica_live_executor_gemini_v1 import (
+from gateforge.agent_modelica_live_executor_v1 import (
     _apply_simulate_error_injection_repair,
 )
 

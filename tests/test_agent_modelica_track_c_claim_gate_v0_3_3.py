@@ -44,7 +44,7 @@ class AgentModelicaTrackCClaimGateV033Tests(unittest.TestCase):
             stability.write_text(json.dumps({"classification": "STABLE"}), encoding="utf-8")
             payload = build_claim_gate(
                 paper_matrix_summary_path=str(matrix),
-                claude_stability_summary_path=str(stability),
+                primary_provider_stability_summary_path=str(stability),
                 out_dir=str(root / "out"),
             )
             self.assertTrue(payload["claim_drafts"]["strong_comparative_claim_candidate"])
@@ -84,7 +84,7 @@ class AgentModelicaTrackCClaimGateV033Tests(unittest.TestCase):
             stability.write_text(json.dumps({"classification": "PROVISIONAL"}), encoding="utf-8")
             payload = build_claim_gate(
                 paper_matrix_summary_path=str(matrix),
-                claude_stability_summary_path=str(stability),
+                primary_provider_stability_summary_path=str(stability),
                 gateforge_attribution_missing_rate_pct=0.0,
                 gateforge_terminal_path_coverage_pct=85.0,
                 out_dir=str(root / "out"),

@@ -80,7 +80,7 @@ class AgentModelicaV033CloseoutTests(unittest.TestCase):
             payload = build_v0_3_3_closeout(
                 primary_slice_summary_path=str(primary),
                 paper_matrix_summary_path=str(matrix),
-                claude_stability_summary_path=str(stability),
+                primary_provider_stability_summary_path=str(stability),
                 claim_gate_summary_path=str(claim),
                 out_dir=str(root / "out"),
             )
@@ -106,7 +106,7 @@ class AgentModelicaV033CloseoutTests(unittest.TestCase):
             payload = build_v0_3_3_closeout(
                 primary_slice_summary_path=str(primary),
                 paper_matrix_summary_path=str(matrix),
-                claude_stability_summary_path=str(stability),
+                primary_provider_stability_summary_path=str(stability),
                 claim_gate_summary_path=str(claim),
                 out_dir=str(root / "out"),
             )
@@ -157,7 +157,7 @@ class AgentModelicaV033CloseoutTests(unittest.TestCase):
             payload = build_v0_3_3_closeout(
                 primary_slice_summary_path=str(primary),
                 paper_matrix_summary_path=str(matrix),
-                claude_stability_summary_path=str(stability),
+                primary_provider_stability_summary_path=str(stability),
                 claim_gate_summary_path=str(claim),
                 out_dir=str(root / "out"),
                 prefer_development_shift=True,

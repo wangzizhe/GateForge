@@ -79,8 +79,9 @@ class CIShardConfigContractTests(unittest.TestCase):
         self.assertIn("python3 -m gateforge.agent_modelica_live_executor_mock_l4_switch_v0", workflow)
         self.assertIn("inputs.run_release_live_smoke", workflow)
         self.assertIn("if: ${{ github.event_name == 'schedule' }}", workflow)
-        self.assertIn('GATEFORGE_AGENT_L5_EVAL_PLANNER_BACKEND: "gemini"', workflow)
-        self.assertIn('GATEFORGE_AGENT_L4_CLOSED_LOOP_PLANNER_BACKEND: "gemini"', workflow)
+        self.assertIn('GATEFORGE_AGENT_L5_EVAL_PLANNER_BACKEND: "auto"', workflow)
+        self.assertIn('GATEFORGE_AGENT_L4_CLOSED_LOOP_PLANNER_BACKEND: "auto"', workflow)
+        self.assertIn('LLM_MODEL: "${{ vars.GATEFORGE_CI_LLM_MODEL }}"', workflow)
         self.assertIn('GATEFORGE_AGENT_L4_MIN_SUCCESS_DELTA_PP: "0"', workflow)
         self.assertIn("bash scripts/run_agent_modelica_l4_closed_loop_v0.sh", workflow)
         self.assertIn(

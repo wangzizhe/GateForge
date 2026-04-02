@@ -58,7 +58,7 @@ fi
 
 if [ "$cmd" = "loop-mini-live" ]; then
   out_dir="${GATEFORGE_AGENT_MVP_MUTANT_REPAIR_LOOP_OUT_DIR:-artifacts/agent_modelica_mvp_mutant_repair_learning_loop_v1_now}"
-  live_cmd="${GATEFORGE_AGENT_LIVE_EXECUTOR_CMD:-python3 -m gateforge.agent_modelica_live_executor_gemini_v1 --task-id \"__TASK_ID__\" --failure-type \"__FAILURE_TYPE__\" --expected-stage \"__EXPECTED_STAGE__\" --source-model-path \"__SOURCE_MODEL_PATH__\" --mutated-model-path \"__MUTATED_MODEL_PATH__\" --repair-actions __REPAIR_ACTIONS_SHQ__ --max-rounds \"__MAX_ROUNDS__\" --timeout-sec \"__MAX_TIME_SEC__\" --planner-backend \"rule\" --backend \"openmodelica_docker\" --docker-image \"openmodelica/openmodelica:v1.26.1-minimal\"}"
+  live_cmd="${GATEFORGE_AGENT_LIVE_EXECUTOR_CMD:-python3 -m gateforge.agent_modelica_live_executor_v1 --task-id \"__TASK_ID__\" --failure-type \"__FAILURE_TYPE__\" --expected-stage \"__EXPECTED_STAGE__\" --source-model-path \"__SOURCE_MODEL_PATH__\" --mutated-model-path \"__MUTATED_MODEL_PATH__\" --repair-actions __REPAIR_ACTIONS_SHQ__ --max-rounds \"__MAX_ROUNDS__\" --timeout-sec \"__MAX_TIME_SEC__\" --planner-backend \"rule\" --backend \"openmodelica_docker\" --docker-image \"openmodelica/openmodelica:v1.26.1-minimal\"}"
   GATEFORGE_AGENT_MVP_MUTANT_REPAIR_LOOP_OUT_DIR="$out_dir" \
     GATEFORGE_AGENT_RUN_MODE="${GATEFORGE_AGENT_RUN_MODE:-live}" \
     GATEFORGE_AGENT_USE_HARDPACK="${GATEFORGE_AGENT_USE_HARDPACK:-0}" \

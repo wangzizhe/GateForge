@@ -13,7 +13,11 @@ def _load_json(path: str | None) -> dict:
     p = Path(path)
     if not p.exists():
         return {}
-    return json.loads(p.read_text(encoding="utf-8"))
+    try:
+        payload = json.loads(p.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    return payload if isinstance(payload, dict) else {}
 
 
 def _write_json(path: str, payload: object) -> None:
