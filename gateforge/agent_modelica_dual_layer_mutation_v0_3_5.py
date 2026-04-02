@@ -265,6 +265,7 @@ def apply_stiff_time_constant_injection(
 def apply_init_equation_sign_flip(
     model_text: str,
     *,
+    target_lhs_names: list[str] | tuple[str, ...] | None = None,
     max_targets: int = 1,
 ) -> tuple[str, dict]:
     """
@@ -294,6 +295,7 @@ def apply_init_equation_sign_flip(
     init_eq_start = re.compile(r"^\s*initial\s+equation\b", re.IGNORECASE)
     eq_assignment = re.compile(r"^(\s*)(\w[\w.]*(?:\([^)]*\))?)\s*=\s*(.+?);\s*$")
     section_end = re.compile(r"^\s*(equation|algorithm|protected|public|end\s+\w+)\b", re.IGNORECASE)
+    wanted = {str(x).strip() for x in (target_lhs_names or []) if str(x).strip()}
 
     for i, line in enumerate(lines):
         if count >= max_targets:
@@ -310,6 +312,8 @@ def apply_init_equation_sign_flip(
             if m:
                 indent = m.group(1)
                 lhs = m.group(2)
+                if wanted and lhs not in wanted:
+                    continue
                 rhs = m.group(3).strip()
                 # Skip trivial zero assignments
                 if rhs in {"0", "0.0"}:
@@ -329,13 +333,21 @@ def apply_init_equation_sign_flip(
                 count += 1
 
     if not mutations:
-        return model_text, {"applied": False, "reason": "no_initial_equation_target_found"}
+        return model_text, {
+            "applied": False,
+            "reason": (
+                "target_initial_equation_lhs_not_found"
+                if wanted
+                else "no_initial_equation_target_found"
+            ),
+        }
 
     return "".join(result_lines), {
         "applied": True,
         "operator": "init_equation_sign_flip",
         "mutations": mutations,
         "has_gateforge_marker": False,
+        "target_lhs_names": [row["lhs"] for row in mutations],
     }
 
 

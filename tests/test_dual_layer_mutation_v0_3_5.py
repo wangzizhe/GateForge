@@ -154,6 +154,23 @@ class TestApplyInitEquationSignFlip(unittest.TestCase):
         # starts with "-", should be skipped
         self.assertFalse(audit["applied"])
 
+    def test_targeted_lhs_flip(self):
+        model = """\
+model TwoInit
+  Real x(start = 5.0);
+  Real y(start = 3.0);
+initial equation
+  x = 5.0;
+  y = 3.0;
+equation
+end TwoInit;
+"""
+        text, audit = apply_init_equation_sign_flip(model, target_lhs_names=["y"])
+        self.assertTrue(audit["applied"])
+        self.assertIn("x = 5.0;", text)
+        self.assertIn("y = -(3.0);", text)
+        self.assertEqual(audit["target_lhs_names"], ["y"])
+
 
 class TestApplyMarkedTopMutation(unittest.TestCase):
     def test_injects_gf_state_var(self):
@@ -263,6 +280,29 @@ class TestBuildDualLayerTask(unittest.TestCase):
         task = self._build(operator="init_equation_sign_flip", model=MODEL_WITH_INIT_EQ)
         self.assertTrue(task["dual_layer_mutation"])
         self.assertIn("-(5.0)", task["source_model_text"])
+
+    def test_init_sign_flip_operator_accepts_targeted_hidden_base_kwargs(self):
+        model = """\
+model TwoInit
+  Real x(start = 5.0);
+  Real y(start = 3.0);
+initial equation
+  x = 5.0;
+  y = 3.0;
+equation
+end TwoInit;
+"""
+        task = build_dual_layer_task(
+            task_id="tgt",
+            clean_source_text=model,
+            source_model_path="/fake/path.mo",
+            source_library="lib",
+            model_hint="m",
+            hidden_base_operator="init_equation_sign_flip",
+            hidden_base_kwargs={"target_lhs_names": ["y"]},
+        )
+        self.assertIn("y = -(3.0);", task["source_model_text"])
+        self.assertIn("x = 5.0;", task["source_model_text"])
 
     def test_unapplicable_operator_raises(self):
         # MODEL_NO_PARAM has no Real parameters to collapse
