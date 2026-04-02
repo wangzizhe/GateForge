@@ -40,6 +40,25 @@ class AgentModelicaDualLayerMutationV036Tests(unittest.TestCase):
         self.assertIn("0.1", text)
         self.assertIn("10.0", text)
 
+    def test_paired_value_collapse_can_target_named_pair(self) -> None:
+        richer_model = """\
+model RicherModel
+  parameter Real A = 2.0;
+  parameter Real B = 3.0;
+  parameter Real C = 4.0;
+equation
+end RicherModel;
+"""
+        text, audit = apply_paired_value_collapse(
+            richer_model,
+            target_param_names=("B", "C"),
+        )
+        self.assertTrue(audit["applied"])
+        self.assertEqual(audit["target_param_names"], ["B", "C"])
+        self.assertIn("B = 0.0", text)
+        self.assertIn("C = 0.0", text)
+        self.assertIn("A = 2.0", text)
+
     def test_build_task_adds_v036_family_and_multi_parameter_expectation(self) -> None:
         task = build_dual_layer_multi_param_task(
             task_id="v036_task",
@@ -64,6 +83,29 @@ class AgentModelicaDualLayerMutationV036Tests(unittest.TestCase):
         )
         self.assertNotIn(TOP_LAYER_TAU_PREFIX, task["source_model_text"])
         self.assertIn(TOP_LAYER_TAU_PREFIX, task["mutated_model_text"])
+
+    def test_build_task_records_target_pair_and_values(self) -> None:
+        richer_model = """\
+model RicherModel
+  parameter Real A = 2.0;
+  parameter Real B = 3.0;
+  parameter Real C = 4.0;
+equation
+end RicherModel;
+"""
+        task = build_dual_layer_multi_param_task(
+            task_id="v036_targeted",
+            clean_source_text=richer_model,
+            source_model_path="/tmp/richer.mo",
+            source_library="testlib",
+            model_hint="RicherModel",
+            hidden_base_param_names=("B", "C"),
+            hidden_base_replacement_values=("0.0", "0.0"),
+        )
+        self.assertEqual(task["hidden_base_param_names"], ["B", "C"])
+        self.assertEqual(task["hidden_base_replacement_values"], ["0.0", "0.0"])
+        audit = task["mutation_spec"]["hidden_base"]["audit"]
+        self.assertEqual(audit["target_param_names"], ["B", "C"])
 
     def test_bad_operator_raises(self) -> None:
         with self.assertRaises(ValueError):

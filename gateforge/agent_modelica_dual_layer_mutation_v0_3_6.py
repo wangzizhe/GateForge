@@ -78,15 +78,47 @@ def _candidate_real_parameter_matches(model_text: str) -> list[dict]:
     return rows
 
 
+def _pick_parameter_rows(
+    matches: list[dict],
+    *,
+    target_param_names: tuple[str, str] | None = None,
+    disallowed_values: set[str] | None = None,
+) -> list[dict]:
+    if target_param_names:
+        name_map = {str(row.get("name") or ""): row for row in matches}
+        picked = [name_map.get(name) for name in target_param_names]
+        if any(row is None for row in picked):
+            return []
+        resolved = [row for row in picked if isinstance(row, dict)]
+        if len(resolved) != 2 or resolved[0].get("name") == resolved[1].get("name"):
+            return []
+        return resolved
+    blocked = disallowed_values or set()
+    picked = [row for row in matches if row["value"] not in blocked][:2]
+    return picked if len(picked) == 2 else []
+
+
 def apply_paired_value_collapse(
     model_text: str,
     *,
     collapse_values: tuple[str, str] = ("0.0", "0.0"),
+    target_param_names: tuple[str, str] | None = None,
 ) -> tuple[str, dict]:
     matches = _candidate_real_parameter_matches(model_text)
-    picked = [row for row in matches if row["value"] not in {"0", "0.0"}][:2]
+    picked = _pick_parameter_rows(
+        matches,
+        target_param_names=target_param_names,
+        disallowed_values={"0", "0.0"},
+    )
     if len(picked) < 2:
-        return model_text, {"applied": False, "reason": "fewer_than_two_numeric_real_parameters"}
+        return model_text, {
+            "applied": False,
+            "reason": (
+                "target_parameter_pair_not_found"
+                if target_param_names
+                else "fewer_than_two_numeric_real_parameters"
+            ),
+        }
 
     result = model_text
     mutations = []
@@ -107,6 +139,7 @@ def apply_paired_value_collapse(
         "mutations": mutations,
         "mutation_count": len(mutations),
         "has_gateforge_marker": False,
+        "target_param_names": [row["name"] for row in picked],
     }
 
 
@@ -114,11 +147,23 @@ def apply_paired_value_bias_shift(
     model_text: str,
     *,
     replacement_values: tuple[str, str] = ("0.1", "10.0"),
+    target_param_names: tuple[str, str] | None = None,
 ) -> tuple[str, dict]:
     matches = _candidate_real_parameter_matches(model_text)
-    picked = [row for row in matches if row["value"] not in set(replacement_values)][:2]
+    picked = _pick_parameter_rows(
+        matches,
+        target_param_names=target_param_names,
+        disallowed_values=set(replacement_values),
+    )
     if len(picked) < 2:
-        return model_text, {"applied": False, "reason": "fewer_than_two_numeric_real_parameters"}
+        return model_text, {
+            "applied": False,
+            "reason": (
+                "target_parameter_pair_not_found"
+                if target_param_names
+                else "fewer_than_two_numeric_real_parameters"
+            ),
+        }
 
     result = model_text
     mutations = []
@@ -139,6 +184,7 @@ def apply_paired_value_bias_shift(
         "mutations": mutations,
         "mutation_count": len(mutations),
         "has_gateforge_marker": False,
+        "target_param_names": [row["name"] for row in picked],
     }
 
 
@@ -150,6 +196,8 @@ def build_dual_layer_multi_param_task(
     source_library: str,
     model_hint: str,
     hidden_base_operator: str = "paired_value_collapse",
+    hidden_base_param_names: tuple[str, str] | None = None,
+    hidden_base_replacement_values: tuple[str, str] | None = None,
     declared_failure_type: str = "simulate_error",
     expected_stage: str = "simulate",
 ) -> dict:
@@ -163,9 +211,17 @@ def build_dual_layer_multi_param_task(
         )
 
     if hidden_base_operator == "paired_value_collapse":
-        source_model_text, base_audit = apply_paired_value_collapse(clean_source_text)
+        source_model_text, base_audit = apply_paired_value_collapse(
+            clean_source_text,
+            collapse_values=hidden_base_replacement_values or ("0.0", "0.0"),
+            target_param_names=hidden_base_param_names,
+        )
     elif hidden_base_operator == "paired_value_bias_shift":
-        source_model_text, base_audit = apply_paired_value_bias_shift(clean_source_text)
+        source_model_text, base_audit = apply_paired_value_bias_shift(
+            clean_source_text,
+            replacement_values=hidden_base_replacement_values or ("0.1", "10.0"),
+            target_param_names=hidden_base_param_names,
+        )
     else:
         raise ValueError(f"Unknown operator: {hidden_base_operator}")
 
@@ -199,6 +255,8 @@ def build_dual_layer_multi_param_task(
         "marker_only_repair": False,
         "multi_parameter_hidden_base": True,
         "hidden_base_operator": hidden_base_operator,
+        "hidden_base_param_names": list(hidden_base_param_names or []),
+        "hidden_base_replacement_values": list(hidden_base_replacement_values or []),
         "mutation_spec": {
             "hidden_base": {
                 "operator": hidden_base_operator,
