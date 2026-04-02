@@ -113,6 +113,7 @@ CHALLENGE_LLM_MODEL="${GATEFORGE_AGENT_L4_UPLIFT_CHALLENGE_LLM_MODEL:-${LLM_MODE
 release_run_lock() {
   python3 - "$LOCK_PATH" "$$" <<'PY'
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -207,6 +208,7 @@ python3 -m gateforge.agent_modelica_realism_run_lifecycle_v1 init-run \
   --lock-path "$LOCK_PATH" \
   --runtime-config-json "$(python3 - "$SCALES" "$PROFILES" "$BACKEND" "$CHALLENGE_PLANNER_BACKEND" "$MAIN_PLANNER_BACKEND" "$NIGHT_PLANNER_BACKEND" "$REALISM_MODE" "$NIGHT_ENABLED" "$CHALLENGE_EXECUTOR_CMD" "$MAIN_SWEEP_EXECUTOR_CMD" "$NIGHT_SWEEP_EXECUTOR_CMD" "$MAIN_L5_L3_EXECUTOR_CMD" "$MAIN_L5_L4_EXECUTOR_CMD" "$NIGHT_L5_L3_EXECUTOR_CMD" "$NIGHT_L5_L4_EXECUTOR_CMD" "$OM_DOCKER_IMAGE" "$MAX_ROUNDS" "$MAX_TIME_SEC" "$RUNTIME_THRESHOLD" "$LIVE_TIMEOUT_SEC" "$LIVE_MAX_OUTPUT_CHARS" "$L4_MAX_ROUNDS" "$L4_POLICY_BACKEND" "$L4_LLM_FALLBACK_THRESHOLD" "$L4_MAX_ACTIONS_PER_ROUND" "$MAIN_GATE_MODE" "$NIGHT_GATE_MODE" "$L5_LEDGER_PATH" <<'PY'
 import json
+import os
 import sys
 
 (
@@ -239,6 +241,27 @@ import sys
     night_gate_mode,
     l5_ledger_path,
 ) = sys.argv[1:]
+
+llm_model = str(os.environ.get("LLM_MODEL") or "").strip()
+openai_model = str(os.environ.get("OPENAI_MODEL") or "").strip()
+gemini_model = str(os.environ.get("GATEFORGE_GEMINI_MODEL") or os.environ.get("GEMINI_MODEL") or "").strip()
+model_hint = llm_model or openai_model or gemini_model
+model_hint_lower = model_hint.lower()
+
+def _resolve_backend(value: str) -> str:
+    backend = str(value or "").strip().lower()
+    if backend != "auto":
+        return backend
+    if model_hint_lower.startswith("gpt"):
+        return "openai"
+    if "gemini" in model_hint_lower:
+        return "gemini"
+    return "auto"
+
+challenge_planner_backend = _resolve_backend(challenge_planner_backend)
+main_planner_backend = _resolve_backend(main_planner_backend)
+night_planner_backend = _resolve_backend(night_planner_backend)
+l4_policy_backend = _resolve_backend(l4_policy_backend)
 
 print(
     json.dumps(

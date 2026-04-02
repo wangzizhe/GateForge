@@ -5,7 +5,7 @@
     "scripts/run_agent_modelica_live_round_v1.sh",
     "scripts/run_agent_modelica_weekly_chain_v1.sh",
     "scripts/run_agent_modelica_holdout_checkpoint_v1.sh",
-    "gateforge/agent_modelica_live_executor_gemini_v1.py",
+    "gateforge/agent_modelica_live_executor_v1.py",
     "gateforge/agent_modelica_layered_baseline_v1.py",
     "gateforge/agent_modelica_run_contract_v1.py",
     "gateforge/agent_modelica_acceptance_gate_v1.py",
