@@ -108,6 +108,28 @@ MAIN_PLANNER_BACKEND="${GATEFORGE_AGENT_L4_UPLIFT_MAIN_PLANNER_BACKEND:-${GLOBAL
 NIGHT_PLANNER_BACKEND="${GATEFORGE_AGENT_L4_UPLIFT_NIGHT_PLANNER_BACKEND:-${GLOBAL_LIVE_PLANNER_BACKEND:-auto}}"
 L4_POLICY_BACKEND="${GATEFORGE_AGENT_L4_UPLIFT_L4_POLICY_BACKEND:-${MAIN_PLANNER_BACKEND:-auto}}"
 
+# Resolve 'auto' to a concrete provider name based on LLM_MODEL / OPENAI_MODEL / GEMINI_MODEL.
+# This mirrors the _resolve_backend() logic in the --runtime-config-json heredoc and ensures
+# that downstream scripts (run_agent_modelica_l4_uplift_evidence_v0.sh, profile sweep, etc.)
+# receive a resolved backend rather than 'auto', so summary.json fields like planner_backend
+# reflect the actual provider rather than the sentinel value.
+_resolve_backend_sh() {
+  local v="$1"
+  if [ "$v" != "auto" ]; then
+    echo "$v"; return
+  fi
+  local m="${LLM_MODEL:-${GATEFORGE_GEMINI_MODEL:-${GEMINI_MODEL:-${OPENAI_MODEL:-}}}}"
+  case "$m" in
+    gpt*) echo "openai" ;;
+    *gemini*|*Gemini*) echo "gemini" ;;
+    *) echo "auto" ;;
+  esac
+}
+CHALLENGE_PLANNER_BACKEND="$(_resolve_backend_sh "$CHALLENGE_PLANNER_BACKEND")"
+MAIN_PLANNER_BACKEND="$(_resolve_backend_sh "$MAIN_PLANNER_BACKEND")"
+NIGHT_PLANNER_BACKEND="$(_resolve_backend_sh "$NIGHT_PLANNER_BACKEND")"
+L4_POLICY_BACKEND="$(_resolve_backend_sh "$L4_POLICY_BACKEND")"
+
 CHALLENGE_LLM_MODEL="${GATEFORGE_AGENT_L4_UPLIFT_CHALLENGE_LLM_MODEL:-${LLM_MODEL:-}}"
 
 release_run_lock() {
