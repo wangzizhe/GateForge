@@ -666,6 +666,15 @@ def verify_v0_3_10_continuity_flow(
     classifier_total = int(classifier_metrics.get("total_rows") or 0)
     continuity_count = int(refreshed_metrics.get("success_after_same_branch_continuation_count") or 0)
     switch_pct = float(refreshed_metrics.get("success_with_explicit_branch_switch_evidence_pct") or 0.0)
+    planner_event_case_count = int(refreshed_metrics.get("planner_event_case_count") or 0)
+    repair_safety_blocked_case_count = int(refreshed_metrics.get("repair_safety_blocked_case_count") or 0)
+    rollback_applied_case_count = int(refreshed_metrics.get("rollback_applied_case_count") or 0)
+    planner_experience_context_truncated_case_count = int(
+        refreshed_metrics.get("planner_experience_context_truncated_case_count") or 0
+    )
+    replan_context_truncated_case_count = int(
+        refreshed_metrics.get("replan_context_truncated_case_count") or 0
+    )
 
     checks = [
         {
@@ -707,6 +716,27 @@ def verify_v0_3_10_continuity_flow(
                 "continuity_success_count": continuity_count,
                 "successful_case_count": refreshed_metrics.get("successful_case_count"),
                 "switch_evidence_pct": switch_pct,
+            },
+        },
+        {
+            "name": "runtime_hygiene_case_counts_are_bounded",
+            "passed": all(
+                value <= total_rows
+                for value in (
+                    planner_event_case_count,
+                    repair_safety_blocked_case_count,
+                    rollback_applied_case_count,
+                    planner_experience_context_truncated_case_count,
+                    replan_context_truncated_case_count,
+                )
+            ),
+            "details": {
+                "total_rows": total_rows,
+                "planner_event_case_count": planner_event_case_count,
+                "repair_safety_blocked_case_count": repair_safety_blocked_case_count,
+                "rollback_applied_case_count": rollback_applied_case_count,
+                "planner_experience_context_truncated_case_count": planner_experience_context_truncated_case_count,
+                "replan_context_truncated_case_count": replan_context_truncated_case_count,
             },
         },
     ]

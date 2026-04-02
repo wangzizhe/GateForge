@@ -88,6 +88,11 @@ def _attempt_rows(detail: dict) -> list[dict]:
     return [row for row in rows if isinstance(row, dict)] if isinstance(rows, list) else []
 
 
+def _executor_runtime_hygiene(detail: dict) -> dict:
+    payload = detail.get("executor_runtime_hygiene")
+    return dict(payload) if isinstance(payload, dict) else {}
+
+
 def _candidate_parameters(attempt: dict) -> list[str]:
     for field in ("replan_candidate_parameters", "llm_plan_candidate_parameters"):
         rows = attempt.get(field)
@@ -234,6 +239,11 @@ def refresh_same_branch_continuity_candidates(
     continuity_success_count = 0
     switch_evidence_success_count = 0
     continuity_ge2_count = 0
+    planner_event_case_count = 0
+    repair_safety_blocked_case_count = 0
+    rollback_applied_case_count = 0
+    planner_experience_context_truncated_case_count = 0
+    replan_context_truncated_case_count = 0
 
     frozen_mainline_task_ids = [_item_id(row) for row in tasks if _item_id(row)]
 
@@ -248,6 +258,7 @@ def refresh_same_branch_continuity_candidates(
             if isinstance(result.get("baseline_measurement_protocol"), dict)
             else task.get("baseline_measurement_protocol")
         ) or top_protocol
+        runtime_hygiene = _executor_runtime_hygiene(detail)
         evidence = _derive_same_branch_evidence(task=task, result=result, detail=detail)
         merged = {
             **task,
@@ -262,6 +273,7 @@ def refresh_same_branch_continuity_candidates(
             "error_message": _norm(result.get("error_message") or task.get("error_message")),
             "result_json_path": _norm(result.get("result_json_path") or task.get("result_json_path")),
             "baseline_measurement_protocol": protocol,
+            "executor_runtime_hygiene": runtime_hygiene,
             **evidence,
         }
         if merged.get("planner_invoked") is True:
@@ -278,6 +290,16 @@ def refresh_same_branch_continuity_candidates(
             _norm(merged.get("verdict")).upper() == "PASS" or _norm(merged.get("executor_status")).upper() == "PASS"
         ):
             continuity_ge2_count += 1
+        if int(runtime_hygiene.get("planner_event_count") or 0) > 0:
+            planner_event_case_count += 1
+        if int(runtime_hygiene.get("repair_safety_blocked_count") or 0) > 0:
+            repair_safety_blocked_case_count += 1
+        if int(runtime_hygiene.get("rollback_applied_count") or 0) > 0:
+            rollback_applied_case_count += 1
+        if int(runtime_hygiene.get("planner_experience_context_truncated_count") or 0) > 0:
+            planner_experience_context_truncated_case_count += 1
+        if int(runtime_hygiene.get("replan_context_truncated_count") or 0) > 0:
+            replan_context_truncated_case_count += 1
         refreshed_rows.append(merged)
 
     total = len(refreshed_rows)
@@ -301,6 +323,11 @@ def refresh_same_branch_continuity_candidates(
             "success_with_explicit_branch_switch_evidence_pct": round(100.0 * switch_evidence_success_count / total, 1) if total else 0.0,
             "same_branch_continuity_success_pct": round(100.0 * continuity_success_count / successful_case_count, 1) if successful_case_count else 0.0,
             "multi_step_same_branch_success_count_ge_2": continuity_ge2_count,
+            "planner_event_case_count": planner_event_case_count,
+            "repair_safety_blocked_case_count": repair_safety_blocked_case_count,
+            "rollback_applied_case_count": rollback_applied_case_count,
+            "planner_experience_context_truncated_case_count": planner_experience_context_truncated_case_count,
+            "replan_context_truncated_case_count": replan_context_truncated_case_count,
         },
         "tasks": refreshed_rows,
     }
@@ -323,6 +350,11 @@ def render_markdown(payload: dict) -> str:
             f"- deterministic_only_pct: `{metrics.get('deterministic_only_pct')}`",
             f"- success_after_same_branch_continuation_count: `{metrics.get('success_after_same_branch_continuation_count')}`",
             f"- same_branch_continuity_success_pct: `{metrics.get('same_branch_continuity_success_pct')}`",
+            f"- planner_event_case_count: `{metrics.get('planner_event_case_count')}`",
+            f"- rollback_applied_case_count: `{metrics.get('rollback_applied_case_count')}`",
+            f"- repair_safety_blocked_case_count: `{metrics.get('repair_safety_blocked_case_count')}`",
+            f"- planner_experience_context_truncated_case_count: `{metrics.get('planner_experience_context_truncated_case_count')}`",
+            f"- replan_context_truncated_case_count: `{metrics.get('replan_context_truncated_case_count')}`",
             "",
         ]
     )

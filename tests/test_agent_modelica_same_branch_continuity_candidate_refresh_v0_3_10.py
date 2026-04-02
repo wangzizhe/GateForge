@@ -37,6 +37,13 @@ class AgentModelicaSameBranchContinuityCandidateRefreshV0310Tests(unittest.TestC
             detail.write_text(
                 json.dumps(
                     {
+                        "executor_runtime_hygiene": {
+                            "planner_event_count": 1,
+                            "repair_safety_blocked_count": 1,
+                            "rollback_applied_count": 1,
+                            "planner_experience_context_truncated_count": 1,
+                            "replan_context_truncated_count": 1,
+                        },
                         "attempts": [
                             {"round": 1, "check_model_pass": True, "simulate_pass": False, "observed_failure_type": "x", "reason": "y"},
                             {"round": 2, "llm_plan_candidate_parameters": ["A"], "check_model_pass": True, "simulate_pass": False, "observed_failure_type": "x", "reason": "y2"},
@@ -71,6 +78,12 @@ class AgentModelicaSameBranchContinuityCandidateRefreshV0310Tests(unittest.TestC
             )
             self.assertEqual(payload["metrics"]["success_after_same_branch_continuation_count"], 1)
             self.assertEqual(payload["metrics"]["multi_step_same_branch_success_count_ge_2"], 1)
+            self.assertEqual(payload["metrics"]["planner_event_case_count"], 1)
+            self.assertEqual(payload["metrics"]["repair_safety_blocked_case_count"], 1)
+            self.assertEqual(payload["metrics"]["rollback_applied_case_count"], 1)
+            self.assertEqual(payload["metrics"]["planner_experience_context_truncated_case_count"], 1)
+            self.assertEqual(payload["metrics"]["replan_context_truncated_case_count"], 1)
+            self.assertIsInstance(payload["tasks"][0].get("executor_runtime_hygiene"), dict)
 
 
 if __name__ == "__main__":

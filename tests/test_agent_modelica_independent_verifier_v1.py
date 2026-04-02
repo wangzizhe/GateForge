@@ -321,6 +321,11 @@ class AgentModelicaIndependentVerifierV1Tests(unittest.TestCase):
                             "successful_case_count": 3,
                             "success_after_same_branch_continuation_count": 0,
                             "success_with_explicit_branch_switch_evidence_pct": 0.0,
+                            "planner_event_case_count": 1,
+                            "repair_safety_blocked_case_count": 1,
+                            "rollback_applied_case_count": 1,
+                            "planner_experience_context_truncated_case_count": 1,
+                            "replan_context_truncated_case_count": 1,
                         }
                     }
                 ),
@@ -352,3 +357,52 @@ class AgentModelicaIndependentVerifierV1Tests(unittest.TestCase):
             )
         self.assertEqual(payload.get("status"), "PASS")
         self.assertEqual((payload.get("summary") or {}).get("failed_checks"), [])
+
+    def test_verify_v0_3_10_continuity_flow_fails_when_runtime_hygiene_counts_exceed_rows(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="gf_independent_verifier_v1_v0310_fail_") as td:
+            root = Path(td)
+            lane = root / "lane.json"
+            refreshed = root / "refreshed.json"
+            classifier = root / "classifier.json"
+            decision = root / "decision.json"
+            lane.write_text(json.dumps({"family_id": "same_branch_continuity_after_partial_progress"}), encoding="utf-8")
+            refreshed.write_text(
+                json.dumps(
+                    {
+                        "metrics": {
+                            "total_rows": 2,
+                            "successful_case_count": 2,
+                            "success_after_same_branch_continuation_count": 0,
+                            "success_with_explicit_branch_switch_evidence_pct": 0.0,
+                            "planner_event_case_count": 3,
+                        }
+                    }
+                ),
+                encoding="utf-8",
+            )
+            classifier.write_text(
+                json.dumps(
+                    {
+                        "metrics": {
+                            "total_rows": 2,
+                            "primary_bucket_counts": {
+                                "true_same_branch_multi_step_success": 0,
+                                "same_branch_one_shot_or_accidental_success": 2,
+                                "hidden_branch_change_misclassified_as_continuity": 0,
+                                "stalled_unresolved_same_branch_failure": 0,
+                            },
+                        }
+                    }
+                ),
+                encoding="utf-8",
+            )
+            decision.write_text(json.dumps({"decision": "narrower_replacement_hypothesis_supported"}), encoding="utf-8")
+            payload = verify_v0_3_10_continuity_flow(
+                lane_summary_path=str(lane),
+                refreshed_summary_path=str(refreshed),
+                classifier_summary_path=str(classifier),
+                block_b_decision_summary_path=str(decision),
+                out_dir=str(root / "out"),
+            )
+        self.assertEqual(payload.get("status"), "FAIL")
+        self.assertIn("runtime_hygiene_case_counts_are_bounded", (payload.get("summary") or {}).get("failed_checks") or [])

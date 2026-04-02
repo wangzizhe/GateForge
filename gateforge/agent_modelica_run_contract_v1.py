@@ -97,6 +97,9 @@ def _write_markdown(path: str, payload: dict) -> None:
         f"- success_at_k_pct: `{payload.get('success_at_k_pct')}`",
         f"- median_time_to_pass_sec: `{payload.get('median_time_to_pass_sec')}`",
         f"- median_repair_rounds: `{payload.get('median_repair_rounds')}`",
+        f"- planner_event_case_count: `{payload.get('planner_event_case_count')}`",
+        f"- rollback_applied_case_count: `{payload.get('rollback_applied_case_count')}`",
+        f"- repair_safety_blocked_case_count: `{payload.get('repair_safety_blocked_case_count')}`",
         "",
     ]
     p.write_text("\n".join(lines), encoding="utf-8")
@@ -106,6 +109,58 @@ def _ratio(part: int, total: int) -> float:
     if total <= 0:
         return 0.0
     return round((part / total) * 100.0, 2)
+
+
+def _summarize_executor_runtime_hygiene_records(records: list[dict]) -> dict:
+    planner_event_case_count = 0
+    repair_safety_blocked_case_count = 0
+    rollback_applied_case_count = 0
+    planner_experience_context_truncated_case_count = 0
+    replan_context_truncated_case_count = 0
+    for row in records:
+        if not isinstance(row, dict):
+            continue
+        hygiene = row.get("executor_runtime_hygiene")
+        if not isinstance(hygiene, dict):
+            continue
+        if int(hygiene.get("planner_event_count") or 0) > 0:
+            planner_event_case_count += 1
+        if int(hygiene.get("repair_safety_blocked_count") or 0) > 0:
+            repair_safety_blocked_case_count += 1
+        if int(hygiene.get("rollback_applied_count") or 0) > 0:
+            rollback_applied_case_count += 1
+        if int(hygiene.get("planner_experience_context_truncated_count") or 0) > 0:
+            planner_experience_context_truncated_case_count += 1
+        if int(hygiene.get("replan_context_truncated_count") or 0) > 0:
+            replan_context_truncated_case_count += 1
+    return {
+        "planner_event_case_count": int(planner_event_case_count),
+        "repair_safety_blocked_case_count": int(repair_safety_blocked_case_count),
+        "rollback_applied_case_count": int(rollback_applied_case_count),
+        "planner_experience_context_truncated_case_count": int(planner_experience_context_truncated_case_count),
+        "replan_context_truncated_case_count": int(replan_context_truncated_case_count),
+    }
+
+
+def _record_executor_runtime_hygiene(*, payload: dict | None = None, attempts: list[dict] | None = None) -> dict:
+    if isinstance(payload, dict) and isinstance(payload.get("executor_runtime_hygiene"), dict):
+        return dict(payload.get("executor_runtime_hygiene") or {})
+    aggregated = {
+        "planner_event_count": 0,
+        "repair_safety_blocked_count": 0,
+        "rollback_applied_count": 0,
+        "planner_experience_context_truncated_count": 0,
+        "replan_context_truncated_count": 0,
+    }
+    for row in attempts or []:
+        if not isinstance(row, dict):
+            continue
+        hygiene = row.get("executor_runtime_hygiene")
+        if not isinstance(hygiene, dict):
+            continue
+        for key in aggregated:
+            aggregated[key] += int(hygiene.get(key) or 0)
+    return aggregated
 
 
 def _default_baseline_metrics() -> dict:
@@ -2525,6 +2580,11 @@ def _run_task_live_l4(
             "compile_error": compile_error,
             "simulate_error_message": simulate_error_message,
             "stderr_snippet": stderr_snippet[: max(0, int(live_max_output_chars))],
+            "executor_runtime_hygiene": (
+                dict(live_payload.get("executor_runtime_hygiene") or {})
+                if isinstance(live_payload.get("executor_runtime_hygiene"), dict)
+                else {}
+            ),
             "observed_failure_type": observed_failure_type,
             "reason": attempt_reason,
             "log_excerpt": attempt_log_excerpt[: max(0, int(live_max_output_chars))],
@@ -2621,6 +2681,7 @@ def _run_task_live_l4(
             "physics_contract_pass": False,
             "regression_pass": False,
         },
+        "executor_runtime_hygiene": _record_executor_runtime_hygiene(attempts=attempts),
         "contract_pass": contract_pass,
         "contract_fail_bucket": contract_fail_bucket,
         "scenario_results": scenario_results,
@@ -3451,6 +3512,10 @@ def _run_task_live(
         "failure_domain": str(failure_domain_fields.get("failure_domain") or ""),
         "environment_failure_kind": str(failure_domain_fields.get("environment_failure_kind") or ""),
         "agent_failure_kind": str(failure_domain_fields.get("agent_failure_kind") or ""),
+        "executor_runtime_hygiene": _record_executor_runtime_hygiene(
+            payload=best_contract_attempt if isinstance(best_contract_attempt, dict) else None,
+            attempts=attempts,
+        ),
         "contract_pass": bool(best_contract_attempt.get("contract_pass")) if best_contract_attempt else False,
         "contract_fail_bucket": str(best_contract_attempt.get("contract_fail_bucket") or "") if best_contract_attempt else "",
         "scenario_results": _as_dict_list(best_contract_attempt.get("scenario_results") if best_contract_attempt else []),
@@ -3799,6 +3864,7 @@ def main() -> None:
 
     median_time = round(statistics.median(times), 2) if times else None
     median_rounds = round(statistics.median(rounds), 2) if rounds else None
+    executor_runtime_hygiene_summary = _summarize_executor_runtime_hygiene_records(records)
     status = "PASS"
     if reasons:
         status = "FAIL"
@@ -3841,6 +3907,7 @@ def main() -> None:
         "strategy_effect": args.strategy_effect,
         "experience_v1": experience_v1_payload if isinstance(experience_v1_payload, dict) else {},
         "repair_memory_v2": repair_memory_v2_payload if isinstance(repair_memory_v2_payload, dict) else {},
+        "executor_runtime_hygiene_summary": executor_runtime_hygiene_summary,
         "records": records,
     }
     _write_json(args.results_out, results_payload)
@@ -3926,6 +3993,15 @@ def main() -> None:
             ((experience_v1_payload.get("summary") or {}).get("planner_decisive_rate_pct"))
             if isinstance(experience_v1_payload, dict)
             else 0.0
+        ),
+        "planner_event_case_count": int(executor_runtime_hygiene_summary.get("planner_event_case_count") or 0),
+        "repair_safety_blocked_case_count": int(executor_runtime_hygiene_summary.get("repair_safety_blocked_case_count") or 0),
+        "rollback_applied_case_count": int(executor_runtime_hygiene_summary.get("rollback_applied_case_count") or 0),
+        "planner_experience_context_truncated_case_count": int(
+            executor_runtime_hygiene_summary.get("planner_experience_context_truncated_case_count") or 0
+        ),
+        "replan_context_truncated_case_count": int(
+            executor_runtime_hygiene_summary.get("replan_context_truncated_case_count") or 0
         ),
         "records_jsonl": records_jsonl_path,
         "resume_from_records": bool(args.resume_from_records),

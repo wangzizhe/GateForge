@@ -100,6 +100,11 @@ def build_v0_3_10_closeout(
             "mainline_task_count": int(lane.get("admitted_count") or 0),
             "continuity_total_rows": int((refreshed.get("metrics") or {}).get("total_rows") or 0),
             "continuity_success_count": int((refreshed.get("metrics") or {}).get("success_after_same_branch_continuation_count") or 0),
+            "planner_event_case_count": int((refreshed.get("metrics") or {}).get("planner_event_case_count") or 0),
+            "rollback_applied_case_count": int((refreshed.get("metrics") or {}).get("rollback_applied_case_count") or 0),
+            "repair_safety_blocked_case_count": int((refreshed.get("metrics") or {}).get("repair_safety_blocked_case_count") or 0),
+            "planner_experience_context_truncated_case_count": int((refreshed.get("metrics") or {}).get("planner_experience_context_truncated_case_count") or 0),
+            "replan_context_truncated_case_count": int((refreshed.get("metrics") or {}).get("replan_context_truncated_case_count") or 0),
             "block_b_decision": block_b,
             "replacement_hypothesis": replacement_hypothesis,
             "verifier_status": verifier_status,
@@ -109,7 +114,24 @@ def build_v0_3_10_closeout(
     }
     out_root = Path(out_dir)
     _write_json(out_root / "summary.json", payload)
-    _write_text(out_root / "summary.md", "\n".join(["# v0.3.10 Closeout", "", f"- classification: `{classification}`", ""]))
+    _write_text(
+        out_root / "summary.md",
+        "\n".join(
+            [
+                "# v0.3.10 Closeout",
+                "",
+                f"- classification: `{classification}`",
+                f"- continuity_total_rows: `{payload['metrics']['continuity_total_rows']}`",
+                f"- continuity_success_count: `{payload['metrics']['continuity_success_count']}`",
+                f"- planner_event_case_count: `{payload['metrics']['planner_event_case_count']}`",
+                f"- rollback_applied_case_count: `{payload['metrics']['rollback_applied_case_count']}`",
+                f"- repair_safety_blocked_case_count: `{payload['metrics']['repair_safety_blocked_case_count']}`",
+                f"- planner_experience_context_truncated_case_count: `{payload['metrics']['planner_experience_context_truncated_case_count']}`",
+                f"- replan_context_truncated_case_count: `{payload['metrics']['replan_context_truncated_case_count']}`",
+                "",
+            ]
+        ),
+    )
     return payload
 
 

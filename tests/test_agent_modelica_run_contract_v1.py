@@ -12,10 +12,40 @@ from gateforge.agent_modelica_run_contract_v1 import (
     _extract_contract_fields,
     _extract_live_usage_fields,
     _pick_manifestation_live_attempt,
+    _summarize_executor_runtime_hygiene_records,
 )
 
 
 class AgentModelicaRunContractV1Tests(unittest.TestCase):
+    def test_summarize_executor_runtime_hygiene_records_counts_case_level_signals(self) -> None:
+        summary = _summarize_executor_runtime_hygiene_records(
+            [
+                {
+                    "executor_runtime_hygiene": {
+                        "planner_event_count": 1,
+                        "repair_safety_blocked_count": 1,
+                        "rollback_applied_count": 1,
+                        "planner_experience_context_truncated_count": 1,
+                        "replan_context_truncated_count": 0,
+                    }
+                },
+                {
+                    "executor_runtime_hygiene": {
+                        "planner_event_count": 0,
+                        "repair_safety_blocked_count": 0,
+                        "rollback_applied_count": 0,
+                        "planner_experience_context_truncated_count": 0,
+                        "replan_context_truncated_count": 1,
+                    }
+                },
+            ]
+        )
+        self.assertEqual(summary["planner_event_case_count"], 1)
+        self.assertEqual(summary["repair_safety_blocked_case_count"], 1)
+        self.assertEqual(summary["rollback_applied_case_count"], 1)
+        self.assertEqual(summary["planner_experience_context_truncated_case_count"], 1)
+        self.assertEqual(summary["replan_context_truncated_case_count"], 1)
+
     def test_classify_failure_domain_marks_source_block_incompatibility_as_environment(self) -> None:
         payload = _classify_failure_domain_v1(
             check_model_pass=False,
@@ -2057,7 +2087,14 @@ payload = {
   "simulate_pass": ok,
   "physics_contract_pass": ok,
   "regression_pass": ok,
-  "elapsed_sec": 0.2
+  "elapsed_sec": 0.2,
+  "executor_runtime_hygiene": {
+    "planner_event_count": 1,
+    "repair_safety_blocked_count": 0,
+    "rollback_applied_count": 1,
+    "planner_experience_context_truncated_count": 1,
+    "replan_context_truncated_count": 1
+  }
 }
 if not ok:
   payload.update(
@@ -2134,11 +2171,18 @@ print(json.dumps(payload))
             self.assertIn("resolution_path_distribution", s)
             self.assertIn("dominant_stage_subtype_distribution", s)
             self.assertIn("planner_invoked_rate_pct", s)
+            self.assertEqual(int(s.get("planner_event_case_count") or 0), 1)
+            self.assertEqual(int(s.get("rollback_applied_case_count") or 0), 1)
+            self.assertEqual(int(s.get("planner_experience_context_truncated_case_count") or 0), 1)
+            self.assertEqual(int(s.get("replan_context_truncated_case_count") or 0), 1)
             contrib = s.get("action_contribution_distribution") if isinstance(s.get("action_contribution_distribution"), dict) else {}
             self.assertIn("advancing", contrib)
             rec = (r.get("records") or [])[0]
             self.assertTrue(bool(rec.get("passed")))
             self.assertGreaterEqual(int(rec.get("rounds_used") or 0), 2)
+            hygiene = rec.get("executor_runtime_hygiene") if isinstance(rec.get("executor_runtime_hygiene"), dict) else {}
+            self.assertEqual(int(hygiene.get("planner_event_count") or 0), 2)
+            self.assertEqual(int(hygiene.get("rollback_applied_count") or 0), 2)
             l4 = rec.get("l4") if isinstance(rec.get("l4"), dict) else {}
             self.assertTrue(bool(l4.get("enabled")))
             self.assertEqual(str(l4.get("policy_profile") or ""), "score_v1")
@@ -2160,6 +2204,9 @@ print(json.dumps(payload))
             self.assertGreaterEqual(len(exp_artifact.get("records") or []), 1)
             mem = r.get("repair_memory_v2") if isinstance(r.get("repair_memory_v2"), dict) else {}
             self.assertGreaterEqual(len(mem.get("trajectory_rows") or []), 1)
+            hygiene_summary = r.get("executor_runtime_hygiene_summary") if isinstance(r.get("executor_runtime_hygiene_summary"), dict) else {}
+            self.assertEqual(int(hygiene_summary.get("planner_event_case_count") or 0), 1)
+            self.assertEqual(int(hygiene_summary.get("rollback_applied_case_count") or 0), 1)
 
     def test_run_contract_resume_from_records_jsonl_skips_completed_tasks(self) -> None:
         with tempfile.TemporaryDirectory() as d:

@@ -15,7 +15,22 @@ class AgentModelicaV0310CloseoutTests(unittest.TestCase):
             lane = root / "lane.json"
             lane.write_text(json.dumps({"lane_status": "NEEDS_MORE_GENERATION", "admitted_count": 3}), encoding="utf-8")
             refreshed = root / "refreshed.json"
-            refreshed.write_text(json.dumps({"metrics": {"total_rows": 3, "success_after_same_branch_continuation_count": 0}}), encoding="utf-8")
+            refreshed.write_text(
+                json.dumps(
+                    {
+                        "metrics": {
+                            "total_rows": 3,
+                            "success_after_same_branch_continuation_count": 0,
+                            "planner_event_case_count": 2,
+                            "rollback_applied_case_count": 1,
+                            "repair_safety_blocked_case_count": 1,
+                            "planner_experience_context_truncated_case_count": 2,
+                            "replan_context_truncated_case_count": 1,
+                        }
+                    }
+                ),
+                encoding="utf-8",
+            )
             classifier = root / "classifier.json"
             classifier.write_text(json.dumps({"metrics": {"total_rows": 3}}), encoding="utf-8")
             decision = root / "decision.json"
@@ -43,6 +58,9 @@ class AgentModelicaV0310CloseoutTests(unittest.TestCase):
                 out_dir=str(root / "out"),
             )
             self.assertEqual(payload["classification"], "same_branch_continuity_narrowed_on_small_lane")
+            self.assertEqual(payload["metrics"]["planner_event_case_count"], 2)
+            self.assertEqual(payload["metrics"]["rollback_applied_case_count"], 1)
+            self.assertEqual(payload["metrics"]["repair_safety_blocked_case_count"], 1)
 
 
 if __name__ == "__main__":
