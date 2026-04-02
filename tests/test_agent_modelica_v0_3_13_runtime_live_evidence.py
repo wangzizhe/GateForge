@@ -74,6 +74,24 @@ class AgentModelicaV0313RuntimeLiveEvidenceTests(unittest.TestCase):
         self.assertEqual(summary["resolution_path_counts"]["rule_then_llm"], 1)
         self.assertEqual(summary["progressive_by_source_task_id"]["seed_a"], 1)
 
+    def test_build_run_summary_falls_back_to_generic_source_id(self) -> None:
+        summary = _build_run_summary(
+            rows=[
+                {
+                    "task_id": "a",
+                    "verdict": "PASS",
+                    "planner_invoked": True,
+                    "resolution_path": "rule_then_llm",
+                    "rounds_used": 3,
+                    "progressive_solve": True,
+                    "v0_3_13_source_id": "init_pack_a",
+                }
+            ],
+            planner_backend="gemini",
+            taskset_path="runtime.json",
+        )
+        self.assertEqual(summary["progressive_by_source_task_id"]["init_pack_a"], 1)
+
 
 if __name__ == "__main__":
     unittest.main()

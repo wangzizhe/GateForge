@@ -256,6 +256,9 @@ def run_one(task: dict, *, out_dir: Path, planner_backend: str | None, timeout_s
                 "executor_runtime_hygiene": detail.get("executor_runtime_hygiene"),
                 "v0_3_13_source_task_id": task.get("v0_3_13_source_task_id"),
                 "v0_3_13_candidate_pair": task.get("v0_3_13_candidate_pair"),
+                "v0_3_13_source_id": task.get("v0_3_13_source_id"),
+                "v0_3_13_initialization_target_lhs": task.get("v0_3_13_initialization_target_lhs"),
+                "v0_3_13_initialization_target_pool": task.get("v0_3_13_initialization_target_pool"),
                 **progressive,
                 "runtime_protocol": runtime_context.baseline_measurement_protocol,
             }
@@ -284,7 +287,11 @@ def _build_run_summary(*, rows: list[dict], planner_backend: str | None, taskset
         by_resolution_path[key] = by_resolution_path.get(key, 0) + 1
     by_source_task_id: dict[str, int] = {}
     for row in progressive_rows:
-        key = _norm(row.get("v0_3_13_source_task_id")) or "unknown"
+        key = (
+            _norm(row.get("v0_3_13_source_task_id"))
+            or _norm(row.get("v0_3_13_source_id"))
+            or "unknown"
+        )
         by_source_task_id[key] = by_source_task_id.get(key, 0) + 1
     return {
         "schema_version": SCHEMA_VERSION,
