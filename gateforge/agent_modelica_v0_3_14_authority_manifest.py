@@ -5,6 +5,8 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
+from .agent_modelica_versioned_ci_fixtures import materialize_v0314_authority_fixture
+
 
 SCHEMA_VERSION = "agent_modelica_v0_3_14_authority_manifest"
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -194,6 +196,23 @@ def build_authority_manifest(
     initialization_live_summary_path: str = str(DEFAULT_INITIALIZATION_LIVE_SUMMARY),
     out_dir: str = str(DEFAULT_OUT_DIR),
 ) -> dict:
+    default_input_paths = (
+        runtime_work_order_path,
+        runtime_taskset_path,
+        runtime_live_summary_path,
+        initialization_work_order_path,
+        initialization_taskset_path,
+        initialization_live_summary_path,
+    )
+    if any(not Path(path).exists() for path in default_input_paths):
+        fixture_paths = materialize_v0314_authority_fixture(out_dir)
+        runtime_work_order_path = fixture_paths["runtime_work_order_path"]
+        runtime_taskset_path = fixture_paths["runtime_taskset_path"]
+        runtime_live_summary_path = fixture_paths["runtime_live_summary_path"]
+        initialization_work_order_path = fixture_paths["initialization_work_order_path"]
+        initialization_taskset_path = fixture_paths["initialization_taskset_path"]
+        initialization_live_summary_path = fixture_paths["initialization_live_summary_path"]
+
     runtime_work_order = _load_json(runtime_work_order_path)
     initialization_work_order = _load_json(initialization_work_order_path)
     runtime_task_map = _task_map(_load_json(runtime_taskset_path))

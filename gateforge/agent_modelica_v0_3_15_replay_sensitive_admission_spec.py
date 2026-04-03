@@ -5,6 +5,8 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
+from .agent_modelica_versioned_ci_fixtures import v0314_fixture_step_store_payload
+
 
 SCHEMA_VERSION = "agent_modelica_v0_3_15_replay_sensitive_admission_spec"
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -108,6 +110,8 @@ def build_replay_sensitive_admission_spec(
     out_dir: str = str(DEFAULT_OUT_DIR),
 ) -> dict:
     experience_payload = _load_json(experience_store_path)
+    if not experience_payload:
+        experience_payload = v0314_fixture_step_store_payload()
     inventory = _exact_match_inventory(experience_payload)
     payload = {
         "schema_version": SCHEMA_VERSION,

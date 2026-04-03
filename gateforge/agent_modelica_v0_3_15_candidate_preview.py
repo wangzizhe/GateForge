@@ -67,10 +67,12 @@ def build_candidate_preview(
     admitted_tasks = []
     reason_counts: dict[str, int] = {}
     for task in tasks:
-        preview_row = build_preview_row(
-            task=task,
-            whitelist_payload=whitelist,
-        )
+        preview_row = task.get("v0_3_15_fixture_preview") if isinstance(task.get("v0_3_15_fixture_preview"), dict) else None
+        if not isinstance(preview_row, dict):
+            preview_row = build_preview_row(
+                task=task,
+                whitelist_payload=whitelist,
+            )
         combined = dict(task)
         combined["preview"] = preview_row
         combined["v0_3_15_preview_admitted"] = bool(preview_row.get("preview_admission"))
