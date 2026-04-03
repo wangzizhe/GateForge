@@ -46,6 +46,11 @@ def _experience_records(payload: dict) -> list[dict]:
     return [row for row in records if isinstance(row, dict)]
 
 
+def _step_records(payload: dict) -> list[dict]:
+    rows = payload.get("step_records") if isinstance(payload.get("step_records"), list) else []
+    return [row for row in rows if isinstance(row, dict)]
+
+
 def _action_rows(payload: dict) -> list[tuple[dict, dict]]:
     rows: list[tuple[dict, dict]] = []
     for record in _experience_records(payload):
@@ -239,7 +244,124 @@ def build_planner_experience_context(
     max_context_tokens: int = 400,
     max_positive_hints: int = 3,
     max_negative_hints: int = 2,
+    dominant_stage_subtype: str = "",
+    residual_signal_cluster: str = "",
 ) -> dict:
+    step_rows = _step_records(experience_payload)
+    stage_key = str(dominant_stage_subtype or "").strip()
+    cluster_key = str(residual_signal_cluster or "").strip()
+    if step_rows and stage_key and cluster_key:
+        stats: dict[str, dict] = {}
+        for row in step_rows:
+            if str(row.get("dominant_stage_subtype") or "").strip() != stage_key:
+                continue
+            if str(row.get("residual_signal_cluster") or "").strip() != cluster_key:
+                continue
+            action_type = str(row.get("action_type") or "").strip()
+            if not action_type:
+                continue
+            slot = stats.setdefault(
+                action_type,
+                {
+                    "action_type": action_type,
+                    "sample_count": 0,
+                    "advancing_count": 0,
+                    "non_progress_count": 0,
+                    "dead_end_count": 0,
+                },
+            )
+            slot["sample_count"] = int(slot.get("sample_count", 0) or 0) + 1
+            outcome = str(row.get("step_outcome") or "").strip()
+            if outcome in {"advancing", "non_progress", "dead_end"}:
+                slot[f"{outcome}_count"] = int(slot.get(f"{outcome}_count", 0) or 0) + 1
+
+        positive_hints: list[dict] = []
+        caution_hints: list[dict] = []
+        ranked_rows = list(stats.values())
+        ranked_rows.sort(
+            key=lambda row: (
+                -(int(row.get("advancing_count", 0) or 0) / float(max(1, int(row.get("sample_count", 0) or 0)))),
+                -int(row.get("sample_count", 0) or 0),
+                str(row.get("action_type") or ""),
+            )
+        )
+        for row in ranked_rows:
+            sample_count = int(row.get("sample_count", 0) or 0)
+            advancing_count = int(row.get("advancing_count", 0) or 0)
+            dead_end_count = int(row.get("dead_end_count", 0) or 0)
+            if advancing_count > 0 and len(positive_hints) < max(0, int(max_positive_hints)):
+                positive_hints.append(
+                    {
+                        "action_type": str(row.get("action_type") or ""),
+                        "sample_count": sample_count,
+                        "advancing_rate": round(advancing_count / float(sample_count), 4) if sample_count else 0.0,
+                        "message": (
+                            f"Historical success on {stage_key} / {cluster_key}: "
+                            f"{row.get('action_type')} advanced {advancing_count}/{sample_count} matched steps."
+                        ),
+                    }
+                )
+            if dead_end_count > 0 and len(caution_hints) < max(0, int(max_negative_hints)):
+                caution_hints.append(
+                    {
+                        "action_type": str(row.get("action_type") or ""),
+                        "sample_count": sample_count,
+                        "dead_end_rate": round(dead_end_count / float(sample_count), 4) if sample_count else 0.0,
+                        "message": (
+                            f"Historical caution on {stage_key} / {cluster_key}: "
+                            f"{row.get('action_type')} dead-ended {dead_end_count}/{sample_count} matched steps."
+                        ),
+                    }
+                )
+
+        max_tokens = max(1, int(max_context_tokens))
+        lines: list[str] = []
+        kept_positive: list[dict] = []
+        kept_caution: list[dict] = []
+        truncated = False
+        if positive_hints or caution_hints:
+            header = (
+                "Historical step-level experience hints for the current residual state "
+                "(advisory only; prefer local evidence over memory conflicts):"
+            )
+            if _estimate_token_count(header) <= max_tokens:
+                lines.append(header)
+        for hint in positive_hints:
+            candidate = lines + [f"- {hint['message']}"]
+            if _estimate_token_count("\n".join(candidate)) > max_tokens:
+                truncated = True
+                break
+            lines.append(f"- {hint['message']}")
+            kept_positive.append(hint)
+        for hint in caution_hints:
+            candidate = lines + [f"- {hint['message']}"]
+            if _estimate_token_count("\n".join(candidate)) > max_tokens:
+                truncated = True
+                break
+            lines.append(f"- {hint['message']}")
+            kept_caution.append(hint)
+        prompt_context_text = "\n".join(lines).strip()
+        token_estimate = _estimate_token_count(prompt_context_text)
+        used = bool(prompt_context_text)
+        return {
+            "schema_version": SCHEMA_VERSION,
+            "generated_at_utc": _now_utc(),
+            "failure_type": str(failure_type or "").strip(),
+            "error_subtype": str(error_subtype or "").strip(),
+            "dominant_stage_subtype": stage_key,
+            "residual_signal_cluster": cluster_key,
+            "min_quality_score": float(min_quality_score),
+            "max_context_tokens": int(max_tokens),
+            "positive_hints": kept_positive,
+            "caution_hints": kept_caution,
+            "positive_hint_count": len(kept_positive),
+            "caution_hint_count": len(kept_caution),
+            "prompt_context_text": prompt_context_text,
+            "prompt_token_estimate": int(token_estimate),
+            "used": bool(used),
+            "truncated": bool(truncated),
+        }
+
     aggregated = _aggregate_action_stats(
         experience_payload,
         failure_type=failure_type,

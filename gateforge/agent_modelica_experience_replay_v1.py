@@ -33,6 +33,11 @@ def _experience_records(payload: dict) -> list[dict]:
     return [row for row in records if isinstance(row, dict)]
 
 
+def _step_records(payload: dict) -> list[dict]:
+    rows = payload.get("step_records") if isinstance(payload.get("step_records"), list) else []
+    return [row for row in rows if isinstance(row, dict)]
+
+
 def _action_rows(payload: dict) -> list[tuple[dict, dict]]:
     rows: list[tuple[dict, dict]] = []
     for record in _experience_records(payload):
@@ -48,6 +53,37 @@ def summarize_signal_coverage(
     *,
     eligible_trigger_rate_threshold_pct: float = 5.0,
 ) -> dict:
+    step_rows = _step_records(experience_payload)
+    if step_rows:
+        replay_rows = [
+            row
+            for row in step_rows
+            if bool(row.get("replay_eligible"))
+            and (str(row.get("rule_id") or "").strip() or str(row.get("action_key") or "").strip())
+        ]
+        total_action_count = len(step_rows)
+        replay_eligible_action_count = len(replay_rows)
+        replay_eligible_rule_ids = sorted(
+            {
+                str(row.get("rule_id") or "").strip()
+                for row in replay_rows
+                if str(row.get("rule_id") or "").strip()
+            }
+        )
+        replay_eligible_trigger_rate_pct = round((replay_eligible_action_count / total_action_count) * 100.0, 2) if total_action_count > 0 else 0.0
+        status = "sufficient_signal_coverage"
+        if replay_eligible_trigger_rate_pct < float(eligible_trigger_rate_threshold_pct):
+            status = "insufficient_signal_coverage"
+        return {
+            "schema_version": SCHEMA_VERSION,
+            "generated_at_utc": _now_utc(),
+            "total_action_count": total_action_count,
+            "replay_eligible_action_count": replay_eligible_action_count,
+            "replay_eligible_rule_ids": replay_eligible_rule_ids,
+            "replay_eligible_trigger_rate_pct": replay_eligible_trigger_rate_pct,
+            "eligible_trigger_rate_threshold_pct": float(eligible_trigger_rate_threshold_pct),
+            "signal_coverage_status": status,
+        }
     action_rows = _action_rows(experience_payload)
     total_action_count = len(action_rows)
     replay_rows = [(record, row) for record, row in action_rows if bool(row.get("replay_eligible"))]
@@ -75,7 +111,90 @@ def build_rule_priority_context(
     failure_type: str,
     error_subtype: str = "",
     min_quality_score: float = 0.6,
+    dominant_stage_subtype: str = "",
+    residual_signal_cluster: str = "",
 ) -> dict:
+    step_rows = _step_records(experience_payload)
+    stage_key = str(dominant_stage_subtype or "").strip()
+    cluster_key = str(residual_signal_cluster or "").strip()
+    if step_rows and stage_key and cluster_key:
+        stats: dict[str, dict] = {}
+        matched_step_count = 0
+        for row in step_rows:
+            if str(row.get("dominant_stage_subtype") or "").strip() != stage_key:
+                continue
+            if str(row.get("residual_signal_cluster") or "").strip() != cluster_key:
+                continue
+            matched_step_count += 1
+            rule_id = str(row.get("rule_id") or "").strip()
+            action_key = str(row.get("action_key") or "").strip()
+            if not rule_id and not action_key:
+                continue
+            slot_key = rule_id or action_key
+            slot = stats.setdefault(
+                slot_key,
+                {
+                    "rule_id": rule_id,
+                    "action_key": action_key,
+                    "rule_tier": str(row.get("rule_tier") or ""),
+                    "action_type": str(row.get("action_type") or ""),
+                    "sample_count": 0,
+                    "advancing_count": 0,
+                    "non_progress_count": 0,
+                    "dead_end_count": 0,
+                },
+            )
+            slot["sample_count"] = int(slot.get("sample_count", 0) or 0) + 1
+            outcome = str(row.get("step_outcome") or "").strip()
+            if outcome in {"advancing", "non_progress", "dead_end"}:
+                slot[f"{outcome}_count"] = int(slot.get(f"{outcome}_count", 0) or 0) + 1
+
+        ranked_rules: list[dict] = []
+        for row in stats.values():
+            sample_count = int(row.get("sample_count", 0) or 0)
+            if sample_count <= 0:
+                continue
+            advancing_rate = round(int(row.get("advancing_count", 0) or 0) / float(sample_count), 4)
+            dead_end_rate = round(int(row.get("dead_end_count", 0) or 0) / float(sample_count), 4)
+            non_progress_rate = round(int(row.get("non_progress_count", 0) or 0) / float(sample_count), 4)
+            priority_score = round((advancing_rate * 0.8) - (dead_end_rate * 0.15) - (non_progress_rate * 0.05), 4)
+            ranked_row = dict(row)
+            ranked_row["advancing_rate"] = advancing_rate
+            ranked_row["dead_end_rate"] = dead_end_rate
+            ranked_row["non_progress_rate"] = non_progress_rate
+            ranked_row["priority_score"] = priority_score
+            ranked_rules.append(ranked_row)
+
+        ranked_rules.sort(
+            key=lambda row: (
+                -float(row.get("priority_score", 0.0)),
+                -int(row.get("sample_count", 0) or 0),
+                str(row.get("rule_id") or row.get("action_key") or ""),
+            )
+        )
+        recommended_rule_order = [
+            str(row.get("rule_id") or "")
+            for row in ranked_rules
+            if str(row.get("rule_id") or "").strip() and float(row.get("priority_score", 0.0)) > 0.0
+        ]
+        coverage = summarize_signal_coverage(experience_payload)
+        coverage["signal_coverage_status"] = "exact_step_match_available" if matched_step_count > 0 else "no_exact_step_match"
+        coverage["exact_match_step_count"] = matched_step_count
+        coverage["dominant_stage_subtype"] = stage_key
+        coverage["residual_signal_cluster"] = cluster_key
+        return {
+            "schema_version": SCHEMA_VERSION,
+            "generated_at_utc": _now_utc(),
+            "failure_type": str(failure_type or "").strip(),
+            "error_subtype": str(error_subtype or "").strip(),
+            "dominant_stage_subtype": stage_key,
+            "residual_signal_cluster": cluster_key,
+            "min_quality_score": float(min_quality_score),
+            "ranked_rules": ranked_rules,
+            "recommended_rule_order": recommended_rule_order,
+            "coverage": coverage,
+        }
+
     failure_key = str(failure_type or "").strip()
     subtype_key = str(error_subtype or "").strip()
     stats: dict[str, dict] = {}

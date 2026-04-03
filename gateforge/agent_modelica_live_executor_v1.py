@@ -157,6 +157,9 @@ from .agent_modelica_prompt_input_hygiene_v1 import (
     truncate_replan_context_for_prompt as _truncate_replan_context_for_prompt,
 )
 from .agent_modelica_repair_quality_score_v1 import compute_repair_quality_breakdown as _compute_repair_quality_breakdown
+from .agent_modelica_v0_3_14_step_experience_common import (
+    residual_signal_cluster as _build_v0_3_14_residual_signal_cluster,
+)
 from .llm_budget import (
     _IN_MEMORY_LIVE_LEDGER,
     _live_budget_config,
@@ -1608,11 +1611,20 @@ def main() -> None:
                 failure_type=str(args.failure_type),
                 current_round=round_idx,
             )
+            current_stage_subtype = str(diagnostic.get("dominant_stage_subtype") or "")
+            current_residual_signal_cluster = _build_v0_3_14_residual_signal_cluster(
+                dominant_stage_subtype=current_stage_subtype,
+                error_subtype=str(diagnostic.get("error_subtype") or ""),
+                observed_failure_type=str(ftype or ""),
+                reason=str(reason or ""),
+            )
             if bool(str(args.experience_replay) == "on") and isinstance(experience_payload, dict) and experience_payload:
                 priority_context = _build_rule_priority_context(
                     experience_payload,
                     failure_type=str(args.failure_type),
                     error_subtype=str(diagnostic.get("error_subtype") or ""),
+                    dominant_stage_subtype=current_stage_subtype,
+                    residual_signal_cluster=current_residual_signal_cluster,
                 )
                 recommended = priority_context.get("recommended_rule_order") if isinstance(priority_context, dict) else []
                 recommended = [str(rule_id or "") for rule_id in recommended if str(rule_id or "").strip()]
@@ -1626,6 +1638,8 @@ def main() -> None:
                     "enabled": True,
                     "used": bool(recommended),
                     "source": str(args.experience_source or ""),
+                    "dominant_stage_subtype": current_stage_subtype,
+                    "residual_signal_cluster": current_residual_signal_cluster,
                     "signal_coverage_status": str((priority_context or {}).get("coverage", {}).get("signal_coverage_status") or ""),
                     "default_rule_order": list(default_rule_order),
                     "reordered_rule_order": list(reordered_rule_order),
@@ -1646,6 +1660,8 @@ def main() -> None:
                     "enabled": bool(str(args.experience_replay) == "on"),
                     "used": bool(priority_context and priority_context.get("recommended_rule_order")),
                     "source": str(args.experience_source or ""),
+                    "dominant_stage_subtype": current_stage_subtype,
+                    "residual_signal_cluster": current_residual_signal_cluster,
                     "signal_coverage_status": str(experience_replay_summary.get("signal_coverage_status") or ""),
                     "default_rule_order": list(default_rule_order),
                     "reordered_rule_order": list(reordered_rule_order),
@@ -2222,11 +2238,20 @@ def main() -> None:
                     and isinstance(experience_payload, dict)
                     and experience_payload
                 ):
+                    current_stage_subtype = str(diagnostic.get("dominant_stage_subtype") or "")
+                    current_residual_signal_cluster = _build_v0_3_14_residual_signal_cluster(
+                        dominant_stage_subtype=current_stage_subtype,
+                        error_subtype=str(diagnostic.get("error_subtype") or ""),
+                        observed_failure_type=str(ftype or ""),
+                        reason=str(reason or ""),
+                    )
                     planner_experience_context = _build_planner_experience_context(
                         experience_payload,
                         failure_type=str(args.failure_type),
                         error_subtype=str(diagnostic.get("error_subtype") or ""),
                         max_context_tokens=int(args.planner_experience_max_tokens or 400),
+                        dominant_stage_subtype=current_stage_subtype,
+                        residual_signal_cluster=current_residual_signal_cluster,
                     )
                     planner_experience_context, planner_context_truncation = _truncate_planner_experience_context(
                         planner_experience_context
@@ -2240,6 +2265,8 @@ def main() -> None:
                         "enabled": True,
                         "used": bool(planner_experience_context.get("used")),
                         "source": str(args.experience_source or ""),
+                        "dominant_stage_subtype": current_stage_subtype,
+                        "residual_signal_cluster": current_residual_signal_cluster,
                         "positive_hint_count": int(planner_experience_context.get("positive_hint_count") or 0),
                         "caution_hint_count": int(planner_experience_context.get("caution_hint_count") or 0),
                         "prompt_token_estimate": int(planner_experience_context.get("prompt_token_estimate") or 0),
@@ -2264,6 +2291,13 @@ def main() -> None:
                         "enabled": bool(str(args.planner_experience_injection) == "on"),
                         "used": False,
                         "source": str(args.experience_source or ""),
+                        "dominant_stage_subtype": str(diagnostic.get("dominant_stage_subtype") or ""),
+                        "residual_signal_cluster": _build_v0_3_14_residual_signal_cluster(
+                            dominant_stage_subtype=str(diagnostic.get("dominant_stage_subtype") or ""),
+                            error_subtype=str(diagnostic.get("error_subtype") or ""),
+                            observed_failure_type=str(ftype or ""),
+                            reason=str(reason or ""),
+                        ),
                         "positive_hint_count": 0,
                         "caution_hint_count": 0,
                         "prompt_token_estimate": 0,
