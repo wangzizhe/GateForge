@@ -182,6 +182,36 @@ class AgentModelicaV0318Stage2AuditFlowTests(unittest.TestCase):
             self.assertEqual(payload.get("closeout_status"), "STAGE2_ACTIONABILITY_AUDIT_DRAFT_READY")
             self.assertEqual(payload.get("authority_confirmation_status"), "PENDING_USER_CONFIRMATION")
 
+    def test_confirmed_diagnosis_promotes_closeout_ready(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            prompt_pack_path, generation_census_path, repair_taskset_path, one_step_path = self._build_fixture_inputs(root)
+            build_stage2_sample_manifest(
+                prompt_pack_path=str(prompt_pack_path),
+                generation_census_path=str(generation_census_path),
+                repair_taskset_path=str(repair_taskset_path),
+                one_step_repair_path=str(one_step_path),
+                out_dir=str(root / "manifest"),
+            )
+            build_stage2_diagnosis(
+                sample_manifest_path=str(root / "manifest" / "manifest.json"),
+                authority_confirmation_status="CONFIRMED_USER",
+                out_dir=str(root / "diagnosis"),
+            )
+            build_stage2_characterization(
+                diagnosis_path=str(root / "diagnosis" / "records.json"),
+                out_dir=str(root / "characterization"),
+            )
+            payload = build_v0318_closeout(
+                sample_manifest_path=str(root / "manifest" / "manifest.json"),
+                diagnosis_path=str(root / "diagnosis" / "records.json"),
+                characterization_path=str(root / "characterization" / "summary.json"),
+                targeting_path=str(root / "targeting" / "summary.json"),
+                out_dir=str(root / "closeout"),
+            )
+            self.assertEqual(payload.get("closeout_status"), "STAGE2_ACTIONABILITY_AUDIT_READY")
+            self.assertEqual(payload.get("authority_confirmation_status"), "CONFIRMED_USER")
+
 
 if __name__ == "__main__":
     unittest.main()

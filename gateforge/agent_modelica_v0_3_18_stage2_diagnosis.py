@@ -25,7 +25,7 @@ DRAFT_DIAGNOSIS = {
         "human_full_context_view": {
             "proposed_repairability": "repairable",
             "information_load": "low",
-            "rationale": "The failure is a local library API mismatch: SineVoltage does not expose the modified element used in the generated model. A human with MSL docs can swap the parameter name without changing topology.",
+            "rationale": "This is a local cross-version API hallucination: in MSL 4.x SineVoltage uses `f`, not `freqHz`. A human with MSL docs can correct the parameter name without changing topology.",
         },
         "agent_realistic_context_view": {
             "proposed_repairability_mode": "agent_repairable_with_context_injection",
@@ -72,7 +72,7 @@ DRAFT_DIAGNOSIS = {
         "human_full_context_view": {
             "proposed_repairability": "repairable",
             "information_load": "medium",
-            "rationale": "The model is structurally underconstrained. A human can usually repair it by adding the missing rotational reference, torque input wiring, or support closure once the intended drivetrain topology is inferred.",
+            "rationale": "The model is structurally underconstrained because the second inertia is left without a closing rotational reference. A human can repair it by adding the missing fixed/support closure and restoring a square topology.",
         },
         "agent_realistic_context_view": {
             "proposed_repairability_mode": "human_only",
@@ -98,7 +98,7 @@ DRAFT_DIAGNOSIS = {
         "human_full_context_view": {
             "proposed_repairability": "repairable",
             "information_load": "low",
-            "rationale": "The generator used a parameter name that does not exist on the chosen sine block. This is a local block-interface mismatch.",
+            "rationale": "This is the same local parameter-surface mistake as the RC lowpass case: in MSL 4.x `Modelica.Blocks.Sources.Sine` uses `f`, not `freqHz`.",
         },
         "agent_realistic_context_view": {
             "proposed_repairability_mode": "agent_repairable_with_context_injection",
@@ -121,7 +121,7 @@ DRAFT_DIAGNOSIS = {
         "human_full_context_view": {
             "proposed_repairability": "repairable",
             "information_load": "medium",
-            "rationale": "The generator chose a DC machine class path that does not exist in the referenced library layout. A human can replace it with the correct machine class and then continue local wiring cleanup if needed.",
+            "rationale": "The generator chose the wrong DC machine class path. A human can switch from the hallucinated path to the real `BasicMachines.DCMachines` path and then finish any follow-up local interface cleanup if needed.",
         },
         "agent_realistic_context_view": {
             "proposed_repairability_mode": "agent_repairable_with_context_injection",
@@ -145,7 +145,7 @@ DRAFT_DIAGNOSIS = {
         "human_full_context_view": {
             "proposed_repairability": "repairable",
             "information_load": "medium",
-            "rationale": "A human familiar with Modelica.Fluid can redeclare a consistent medium package across pump, pipe, tank, and boundaries, but this is no longer a one-line local rename.",
+            "rationale": "This is a classic Modelica.Fluid medium-consistency error. A human familiar with the library can redeclare a shared `package Medium` across the pump, pipe, tank, and boundaries, but it is not a one-line local fix.",
         },
         "agent_realistic_context_view": {
             "proposed_repairability_mode": "human_only",
@@ -171,7 +171,7 @@ DRAFT_DIAGNOSIS = {
         "human_full_context_view": {
             "proposed_repairability": "repairable",
             "information_load": "high",
-            "rationale": "The immediate error is still a wrong Pump parameter/interface assumption, which a human can fix using docs. But the model is complex enough that more latent interface issues are likely after the first correction.",
+            "rationale": "The first visible error is still a local Pump API mismatch, but the model also hallucinates non-MSL heat-exchanger classes. A human can repair it, but only with high context load and likely multiple successive interface fixes.",
         },
         "agent_realistic_context_view": {
             "proposed_repairability_mode": "human_only",
@@ -198,7 +198,7 @@ DRAFT_DIAGNOSIS = {
         "human_full_context_view": {
             "proposed_repairability": "repairable",
             "information_load": "high",
-            "rationale": "A human can eventually repair this model, but only by reconciling fluid-medium declarations, invalid component assumptions, and the intended electro-thermal coupling structure.",
+            "rationale": "A human can eventually repair this model, but only by reconciling fluid-medium declarations and re-establishing the missing electrical-mechanical-thermal coupling topology.",
         },
         "agent_realistic_context_view": {
             "proposed_repairability_mode": "human_only",
@@ -232,8 +232,10 @@ def _sample_rows(manifest_payload: dict) -> list[dict]:
 def build_stage2_diagnosis(
     *,
     sample_manifest_path: str = str(DEFAULT_SAMPLE_MANIFEST_OUT_DIR / "manifest.json"),
+    authority_confirmation_status: str = "PENDING_USER_CONFIRMATION",
     out_dir: str = str(DEFAULT_DIAGNOSIS_OUT_DIR),
 ) -> dict:
+    confirmation_status = norm(authority_confirmation_status).upper() or "PENDING_USER_CONFIRMATION"
     sample_manifest = load_json(sample_manifest_path)
     records = []
     missing_templates = []
@@ -257,7 +259,7 @@ def build_stage2_diagnosis(
             "one_step_log_excerpt": norm(sample.get("one_step_log_excerpt")),
             "human_full_context_view": {
                 **dict(draft.get("human_full_context_view") or {}),
-                "authority_confirmation_status": "PENDING_USER_CONFIRMATION",
+                "authority_confirmation_status": confirmation_status,
             },
             "agent_realistic_context_view": dict(draft.get("agent_realistic_context_view") or {}),
             "required_information": list(draft.get("required_information") or []),
@@ -277,7 +279,7 @@ def build_stage2_diagnosis(
         "schema_version": SCHEMA_VERSION,
         "generated_at_utc": now_utc(),
         "status": "PASS" if not missing_templates and records else "FAIL",
-        "authority_confirmation_status": "PENDING_USER_CONFIRMATION",
+        "authority_confirmation_status": confirmation_status,
         "sample_manifest_path": str(Path(sample_manifest_path).resolve()) if Path(sample_manifest_path).exists() else str(sample_manifest_path),
         "record_count": len(records),
         "missing_templates": missing_templates,
@@ -306,10 +308,12 @@ def build_stage2_diagnosis(
 def main() -> int:
     parser = argparse.ArgumentParser(description="Build the v0.3.18 stage_2 diagnosis draft.")
     parser.add_argument("--sample-manifest", default=str(DEFAULT_SAMPLE_MANIFEST_OUT_DIR / "manifest.json"))
+    parser.add_argument("--authority-confirmation-status", default="PENDING_USER_CONFIRMATION")
     parser.add_argument("--out-dir", default=str(DEFAULT_DIAGNOSIS_OUT_DIR))
     args = parser.parse_args()
     payload = build_stage2_diagnosis(
         sample_manifest_path=str(args.sample_manifest),
+        authority_confirmation_status=str(args.authority_confirmation_status),
         out_dir=str(args.out_dir),
     )
     print(json.dumps({"status": payload.get("status"), "record_count": payload.get("record_count")}))

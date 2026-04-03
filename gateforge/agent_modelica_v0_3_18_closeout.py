@@ -37,7 +37,11 @@ def build_v0318_closeout(
     if not Path(sample_manifest_path).exists():
         build_stage2_sample_manifest(out_dir=str(Path(sample_manifest_path).parent))
     if not Path(diagnosis_path).exists():
-        build_stage2_diagnosis(sample_manifest_path=sample_manifest_path, out_dir=str(Path(diagnosis_path).parent))
+        build_stage2_diagnosis(
+            sample_manifest_path=sample_manifest_path,
+            authority_confirmation_status="PENDING_USER_CONFIRMATION",
+            out_dir=str(Path(diagnosis_path).parent),
+        )
     if not Path(characterization_path).exists():
         build_stage2_characterization(diagnosis_path=diagnosis_path, out_dir=str(Path(characterization_path).parent))
     if not Path(targeting_path).exists():
@@ -79,7 +83,13 @@ def build_v0318_closeout(
         },
         "conclusion": {
             "provisional_version_decision": norm(characterization.get("provisional_version_decision")) or "stage_2_partially_repairable",
-            "summary": "The draft audit identifies a repairable stage_2 subset centered on component API alignment, but authority closeout still requires user confirmation of the human-repairability judgments.",
+            "version_decision": norm(characterization.get("version_decision")) or "stage_2_partially_repairable",
+            "summary": (
+                "The stage_2 audit identifies a repairable subset centered on component API alignment for simple/medium models, "
+                "while medium redeclare-consistency and complex topology-heavy cases remain human-only under the current loop."
+                if authority_confirmation_status != "PENDING_USER_CONFIRMATION"
+                else "The draft audit identifies a repairable stage_2 subset centered on component API alignment, but authority closeout still requires user confirmation of the human-repairability judgments."
+            ),
             "next_version_target": "v0.3.19 should target component_api_alignment mutations on simple/medium models before expanding into global structural repair families.",
         },
     }

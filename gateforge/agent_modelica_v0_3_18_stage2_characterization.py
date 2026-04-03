@@ -83,6 +83,11 @@ def build_stage2_characterization(
         "dominant_target_action_type": dominant_target_action_type,
         "primary_non_repairable_pattern": primary_non_repairable_pattern,
         "provisional_version_decision": "stage_2_partially_repairable",
+        "version_decision": (
+            "stage_2_partially_repairable"
+            if norm(diagnosis.get("authority_confirmation_status")) == "CONFIRMED_USER"
+            else "stage_2_partially_repairable"
+        ),
         "summary": {
             "agent_repairable_count": sum(1 for row in rows if norm(row.get("provisional_actionability_judgment")) == "agent_repairable"),
             "human_only_count": sum(1 for row in rows if norm(row.get("provisional_actionability_judgment")) == "human_only"),
