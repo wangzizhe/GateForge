@@ -35,6 +35,45 @@ def build_v064_closeout(
 ) -> dict:
     if not Path(handoff_integrity_path).exists():
         build_v064_handoff_integrity(out_dir=str(Path(handoff_integrity_path).parent))
+    integrity = load_json(handoff_integrity_path)
+    if integrity.get("status") != "PASS":
+        version_decision = "v0_6_4_handoff_substrate_invalid"
+        handoff_mode = "repair_phase_decision_basis_first"
+        payload = {
+            "schema_version": SCHEMA_VERSION,
+            "generated_at_utc": now_utc(),
+            "status": "FAIL",
+            "closeout_status": "V0_6_4_HANDOFF_SUBSTRATE_INVALID",
+            "conclusion": {
+                "version_decision": version_decision,
+                "decision_input_maturity": "invalid",
+                "maturity_gap": "upstream_chain_integrity_invalid",
+                "open_world_candidate_supported": False,
+                "targeted_expansion_candidate_supported": False,
+                "near_miss_open_world_candidate": False,
+                "near_miss_targeted_expansion_candidate": False,
+                "fluid_network_extension_blocking_open_world": None,
+                "v0_6_5_handoff_mode": handoff_mode,
+                "do_not_reopen_v0_5_boundary_pressure_by_default": True,
+            },
+            "handoff_integrity": integrity,
+        }
+        out_root = Path(out_dir)
+        write_json(out_root / "summary.json", payload)
+        write_text(
+            out_root / "summary.md",
+            "\n".join(
+                [
+                    "# v0.6.4 Closeout",
+                    "",
+                    f"- version_decision: `{version_decision}`",
+                    "- decision_input_maturity: `invalid`",
+                    f"- v0_6_5_handoff_mode: `{handoff_mode}`",
+                ]
+            ),
+        )
+        return payload
+
     if not Path(profile_refinement_path).exists():
         build_v064_profile_refinement(
             handoff_integrity_path=handoff_integrity_path,
@@ -53,12 +92,11 @@ def build_v064_closeout(
             out_dir=str(Path(decision_maturity_path).parent),
         )
 
-    integrity = load_json(handoff_integrity_path)
     candidate = load_json(candidate_pressure_path)
     maturity = load_json(decision_maturity_path)
 
     status = str(maturity.get("decision_input_maturity") or "invalid")
-    if integrity.get("status") != "PASS" or status == "invalid":
+    if status == "invalid":
         version_decision = "v0_6_4_handoff_substrate_invalid"
         handoff_mode = "repair_phase_decision_basis_first"
     elif status == "ready":
