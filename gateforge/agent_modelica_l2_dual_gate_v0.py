@@ -242,7 +242,6 @@ def main() -> None:
                 roundtrip_pass += 1
 
             script = (
-                "installPackage(Modelica);\n"
                 "loadModel(Modelica);\n"
                 f'loadFile("{modelica_path.name}");\n'
                 f"checkModel({_model_name_from_ir(ir)});\n"

@@ -105,8 +105,6 @@ def _check_model_text_once(*, model_text: str, backend: str, docker_image: str, 
         local_model = workspace / "candidate.mo"
         local_model.write_text(model_text, encoding="utf-8")
         script = (
-            "installPackage(Modelica);\n"
-            "getErrorString();\n"
             "loadModel(Modelica);\n"
             "getErrorString();\n"
             f'loadFile("{local_model.name}");\n'

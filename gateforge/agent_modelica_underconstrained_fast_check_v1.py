@@ -111,8 +111,6 @@ def _check_model_once(*, model_path: str, backend: str, docker_image: str, timeo
         local_model = workspace / source_path.name
         shutil.copyfile(source_path, local_model)
         script = (
-            "installPackage(Modelica);\n"
-            "getErrorString();\n"
             "loadModel(Modelica);\n"
             "getErrorString();\n"
             f'loadFile("{local_model.name}");\n'

@@ -204,7 +204,7 @@ class OmcMcpServer:
         )
 
     def _bootstrap(self, extra_model_loads: list[str]) -> str:
-        bootstrap = "loadModel(Modelica);\n" if self.backend == "omc" else "installPackage(Modelica);\nloadModel(Modelica);\n"
+        bootstrap = "loadModel(Modelica);\n"
         if extra_model_loads:
             bootstrap += "".join(f"loadModel({item});\n" for item in extra_model_loads if _norm(item))
         return bootstrap
