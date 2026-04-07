@@ -175,7 +175,6 @@ class AgentModelicaLiveExecutorGeminiV1Tests(unittest.TestCase):
                 )
                 self.assertEqual(mocked.call_count, 1)
                 script_text = str(mocked.call_args.kwargs.get("script_text") or mocked.call_args.args[0])
-                self.assertIn("installPackage(Modelica);", script_text)
                 self.assertIn("loadModel(Modelica);", script_text)
                 self.assertIn('loadFile("A1.mo");', script_text)
 

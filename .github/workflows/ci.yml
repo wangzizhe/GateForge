@@ -296,6 +296,17 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e .
 
+      - name: Cache OpenModelica libraries
+        id: omc-library-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.openmodelica/libraries
+          key: omc-libraries-${{ runner.os }}-v1.26.1-minimal
+
+      - name: Bootstrap OpenModelica MSL
+        if: steps.omc-library-cache.outputs.cache-hit != 'true'
+        run: bash scripts/ci_bootstrap_omc_libraries.sh
+
       - name: Build frozen realism taskset
         run: |
           bash scripts/run_agent_modelica_electrical_realism_frozen_taskset_v1.sh
@@ -343,10 +354,15 @@ jobs:
           pip install -e .
 
       - name: Cache OpenModelica libraries
+        id: omc-library-cache
         uses: actions/cache@v4
         with:
           path: ~/.openmodelica/libraries
           key: omc-libraries-${{ runner.os }}-v1.26.1-minimal
+
+      - name: Bootstrap OpenModelica MSL
+        if: steps.omc-library-cache.outputs.cache-hit != 'true'
+        run: bash scripts/ci_bootstrap_omc_libraries.sh
 
       - name: Enable live smoke for mainline/scheduled runs
         if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.run_release_live_smoke) }}
