@@ -64,7 +64,11 @@ def _write_md(path: str, payload: dict) -> None:
 
 def _blocked_reason(output: str) -> str:
     lower = str(output or "").lower()
+    if "timeoutexpired" in lower or "timed out" in lower or "timeout" == lower.strip():
+        return "omc_timeout"
     if "permission denied while trying to connect to the docker api" in lower:
+        return "docker_unavailable"
+    if "filenotfounderror" in lower and "docker" in lower:
         return "docker_unavailable"
     if "failed to load package modelica" in lower:
         return "modelica_package_unavailable"

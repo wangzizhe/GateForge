@@ -6,6 +6,51 @@ from gateforge.agent_modelica_connector_fast_check_v1 import _check_model_text_o
 
 
 class AgentModelicaConnectorFastCheckV1Tests(unittest.TestCase):
+    def test_timeout_output_is_classified_as_blocked(self) -> None:
+        taskset = {
+            "tasks": [
+                {
+                    "task_id": "t1",
+                    "failure_type": "connector_mismatch",
+                    "expected_stage": "check",
+                    "mutated_model_path": "/tmp/t1.mo",
+                    "mutated_objects": [
+                        {
+                            "kind": "connection_endpoint",
+                            "from": "V1.p",
+                            "to_before": "R1.p",
+                            "to_after": "R1.badPort",
+                        }
+                    ],
+                }
+            ]
+        }
+
+        def _runner(task: dict, model_text: str) -> dict:
+            return {
+                "check_model_pass": False,
+                "rc": None,
+                "output": "TimeoutExpired",
+                "diagnostic_ir": {
+                    "error_type": "model_check_error",
+                    "error_subtype": "compile_failure_unknown",
+                    "stage": "check",
+                    "observed_phase": "check",
+                },
+            }
+
+        original_read = __import__("gateforge.agent_modelica_connector_fast_check_v1", fromlist=["_read_text"])._read_text
+        module = __import__("gateforge.agent_modelica_connector_fast_check_v1", fromlist=["_read_text"])
+        module._read_text = lambda _path: "model A1 end A1;"
+        try:
+            summary = build_connector_fast_check_v1(taskset_payload=taskset, runner=_runner)
+        finally:
+            module._read_text = original_read
+
+        self.assertEqual(summary.get("status"), "BLOCKED")
+        self.assertEqual(int(summary.get("blocked_count") or 0), 1)
+        self.assertIn("blocked:omc_timeout:t1", summary.get("reasons") or [])
+
     def test_check_model_text_once_uses_mkdtemp_and_ignores_cleanup_errors(self) -> None:
         with mock.patch(
             "gateforge.agent_modelica_connector_fast_check_v1._find_primary_model_name",
