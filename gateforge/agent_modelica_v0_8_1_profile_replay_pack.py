@@ -33,12 +33,15 @@ def build_v081_profile_replay_pack(
     metrics = defaultdict(list)
     case_outcomes: dict[str, list[str]] = defaultdict(list)
 
+    mock_detected = False
     for run_index in range(1, profile_run_count + 1):
         run_dir = out_root / f"run_{run_index:02d}"
         profile = build_v080_pilot_workflow_profile(
             substrate_path=substrate_path,
             out_dir=str(run_dir),
         )
+        if not (run_dir / "run_contract" / "summary.json").exists():
+            mock_detected = True
         case_table = list(profile.get("case_result_table") or [])
         for case in case_table:
             case_outcomes[str(case.get("task_id") or "")].append(str(case.get("pilot_outcome") or ""))
@@ -90,7 +93,7 @@ def build_v081_profile_replay_pack(
         "status": "PASS",
         "profile_run_count": profile_run_count,
         "execution_source": "gateforge_run_contract_live_path",
-        "mock_executor_path_used": False,
+        "mock_executor_path_used": mock_detected,
         "workflow_resolution_rate_range_pct": range_pct(metrics["workflow_resolution_rate_pct"]),
         "goal_alignment_rate_range_pct": range_pct(metrics["goal_alignment_rate_pct"]),
         "surface_fix_only_rate_range_pct": range_pct(metrics["surface_fix_only_rate_pct"]),

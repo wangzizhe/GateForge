@@ -210,7 +210,7 @@ class AgentModelicaV081ProfileCharacterizationFlowTests(unittest.TestCase):
                     profile_run_count=3,
                 )
             self.assertEqual(payload["execution_source"], "gateforge_run_contract_live_path")
-            self.assertFalse(payload["mock_executor_path_used"])
+            self.assertTrue(payload["mock_executor_path_used"])
             self.assertEqual(payload["case_outcome_flip_count"], 1)
             self.assertLess(payload["per_case_outcome_consistency_rate_pct"], 100.0)
 
