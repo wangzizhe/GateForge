@@ -70,7 +70,7 @@ class AgentModelicaV080WorkflowProximalSubstrateFlowTests(unittest.TestCase):
                 bool((payload.get("conclusion") or {}).get("goal_level_success_definition_frozen"))
             )
             pilot = payload.get("pilot_workflow_profile") or {}
-            self.assertEqual(pilot.get("execution_source"), "gateforge_agent_mock_execution_path")
+            self.assertEqual(pilot.get("execution_source"), "gateforge_run_contract_live_path")
             self.assertEqual(int(pilot.get("live_executor_invocation_count") or 0), 10)
             first_case = (pilot.get("case_result_table") or [])[0]
             self.assertIn("acceptance_check_results", first_case)
@@ -188,7 +188,7 @@ class AgentModelicaV080WorkflowProximalSubstrateFlowTests(unittest.TestCase):
                 out_dir=str(root / "closeout"),
             )
             pilot = payload.get("pilot_workflow_profile") or {}
-            self.assertEqual(pilot.get("execution_source"), "gateforge_agent_mock_execution_path")
+            self.assertEqual(pilot.get("execution_source"), "gateforge_run_contract_live_path")
             self.assertGreater(float(pilot.get("workflow_resolution_rate_pct") or 0.0), 0.0)
             self.assertTrue(bool(pilot.get("workflow_resolution_rate_requires_goal_context")))
 

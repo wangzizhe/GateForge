@@ -58,6 +58,46 @@ class AgentModelicaLiveExecutorMockV0Tests(unittest.TestCase):
             self.assertEqual(stdout_payload.get("task_id"), "t2")
             self.assertEqual(stdout_payload.get("backend_used"), "mock")
 
+    def test_module_can_apply_fixture_overrides(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            fixture_path = Path(d) / "fixture.json"
+            fixture_path.write_text(
+                json.dumps(
+                    {
+                        "check_model_pass": True,
+                        "simulate_pass": False,
+                        "signal_values": {"trackingError": 0.25},
+                        "produced_artifacts": ["artifacts/demo/report.json"],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateforge.agent_modelica_live_executor_mock_v0",
+                    "--task-id",
+                    "t3",
+                    "--failure-type",
+                    "simulate_error",
+                    "--expected-stage",
+                    "simulate",
+                    "--fixture-path",
+                    str(fixture_path),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=30,
+            )
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr)
+            payload = json.loads(proc.stdout)
+            self.assertTrue(payload.get("check_model_pass"))
+            self.assertFalse(payload.get("simulate_pass"))
+            self.assertEqual(payload.get("signal_values"), {"trackingError": 0.25})
+            self.assertEqual(payload.get("produced_artifacts"), ["artifacts/demo/report.json"])
+
 
 if __name__ == "__main__":
     unittest.main()
