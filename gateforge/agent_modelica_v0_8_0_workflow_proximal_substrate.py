@@ -45,7 +45,12 @@ _TASK_ROWS = [
         "context_constraint_delta": True,
         "acceptance_criterion_delta": True,
         "legacy_bucket_hint": "covered_success",
-        "pilot_outcome": "goal_level_resolved",
+        "mock_execution_fixture": {
+            "check_model_pass": True,
+            "simulate_pass": True,
+            "signal_values": {"sensorBus.signal": 1.0},
+            "produced_artifacts": [],
+        },
     },
     {
         "task_id": "v080_case_02",
@@ -70,7 +75,12 @@ _TASK_ROWS = [
         "context_constraint_delta": True,
         "acceptance_criterion_delta": True,
         "legacy_bucket_hint": "covered_success",
-        "pilot_outcome": "goal_level_resolved",
+        "mock_execution_fixture": {
+            "check_model_pass": True,
+            "simulate_pass": True,
+            "signal_values": {},
+            "produced_artifacts": ["artifacts/v080/case02_nominal_envelope.png"],
+        },
     },
     {
         "task_id": "v080_case_03",
@@ -96,7 +106,12 @@ _TASK_ROWS = [
         "context_constraint_delta": True,
         "acceptance_criterion_delta": True,
         "legacy_bucket_hint": "covered_success",
-        "pilot_outcome": "goal_level_resolved",
+        "mock_execution_fixture": {
+            "check_model_pass": True,
+            "simulate_pass": True,
+            "signal_values": {"controller.u": 0.5},
+            "produced_artifacts": [],
+        },
     },
     {
         "task_id": "v080_case_04",
@@ -123,7 +138,12 @@ _TASK_ROWS = [
         "context_constraint_delta": True,
         "acceptance_criterion_delta": True,
         "legacy_bucket_hint": "covered_but_fragile",
-        "pilot_outcome": "surface_fix_only",
+        "mock_execution_fixture": {
+            "check_model_pass": True,
+            "simulate_pass": True,
+            "signal_values": {"trackingError": 0.25},
+            "produced_artifacts": [],
+        },
     },
     {
         "task_id": "v080_case_05",
@@ -150,7 +170,12 @@ _TASK_ROWS = [
         "context_constraint_delta": False,
         "acceptance_criterion_delta": True,
         "legacy_bucket_hint": "covered_success",
-        "pilot_outcome": "goal_level_resolved",
+        "mock_execution_fixture": {
+            "check_model_pass": True,
+            "simulate_pass": True,
+            "signal_values": {"loop.mediumPressure": 100000.0},
+            "produced_artifacts": [],
+        },
     },
     {
         "task_id": "v080_case_06",
@@ -175,7 +200,12 @@ _TASK_ROWS = [
         "context_constraint_delta": True,
         "acceptance_criterion_delta": True,
         "legacy_bucket_hint": "dispatch_or_policy_limited",
-        "pilot_outcome": "goal_misaligned",
+        "mock_execution_fixture": {
+            "check_model_pass": True,
+            "simulate_pass": True,
+            "signal_values": {},
+            "produced_artifacts": [],
+        },
     },
     {
         "task_id": "v080_case_07",
@@ -200,7 +230,12 @@ _TASK_ROWS = [
         "context_constraint_delta": False,
         "acceptance_criterion_delta": True,
         "legacy_bucket_hint": "covered_but_fragile",
-        "pilot_outcome": "surface_fix_only",
+        "mock_execution_fixture": {
+            "check_model_pass": True,
+            "simulate_pass": True,
+            "signal_values": {},
+            "produced_artifacts": [],
+        },
     },
     {
         "task_id": "v080_case_08",
@@ -220,7 +255,12 @@ _TASK_ROWS = [
         "context_constraint_delta": False,
         "acceptance_criterion_delta": False,
         "legacy_bucket_hint": "covered_success",
-        "pilot_outcome": "unresolved",
+        "mock_execution_fixture": {
+            "check_model_pass": True,
+            "simulate_pass": True,
+            "signal_values": {},
+            "produced_artifacts": [],
+        },
     },
     {
         "task_id": "v080_case_09",
@@ -246,7 +286,12 @@ _TASK_ROWS = [
         "context_constraint_delta": True,
         "acceptance_criterion_delta": True,
         "legacy_bucket_hint": "topology_or_open_world_spillover",
-        "pilot_outcome": "unresolved",
+        "mock_execution_fixture": {
+            "check_model_pass": True,
+            "simulate_pass": False,
+            "signal_values": {"heatSink.flowRate": 0.0},
+            "produced_artifacts": [],
+        },
     },
     {
         "task_id": "v080_case_10",
@@ -270,7 +315,12 @@ _TASK_ROWS = [
         "context_constraint_delta": True,
         "acceptance_criterion_delta": True,
         "legacy_bucket_hint": "unclassified_pending_taxonomy",
-        "pilot_outcome": "goal_level_resolved",
+        "mock_execution_fixture": {
+            "check_model_pass": True,
+            "simulate_pass": True,
+            "signal_values": {},
+            "produced_artifacts": ["artifacts/v080/case10_validation_payload.json"],
+        },
     },
 ]
 

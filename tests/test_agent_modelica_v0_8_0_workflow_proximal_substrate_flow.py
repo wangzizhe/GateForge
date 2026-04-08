@@ -65,6 +65,11 @@ class AgentModelicaV080WorkflowProximalSubstrateFlowTests(unittest.TestCase):
             self.assertTrue(
                 bool((payload.get("conclusion") or {}).get("goal_level_success_definition_frozen"))
             )
+            pilot = payload.get("pilot_workflow_profile") or {}
+            self.assertEqual(pilot.get("execution_source"), "gateforge_agent_mock_execution_path")
+            self.assertEqual(int(pilot.get("live_executor_invocation_count") or 0), 10)
+            first_case = (pilot.get("case_result_table") or [])[0]
+            self.assertIn("acceptance_check_results", first_case)
 
     def test_v080_partial_when_goal_context_signal_is_missing(self) -> None:
         with tempfile.TemporaryDirectory() as d:
