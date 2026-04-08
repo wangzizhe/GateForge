@@ -20,6 +20,30 @@ from gateforge.agent_modelica_v0_8_0_workflow_substrate_admission import (
 )
 
 
+_FAKE_TASK_INDEX = {
+    tid: {
+        "task_id": tid,
+        "scale": "medium",
+        "source_model_path": f"assets_private/models/{tid}_source.mo",
+        "mutated_model_path": f"assets_private/models/{tid}_mutated.mo",
+        "failure_type": "semantic_regression",
+        "expected_stage": "check",
+    }
+    for tid in [
+        "electrical_large_dual_source_ladder_v0_semantic_regression",
+        "electrical_large_rc_ladder4_v0_semantic_regression",
+        "electrical_medium_ladder_rc_v0_semantic_regression",
+        "electrical_medium_parallel_rc_v0_semantic_regression",
+        "electrical_medium_rlc_series_v0_semantic_regression",
+        "electrical_small_r_divider_v0_semantic_regression",
+        "electrical_large_dual_source_ladder_v0_model_check_error",
+        "electrical_large_dual_source_ladder_v0_simulate_error",
+        "electrical_medium_parallel_rc_v0_model_check_error",
+        "electrical_small_rl_step_v0_simulate_error",
+    ]
+}
+
+
 class AgentModelicaV080WorkflowProximalSubstrateFlowTests(unittest.TestCase):
     def _fake_run_chain(self, *, taskset_path: Path, out_root: Path) -> dict:
         taskset = json.loads(taskset_path.read_text(encoding="utf-8"))
@@ -103,7 +127,11 @@ class AgentModelicaV080WorkflowProximalSubstrateFlowTests(unittest.TestCase):
                 v077_closeout_path=str(root / "v077.json"),
                 out_dir=str(root / "integrity"),
             )
-            build_v080_workflow_proximal_substrate(out_dir=str(root / "substrate"))
+            with mock.patch(
+                "gateforge.agent_modelica_v0_8_0_workflow_proximal_substrate._load_real_task_index",
+                return_value=_FAKE_TASK_INDEX,
+            ):
+                build_v080_workflow_proximal_substrate(out_dir=str(root / "substrate"))
             with mock.patch(
                 "gateforge.agent_modelica_v0_8_0_pilot_workflow_profile._run_gateforge_execution_chain",
                 side_effect=lambda *, taskset_path, out_root: self._fake_run_chain(
@@ -156,7 +184,11 @@ class AgentModelicaV080WorkflowProximalSubstrateFlowTests(unittest.TestCase):
                 v077_closeout_path=str(root / "v077.json"),
                 out_dir=str(root / "integrity"),
             )
-            build_v080_workflow_proximal_substrate(out_dir=str(root / "substrate"))
+            with mock.patch(
+                "gateforge.agent_modelica_v0_8_0_workflow_proximal_substrate._load_real_task_index",
+                return_value=_FAKE_TASK_INDEX,
+            ):
+                build_v080_workflow_proximal_substrate(out_dir=str(root / "substrate"))
             def _patched_pilot_builder(*, substrate_path: str, out_dir: str) -> dict:
                 with mock.patch(
                     "gateforge.agent_modelica_v0_8_0_pilot_workflow_profile._run_gateforge_execution_chain",
@@ -220,7 +252,11 @@ class AgentModelicaV080WorkflowProximalSubstrateFlowTests(unittest.TestCase):
                 v077_closeout_path=str(root / "v077.json"),
                 out_dir=str(root / "integrity"),
             )
-            build_v080_workflow_proximal_substrate(out_dir=str(root / "substrate"))
+            with mock.patch(
+                "gateforge.agent_modelica_v0_8_0_workflow_proximal_substrate._load_real_task_index",
+                return_value=_FAKE_TASK_INDEX,
+            ):
+                build_v080_workflow_proximal_substrate(out_dir=str(root / "substrate"))
             stale_pilot = {
                 "schema_version": "agent_modelica_v0_8_0_pilot_workflow_profile",
                 "generated_at_utc": "2026-04-08T00:00:00+00:00",
