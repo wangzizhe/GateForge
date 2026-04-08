@@ -21,6 +21,65 @@ from gateforge.agent_modelica_v0_8_0_workflow_substrate_admission import (
 
 
 class AgentModelicaV080WorkflowProximalSubstrateFlowTests(unittest.TestCase):
+    def _fake_run_chain(self, *, taskset_path: Path, out_root: Path) -> dict:
+        taskset = json.loads(taskset_path.read_text(encoding="utf-8"))
+        rows = taskset.get("tasks") or []
+        payload_dir = out_root / "executor_payloads"
+        payload_dir.mkdir(parents=True, exist_ok=True)
+        records = []
+        for row in rows:
+            task_id = row["task_id"]
+            if task_id in {"v080_case_01", "v080_case_02", "v080_case_03", "v080_case_04"}:
+                payload = {
+                    "task_id": task_id,
+                    "executor_status": "PASS",
+                    "check_model_pass": True,
+                    "simulate_pass": True,
+                    "physics_contract_pass": True,
+                    "dominant_stage_subtype": "stage_0_none",
+                    "resolution_path": "deterministic_rule_only",
+                }
+                passed = True
+            elif task_id in {"v080_case_05", "v080_case_06"}:
+                payload = {
+                    "task_id": task_id,
+                    "executor_status": "PASS",
+                    "check_model_pass": True,
+                    "simulate_pass": True,
+                    "physics_contract_pass": True,
+                    "dominant_stage_subtype": "stage_0_none",
+                    "resolution_path": "deterministic_rule_only",
+                }
+                passed = True
+            else:
+                payload = {
+                    "task_id": task_id,
+                    "executor_status": "FAILED",
+                    "check_model_pass": False,
+                    "simulate_pass": False,
+                    "physics_contract_pass": False,
+                    "dominant_stage_subtype": "stage_2_structural_balance_reference",
+                    "resolution_path": "unresolved",
+                }
+                passed = False
+            (payload_dir / f"{task_id}.json").write_text(json.dumps(payload), encoding="utf-8")
+            records.append(
+                {
+                    "task_id": task_id,
+                    "passed": passed,
+                    "hard_checks": {
+                        "check_model_pass": payload["check_model_pass"],
+                        "simulate_pass": payload["simulate_pass"],
+                        "physics_contract_pass": payload["physics_contract_pass"],
+                        "regression_pass": payload["physics_contract_pass"],
+                    },
+                }
+            )
+        return {
+            "summary": {"status": "PASS"},
+            "results": {"records": records},
+        }
+
     def _write_v077(self, root: Path, *, invalid: bool = False) -> None:
         payload = {
             "conclusion": {
@@ -45,23 +104,37 @@ class AgentModelicaV080WorkflowProximalSubstrateFlowTests(unittest.TestCase):
                 out_dir=str(root / "integrity"),
             )
             build_v080_workflow_proximal_substrate(out_dir=str(root / "substrate"))
-            build_v080_pilot_workflow_profile(
-                substrate_path=str(root / "substrate" / "summary.json"),
-                out_dir=str(root / "pilot"),
-            )
+            with mock.patch(
+                "gateforge.agent_modelica_v0_8_0_pilot_workflow_profile._run_gateforge_execution_chain",
+                side_effect=lambda *, taskset_path, out_root: self._fake_run_chain(
+                    taskset_path=taskset_path,
+                    out_root=out_root,
+                ),
+            ):
+                build_v080_pilot_workflow_profile(
+                    substrate_path=str(root / "substrate" / "summary.json"),
+                    out_dir=str(root / "pilot"),
+                )
             build_v080_workflow_substrate_admission(
                 substrate_path=str(root / "substrate" / "summary.json"),
                 pilot_profile_path=str(root / "pilot" / "summary.json"),
                 out_dir=str(root / "admission"),
             )
-            payload = build_v080_closeout(
-                handoff_integrity_path=str(root / "integrity" / "summary.json"),
-                substrate_path=str(root / "substrate" / "summary.json"),
-                pilot_profile_path=str(root / "pilot" / "summary.json"),
-                admission_path=str(root / "admission" / "summary.json"),
-                v077_closeout_path=str(root / "v077.json"),
-                out_dir=str(root / "closeout"),
-            )
+            with mock.patch(
+                "gateforge.agent_modelica_v0_8_0_pilot_workflow_profile._run_gateforge_execution_chain",
+                side_effect=lambda *, taskset_path, out_root: self._fake_run_chain(
+                    taskset_path=taskset_path,
+                    out_root=out_root,
+                ),
+            ):
+                payload = build_v080_closeout(
+                    handoff_integrity_path=str(root / "integrity" / "summary.json"),
+                    substrate_path=str(root / "substrate" / "summary.json"),
+                    pilot_profile_path=str(root / "pilot" / "summary.json"),
+                    admission_path=str(root / "admission" / "summary.json"),
+                    v077_closeout_path=str(root / "v077.json"),
+                    out_dir=str(root / "closeout"),
+                )
             self.assertEqual(
                 (payload.get("conclusion") or {}).get("version_decision"),
                 "v0_8_0_workflow_proximal_substrate_ready",
@@ -85,10 +158,17 @@ class AgentModelicaV080WorkflowProximalSubstrateFlowTests(unittest.TestCase):
             )
             build_v080_workflow_proximal_substrate(out_dir=str(root / "substrate"))
             def _patched_pilot_builder(*, substrate_path: str, out_dir: str) -> dict:
-                pilot = build_v080_pilot_workflow_profile_direct(
-                    substrate_path=substrate_path,
-                    out_dir=out_dir,
-                )
+                with mock.patch(
+                    "gateforge.agent_modelica_v0_8_0_pilot_workflow_profile._run_gateforge_execution_chain",
+                    side_effect=lambda *, taskset_path, out_root: self._fake_run_chain(
+                        taskset_path=taskset_path,
+                        out_root=out_root,
+                    ),
+                ):
+                    pilot = build_v080_pilot_workflow_profile_direct(
+                        substrate_path=substrate_path,
+                        out_dir=out_dir,
+                    )
                 pilot["workflow_resolution_rate_requires_goal_context"] = False
                 Path(out_dir).mkdir(parents=True, exist_ok=True)
                 (Path(out_dir) / "summary.json").write_text(json.dumps(pilot), encoding="utf-8")
@@ -179,14 +259,21 @@ class AgentModelicaV080WorkflowProximalSubstrateFlowTests(unittest.TestCase):
             (root / "admission").mkdir(parents=True, exist_ok=True)
             (root / "admission" / "summary.json").write_text(json.dumps(stale_admission), encoding="utf-8")
 
-            payload = build_v080_closeout(
-                handoff_integrity_path=str(root / "integrity" / "summary.json"),
-                substrate_path=str(root / "substrate" / "summary.json"),
-                pilot_profile_path=str(root / "pilot" / "summary.json"),
-                admission_path=str(root / "admission" / "summary.json"),
-                v077_closeout_path=str(root / "v077.json"),
-                out_dir=str(root / "closeout"),
-            )
+            with mock.patch(
+                "gateforge.agent_modelica_v0_8_0_pilot_workflow_profile._run_gateforge_execution_chain",
+                side_effect=lambda *, taskset_path, out_root: self._fake_run_chain(
+                    taskset_path=taskset_path,
+                    out_root=out_root,
+                ),
+            ):
+                payload = build_v080_closeout(
+                    handoff_integrity_path=str(root / "integrity" / "summary.json"),
+                    substrate_path=str(root / "substrate" / "summary.json"),
+                    pilot_profile_path=str(root / "pilot" / "summary.json"),
+                    admission_path=str(root / "admission" / "summary.json"),
+                    v077_closeout_path=str(root / "v077.json"),
+                    out_dir=str(root / "closeout"),
+                )
             pilot = payload.get("pilot_workflow_profile") or {}
             self.assertEqual(pilot.get("execution_source"), "gateforge_run_contract_live_path")
             self.assertGreater(float(pilot.get("workflow_resolution_rate_pct") or 0.0), 0.0)

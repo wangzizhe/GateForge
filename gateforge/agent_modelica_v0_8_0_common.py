@@ -23,6 +23,9 @@ DEFAULT_SUBSTRATE_ADMISSION_OUT_DIR = (
 DEFAULT_CLOSEOUT_OUT_DIR = (
     REPO_ROOT / "artifacts" / "agent_modelica_v0_8_0_closeout_current"
 )
+DEFAULT_ELECTRICAL_FROZEN_TASKSET_PATH = (
+    REPO_ROOT / "artifacts" / "agent_modelica_electrical_frozen_taskset_v1_smoke" / "taskset_frozen.json"
+)
 
 DEFAULT_V077_CLOSEOUT_PATH = (
     REPO_ROOT / "artifacts" / "agent_modelica_v0_7_7_closeout_current" / "summary.json"
@@ -54,6 +57,7 @@ __all__ = [
     "AUDIT_DEGRADED_MIN",
     "AUDIT_PROMOTED_MIN",
     "DEFAULT_CLOSEOUT_OUT_DIR",
+    "DEFAULT_ELECTRICAL_FROZEN_TASKSET_PATH",
     "DEFAULT_HANDOFF_INTEGRITY_OUT_DIR",
     "DEFAULT_PILOT_PROFILE_OUT_DIR",
     "DEFAULT_SUBSTRATE_ADMISSION_OUT_DIR",
