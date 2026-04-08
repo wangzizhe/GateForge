@@ -36,11 +36,10 @@ def build_v080_closeout(
     v077_closeout_path: str = str(DEFAULT_V077_CLOSEOUT_PATH),
     out_dir: str = str(DEFAULT_CLOSEOUT_OUT_DIR),
 ) -> dict:
-    if not Path(handoff_integrity_path).exists():
-        build_v080_handoff_integrity(
-            v077_closeout_path=v077_closeout_path,
-            out_dir=str(Path(handoff_integrity_path).parent),
-        )
+    build_v080_handoff_integrity(
+        v077_closeout_path=v077_closeout_path,
+        out_dir=str(Path(handoff_integrity_path).parent),
+    )
     integrity = load_json(handoff_integrity_path)
     if integrity.get("status") != "PASS":
         payload = {
@@ -68,19 +67,16 @@ def build_v080_closeout(
         )
         return payload
 
-    if not Path(substrate_path).exists():
-        build_v080_workflow_proximal_substrate(out_dir=str(Path(substrate_path).parent))
-    if not Path(pilot_profile_path).exists():
-        build_v080_pilot_workflow_profile(
-            substrate_path=substrate_path,
-            out_dir=str(Path(pilot_profile_path).parent),
-        )
-    if not Path(admission_path).exists():
-        build_v080_workflow_substrate_admission(
-            substrate_path=substrate_path,
-            pilot_profile_path=pilot_profile_path,
-            out_dir=str(Path(admission_path).parent),
-        )
+    build_v080_workflow_proximal_substrate(out_dir=str(Path(substrate_path).parent))
+    build_v080_pilot_workflow_profile(
+        substrate_path=substrate_path,
+        out_dir=str(Path(pilot_profile_path).parent),
+    )
+    build_v080_workflow_substrate_admission(
+        substrate_path=substrate_path,
+        pilot_profile_path=pilot_profile_path,
+        out_dir=str(Path(admission_path).parent),
+    )
 
     substrate = load_json(substrate_path)
     pilot = load_json(pilot_profile_path)
