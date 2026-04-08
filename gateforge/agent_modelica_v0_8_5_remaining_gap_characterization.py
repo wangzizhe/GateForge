@@ -61,10 +61,8 @@ def build_v085_remaining_gap_characterization(
 
     if threshold_proximal and same_logic_addressable:
         remaining_gap_status = "single_refinable_gap"
-    elif not threshold_proximal or not same_logic_addressable:
-        remaining_gap_status = "no_same_logic_gap_with_meaningful_expected_gain"
     else:
-        remaining_gap_status = "multiple_or_diffuse_gaps"
+        remaining_gap_status = "no_same_logic_gap_with_meaningful_expected_gain"
 
     if gap_resolution == gap_alignment:
         remaining_gap_label = "supported_resolution_and_alignment_gap_move_together"
