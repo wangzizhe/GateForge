@@ -73,6 +73,40 @@ def _write_v080_closeout(path: Path) -> None:
     path.write_text(json.dumps(payload), encoding="utf-8")
 
 
+def _write_v080_closeout_with_ten_case_pool(path: Path) -> None:
+    rows = []
+    for task_id, family_id, template_id, complexity_tier, barrier, check_type in [
+        ("v080_case_01", "component_api_alignment", "restore_nominal_supply_chain", "complex", "", "named_result_invariant_pass"),
+        ("v080_case_02", "component_api_alignment", "recover_reporting_chain", "complex", "", "expected_goal_artifact_present"),
+        ("v080_case_03", "local_interface_alignment", "restore_boundary_signal_integrity", "medium", "", "named_result_invariant_pass"),
+        ("v080_case_04", "local_interface_alignment", "restore_boundary_signal_integrity", "medium", "", "expected_goal_artifact_present"),
+        ("v080_case_05", "medium_redeclare_alignment", "recover_medium_goal", "medium", "goal_artifact_missing_after_surface_fix", "expected_goal_artifact_present"),
+        ("v080_case_06", "medium_redeclare_alignment", "recover_medium_goal", "simple", "goal_artifact_missing_after_surface_fix", "expected_goal_artifact_present"),
+        ("v080_case_07", "component_api_alignment", "restore_nominal_supply_chain", "complex", "dispatch_or_policy_limited_unresolved", "named_result_invariant_pass"),
+        ("v080_case_08", "component_api_alignment", "recover_reporting_chain", "complex", "workflow_spillover_unresolved", "expected_goal_artifact_present"),
+        ("v080_case_09", "local_interface_alignment", "restore_boundary_signal_integrity", "medium", "dispatch_or_policy_limited_unresolved", "named_result_invariant_pass"),
+        ("v080_case_10", "medium_redeclare_alignment", "recover_medium_goal", "simple", "workflow_spillover_unresolved", "expected_goal_artifact_present"),
+    ]:
+        rows.append(
+            {
+                "task_id": task_id,
+                "base_task_id": task_id.lower(),
+                "family_id": family_id,
+                "workflow_task_template_id": template_id,
+                "complexity_tier": complexity_tier,
+                "workflow_goal_present": True,
+                "contextually_plausible": True,
+                "non_trivial_from_context_alone": True,
+                "workflow_proximity_audit_pass": True,
+                "goal_specific_check_present": True,
+                "workflow_acceptance_checks": [{"type": check_type}],
+            }
+        )
+    payload = {"workflow_proximal_substrate": {"task_rows": rows}}
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+
 def _write_v081_closeout(path: Path) -> None:
     payload = {
         "workflow_profile_characterization": {
@@ -92,6 +126,27 @@ def _write_v081_closeout(path: Path) -> None:
                     "pilot_outcome": "unresolved",
                     "primary_barrier_label": "workflow_spillover_unresolved",
                 },
+            ]
+        }
+    }
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+
+def _write_v081_closeout_with_ten_case_pool(path: Path) -> None:
+    payload = {
+        "workflow_profile_characterization": {
+            "case_characterization_table": [
+                {"task_id": "v080_case_01", "pilot_outcome": "goal_level_resolved", "primary_barrier_label": "profile_barrier_unclassified"},
+                {"task_id": "v080_case_02", "pilot_outcome": "goal_level_resolved", "primary_barrier_label": "profile_barrier_unclassified"},
+                {"task_id": "v080_case_03", "pilot_outcome": "goal_level_resolved", "primary_barrier_label": "profile_barrier_unclassified"},
+                {"task_id": "v080_case_04", "pilot_outcome": "goal_level_resolved", "primary_barrier_label": "profile_barrier_unclassified"},
+                {"task_id": "v080_case_05", "pilot_outcome": "surface_fix_only", "primary_barrier_label": "goal_artifact_missing_after_surface_fix"},
+                {"task_id": "v080_case_06", "pilot_outcome": "surface_fix_only", "primary_barrier_label": "goal_artifact_missing_after_surface_fix"},
+                {"task_id": "v080_case_07", "pilot_outcome": "unresolved", "primary_barrier_label": "dispatch_or_policy_limited_unresolved"},
+                {"task_id": "v080_case_08", "pilot_outcome": "unresolved", "primary_barrier_label": "workflow_spillover_unresolved"},
+                {"task_id": "v080_case_09", "pilot_outcome": "unresolved", "primary_barrier_label": "dispatch_or_policy_limited_unresolved"},
+                {"task_id": "v080_case_10", "pilot_outcome": "unresolved", "primary_barrier_label": "workflow_spillover_unresolved"},
             ]
         }
     }
@@ -196,12 +251,18 @@ class AgentModelicaV090CandidatePoolGovernanceFlowTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
             v086 = root / "v086" / "summary.json"
+            v080 = root / "v080" / "summary.json"
+            v081 = root / "v081" / "summary.json"
             _write_v086_closeout(v086)
+            _write_v080_closeout(v080)
+            _write_v081_closeout(v081)
             payload = build_v090_closeout(
                 handoff_integrity_path=str(root / "handoff" / "summary.json"),
                 governance_pack_path=str(root / "governance" / "summary.json"),
                 depth_probe_path=str(root / "probe" / "summary.json"),
                 v086_closeout_path=str(v086),
+                v080_closeout_path=str(v080),
+                v081_closeout_path=str(v081),
                 out_dir=str(root / "closeout"),
             )
             self.assertEqual(payload["conclusion"]["version_decision"], "v0_9_0_candidate_pool_governance_partial")
@@ -304,21 +365,30 @@ class AgentModelicaV090CandidatePoolGovernanceFlowTests(unittest.TestCase):
             self.assertTrue(probe["needs_additional_real_sources"])
 
     def test_real_baseline_builder_uses_current_ten_case_pool(self) -> None:
-        rows = build_baseline_candidate_rows()
-        self.assertEqual(len(rows), 10)
-        barrier_counts = {}
-        for row in rows:
-            barrier = row["barrier_sampling_audit"]["target_barrier_family"]
-            if barrier:
-                barrier_counts[barrier] = barrier_counts.get(barrier, 0) + 1
-        self.assertEqual(
-            barrier_counts,
-            {
-                "goal_artifact_missing_after_surface_fix": 2,
-                "dispatch_or_policy_limited_unresolved": 2,
-                "workflow_spillover_unresolved": 2,
-            },
-        )
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            v080 = root / "v080" / "summary.json"
+            v081 = root / "v081" / "summary.json"
+            _write_v080_closeout_with_ten_case_pool(v080)
+            _write_v081_closeout_with_ten_case_pool(v081)
+            rows = build_baseline_candidate_rows(
+                v080_closeout_path=str(v080),
+                v081_closeout_path=str(v081),
+            )
+            self.assertEqual(len(rows), 10)
+            barrier_counts = {}
+            for row in rows:
+                barrier = row["barrier_sampling_audit"]["target_barrier_family"]
+                if barrier:
+                    barrier_counts[barrier] = barrier_counts.get(barrier, 0) + 1
+            self.assertEqual(
+                barrier_counts,
+                {
+                    "goal_artifact_missing_after_surface_fix": 2,
+                    "dispatch_or_policy_limited_unresolved": 2,
+                    "workflow_spillover_unresolved": 2,
+                },
+            )
 
 
 if __name__ == "__main__":
