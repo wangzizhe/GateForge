@@ -10,52 +10,6 @@
   <strong>AI Agents for Physical Systems Modeling</strong>
 </p>
 
-## Quickstart
-
-### 1. Install
-
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -e .
-```
-
-### 2. Run targeted tests
-
-```bash
-python -m unittest \
-  tests.test_agent_modelica_live_executor_v1 \
-  tests.test_agent_modelica_rule_engine_v1 \
-  -v
-```
-
-### 3. Run the live executor
-
-```bash
-python -m gateforge.agent_modelica_live_executor_v1 \
-  --task-id demo \
-  --failure-type model_check_error \
-  --expected-stage check \
-  --mutated-model-path path/to/mutated.mo \
-  --source-model-path path/to/source.mo \
-  --planner-backend rule \
-  --out artifacts/demo_live_executor.json
-```
-
-### 4. Run a benchmark track
-
-```bash
-python -m gateforge.agent_modelica_gf_hardpack_runner_v1 \
-  --pack assets_private/agent_modelica_track_a_valid32_fixture_v1/hardpack_frozen.json \
-  --planner-backend auto \
-  --out artifacts/benchmark_track_a/gf_results.json
-
-python -m gateforge.agent_modelica_generalization_benchmark_v1 \
-  --pack assets_private/agent_modelica_track_a_valid32_fixture_v1/hardpack_frozen.json \
-  --gateforge-results artifacts/benchmark_track_a/gf_results.json \
-  --out artifacts/benchmark_track_a/comparison_results.json
-```
-
 ## Legal Notice
 
 Without prior written permission, no content on this site may be used for AI model training, fine-tuning, evaluation, or dataset construction.
