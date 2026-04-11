@@ -100,6 +100,25 @@ class AgentModelicaV110ProductGapGovernanceFlowTests(unittest.TestCase):
             )
             self.assertEqual(payload["handoff_integrity_status"], "FAIL")
 
+    def test_closeout_routes_to_invalid_on_bad_handoff(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            v103, v104, v106, v108 = self._write_upstream_chain(root, next_primary_phase_question="real_origin_workflow_readiness_evaluation")
+            payload = build_v110_closeout(
+                handoff_integrity_path=str(root / "handoff" / "summary.json"),
+                governance_pack_path=str(root / "governance" / "summary.json"),
+                v103_closeout_path=str(v103),
+                v104_closeout_path=str(v104),
+                v106_closeout_path=str(v106),
+                v108_closeout_path=str(v108),
+                out_dir=str(root / "closeout"),
+            )
+            self.assertEqual(payload["conclusion"]["version_decision"], "v0_11_0_handoff_phase_inputs_invalid")
+            self.assertEqual(
+                payload["conclusion"]["v0_11_1_handoff_mode"],
+                "rebuild_v0_11_0_governance_inputs_first",
+            )
+
     def test_context_contract_minimum_form_validation_detects_missing_field(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
@@ -119,6 +138,7 @@ class AgentModelicaV110ProductGapGovernanceFlowTests(unittest.TestCase):
                 },
                 out_dir=str(root / "governance"),
             )
+            self.assertEqual(payload["status"], "PARTIAL")
             self.assertEqual(payload["context_contract"]["context_contract_status"], "partial")
             self.assertIn("forbidden_context_rewrites", payload["context_contract"]["missing_fields"])
 

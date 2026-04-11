@@ -268,11 +268,22 @@ def build_v110_governance_pack(
         v106_closeout_path=v106_closeout_path,
         v108_closeout_path=v108_closeout_path,
     )
+    all_ready = all(
+        status == "ready"
+        for status in [
+            context_status,
+            anti_status,
+            sidecar_status,
+            scope_status,
+            patch_status,
+        ]
+    )
+    overall_status = "PASS" if all_ready and baseline_anchor.get("baseline_anchor_pass") else "PARTIAL"
 
     payload = {
         "schema_version": f"{SCHEMA_PREFIX}_governance_pack",
         "generated_at_utc": now_utc(),
-        "status": "PASS",
+        "status": overall_status,
         "context_contract": {
             **context_contract_payload,
             "context_contract_status": context_status,
