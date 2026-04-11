@@ -28,6 +28,7 @@ The executor imports them with Re-export Alias Pattern:
 from __future__ import annotations
 
 import json
+import math
 import os
 import re
 from pathlib import Path
@@ -49,6 +50,9 @@ MULTISTEP_PLANNER_CONTRACT_VERSION = "agent_modelica_multistep_planner_contract_
 
 _ENV_KEY_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 _OPENAI_MODEL_HINT_PATTERN = re.compile(r"^(gpt|o[0-9]|chatgpt|gpt-5)", re.IGNORECASE)
+_TIMESTAMP_PATTERN = re.compile(r"\b\d{4}-\d{2}-\d{2}[T ][0-2]\d:[0-5]\d(?::[0-5]\d)?")
+_TASK_ID_PATTERN = re.compile(r"\b[a-z]+[0-9]+_[a-z0-9_]+\b")
+_ABSOLUTE_PATH_PATTERN = re.compile(r"(?:^|[\s:=])/(?:Users|home|tmp|var)/")
 
 
 # ---------------------------------------------------------------------------
@@ -243,6 +247,7 @@ def build_source_blind_multistep_planner_prompt(
     error_excerpt: str,
     repair_actions: list[str],
     model_name: str,
+    workflow_goal: str = "",
     current_round: int,
     stage_context: dict,
     llm_reason: str,
@@ -308,6 +313,7 @@ def build_source_blind_multistep_planner_prompt(
         f"- planner_experience_summary: {json.dumps(planner_experience_summary, ensure_ascii=True)}\n"
         f"- expected_stage: {expected_stage}\n"
         f"- current_round: {current_round}\n"
+        f"- workflow_goal: {str(workflow_goal or '').strip()}\n"
         f"- previous_branch: {str((replan_context or {}).get('previous_branch') or '')}\n"
         f"- previous_candidate_parameters: {json.dumps((replan_context or {}).get('previous_candidate_parameters') or [], ensure_ascii=True)}\n"
         f"- previous_candidate_value_directions: {json.dumps((replan_context or {}).get('previous_candidate_value_directions') or [], ensure_ascii=True)}\n"
@@ -318,7 +324,7 @@ def build_source_blind_multistep_planner_prompt(
         f"- replan_budget_for_branch_escape_hint: {int((replan_context or {}).get('replan_budget_for_branch_escape') or 0)}\n"
         f"- replan_budget_for_resolution_hint: {int((replan_context or {}).get('replan_budget_for_resolution') or 0)}\n"
         f"- suggested_actions: {json.dumps(repair_actions, ensure_ascii=True)}\n"
-        f"- error_excerpt: {error_excerpt[:1200]}\n"
+        f"- error_excerpt: {error_excerpt}\n"
         f"{planner_experience_block}"
         "Model text below:\n"
         "-----BEGIN_MODEL-----\n"
@@ -326,6 +332,42 @@ def build_source_blind_multistep_planner_prompt(
         "-----END_MODEL-----\n"
     )
     return prompt, planner_contract
+
+
+def estimate_prompt_token_count(text: str) -> int:
+    raw = str(text or "").strip()
+    if not raw:
+        return 0
+    return max(1, int(math.ceil(len(raw) / 4.0)))
+
+
+def audit_planner_prompt_surface(
+    *,
+    prompt: str,
+    workflow_goal: str,
+    error_excerpt: str,
+) -> dict:
+    raw_prompt = str(prompt or "")
+    prefix = raw_prompt.split("Model text below:\n", 1)[0]
+    workflow_goal_text = str(workflow_goal or "").strip()
+    error_text = str(error_excerpt or "")
+    return {
+        "workflow_goal_reanchoring_observed": bool(workflow_goal_text) and workflow_goal_text in raw_prompt,
+        "dynamic_system_prompt_field_audit_result": {
+            "static_prefix_stable": not any(
+                [
+                    bool(_TIMESTAMP_PATTERN.search(prefix)),
+                    bool(_TASK_ID_PATTERN.search(prefix)),
+                    bool(_ABSOLUTE_PATH_PATTERN.search(prefix)),
+                ]
+            ),
+            "dynamic_timestamp_found": bool(_TIMESTAMP_PATTERN.search(prefix)),
+            "dynamic_task_id_found": bool(_TASK_ID_PATTERN.search(prefix)),
+            "absolute_path_found": bool(_ABSOLUTE_PATH_PATTERN.search(prefix)),
+        },
+        "full_omc_error_propagation_observed": bool(error_text) and error_text in raw_prompt,
+        "prompt_token_estimate": estimate_prompt_token_count(raw_prompt),
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -422,6 +464,7 @@ def llm_repair_model_text(
     error_excerpt: str,
     repair_actions: list[str],
     model_name: str,
+    workflow_goal: str = "",
     current_round: int = 1,
 ) -> tuple[str | None, str, str]:
     """Generate a repaired model text via the resolved LLM provider.
@@ -457,7 +500,8 @@ def llm_repair_model_text(
         f"- model_name: {model_name}\n"
         f"- failure_type: {failure_type}\n"
         f"- expected_stage: {expected_stage}\n"
-        f"- error_excerpt: {error_excerpt[:1200]}\n"
+        f"- workflow_goal: {str(workflow_goal or '').strip()}\n"
+        f"- error_excerpt: {error_excerpt}\n"
         f"- suggested_actions: {json.dumps(repair_actions, ensure_ascii=True)}\n"
         "Model text below:\n"
         "-----BEGIN_MODEL-----\n"
@@ -482,6 +526,7 @@ def gemini_repair_model_text(
     error_excerpt: str,
     repair_actions: list[str],
     model_name: str,
+    workflow_goal: str = "",
     current_round: int = 1,
 ) -> tuple[str | None, str]:
     """Gemini-specific repair wrapper.  Delegates to llm_repair_model_text.
@@ -497,6 +542,7 @@ def gemini_repair_model_text(
         error_excerpt=error_excerpt,
         repair_actions=repair_actions,
         model_name=model_name,
+        workflow_goal=workflow_goal,
         current_round=current_round,
     )
     return patched, err
@@ -510,6 +556,7 @@ def openai_repair_model_text(
     error_excerpt: str,
     repair_actions: list[str],
     model_name: str,
+    workflow_goal: str = "",
     current_round: int = 1,
 ) -> tuple[str | None, str]:
     """OpenAI-specific repair wrapper.  Delegates to llm_repair_model_text.
@@ -525,6 +572,7 @@ def openai_repair_model_text(
         error_excerpt=error_excerpt,
         repair_actions=repair_actions,
         model_name=model_name,
+        workflow_goal=workflow_goal,
         current_round=current_round,
     )
     return patched, err
@@ -543,6 +591,7 @@ def llm_generate_repair_plan(
     error_excerpt: str,
     repair_actions: list[str],
     model_name: str,
+    workflow_goal: str = "",
     current_round: int,
     stage_context: dict,
     llm_reason: str,
@@ -573,6 +622,7 @@ def llm_generate_repair_plan(
         error_excerpt=error_excerpt,
         repair_actions=repair_actions,
         model_name=model_name,
+        workflow_goal=workflow_goal,
         current_round=current_round,
         stage_context=stage_context,
         llm_reason=llm_reason,
@@ -581,10 +631,16 @@ def llm_generate_repair_plan(
         resolved_provider=provider,
         planner_experience_context=planner_experience_context,
     )
+    prompt_audit = audit_planner_prompt_surface(
+        prompt=prompt,
+        workflow_goal=workflow_goal,
+        error_excerpt=error_excerpt,
+    )
     text, err = send_with_budget(adapter, prompt, config)
     if err:
         return None, err, provider
     payload = _extract_json_object_impl(text, strict=False)
     if not payload:
         return None, f"{provider}_missing_repair_plan", provider
+    payload["_prompt_surface_audit"] = prompt_audit
     return payload, "", provider

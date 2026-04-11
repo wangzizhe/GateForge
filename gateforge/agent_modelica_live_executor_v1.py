@@ -170,6 +170,10 @@ from .llm_budget import (
 )
 
 DEFAULT_DOCKER_IMAGE = "openmodelica/openmodelica:v1.26.1-minimal"
+PRODUCT_GAP_SCAFFOLD_VERSION = "gateforge_live_executor_v1_scaffold"
+PRODUCT_GAP_PROTOCOL_CONTRACT_VERSION = "gateforge_live_executor_v1_contract"
+PRODUCT_GAP_CONTEXT_CONTRACT_VERSION = "v0_11_0_context_contract_v1"
+PRODUCT_GAP_ANTI_REWARD_HACKING_CHECKLIST_VERSION = "v0_11_0_anti_reward_hacking_checklist_v1"
 
 
 def _read_text(path: Path) -> str:
@@ -489,6 +493,7 @@ def _parse_main_args() -> argparse.Namespace:
     parser.add_argument("--task-id", default="")
     parser.add_argument("--failure-type", default="unknown")
     parser.add_argument("--expected-stage", default="unknown")
+    parser.add_argument("--workflow-goal", default="")
     parser.add_argument("--source-model-path", default="")
     parser.add_argument("--mutated-model-path", default="")
     parser.add_argument("--source-library-path", default="")
@@ -564,6 +569,41 @@ def _summarize_executor_runtime_hygiene(*, attempts: list[dict]) -> dict:
             planner_experience_context_truncated_count > 0
             or replan_context_truncated_count > 0
         ),
+    }
+
+
+def _summarize_product_gap_sidecar(*, attempts: list[dict]) -> dict:
+    prompt_token_total = 0
+    workflow_goal_reanchoring_observed = False
+    full_omc_error_propagation_observed = False
+    latest_dynamic_audit = {
+        "static_prefix_stable": False,
+        "dynamic_timestamp_found": False,
+        "dynamic_task_id_found": False,
+        "absolute_path_found": False,
+    }
+    for row in attempts:
+        if not isinstance(row, dict):
+            continue
+        prompt_token_total += int(row.get("prompt_token_estimate") or 0)
+        workflow_goal_reanchoring_observed = workflow_goal_reanchoring_observed or bool(
+            row.get("workflow_goal_reanchoring_observed")
+        )
+        full_omc_error_propagation_observed = full_omc_error_propagation_observed or bool(
+            row.get("full_omc_error_propagation_observed")
+        )
+        dynamic_audit = row.get("dynamic_system_prompt_field_audit_result")
+        if isinstance(dynamic_audit, dict) and dynamic_audit:
+            latest_dynamic_audit = dict(dynamic_audit)
+    return {
+        "scaffold_version": PRODUCT_GAP_SCAFFOLD_VERSION,
+        "protocol_contract_version": PRODUCT_GAP_PROTOCOL_CONTRACT_VERSION,
+        "token_count": int(prompt_token_total),
+        "context_contract_version": PRODUCT_GAP_CONTEXT_CONTRACT_VERSION,
+        "anti_reward_hacking_checklist_version": PRODUCT_GAP_ANTI_REWARD_HACKING_CHECKLIST_VERSION,
+        "workflow_goal_reanchoring_observed": bool(workflow_goal_reanchoring_observed),
+        "dynamic_system_prompt_field_audit_result": latest_dynamic_audit,
+        "full_omc_error_propagation_observed": bool(full_omc_error_propagation_observed),
     }
 
 
@@ -808,6 +848,7 @@ def _build_final_payload(
     llm_plan_was_decisive = bool(llm_plan_helped_resolution and llm_only_resolution)
     llm_called_only = bool(llm_request_count_delta_total > 0 and not llm_plan_helped_resolution)
     executor_runtime_hygiene = _summarize_executor_runtime_hygiene(attempts=attempts)
+    product_gap_sidecar = _summarize_product_gap_sidecar(attempts=attempts)
     payload = {
         "task_id": str(args.task_id),
         "failure_type": str(args.failure_type),
@@ -1008,6 +1049,7 @@ def _build_final_payload(
         "rounds_used": int(len(attempts)),
         "elapsed_sec": elapsed,
         "executor_runtime_hygiene": executor_runtime_hygiene,
+        "product_gap_sidecar": product_gap_sidecar,
         "error_message": final_error,
         "compile_error": final_compile_error,
         "simulate_error_message": final_sim_error,
@@ -1377,6 +1419,7 @@ def main() -> None:
                     "reason": reason,
                     "diagnostic_ir": diagnostic,
                     "log_excerpt": str(output or "")[:1200],
+                    "full_omc_error_output": str(output or ""),
                 }
             )
             if check_ok and simulate_ok:
@@ -2328,9 +2371,10 @@ def main() -> None:
                     original_text=current_text,
                     failure_type=str(args.failure_type),
                     expected_stage=str(args.expected_stage),
-                    error_excerpt=str(output or "")[-1800:],
+                    error_excerpt=str(output or ""),
                     repair_actions=stage_repair_actions or repair_actions,
                     model_name=model_name,
+                    workflow_goal=str(args.workflow_goal or ""),
                     current_round=round_idx,
                     stage_context=stage_context,
                     llm_reason=llm_request_reason,
@@ -2347,6 +2391,24 @@ def main() -> None:
                     )
                 attempts[-1]["planner_backend"] = str(args.planner_backend or "")
                 attempts[-1]["resolved_llm_provider"] = str(resolved_provider or "")
+                prompt_surface_audit = (
+                    llm_plan_payload.get("_prompt_surface_audit")
+                    if isinstance(llm_plan_payload, dict) and isinstance(llm_plan_payload.get("_prompt_surface_audit"), dict)
+                    else {}
+                )
+                if prompt_surface_audit:
+                    attempts[-1]["workflow_goal_reanchoring_observed"] = bool(
+                        prompt_surface_audit.get("workflow_goal_reanchoring_observed")
+                    )
+                    attempts[-1]["dynamic_system_prompt_field_audit_result"] = dict(
+                        prompt_surface_audit.get("dynamic_system_prompt_field_audit_result") or {}
+                    )
+                    attempts[-1]["full_omc_error_propagation_observed"] = bool(
+                        prompt_surface_audit.get("full_omc_error_propagation_observed")
+                    )
+                    attempts[-1]["prompt_token_estimate"] = int(
+                        prompt_surface_audit.get("prompt_token_estimate") or 0
+                    )
                 planner_contract = _build_source_blind_multistep_planner_contract(
                     resolved_provider=resolved_provider,
                     request_kind=llm_request_kind,
