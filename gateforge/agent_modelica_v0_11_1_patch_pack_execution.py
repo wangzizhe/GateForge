@@ -149,7 +149,8 @@ def build_v111_patch_pack_execution(
         bool(error_audit.get("full_omc_error_propagation_observed"))
         and long_error_excerpt in error_prompt
         and 'error_excerpt=str(output or "")' in live_executor_source
-        and '"full_omc_error_output": str(output or "")' in live_executor_source
+        and '"full_omc_error_output":' in live_executor_source
+        and 'str(output or "")' in live_executor_source
         and "full_omc_error_propagation_observed" in live_executor_source
     )
     full_error_row.update(
