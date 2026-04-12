@@ -508,6 +508,7 @@ def _parse_main_args() -> argparse.Namespace:
     parser.add_argument("--backend", choices=["auto", "omc", "openmodelica_docker"], default="auto")
     parser.add_argument("--docker-image", default=os.getenv("GATEFORGE_OM_IMAGE", DEFAULT_DOCKER_IMAGE))
     parser.add_argument("--planner-backend", choices=["auto", "gemini", "openai", "rule"], default="auto")
+    parser.add_argument("--remedy-pack-enabled", choices=["on", "off"], default="on")
     parser.add_argument("--experience-replay", choices=["on", "off"], default="off")
     parser.add_argument("--experience-source", default="")
     parser.add_argument("--planner-experience-injection", choices=["on", "off"], default="off")
@@ -601,6 +602,9 @@ def _summarize_product_gap_sidecar(*, attempts: list[dict]) -> dict:
         "token_count": int(prompt_token_total),
         "context_contract_version": PRODUCT_GAP_CONTEXT_CONTRACT_VERSION,
         "anti_reward_hacking_checklist_version": PRODUCT_GAP_ANTI_REWARD_HACKING_CHECKLIST_VERSION,
+        "remedy_pack_enabled": bool(
+            any(bool(row.get("remedy_pack_enabled")) for row in attempts if isinstance(row, dict))
+        ),
         "workflow_goal_reanchoring_observed": bool(workflow_goal_reanchoring_observed),
         "dynamic_system_prompt_field_audit_result": latest_dynamic_audit,
         "full_omc_error_propagation_observed": bool(full_omc_error_propagation_observed),
@@ -851,6 +855,8 @@ def _build_final_payload(
     product_gap_sidecar = _summarize_product_gap_sidecar(attempts=attempts)
     payload = {
         "task_id": str(args.task_id),
+        "execution_source": "agent_modelica_live_executor_v1",
+        "remedy_pack_enabled": bool(str(args.remedy_pack_enabled or "on") == "on"),
         "failure_type": str(args.failure_type),
         "realism_version": str(llm_markers.get("realism_version") or ""),
         "llm_forcing": bool(llm_markers.get("llm_forcing")),
@@ -1412,6 +1418,7 @@ def main() -> None:
             attempts.append(
                 {
                     "round": round_idx,
+                    "remedy_pack_enabled": bool(str(args.remedy_pack_enabled or "on") == "on"),
                     "return_code": rc,
                     "check_model_pass": check_ok,
                     "simulate_pass": simulate_ok,
@@ -1419,7 +1426,11 @@ def main() -> None:
                     "reason": reason,
                     "diagnostic_ir": diagnostic,
                     "log_excerpt": str(output or "")[:1200],
-                    "full_omc_error_output": str(output or ""),
+                    "full_omc_error_output": (
+                        str(output or "")
+                        if str(args.remedy_pack_enabled or "on") == "on"
+                        else str(str(output or "").splitlines()[0] if str(output or "").splitlines() else "")
+                    ),
                 }
             )
             if check_ok and simulate_ok:
@@ -2381,6 +2392,7 @@ def main() -> None:
                     request_kind=llm_request_kind,
                     replan_context=prompt_replan_context,
                     planner_experience_context=planner_experience_context,
+                    remedy_pack_enabled=bool(str(args.remedy_pack_enabled or "on") == "on"),
                 )
                 llm_request_count_after = int(_load_live_ledger(budget_cfg).get("request_count") or 0)
                 llm_request_delta = max(0, llm_request_count_after - llm_request_count_before)

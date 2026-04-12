@@ -255,6 +255,7 @@ def build_source_blind_multistep_planner_prompt(
     replan_context: dict | None,
     resolved_provider: str,
     planner_experience_context: dict | None = None,
+    remedy_pack_enabled: bool = True,
 ) -> tuple[str, dict]:
     """Build (prompt_text, planner_contract) for plan/replan LLM requests."""
     from .agent_modelica_repair_action_policy_v0 import build_multistep_llm_plan_prompt_hints_v1
@@ -300,6 +301,16 @@ def build_source_blind_multistep_planner_prompt(
                 "Planner experience hints below are advisory only; prefer current diagnostic evidence when they conflict.\n"
                 f"{str(planner_experience_context.get('prompt_context_text') or '').strip()}\n"
             )
+    effective_workflow_goal = str(workflow_goal or "").strip() if remedy_pack_enabled else ""
+    effective_error_excerpt = (
+        str(error_excerpt or "")
+        if remedy_pack_enabled
+        else str(str(error_excerpt or "").splitlines()[0] if str(error_excerpt or "").splitlines() else "")
+    )
+    remedy_prefix_hint = ""
+    if not remedy_pack_enabled:
+        remedy_prefix_hint = "- runtime_case_marker: v1201_pre_remedy_case_marker\n"
+
     prompt = (
         "You are planning a Modelica repair.\n"
         "Return ONLY a JSON object with keys:\n"
@@ -313,7 +324,7 @@ def build_source_blind_multistep_planner_prompt(
         f"- planner_experience_summary: {json.dumps(planner_experience_summary, ensure_ascii=True)}\n"
         f"- expected_stage: {expected_stage}\n"
         f"- current_round: {current_round}\n"
-        f"- workflow_goal: {str(workflow_goal or '').strip()}\n"
+        f"- workflow_goal: {effective_workflow_goal}\n"
         f"- previous_branch: {str((replan_context or {}).get('previous_branch') or '')}\n"
         f"- previous_candidate_parameters: {json.dumps((replan_context or {}).get('previous_candidate_parameters') or [], ensure_ascii=True)}\n"
         f"- previous_candidate_value_directions: {json.dumps((replan_context or {}).get('previous_candidate_value_directions') or [], ensure_ascii=True)}\n"
@@ -324,7 +335,8 @@ def build_source_blind_multistep_planner_prompt(
         f"- replan_budget_for_branch_escape_hint: {int((replan_context or {}).get('replan_budget_for_branch_escape') or 0)}\n"
         f"- replan_budget_for_resolution_hint: {int((replan_context or {}).get('replan_budget_for_resolution') or 0)}\n"
         f"- suggested_actions: {json.dumps(repair_actions, ensure_ascii=True)}\n"
-        f"- error_excerpt: {error_excerpt}\n"
+        f"{remedy_prefix_hint}"
+        f"- error_excerpt: {effective_error_excerpt}\n"
         f"{planner_experience_block}"
         "Model text below:\n"
         "-----BEGIN_MODEL-----\n"
@@ -598,6 +610,7 @@ def llm_generate_repair_plan(
     request_kind: str = "plan",
     replan_context: dict | None = None,
     planner_experience_context: dict | None = None,
+    remedy_pack_enabled: bool = True,
 ) -> tuple[dict | None, str, str]:
     """Generate a structured repair plan (or replan) via LLM.
 
@@ -607,12 +620,6 @@ def llm_generate_repair_plan(
     from .llm_provider_adapter import resolve_provider_adapter
     adapter, config = resolve_provider_adapter(planner_backend)
     provider = config.provider_name
-    if provider == "rule":
-        return None, "rule_backend_selected", "rule"
-    if not config.api_key:
-        return None, f"{provider}_api_key_missing", provider
-    if not config.model:
-        return None, f"{provider}_model_missing", provider
     from .agent_modelica_prompt_surface_v1 import build_planner_prompt_surface
 
     prompt, _planner_contract = build_planner_prompt_surface(
@@ -630,12 +637,19 @@ def llm_generate_repair_plan(
         replan_context=replan_context,
         resolved_provider=provider,
         planner_experience_context=planner_experience_context,
+        remedy_pack_enabled=remedy_pack_enabled,
     )
     prompt_audit = audit_planner_prompt_surface(
         prompt=prompt,
         workflow_goal=workflow_goal,
         error_excerpt=error_excerpt,
     )
+    if provider == "rule":
+        return {"_prompt_surface_audit": prompt_audit}, "rule_backend_selected", "rule"
+    if not config.api_key:
+        return None, f"{provider}_api_key_missing", provider
+    if not config.model:
+        return None, f"{provider}_model_missing", provider
     text, err = send_with_budget(adapter, prompt, config)
     if err:
         return None, err, provider
