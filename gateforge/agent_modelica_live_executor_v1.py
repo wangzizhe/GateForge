@@ -666,6 +666,10 @@ def _build_final_payload(
     live-budget ledger data.  Returns the complete payload dict; does NOT write
     to disk or print (caller is responsible for I/O).
     """
+    broader_change_pack_enabled = bool(str(args.broader_change_pack_enabled or "off") == "on")
+    capability_intervention_pack_enabled = bool(
+        str(args.capability_intervention_pack_enabled or "off") == "on"
+    ) or broader_change_pack_enabled
     elapsed = round(time.monotonic() - started, 4)
     final_error, final_compile_error, final_sim_error = _normalize_terminal_errors(
         executor_status=executor_status,
