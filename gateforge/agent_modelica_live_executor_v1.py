@@ -510,6 +510,7 @@ def _parse_main_args() -> argparse.Namespace:
     parser.add_argument("--planner-backend", choices=["auto", "gemini", "openai", "rule"], default="auto")
     parser.add_argument("--remedy-pack-enabled", choices=["on", "off"], default="on")
     parser.add_argument("--capability-intervention-pack-enabled", choices=["on", "off"], default="off")
+    parser.add_argument("--broader-change-pack-enabled", choices=["on", "off"], default="off")
     parser.add_argument("--experience-replay", choices=["on", "off"], default="off")
     parser.add_argument("--experience-source", default="")
     parser.add_argument("--planner-experience-injection", choices=["on", "off"], default="off")
@@ -617,6 +618,19 @@ def _summarize_product_gap_sidecar(*, attempts: list[dict]) -> dict:
         ),
         "failure_diagnosis_upgrade_applied": bool(
             any(bool(row.get("failure_diagnosis_upgrade_applied")) for row in attempts if isinstance(row, dict))
+        ),
+        "broader_change_pack_enabled": bool(
+            any(bool(row.get("broader_change_pack_enabled")) for row in attempts if isinstance(row, dict))
+        ),
+        "broader_execution_policy_restructuring_applied": bool(
+            any(
+                bool(row.get("broader_execution_policy_restructuring_applied"))
+                for row in attempts
+                if isinstance(row, dict)
+            )
+        ),
+        "governed_model_upgrade_applied": bool(
+            any(bool(row.get("governed_model_upgrade_applied")) for row in attempts if isinstance(row, dict))
         ),
         "workflow_goal_reanchoring_observed": bool(workflow_goal_reanchoring_observed),
         "dynamic_system_prompt_field_audit_result": latest_dynamic_audit,
@@ -870,7 +884,8 @@ def _build_final_payload(
         "task_id": str(args.task_id),
         "execution_source": "agent_modelica_live_executor_v1",
         "remedy_pack_enabled": bool(str(args.remedy_pack_enabled or "on") == "on"),
-        "capability_intervention_pack_enabled": bool(str(args.capability_intervention_pack_enabled or "off") == "on"),
+        "capability_intervention_pack_enabled": capability_intervention_pack_enabled,
+        "broader_change_pack_enabled": broader_change_pack_enabled,
         "failure_type": str(args.failure_type),
         "realism_version": str(llm_markers.get("realism_version") or ""),
         "llm_forcing": bool(llm_markers.get("llm_forcing")),
@@ -1189,7 +1204,15 @@ def main() -> None:
     attempts: list[dict] = []
     current_text = original_text
     multistep_memory = make_multistep_memory()
+    broader_change_pack_enabled = bool(str(args.broader_change_pack_enabled or "off") == "on")
+    capability_intervention_pack_enabled = bool(
+        str(args.capability_intervention_pack_enabled or "off") == "on"
+    ) or broader_change_pack_enabled
     max_rounds = max(1, int(args.max_rounds))
+    if broader_change_pack_enabled:
+        # Broader-change execution policy restructuring is allowed to use a deeper search budget
+        # while remaining on the same carried cases and executor shell.
+        max_rounds = max(max_rounds, 2)
     final_check_ok = False
     final_simulate_ok = False
     final_error = ""
@@ -1433,10 +1456,13 @@ def main() -> None:
                 {
                     "round": round_idx,
                     "remedy_pack_enabled": bool(str(args.remedy_pack_enabled or "on") == "on"),
-                    "capability_intervention_pack_enabled": bool(str(args.capability_intervention_pack_enabled or "off") == "on"),
-                    "execution_strategy_upgrade_applied": bool(str(args.capability_intervention_pack_enabled or "off") == "on"),
-                    "replan_search_control_upgrade_applied": bool(str(args.capability_intervention_pack_enabled or "off") == "on"),
-                    "failure_diagnosis_upgrade_applied": bool(str(args.capability_intervention_pack_enabled or "off") == "on"),
+                    "capability_intervention_pack_enabled": capability_intervention_pack_enabled,
+                    "broader_change_pack_enabled": broader_change_pack_enabled,
+                    "execution_strategy_upgrade_applied": capability_intervention_pack_enabled,
+                    "replan_search_control_upgrade_applied": capability_intervention_pack_enabled,
+                    "failure_diagnosis_upgrade_applied": capability_intervention_pack_enabled,
+                    "broader_execution_policy_restructuring_applied": broader_change_pack_enabled,
+                    "governed_model_upgrade_applied": broader_change_pack_enabled,
                     "return_code": rc,
                     "check_model_pass": check_ok,
                     "simulate_pass": simulate_ok,
@@ -2411,7 +2437,7 @@ def main() -> None:
                     replan_context=prompt_replan_context,
                     planner_experience_context=planner_experience_context,
                     remedy_pack_enabled=bool(str(args.remedy_pack_enabled or "on") == "on"),
-                    capability_intervention_pack_enabled=bool(str(args.capability_intervention_pack_enabled or "off") == "on"),
+                    capability_intervention_pack_enabled=capability_intervention_pack_enabled,
                 )
                 llm_request_count_after = int(_load_live_ledger(budget_cfg).get("request_count") or 0)
                 llm_request_delta = max(0, llm_request_count_after - llm_request_count_before)
