@@ -44,7 +44,7 @@ def _make_v130_closeout(path: Path, *, valid: bool = True) -> None:
             },
             "governance_pack": {
                 "capability_intervention_admission": {
-                    "admitted_intervention_table": [
+                    "admitted_rows": [
                         {"intervention_id": "bounded_execution_strategy_upgrade_v1"},
                         {"intervention_id": "bounded_replan_search_control_upgrade_v1"},
                         {"intervention_id": "bounded_failure_diagnosis_upgrade_v1"},

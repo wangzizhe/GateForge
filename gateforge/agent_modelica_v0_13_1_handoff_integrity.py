@@ -39,7 +39,7 @@ def build_v131_handoff_integrity(
         if isinstance(governance_pack.get("capability_intervention_admission"), dict)
         else {}
     )
-    admitted_rows = list((admission.get("admitted_intervention_table") or []))
+    admitted_rows = list((admission.get("admitted_rows") or admission.get("admitted_intervention_table") or []))
     admitted_ids = frozenset(str(row.get("intervention_id") or "") for row in admitted_rows if isinstance(row, dict))
 
     version_decision_ok = upstream_version_decision == EXPECTED_V130_VERSION_DECISION
