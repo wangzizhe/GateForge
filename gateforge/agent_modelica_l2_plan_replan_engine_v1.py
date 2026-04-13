@@ -256,6 +256,7 @@ def build_source_blind_multistep_planner_prompt(
     resolved_provider: str,
     planner_experience_context: dict | None = None,
     remedy_pack_enabled: bool = True,
+    capability_intervention_pack_enabled: bool = False,
 ) -> tuple[str, dict]:
     """Build (prompt_text, planner_contract) for plan/replan LLM requests."""
     from .agent_modelica_repair_action_policy_v0 import build_multistep_llm_plan_prompt_hints_v1
@@ -311,6 +312,18 @@ def build_source_blind_multistep_planner_prompt(
     if not remedy_pack_enabled:
         remedy_prefix_hint = "- runtime_case_marker: v1201_pre_remedy_case_marker\n"
 
+    intervention_pack_hint = ""
+    if capability_intervention_pack_enabled:
+        intervention_pack_hint = (
+            "- capability_intervention_pack_enabled: true\n"
+            "- execution_strategy_upgrade_active: true\n"
+            "  Prefer a structured multi-step execution plan: commit to an explicit action sequence, name each intended repair step, and avoid switching strategies mid-repair without a concrete diagnostic reason.\n"
+            "- replan_search_control_upgrade_active: true\n"
+            "  Allocate your replan budget explicitly across branches: consider switching branches early when the current branch shows no measurable progress, and avoid exhausting the budget on a single stalled approach.\n"
+            "- failure_diagnosis_upgrade_active: true\n"
+            "  Apply deeper failure-bucket diagnosis when a fix attempt yields an unexpected error: map the failure to a known L3 bucket before defaulting to a generic repair action.\n"
+        )
+
     prompt = (
         "You are planning a Modelica repair.\n"
         "Return ONLY a JSON object with keys:\n"
@@ -336,6 +349,7 @@ def build_source_blind_multistep_planner_prompt(
         f"- replan_budget_for_resolution_hint: {int((replan_context or {}).get('replan_budget_for_resolution') or 0)}\n"
         f"- suggested_actions: {json.dumps(repair_actions, ensure_ascii=True)}\n"
         f"{remedy_prefix_hint}"
+        f"{intervention_pack_hint}"
         f"- error_excerpt: {effective_error_excerpt}\n"
         f"{planner_experience_block}"
         "Model text below:\n"
@@ -611,6 +625,7 @@ def llm_generate_repair_plan(
     replan_context: dict | None = None,
     planner_experience_context: dict | None = None,
     remedy_pack_enabled: bool = True,
+    capability_intervention_pack_enabled: bool = False,
 ) -> tuple[dict | None, str, str]:
     """Generate a structured repair plan (or replan) via LLM.
 
@@ -638,6 +653,7 @@ def llm_generate_repair_plan(
         resolved_provider=provider,
         planner_experience_context=planner_experience_context,
         remedy_pack_enabled=remedy_pack_enabled,
+        capability_intervention_pack_enabled=capability_intervention_pack_enabled,
     )
     prompt_audit = audit_planner_prompt_surface(
         prompt=prompt,

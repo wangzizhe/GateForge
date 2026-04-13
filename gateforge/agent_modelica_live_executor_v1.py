@@ -509,6 +509,7 @@ def _parse_main_args() -> argparse.Namespace:
     parser.add_argument("--docker-image", default=os.getenv("GATEFORGE_OM_IMAGE", DEFAULT_DOCKER_IMAGE))
     parser.add_argument("--planner-backend", choices=["auto", "gemini", "openai", "rule"], default="auto")
     parser.add_argument("--remedy-pack-enabled", choices=["on", "off"], default="on")
+    parser.add_argument("--capability-intervention-pack-enabled", choices=["on", "off"], default="off")
     parser.add_argument("--experience-replay", choices=["on", "off"], default="off")
     parser.add_argument("--experience-source", default="")
     parser.add_argument("--planner-experience-injection", choices=["on", "off"], default="off")
@@ -604,6 +605,18 @@ def _summarize_product_gap_sidecar(*, attempts: list[dict]) -> dict:
         "anti_reward_hacking_checklist_version": PRODUCT_GAP_ANTI_REWARD_HACKING_CHECKLIST_VERSION,
         "remedy_pack_enabled": bool(
             any(bool(row.get("remedy_pack_enabled")) for row in attempts if isinstance(row, dict))
+        ),
+        "capability_intervention_pack_enabled": bool(
+            any(bool(row.get("capability_intervention_pack_enabled")) for row in attempts if isinstance(row, dict))
+        ),
+        "execution_strategy_upgrade_applied": bool(
+            any(bool(row.get("execution_strategy_upgrade_applied")) for row in attempts if isinstance(row, dict))
+        ),
+        "replan_search_control_upgrade_applied": bool(
+            any(bool(row.get("replan_search_control_upgrade_applied")) for row in attempts if isinstance(row, dict))
+        ),
+        "failure_diagnosis_upgrade_applied": bool(
+            any(bool(row.get("failure_diagnosis_upgrade_applied")) for row in attempts if isinstance(row, dict))
         ),
         "workflow_goal_reanchoring_observed": bool(workflow_goal_reanchoring_observed),
         "dynamic_system_prompt_field_audit_result": latest_dynamic_audit,
@@ -857,6 +870,7 @@ def _build_final_payload(
         "task_id": str(args.task_id),
         "execution_source": "agent_modelica_live_executor_v1",
         "remedy_pack_enabled": bool(str(args.remedy_pack_enabled or "on") == "on"),
+        "capability_intervention_pack_enabled": bool(str(args.capability_intervention_pack_enabled or "off") == "on"),
         "failure_type": str(args.failure_type),
         "realism_version": str(llm_markers.get("realism_version") or ""),
         "llm_forcing": bool(llm_markers.get("llm_forcing")),
@@ -1419,6 +1433,10 @@ def main() -> None:
                 {
                     "round": round_idx,
                     "remedy_pack_enabled": bool(str(args.remedy_pack_enabled or "on") == "on"),
+                    "capability_intervention_pack_enabled": bool(str(args.capability_intervention_pack_enabled or "off") == "on"),
+                    "execution_strategy_upgrade_applied": bool(str(args.capability_intervention_pack_enabled or "off") == "on"),
+                    "replan_search_control_upgrade_applied": bool(str(args.capability_intervention_pack_enabled or "off") == "on"),
+                    "failure_diagnosis_upgrade_applied": bool(str(args.capability_intervention_pack_enabled or "off") == "on"),
                     "return_code": rc,
                     "check_model_pass": check_ok,
                     "simulate_pass": simulate_ok,
@@ -2393,6 +2411,7 @@ def main() -> None:
                     replan_context=prompt_replan_context,
                     planner_experience_context=planner_experience_context,
                     remedy_pack_enabled=bool(str(args.remedy_pack_enabled or "on") == "on"),
+                    capability_intervention_pack_enabled=bool(str(args.capability_intervention_pack_enabled or "off") == "on"),
                 )
                 llm_request_count_after = int(_load_live_ledger(budget_cfg).get("request_count") or 0)
                 llm_request_delta = max(0, llm_request_count_after - llm_request_count_before)
