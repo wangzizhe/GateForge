@@ -17,6 +17,8 @@ _EXPECTED_STALLED_CONSECUTIVE = 2
 _EXPECTED_CYCLING_JACCARD_THRESHOLD = 0.85
 _EXPECTED_SCHEMA_VERSION_TURN = "trajectory_turn_v0_19_0"
 _EXPECTED_SCHEMA_VERSION_SUMMARY = "trajectory_summary_v0_19_0"
+_EXPECTED_ALIGNMENT_SAMPLE_COUNT = 30
+_EXPECTED_ALIGNMENT_THRESHOLD = 0.70
 
 
 def _check_taxonomy() -> dict:
@@ -75,20 +77,61 @@ def _check_trajectory_schema() -> dict:
     }
 
 
-def build_v190_closeout(*, out_dir: str = str(DEFAULT_CLOSEOUT_OUT_DIR)) -> dict:
+def _check_distribution_alignment(*, summary_path: str | Path | None = None) -> dict:
+    from .distribution_alignment_v0_19_0 import DEFAULT_OUT_DIR, SCHEMA_VERSION
+
+    summary_path_obj = Path(summary_path) if summary_path is not None else Path(DEFAULT_OUT_DIR) / "summary.json"
+    summary_path = summary_path_obj
+    if not summary_path.exists():
+        return {
+            "distribution_alignment_ready": False,
+            "distribution_alignment_status": "missing",
+            "summary_path": str(summary_path),
+            "sample_count": 0,
+            "overlap": 0.0,
+            "threshold_passed": False,
+            "schema_version_ok": False,
+        }
+
+    payload = json.loads(summary_path.read_text(encoding="utf-8"))
+    sample_count = int(payload.get("sample_count") or 0)
+    overlap = float(payload.get("overlap") or 0.0)
+    threshold_passed = bool(payload.get("threshold_passed"))
+    schema_version_ok = payload.get("schema_version") == SCHEMA_VERSION
+    distribution_alignment_ready = (
+        payload.get("status") == "PASS"
+        and sample_count == _EXPECTED_ALIGNMENT_SAMPLE_COUNT
+        and overlap >= _EXPECTED_ALIGNMENT_THRESHOLD
+        and threshold_passed
+        and schema_version_ok
+    )
+    return {
+        "distribution_alignment_ready": distribution_alignment_ready,
+        "distribution_alignment_status": payload.get("status"),
+        "summary_path": str(summary_path),
+        "sample_count": sample_count,
+        "overlap": overlap,
+        "threshold_passed": threshold_passed,
+        "schema_version_ok": schema_version_ok,
+    }
+
+
+def build_v190_closeout(
+    *,
+    out_dir: str = str(DEFAULT_CLOSEOUT_OUT_DIR),
+    distribution_alignment_summary_path: str | None = None,
+) -> dict:
     taxonomy = _check_taxonomy()
     stop_signal = _check_stop_signal()
     trajectory_schema = _check_trajectory_schema()
+    distribution_alignment = _check_distribution_alignment(summary_path=distribution_alignment_summary_path)
 
     all_frozen = (
         taxonomy["taxonomy_frozen"]
         and stop_signal["stop_signal_frozen"]
         and trajectory_schema["trajectory_schema_frozen"]
+        and distribution_alignment["distribution_alignment_ready"]
     )
-
-    # Distribution alignment experiment was not run in v0.19.0 code deliverable.
-    # It is deferred to v0.19.1 as its first prerequisite.
-    distribution_alignment_status = "deferred_to_v0_19_1"
 
     if all_frozen:
         version_decision = "v0_19_0_foundation_ready"
@@ -106,7 +149,7 @@ def build_v190_closeout(*, out_dir: str = str(DEFAULT_CLOSEOUT_OUT_DIR)) -> dict
             "taxonomy_frozen": taxonomy["taxonomy_frozen"],
             "stop_signal_frozen": stop_signal["stop_signal_frozen"],
             "trajectory_schema_frozen": trajectory_schema["trajectory_schema_frozen"],
-            "distribution_alignment_status": distribution_alignment_status,
+            "distribution_alignment_status": distribution_alignment["distribution_alignment_status"],
             "v0_19_1_handoff_mode": (
                 "proceed_to_benchmark_construction"
                 if all_frozen
@@ -116,6 +159,7 @@ def build_v190_closeout(*, out_dir: str = str(DEFAULT_CLOSEOUT_OUT_DIR)) -> dict
         "taxonomy_check": taxonomy,
         "stop_signal_check": stop_signal,
         "trajectory_schema_check": trajectory_schema,
+        "distribution_alignment_check": distribution_alignment,
     }
 
     out_root = Path(out_dir)
@@ -129,7 +173,7 @@ def build_v190_closeout(*, out_dir: str = str(DEFAULT_CLOSEOUT_OUT_DIR)) -> dict
             f"- taxonomy_frozen: `{taxonomy['taxonomy_frozen']}`",
             f"- stop_signal_frozen: `{stop_signal['stop_signal_frozen']}`",
             f"- trajectory_schema_frozen: `{trajectory_schema['trajectory_schema_frozen']}`",
-            f"- distribution_alignment_status: `{distribution_alignment_status}`",
+            f"- distribution_alignment_status: `{distribution_alignment['distribution_alignment_status']}`",
         ]),
     )
     return payload
@@ -138,8 +182,12 @@ def build_v190_closeout(*, out_dir: str = str(DEFAULT_CLOSEOUT_OUT_DIR)) -> dict
 def main() -> int:
     parser = argparse.ArgumentParser(description="Build the v0.19.0 foundation closeout artifact.")
     parser.add_argument("--out-dir", default=str(DEFAULT_CLOSEOUT_OUT_DIR))
+    parser.add_argument("--distribution-alignment-summary-path", default=None)
     args = parser.parse_args()
-    payload = build_v190_closeout(out_dir=str(args.out_dir))
+    payload = build_v190_closeout(
+        out_dir=str(args.out_dir),
+        distribution_alignment_summary_path=args.distribution_alignment_summary_path,
+    )
     print(json.dumps({
         "status": payload["status"],
         "version_decision": payload["conclusion"]["version_decision"],

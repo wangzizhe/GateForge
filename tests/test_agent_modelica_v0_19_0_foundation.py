@@ -1,8 +1,11 @@
 """Tests for v0.19.0 foundation: taxonomy, stop signal, trajectory schema."""
 from __future__ import annotations
 
+import json
+from pathlib import Path
 import unittest
 
+from gateforge.distribution_alignment_v0_19_0 import build_distribution_alignment_artifact
 from gateforge.mutation_taxonomy_v0_19_0 import (
     MUTATION_TAXONOMY,
     TAXONOMY_FROZEN,
@@ -241,18 +244,52 @@ class TestTrajectorySchema(unittest.TestCase):
         ))
 
 
+class TestDistributionAlignment(unittest.TestCase):
+    def test_distribution_alignment_artifact_passes(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            payload = build_distribution_alignment_artifact(out_dir=tmp)
+            summary_path = Path(tmp) / "summary.json"
+            self.assertTrue(summary_path.exists())
+            self.assertEqual(json.loads(summary_path.read_text(encoding="utf-8"))["status"], "PASS")
+
+        self.assertEqual(payload["status"], "PASS")
+        self.assertEqual(payload["sample_count"], 30)
+        self.assertGreaterEqual(payload["overlap"], 0.70)
+        self.assertTrue(payload["threshold_passed"])
+        self.assertEqual(len(payload["rows"]), 30)
+
+    def test_distribution_alignment_records_uncovered_clusters(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            payload = build_distribution_alignment_artifact(out_dir=tmp)
+
+        self.assertIn("component_name_hallucination", payload["uncovered_clusters"])
+        self.assertIn("control_architecture_omission", payload["uncovered_clusters"])
+        self.assertEqual(payload["largest_uncovered_cluster"], "component_name_hallucination")
+
+
 class TestCloseout(unittest.TestCase):
     def test_closeout_pass(self):
         import tempfile
         from gateforge.agent_modelica_v0_19_0_closeout import build_v190_closeout
-        with tempfile.TemporaryDirectory() as tmp:
-            result = build_v190_closeout(out_dir=tmp)
+        from gateforge.distribution_alignment_v0_19_0 import build_distribution_alignment_artifact
+
+        with tempfile.TemporaryDirectory() as tmp, tempfile.TemporaryDirectory() as align_tmp:
+            payload = build_distribution_alignment_artifact(out_dir=align_tmp)
+            self.assertEqual(payload["status"], "PASS")
+            result = build_v190_closeout(
+                out_dir=tmp,
+                distribution_alignment_summary_path=str(Path(align_tmp) / "summary.json"),
+            )
         self.assertEqual(result["status"], "PASS")
         self.assertEqual(result["conclusion"]["version_decision"], "v0_19_0_foundation_ready")
         self.assertTrue(result["conclusion"]["taxonomy_frozen"])
         self.assertTrue(result["conclusion"]["stop_signal_frozen"])
         self.assertTrue(result["conclusion"]["trajectory_schema_frozen"])
-        self.assertEqual(result["conclusion"]["distribution_alignment_status"], "deferred_to_v0_19_1")
+        self.assertEqual(result["conclusion"]["distribution_alignment_status"], "PASS")
 
 
 if __name__ == "__main__":
