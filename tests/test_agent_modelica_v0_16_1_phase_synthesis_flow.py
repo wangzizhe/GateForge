@@ -1,0 +1,190 @@
+from __future__ import annotations
+
+import json
+import tempfile
+import unittest
+from pathlib import Path
+
+from gateforge.agent_modelica_v0_16_1_closeout import build_v161_closeout
+from gateforge.agent_modelica_v0_16_1_meaning_synthesis import build_v161_meaning_synthesis
+from gateforge.agent_modelica_v0_16_1_phase_ledger import build_v161_phase_ledger
+from gateforge.agent_modelica_v0_16_1_stop_condition import build_v161_stop_condition
+
+
+def _write_closeout(path: Path, version_decision: str, extra: dict | None = None) -> None:
+    payload = {"conclusion": {"version_decision": version_decision}}
+    if extra:
+        payload["conclusion"].update(extra)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+
+def _write_standard_chain(root: Path) -> dict[str, Path]:
+    paths = {
+        "v160": root / "v160" / "summary.json",
+    }
+    _write_closeout(
+        paths["v160"],
+        "v0_16_0_no_honest_next_change_question_remains",
+        {
+            "next_change_question_governance_status": "governance_ready",
+            "governance_ready_for_runtime_execution": False,
+            "minimum_completion_signal_pass": False,
+            "named_first_next_change_pack_ready": False,
+            "next_arc_viability_status": "not_justified",
+            "next_change_governance_outcome": "no_honest_next_local_change_question_remains",
+            "why_this_is_or_is_not_ready": "The governance layer froze successfully enough to conclude that no further honest local next-change question remains on the carried same 12-case baseline.",
+            "v0_16_1_handoff_mode": "prepare_v0_16_phase_synthesis",
+        },
+    )
+    return paths
+
+
+class AgentModelicaV161PhaseSynthesisFlowTests(unittest.TestCase):
+    def test_phase_ledger_pass_path(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            paths = _write_standard_chain(root)
+            payload = build_v161_phase_ledger(
+                v160_closeout_path=str(paths["v160"]),
+                out_dir=str(root / "ledger"),
+            )
+            self.assertEqual(payload["phase_ledger_status"], "ready")
+            self.assertTrue(payload["phase_primary_question_answered_enough_for_handoff"])
+
+    def test_phase_ledger_invalid_path(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            paths = _write_standard_chain(root)
+            _write_closeout(paths["v160"], "v0_16_0_next_change_question_governance_partial")
+            payload = build_v161_phase_ledger(
+                v160_closeout_path=str(paths["v160"]),
+                out_dir=str(root / "ledger"),
+            )
+            self.assertEqual(payload["phase_ledger_status"], "invalid")
+
+    def test_stop_condition_nearly_complete_with_caveat(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            paths = _write_standard_chain(root)
+            payload = build_v161_stop_condition(
+                v160_closeout_path=str(paths["v160"]),
+                out_dir=str(root / "stop"),
+            )
+            self.assertEqual(payload["phase_stop_condition_status"], "nearly_complete_with_caveat")
+            self.assertTrue(payload["governance_question_answered"])
+            self.assertTrue(payload["no_honest_next_question_answered"])
+            self.assertFalse(payload["same_class_reopen_required"])
+
+    def test_synthetic_met_input_routes_to_invalid_because_future_reserved(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            paths = _write_standard_chain(root)
+            build_v161_phase_ledger(
+                v160_closeout_path=str(paths["v160"]),
+                out_dir=str(root / "ledger"),
+            )
+            stop_dir = root / "stop"
+            stop_dir.mkdir(parents=True, exist_ok=True)
+            (stop_dir / "summary.json").write_text(
+                json.dumps({"phase_stop_condition_status": "met"}),
+                encoding="utf-8",
+            )
+            build_v161_meaning_synthesis(
+                v160_closeout_path=str(paths["v160"]),
+                out_dir=str(root / "meaning"),
+            )
+            payload = build_v161_closeout(
+                phase_ledger_path=str(root / "ledger" / "summary.json"),
+                stop_condition_path=str(root / "stop" / "summary.json"),
+                meaning_synthesis_path=str(root / "meaning" / "summary.json"),
+                v160_closeout_path=str(paths["v160"]),
+                out_dir=str(root / "closeout"),
+            )
+            self.assertEqual(payload["conclusion"]["version_decision"], "v0_16_1_handoff_phase_inputs_invalid")
+            self.assertEqual(
+                payload["conclusion"]["v0_17_primary_phase_question"],
+                "met_path_not_yet_in_scope_for_v0_16_1",
+            )
+
+    def test_stop_condition_not_ready_for_closeout(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            paths = _write_standard_chain(root)
+            _write_closeout(paths["v160"], "v0_16_0_next_change_question_governance_partial")
+            payload = build_v161_stop_condition(
+                v160_closeout_path=str(paths["v160"]),
+                out_dir=str(root / "stop"),
+            )
+            self.assertEqual(payload["phase_stop_condition_status"], "not_ready_for_closeout")
+
+    def test_meaning_synthesis_next_phase_selection(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            paths = _write_standard_chain(root)
+            payload = build_v161_meaning_synthesis(
+                v160_closeout_path=str(paths["v160"]),
+                out_dir=str(root / "meaning"),
+            )
+            self.assertTrue(payload["explicit_caveat_present"])
+            self.assertEqual(
+                payload["next_primary_phase_question"],
+                "carried_baseline_evidence_exhaustion_transition_evaluation",
+            )
+            self.assertTrue(payload["do_not_continue_v0_16_same_next_change_question_loop_by_default"])
+
+    def test_closeout_nearly_complete_with_explicit_caveat(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            paths = _write_standard_chain(root)
+            payload = build_v161_closeout(
+                phase_ledger_path=str(root / "ledger" / "summary.json"),
+                stop_condition_path=str(root / "stop" / "summary.json"),
+                meaning_synthesis_path=str(root / "meaning" / "summary.json"),
+                v160_closeout_path=str(paths["v160"]),
+                out_dir=str(root / "closeout"),
+            )
+            self.assertEqual(
+                payload["conclusion"]["version_decision"],
+                "v0_16_phase_nearly_complete_with_explicit_caveat",
+            )
+            self.assertEqual(
+                payload["conclusion"]["v0_17_primary_phase_question"],
+                "carried_baseline_evidence_exhaustion_transition_evaluation",
+            )
+            self.assertTrue(payload["conclusion"]["explicit_caveat_present"])
+
+    def test_invalid_when_nearly_complete_caveat_but_no_explicit_caveat(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            paths = _write_standard_chain(root)
+            build_v161_phase_ledger(
+                v160_closeout_path=str(paths["v160"]),
+                out_dir=str(root / "ledger"),
+            )
+            build_v161_stop_condition(
+                v160_closeout_path=str(paths["v160"]),
+                out_dir=str(root / "stop"),
+            )
+            build_v161_meaning_synthesis(
+                v160_closeout_path=str(paths["v160"]),
+                out_dir=str(root / "meaning"),
+            )
+            meaning_path = root / "meaning" / "summary.json"
+            meaning = json.loads(meaning_path.read_text(encoding="utf-8"))
+            meaning["explicit_caveat_present"] = False
+            meaning["explicit_caveat_label"] = ""
+            meaning["do_not_continue_v0_16_same_next_change_question_loop_by_default"] = False
+            meaning_path.write_text(json.dumps(meaning), encoding="utf-8")
+            payload = build_v161_closeout(
+                phase_ledger_path=str(root / "ledger" / "summary.json"),
+                stop_condition_path=str(root / "stop" / "summary.json"),
+                meaning_synthesis_path=str(meaning_path),
+                v160_closeout_path=str(paths["v160"]),
+                out_dir=str(root / "closeout"),
+            )
+            self.assertEqual(payload["conclusion"]["version_decision"], "v0_16_1_handoff_phase_inputs_invalid")
+
+
+if __name__ == "__main__":
+    unittest.main()
