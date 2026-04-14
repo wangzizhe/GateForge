@@ -241,5 +241,19 @@ class TestTrajectorySchema(unittest.TestCase):
         ))
 
 
+class TestCloseout(unittest.TestCase):
+    def test_closeout_pass(self):
+        import tempfile
+        from gateforge.agent_modelica_v0_19_0_closeout import build_v190_closeout
+        with tempfile.TemporaryDirectory() as tmp:
+            result = build_v190_closeout(out_dir=tmp)
+        self.assertEqual(result["status"], "PASS")
+        self.assertEqual(result["conclusion"]["version_decision"], "v0_19_0_foundation_ready")
+        self.assertTrue(result["conclusion"]["taxonomy_frozen"])
+        self.assertTrue(result["conclusion"]["stop_signal_frozen"])
+        self.assertTrue(result["conclusion"]["trajectory_schema_frozen"])
+        self.assertEqual(result["conclusion"]["distribution_alignment_status"], "deferred_to_v0_19_1")
+
+
 if __name__ == "__main__":
     unittest.main()
