@@ -24,6 +24,16 @@ def _preview_row(candidate: dict, index: int) -> dict:
     signal_family = "" if unreadable_fail else str(candidate["residual_layer_taxonomy_id"])
     row = {
         "candidate_id": candidate["candidate_id"],
+        "task_id": str(candidate.get("task_id") or ""),
+        "source_case_id": str(candidate.get("source_case_id") or ""),
+        "source_model_path": str(candidate.get("source_model_path") or ""),
+        "mutated_model_path": str(candidate.get("mutated_model_path") or ""),
+        "failure_type": str(candidate.get("failure_type") or ""),
+        "expected_stage": str(candidate.get("expected_stage") or ""),
+        "workflow_goal": str(candidate.get("workflow_goal") or ""),
+        "planner_backend": str(candidate.get("planner_backend") or ""),
+        "backend": str(candidate.get("backend") or ""),
+        "scale": str(candidate.get("scale") or ""),
         "surface_fixable_by_rule": True,
         "post_rule_residual_present": True,
         "post_rule_residual_failure_type": "residual_conflict" if not preview_fail else ("terminal_residual" if terminal_fail else "unreadable_residual"),

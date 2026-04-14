@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -34,7 +35,29 @@ def _write_v190_closeout(path: Path, *, alignment_ok: bool = True) -> None:
     path.write_text(json.dumps(payload), encoding="utf-8")
 
 
-def _write_v191_closeout(path: Path, *, benchmark_pass_count: int = 50, handoff_mode: str = "run_first_real_multiturn_trajectory_dataset") -> None:
+def _write_v191_closeout(path: Path, *, benchmark_pass_count: int = 50, handoff_mode: str = "run_first_real_multiturn_trajectory_dataset", runnable: bool = True) -> None:
+    fixture_root = path.parent / "models"
+    fixture_root.mkdir(parents=True, exist_ok=True)
+    admitted_cases = []
+    for i in range(1, benchmark_pass_count + 1):
+        case = {"candidate_id": f"cmp_{i:03d}"}
+        if runnable:
+            source_path = fixture_root / f"source_{i:03d}.mo"
+            mutated_path = fixture_root / f"mutated_{i:03d}.mo"
+            source_path.write_text(f"model Source{i:03d}\nend Source{i:03d};\n", encoding="utf-8")
+            mutated_path.write_text(f"model Mutated{i:03d}\nend Mutated{i:03d};\n", encoding="utf-8")
+            case.update(
+                {
+                    "mutated_model_path": str(mutated_path),
+                    "source_model_path": str(source_path),
+                    "failure_type": "model_check_error",
+                    "expected_stage": "check",
+                    "workflow_goal": "repair_model",
+                    "planner_backend": "rule",
+                    "backend": "auto",
+                }
+            )
+        admitted_cases.append(case)
     payload = {
         "status": "PASS",
         "conclusion": {
@@ -56,7 +79,7 @@ def _write_v191_closeout(path: Path, *, benchmark_pass_count: int = 50, handoff_
             ]
         },
         "benchmark": {
-            "admitted_cases": [{"candidate_id": f"cmp_{i:03d}"} for i in range(1, benchmark_pass_count + 1)]
+            "admitted_cases": admitted_cases
         },
     }
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -89,7 +112,11 @@ class AgentModelicaV192FirstTrajectoryDatasetFlowTests(unittest.TestCase):
             root = Path(d)
             v191 = root / "v191" / "summary.json"
             _write_v191_closeout(v191)
-            payload = build_v192_trajectory_runner(v191_closeout_path=str(v191), out_dir=str(root / "trajectory"))
+            payload = build_v192_trajectory_runner(
+                v191_closeout_path=str(v191),
+                out_dir=str(root / "trajectory"),
+                executor_cmd=[sys.executable, "-m", "gateforge.agent_modelica_live_executor_mock_v0"],
+            )
             self.assertEqual(payload["loop_summary_count"], payload["complete_case_count"])
 
     def test_runner_rejects_silent_case_drop(self) -> None:
@@ -100,7 +127,11 @@ class AgentModelicaV192FirstTrajectoryDatasetFlowTests(unittest.TestCase):
             raw = json.loads(v191.read_text(encoding="utf-8"))
             raw["generator"]["rows"] = raw["generator"]["rows"][:-1]
             v191.write_text(json.dumps(raw), encoding="utf-8")
-            payload = build_v192_trajectory_runner(v191_closeout_path=str(v191), out_dir=str(root / "trajectory"))
+            payload = build_v192_trajectory_runner(
+                v191_closeout_path=str(v191),
+                out_dir=str(root / "trajectory"),
+                executor_cmd=[sys.executable, "-m", "gateforge.agent_modelica_live_executor_mock_v0"],
+            )
             self.assertEqual(payload["infrastructure_failure_count"], 1)
             self.assertEqual(payload["complete_case_count"], 1)
 
@@ -109,7 +140,11 @@ class AgentModelicaV192FirstTrajectoryDatasetFlowTests(unittest.TestCase):
             root = Path(d)
             v191 = root / "v191" / "summary.json"
             _write_v191_closeout(v191, benchmark_pass_count=1)
-            payload = build_v192_trajectory_runner(v191_closeout_path=str(v191), out_dir=str(root / "trajectory"))
+            payload = build_v192_trajectory_runner(
+                v191_closeout_path=str(v191),
+                out_dir=str(root / "trajectory"),
+                executor_cmd=[sys.executable, "-m", "gateforge.agent_modelica_live_executor_mock_v0"],
+            )
             self.assertEqual(payload["turn_records"][0]["schema_version"], SCHEMA_VERSION_TURN)
             self.assertEqual(payload["loop_summaries"][0]["schema_version"], SCHEMA_VERSION_SUMMARY)
 
@@ -118,10 +153,14 @@ class AgentModelicaV192FirstTrajectoryDatasetFlowTests(unittest.TestCase):
             root = Path(d)
             v191 = root / "v191" / "summary.json"
             _write_v191_closeout(v191)
-            build_v192_trajectory_runner(v191_closeout_path=str(v191), out_dir=str(root / "trajectory"))
+            build_v192_trajectory_runner(
+                v191_closeout_path=str(v191),
+                out_dir=str(root / "trajectory"),
+                executor_cmd=[sys.executable, "-m", "gateforge.agent_modelica_live_executor_mock_v0"],
+            )
             payload = build_v192_metric_report(trajectory_summary_path=str(root / "trajectory" / "summary.json"), out_dir=str(root / "metrics"))
             self.assertIn("recovery_rate", payload)
-            self.assertTrue(payload["recovery_rate_defined"])
+            self.assertFalse(payload["recovery_rate_defined"])
 
     def test_capability_profile_assigns_thresholds(self) -> None:
         self.assertEqual(_assign_profile_class(4, 1.0, 1.0), "insufficient_data")
@@ -147,6 +186,7 @@ class AgentModelicaV192FirstTrajectoryDatasetFlowTests(unittest.TestCase):
                 metric_summary_path=str(root / "metrics" / "summary.json"),
                 profile_summary_path=str(root / "profile" / "summary.json"),
                 out_dir=str(root / "closeout"),
+                executor_cmd=[sys.executable, "-m", "gateforge.agent_modelica_live_executor_mock_v0"],
             )
             self.assertEqual(payload["conclusion"]["version_decision"], "v0_19_2_first_real_multiturn_trajectory_dataset_ready")
 
@@ -165,6 +205,7 @@ class AgentModelicaV192FirstTrajectoryDatasetFlowTests(unittest.TestCase):
                 metric_summary_path=str(root / "metrics" / "summary.json"),
                 profile_summary_path=str(root / "profile" / "summary.json"),
                 out_dir=str(root / "closeout"),
+                executor_cmd=[sys.executable, "-m", "gateforge.agent_modelica_live_executor_mock_v0"],
             )
             trajectory_path = root / "trajectory" / "summary.json"
             trajectory = json.loads(trajectory_path.read_text(encoding="utf-8"))
@@ -180,6 +221,7 @@ class AgentModelicaV192FirstTrajectoryDatasetFlowTests(unittest.TestCase):
                 metric_summary_path=str(root / "metrics" / "summary.json"),
                 profile_summary_path=str(root / "profile" / "summary.json"),
                 out_dir=str(root / "closeout_partial"),
+                executor_cmd=[sys.executable, "-m", "gateforge.agent_modelica_live_executor_mock_v0"],
             )
             self.assertEqual(payload["conclusion"]["version_decision"], "v0_19_2_trajectory_dataset_partial")
 
@@ -198,8 +240,19 @@ class AgentModelicaV192FirstTrajectoryDatasetFlowTests(unittest.TestCase):
                 metric_summary_path=str(root / "metrics" / "summary.json"),
                 profile_summary_path=str(root / "profile" / "summary.json"),
                 out_dir=str(root / "closeout"),
+                executor_cmd=[sys.executable, "-m", "gateforge.agent_modelica_live_executor_mock_v0"],
             )
             self.assertEqual(payload["conclusion"]["version_decision"], "v0_19_2_foundation_inputs_invalid")
+
+    def test_handoff_integrity_fail_when_benchmark_has_no_runnable_inputs(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            v190 = root / "v190" / "summary.json"
+            v191 = root / "v191" / "summary.json"
+            _write_v190_closeout(v190)
+            _write_v191_closeout(v191, runnable=False)
+            payload = build_v192_handoff_integrity(v190_closeout_path=str(v190), v191_closeout_path=str(v191), out_dir=str(root / "handoff"))
+            self.assertEqual(payload["handoff_integrity_status"], "FAIL")
 
     def test_cross_case_readout_null_when_no_eligible_category_exists(self) -> None:
         with tempfile.TemporaryDirectory() as d:

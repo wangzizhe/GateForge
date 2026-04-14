@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shlex
 from pathlib import Path
 
 from .agent_modelica_v0_19_2_capability_profile import build_v192_capability_profile
@@ -35,6 +36,7 @@ def build_v192_closeout(
     metric_summary_path: str = str(DEFAULT_METRIC_OUT_DIR / "summary.json"),
     profile_summary_path: str = str(DEFAULT_PROFILE_OUT_DIR / "summary.json"),
     out_dir: str = str(DEFAULT_CLOSEOUT_OUT_DIR),
+    executor_cmd: list[str] | None = None,
 ) -> dict:
     if not Path(handoff_integrity_path).exists():
         build_v192_handoff_integrity(
@@ -43,7 +45,11 @@ def build_v192_closeout(
             out_dir=str(Path(handoff_integrity_path).parent),
         )
     if not Path(trajectory_summary_path).exists():
-        build_v192_trajectory_runner(v191_closeout_path=v191_closeout_path, out_dir=str(Path(trajectory_summary_path).parent))
+        build_v192_trajectory_runner(
+            v191_closeout_path=v191_closeout_path,
+            out_dir=str(Path(trajectory_summary_path).parent),
+            executor_cmd=executor_cmd,
+        )
     if not Path(metric_summary_path).exists():
         build_v192_metric_report(trajectory_summary_path=trajectory_summary_path, out_dir=str(Path(metric_summary_path).parent))
     if not Path(profile_summary_path).exists():
@@ -135,7 +141,9 @@ def main() -> int:
     parser.add_argument("--metric-summary", default=str(DEFAULT_METRIC_OUT_DIR / "summary.json"))
     parser.add_argument("--profile-summary", default=str(DEFAULT_PROFILE_OUT_DIR / "summary.json"))
     parser.add_argument("--out-dir", default=str(DEFAULT_CLOSEOUT_OUT_DIR))
+    parser.add_argument("--executor-cmd", default="")
     args = parser.parse_args()
+    executor_cmd = shlex.split(str(args.executor_cmd)) if str(args.executor_cmd or "").strip() else None
     payload = build_v192_closeout(
         v190_closeout_path=str(args.v190_closeout),
         v191_closeout_path=str(args.v191_closeout),
@@ -144,6 +152,7 @@ def main() -> int:
         metric_summary_path=str(args.metric_summary),
         profile_summary_path=str(args.profile_summary),
         out_dir=str(args.out_dir),
+        executor_cmd=executor_cmd,
     )
     print(json.dumps({"status": payload["status"], "version_decision": payload["conclusion"]["version_decision"]}))
     return 0

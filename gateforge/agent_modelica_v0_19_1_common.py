@@ -13,6 +13,7 @@ DEFAULT_PREVIEW_OUT_DIR = REPO_ROOT / "artifacts" / "trajectory_preview_filter_v
 DEFAULT_EMPIRICAL_OUT_DIR = REPO_ROOT / "artifacts" / "empirical_difficulty_filter_v0_19_1_current"
 DEFAULT_BENCHMARK_OUT_DIR = REPO_ROOT / "artifacts" / "benchmark_v0_19_1"
 DEFAULT_CLOSEOUT_OUT_DIR = REPO_ROOT / "artifacts" / "agent_modelica_v0_19_1_closeout_current"
+DEFAULT_REAL_CASE_BANK_PATH = REPO_ROOT / "artifacts" / "agent_modelica_repair_playbook_v1" / "corpus.json"
 
 EXPECTED_V190_VERSION_DECISION = "v0_19_0_foundation_ready"
 EXPECTED_DISTRIBUTION_ALIGNMENT_STATUS = "PASS"
@@ -36,6 +37,7 @@ __all__ = [
     "DEFAULT_GENERATOR_OUT_DIR",
     "DEFAULT_HANDOFF_INTEGRITY_OUT_DIR",
     "DEFAULT_PREVIEW_OUT_DIR",
+    "DEFAULT_REAL_CASE_BANK_PATH",
     "DEFAULT_V190_CLOSEOUT_PATH",
     "EXPECTED_ALIGNMENT_SAMPLE_COUNT",
     "EXPECTED_DISTRIBUTION_ALIGNMENT_STATUS",

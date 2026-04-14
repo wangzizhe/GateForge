@@ -34,6 +34,16 @@ def build_v192_handoff_integrity(
     v190_conclusion = v190.get("conclusion") or {}
     v190_alignment = v190.get("distribution_alignment_check") or {}
     v191_conclusion = v191.get("conclusion") or {}
+    admitted_cases = list((v191.get("benchmark", {}) or {}).get("admitted_cases") or [])
+
+    runnable_case_count = 0
+    for row in admitted_cases:
+        mutated = str(row.get("mutated_model_path") or "").strip()
+        source = str(row.get("source_model_path") or "").strip()
+        failure_type = str(row.get("failure_type") or "").strip()
+        expected_stage = str(row.get("expected_stage") or "").strip()
+        if mutated and source and failure_type and expected_stage:
+            runnable_case_count += 1
 
     checks = {
         "v190_status_ok": str(v190.get("status") or "") == "PASS",
@@ -48,6 +58,7 @@ def build_v192_handoff_integrity(
         "v191_difficulty_status_ok": str(v191_conclusion.get("difficulty_calibration_status") or "") == EXPECTED_DIFFICULTY_STATUS,
         "v191_handoff_mode_ok": str(v191_conclusion.get("v0_19_2_handoff_mode") or "") == EXPECTED_V191_HANDOFF_MODE,
         "v191_frontier_agent_id_ok": str(v191_conclusion.get("frontier_agent_id") or "") != "",
+        "v191_runnable_case_count_ok": runnable_case_count >= EXPECTED_BENCHMARK_MIN_CASES,
     }
     handoff_integrity_status = "PASS" if all(checks.values()) else "FAIL"
     result = {
@@ -59,6 +70,7 @@ def build_v192_handoff_integrity(
         "upstream_v190_version_decision": str(v190_conclusion.get("version_decision") or ""),
         "upstream_v191_version_decision": str(v191_conclusion.get("version_decision") or ""),
         "upstream_benchmark_pass_count": int(v191_conclusion.get("benchmark_pass_count") or 0),
+        "upstream_runnable_case_count": runnable_case_count,
     }
     out_root = Path(out_dir)
     write_json(out_root / "summary.json", result)
@@ -71,6 +83,7 @@ def build_v192_handoff_integrity(
                 f"- handoff_integrity_status: `{handoff_integrity_status}`",
                 f"- upstream_v191_version_decision: `{result['upstream_v191_version_decision']}`",
                 f"- upstream_benchmark_pass_count: `{result['upstream_benchmark_pass_count']}`",
+                f"- upstream_runnable_case_count: `{result['upstream_runnable_case_count']}`",
             ]
         ),
     )

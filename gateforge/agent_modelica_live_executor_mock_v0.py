@@ -75,6 +75,7 @@ def main() -> None:
     parser.add_argument("--task-id", default="")
     parser.add_argument("--failure-type", default="model_check_error")
     parser.add_argument("--expected-stage", default="")
+    parser.add_argument("--workflow-goal", default="")
     parser.add_argument("--source-model-path", default="")
     parser.add_argument("--mutated-model-path", default="")
     parser.add_argument("--repair-actions", default="")
