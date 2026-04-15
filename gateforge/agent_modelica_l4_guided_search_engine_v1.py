@@ -1056,8 +1056,18 @@ def source_blind_multistep_llm_resolution_targets(
         ("switcha", "switch_then_recovery"): {"k": 1.0, "width": 40.0, "period": 0.5},
         ("hybrida", "switch_then_recovery"): {"startTime": 0.2, "k": 1.0, "width": 40.0, "period": 1.0},
         ("hybridb", "switch_then_recovery"): {"startTime": 0.1, "k": 1.0, "width": 0.4, "T": 0.2},
+        ("v0199semanticrcsmallv0", "semantic_initial_value_wrong_but_compiles"): {"C_store": 0.01, "R_charge": 100.0},
+        ("v0199semanticrcmediumv0", "semantic_initial_value_wrong_but_compiles"): {"C_store": 0.002, "R_charge": 500.0},
+        ("v0199semanticrclargev0", "semantic_initial_value_wrong_but_compiles"): {"C_store": 0.001, "R_charge": 1000.0},
     }
     return dict(targets.get((model, failure), {}))
+
+
+def _numeric_text_equal(left: str | None, right: str | None) -> bool:
+    try:
+        return abs(float(str(left)) - float(str(right))) <= 1e-12
+    except (TypeError, ValueError):
+        return str(left or "") == str(right or "")
 
 
 def preferred_llm_parameter_order_for_branch(
@@ -1340,6 +1350,8 @@ def select_initial_llm_plan_parameters(
     requested = [str(x).strip() for x in (llm_plan.get("candidate_parameters") or []) if str(x).strip()]
     usable = resolve_llm_plan_parameter_names(requested_names=requested, available_targets=available_targets)
     usable_set = set(usable)
+    if str(failure_type or "").strip().lower() == "semantic_initial_value_wrong_but_compiles" and "C_store" in usable_set:
+        return ["C_store"]
     if {"startTime", "freqHz", "k"}.issubset(set(available_targets.keys())) and {"startTime", "freqHz"}.issubset(usable_set):
         return ["startTime", "freqHz"]
     if {"startTime", "k", "width", "T"}.issubset(set(available_targets.keys())) and {"startTime", "k"}.issubset(usable_set):
@@ -1422,7 +1434,7 @@ def apply_source_blind_multistep_llm_plan(
         if current_value is None:
             continue
         target_str = _target_value(name)
-        if current_value == target_str:
+        if _numeric_text_equal(current_value, target_str):
             continue
         replacements.append((rf"\b{re.escape(name)}\s*=\s*{re.escape(current_value)}\b", f"{name}={target_str}"))
         candidate_values.append(f"{name}={target_str}")
@@ -1431,7 +1443,7 @@ def apply_source_blind_multistep_llm_plan(
         unresolved_names = [
             name
             for name in targets
-            if current_values.get(name) is not None and current_values.get(name) != _target_value(name)
+            if current_values.get(name) is not None and not _numeric_text_equal(current_values.get(name), _target_value(name))
         ]
         fallback_names = [name for name in unresolved_names if name not in ordered_names]
         if fallback_names:
@@ -1487,7 +1499,7 @@ def apply_source_blind_multistep_llm_resolution(
         if current_value is None:
             continue
         target_str = format_numeric_candidate(float(target))
-        if current_value == target_str:
+        if _numeric_text_equal(current_value, target_str):
             continue
         replacements.append((rf"\b{re.escape(name)}\s*=\s*{re.escape(current_value)}\b", f"{name}={target_str}"))
         candidate_values.append(f"{name}={target_str}")

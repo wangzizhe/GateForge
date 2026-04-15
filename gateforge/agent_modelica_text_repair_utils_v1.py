@@ -75,7 +75,10 @@ def extract_named_numeric_values(
     """Extract current numeric assignments for *names* from Modelica *current_text*."""
     found: dict[str, str] = {}
     for name in names:
-        match = re.search(rf"\b{re.escape(name)}\s*=\s*(-?\d+(?:\.\d+)?)\b", str(current_text or ""))
+        match = re.search(
+            rf"\b{re.escape(name)}\s*=\s*([-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?)\b",
+            str(current_text or ""),
+        )
         if match:
             found[str(name)] = str(match.group(1))
     return found

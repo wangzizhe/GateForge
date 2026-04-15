@@ -20,6 +20,77 @@ from .agent_modelica_stage_branch_controller_v1 import (
 
 BEHAVIORAL_MARKER_PREFIX = "gateforge_behavioral_contract_violation"
 BEHAVIORAL_ROBUSTNESS_MARKER_PREFIX = "gateforge_behavioral_robustness_violation"
+SEMANTIC_CONTRACT_PREFIX = "gateforge_semantic_contract"
+
+
+def _extract_named_numeric_value(text: str, name: str) -> float | None:
+    match = re.search(rf"\b{re.escape(str(name))}\s*=\s*([-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?)\b", str(text or ""))
+    if not match:
+        return None
+    try:
+        return float(match.group(1))
+    except ValueError:
+        return None
+
+
+def _extract_semantic_contract_marker(text: str, key: str) -> str:
+    pattern = rf"//\s*{SEMANTIC_CONTRACT_PREFIX}_{re.escape(key)}\s*:\s*(.+)"
+    match = re.search(pattern, str(text or ""), flags=re.IGNORECASE)
+    return str(match.group(1) or "").strip() if match else ""
+
+
+def _evaluate_semantic_product_contract(current_text: str) -> dict:
+    operands_raw = _extract_semantic_contract_marker(current_text, "operands")
+    target_name = _extract_semantic_contract_marker(current_text, "target")
+    tolerance_raw = _extract_semantic_contract_marker(current_text, "relative_tolerance")
+    operands = [item.strip() for item in operands_raw.split(",") if item.strip()]
+    tolerance = 0.02
+    if tolerance_raw:
+        try:
+            tolerance = float(tolerance_raw)
+        except ValueError:
+            tolerance = 0.02
+    values = {name: _extract_named_numeric_value(current_text, name) for name in operands + [target_name]}
+    scenario = {
+        "scenario_id": "semantic_product_contract",
+        "pass": False,
+        "operands": operands,
+        "target": target_name,
+        "values": values,
+        "relative_error": None,
+    }
+    if len(operands) < 2 or not target_name or any(values.get(name) is None for name in operands + [target_name]):
+        return build_multistep_eval(
+            stage="stage_1",
+            transition_reason="semantic_contract_marker_incomplete",
+            transition_seen=False,
+            pass_all=False,
+            bucket="semantic_contract_marker_incomplete",
+            scenario_results=[scenario],
+        )
+    product = 1.0
+    for name in operands:
+        product *= float(values[name])
+    target = float(values[target_name])
+    relative_error = abs(product - target) / max(abs(target), 1e-12)
+    passed = relative_error <= tolerance
+    scenario.update(
+        {
+            "pass": passed,
+            "observed_product": product,
+            "expected_value": target,
+            "relative_error": relative_error,
+            "relative_tolerance": tolerance,
+        }
+    )
+    return build_multistep_eval(
+        stage="passed" if passed else "stage_1",
+        transition_reason="semantic_product_contract_satisfied" if passed else "semantic_product_contract_miss",
+        transition_seen=passed,
+        pass_all=passed,
+        bucket="" if passed else "semantic_product_contract_miss",
+        scenario_results=[scenario],
+    )
 
 
 def normalize_behavioral_contract_text(text: str) -> str:
@@ -45,8 +116,21 @@ def evaluate_behavioral_contract_from_model_text(*, current_text: str, source_mo
         "stability_then_behavior",
         "behavior_then_robustness",
         "switch_then_recovery",
+        "semantic_initial_value_wrong_but_compiles",
     }:
         return None
+    if declared == "semantic_initial_value_wrong_but_compiles":
+        contract_kind = _extract_semantic_contract_marker(current_text, "kind").strip().lower()
+        if contract_kind == "product_equals_target":
+            return _evaluate_semantic_product_contract(current_text)
+        return build_multistep_eval(
+            stage="stage_1",
+            transition_reason="semantic_contract_kind_missing",
+            transition_seen=False,
+            pass_all=False,
+            bucket="semantic_contract_kind_missing",
+            scenario_results=[{"scenario_id": "semantic_contract_kind", "pass": False}],
+        )
     passed = normalize_behavioral_contract_text(current_text) == normalize_behavioral_contract_text(source_model_text)
     bucket = behavioral_contract_bucket(declared)
     scenario_results = None
@@ -495,4 +579,3 @@ def apply_initialization_marker_repair(
         "reason": "removed_gateforge_initialization_marker_block",
         "removed_line_count": int(len(remove_idx)),
     }
-
