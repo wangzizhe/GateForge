@@ -587,6 +587,7 @@ def _parse_main_args() -> argparse.Namespace:
     parser.add_argument("--experience-source", default="")
     parser.add_argument("--planner-experience-injection", choices=["on", "off"], default="off")
     parser.add_argument("--planner-experience-max-tokens", type=int, default=400)
+    parser.add_argument("--disable-bounded-residual-repairs", choices=["on", "off"], default="off")
     parser.add_argument("--extra-model-load", action="append", default=[], dest="extra_model_loads",
                         help="Extra Modelica package to loadModel() before the repair file (repeatable). "
                              "E.g. --extra-model-load AixLib for AixLib-based models.")
@@ -1195,6 +1196,7 @@ def _build_final_payload(
 
 def main() -> None:
     args = _parse_main_args()
+    bounded_residual_repairs_disabled = str(args.disable_bounded_residual_repairs or "off") == "on"
 
     started = time.monotonic()
     model_path = Path(str(args.mutated_model_path or "").strip() or str(args.source_model_path or "").strip())
@@ -1871,11 +1873,18 @@ def main() -> None:
                     final_error = f"{applied_rule_result.attempt_field}_applied_retry_pending"
                     continue
 
-            structural_text, structural_audit = _repair_overdetermined_added_binding_equation(
-                current_text=current_text,
-                source_model_text=source_model_text,
-                output=str(output or ""),
-            )
+            if bounded_residual_repairs_disabled:
+                structural_text = current_text
+                structural_audit = {
+                    "applied": False,
+                    "reason": "bounded_residual_repairs_disabled",
+                }
+            else:
+                structural_text, structural_audit = _repair_overdetermined_added_binding_equation(
+                    current_text=current_text,
+                    source_model_text=source_model_text,
+                    output=str(output or ""),
+                )
             attempts[-1]["overdetermined_structural_balance_repair"] = structural_audit
             if bool(structural_audit.get("applied")):
                 if _apply_candidate_patch_to_current_text(
@@ -2891,7 +2900,13 @@ def main() -> None:
                         attempts[-1]["llm_plan_followed"] = True
                         multistep_memory["llm_plan_followed"] = True
                 if isinstance(patched, str) and patched.strip():
-                    patched, legacy_msl_guard = _rewrite_legacy_msl_siunits_patch(patched)
+                    if bounded_residual_repairs_disabled:
+                        legacy_msl_guard = {
+                            "applied": False,
+                            "reason": "bounded_residual_repairs_disabled",
+                        }
+                    else:
+                        patched, legacy_msl_guard = _rewrite_legacy_msl_siunits_patch(patched)
                     attempts[-1]["legacy_msl_siunits_patch_guard"] = legacy_msl_guard
                     guarded_patched, patch_guard = _guard_robustness_patch(
                         original_text=current_text,
@@ -2948,7 +2963,13 @@ def main() -> None:
                             patched_text=llm_resolution_text,
                             failure_type=str(args.failure_type),
                         )
-                        guarded_patched, legacy_msl_guard = _rewrite_legacy_msl_siunits_patch(guarded_patched)
+                        if bounded_residual_repairs_disabled:
+                            legacy_msl_guard = {
+                                "applied": False,
+                                "reason": "bounded_residual_repairs_disabled",
+                            }
+                        else:
+                            guarded_patched, legacy_msl_guard = _rewrite_legacy_msl_siunits_patch(guarded_patched)
                         attempts[-1]["legacy_msl_siunits_patch_guard"] = legacy_msl_guard
                         attempts[-1]["patch_guard"] = patch_guard
                         if isinstance(guarded_patched, str) and guarded_patched.strip():
