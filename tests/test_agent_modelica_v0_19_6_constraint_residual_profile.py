@@ -60,6 +60,12 @@ class V0196ConstraintResidualProfileTests(unittest.TestCase):
             "starts_at_constraint_violation",
         )
 
+    @unittest.skipUnless(
+        (
+            REPO_ROOT / "artifacts" / "benchmark_trajectory_v0_19_5" / "summary.json"
+        ).exists(),
+        "v0.19.5 trajectory artifacts not available in this environment",
+    )
     def test_real_profile_matches_v0195_unresolved_boundary(self) -> None:
         profiler = _load_script("build_constraint_residual_profile_v0_19_6.py")
         profile = profiler.build_profile()

@@ -36,6 +36,16 @@ class V0195HardenedBenchmarkFlowTests(unittest.TestCase):
         )
         self.assertEqual(len(builder.SOURCE_MODELS) * len(builder.MUTATION_FAMILIES), 40)
 
+    @unittest.skipUnless(
+        (
+            REPO_ROOT
+            / "artifacts"
+            / "agent_modelica_electrical_frozen_taskset_v1_smoke"
+            / "source_models"
+            / "small_rc_constant_v0.mo"
+        ).exists(),
+        "source model files not available in this environment",
+    )
     def test_mutation_helpers_change_the_intended_surface(self) -> None:
         builder = _load_script("build_hardened_mutations_v0_19_5.py")
         source = builder.SOURCE_MODELS[0]
