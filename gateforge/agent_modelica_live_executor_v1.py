@@ -2650,6 +2650,7 @@ def main() -> None:
                     attempts[-1]["llm_plan_failure_mode"] = str(llm_err or "llm_plan_parse_failed")
                     multistep_memory["llm_plan_failure_mode"] = str(llm_err or "llm_plan_parse_failed")
                 patched = None
+                llm_resolution_audit = {}
                 if bool(llm_context.get("llm_forcing")) and llm_request_delta > 0 and bool(llm_plan):
                     execution_parameter_override = None
                     execution_plan = {}
@@ -2770,6 +2771,37 @@ def main() -> None:
                     attempts[-1]["source_blind_multistep_llm_resolution"] = llm_resolution_audit
                     if bool(llm_resolution_audit.get("applied")):
                         patched = llm_resolution_text
+                # declaration_fix path for model_check_error: the numeric search path
+                # (llm_forcing branch) has no applicable targets for undefined-symbol errors.
+                # When patched is still None after all numeric resolution attempts and the
+                # LLM was successfully called, ask the LLM for a full patched model text.
+                if (
+                    not (isinstance(patched, str) and patched.strip())
+                    and str(args.failure_type or "").strip().lower() == "model_check_error"
+                    and bool(llm_request_delta > 0)
+                    and bool(llm_plan)
+                ):
+                    _decl_text, _decl_err, _decl_prov = _llm_repair_model_text(
+                        planner_backend=str(args.planner_backend),
+                        original_text=current_text,
+                        failure_type=str(args.failure_type),
+                        expected_stage=str(args.expected_stage),
+                        error_excerpt=str(output or ""),
+                        repair_actions=[
+                            str(x) for x in (attempts[-1].get("stage_aware_repair_actions") or []) if str(x).strip()
+                        ][:3],
+                        model_name=str(model_name or ""),
+                        current_round=round_idx,
+                    )
+                    attempts[-1]["declaration_fix_repair"] = {
+                        "applied": isinstance(_decl_text, str) and bool(_decl_text.strip()),
+                        "err": str(_decl_err or ""),
+                        "provider": str(_decl_prov or ""),
+                    }
+                    if isinstance(_decl_text, str) and _decl_text.strip():
+                        patched = _decl_text
+                        attempts[-1]["llm_plan_followed"] = True
+                        multistep_memory["llm_plan_followed"] = True
                 if isinstance(patched, str) and patched.strip():
                     guarded_patched, patch_guard = _guard_robustness_patch(
                         original_text=current_text,

@@ -145,7 +145,10 @@ class GeminiProviderAdapter:
         )
         req_payload = {
             "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {"temperature": config.temperature},
+            "generationConfig": {
+                "temperature": config.temperature,
+                "responseMimeType": "application/json",
+            },
         }
         req = urllib.request.Request(
             url,
