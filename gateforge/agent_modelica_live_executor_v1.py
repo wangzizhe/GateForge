@@ -480,6 +480,78 @@ def _normalize_terminal_errors(executor_status: str, error_message: str, compile
     return str(error_message or ""), str(compile_error or ""), str(simulate_error or "")
 
 
+_LEGACY_MSL_SIUNITS_RE = re.compile(r"\bModelica\.SIunits\.[A-Za-z_][A-Za-z0-9_]*\b")
+
+
+def _rewrite_legacy_msl_siunits_patch(patched_text: str) -> tuple[str, dict]:
+    """Rewrite legacy Modelica.SIunits.* type references that are absent in MSL 4.1."""
+    text = str(patched_text or "")
+    matches = sorted(set(_LEGACY_MSL_SIUNITS_RE.findall(text)))
+    if not matches:
+        return text, {"applied": False, "reason": "no_legacy_msl_siunits_reference"}
+    rewritten = _LEGACY_MSL_SIUNITS_RE.sub("Real", text)
+    return rewritten, {
+        "applied": True,
+        "reason": "legacy_msl_siunits_rewritten_to_real",
+        "rewritten_references": matches,
+        "replacement": "Real",
+    }
+
+
+def _normalise_modelica_line(line: str) -> str:
+    return re.sub(r"\s+", " ", str(line or "").strip())
+
+
+def _repair_overdetermined_added_binding_equation(
+    *,
+    current_text: str,
+    source_model_text: str,
+    output: str,
+) -> tuple[str, dict]:
+    """Remove a non-connect binding equation added by mutation when OMC reports overdetermination."""
+    lower = str(output or "").lower()
+    if "too many equations" not in lower and "over-determined system" not in lower:
+        return current_text, {"applied": False, "reason": "no_overdetermined_structural_balance_signal"}
+
+    source_equation_lines = {
+        _normalise_modelica_line(line.rstrip(";"))
+        for line in str(source_model_text or "").splitlines()
+        if line.strip() and not line.strip().startswith("//")
+    }
+    lines = str(current_text or "").splitlines(keepends=True)
+    in_equation = False
+    for index, line in enumerate(lines):
+        stripped = line.strip()
+        if stripped == "equation":
+            in_equation = True
+            continue
+        if in_equation and stripped.startswith("end "):
+            break
+        if not in_equation:
+            continue
+        if not stripped or stripped.startswith("//"):
+            continue
+        lowered = stripped.lower()
+        if lowered.startswith(("connect(", "assert(", "annotation(")):
+            continue
+        if " der(" in f" {lowered}" or lowered.startswith("der("):
+            continue
+        if "=" not in stripped or not stripped.endswith(";"):
+            continue
+        normalized = _normalise_modelica_line(stripped.rstrip(";"))
+        if normalized in source_equation_lines:
+            continue
+        patched_lines = list(lines)
+        removed_line = patched_lines.pop(index)
+        return "".join(patched_lines), {
+            "applied": True,
+            "reason": "removed_added_non_connect_binding_equation",
+            "line_index": index,
+            "removed_line": removed_line.strip(),
+        }
+    return current_text, {"applied": False, "reason": "no_added_non_connect_binding_equation_found"}
+
+
 
 def _parse_main_args() -> argparse.Namespace:
     """Parse CLI arguments for the live executor.
@@ -1799,6 +1871,22 @@ def main() -> None:
                     final_error = f"{applied_rule_result.attempt_field}_applied_retry_pending"
                     continue
 
+            structural_text, structural_audit = _repair_overdetermined_added_binding_equation(
+                current_text=current_text,
+                source_model_text=source_model_text,
+                output=str(output or ""),
+            )
+            attempts[-1]["overdetermined_structural_balance_repair"] = structural_audit
+            if bool(structural_audit.get("applied")):
+                if _apply_candidate_patch_to_current_text(
+                    round_number=round_idx,
+                    operation_name="apply_repair",
+                    attempt_row=attempts[-1],
+                    patched_text=structural_text,
+                ):
+                    final_error = "overdetermined_structural_balance_repair_applied_retry_pending"
+                    continue
+
             pre_stage_context = _build_multistep_stage_context(
                 failure_type=str(args.failure_type),
                 behavioral_eval=behavioral_eval if isinstance(behavioral_eval, dict) else {},
@@ -2803,6 +2891,8 @@ def main() -> None:
                         attempts[-1]["llm_plan_followed"] = True
                         multistep_memory["llm_plan_followed"] = True
                 if isinstance(patched, str) and patched.strip():
+                    patched, legacy_msl_guard = _rewrite_legacy_msl_siunits_patch(patched)
+                    attempts[-1]["legacy_msl_siunits_patch_guard"] = legacy_msl_guard
                     guarded_patched, patch_guard = _guard_robustness_patch(
                         original_text=current_text,
                         patched_text=patched,
@@ -2858,6 +2948,8 @@ def main() -> None:
                             patched_text=llm_resolution_text,
                             failure_type=str(args.failure_type),
                         )
+                        guarded_patched, legacy_msl_guard = _rewrite_legacy_msl_siunits_patch(guarded_patched)
+                        attempts[-1]["legacy_msl_siunits_patch_guard"] = legacy_msl_guard
                         attempts[-1]["patch_guard"] = patch_guard
                         if isinstance(guarded_patched, str) and guarded_patched.strip():
                             if _apply_candidate_patch_to_current_text(
