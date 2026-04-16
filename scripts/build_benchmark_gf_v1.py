@@ -12,6 +12,7 @@ Design principles:
 
 Sources (v1 initial):
   - 12 overdetermined KVL/KCL cases (v0.19.11) — error_layer=2
+  -  8 underdetermined missing-ground cases (v0.19.12) — error_layer=2
   -  3 semantic RC time-constant cases (v0.19.9)  — error_layer=3
 
 Output:
@@ -26,9 +27,12 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 OUT_DIR = REPO_ROOT / "artifacts" / "benchmark_gf_v1"
 
-# Source JSONLs — both are correctly designed and admission-verified
+# Source JSONLs — all correctly designed and admission-verified
 OVERDET_JSONL = (
     REPO_ROOT / "artifacts" / "overdetermined_mutations_v0_19_11" / "admitted_cases.jsonl"
+)
+UNDERDET_JSONL = (
+    REPO_ROOT / "artifacts" / "underdetermined_mutations_v0_19_12" / "admitted_cases.jsonl"
 )
 SEMANTIC_JSONL = (
     REPO_ROOT / "artifacts" / "semantic_reasoning_mutations_v0_19_9" / "admitted_cases.jsonl"
@@ -37,6 +41,7 @@ SEMANTIC_JSONL = (
 # Canonical benchmark_family names
 FAMILY_OVERDET_KVL = "overdetermined_kvl"
 FAMILY_OVERDET_KCL = "overdetermined_kcl"
+FAMILY_UNDERDET_GROUND = "underdetermined_missing_ground"
 FAMILY_SEMANTIC_TAU = "semantic_time_constant"
 
 
@@ -85,6 +90,34 @@ def _normalise_overdet(row: dict) -> dict:
     }
 
 
+def _normalise_underdet(row: dict) -> dict:
+    """Normalise an underdetermined case to the gf_v1 unified schema."""
+    return {
+        "candidate_id": row["candidate_id"],
+        "task_id": row["candidate_id"],
+        "benchmark_version": "gf_v1",
+        "benchmark_family": FAMILY_UNDERDET_GROUND,
+        "error_layer": 2,
+        "mutation_mechanism": "missing_ground_reference",
+        "failure_type": "constraint_violation",
+        "expected_stage": "simulate",
+        "source_model_path": row["source_model_path"],
+        "mutated_model_path": row["mutated_model_path"],
+        "workflow_goal": str(row.get("workflow_goal") or
+            "Restore the missing ground connections so the circuit has an absolute "
+            "potential reference, while preserving all other circuit elements."),
+        "requires_semantic_reasoning": False,
+        "omc_localizes_fix": False,
+        "admission_verified": True,
+        "planner_backend": "gemini",
+        "backend": "openmodelica_docker",
+        # preserve provenance
+        "_source_version": "v0.19.12",
+        "_relation_id": str(row.get("underdetermined_relation_id") or ""),
+        "_removed_ground_connects": list(row.get("removed_ground_connects") or []),
+    }
+
+
 def _normalise_semantic(row: dict) -> dict:
     """Normalise a semantic reasoning case to the gf_v1 unified schema."""
     return {
@@ -114,11 +147,14 @@ def main() -> None:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
 
     overdet_rows = _load_jsonl(OVERDET_JSONL)
+    underdet_rows = _load_jsonl(UNDERDET_JSONL)
     semantic_rows = _load_jsonl(SEMANTIC_JSONL)
 
     cases: list[dict] = []
     for row in overdet_rows:
         cases.append(_normalise_overdet(row))
+    for row in underdet_rows:
+        cases.append(_normalise_underdet(row))
     for row in semantic_rows:
         cases.append(_normalise_semantic(row))
 
