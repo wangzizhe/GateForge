@@ -13,7 +13,7 @@ Design principles:
 Sources:
   - 12 overdetermined KVL/KCL cases (v0.19.11)          — error_layer=2
   - 11 underdetermined missing-ground cases (v0.19.12)   — error_layer=2
-  -  3 semantic RC time-constant cases (v0.19.9)         — error_layer=3
+  -  8 semantic RC time-constant cases (v0.19.15)        — error_layer=3
   - 11 spurious short-circuit cases (v0.19.14)           — error_layer=2
 
 Output:
@@ -36,7 +36,7 @@ UNDERDET_JSONL = (
     REPO_ROOT / "artifacts" / "underdetermined_mutations_v0_19_12" / "admitted_cases.jsonl"
 )
 SEMANTIC_JSONL = (
-    REPO_ROOT / "artifacts" / "semantic_reasoning_mutations_v0_19_9" / "admitted_cases.jsonl"
+    REPO_ROOT / "artifacts" / "semantic_reasoning_mutations_v0_19_15" / "admitted_cases.jsonl"
 )
 SHORTCIRC_JSONL = (
     REPO_ROOT / "artifacts" / "spurious_short_circuit_mutations_v0_19_14" / "admitted_cases.jsonl"
@@ -132,7 +132,7 @@ def _normalise_semantic(row: dict) -> dict:
         "benchmark_family": FAMILY_SEMANTIC_TAU,
         "error_layer": 3,
         "mutation_mechanism": "wrong_semantic_parameter_value",
-        "failure_type": row["failure_type"],
+        "failure_type": str(row.get("failure_type") or "behavioral_contract_fail"),
         "expected_stage": "simulate",
         "source_model_path": row["source_model_path"],
         "mutated_model_path": row["mutated_model_path"],
@@ -143,8 +143,8 @@ def _normalise_semantic(row: dict) -> dict:
         "planner_backend": "gemini",
         "backend": "openmodelica_docker",
         # preserve provenance
-        "_source_version": "v0.19.9",
-        "_semantic_contract": row.get("semantic_contract", {}),
+        "_source_version": "v0.19.15",
+        "_semantic_oracle": row.get("semantic_oracle", {}),
     }
 
 

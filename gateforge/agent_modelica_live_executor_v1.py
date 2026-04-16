@@ -93,6 +93,9 @@ from .agent_modelica_behavioral_contract_evaluator_v1 import (
     evaluate_behavioral_contract_from_model_text as _evaluate_behavioral_contract_from_model_text,
     normalize_behavioral_contract_text as _normalize_behavioral_contract_text,
 )
+from .agent_modelica_semantic_time_constant_oracle_v1 import (
+    evaluate_semantic_time_constant_contract as _evaluate_semantic_time_constant_contract,
+)
 from .agent_modelica_omc_workspace_v1 import (
     WorkspaceModelLayout as _WorkspaceModelLayout,
     classify_failure as _classify_failure,
@@ -683,6 +686,12 @@ def _build_final_payload(
             source_model_text=source_model_text,
             failure_type=str(args.failure_type),
         )
+        if behavioral_eval is None:
+            behavioral_eval = _evaluate_semantic_time_constant_contract(
+                current_text=current_text,
+                source_model_text=source_model_text,
+                failure_type=str(args.failure_type),
+            )
     physics_contract_pass = bool(final_check_ok and final_simulate_ok)
     physics_contract_reasons: list[str] = []
     contract_fail_bucket = ""
@@ -1486,6 +1495,12 @@ def main() -> None:
                     source_model_text=source_model_text,
                     failure_type=str(args.failure_type),
                 )
+                if behavioral_eval is None:
+                    behavioral_eval = _evaluate_semantic_time_constant_contract(
+                        current_text=current_text,
+                        source_model_text=source_model_text,
+                        failure_type=str(args.failure_type),
+                    )
                 if isinstance(behavioral_eval, dict):
                     attempts[-1]["physics_contract_pass"] = bool(behavioral_eval.get("pass"))
                     attempts[-1]["physics_contract_reasons"] = [
@@ -2775,7 +2790,7 @@ def main() -> None:
                 # constraint_violation (structural balance errors such as overdetermined
                 # systems). In both cases patched is still None after all numeric resolution
                 # attempts; ask the LLM for a full corrected model text instead.
-                _full_text_repair_types = {"model_check_error", "constraint_violation"}
+                _full_text_repair_types = {"model_check_error", "constraint_violation", "behavioral_contract_fail"}
                 if (
                     not (isinstance(patched, str) and patched.strip())
                     and str(args.failure_type or "").strip().lower() in _full_text_repair_types
