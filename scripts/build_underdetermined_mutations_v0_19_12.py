@@ -108,6 +108,24 @@ SPECS = [
         candidate_id="v01912_underdet_large_dual_source_missing_ground",
         relation_id="missing_ground_reference_dual_source",
     ),
+    UnderdeterminedSpec(
+        source_file="large_rlc_branches_v0.mo",
+        model_name="LargeRLCBranchesV0",
+        candidate_id="v01912_underdet_large_rlc_branches_missing_ground",
+        relation_id="missing_ground_reference_rlc_branches",
+    ),
+    UnderdeterminedSpec(
+        source_file="large_sensorized_grid_v0.mo",
+        model_name="LargeSensorizedGridV0",
+        candidate_id="v01912_underdet_large_sensorized_grid_missing_ground",
+        relation_id="missing_ground_reference_sensorized_grid",
+    ),
+    UnderdeterminedSpec(
+        source_file="medium_dual_source_v0.mo",
+        model_name="MediumDualSourceV0",
+        candidate_id="v01912_underdet_medium_dual_source_missing_ground",
+        relation_id="missing_ground_reference_dual_source_medium",
+    ),
 ]
 
 

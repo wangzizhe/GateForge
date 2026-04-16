@@ -182,6 +182,8 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--benchmark", default=str(DEFAULT_BENCHMARK))
     parser.add_argument("--out-dir", default=str(DEFAULT_OUT_DIR))
+    parser.add_argument("--skip-existing", action="store_true",
+                        help="Skip cases whose raw output JSON already exists")
     args = parser.parse_args()
 
     out_root = Path(args.out_dir)
@@ -196,8 +198,16 @@ def main() -> int:
         cid = str(case.get("candidate_id") or f"case_{i}")
         layer = case.get("error_layer", "?")
         family = case.get("benchmark_family", "")
+        out_path = out_root / "raw" / f"{cid}.json"
         print(f"[{i}/{len(cases)}] {cid}  layer={layer}  family={family}")
-        payload = _run_case(case, out_root / "raw" / f"{cid}.json")
+        if args.skip_existing and out_path.exists():
+            print(f"  -> [skipped, using cached result]")
+            try:
+                payload = json.loads(out_path.read_text(encoding="utf-8"))
+            except Exception:
+                payload = {"error": "cached_json_unreadable"}
+        else:
+            payload = _run_case(case, out_path)
         summary = _summarise(case, payload)
         summaries.append(summary)
         print(f"  -> status={summary.get('executor_status') or summary.get('status')}"
