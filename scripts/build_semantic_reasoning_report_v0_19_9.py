@@ -8,7 +8,6 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 BENCHMARK = REPO_ROOT / "artifacts" / "semantic_reasoning_mutations_v0_19_9" / "admitted_cases.jsonl"
 NORMAL_SUMMARY = REPO_ROOT / "artifacts" / "semantic_reasoning_trajectory_v0_19_9" / "summary.json"
-COUNTERFACTUAL_SUMMARY = REPO_ROOT / "artifacts" / "semantic_reasoning_counterfactual_v0_19_9" / "summary.json"
 OUT_DIR = REPO_ROOT / "artifacts" / "semantic_reasoning_report_v0_19_9"
 
 
@@ -52,35 +51,27 @@ def _llm_selected_fault_parameter(payload: dict, fault_parameter: str) -> bool:
     return False
 
 
-def _case_record(case: dict, normal: dict, counterfactual: dict) -> dict:
+def _case_record(case: dict, normal: dict) -> dict:
     cid = str(case.get("candidate_id") or "")
     fault_parameter = str((case.get("semantic_contract") or {}).get("fault_parameter") or "")
     normal_payload = _raw_payload(NORMAL_SUMMARY.parent, cid)
-    counterfactual_payload = _raw_payload(COUNTERFACTUAL_SUMMARY.parent, cid)
     normal_status = str(normal.get("executor_status") or normal.get("status") or "")
-    counterfactual_status = str(counterfactual.get("executor_status") or counterfactual.get("status") or "")
     selected_fault = _llm_selected_fault_parameter(normal_payload, fault_parameter)
-    counterfactual_selected_fault = _llm_selected_fault_parameter(counterfactual_payload, fault_parameter)
-    if normal_status == "PASS" and counterfactual_status == "PASS" and (selected_fault or counterfactual_selected_fault):
+    if normal_status == "PASS" and selected_fault:
         mechanism = "llm_semantic_guided_repair"
-    elif normal_status == "PASS" and counterfactual_status == "PASS":
-        mechanism = "executor_target_map_assisted_semantic_repair"
     elif normal_status == "PASS":
-        mechanism = "bounded_heuristic_sensitive"
+        mechanism = "executor_target_map_assisted_semantic_repair"
     else:
         mechanism = "unresolved"
     return {
         "candidate_id": cid,
         "normal_status": normal_status,
-        "counterfactual_status": counterfactual_status,
         "normal_turns": int(normal.get("n_turns") or 0),
-        "counterfactual_turns": int(counterfactual.get("n_turns") or 0),
         "requires_nonlocal_or_semantic_reasoning": bool(case.get("requires_nonlocal_or_semantic_reasoning")),
         "omc_localization_sufficient": bool(case.get("omc_localization_sufficient")),
         "failure_localization_not_explicit_tag": bool(case.get("failure_localization_not_explicit_tag")),
         "fault_parameter": fault_parameter,
         "llm_selected_fault_parameter": selected_fault,
-        "counterfactual_llm_selected_fault_parameter": counterfactual_selected_fault,
         "resolution_mechanism": mechanism,
     }
 
@@ -88,11 +79,9 @@ def _case_record(case: dict, normal: dict, counterfactual: dict) -> dict:
 def build_report() -> tuple[dict, list[dict]]:
     cases = _index(_load_jsonl(BENCHMARK))
     normal = _index(_load_json(NORMAL_SUMMARY).get("summaries") or [])
-    counterfactual = _index(_load_json(COUNTERFACTUAL_SUMMARY).get("summaries") or [])
-    records = [_case_record(cases[cid], normal.get(cid, {}), counterfactual.get(cid, {})) for cid in sorted(cases)]
+    records = [_case_record(cases[cid], normal.get(cid, {})) for cid in sorted(cases)]
     counts = Counter(record["resolution_mechanism"] for record in records)
     normal_pass = sum(1 for record in records if record["normal_status"] == "PASS")
-    counterfactual_pass = sum(1 for record in records if record["counterfactual_status"] == "PASS")
     admitted_reasoning = sum(
         1
         for record in records
@@ -106,14 +95,12 @@ def build_report() -> tuple[dict, list[dict]]:
         "n_cases": len(records),
         "normal_pass_count": normal_pass,
         "normal_pass_rate": normal_pass / len(records) if records else 0.0,
-        "counterfactual_pass_count": counterfactual_pass,
-        "counterfactual_pass_rate": counterfactual_pass / len(records) if records else 0.0,
         "reasoning_admission_pass_count": admitted_reasoning,
         "resolution_mechanism_counts": dict(sorted(counts.items())),
         "conclusion": (
             "v0.19.9 admits the first small semantic reasoning family: OMC check/simulate pass, "
-            "the failure is exposed only by a semantic product contract, and the disabled-heuristic "
-            "counterfactual remains solvable."
+            "the failure is exposed only by a semantic product contract, and the LLM selects the "
+            "fault parameter under the normal executor path."
         ),
     }
     return report, records

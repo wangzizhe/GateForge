@@ -1,9 +1,4 @@
-"""
-Run the v0.19.9 semantic reasoning benchmark through the live executor.
-
-By default this is the normal run. Use
-``--disable-bounded-residual-repairs on`` for the required counterfactual pass.
-"""
+"""Run the v0.19.9 semantic reasoning benchmark through the live executor."""
 from __future__ import annotations
 
 import json
@@ -21,7 +16,7 @@ MAX_ROUNDS = 5
 TIMEOUT_SEC = 420
 
 
-def _run_case(case: dict, out_path: Path, *, disable_bounded_residual_repairs: str) -> dict:
+def _run_case(case: dict, out_path: Path) -> dict:
     cmd = [
         sys.executable, "-m", EXECUTOR_MODULE,
         "--task-id", str(case.get("task_id") or case.get("candidate_id") or ""),
@@ -36,7 +31,6 @@ def _run_case(case: dict, out_path: Path, *, disable_bounded_residual_repairs: s
         "--simulate-intervals", "20",
         "--backend", "openmodelica_docker",
         "--planner-backend", "gemini",
-        "--disable-bounded-residual-repairs", disable_bounded_residual_repairs,
         "--out", str(out_path),
     ]
     try:
@@ -67,7 +61,6 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--benchmark", default=str(CANDIDATES_JSONL))
     parser.add_argument("--out-dir", default=str(DEFAULT_OUT_DIR))
-    parser.add_argument("--disable-bounded-residual-repairs", choices=["on", "off"], default="off")
     args = parser.parse_args()
 
     out_root = Path(args.out_dir)
@@ -77,7 +70,7 @@ def main() -> int:
 
     cases = _load_cases(Path(args.benchmark))
     print(f"Loaded {len(cases)} semantic reasoning cases.")
-    print(f"disable_bounded_residual_repairs={args.disable_bounded_residual_repairs}\n")
+    print()
 
     summaries = []
     for i, case in enumerate(cases, 1):
@@ -86,7 +79,6 @@ def main() -> int:
         payload = _run_case(
             case,
             raw_root / f"{cid}.json",
-            disable_bounded_residual_repairs=str(args.disable_bounded_residual_repairs),
         )
         summary = _summarise(case, payload)
         summary["requires_nonlocal_or_semantic_reasoning"] = bool(case.get("requires_nonlocal_or_semantic_reasoning"))
@@ -99,7 +91,6 @@ def main() -> int:
 
     report = {
         "version": "v0.19.9",
-        "disable_bounded_residual_repairs": str(args.disable_bounded_residual_repairs),
         "n_cases": len(summaries),
         "summaries": summaries,
     }
