@@ -10,10 +10,11 @@ Design principles:
   - No heuristic-solvable cases
   - No artificial injection markers (no gateforge_undef_trigger, no assert(false,...) tags)
 
-Sources (v1 initial):
-  - 12 overdetermined KVL/KCL cases (v0.19.11) — error_layer=2
-  -  8 underdetermined missing-ground cases (v0.19.12) — error_layer=2
-  -  3 semantic RC time-constant cases (v0.19.9)  — error_layer=3
+Sources:
+  - 12 overdetermined KVL/KCL cases (v0.19.11)          — error_layer=2
+  - 11 underdetermined missing-ground cases (v0.19.12)   — error_layer=2
+  -  3 semantic RC time-constant cases (v0.19.9)         — error_layer=3
+  - 11 spurious short-circuit cases (v0.19.14)           — error_layer=2
 
 Output:
   artifacts/benchmark_gf_v1/admitted_cases.jsonl
@@ -37,12 +38,16 @@ UNDERDET_JSONL = (
 SEMANTIC_JSONL = (
     REPO_ROOT / "artifacts" / "semantic_reasoning_mutations_v0_19_9" / "admitted_cases.jsonl"
 )
+SHORTCIRC_JSONL = (
+    REPO_ROOT / "artifacts" / "spurious_short_circuit_mutations_v0_19_14" / "admitted_cases.jsonl"
+)
 
 # Canonical benchmark_family names
 FAMILY_OVERDET_KVL = "overdetermined_kvl"
 FAMILY_OVERDET_KCL = "overdetermined_kcl"
 FAMILY_UNDERDET_GROUND = "underdetermined_missing_ground"
 FAMILY_SEMANTIC_TAU = "semantic_time_constant"
+FAMILY_SHORTCIRC = "spurious_short_circuit"
 
 
 def _load_jsonl(path: Path) -> list[dict]:
@@ -143,12 +148,41 @@ def _normalise_semantic(row: dict) -> dict:
     }
 
 
+def _normalise_shortcirc(row: dict) -> dict:
+    """Normalise a spurious short-circuit case to the gf_v1 unified schema."""
+    return {
+        "candidate_id": row["candidate_id"],
+        "task_id": row["candidate_id"],
+        "benchmark_version": "gf_v1",
+        "benchmark_family": FAMILY_SHORTCIRC,
+        "error_layer": 2,
+        "mutation_mechanism": "spurious_short_circuit_connect",
+        "failure_type": "constraint_violation",
+        "expected_stage": "simulate",
+        "source_model_path": row["source_model_path"],
+        "mutated_model_path": row["mutated_model_path"],
+        "workflow_goal": str(row.get("workflow_goal") or
+            "Remove the spurious connect() that short-circuits the primary voltage "
+            "source to ground, while preserving all other circuit connections."),
+        "requires_semantic_reasoning": False,
+        "omc_localizes_fix": False,
+        "admission_verified": True,
+        "planner_backend": "gemini",
+        "backend": "openmodelica_docker",
+        # preserve provenance
+        "_source_version": "v0.19.14",
+        "_relation_id": str(row.get("short_circuit_relation_id") or ""),
+        "_injected_connect": str(row.get("injected_connect") or ""),
+    }
+
+
 def main() -> None:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
 
     overdet_rows = _load_jsonl(OVERDET_JSONL)
     underdet_rows = _load_jsonl(UNDERDET_JSONL)
     semantic_rows = _load_jsonl(SEMANTIC_JSONL)
+    shortcirc_rows = _load_jsonl(SHORTCIRC_JSONL)
 
     cases: list[dict] = []
     for row in overdet_rows:
@@ -157,6 +191,8 @@ def main() -> None:
         cases.append(_normalise_underdet(row))
     for row in semantic_rows:
         cases.append(_normalise_semantic(row))
+    for row in shortcirc_rows:
+        cases.append(_normalise_shortcirc(row))
 
     # Write unified JSONL
     out_jsonl = OUT_DIR / "admitted_cases.jsonl"
