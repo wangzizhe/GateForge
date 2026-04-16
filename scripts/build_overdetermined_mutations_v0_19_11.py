@@ -34,6 +34,8 @@ class OverdeterminedSpec:
 
 
 SPECS = [
+    # --- KVL (Kirchhoff's Voltage Law) redundancy ---
+    # Explicit loop voltage-sum equations that are already implied by connect().
     OverdeterminedSpec(
         source_file="small_rc_constant_v0.mo",
         model_name="SmallRCConstantV0",
@@ -89,6 +91,38 @@ SPECS = [
         candidate_id="v01911_overdet_large_dual_source_branch_kvl",
         relation_id="source_one_branch_kvl",
         redundant_equation="  R1.v + L1.v + R3.v + C1.v = V1.v;",
+    ),
+    # --- KCL (Kirchhoff's Current Law) redundancy ---
+    # Explicit series-branch current-equality equations already implied by connect().
+    # In Modelica, connect() at a series node enforces: left_component.n.i + right_component.p.i = 0
+    # which resolves to left.i = right.i. Writing this explicitly is redundant.
+    OverdeterminedSpec(
+        source_file="small_rc_constant_v0.mo",
+        model_name="SmallRCConstantV0",
+        candidate_id="v01911_overdet_small_rc_kcl",
+        relation_id="series_kcl_resistor_capacitor",
+        redundant_equation="  R1.i = C1.i;",
+    ),
+    OverdeterminedSpec(
+        source_file="small_rl_step_v0.mo",
+        model_name="SmallRLStepV0",
+        candidate_id="v01911_overdet_small_rl_kcl",
+        relation_id="series_kcl_inductor_resistor",
+        redundant_equation="  L1.i = R1.i;",
+    ),
+    OverdeterminedSpec(
+        source_file="small_r_divider_v0.mo",
+        model_name="SmallRDividerV0",
+        candidate_id="v01911_overdet_small_divider_kcl",
+        relation_id="series_kcl_resistor_resistor",
+        redundant_equation="  R1.i = R2.i;",
+    ),
+    OverdeterminedSpec(
+        source_file="medium_rlc_series_v0.mo",
+        model_name="MediumRLCSeriesV0",
+        candidate_id="v01911_overdet_medium_rlc_kcl",
+        relation_id="series_kcl_resistor_inductor",
+        redundant_equation="  R1.i = L1.i;",
     ),
 ]
 

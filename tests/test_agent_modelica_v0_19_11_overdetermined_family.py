@@ -48,7 +48,12 @@ class V01911OverdeterminedFamilyTests(unittest.TestCase):
     def test_overdetermined_specs_use_structural_relations_not_literal_bindings(self) -> None:
         builder = _load_script("build_overdetermined_mutations_v0_19_11.py")
 
-        self.assertEqual(len(builder.SPECS), 8)
+        # 8 KVL + 4 KCL specs
+        self.assertEqual(len(builder.SPECS), 12)
+        kvl_specs = [s for s in builder.SPECS if "kvl" in s.relation_id]
+        kcl_specs = [s for s in builder.SPECS if "kcl" in s.relation_id]
+        self.assertEqual(len(kvl_specs), 8)
+        self.assertEqual(len(kcl_specs), 4)
         for spec in builder.SPECS:
             self.assertNotIn("= 0.0;", spec.redundant_equation)
             self.assertIn("=", spec.redundant_equation)

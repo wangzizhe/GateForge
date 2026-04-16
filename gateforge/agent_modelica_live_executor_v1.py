@@ -2770,13 +2770,15 @@ def main() -> None:
                     attempts[-1]["source_blind_multistep_llm_resolution"] = llm_resolution_audit
                     if bool(llm_resolution_audit.get("applied")):
                         patched = llm_resolution_text
-                # declaration_fix path for model_check_error: the numeric search path
-                # (llm_forcing branch) has no applicable targets for undefined-symbol errors.
-                # When patched is still None after all numeric resolution attempts and the
-                # LLM was successfully called, ask the LLM for a full patched model text.
+                # full-text LLM repair path for failure types where numeric search has no
+                # applicable targets: model_check_error (undefined-symbol errors) and
+                # constraint_violation (structural balance errors such as overdetermined
+                # systems). In both cases patched is still None after all numeric resolution
+                # attempts; ask the LLM for a full corrected model text instead.
+                _full_text_repair_types = {"model_check_error", "constraint_violation"}
                 if (
                     not (isinstance(patched, str) and patched.strip())
-                    and str(args.failure_type or "").strip().lower() == "model_check_error"
+                    and str(args.failure_type or "").strip().lower() in _full_text_repair_types
                     and bool(llm_request_delta > 0)
                     and bool(llm_plan)
                 ):
