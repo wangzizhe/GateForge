@@ -50,6 +50,7 @@ MULTISTEP_PLANNER_CONTRACT_VERSION = "agent_modelica_multistep_planner_contract_
 
 _ENV_KEY_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 _OPENAI_MODEL_HINT_PATTERN = re.compile(r"^(gpt|o[0-9]|chatgpt|gpt-5)", re.IGNORECASE)
+_MINIMAX_MODEL_HINT_PATTERN = re.compile(r"^(minimax)", re.IGNORECASE)
 _TIMESTAMP_PATTERN = re.compile(r"\b\d{4}-\d{2}-\d{2}[T ][0-2]\d:[0-5]\d(?::[0-5]\d)?")
 _TASK_ID_PATTERN = re.compile(r"\b[a-z]+[0-9]+_[a-z0-9_]+\b")
 _ABSOLUTE_PATH_PATTERN = re.compile(r"(?:^|[\s:=])/(?:Users|home|tmp|var)/")
@@ -142,10 +143,14 @@ def resolve_llm_provider(requested_backend: str) -> tuple[str, str, str]:
             "GOOGLE_API_KEY",
             "GEMINI_API_KEY",
             "OPENAI_API_KEY",
+            "MINIMAX_API_KEY",
+            "ANTHROPIC_API_KEY",
+            "ANTHROPIC_BASE_URL",
             "LLM_MODEL",
             "GATEFORGE_GEMINI_MODEL",
             "GEMINI_MODEL",
             "OPENAI_MODEL",
+            "MINIMAX_MODEL",
             "LLM_PROVIDER",
             "GATEFORGE_LIVE_PLANNER_BACKEND",
         }
@@ -157,17 +162,20 @@ def resolve_llm_provider(requested_backend: str) -> tuple[str, str, str]:
     model = (
         str(os.getenv("LLM_MODEL") or "").strip()
         or str(os.getenv("OPENAI_MODEL") or "").strip()
+        or str(os.getenv("MINIMAX_MODEL") or "").strip()
         or str(os.getenv("GATEFORGE_GEMINI_MODEL") or "").strip()
         or str(os.getenv("GEMINI_MODEL") or "").strip()
     )
     if not model:
         raise ValueError("missing_llm_model")
-    explicit = requested if requested in {"gemini", "openai"} else ""
+    explicit = requested if requested in {"gemini", "openai", "minimax"} else ""
     if not explicit:
         explicit = str(os.getenv("LLM_PROVIDER") or os.getenv("GATEFORGE_LIVE_PLANNER_BACKEND") or "").strip().lower()
-    if explicit not in {"gemini", "openai"}:
+    if explicit not in {"gemini", "openai", "minimax"}:
         if _OPENAI_MODEL_HINT_PATTERN.search(model):
             explicit = "openai"
+        elif _MINIMAX_MODEL_HINT_PATTERN.search(model):
+            explicit = "minimax"
         elif "gemini" in model.lower():
             explicit = "gemini"
         else:
@@ -176,6 +184,15 @@ def resolve_llm_provider(requested_backend: str) -> tuple[str, str, str]:
         api_key = str(os.getenv("OPENAI_API_KEY") or "").strip()
         if not api_key:
             raise ValueError("missing_openai_api_key")
+        return explicit, model, api_key
+    if explicit == "minimax":
+        api_key = str(
+            os.getenv("ANTHROPIC_API_KEY")
+            or os.getenv("MINIMAX_API_KEY")
+            or ""
+        ).strip()
+        if not api_key:
+            raise ValueError("missing_minimax_api_key")
         return explicit, model, api_key
     api_key = str(os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY") or "").strip()
     if not api_key:
@@ -192,7 +209,7 @@ def planner_family_for_provider(provider: str) -> str:
     name = str(provider or "").strip().lower()
     if name == "rule":
         return "rule"
-    if name in {"gemini", "openai"}:
+    if name in {"gemini", "openai", "minimax"}:
         return "llm"
     return "unknown"
 
@@ -204,6 +221,7 @@ def planner_adapter_for_provider(provider: str) -> str:
         "rule": "gateforge_rule_planner_v1",
         "gemini": "gateforge_gemini_planner_v1",
         "openai": "gateforge_openai_planner_v1",
+        "minimax": "gateforge_minimax_planner_v1",
     }
     return mapping.get(name, "gateforge_unknown_planner_v1")
 

@@ -104,8 +104,8 @@ class TestBootstrapEnvFromRepo(unittest.TestCase):
 class TestResolveLlmProvider(unittest.TestCase):
     def _clear_provider_env(self) -> dict:
         keys = ["GOOGLE_API_KEY", "GEMINI_API_KEY", "OPENAI_API_KEY",
-                "LLM_MODEL", "GATEFORGE_GEMINI_MODEL", "GEMINI_MODEL",
-                "OPENAI_MODEL", "LLM_PROVIDER", "GATEFORGE_LIVE_PLANNER_BACKEND"]
+                "MINIMAX_API_KEY", "ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL", "LLM_MODEL", "GATEFORGE_GEMINI_MODEL", "GEMINI_MODEL",
+                "OPENAI_MODEL", "MINIMAX_MODEL", "LLM_PROVIDER", "GATEFORGE_LIVE_PLANNER_BACKEND"]
         prev = {k: os.environ.get(k) for k in keys}
         for k in keys:
             os.environ.pop(k, None)
@@ -154,6 +154,33 @@ class TestResolveLlmProvider(unittest.TestCase):
         finally:
             self._restore_env(prev)
 
+    def test_explicit_minimax_backend_selected(self) -> None:
+        prev = self._clear_provider_env()
+        os.environ["MINIMAX_API_KEY"] = "mm-key"
+        os.environ["LLM_MODEL"] = "MiniMax-M2.7"
+        try:
+            with patch("gateforge.agent_modelica_l2_plan_replan_engine_v1.bootstrap_env_from_repo", return_value=0):
+                provider, model, key = resolve_llm_provider("minimax")
+            self.assertEqual(provider, "minimax")
+            self.assertEqual(model, "MiniMax-M2.7")
+            self.assertEqual(key, "mm-key")
+        finally:
+            self._restore_env(prev)
+
+    def test_explicit_minimax_backend_accepts_anthropic_compat_key(self) -> None:
+        prev = self._clear_provider_env()
+        os.environ["ANTHROPIC_API_KEY"] = "anth-mm-key"
+        os.environ["ANTHROPIC_BASE_URL"] = "https://api.minimaxi.com/anthropic"
+        os.environ["LLM_MODEL"] = "MiniMax-M2.7"
+        try:
+            with patch("gateforge.agent_modelica_l2_plan_replan_engine_v1.bootstrap_env_from_repo", return_value=0):
+                provider, model, key = resolve_llm_provider("minimax")
+            self.assertEqual(provider, "minimax")
+            self.assertEqual(model, "MiniMax-M2.7")
+            self.assertEqual(key, "anth-mm-key")
+        finally:
+            self._restore_env(prev)
+
     def test_missing_model_raises_even_when_provider_key_exists(self) -> None:
         prev = self._clear_provider_env()
         os.environ["GOOGLE_API_KEY"] = "google-key"
@@ -195,6 +222,9 @@ class TestPlannerFamilyAndAdapter(unittest.TestCase):
     def test_openai_family(self) -> None:
         self.assertEqual(planner_family_for_provider("openai"), "llm")
 
+    def test_minimax_family(self) -> None:
+        self.assertEqual(planner_family_for_provider("minimax"), "llm")
+
     def test_unknown_family(self) -> None:
         self.assertEqual(planner_family_for_provider("mystery"), "unknown")
 
@@ -203,6 +233,9 @@ class TestPlannerFamilyAndAdapter(unittest.TestCase):
 
     def test_openai_adapter(self) -> None:
         self.assertEqual(planner_adapter_for_provider("openai"), "gateforge_openai_planner_v1")
+
+    def test_minimax_adapter(self) -> None:
+        self.assertEqual(planner_adapter_for_provider("minimax"), "gateforge_minimax_planner_v1")
 
     def test_rule_adapter(self) -> None:
         self.assertEqual(planner_adapter_for_provider("rule"), "gateforge_rule_planner_v1")

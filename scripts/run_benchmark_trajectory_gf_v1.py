@@ -33,7 +33,8 @@ def _load_cases(path: Path) -> list[dict]:
     return cases
 
 
-def _run_case(case: dict, out_path: Path) -> dict:
+def _run_case(case: dict, out_path: Path, planner_backend_override: str = "") -> dict:
+    planner_backend = str(planner_backend_override or case.get("planner_backend") or "gemini")
     cmd = [
         sys.executable, "-m", EXECUTOR_MODULE,
         "--task-id",            str(case.get("task_id") or case.get("candidate_id") or ""),
@@ -46,7 +47,7 @@ def _run_case(case: dict, out_path: Path) -> dict:
         "--simulate-stop-time", "0.1",
         "--simulate-intervals", "20",
         "--backend",            str(case.get("backend") or "openmodelica_docker"),
-        "--planner-backend",    str(case.get("planner_backend") or "gemini"),
+        "--planner-backend",    planner_backend,
         "--out",                str(out_path),
     ]
     # Layer 3 cases carry a workflow_goal that the executor uses as semantic context
@@ -182,6 +183,11 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--benchmark", default=str(DEFAULT_BENCHMARK))
     parser.add_argument("--out-dir", default=str(DEFAULT_OUT_DIR))
+    parser.add_argument(
+        "--planner-backend-override",
+        default="",
+        help="Override per-case planner_backend, e.g. auto or minimax",
+    )
     parser.add_argument("--skip-existing", action="store_true",
                         help="Skip cases whose raw output JSON already exists")
     args = parser.parse_args()
@@ -207,7 +213,11 @@ def main() -> int:
             except Exception:
                 payload = {"error": "cached_json_unreadable"}
         else:
-            payload = _run_case(case, out_path)
+            payload = _run_case(
+                case,
+                out_path,
+                planner_backend_override=str(args.planner_backend_override or "").strip(),
+            )
         summary = _summarise(case, payload)
         summaries.append(summary)
         print(f"  -> status={summary.get('executor_status') or summary.get('status')}"

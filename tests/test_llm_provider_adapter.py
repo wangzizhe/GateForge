@@ -30,6 +30,36 @@ class LLMProviderAdapterTests(unittest.TestCase):
         self.assertEqual(config.provider_name, "anthropic")
         self.assertEqual(config.api_key, "anth-test")
 
+    def test_resolve_provider_adapter_detects_minimax(self) -> None:
+        with mock.patch("gateforge.llm_provider_adapter._bootstrap_env_from_repo", return_value=0), mock.patch.dict(
+            os.environ,
+            {"MINIMAX_API_KEY": "minimax-test", "LLM_PROVIDER": "MiniMax", "LLM_MODEL": "MiniMax-M2.7"},
+            clear=True,
+        ):
+            adapter, config = resolve_provider_adapter("")
+        self.assertEqual(adapter.provider_name, "minimax")
+        self.assertEqual(config.provider_name, "minimax")
+        self.assertEqual(config.api_key, "minimax-test")
+        self.assertEqual(config.extra.get("max_tokens"), 8192)
+        self.assertIn("patched_model_text", str(config.extra.get("system_prompt") or ""))
+
+    def test_resolve_provider_adapter_detects_minimax_from_anthropic_compat_env(self) -> None:
+        with mock.patch("gateforge.llm_provider_adapter._bootstrap_env_from_repo", return_value=0), mock.patch.dict(
+            os.environ,
+            {
+                "ANTHROPIC_API_KEY": "anth-minimax-test",
+                "ANTHROPIC_BASE_URL": "https://api.minimaxi.com/anthropic",
+                "LLM_PROVIDER": "MiniMax",
+                "LLM_MODEL": "MiniMax-M2.7",
+            },
+            clear=True,
+        ):
+            adapter, config = resolve_provider_adapter("")
+        self.assertEqual(adapter.provider_name, "minimax")
+        self.assertEqual(config.provider_name, "minimax")
+        self.assertEqual(config.api_key, "anth-minimax-test")
+        self.assertEqual(config.extra.get("anthropic_base_url"), "https://api.minimaxi.com/anthropic")
+
     def test_resolve_provider_adapter_requires_llm_model(self) -> None:
         with mock.patch("gateforge.llm_provider_adapter._bootstrap_env_from_repo", return_value=0), mock.patch.dict(
             os.environ,

@@ -26,6 +26,7 @@ from typing import Protocol
 ENV_KEY_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 OPENAI_MODEL_HINT_PATTERN = re.compile(r"^(gpt|o[0-9]|chatgpt|gpt-5)", re.IGNORECASE)
 ANTHROPIC_MODEL_HINT_PATTERN = re.compile(r"^(claude)", re.IGNORECASE)
+MINIMAX_MODEL_HINT_PATTERN = re.compile(r"^(minimax)", re.IGNORECASE)
 
 
 def _parse_env_assignment(line: str) -> tuple[str, str] | tuple[None, None]:
@@ -270,8 +271,8 @@ class AnthropicProviderAdapter:
     ) -> tuple[str, str]:
         req_payload = {
             "model": config.model,
-            "max_tokens": int(config.extra.get("max_tokens") or 1024),
-            "messages": [{"role": "user", "content": prompt}],
+            "max_tokens": int(config.extra.get("max_tokens") or 4096),
+            "messages": [{"role": "user", "content": [{"type": "text", "text": prompt}]}],
             "temperature": config.temperature,
         }
         req = urllib.request.Request(
@@ -301,12 +302,70 @@ class AnthropicProviderAdapter:
         return text, ""
 
 
+class MiniMaxProviderAdapter:
+    """Transport adapter for the MiniMax Anthropic-compatible Messages API."""
+
+    @property
+    def provider_name(self) -> str:
+        return "minimax"
+
+    @staticmethod
+    def _extract_response_text(payload: dict) -> str:
+        return AnthropicProviderAdapter._extract_response_text(payload)
+
+    def send_text_request(
+        self,
+        prompt: str,
+        config: LLMProviderConfig,
+    ) -> tuple[str, str]:
+        base_url = str(
+            config.extra.get("anthropic_base_url")
+            or os.getenv("ANTHROPIC_BASE_URL")
+            or "https://api.minimaxi.com/anthropic"
+        ).strip().rstrip("/")
+        req_payload = {
+            "model": config.model,
+            "max_tokens": int(config.extra.get("max_tokens") or 8192),
+            "messages": [{"role": "user", "content": [{"type": "text", "text": prompt}]}],
+            "temperature": config.temperature,
+        }
+        system_prompt = str(config.extra.get("system_prompt") or "").strip()
+        if system_prompt:
+            req_payload["system"] = system_prompt
+        req = urllib.request.Request(
+            f"{base_url}/v1/messages",
+            data=json.dumps(req_payload).encode("utf-8"),
+            headers={
+                "Content-Type": "application/json",
+                "x-api-key": config.api_key,
+                "anthropic-version": "2023-06-01",
+            },
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=config.timeout_sec) as resp:
+                response_payload = json.loads(resp.read().decode("utf-8"))
+        except TimeoutError:
+            return "", "minimax_request_timeout"
+        except urllib.error.HTTPError as exc:
+            body = exc.read().decode("utf-8", errors="ignore")
+            if int(exc.code) == 429:
+                return "", f"minimax_rate_limited:{body[:180]}"
+            return "", f"minimax_http_error:{exc.code}:{body[:180]}"
+        except urllib.error.URLError as exc:
+            return "", f"minimax_url_error:{exc.reason}"
+
+        text = self._extract_response_text(response_payload)
+        return text, ""
+
+
 # ---- adapter factory ----
 
 _ADAPTERS: dict[str, type] = {
     "gemini": GeminiProviderAdapter,
     "openai": OpenAIProviderAdapter,
     "anthropic": AnthropicProviderAdapter,
+    "minimax": MiniMaxProviderAdapter,
 }
 
 
@@ -336,11 +395,14 @@ def resolve_provider_adapter(
             "GEMINI_API_KEY",
             "OPENAI_API_KEY",
             "ANTHROPIC_API_KEY",
+            "MINIMAX_API_KEY",
+            "ANTHROPIC_BASE_URL",
             "LLM_MODEL",
             "GATEFORGE_GEMINI_MODEL",
             "GEMINI_MODEL",
             "OPENAI_MODEL",
             "ANTHROPIC_MODEL",
+            "MINIMAX_MODEL",
             "LLM_PROVIDER",
             "GATEFORGE_LIVE_PLANNER_BACKEND",
         }
@@ -355,23 +417,26 @@ def resolve_provider_adapter(
         str(os.getenv("LLM_MODEL") or "").strip()
         or str(os.getenv("OPENAI_MODEL") or "").strip()
         or str(os.getenv("ANTHROPIC_MODEL") or "").strip()
+        or str(os.getenv("MINIMAX_MODEL") or "").strip()
         or str(os.getenv("GATEFORGE_GEMINI_MODEL") or "").strip()
         or str(os.getenv("GEMINI_MODEL") or "").strip()
     )
     if not model:
         raise ValueError("missing_llm_model")
-    explicit = requested if requested in {"gemini", "openai", "anthropic"} else ""
+    explicit = requested if requested in {"gemini", "openai", "anthropic", "minimax"} else ""
     if not explicit:
         explicit = str(
             os.getenv("LLM_PROVIDER")
             or os.getenv("GATEFORGE_LIVE_PLANNER_BACKEND")
             or ""
         ).strip().lower()
-    if explicit not in {"gemini", "openai", "anthropic"}:
+    if explicit not in {"gemini", "openai", "anthropic", "minimax"}:
         if OPENAI_MODEL_HINT_PATTERN.search(model):
             explicit = "openai"
         elif ANTHROPIC_MODEL_HINT_PATTERN.search(model):
             explicit = "anthropic"
+        elif MINIMAX_MODEL_HINT_PATTERN.search(model):
+            explicit = "minimax"
         elif "gemini" in model.lower():
             explicit = "gemini"
         else:
@@ -381,6 +446,12 @@ def resolve_provider_adapter(
         api_key = str(os.getenv("OPENAI_API_KEY") or "").strip()
     elif explicit == "anthropic":
         api_key = str(os.getenv("ANTHROPIC_API_KEY") or "").strip()
+    elif explicit == "minimax":
+        api_key = str(
+            os.getenv("ANTHROPIC_API_KEY")
+            or os.getenv("MINIMAX_API_KEY")
+            or ""
+        ).strip()
     else:
         api_key = str(
             os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY") or ""
@@ -401,5 +472,15 @@ def resolve_provider_adapter(
         timeout_sec=max(
             1.0, _to_float_env("GATEFORGE_AGENT_LIVE_LLM_REQUEST_TIMEOUT_SEC", 120.0)
         ),
+        extra={
+            "anthropic_base_url": str(os.getenv("ANTHROPIC_BASE_URL") or "").strip(),
+            "max_tokens": 8192 if explicit == "minimax" else 1024,
+            "system_prompt": (
+                "You must return a final text block containing only one JSON object "
+                "with keys patched_model_text and rationale."
+                if explicit == "minimax"
+                else ""
+            ),
+        },
     )
     return adapter_cls(), config
