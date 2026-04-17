@@ -27,6 +27,7 @@ ENV_KEY_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 OPENAI_MODEL_HINT_PATTERN = re.compile(r"^(gpt|o[0-9]|chatgpt|gpt-5)", re.IGNORECASE)
 ANTHROPIC_MODEL_HINT_PATTERN = re.compile(r"^(claude)", re.IGNORECASE)
 MINIMAX_MODEL_HINT_PATTERN = re.compile(r"^(minimax)", re.IGNORECASE)
+QWEN_MODEL_HINT_PATTERN = re.compile(r"^(qwen|qwq|deepseek)", re.IGNORECASE)
 
 
 def _parse_env_assignment(line: str) -> tuple[str, str] | tuple[None, None]:
@@ -95,6 +96,15 @@ class LLMProviderConfig:
     temperature: float = 0.1
     timeout_sec: float = 120.0
     extra: dict = field(default_factory=dict)
+
+
+QWEN_REPAIR_PROFILE_PROMPT = (
+    "Qwen GateForge repair profile:\n"
+    "- Return a minimal patch only; prefer changing existing numeric parameter values over structural rewrites.\n"
+    "- Do not invent new Modelica modifier names, component names, or source parameter keys.\n"
+    "- Do not rename modifiers such as V, offset, startTime, height, duration, C, R; keep only names already present in the current model text.\n"
+    "- If the task is behavioral_contract_fail, preserve component declarations and connect topology unless later compiler feedback proves they are broken.\n"
+)
 
 
 # ---- provider adapter protocol ----
@@ -244,6 +254,65 @@ class OpenAIProviderAdapter:
         return text, ""
 
 
+class QwenProviderAdapter:
+    """Transport adapter for Alibaba Bailian OpenAI-compatible Responses API."""
+
+    @property
+    def provider_name(self) -> str:
+        return "qwen"
+
+    @staticmethod
+    def _extract_response_text(payload: dict) -> str:
+        return OpenAIProviderAdapter._extract_response_text(payload)
+
+    def send_text_request(
+        self,
+        prompt: str,
+        config: LLMProviderConfig,
+    ) -> tuple[str, str]:
+        base_url = str(
+            config.extra.get("dashscope_base_url")
+            or os.getenv("DASHSCOPE_BASE_URL")
+            or "https://dashscope.aliyuncs.com/compatible-mode/v1"
+        ).strip().rstrip("/")
+        req_payload = {
+            "model": config.model,
+            "input": prompt,
+            "temperature": config.temperature,
+            "enable_thinking": bool(config.extra.get("enable_thinking", False)),
+        }
+        thinking_budget = config.extra.get("thinking_budget")
+        if thinking_budget not in {None, ""}:
+            try:
+                req_payload["thinking_budget"] = int(thinking_budget)
+            except Exception:
+                pass
+        req = urllib.request.Request(
+            f"{base_url}/responses",
+            data=json.dumps(req_payload).encode("utf-8"),
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {config.api_key}",
+            },
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=config.timeout_sec) as resp:
+                response_payload = json.loads(resp.read().decode("utf-8"))
+        except TimeoutError:
+            return "", "qwen_request_timeout"
+        except urllib.error.HTTPError as exc:
+            body = exc.read().decode("utf-8", errors="ignore")
+            if int(exc.code) == 429:
+                return "", f"qwen_rate_limited:{body[:180]}"
+            return "", f"qwen_http_error:{exc.code}:{body[:180]}"
+        except urllib.error.URLError as exc:
+            return "", f"qwen_url_error:{exc.reason}"
+
+        text = self._extract_response_text(response_payload)
+        return text, ""
+
+
 # ---- Anthropic adapter ----
 
 class AnthropicProviderAdapter:
@@ -364,6 +433,7 @@ class MiniMaxProviderAdapter:
 _ADAPTERS: dict[str, type] = {
     "gemini": GeminiProviderAdapter,
     "openai": OpenAIProviderAdapter,
+    "qwen": QwenProviderAdapter,
     "anthropic": AnthropicProviderAdapter,
     "minimax": MiniMaxProviderAdapter,
 }
@@ -396,6 +466,9 @@ def resolve_provider_adapter(
             "OPENAI_API_KEY",
             "ANTHROPIC_API_KEY",
             "MINIMAX_API_KEY",
+            "DASHSCOPE_API_KEY",
+            "QWEN_API_KEY",
+            "DASHSCOPE_BASE_URL",
             "ANTHROPIC_BASE_URL",
             "LLM_MODEL",
             "GATEFORGE_GEMINI_MODEL",
@@ -403,6 +476,7 @@ def resolve_provider_adapter(
             "OPENAI_MODEL",
             "ANTHROPIC_MODEL",
             "MINIMAX_MODEL",
+            "QWEN_MODEL",
             "LLM_PROVIDER",
             "GATEFORGE_LIVE_PLANNER_BACKEND",
         }
@@ -416,6 +490,7 @@ def resolve_provider_adapter(
     model = (
         str(os.getenv("LLM_MODEL") or "").strip()
         or str(os.getenv("OPENAI_MODEL") or "").strip()
+        or str(os.getenv("QWEN_MODEL") or "").strip()
         or str(os.getenv("ANTHROPIC_MODEL") or "").strip()
         or str(os.getenv("MINIMAX_MODEL") or "").strip()
         or str(os.getenv("GATEFORGE_GEMINI_MODEL") or "").strip()
@@ -423,16 +498,18 @@ def resolve_provider_adapter(
     )
     if not model:
         raise ValueError("missing_llm_model")
-    explicit = requested if requested in {"gemini", "openai", "anthropic", "minimax"} else ""
+    explicit = requested if requested in {"gemini", "openai", "qwen", "anthropic", "minimax"} else ""
     if not explicit:
         explicit = str(
             os.getenv("LLM_PROVIDER")
             or os.getenv("GATEFORGE_LIVE_PLANNER_BACKEND")
             or ""
         ).strip().lower()
-    if explicit not in {"gemini", "openai", "anthropic", "minimax"}:
+    if explicit not in {"gemini", "openai", "qwen", "anthropic", "minimax"}:
         if OPENAI_MODEL_HINT_PATTERN.search(model):
             explicit = "openai"
+        elif QWEN_MODEL_HINT_PATTERN.search(model):
+            explicit = "qwen"
         elif ANTHROPIC_MODEL_HINT_PATTERN.search(model):
             explicit = "anthropic"
         elif MINIMAX_MODEL_HINT_PATTERN.search(model):
@@ -444,6 +521,12 @@ def resolve_provider_adapter(
 
     if explicit == "openai":
         api_key = str(os.getenv("OPENAI_API_KEY") or "").strip()
+    elif explicit == "qwen":
+        api_key = str(
+            os.getenv("DASHSCOPE_API_KEY")
+            or os.getenv("QWEN_API_KEY")
+            or ""
+        ).strip()
     elif explicit == "anthropic":
         api_key = str(os.getenv("ANTHROPIC_API_KEY") or "").strip()
     elif explicit == "minimax":
@@ -473,6 +556,9 @@ def resolve_provider_adapter(
             1.0, _to_float_env("GATEFORGE_AGENT_LIVE_LLM_REQUEST_TIMEOUT_SEC", 120.0)
         ),
         extra={
+            "dashscope_base_url": str(os.getenv("DASHSCOPE_BASE_URL") or "").strip(),
+            "enable_thinking": False if explicit == "qwen" else "",
+            "prompt_prefix": QWEN_REPAIR_PROFILE_PROMPT if explicit == "qwen" else "",
             "anthropic_base_url": str(os.getenv("ANTHROPIC_BASE_URL") or "").strip(),
             "max_tokens": 8192 if explicit == "minimax" else 1024,
             "system_prompt": (

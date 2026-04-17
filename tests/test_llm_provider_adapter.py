@@ -60,6 +60,24 @@ class LLMProviderAdapterTests(unittest.TestCase):
         self.assertEqual(config.api_key, "anth-minimax-test")
         self.assertEqual(config.extra.get("anthropic_base_url"), "https://api.minimaxi.com/anthropic")
 
+    def test_resolve_provider_adapter_detects_qwen(self) -> None:
+        with mock.patch("gateforge.llm_provider_adapter._bootstrap_env_from_repo", return_value=0), mock.patch.dict(
+            os.environ,
+            {
+                "DASHSCOPE_API_KEY": "dashscope-test",
+                "LLM_PROVIDER": "qwen",
+                "LLM_MODEL": "qwen3.6-flash",
+            },
+            clear=True,
+        ):
+            adapter, config = resolve_provider_adapter("")
+        self.assertEqual(adapter.provider_name, "qwen")
+        self.assertEqual(config.provider_name, "qwen")
+        self.assertEqual(config.api_key, "dashscope-test")
+        self.assertEqual(config.extra.get("enable_thinking"), False)
+        self.assertEqual(config.extra.get("dashscope_base_url"), "")
+        self.assertIn("Do not invent new Modelica modifier names", str(config.extra.get("prompt_prefix") or ""))
+
     def test_resolve_provider_adapter_requires_llm_model(self) -> None:
         with mock.patch("gateforge.llm_provider_adapter._bootstrap_env_from_repo", return_value=0), mock.patch.dict(
             os.environ,
