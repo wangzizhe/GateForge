@@ -15,6 +15,9 @@ Sources:
   - 11 underdetermined missing-ground cases (v0.19.12)   — error_layer=2
   -  8 semantic RC time-constant cases (v0.19.15)        — error_layer=3
   - 11 spurious short-circuit cases (v0.19.14)           — error_layer=2
+  -  5 two-layer compound cases (v0.19.18)               — error_layer=2
+  -  5 three-layer compound cases (v0.19.19)             — error_layer=2
+  -  5 four-layer compound cases (v0.19.20)              — error_layer=2
 
 Output:
   artifacts/benchmark_gf_v1/admitted_cases.jsonl
@@ -41,6 +44,15 @@ SEMANTIC_JSONL = (
 SHORTCIRC_JSONL = (
     REPO_ROOT / "artifacts" / "spurious_short_circuit_mutations_v0_19_14" / "admitted_cases.jsonl"
 )
+COMPOUND2_JSONL = (
+    REPO_ROOT / "artifacts" / "compound_mutation_v0_19_18" / "admitted_cases.jsonl"
+)
+COMPOUND3_JSONL = (
+    REPO_ROOT / "artifacts" / "triple_compound_mutation_v0_19_19" / "admitted_cases.jsonl"
+)
+COMPOUND4_JSONL = (
+    REPO_ROOT / "artifacts" / "quad_compound_mutation_v0_19_20" / "admitted_cases.jsonl"
+)
 
 # Canonical benchmark_family names
 FAMILY_OVERDET_KVL = "overdetermined_kvl"
@@ -48,6 +60,9 @@ FAMILY_OVERDET_KCL = "overdetermined_kcl"
 FAMILY_UNDERDET_GROUND = "underdetermined_missing_ground"
 FAMILY_SEMANTIC_TAU = "semantic_time_constant"
 FAMILY_SHORTCIRC = "spurious_short_circuit"
+FAMILY_COMPOUND2 = "compound_two_layer"
+FAMILY_COMPOUND3 = "compound_three_layer"
+FAMILY_COMPOUND4 = "compound_four_layer"
 
 
 def _load_jsonl(path: Path) -> list[dict]:
@@ -176,6 +191,51 @@ def _normalise_shortcirc(row: dict) -> dict:
     }
 
 
+def _normalise_compound(row: dict, *, depth: int) -> dict:
+    """Normalise a compound family case to the gf_v1 unified schema."""
+    if depth == 2:
+        family = FAMILY_COMPOUND2
+        mutation_mechanism = "compound_missing_ground_plus_wrong_capacitance"
+        source_version = "v0.19.18"
+    elif depth == 3:
+        family = FAMILY_COMPOUND3
+        mutation_mechanism = "compound_missing_ground_plus_wrong_capacitance_plus_wrong_resistance"
+        source_version = "v0.19.19"
+    elif depth == 4:
+        family = FAMILY_COMPOUND4
+        mutation_mechanism = "compound_missing_ground_plus_wrong_capacitance_plus_wrong_resistance_plus_parallel_leak"
+        source_version = "v0.19.20"
+    else:
+        raise ValueError(f"unsupported compound depth: {depth}")
+
+    return {
+        "candidate_id": row["candidate_id"],
+        "task_id": row["candidate_id"],
+        "benchmark_version": "gf_v1",
+        "benchmark_family": family,
+        "error_layer": 2,
+        "mutation_mechanism": mutation_mechanism,
+        "failure_type": str(row.get("failure_type") or "behavioral_contract_fail"),
+        "expected_stage": "simulate",
+        "source_model_path": row["source_model_path"],
+        "mutated_model_path": row["mutated_model_path"],
+        "workflow_goal": str(row.get("workflow_goal") or ""),
+        "requires_semantic_reasoning": True,
+        "omc_localizes_fix": False,
+        "admission_verified": True,
+        "planner_backend": "gemini",
+        "backend": "openmodelica_docker",
+        "_source_version": source_version,
+        "_compound_depth": depth,
+        "_mutation_family": str(row.get("mutation_family") or ""),
+        "_compound_mutation_bugs": list(row.get("compound_mutation_bugs") or []),
+        "_removed_ground_connects": list(row.get("removed_ground_connects") or []),
+        "_semantic_oracle": row.get("semantic_oracle", {}),
+        "_parameter_mutations": row.get("parameter_mutations", {}),
+        "_base_v01915_candidate_id": str(row.get("base_v01915_candidate_id") or ""),
+    }
+
+
 def main() -> None:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -183,6 +243,9 @@ def main() -> None:
     underdet_rows = _load_jsonl(UNDERDET_JSONL)
     semantic_rows = _load_jsonl(SEMANTIC_JSONL)
     shortcirc_rows = _load_jsonl(SHORTCIRC_JSONL)
+    compound2_rows = _load_jsonl(COMPOUND2_JSONL)
+    compound3_rows = _load_jsonl(COMPOUND3_JSONL)
+    compound4_rows = _load_jsonl(COMPOUND4_JSONL)
 
     cases: list[dict] = []
     for row in overdet_rows:
@@ -193,6 +256,12 @@ def main() -> None:
         cases.append(_normalise_semantic(row))
     for row in shortcirc_rows:
         cases.append(_normalise_shortcirc(row))
+    for row in compound2_rows:
+        cases.append(_normalise_compound(row, depth=2))
+    for row in compound3_rows:
+        cases.append(_normalise_compound(row, depth=3))
+    for row in compound4_rows:
+        cases.append(_normalise_compound(row, depth=4))
 
     # Write unified JSONL
     out_jsonl = OUT_DIR / "admitted_cases.jsonl"
@@ -219,6 +288,7 @@ def main() -> None:
             "failure_type labels correct from admission",
             "no artificial injection markers",
             "no heuristic-solvable cases",
+            "compound families preserve cross-layer repair paths without executor-side staging",
         ],
         "output": str(out_jsonl),
     }
