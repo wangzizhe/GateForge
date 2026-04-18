@@ -45,6 +45,7 @@ def _run_case(case: dict, *, out_path: Path, planner_backend: str) -> dict:
         "--task-id", str(case.get("task_id") or case.get("candidate_id") or ""),
         "--failure-type", str(case.get("failure_type") or ""),
         "--expected-stage", str(case.get("expected_stage") or "simulate"),
+        "--validation-mode", str(case.get("validation_mode") or "full"),
         "--source-model-path", str(case.get("source_model_path") or ""),
         "--mutated-model-path", str(case.get("mutated_model_path") or ""),
         "--max-rounds", str(MAX_ROUNDS),

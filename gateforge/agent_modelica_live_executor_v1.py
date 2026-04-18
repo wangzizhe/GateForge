@@ -483,6 +483,13 @@ def _normalize_terminal_errors(executor_status: str, error_message: str, compile
     return str(error_message or ""), str(compile_error or ""), str(simulate_error or "")
 
 
+def _validation_passed(*, validation_mode: str, check_ok: bool, simulate_ok: bool) -> bool:
+    mode = str(validation_mode or "full").strip().lower()
+    if mode == "check_only":
+        return bool(check_ok)
+    return bool(check_ok and simulate_ok)
+
+
 def _parse_main_args() -> argparse.Namespace:
     """Parse CLI arguments for the live executor.
 
@@ -495,6 +502,7 @@ def _parse_main_args() -> argparse.Namespace:
     parser.add_argument("--task-id", default="")
     parser.add_argument("--failure-type", default="unknown")
     parser.add_argument("--expected-stage", default="unknown")
+    parser.add_argument("--validation-mode", choices=["full", "check_only"], default="full")
     parser.add_argument("--workflow-goal", default="")
     parser.add_argument("--source-model-path", default="")
     parser.add_argument("--mutated-model-path", default="")
@@ -681,7 +689,11 @@ def _build_final_payload(
         simulate_error=final_sim_error,
     )
     behavioral_eval = None
-    if bool(final_check_ok and final_simulate_ok):
+    if _validation_passed(
+        validation_mode=str(args.validation_mode or "full"),
+        check_ok=bool(final_check_ok),
+        simulate_ok=bool(final_simulate_ok),
+    ):
         behavioral_eval = _evaluate_behavioral_contract_from_model_text(
             current_text=current_text,
             source_model_text=source_model_text,
@@ -693,7 +705,11 @@ def _build_final_payload(
                 source_model_text=source_model_text,
                 failure_type=str(args.failure_type),
             )
-    physics_contract_pass = bool(final_check_ok and final_simulate_ok)
+    physics_contract_pass = _validation_passed(
+        validation_mode=str(args.validation_mode or "full"),
+        check_ok=bool(final_check_ok),
+        simulate_ok=bool(final_simulate_ok),
+    )
     physics_contract_reasons: list[str] = []
     contract_fail_bucket = ""
     if isinstance(behavioral_eval, dict):
@@ -1093,7 +1109,11 @@ def _build_final_payload(
         "llm_branch_correction_used": bool(multistep_memory.get("llm_branch_correction_used")),
         "llm_resolution_contributed": llm_resolution_contributed,
         "llm_only_resolution": llm_only_resolution,
-        "regression_pass": bool(final_check_ok and final_simulate_ok),
+        "regression_pass": _validation_passed(
+            validation_mode=str(args.validation_mode or "full"),
+            check_ok=bool(final_check_ok),
+            simulate_ok=bool(final_simulate_ok),
+        ),
         "rounds_used": int(len(attempts)),
         "elapsed_sec": elapsed,
         "executor_runtime_hygiene": executor_runtime_hygiene,
@@ -1467,6 +1487,7 @@ def main() -> None:
             attempt_row = {
                 "round": round_idx,
                 "transparent_repair_loop": True,
+                "validation_mode": str(args.validation_mode or "full"),
                 "return_code": rc,
                 "check_model_pass": bool(check_ok),
                 "simulate_pass": bool(simulate_ok),
@@ -1479,7 +1500,12 @@ def main() -> None:
             attempts.append(attempt_row)
 
             behavioral_eval = None
-            if check_ok and simulate_ok:
+            validation_satisfied = _validation_passed(
+                validation_mode=str(args.validation_mode or "full"),
+                check_ok=bool(check_ok),
+                simulate_ok=bool(simulate_ok),
+            )
+            if validation_satisfied and str(args.validation_mode or "full") != "check_only":
                 behavioral_eval = _evaluate_behavioral_contract_from_model_text(
                     current_text=current_text,
                     source_model_text=source_model_text,
@@ -1502,9 +1528,9 @@ def main() -> None:
                         dict(item) for item in (behavioral_eval.get("scenario_results") or []) if isinstance(item, dict)
                     ]
 
-            if check_ok and simulate_ok and (not isinstance(behavioral_eval, dict) or bool(behavioral_eval.get("pass"))):
+            if validation_satisfied and (not isinstance(behavioral_eval, dict) or bool(behavioral_eval.get("pass"))):
                 final_check_ok = True
-                final_simulate_ok = True
+                final_simulate_ok = bool(simulate_ok)
                 executor_status = "PASS"
                 final_error = ""
                 final_compile_error = ""
