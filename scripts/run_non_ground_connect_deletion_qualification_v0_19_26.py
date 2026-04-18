@@ -1,4 +1,4 @@
-"""Run trajectory qualification for v0.19.26 non-ground connect deletion cases.
+"""Run trajectory qualification for structural connect-deletion cases.
 
 Qualification policy:
   - Repeat each admitted candidate 3 times with the real LLM backend.
@@ -168,6 +168,7 @@ def main() -> int:
     parser.add_argument("--benchmark", default=str(DEFAULT_BENCHMARK))
     parser.add_argument("--out-dir", default=str(DEFAULT_OUT_DIR))
     parser.add_argument("--planner-backend-override", default="auto")
+    parser.add_argument("--report-version", default="v0.19.26")
     args = parser.parse_args()
 
     cases = _load_cases(Path(args.benchmark))
@@ -204,6 +205,12 @@ def main() -> int:
             "source_file": case.get("source_file"),
             "deleted_connect": case.get("deleted_connect"),
             "deleted_connect_kind": case.get("deleted_connect_kind"),
+            "deleted_connects": case.get("deleted_connects"),
+            "deleted_connect_kinds": case.get("deleted_connect_kinds"),
+            "deleted_component_line": case.get("deleted_component_line"),
+            "deleted_component_instance": case.get("deleted_component_instance"),
+            "deleted_component_kind": case.get("deleted_component_kind"),
+            "deleted_component_connect_count": case.get("deleted_component_connect_count"),
             "expected_stage": case.get("expected_stage"),
             "run_summaries": run_summaries,
             **qualification,
@@ -221,7 +228,7 @@ def main() -> int:
         label_counts[label] = label_counts.get(label, 0) + 1
 
     report = {
-        "version": "v0.19.26",
+        "version": str(args.report_version or "v0.19.26"),
         "n_cases": len(results),
         "planner_backend_override": str(args.planner_backend_override or "auto"),
         "qualification_label_counts": label_counts,
