@@ -34,14 +34,10 @@ from gateforge.agent_modelica_omc_workspace_v1 import (
 VERSION = "v0.19.33"
 OUT_DIR = REPO_ROOT / "artifacts" / "equation_deletion_mutations_v0_19_33"
 
-OPENIPSL_FIXTURE_DIR = (
+STANDALONE_SOURCE_DIR = (
     REPO_ROOT
     / "assets_private"
-    / "agent_modelica_cross_domain_openipsl_v1_fixture_v1"
-    / "source_models"
-)
-OPENIPSL_LIBRARY_ROOT = (
-    REPO_ROOT / "assets_private" / "modelica_sources" / "openipsl" / "OpenIPSL"
+    / "standalone_explicit_equation_source_models_v0_19_34"
 )
 DOCKER_IMAGE = "openmodelica/openmodelica:v1.26.1-minimal"
 
@@ -100,22 +96,20 @@ def _infer_library_model_path(library_root: Path, qualified_model_name: str) -> 
     return library_root.joinpath(*rel_parts[:-1], f"{parts[-1]}.mo")
 
 
-def _collect_openipsl_sources() -> list[SourceSpec]:
+def _collect_standalone_sources() -> list[SourceSpec]:
     rows = []
-    for source_path in sorted(OPENIPSL_FIXTURE_DIR.glob("*.mo")):
+    for source_path in sorted(STANDALONE_SOURCE_DIR.glob("*.mo")):
         try:
             text = _read_text(source_path)
-            qname = _extract_qualified_model_name(text)
+            model_name = source_path.stem
             rows.append(
                 SourceSpec(
                     source_file=source_path.name,
                     source_path=source_path,
-                    library_root=OPENIPSL_LIBRARY_ROOT,
-                    package_name="OpenIPSL",
-                    qualified_model_name=qname,
-                    source_library_model_path=_infer_library_model_path(
-                        OPENIPSL_LIBRARY_ROOT, qname
-                    ),
+                    library_root=Path(""),
+                    package_name="",
+                    qualified_model_name=model_name,
+                    source_library_model_path=Path(""),
                 )
             )
         except Exception:
@@ -268,7 +262,7 @@ def _classify_failure(log_text: str) -> str:
 def main() -> None:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
 
-    sources = _collect_openipsl_sources()
+    sources = _collect_standalone_sources()
     if not sources:
         print(json.dumps({"error": "no source models found", "version": VERSION}))
         return
