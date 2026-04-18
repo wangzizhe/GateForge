@@ -56,6 +56,15 @@ def _run_case(case: dict, *, out_path: Path, planner_backend: str) -> dict:
         "--workflow-goal", str(case.get("workflow_goal") or ""),
         "--out", str(out_path),
     ]
+    optional_source_args = {
+        "--source-library-path": str(case.get("source_library_path") or ""),
+        "--source-package-name": str(case.get("source_package_name") or ""),
+        "--source-library-model-path": str(case.get("source_library_model_path") or ""),
+        "--source-qualified-model-name": str(case.get("source_qualified_model_name") or ""),
+    }
+    for flag, value in optional_source_args.items():
+        if value:
+            cmd.extend([flag, value])
     try:
         proc = subprocess.run(
             cmd,
