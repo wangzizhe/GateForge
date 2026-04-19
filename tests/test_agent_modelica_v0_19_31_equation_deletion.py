@@ -52,6 +52,8 @@ class TestV01931EquationDeletion(unittest.TestCase):
         source_path = (
             Path("assets_private/agent_modelica_cross_domain_openipsl_v1_fixture_v1/source_models/GENROE_12c13f38c4.mo").resolve()
         )
+        if not source_path.exists():
+            self.skipTest("assets_private not available in this environment")
         spec = SourceSpec(
             source_file=source_path.name,
             source_path=source_path,
@@ -70,6 +72,8 @@ class TestV01931EquationDeletion(unittest.TestCase):
         source_path = (
             Path("assets_private/agent_modelica_cross_domain_openipsl_v1_fixture_v1/source_models/CSVGN1_dc3e8a4ebd.mo").resolve()
         )
+        if not source_path.exists():
+            self.skipTest("assets_private not available in this environment")
         spec = SourceSpec(
             source_file=source_path.name,
             source_path=source_path,
@@ -88,6 +92,8 @@ class TestV01931EquationDeletion(unittest.TestCase):
         source_path = (
             Path("assets_private/agent_modelica_cross_domain_openipsl_v1_fixture_v1/source_models/CSVGN1_dc3e8a4ebd.mo").resolve()
         )
+        if not source_path.exists():
+            self.skipTest("assets_private not available in this environment")
         spec = SourceSpec(
             source_file=source_path.name,
             source_path=source_path,

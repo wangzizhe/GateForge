@@ -49,6 +49,8 @@ class TestV01930ParameterDeletion(unittest.TestCase):
         source_path = (
             Path("assets_private/agent_modelica_cross_domain_openipsl_v1_fixture_v1/source_models/GENROE_12c13f38c4.mo").resolve()
         )
+        if not source_path.exists():
+            self.skipTest("assets_private not available in this environment")
         spec = SourceSpec(
             source_file=source_path.name,
             source_path=source_path,
@@ -68,6 +70,8 @@ class TestV01930ParameterDeletion(unittest.TestCase):
         source_path = (
             Path("artifacts/agent_modelica_electrical_frozen_taskset_v1_smoke/source_models/medium_triple_sensor_v0.mo").resolve()
         )
+        if not source_path.exists():
+            self.skipTest("artifact source models not available in this environment")
         spec = SourceSpec(
             source_file=source_path.name,
             source_path=source_path,
