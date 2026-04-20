@@ -280,7 +280,7 @@ def build_dm_diagnostic_context(model_text: str) -> str:
         desc = descs.get(v, "")
         tag = f'  "{desc}"' if desc else ""
         lines.append(f"Root cause variable (no defining equation): {v}{tag}")
-        lines.append("  Fix: restore as a parameter with a value, or add a defining equation.")
+        lines.append("  Fix: add a defining equation (e.g., var = value;), or remove this variable and restore the original reference.")
     else:
         lines.append(f"Root cause variables (no defining equation): {', '.join(root_cause)}")
         for v in root_cause:
