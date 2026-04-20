@@ -183,9 +183,13 @@ class GeminiProviderAdapter:
         candidates = response_payload.get("candidates", [])
         if not candidates:
             return "", "gemini_no_candidates"
-        text = (
-            candidates[0].get("content", {}).get("parts", [{}])[0].get("text", "")
-        )
+        parts = candidates[0].get("content", {}).get("parts", [])
+        # Gemini 2.5 Flash thinking mode: skip thought=true parts, take first non-thought part
+        text = ""
+        for part in parts:
+            if not part.get("thought", False):
+                text = part.get("text", "")
+                break
         return text, ""
 
 
