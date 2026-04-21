@@ -285,8 +285,13 @@ def build_dm_diagnostic_context(model_text: str) -> str:
         lines.append(f"Root cause variables (no defining equation): {', '.join(root_cause)}")
         for v in root_cause:
             desc = descs.get(v, "")
-            if desc:
-                lines.append(f'  {v}: "{desc}"')
+            tag = f' "{desc}"' if desc else ""
+            lines.append(f'  {v}:{tag}')
+            if v.endswith('_phantom'):
+                base = v[: -len('_phantom')]
+                lines.append(f'    Fix: Remove the "Real {v}" declaration. Replace all "{v}" in equations with "{base}".')
+            else:
+                lines.append(f'    Fix: Add a defining equation (e.g., {v} = value;) or restore as "parameter Real {v} = value".')
 
     non_root = [v for v in subgraph_vars if v not in root_cause]
     if non_root:
