@@ -129,6 +129,7 @@ def _llm_turn(
     omc_output: str,
     current_round: int,
     mode: str,  # "raw" or "formatted"
+    workflow_goal: str = "",
 ) -> tuple[str | None, str, str]:
     """Call LLM repair with either raw or formatted error excerpt."""
     if mode == "formatted":
@@ -144,7 +145,7 @@ def _llm_turn(
         error_excerpt=error_excerpt[:12000],
         repair_actions=[],
         model_name=model_name,
-        workflow_goal="",
+        workflow_goal=workflow_goal,
         current_round=current_round,
     )
     return patched, err, provider
@@ -160,7 +161,8 @@ def _run_single_case(
 
     case_info = _load_case_info(candidate_id)
     broken_text = _load_broken_model(candidate_id)
-    model_name = candidate_id.split("_")[1] + "_v0"
+    model_name = case_info.get("model_name", candidate_id.split("_")[1] + "_v0")
+    workflow_goal = case_info.get("workflow_goal", "")
     source_text = ""
     src_path = Path(case_info.get("source_model_path", ""))
     if src_path.exists():
@@ -192,6 +194,7 @@ def _run_single_case(
             omc_output=omc_output,
             current_round=round_num,
             mode=mode,
+            workflow_goal=workflow_goal,
         )
 
         model_changed = patched is not None and patched.strip() != current_text.strip()

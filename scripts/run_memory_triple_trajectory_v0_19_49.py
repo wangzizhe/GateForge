@@ -148,20 +148,24 @@ def _summarize_change(before: str, after: str) -> str:
     added = [line[1:] for line in diff if line.startswith("+") and not line.startswith("+++")]
     removed = [line[1:] for line in diff if line.startswith("-") and not line.startswith("---")]
 
-    added_eq = any("=" in line and "equation" not in line.lower() for line in added)
-    removed_decl = any("Real" in line or "parameter" in line.lower() for line in removed)
-    added_decl = any("Real" in line or "parameter" in line.lower() for line in added)
-    modified_param = any("parameter" in line.lower() and "=" in line for line in added)
-
     actions = []
-    if added_eq:
-        actions.append("added equation(s)")
-    if removed_decl:
-        actions.append("removed declaration(s)")
-    if added_decl:
-        actions.append("added declaration(s)")
-    if modified_param:
-        actions.append("modified parameter value(s)")
+
+    # Restored parameter declarations: "parameter Real X = value;"
+    if any(re.search(r"\bparameter\s+Real\s+\w+\b.*=", l) for l in added):
+        actions.append("restored parameter declaration(s)")
+    # Added algebraic equations: "  X = expr;" without parameter or Real keyword
+    elif any(
+        re.match(r"\s+\w+\s*=\s*[^=]", l)
+        and not re.search(r"\bparameter\b", l)
+        and "Real " not in l
+        for l in added
+    ):
+        actions.append("added algebraic equation(s)")
+
+    # Removed variable declarations (e.g. phantom cleanup: "Real X_phantom;")
+    if any(re.search(r"\bReal\s+\w+", l) and "parameter" not in l for l in removed):
+        actions.append("removed variable declaration(s)")
+
     if not actions:
         if added or removed:
             actions.append("made text edits")
@@ -178,6 +182,7 @@ def _llm_turn(
     omc_output: str,
     current_round: int,
     repair_history: list[dict] | None,
+    workflow_goal: str = "",
 ) -> tuple[str | None, str, str]:
     """Call LLM repair with optional repair history."""
     patched, err, provider = llm_repair_model_text(
@@ -188,7 +193,7 @@ def _llm_turn(
         error_excerpt=omc_output[:12000],
         repair_actions=[],
         model_name=model_name,
-        workflow_goal="",
+        workflow_goal=workflow_goal,
         current_round=current_round,
         repair_history=repair_history,
     )
@@ -205,7 +210,8 @@ def _run_single_case(
 
     case_info = _load_case_info(candidate_id)
     broken_text = _load_broken_model(candidate_id)
-    model_name = candidate_id.split("_")[1] + "_v0"
+    model_name = case_info.get("model_name", candidate_id.split("_")[1] + "_v0")
+    workflow_goal = case_info.get("workflow_goal", "")
     source_text = ""
     src_path = Path(case_info.get("source_model_path", ""))
     if src_path.exists():
@@ -238,6 +244,7 @@ def _run_single_case(
             omc_output=omc_output,
             current_round=round_num,
             repair_history=repair_history if mode == "memory" else None,
+            workflow_goal=workflow_goal,
         )
 
         model_changed = patched is not None and patched.strip() != current_text.strip()
