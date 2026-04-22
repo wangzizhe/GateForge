@@ -514,6 +514,45 @@ def llm_round_constraints(*, failure_type: str, current_round: int) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Repair history formatting for multi-turn memory
+# ---------------------------------------------------------------------------
+
+def _format_repair_history(history: list[dict] | None) -> str:
+    """Format previous repair attempts into a prompt text block.
+
+    Each history entry is expected to have:
+      - round: int
+      - model_changed: bool
+      - check_pass: bool
+      - omc_summary: str
+      - change_summary: str
+
+    Returns empty string when history is empty or None.
+    """
+    if not history:
+        return ""
+    lines = ["=== Previous Repair Attempts ==="]
+    for idx, entry in enumerate(history, 1):
+        round_num = entry.get("round", idx)
+        changed = entry.get("model_changed", True)
+        check_pass = entry.get("check_pass", False)
+        omc_summary = str(entry.get("omc_summary") or "")
+        change_summary = str(entry.get("change_summary") or "")
+        result = "checkModel PASSED" if check_pass else "checkModel FAILED"
+        action = change_summary if change_summary else (
+            "You modified the model." if changed else "You made no changes."
+        )
+        lines.append(f"Attempt {idx} (Round {round_num}):")
+        lines.append(f"- {action}")
+        if omc_summary:
+            lines.append(f"- OMC result: {result}. {omc_summary}")
+        else:
+            lines.append(f"- OMC result: {result}.")
+    lines.append("===============================")
+    return "\n".join(lines) + "\n"
+
+
+# ---------------------------------------------------------------------------
 # Unified repair-text generation (Adapter Unification Pattern)
 # ---------------------------------------------------------------------------
 
@@ -528,6 +567,7 @@ def llm_repair_model_text(
     model_name: str,
     workflow_goal: str = "",
     current_round: int = 1,
+    repair_history: list[dict] | None = None,
 ) -> tuple[str | None, str, str]:
     """Generate a repaired model text via the resolved LLM provider.
 
@@ -552,6 +592,7 @@ def llm_repair_model_text(
         current_round=current_round,
     )
     provider_prompt_prefix = str(config.extra.get("prompt_prefix") or "").strip()
+    history_block = _format_repair_history(repair_history)
     prompt = (
         "You are fixing a Modelica model.\n"
         f"{provider_prompt_prefix}\n"
@@ -567,6 +608,7 @@ def llm_repair_model_text(
         f"- workflow_goal: {str(workflow_goal or '').strip()}\n"
         f"- error_excerpt: {error_excerpt}\n"
         f"- suggested_actions: {json.dumps(repair_actions, ensure_ascii=True)}\n"
+        f"{history_block}"
         "Model text below:\n"
         "-----BEGIN_MODEL-----\n"
         f"{original_text}\n"
@@ -592,6 +634,7 @@ def gemini_repair_model_text(
     model_name: str,
     workflow_goal: str = "",
     current_round: int = 1,
+    repair_history: list[dict] | None = None,
 ) -> tuple[str | None, str]:
     """Gemini-specific repair wrapper.  Delegates to llm_repair_model_text.
 
@@ -608,6 +651,7 @@ def gemini_repair_model_text(
         model_name=model_name,
         workflow_goal=workflow_goal,
         current_round=current_round,
+        repair_history=repair_history,
     )
     return patched, err
 
@@ -622,6 +666,7 @@ def openai_repair_model_text(
     model_name: str,
     workflow_goal: str = "",
     current_round: int = 1,
+    repair_history: list[dict] | None = None,
 ) -> tuple[str | None, str]:
     """OpenAI-specific repair wrapper.  Delegates to llm_repair_model_text.
 
@@ -638,6 +683,7 @@ def openai_repair_model_text(
         model_name=model_name,
         workflow_goal=workflow_goal,
         current_round=current_round,
+        repair_history=repair_history,
     )
     return patched, err
 

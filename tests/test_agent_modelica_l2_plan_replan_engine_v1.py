@@ -419,6 +419,7 @@ class TestAdapterUnification(unittest.TestCase):
         mock_unified.assert_called_once()
         call_kwargs = mock_unified.call_args.kwargs
         self.assertEqual(call_kwargs["planner_backend"], "gemini")
+        self.assertIsNone(call_kwargs.get("repair_history"))
         self.assertEqual(patched, "patched_text")
         self.assertEqual(err, "")
 
@@ -439,6 +440,7 @@ class TestAdapterUnification(unittest.TestCase):
         mock_unified.assert_called_once()
         call_kwargs = mock_unified.call_args.kwargs
         self.assertEqual(call_kwargs["planner_backend"], "openai")
+        self.assertIsNone(call_kwargs.get("repair_history"))
         self.assertIsNone(patched)
         self.assertEqual(err, "openai_missing_patched_model_text")
 
@@ -457,6 +459,74 @@ class TestAdapterUnification(unittest.TestCase):
             )
         self.assertIsNone(patched)
         self.assertEqual(err, "gemini_api_key_missing")
+
+
+
+
+class TestFormatRepairHistory(unittest.TestCase):
+    """Unit tests for _format_repair_history."""
+
+    def test_empty_history_returns_empty_string(self) -> None:
+        from gateforge.agent_modelica_l2_plan_replan_engine_v1 import _format_repair_history
+        self.assertEqual(_format_repair_history(None), "")
+        self.assertEqual(_format_repair_history([]), "")
+
+    def test_single_entry_formatted(self) -> None:
+        from gateforge.agent_modelica_l2_plan_replan_engine_v1 import _format_repair_history
+        history = [
+            {
+                "round": 1,
+                "model_changed": True,
+                "check_pass": False,
+                "omc_summary": "12 equations, 15 variables (deficit: 3)",
+                "change_summary": "You added equation(s).",
+            }
+        ]
+        result = _format_repair_history(history)
+        self.assertIn("=== Previous Repair Attempts ===", result)
+        self.assertIn("Attempt 1 (Round 1):", result)
+        self.assertIn("You added equation(s).", result)
+        self.assertIn("checkModel FAILED", result)
+        self.assertIn("12 equations, 15 variables (deficit: 3)", result)
+        self.assertIn("===============================", result)
+
+    def test_multiple_entries_numbered(self) -> None:
+        from gateforge.agent_modelica_l2_plan_replan_engine_v1 import _format_repair_history
+        history = [
+            {
+                "round": 1,
+                "model_changed": True,
+                "check_pass": False,
+                "omc_summary": "eq=12, var=15",
+                "change_summary": "You removed declaration(s).",
+            },
+            {
+                "round": 2,
+                "model_changed": True,
+                "check_pass": True,
+                "omc_summary": "eq=15, var=15",
+                "change_summary": "You added equation(s).",
+            },
+        ]
+        result = _format_repair_history(history)
+        self.assertIn("Attempt 1 (Round 1):", result)
+        self.assertIn("Attempt 2 (Round 2):", result)
+        self.assertIn("checkModel FAILED", result)
+        self.assertIn("checkModel PASSED", result)
+
+    def test_no_change_shows_stall(self) -> None:
+        from gateforge.agent_modelica_l2_plan_replan_engine_v1 import _format_repair_history
+        history = [
+            {
+                "round": 1,
+                "model_changed": False,
+                "check_pass": False,
+                "omc_summary": "",
+                "change_summary": "",
+            }
+        ]
+        result = _format_repair_history(history)
+        self.assertIn("You made no changes.", result)
 
 
 if __name__ == "__main__":
