@@ -529,5 +529,257 @@ class TestFormatRepairHistory(unittest.TestCase):
         self.assertIn("You made no changes.", result)
 
 
+class TestResolveTemperatureSchedule(unittest.TestCase):
+    def test_n1_default_matches_provider_config_default(self) -> None:
+        from gateforge.agent_modelica_l2_plan_replan_engine_v1 import _resolve_temperature_schedule
+        from gateforge.llm_provider_adapter import LLMProviderConfig
+        # N=1 baseline must exactly reproduce historical single-call temperature
+        # so v0.19.51 baseline is strictly comparable to v0.19.49/50 baseline.
+        self.assertEqual(_resolve_temperature_schedule(1, None), [LLMProviderConfig.temperature])
+        self.assertEqual(_resolve_temperature_schedule(1, None), [0.1])
+
+    def test_n3_default_slice(self) -> None:
+        from gateforge.agent_modelica_l2_plan_replan_engine_v1 import _resolve_temperature_schedule
+        self.assertEqual(_resolve_temperature_schedule(3, None), [0.1, 0.4, 0.7])
+
+    def test_n5_default_full(self) -> None:
+        from gateforge.agent_modelica_l2_plan_replan_engine_v1 import _resolve_temperature_schedule
+        self.assertEqual(_resolve_temperature_schedule(5, None), [0.1, 0.4, 0.7, 0.4, 0.1])
+
+    def test_n7_cycles(self) -> None:
+        from gateforge.agent_modelica_l2_plan_replan_engine_v1 import _resolve_temperature_schedule
+        sched = _resolve_temperature_schedule(7, None)
+        self.assertEqual(len(sched), 7)
+        self.assertEqual(sched[:5], [0.1, 0.4, 0.7, 0.4, 0.1])
+        self.assertEqual(sched[5:], [0.1, 0.4])
+
+    def test_explicit_schedule_used(self) -> None:
+        from gateforge.agent_modelica_l2_plan_replan_engine_v1 import _resolve_temperature_schedule
+        self.assertEqual(
+            _resolve_temperature_schedule(3, [0.1, 0.3, 0.9]),
+            [0.1, 0.3, 0.9],
+        )
+
+    def test_explicit_length_mismatch_raises(self) -> None:
+        from gateforge.agent_modelica_l2_plan_replan_engine_v1 import _resolve_temperature_schedule
+        with self.assertRaises(ValueError):
+            _resolve_temperature_schedule(3, [0.1, 0.3])
+
+    def test_zero_returns_empty(self) -> None:
+        from gateforge.agent_modelica_l2_plan_replan_engine_v1 import _resolve_temperature_schedule
+        self.assertEqual(_resolve_temperature_schedule(0, None), [])
+
+
+class TestLLMRepairModelTextMulti(unittest.TestCase):
+    def test_invalid_num_candidates_raises(self) -> None:
+        from gateforge.agent_modelica_l2_plan_replan_engine_v1 import llm_repair_model_text_multi
+        with self.assertRaises(ValueError):
+            llm_repair_model_text_multi(
+                planner_backend="gemini",
+                original_text="model X end X;",
+                failure_type="underconstrained_system",
+                expected_stage="check",
+                error_excerpt="",
+                repair_actions=[],
+                model_name="X",
+                num_candidates=0,
+            )
+
+    def test_n1_makes_one_call_with_temperature_0_1(self) -> None:
+        from gateforge.agent_modelica_l2_plan_replan_engine_v1 import llm_repair_model_text_multi
+        calls: list[dict] = []
+        def fake(**kwargs):
+            calls.append(kwargs)
+            return ("model X patched end X;", "", "gemini")
+        with patch(
+            "gateforge.agent_modelica_l2_plan_replan_engine_v1.llm_repair_model_text",
+            side_effect=fake,
+        ):
+            results = llm_repair_model_text_multi(
+                planner_backend="gemini",
+                original_text="model X end X;",
+                failure_type="underconstrained_system",
+                expected_stage="check",
+                error_excerpt="some omc text",
+                repair_actions=[],
+                model_name="X",
+                num_candidates=1,
+                inter_call_delay_s=0.0,
+                retry_backoff_s=0.0,
+            )
+        self.assertEqual(len(results), 1)
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0]["temperature_override"], 0.1)
+        self.assertEqual(results[0]["candidate_id"], 0)
+        self.assertEqual(results[0]["temperature_used"], 0.1)
+        self.assertEqual(results[0]["patched_text"], "model X patched end X;")
+
+    def test_n3_uses_default_schedule_and_indexes_candidates(self) -> None:
+        from gateforge.agent_modelica_l2_plan_replan_engine_v1 import llm_repair_model_text_multi
+        calls: list[dict] = []
+        def fake(**kwargs):
+            calls.append(kwargs)
+            return (f"patched_{kwargs['temperature_override']}", "", "gemini")
+        with patch(
+            "gateforge.agent_modelica_l2_plan_replan_engine_v1.llm_repair_model_text",
+            side_effect=fake,
+        ):
+            results = llm_repair_model_text_multi(
+                planner_backend="gemini",
+                original_text="x",
+                failure_type="underconstrained_system",
+                expected_stage="check",
+                error_excerpt="",
+                repair_actions=[],
+                model_name="X",
+                num_candidates=3,
+                inter_call_delay_s=0.0,
+                retry_backoff_s=0.0,
+            )
+        self.assertEqual([c["temperature_override"] for c in calls], [0.1, 0.4, 0.7])
+        self.assertEqual([r["candidate_id"] for r in results], [0, 1, 2])
+        self.assertEqual([r["temperature_used"] for r in results], [0.1, 0.4, 0.7])
+
+    def test_failed_llm_call_keeps_row_with_none_text(self) -> None:
+        from gateforge.agent_modelica_l2_plan_replan_engine_v1 import llm_repair_model_text_multi
+        def fake(**kwargs):
+            if kwargs["temperature_override"] == 0.4:
+                return (None, "rate_limit", "gemini")
+            return ("ok", "", "gemini")
+        with patch(
+            "gateforge.agent_modelica_l2_plan_replan_engine_v1.llm_repair_model_text",
+            side_effect=fake,
+        ):
+            results = llm_repair_model_text_multi(
+                planner_backend="gemini",
+                original_text="x",
+                failure_type="underconstrained_system",
+                expected_stage="check",
+                error_excerpt="",
+                repair_actions=[],
+                model_name="X",
+                num_candidates=3,
+                inter_call_delay_s=0.0,
+                retry_backoff_s=0.0,
+                retry_on_error=False,
+            )
+        self.assertEqual(len(results), 3)
+        self.assertEqual(results[1]["patched_text"], None)
+        self.assertEqual(results[1]["llm_error"], "rate_limit")
+        self.assertEqual(results[0]["patched_text"], "ok")
+        self.assertEqual(results[2]["patched_text"], "ok")
+
+    def test_explicit_temperature_schedule_forwarded(self) -> None:
+        from gateforge.agent_modelica_l2_plan_replan_engine_v1 import llm_repair_model_text_multi
+        calls: list[dict] = []
+        def fake(**kwargs):
+            calls.append(kwargs)
+            return ("ok", "", "gemini")
+        with patch(
+            "gateforge.agent_modelica_l2_plan_replan_engine_v1.llm_repair_model_text",
+            side_effect=fake,
+        ):
+            llm_repair_model_text_multi(
+                planner_backend="gemini",
+                original_text="x",
+                failure_type="underconstrained_system",
+                expected_stage="check",
+                error_excerpt="",
+                repair_actions=[],
+                model_name="X",
+                num_candidates=2,
+                temperature_schedule=[0.1, 0.9],
+                inter_call_delay_s=0.0,
+                retry_backoff_s=0.0,
+            )
+        self.assertEqual([c["temperature_override"] for c in calls], [0.1, 0.9])
+
+    def test_retry_recovers_on_transient_error(self) -> None:
+        from gateforge.agent_modelica_l2_plan_replan_engine_v1 import llm_repair_model_text_multi
+        # First call at temp=0.1 fails, retry succeeds. Second candidate succeeds first try.
+        attempts: list[float] = []
+        def fake(**kwargs):
+            attempts.append(kwargs["temperature_override"])
+            # Fail only on the FIRST occurrence of temp=0.1; succeed on retry.
+            if kwargs["temperature_override"] == 0.1 and attempts.count(0.1) == 1:
+                return (None, "rate_limit", "gemini")
+            return ("recovered", "", "gemini")
+        with patch(
+            "gateforge.agent_modelica_l2_plan_replan_engine_v1.llm_repair_model_text",
+            side_effect=fake,
+        ):
+            results = llm_repair_model_text_multi(
+                planner_backend="gemini",
+                original_text="x",
+                failure_type="underconstrained_system",
+                expected_stage="check",
+                error_excerpt="",
+                repair_actions=[],
+                model_name="X",
+                num_candidates=2,
+                inter_call_delay_s=0.0,
+                retry_backoff_s=0.0,
+                retry_on_error=True,
+            )
+        # 1 fail + 1 retry on candidate 0, 1 success on candidate 1 = 3 calls
+        self.assertEqual(len(attempts), 3)
+        self.assertEqual(attempts, [0.1, 0.1, 0.4])
+        self.assertEqual(results[0]["patched_text"], "recovered")
+        self.assertEqual(results[0]["llm_error"], "")
+        self.assertEqual(results[1]["patched_text"], "recovered")
+
+    def test_retry_disabled_does_not_retry(self) -> None:
+        from gateforge.agent_modelica_l2_plan_replan_engine_v1 import llm_repair_model_text_multi
+        attempts: list[float] = []
+        def fake(**kwargs):
+            attempts.append(kwargs["temperature_override"])
+            return (None, "rate_limit", "gemini")
+        with patch(
+            "gateforge.agent_modelica_l2_plan_replan_engine_v1.llm_repair_model_text",
+            side_effect=fake,
+        ):
+            llm_repair_model_text_multi(
+                planner_backend="gemini",
+                original_text="x",
+                failure_type="underconstrained_system",
+                expected_stage="check",
+                error_excerpt="",
+                repair_actions=[],
+                model_name="X",
+                num_candidates=2,
+                inter_call_delay_s=0.0,
+                retry_backoff_s=0.0,
+                retry_on_error=False,
+            )
+        self.assertEqual(len(attempts), 2)  # no retry
+
+    def test_inter_call_delay_invoked_between_calls(self) -> None:
+        from gateforge.agent_modelica_l2_plan_replan_engine_v1 import llm_repair_model_text_multi
+        def fake(**kwargs):
+            return ("ok", "", "gemini")
+        with patch(
+            "gateforge.agent_modelica_l2_plan_replan_engine_v1.llm_repair_model_text",
+            side_effect=fake,
+        ), patch(
+            "gateforge.agent_modelica_l2_plan_replan_engine_v1.time.sleep"
+        ) as sleep_mock:
+            llm_repair_model_text_multi(
+                planner_backend="gemini",
+                original_text="x",
+                failure_type="underconstrained_system",
+                expected_stage="check",
+                error_excerpt="",
+                repair_actions=[],
+                model_name="X",
+                num_candidates=3,
+                inter_call_delay_s=0.5,
+                retry_backoff_s=0.0,
+            )
+        # 3 calls -> 2 inter-call sleeps (skipped before first)
+        self.assertEqual(sleep_mock.call_count, 2)
+        for call in sleep_mock.call_args_list:
+            self.assertEqual(call.args[0], 0.5)
+
+
 if __name__ == "__main__":
     unittest.main()

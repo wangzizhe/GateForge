@@ -31,6 +31,7 @@ import json
 import math
 import os
 import re
+import time
 from pathlib import Path
 
 from .llm_budget import (
@@ -568,12 +569,19 @@ def llm_repair_model_text(
     workflow_goal: str = "",
     current_round: int = 1,
     repair_history: list[dict] | None = None,
+    domain_knowledge: str = "",
+    temperature_override: float | None = None,
 ) -> tuple[str | None, str, str]:
     """Generate a repaired model text via the resolved LLM provider.
 
     This is the single canonical implementation for text-level repair.
     Provider-specific wrappers (gemini_repair_model_text,
     openai_repair_model_text) delegate here via Adapter Unification Pattern.
+
+    Args:
+        temperature_override: If provided, overrides the provider's default
+            temperature for this single call. Used by multi-candidate sampling
+            to vary diversity across N candidates.
 
     Returns:
         Tuple of (patched_text | None, error_string, resolved_provider).
@@ -587,12 +595,17 @@ def llm_repair_model_text(
         return None, f"{provider}_api_key_missing", provider
     if not config.model:
         return None, f"{provider}_model_missing", provider
+    if temperature_override is not None:
+        config.temperature = float(temperature_override)
     prompt_constraints = llm_round_constraints(
         failure_type=failure_type,
         current_round=current_round,
     )
     provider_prompt_prefix = str(config.extra.get("prompt_prefix") or "").strip()
     history_block = _format_repair_history(repair_history)
+    domain_knowledge_block = ""
+    if str(domain_knowledge or "").strip():
+        domain_knowledge_block = f"- domain_knowledge: {str(domain_knowledge).strip()}\n"
     prompt = (
         "You are fixing a Modelica model.\n"
         f"{provider_prompt_prefix}\n"
@@ -602,6 +615,7 @@ def llm_repair_model_text(
         "- Keep edits minimal and compile-oriented.\n"
         "- Do not output markdown.\n"
         f"{prompt_constraints}"
+        f"{domain_knowledge_block}"
         f"- model_name: {model_name}\n"
         f"- failure_type: {failure_type}\n"
         f"- expected_stage: {expected_stage}\n"
@@ -635,6 +649,7 @@ def gemini_repair_model_text(
     workflow_goal: str = "",
     current_round: int = 1,
     repair_history: list[dict] | None = None,
+    domain_knowledge: str = "",
 ) -> tuple[str | None, str]:
     """Gemini-specific repair wrapper.  Delegates to llm_repair_model_text.
 
@@ -652,6 +667,7 @@ def gemini_repair_model_text(
         workflow_goal=workflow_goal,
         current_round=current_round,
         repair_history=repair_history,
+        domain_knowledge=domain_knowledge,
     )
     return patched, err
 
@@ -667,6 +683,7 @@ def openai_repair_model_text(
     workflow_goal: str = "",
     current_round: int = 1,
     repair_history: list[dict] | None = None,
+    domain_knowledge: str = "",
 ) -> tuple[str | None, str]:
     """OpenAI-specific repair wrapper.  Delegates to llm_repair_model_text.
 
@@ -684,8 +701,166 @@ def openai_repair_model_text(
         workflow_goal=workflow_goal,
         current_round=current_round,
         repair_history=repair_history,
+        domain_knowledge=domain_knowledge,
     )
     return patched, err
+
+
+# ---------------------------------------------------------------------------
+# Multi-candidate repair sampling (v0.19.51 — Search-Based Repair Pattern)
+# ---------------------------------------------------------------------------
+
+# Default temperature schedule for 5 candidates: bookend conservative (0.1
+# matches LLMProviderConfig default, so N=1 baseline reproduces v0.19.49/50
+# baseline exactly), middle diverse. Designed to produce a spread of decisions
+# while keeping at least one historically-comparable conservative attempt.
+_DEFAULT_TEMPERATURE_SCHEDULE_5 = [0.1, 0.4, 0.7, 0.4, 0.1]
+
+# Bounded politeness for back-to-back provider calls in a single turn:
+#   - INTER_CALL_DELAY_S smooths out provider-side burst limits (Gemini RPM)
+#   - RETRY_BACKOFF_S waits before a single retry on transient LLM error
+# Set to 0.0 to disable in tests via parameter override.
+_DEFAULT_INTER_CALL_DELAY_S = 0.3
+_DEFAULT_RETRY_BACKOFF_S = 1.0
+
+
+def _resolve_temperature_schedule(
+    num_candidates: int,
+    explicit_schedule: list[float] | None,
+) -> list[float]:
+    """Resolve a temperature schedule for N candidates.
+
+    If explicit_schedule provided, must match num_candidates exactly.
+    Otherwise: N<=5 → slice of default 5-element schedule;
+    N>5 → cycle the default schedule.
+
+    N=1 returns [0.1] which equals LLMProviderConfig default temperature, so
+    the multi-candidate baseline arm is strictly comparable to the historical
+    single-call baseline.
+    """
+    if explicit_schedule is not None:
+        if len(explicit_schedule) != num_candidates:
+            raise ValueError(
+                f"temperature_schedule length {len(explicit_schedule)} "
+                f"does not match num_candidates {num_candidates}"
+            )
+        return [float(t) for t in explicit_schedule]
+    if num_candidates <= 0:
+        return []
+    if num_candidates <= len(_DEFAULT_TEMPERATURE_SCHEDULE_5):
+        return list(_DEFAULT_TEMPERATURE_SCHEDULE_5[:num_candidates])
+    base = _DEFAULT_TEMPERATURE_SCHEDULE_5
+    return [base[i % len(base)] for i in range(num_candidates)]
+
+
+def llm_repair_model_text_multi(
+    *,
+    planner_backend: str,
+    original_text: str,
+    failure_type: str,
+    expected_stage: str,
+    error_excerpt: str,
+    repair_actions: list[str],
+    model_name: str,
+    workflow_goal: str = "",
+    current_round: int = 1,
+    repair_history: list[dict] | None = None,
+    domain_knowledge: str = "",
+    num_candidates: int = 1,
+    temperature_schedule: list[float] | None = None,
+    inter_call_delay_s: float = _DEFAULT_INTER_CALL_DELAY_S,
+    retry_on_error: bool = True,
+    retry_backoff_s: float = _DEFAULT_RETRY_BACKOFF_S,
+) -> list[dict]:
+    """Generate N independent repair candidates for one repair turn.
+
+    Calls llm_repair_model_text num_candidates times serially, each with
+    a different temperature drawn from temperature_schedule. The resulting
+    candidate list is intended to be ranked by an external ranker
+    (gateforge.agent_modelica_candidate_ranker_v1).
+
+    Discipline:
+      - num_candidates=1 is fully backward-compatible: same prompt, default
+        temperature, single LLM call. Equivalent in observable behavior to
+        calling llm_repair_model_text once. (No inter-call delay or retry
+        is exercised when N=1 and the single call succeeds.)
+      - Calls are serial to avoid provider rate-limit thrashing.
+      - Between consecutive calls a small inter_call_delay_s sleep smooths
+        out Gemini-style RPM burst limits.
+      - On non-empty llm_error a single retry is attempted after
+        retry_backoff_s. If the retry also fails, the candidate keeps
+        patched_text=None and the second error message.
+      - Failed candidates (LLM error, empty response) are kept in the result
+        with patched_text=None — callers / ranker decide how to handle.
+
+    Args:
+        num_candidates: Number of independent candidates to sample (>=1).
+        temperature_schedule: Optional explicit temperature per candidate.
+            Length must match num_candidates. If None, a default schedule
+            is used (conservative bookends, diverse middle).
+        inter_call_delay_s: Sleep between consecutive LLM calls. Set to 0.0
+            in tests to avoid wall-clock cost.
+        retry_on_error: If True, a single retry is attempted on transient
+            LLM error (any non-empty err string).
+        retry_backoff_s: Sleep before the retry attempt.
+        Other args: same as llm_repair_model_text.
+
+    Returns:
+        List of dicts (length == num_candidates), each with keys:
+            - candidate_id: int (0-indexed within this batch)
+            - patched_text: str | None
+            - llm_error: str (empty if LLM call succeeded; final error after
+              retry if both attempts failed)
+            - provider: str (resolved provider name)
+            - temperature_used: float (the override applied for this call)
+    """
+    if num_candidates < 1:
+        raise ValueError(f"num_candidates must be >= 1, got {num_candidates}")
+    schedule = _resolve_temperature_schedule(num_candidates, temperature_schedule)
+    results: list[dict] = []
+    for idx in range(num_candidates):
+        if idx > 0 and inter_call_delay_s > 0:
+            time.sleep(inter_call_delay_s)
+        temp = schedule[idx]
+        patched, err, provider = llm_repair_model_text(
+            planner_backend=planner_backend,
+            original_text=original_text,
+            failure_type=failure_type,
+            expected_stage=expected_stage,
+            error_excerpt=error_excerpt,
+            repair_actions=repair_actions,
+            model_name=model_name,
+            workflow_goal=workflow_goal,
+            current_round=current_round,
+            repair_history=repair_history,
+            domain_knowledge=domain_knowledge,
+            temperature_override=temp,
+        )
+        if err and retry_on_error:
+            if retry_backoff_s > 0:
+                time.sleep(retry_backoff_s)
+            patched, err, provider = llm_repair_model_text(
+                planner_backend=planner_backend,
+                original_text=original_text,
+                failure_type=failure_type,
+                expected_stage=expected_stage,
+                error_excerpt=error_excerpt,
+                repair_actions=repair_actions,
+                model_name=model_name,
+                workflow_goal=workflow_goal,
+                current_round=current_round,
+                repair_history=repair_history,
+                domain_knowledge=domain_knowledge,
+                temperature_override=temp,
+            )
+        results.append({
+            "candidate_id": idx,
+            "patched_text": patched,
+            "llm_error": err,
+            "provider": provider,
+            "temperature_used": temp,
+        })
+    return results
 
 
 # ---------------------------------------------------------------------------
