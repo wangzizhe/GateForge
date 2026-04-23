@@ -121,7 +121,6 @@ def build_analysis(
         excerpt = str(admitted_row.get("mutated_failure_excerpt") or "")
         warning_vars = extract_warning_variables(excerpt)
         admission_route = select_signal_route(
-            candidate_id=candidate_id,
             omc_output=excerpt,
         )
         first_live_route, live_status, live_passed = load_first_live_route(

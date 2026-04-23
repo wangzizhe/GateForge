@@ -8,6 +8,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -42,19 +43,27 @@ NUM_CANDIDATES = 5
 ROUTED_MODE = "signal-routed-c5"
 EXISTING_TRAJECTORY_DIR = REPO_ROOT / "artifacts" / "representation_trajectory_v0_19_56"
 DEFAULT_OUT_DIR = REPO_ROOT / "artifacts" / "representation_routing_trajectory_v0_19_56"
+NO_REMAINING_EQUATION_RE = re.compile(
+    r"Warning:\s+Variable\s+[A-Za-z_][A-Za-z0-9_]*\s+does not have any remaining equation"
+)
 
 
-def select_signal_route(*, candidate_id: str, omc_output: str) -> str:
-    """Select a representation from model/OMC signals, without repair advice."""
-    lower_id = candidate_id.lower()
-    if "thermalzone" in lower_id:
-        if any(token in omc_output for token in ["Variable Tw", "Variable T2", "Variable T3"]):
-            return "blt-c5"
+def count_underdetermined_warnings(omc_output: str) -> int:
+    return len(NO_REMAINING_EQUATION_RE.findall(omc_output or ""))
+
+
+def select_signal_route(*, omc_output: str) -> str:
+    """Select a representation from generic OMC signal shape only.
+
+    The deployable router must not inspect case ids, model-family names, or
+    specific variable names. It only uses the count of underdetermined-variable
+    warnings as a coarse representation-selection signal.
+    """
+    warning_count = count_underdetermined_warnings(omc_output)
+    if warning_count >= 2:
+        return "blt-c5"
+    if warning_count == 1:
         return "causal-c5"
-    if "syncmachinesimplified" in lower_id:
-        if "PSIppd_phantom" in omc_output and "PSIppq_phantom" in omc_output:
-            return "blt-c5"
-        return "baseline-c5"
     return "baseline-c5"
 
 
@@ -90,6 +99,8 @@ def select_feedback_output(
     diagnose the failure or propose any repair.
     """
     if not check_ok:
+        if count_underdetermined_warnings(simulate_output) > count_underdetermined_warnings(check_output):
+            return "check_and_simulate", simulate_output
         if simulate_output and len(simulate_output) > len(check_output):
             return "check_and_simulate", simulate_output
         return "check", check_output
@@ -137,7 +148,6 @@ def _run_single_case(
         )
 
         selected_representation_mode = select_signal_route(
-            candidate_id=candidate_id,
             omc_output=feedback_output,
         )
         context_text, context_label, context_obj = _build_representation_context(

@@ -54,9 +54,10 @@ class RoutingSignalFeasibilityTests(unittest.TestCase):
 
         self.assertEqual(analysis["case_count"], 8)
         self.assertEqual(analysis["desired_route_case_count"], 7)
-        self.assertGreaterEqual(analysis["admission_route_match_count"], 6)
-        self.assertEqual(
-            analysis["live_route_match_count"], analysis["admission_route_match_count"]
+        self.assertEqual(analysis["admission_route_match_count"], 3)
+        self.assertLess(
+            analysis["admission_route_match_count"],
+            analysis["desired_route_case_count"],
         )
 
     def test_write_outputs_creates_report_and_table(self):
