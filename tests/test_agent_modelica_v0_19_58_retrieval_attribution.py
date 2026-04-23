@@ -65,7 +65,7 @@ class AgentModelicaV01958RetrievalAttributionTests(unittest.TestCase):
             retrieval_hit_infos=[],
         )
         self.assertEqual(mechanism, "retrieval_diluted_current_omc_signal")
-        self.assertIn("check_pass", rationale)
+        self.assertIn("check-pass", rationale)
 
     def test_infer_mechanism_marks_uplift_when_retrieval_improves_search(self) -> None:
         mechanism, _ = MODULE.infer_mechanism(
@@ -100,7 +100,32 @@ class AgentModelicaV01958RetrievalAttributionTests(unittest.TestCase):
         self.assertEqual(summary["case_count"], 2)
         self.assertEqual(summary["transition_counts"]["retrieval_regression"], 1)
         self.assertEqual(summary["transition_counts"]["retrieval_uplift"], 1)
-        self.assertEqual(summary["by_dataset"]["hot"]["retrieval_regression"], 1)
+        self.assertEqual(
+            summary["by_dataset"]["hot"]["transition_counts"]["retrieval_regression"],
+            1,
+        )
+        self.assertEqual(
+            summary["by_dataset"]["cold"]["mechanism_counts"]["retrieval_helped_search_direction"],
+            1,
+        )
+
+    def test_infer_mechanism_ignores_unknown_model_family_for_cross_family_hits(self) -> None:
+        mechanism, _ = MODULE.infer_mechanism(
+            candidate_id="v01945_ExciterAVR_v0_pp_e1_e2_pv_se_efd",
+            baseline_payload={
+                "final_status": "pass",
+                "rounds": [{"coverage_check_pass": 0}],
+            },
+            retrieval_payload={
+                "final_status": "fail",
+                "rounds": [{"coverage_check_pass": 0}],
+            },
+            retrieval_hit_infos=[
+                {"model_family": "unknown"},
+                {"model_family": ""},
+            ],
+        )
+        self.assertEqual(mechanism, "retrieval_added_unhelpful_context")
 
 
 if __name__ == "__main__":

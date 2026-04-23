@@ -119,7 +119,7 @@ def infer_mechanism(
     current_family = _case_model_family(candidate_id)
     cross_family_hits = [
         hit for hit in retrieval_hit_infos
-        if str(hit.get("model_family") or "") != current_family
+        if str(hit.get("model_family") or "") not in ("", "unknown", current_family)
     ]
     baseline_rounds = [] if baseline_payload is None else list(baseline_payload.get("rounds") or [])
     retrieval_rounds = [] if retrieval_payload is None else list(retrieval_payload.get("rounds") or [])
@@ -130,54 +130,54 @@ def infer_mechanism(
         if baseline_max_check > 0 and retrieval_max_check == 0:
             return (
                 "retrieval_diluted_current_omc_signal",
-                "baseline 已出现可用 check_pass 候选，但 retrieval 臂在所有轮次都没把任何候选推进到 check_pass。",
+                "Baseline already produced viable check-pass candidates, but the retrieval arm never advanced any candidate to check-pass.",
             )
         if cross_family_hits:
             return (
                 "cross_model_transfer_misled_search",
-                "检索命中了跨模型族成功轨迹，历史经验更像表面相似迁移，可能把搜索方向带偏。",
+                "Retrieved successful trajectories came from other model families, suggesting a surface-level transfer that likely misdirected the search.",
             )
         return (
             "retrieval_added_unhelpful_context",
-            "检索上下文改变了搜索分布，但没有把候选推进到更强结构状态。",
+            "The retrieval context changed the search distribution but did not move candidates into a stronger structural state.",
         )
 
     if transition == "retrieval_uplift":
         if retrieval_max_check > baseline_max_check:
             return (
                 "retrieval_helped_search_direction",
-                "retrieval 臂比 baseline 更早产生 check_pass / simulate_pass 候选，说明历史轨迹帮助缩小了搜索空间。",
+                "The retrieval arm produced check-pass or simulate-pass candidates earlier than baseline, indicating that history narrowed the search direction.",
             )
         return (
             "retrieval_helped_late_convergence",
-            "retrieval 没显著提升前几轮结构信号，但最终帮助收敛到了可通过候选。",
+            "Retrieval did not improve early structural signals, but it still helped the trajectory converge to a passing candidate.",
         )
 
     if transition == "both_fail":
         if retrieval_payload and retrieval_payload.get("round_count", 0) < (baseline_payload or {}).get("round_count", 0):
             return (
                 "retrieval_shortened_search_without_solving",
-                "retrieval 让轨迹更快停住，但没有真正把问题解开。",
+                "Retrieval shortened the trajectory, but it did not actually solve the case.",
             )
         return (
             "retrieval_no_material_effect",
-            "两臂都未解出，retrieval 没形成稳定正向作用。",
+            "Both arms failed, so retrieval did not produce a stable positive effect.",
         )
 
     if transition == "both_pass":
         if retrieval_payload and retrieval_payload.get("round_count", 0) > (baseline_payload or {}).get("round_count", 0):
             return (
                 "retrieval_preserved_success_but_slower",
-                "retrieval 没改变最终结果，但增加了轮数和搜索开销。",
+                "Retrieval preserved the final success but increased the number of rounds and search cost.",
             )
         return (
             "retrieval_preserved_success",
-            "retrieval 没改变最终结果，也没有形成明显副作用。",
+            "Retrieval preserved the final success without a clear side effect.",
         )
 
     return (
         "insufficient_data",
-        "case 对照不完整，无法做稳定归因。",
+        "The case pair is incomplete, so a stable attribution is not possible.",
     )
 
 
@@ -270,8 +270,17 @@ def aggregate_summary(reports: list[dict[str, Any]]) -> dict[str, Any]:
         dataset = str(report.get("dataset") or "unknown")
         transition_counts[transition] = transition_counts.get(transition, 0) + 1
         mechanism_counts[mechanism] = mechanism_counts.get(mechanism, 0) + 1
-        bucket = by_dataset.setdefault(dataset, {})
-        bucket[transition] = bucket.get(transition, 0) + 1
+        bucket = by_dataset.setdefault(
+            dataset,
+            {
+                "transition_counts": {},
+                "mechanism_counts": {},
+            },
+        )
+        transition_bucket = bucket.setdefault("transition_counts", {})
+        mechanism_bucket = bucket.setdefault("mechanism_counts", {})
+        transition_bucket[transition] = transition_bucket.get(transition, 0) + 1
+        mechanism_bucket[mechanism] = mechanism_bucket.get(mechanism, 0) + 1
     return {
         "case_count": len(reports),
         "transition_counts": transition_counts,
