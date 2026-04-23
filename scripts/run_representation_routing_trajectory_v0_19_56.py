@@ -27,15 +27,17 @@ from gateforge.agent_modelica_l2_plan_replan_engine_v1 import (  # noqa: E402
 from scripts.analyze_representation_effect_stratification_v0_19_56 import (  # noqa: E402
     build_analysis as build_existing_stratification,
 )
-from scripts.run_representation_trajectory_v0_19_56 import (  # noqa: E402
+from gateforge.experiment_runner_shared import (  # noqa: E402
     ALL_HARD_CASES,
     DOCKER_IMAGE,
+    load_broken_model,
+    load_case_info,
+    run_check_and_simulate_omc,
+    run_check_only_omc,
+)
+from scripts.run_representation_trajectory_v0_19_56 import (  # noqa: E402
     MAX_ROUNDS,
     _build_representation_context,
-    _load_broken_model,
-    _load_case_info,
-    _run_check_and_simulate,
-    _run_check_only,
     compute_summary,
 )
 
@@ -121,8 +123,8 @@ def _run_single_case(
         return json.loads(out_path.read_text(encoding="utf-8"))
 
     print(f"  [{ROUTED_MODE}/N={NUM_CANDIDATES}] {candidate_id}")
-    case_info = _load_case_info(candidate_id)
-    current_text = _load_broken_model(candidate_id)
+    case_info = load_case_info(candidate_id)
+    current_text = load_broken_model(candidate_id)
     model_name = case_info.get("model_name", candidate_id.split("_")[1] + "_v0")
     workflow_goal = case_info.get("workflow_goal", "")
 
@@ -131,7 +133,7 @@ def _run_single_case(
     final_round = 0
 
     for round_num in range(1, MAX_ROUNDS + 1):
-        cur_check_ok, cur_omc_output = _run_check_only(current_text, model_name)
+        cur_check_ok, cur_omc_output = run_check_only_omc(current_text, model_name, workspace_prefix="gf_v01956_chk_")
         feedback_stage = "check"
         feedback_output = cur_omc_output
         chk, sim, sim_output = _run_check_and_simulate(current_text, model_name)
@@ -172,7 +174,7 @@ def _run_single_case(
         )
 
         def _runner(text: str) -> tuple[bool, str]:
-            return _run_check_only(text, model_name)
+            return run_check_only_omc(text, model_name, workspace_prefix="gf_v01956_chk_")
 
         ranked = rank_candidates(candidates, run_omc=_runner)
         coverage_check = sum(1 for item in ranked if item.check_pass)
@@ -184,7 +186,7 @@ def _run_single_case(
                 break
             if not item.patched_text:
                 continue
-            chk, sim, _ = _run_check_and_simulate(item.patched_text, model_name)
+            chk, sim, _ = run_check_and_simulate_omc(item.patched_text, model_name, workspace_prefix="gf_v01956_sim_")
             simulate_attempts.append(
                 {
                     "candidate_id": item.candidate_id,

@@ -34,31 +34,16 @@ os.environ.setdefault("GATEFORGE_AGENT_LIVE_LLM_REQUEST_TIMEOUT_SEC", "180")
 
 from gateforge.agent_modelica_l2_plan_replan_engine_v1 import llm_repair_model_text_multi
 from gateforge.agent_modelica_candidate_ranker_v1 import rank_candidates
-from gateforge.agent_modelica_omc_workspace_v1 import (
-    extract_om_success_flags,
-    prepare_workspace_model_layout,
-    run_check_and_simulate,
-    run_omc_script_docker,
-    temporary_workspace,
+from gateforge.experiment_runner_shared import (
+    ALL_HARD_CASES,
+    load_broken_model,
+    load_case_info,
+    run_check_and_simulate_omc,
+    run_check_only_omc,
 )
 
-DOCKER_IMAGE = "openmodelica/openmodelica:v1.26.1-minimal"
 PLANNER_BACKEND = "gemini"
 MAX_ROUNDS = 4
-
-STALLED_CASES = [
-    "v01945_ExciterAVR_v0_pp_e1_e2_pv_se_efd",
-    "v01945_HydroTurbineGov_v0_pp_at_dturb_pv_q_nl",
-    "v01945_SyncMachineSimplified_v0_pp_efd_set_id_set_pv_psippq",
-    "v01945_ThermalZone_v0_pp_c1_c2_pv_phi1",
-    "v01945_ThermalZone_v0_pp_c1_c3_pv_phi1",
-]
-HINT_RESISTANT_CASES = [
-    "v01945_HydroTurbineGov_v0_pp_r__pv_pmech0+p",
-    "v01945_SyncMachineSimplified_v0_pp_tpd0__pv_efd+id",
-    "v01945_SyncMachineSimplified_v0_pp_tpd0__pv_psippd+p",
-]
-ALL_HARD_CASES = STALLED_CASES + HINT_RESISTANT_CASES
 
 MODE_TO_N = {
     "baseline": 1,
@@ -67,92 +52,7 @@ MODE_TO_N = {
 }
 
 
-def _load_case_info(candidate_id: str) -> dict:
-    for path in [
-        REPO_ROOT / "artifacts" / "triple_underdetermined_experiment_v0_19_45_pp_pv_pv" / "admitted_cases.jsonl",
-        REPO_ROOT / "artifacts" / "triple_underdetermined_experiment_v0_19_45" / "admitted_cases.jsonl",
-    ]:
-        if path.exists():
-            for line in path.read_text(encoding="utf-8").splitlines():
-                if line.strip():
-                    row = json.loads(line)
-                    if row.get("candidate_id") == candidate_id:
-                        return row
-    raise FileNotFoundError(f"Case info not found for {candidate_id}")
 
-
-def _load_broken_model(candidate_id: str) -> str:
-    for sub in [
-        "triple_underdetermined_experiment_v0_19_45_pp_pv_pv",
-        "triple_underdetermined_experiment_v0_19_45",
-    ]:
-        path = REPO_ROOT / "artifacts" / sub / f"{candidate_id}.mo"
-        if path.exists():
-            return path.read_text(encoding="utf-8")
-    raise FileNotFoundError(f"Broken model not found for {candidate_id}")
-
-
-def _run_check_only(model_text: str, model_name: str) -> tuple[bool, str]:
-    """Run only OMC checkModel (no simulate) — cheaper for ranker.
-
-    Returns (check_ok, raw_omc_output).
-    """
-    with temporary_workspace("gf_v01951_chk_") as ws:
-        workspace = Path(ws)
-        layout = prepare_workspace_model_layout(
-            workspace=workspace,
-            fallback_model_path=Path(f"{model_name}.mo"),
-            primary_model_name=model_name,
-            source_library_path="",
-            source_package_name="",
-            source_library_model_path="",
-            source_qualified_model_name=model_name,
-        )
-        layout.model_write_path.write_text(model_text, encoding="utf-8")
-        load_lines = "".join(
-            f'loadFile("{item}");\n'
-            for item in layout.model_load_files
-            if str(item or "").strip()
-        )
-        script = (
-            "loadModel(Modelica);\n"
-            + load_lines
-            + f"checkModel({layout.model_identifier});\n"
-            + "getErrorString();\n"
-        )
-        _, output = run_omc_script_docker(
-            script, timeout_sec=180, cwd=str(workspace), image=DOCKER_IMAGE
-        )
-        check_ok, _ = extract_om_success_flags(output)
-        return bool(check_ok), str(output or "")
-
-
-def _run_check_and_simulate(model_text: str, model_name: str) -> tuple[bool, bool, str]:
-    """Full check + simulate. Used for final PASS confirmation on the selected candidate."""
-    with temporary_workspace("gf_v01951_sim_") as ws:
-        workspace = Path(ws)
-        layout = prepare_workspace_model_layout(
-            workspace=workspace,
-            fallback_model_path=Path(f"{model_name}.mo"),
-            primary_model_name=model_name,
-            source_library_path="",
-            source_package_name="",
-            source_library_model_path="",
-            source_qualified_model_name=model_name,
-        )
-        layout.model_write_path.write_text(model_text, encoding="utf-8")
-        _, output, check_ok, simulate_ok = run_check_and_simulate(
-            workspace=workspace,
-            model_load_files=list(layout.model_load_files),
-            model_name=layout.model_identifier,
-            timeout_sec=180,
-            backend="openmodelica_docker",
-            docker_image=DOCKER_IMAGE,
-            stop_time=0.05,
-            intervals=5,
-            extra_model_loads=[],
-        )
-        return bool(check_ok), bool(simulate_ok), str(output or "")
 
 
 def _run_single_case(
@@ -164,8 +64,8 @@ def _run_single_case(
     num_candidates = MODE_TO_N[mode]
     print(f"  [{mode}/N={num_candidates}] {candidate_id}")
 
-    case_info = _load_case_info(candidate_id)
-    broken_text = _load_broken_model(candidate_id)
+    case_info = load_case_info(candidate_id)
+    broken_text = load_broken_model(candidate_id)
     model_name = case_info.get("model_name", candidate_id.split("_")[1] + "_v0")
     workflow_goal = case_info.get("workflow_goal", "")
 
@@ -176,10 +76,10 @@ def _run_single_case(
 
     for round_num in range(1, MAX_ROUNDS + 1):
         # Probe current state once (used as the LLM error_excerpt input)
-        cur_check_ok, cur_omc_output = _run_check_only(current_text, model_name)
+        cur_check_ok, cur_omc_output = run_check_only_omc(current_text, model_name, workspace_prefix="gf_v01951_chk_")
         if cur_check_ok:
             # Already passes check — confirm with simulate
-            chk, sim, _ = _run_check_and_simulate(current_text, model_name)
+            chk, sim, _ = _run_check_and_simulate(current_text, model_name, workspace_prefix="gf_v01951_sim_")
             if chk and sim:
                 final_pass = True
                 final_round = round_num - 1 if round_num > 1 else 0
@@ -202,7 +102,7 @@ def _run_single_case(
 
         # Rank using check-only OMC residual signals
         def _runner(text: str) -> tuple[bool, str]:
-            return _run_check_only(text, model_name)
+            return run_check_only_omc(text, model_name, workspace_prefix="gf_v01951_chk_")
 
         ranked = rank_candidates(candidates, run_omc=_runner)
         ranked_dicts = [r.to_dict() for r in ranked]
@@ -224,7 +124,7 @@ def _run_single_case(
                 break
             if not r.patched_text:
                 continue
-            chk, sim, _ = _run_check_and_simulate(r.patched_text, model_name)
+            chk, sim, _ = run_check_and_simulate_omc(r.patched_text, model_name, workspace_prefix="gf_v01951_sim_")
             simulate_attempts.append({
                 "candidate_id": r.candidate_id,
                 "temperature_used": r.temperature_used,
@@ -237,32 +137,13 @@ def _run_single_case(
         #  1. first simulate_pass; else
         #  2. first ranked candidate with patched_text (top check_pass if any,
         #     otherwise top by score regardless of check_pass)
-        chosen_id: int | None = None
-        chosen_temp: float | None = None
-        chosen_text: str | None = None
-        chosen_check_pass = False
-        chosen_simulate_pass = False
-
-        for s in simulate_attempts:
-            if s["simulate_pass"]:
-                chosen_id = s["candidate_id"]
-                chosen_temp = s["temperature_used"]
-                chosen_simulate_pass = True
-                chosen_check_pass = True
-                for r in ranked:
-                    if r.candidate_id == chosen_id:
-                        chosen_text = r.patched_text
-                        break
-                break
-
-        if chosen_id is None:
-            for r in ranked:
-                if r.patched_text:
-                    chosen_id = r.candidate_id
-                    chosen_temp = r.temperature_used
-                    chosen_check_pass = bool(r.check_pass)
-                    chosen_text = r.patched_text
-                    break
+        (
+            chosen_id,
+            chosen_temp,
+            chosen_text,
+            chosen_check_pass,
+            chosen_simulate_pass,
+        ) = choose_candidate(ranked, simulate_attempts)
 
         round_record = {
             "round": round_num,

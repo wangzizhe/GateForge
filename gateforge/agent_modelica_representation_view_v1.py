@@ -198,9 +198,24 @@ def build_blt_proxy_view(
             defined_vars.add(str(stmt["lhs"]))
         if stmt.get("base_variable"):
             defined_vars.add(str(stmt["base_variable"]))
+        _BUILTIN_FUNCTIONS = {
+            "der", "time",
+            "sin", "cos", "tan", "asin", "acos", "atan", "atan2",
+            "sinh", "cosh", "tanh",
+            "sqrt", "exp", "log", "log10",
+            "abs", "sign", "floor", "ceil",
+            "min", "max",
+            "mod", "div", "rem",
+            "noEvent", "pre", "edge", "change", "sample",
+            "initial", "terminal",
+            "homotopy", "smooth",
+            "semiLinear", "spatialDistribution",
+            "Integer", "String", "Boolean",
+            "true", "false",
+        }
         used_vars = {
             name for name in _find_reference_roots(str(stmt.get("rhs") or ""))
-            if name not in {"der", "time", "sin", "cos", "sqrt", "exp", "log"}
+            if name not in _BUILTIN_FUNCTIONS
         }
         eqs.append(
             {
