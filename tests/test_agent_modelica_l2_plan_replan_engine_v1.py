@@ -502,6 +502,44 @@ class TestToolContextPrompting(unittest.TestCase):
         self.assertIn("modelica_query_tool_observations", captured["prompt"])
         self.assertIn("Tool observations from local Modelica query APIs", captured["prompt"])
 
+    def test_llm_repair_prompt_includes_generic_context_block(self) -> None:
+        from gateforge.agent_modelica_l2_plan_replan_engine_v1 import llm_repair_model_text
+        from gateforge.llm_provider_adapter import LLMProviderConfig
+
+        class DummyAdapter:
+            pass
+
+        captured: dict[str, str] = {}
+
+        def fake_send(adapter, prompt, config):
+            captured["prompt"] = prompt
+            return ('{"patched_model_text":"model M end M;","rationale":"ok"}', "")
+
+        with patch(
+            "gateforge.llm_provider_adapter.resolve_provider_adapter",
+            return_value=(
+                DummyAdapter(),
+                LLMProviderConfig(provider_name="gemini", model="gemini-test", api_key="key"),
+            ),
+        ), patch(
+            "gateforge.agent_modelica_l2_plan_replan_engine_v1.send_with_budget",
+            side_effect=fake_send,
+        ):
+            llm_repair_model_text(
+                planner_backend="gemini",
+                original_text="model M end M;",
+                failure_type="underconstrained_system",
+                expected_stage="check",
+                error_excerpt="omc output",
+                repair_actions=[],
+                model_name="M",
+                context_block="=== modelica_causal_view ===\nvariable: x",
+                context_block_label="Modelica causal representation",
+            )
+
+        self.assertIn("Modelica causal representation", captured["prompt"])
+        self.assertIn("modelica_causal_view", captured["prompt"])
+
     def test_llm_repair_model_text_multi_forwards_tool_context(self) -> None:
         from gateforge.agent_modelica_l2_plan_replan_engine_v1 import llm_repair_model_text_multi
 
@@ -531,6 +569,41 @@ class TestToolContextPrompting(unittest.TestCase):
 
         self.assertEqual(len(calls), 2)
         self.assertEqual([call["tool_context"] for call in calls], ["tool facts", "tool facts"])
+
+    def test_llm_repair_model_text_multi_forwards_generic_context(self) -> None:
+        from gateforge.agent_modelica_l2_plan_replan_engine_v1 import llm_repair_model_text_multi
+
+        calls: list[dict] = []
+
+        def fake(**kwargs):
+            calls.append(kwargs)
+            return ("model X end X;", "", "gemini")
+
+        with patch(
+            "gateforge.agent_modelica_l2_plan_replan_engine_v1.llm_repair_model_text",
+            side_effect=fake,
+        ):
+            llm_repair_model_text_multi(
+                planner_backend="gemini",
+                original_text="model X end X;",
+                failure_type="underconstrained_system",
+                expected_stage="check",
+                error_excerpt="omc",
+                repair_actions=[],
+                model_name="X",
+                context_block="causal block",
+                context_block_label="Modelica causal representation",
+                num_candidates=2,
+                inter_call_delay_s=0.0,
+                retry_backoff_s=0.0,
+            )
+
+        self.assertEqual(len(calls), 2)
+        self.assertEqual([call["context_block"] for call in calls], ["causal block", "causal block"])
+        self.assertEqual(
+            [call["context_block_label"] for call in calls],
+            ["Modelica causal representation", "Modelica causal representation"],
+        )
 
 
 
