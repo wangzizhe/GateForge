@@ -36,23 +36,21 @@ from gateforge.agent_modelica_l2_plan_replan_engine_v1 import llm_repair_model_t
 from gateforge.agent_modelica_candidate_ranker_v1 import rank_candidates
 from gateforge.experiment_runner_shared import (
     ALL_HARD_CASES,
+    MAX_ROUNDS,
     load_broken_model,
     load_case_info,
     run_check_and_simulate_omc,
     run_check_only_omc,
+    choose_candidate,
 )
 
 PLANNER_BACKEND = "gemini"
-MAX_ROUNDS = 4
 
 MODE_TO_N = {
     "baseline": 1,
     "multi-c3": 3,
     "multi-c5": 5,
 }
-
-
-
 
 
 def _run_single_case(
@@ -79,7 +77,7 @@ def _run_single_case(
         cur_check_ok, cur_omc_output = run_check_only_omc(current_text, model_name, workspace_prefix="gf_v01951_chk_")
         if cur_check_ok:
             # Already passes check — confirm with simulate
-            chk, sim, _ = _run_check_and_simulate(current_text, model_name, workspace_prefix="gf_v01951_sim_")
+            chk, sim, _ = run_check_and_simulate_omc(current_text, model_name, workspace_prefix="gf_v01951_sim_")
             if chk and sim:
                 final_pass = True
                 final_round = round_num - 1 if round_num > 1 else 0

@@ -28,27 +28,25 @@ from gateforge.agent_modelica_candidate_ranker_v1 import rank_candidates  # noqa
 from gateforge.agent_modelica_l2_plan_replan_engine_v1 import (  # noqa: E402
     llm_repair_model_text_multi,
 )
-from gateforge.experiment_runner_shared import (  # noqa: E402
-    ALL_HARD_CASES,
-    load_broken_model,
-    load_case_info,
-    run_check_and_simulate_omc,
-    run_check_only_omc,
-)
 from gateforge.agent_modelica_tool_context_v1 import (  # noqa: E402
     build_modelica_query_tool_context,
     format_modelica_query_tool_context,
 )
-
-MAX_ROUNDS = 4
+from gateforge.experiment_runner_shared import (  # noqa: E402
+    ALL_HARD_CASES,
+    MAX_ROUNDS,
+    load_broken_model,
+    load_case_info,
+    run_check_and_simulate_omc,
+    run_check_only_omc,
+    choose_candidate,
+    compute_summary_core,
+)
 
 MODE_TO_N = {
     "baseline-c5": 5,
     "tool-c5": 5,
 }
-
-
-
 
 
 def _build_tool_context_for_round(
@@ -93,7 +91,7 @@ def _run_single_case(
     for round_num in range(1, MAX_ROUNDS + 1):
         cur_check_ok, cur_omc_output = run_check_only_omc(current_text, model_name, workspace_prefix="gf_v01954_chk_")
         if cur_check_ok:
-            chk, sim, _ = _run_check_and_simulate(current_text, model_name)
+            chk, sim, _ = run_check_and_simulate_omc(current_text, model_name, workspace_prefix="gf_v01954_sim_")
             if chk and sim:
                 final_pass = True
                 final_round = round_num - 1 if round_num > 1 else 0
@@ -144,32 +142,13 @@ def _run_single_case(
             )
         coverage_simulate = sum(1 for s in simulate_attempts if s["simulate_pass"])
 
-        chosen_id: int | None = None
-        chosen_temp: float | None = None
-        chosen_text: str | None = None
-        chosen_check_pass = False
-        chosen_simulate_pass = False
-
-        for s in simulate_attempts:
-            if s["simulate_pass"]:
-                chosen_id = s["candidate_id"]
-                chosen_temp = s["temperature_used"]
-                chosen_simulate_pass = True
-                chosen_check_pass = True
-                for r in ranked:
-                    if r.candidate_id == chosen_id:
-                        chosen_text = r.patched_text
-                        break
-                break
-
-        if chosen_id is None:
-            for r in ranked:
-                if r.patched_text:
-                    chosen_id = r.candidate_id
-                    chosen_temp = r.temperature_used
-                    chosen_check_pass = bool(r.check_pass)
-                    chosen_text = r.patched_text
-                    break
+        (
+            chosen_id,
+            chosen_temp,
+            chosen_text,
+            chosen_check_pass,
+            chosen_simulate_pass,
+        ) = choose_candidate(ranked, simulate_attempts)
 
         round_record = {
             "round": round_num,
@@ -250,85 +229,36 @@ def _run_single_case(
 
 def compute_summary(mode: str, results: list[dict]) -> dict:
     """Compute consistent v0.19.54 aggregate metrics for one arm."""
+    summary = compute_summary_core(mode, results)
     valid = [r for r in results if not r.get("error")]
-    passes = sum(1 for r in valid if r.get("final_status") == "pass")
-    total_rounds = 0
-    total_any_check = 0
-    total_any_sim = 0
-    total_candidates = 0
-    total_check_pass_candidates = 0
-    total_sim_pass_candidates = 0
     tool_context_chars = []
     tool_selected_counts = []
 
     for result in valid:
         for rd in result.get("rounds", []):
-            total_rounds += 1
-            n = int(rd.get("num_candidates") or 0)
-            total_candidates += n
-            if rd.get("any_check_pass"):
-                total_any_check += 1
-            if rd.get("any_simulate_pass"):
-                total_any_sim += 1
-            total_check_pass_candidates += int(rd.get("coverage_check_pass") or 0)
-            total_sim_pass_candidates += int(rd.get("coverage_simulate_pass") or 0)
             if rd.get("tool_context_enabled"):
                 tool_context_chars.append(int(rd.get("tool_context_char_count") or 0))
                 tool_selected_counts.append(int(rd.get("tool_selected_variable_count") or 0))
 
-    return {
-        "mode": mode,
-        "case_count": len(valid),
-        "pass_count": passes,
-        "pass_rate": passes / len(valid) if valid else 0.0,
-        "round_count": total_rounds,
-        "per_round_any_check_pass": {
-            "count": total_any_check,
-            "denominator": total_rounds,
-            "rate": total_any_check / total_rounds if total_rounds else 0.0,
-        },
-        "per_round_any_simulate_pass": {
-            "count": total_any_sim,
-            "denominator": total_rounds,
-            "rate": total_any_sim / total_rounds if total_rounds else 0.0,
-        },
-        "pooled_candidate_check_pass": {
-            "count": total_check_pass_candidates,
-            "denominator": total_candidates,
-            "rate": (
-                total_check_pass_candidates / total_candidates
-                if total_candidates
-                else 0.0
-            ),
-        },
-        "pooled_candidate_simulate_pass": {
-            "count": total_sim_pass_candidates,
-            "denominator": total_candidates,
-            "rate": (
-                total_sim_pass_candidates / total_candidates
-                if total_candidates
-                else 0.0
-            ),
-        },
-        "avg_tool_context_chars": (
-            sum(tool_context_chars) / len(tool_context_chars)
-            if tool_context_chars
-            else 0.0
-        ),
-        "avg_tool_selected_variable_count": (
-            sum(tool_selected_counts) / len(tool_selected_counts)
-            if tool_selected_counts
-            else 0.0
-        ),
-        "cases": [
-            {
-                "candidate_id": r.get("candidate_id"),
-                "final_status": r.get("final_status"),
-                "round_count": r.get("round_count"),
-            }
-            for r in valid
-        ],
-    }
+    summary["avg_tool_context_chars"] = (
+        sum(tool_context_chars) / len(tool_context_chars)
+        if tool_context_chars
+        else 0.0
+    )
+    summary["avg_tool_selected_variable_count"] = (
+        sum(tool_selected_counts) / len(tool_selected_counts)
+        if tool_selected_counts
+        else 0.0
+    )
+    summary["cases"] = [
+        {
+            "candidate_id": r.get("candidate_id"),
+            "final_status": r.get("final_status"),
+            "round_count": r.get("round_count"),
+        }
+        for r in valid
+    ]
+    return summary
 
 
 def _print_summary(summary: dict) -> None:
@@ -412,4 +342,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

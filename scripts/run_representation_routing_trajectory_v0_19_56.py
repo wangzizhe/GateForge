@@ -24,21 +24,21 @@ from gateforge.agent_modelica_candidate_ranker_v1 import rank_candidates  # noqa
 from gateforge.agent_modelica_l2_plan_replan_engine_v1 import (  # noqa: E402
     llm_repair_model_text_multi,
 )
-from scripts.analyze_representation_effect_stratification_v0_19_56 import (  # noqa: E402
-    build_analysis as build_existing_stratification,
-)
 from gateforge.experiment_runner_shared import (  # noqa: E402
     ALL_HARD_CASES,
-    DOCKER_IMAGE,
+    MAX_ROUNDS,
     load_broken_model,
     load_case_info,
     run_check_and_simulate_omc,
     run_check_only_omc,
+    choose_candidate,
+    compute_summary_core,
+)
+from scripts.analyze_representation_effect_stratification_v0_19_56 import (  # noqa: E402
+    build_analysis as build_existing_stratification,
 )
 from scripts.run_representation_trajectory_v0_19_56 import (  # noqa: E402
-    MAX_ROUNDS,
     _build_representation_context,
-    compute_summary,
 )
 
 NUM_CANDIDATES = 5
@@ -136,7 +136,7 @@ def _run_single_case(
         cur_check_ok, cur_omc_output = run_check_only_omc(current_text, model_name, workspace_prefix="gf_v01956_chk_")
         feedback_stage = "check"
         feedback_output = cur_omc_output
-        chk, sim, sim_output = _run_check_and_simulate(current_text, model_name)
+        chk, sim, sim_output = run_check_and_simulate_omc(current_text, model_name, workspace_prefix="gf_v01956_sim_")
         if chk and sim:
             final_pass = True
             final_round = round_num - 1 if round_num > 1 else 0
@@ -197,30 +197,13 @@ def _run_single_case(
             )
         coverage_simulate = sum(1 for item in simulate_attempts if item["simulate_pass"])
 
-        chosen_id = None
-        chosen_temp = None
-        chosen_text = None
-        chosen_check_pass = False
-        chosen_simulate_pass = False
-        for attempt in simulate_attempts:
-            if attempt["simulate_pass"]:
-                chosen_id = attempt["candidate_id"]
-                chosen_temp = attempt["temperature_used"]
-                chosen_check_pass = True
-                chosen_simulate_pass = True
-                for ranked_item in ranked:
-                    if ranked_item.candidate_id == chosen_id:
-                        chosen_text = ranked_item.patched_text
-                        break
-                break
-        if chosen_id is None:
-            for ranked_item in ranked:
-                if ranked_item.patched_text:
-                    chosen_id = ranked_item.candidate_id
-                    chosen_temp = ranked_item.temperature_used
-                    chosen_check_pass = bool(ranked_item.check_pass)
-                    chosen_text = ranked_item.patched_text
-                    break
+        (
+            chosen_id,
+            chosen_temp,
+            chosen_text,
+            chosen_check_pass,
+            chosen_simulate_pass,
+        ) = choose_candidate(ranked, simulate_attempts)
 
         round_record: dict[str, Any] = {
             "round": round_num,
@@ -348,7 +331,26 @@ def main() -> None:
                 {"candidate_id": candidate_id, "mode": ROUTED_MODE, "error": str(exc)}
             )
 
-    summary = compute_summary(ROUTED_MODE, results)
+    summary = compute_summary_core(ROUTED_MODE, results)
+    valid = [r for r in results if not r.get("error")]
+    context_chars = []
+    selected_counts = []
+    block_counts = []
+    for result in valid:
+        for rd in result.get("rounds", []):
+            if rd.get("representation_enabled"):
+                context_chars.append(int(rd.get("representation_char_count") or 0))
+                selected_counts.append(int(rd.get("representation_selected_variable_count") or 0))
+                block_counts.append(int(rd.get("representation_block_count") or 0))
+    summary["avg_representation_chars"] = (
+        sum(context_chars) / len(context_chars) if context_chars else 0.0
+    )
+    summary["avg_selected_variables"] = (
+        sum(selected_counts) / len(selected_counts) if selected_counts else 0.0
+    )
+    summary["avg_block_count"] = (
+        sum(block_counts) / len(block_counts) if block_counts else 0.0
+    )
     summary["oracle_existing"] = oracle_summary
     summary_path = args.out_dir / f"summary_{ROUTED_MODE}.json"
     summary_path.write_text(
