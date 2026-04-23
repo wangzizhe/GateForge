@@ -39,19 +39,28 @@ done
 
 DOCKER_IMAGE="${DOCKER_IMAGE:-alpine:3.20}"
 TMPDIR_PATH="$(python3 -c 'import tempfile; print(tempfile.gettempdir())')"
+REPO_TMP_PATH="$(cd "$(dirname "$0")/.." && pwd)/tmp/docker"
 
 echo "==> Scanning: $TMPDIR_PATH"
+[ -d "$REPO_TMP_PATH" ] && echo "==> Scanning: $REPO_TMP_PATH"
 echo ""
 
 # ── Part 1: workspace subdirectories ────────────────────────────────────────
-echo "--- Part 1: workspace subdirectories (gf_live_exec_*, gf_connector_fast_check_*, gf_mutation_valid_*)"
+echo "--- Part 1: workspace subdirectories (gf_live_exec_*, gf_connector_fast_check_*, gf_mutation_valid_*, gf_v0*, repo tmp/docker/*)"
 
 DIR_LIST="$(mktemp)"
+# system /tmp
 find "$TMPDIR_PATH" -maxdepth 1 -type d \( \
     -name 'gf_live_exec_*' \
     -o -name 'gf_connector_fast_check_*' \
     -o -name 'gf_mutation_valid_*' \
+    -o -name 'gf_v0*' \
+    -o -name 'v0[0-9]*_*' \
 \) 2>/dev/null | sort > "$DIR_LIST"
+# repo-local tmp/docker (all subdirs)
+if [ -d "$REPO_TMP_PATH" ]; then
+    find "$REPO_TMP_PATH" -maxdepth 1 -mindepth 1 -type d 2>/dev/null | sort >> "$DIR_LIST"
+fi
 
 DIR_COUNT="$(wc -l < "$DIR_LIST" | tr -d ' ')"
 

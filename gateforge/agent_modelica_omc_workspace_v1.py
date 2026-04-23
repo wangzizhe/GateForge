@@ -21,17 +21,86 @@ call-site changes):
 - :func:`run_check_and_simulate` – orchestrate check + simulate in one call
 - :func:`temporary_workspace` – context manager for an isolated temp dir
 - :func:`cleanup_workspace_best_effort` – rmtree that never propagates errors
+- :func:`_cleanup_stale_workspaces` – delete workspace dirs older than N hours (called on startup)
 """
 from __future__ import annotations
 
 import os
 import re
 import shutil
+import atexit
+import signal
 import subprocess
 import tempfile
+import time
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
+
+
+# ---------------------------------------------------------------------------
+# Docker container lifecycle cleanup
+# ---------------------------------------------------------------------------
+
+_GATEFORGE_DOCKER_LABEL = "gateforge.omc=1"
+_cleanup_registered = False
+
+
+def _cleanup_omc_containers() -> None:
+    """Stop and remove all Docker containers tagged with the GateForge label."""
+    try:
+        result = subprocess.run(
+            ["docker", "ps", "-q", "--filter", f"label={_GATEFORGE_DOCKER_LABEL}"],
+            capture_output=True, text=True, timeout=10,
+        )
+        container_ids = result.stdout.strip().split()
+        if container_ids:
+            subprocess.run(
+                ["docker", "stop", "--time", "5"] + container_ids,
+                capture_output=True, timeout=30,
+            )
+            subprocess.run(
+                ["docker", "rm", "-f"] + container_ids,
+                capture_output=True, timeout=15,
+            )
+    except Exception:
+        pass
+
+
+def _sigterm_handler(signum: int, frame: object) -> None:
+    _cleanup_omc_containers()
+    raise SystemExit(128 + signum)
+
+
+def _cleanup_stale_workspaces(max_age_hours: float = 4.0) -> None:
+    """Delete workspace directories older than *max_age_hours* from the tmp root.
+
+    Handles the case where a previous process was killed with SIGKILL and the
+    ``temporary_workspace`` finally-block never ran.
+    """
+    root = _workspace_tmp_root()
+    if root is None or not root.exists():
+        return
+    cutoff = time.time() - max_age_hours * 3600
+    for entry in root.iterdir():
+        try:
+            if entry.is_dir() and entry.stat().st_mtime < cutoff:
+                shutil.rmtree(entry, ignore_errors=True)
+        except Exception:
+            pass
+
+
+def _register_omc_cleanup_once() -> None:
+    global _cleanup_registered
+    if _cleanup_registered:
+        return
+    _cleanup_registered = True
+    _cleanup_stale_workspaces()
+    atexit.register(_cleanup_omc_containers)
+    try:
+        signal.signal(signal.SIGTERM, _sigterm_handler)
+    except (OSError, ValueError):
+        pass
 
 from .agent_modelica_diagnostic_ir_v0 import build_diagnostic_ir_v0
 
@@ -177,6 +246,7 @@ def run_cmd(cmd: list[str], timeout_sec: int, cwd: str | None = None) -> tuple[i
 
 def run_omc_script_local(script_text: str, timeout_sec: int, cwd: str) -> tuple[int | None, str]:
     """Write *script_text* to ``run.mos`` and execute it via the local ``omc`` binary."""
+    _register_omc_cleanup_once()
     script_path = Path(cwd) / "run.mos"
     script_path.write_text(script_text, encoding="utf-8")
     return run_cmd(["omc", str(script_path.name)], timeout_sec=timeout_sec, cwd=cwd)
@@ -218,10 +288,12 @@ def run_omc_script_docker(
     omc_home_host = Path(cwd) / ".omc_home"
     (omc_home_host / ".openmodelica" / "cache").mkdir(parents=True, exist_ok=True)
     uid_gid = f"{os.getuid()}:{os.getgid()}"
+    _register_omc_cleanup_once()
     cmd = [
         "docker",
         "run",
         "--rm",
+        "--label", _GATEFORGE_DOCKER_LABEL,
         "--user", uid_gid,
         "-e", "HOME=/workspace/.omc_home",
         "-v", f"{cwd}:/workspace",
