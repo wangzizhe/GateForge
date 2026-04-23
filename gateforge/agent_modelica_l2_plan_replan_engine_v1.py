@@ -570,6 +570,7 @@ def llm_repair_model_text(
     current_round: int = 1,
     repair_history: list[dict] | None = None,
     domain_knowledge: str = "",
+    tool_context: str = "",
     temperature_override: float | None = None,
 ) -> tuple[str | None, str, str]:
     """Generate a repaired model text via the resolved LLM provider.
@@ -606,6 +607,13 @@ def llm_repair_model_text(
     domain_knowledge_block = ""
     if str(domain_knowledge or "").strip():
         domain_knowledge_block = f"- domain_knowledge: {str(domain_knowledge).strip()}\n"
+    tool_context_block = ""
+    if str(tool_context or "").strip():
+        tool_context_block = (
+            "Tool observations from local Modelica query APIs. These are facts only, "
+            "not repair instructions:\n"
+            f"{str(tool_context).strip()}\n"
+        )
     prompt = (
         "You are fixing a Modelica model.\n"
         f"{provider_prompt_prefix}\n"
@@ -622,6 +630,7 @@ def llm_repair_model_text(
         f"- workflow_goal: {str(workflow_goal or '').strip()}\n"
         f"- error_excerpt: {error_excerpt}\n"
         f"- suggested_actions: {json.dumps(repair_actions, ensure_ascii=True)}\n"
+        f"{tool_context_block}"
         f"{history_block}"
         "Model text below:\n"
         "-----BEGIN_MODEL-----\n"
@@ -650,6 +659,7 @@ def gemini_repair_model_text(
     current_round: int = 1,
     repair_history: list[dict] | None = None,
     domain_knowledge: str = "",
+    tool_context: str = "",
 ) -> tuple[str | None, str]:
     """Gemini-specific repair wrapper.  Delegates to llm_repair_model_text.
 
@@ -668,6 +678,7 @@ def gemini_repair_model_text(
         current_round=current_round,
         repair_history=repair_history,
         domain_knowledge=domain_knowledge,
+        tool_context=tool_context,
     )
     return patched, err
 
@@ -684,6 +695,7 @@ def openai_repair_model_text(
     current_round: int = 1,
     repair_history: list[dict] | None = None,
     domain_knowledge: str = "",
+    tool_context: str = "",
 ) -> tuple[str | None, str]:
     """OpenAI-specific repair wrapper.  Delegates to llm_repair_model_text.
 
@@ -702,6 +714,7 @@ def openai_repair_model_text(
         current_round=current_round,
         repair_history=repair_history,
         domain_knowledge=domain_knowledge,
+        tool_context=tool_context,
     )
     return patched, err
 
@@ -766,6 +779,7 @@ def llm_repair_model_text_multi(
     current_round: int = 1,
     repair_history: list[dict] | None = None,
     domain_knowledge: str = "",
+    tool_context: str = "",
     num_candidates: int = 1,
     temperature_schedule: list[float] | None = None,
     inter_call_delay_s: float = _DEFAULT_INTER_CALL_DELAY_S,
@@ -834,6 +848,7 @@ def llm_repair_model_text_multi(
             current_round=current_round,
             repair_history=repair_history,
             domain_knowledge=domain_knowledge,
+            tool_context=tool_context,
             temperature_override=temp,
         )
         if err and retry_on_error:
@@ -851,6 +866,7 @@ def llm_repair_model_text_multi(
                 current_round=current_round,
                 repair_history=repair_history,
                 domain_knowledge=domain_knowledge,
+                tool_context=tool_context,
                 temperature_override=temp,
             )
         results.append({
