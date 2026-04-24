@@ -12,6 +12,7 @@ from gateforge.agent_modelica_generation_audit_v0_19_60 import (
     extract_model_name,
     extract_modelica_model_text,
     load_mutation_distribution,
+    parse_mapping_statuses,
     run_generation_audit,
     total_variation_distance,
 )
@@ -113,6 +114,12 @@ class GenerationAuditV01960Tests(unittest.TestCase):
 
         self.assertAlmostEqual(sum(dist.values()), 1.0)
         self.assertEqual(dist["ET17"], 28 / 70)
+
+    def test_parse_mapping_statuses_falls_back_when_private_file_missing(self) -> None:
+        statuses = parse_mapping_statuses(Path("/definitely/missing/mapping.md"))
+
+        self.assertEqual(statuses["ET02"], "gap")
+        self.assertEqual(statuses["ET07"], "strong")
 
     def test_build_gap_list_flags_missing_and_mapping_gap(self) -> None:
         gaps = build_gap_list(

@@ -28,6 +28,25 @@ DEFAULT_MUTATION_BUCKET_COUNTS = {
     "ET15": 8,
     "ET17": 28,
 }
+DEFAULT_MAPPING_STATUSES = {
+    "ET01": "weak",
+    "ET02": "gap",
+    "ET03": "weak",
+    "ET04": "gap",
+    "ET05": "weak",
+    "ET06": "strong",
+    "ET07": "strong",
+    "ET08": "strong",
+    "ET09": "gap",
+    "ET10": "gap",
+    "ET11": "gap",
+    "ET12": "gap",
+    "ET13": "gap",
+    "ET14": "gap",
+    "ET15": "strong",
+    "ET16": "gap",
+    "ET17": "strong",
+}
 
 MODEL_BLOCK_RE = re.compile(
     r"(?P<body>\bmodel\s+(?P<name>[A-Za-z_][A-Za-z0-9_]*)\b.*?\bend\s+(?P=name)\s*;)",
@@ -330,6 +349,8 @@ def load_mutation_distribution(summary_path: Path = DEFAULT_V059_SUMMARY_PATH) -
 
 
 def parse_mapping_statuses(path: Path = DEFAULT_MAPPING_PATH) -> dict[str, str]:
+    if not path.exists():
+        return dict(DEFAULT_MAPPING_STATUSES)
     statuses: dict[str, str] = {}
     for raw_line in path.read_text(encoding="utf-8").splitlines():
         line = raw_line.strip()
