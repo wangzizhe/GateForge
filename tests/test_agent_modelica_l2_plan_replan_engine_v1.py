@@ -873,6 +873,39 @@ class TestLLMRepairModelTextMulti(unittest.TestCase):
         self.assertEqual(results[0]["llm_error"], "")
         self.assertEqual(results[1]["patched_text"], "recovered")
 
+    def test_service_unavailable_gets_retry_burst(self) -> None:
+        from gateforge.agent_modelica_l2_plan_replan_engine_v1 import llm_repair_model_text_multi
+        attempts: list[float] = []
+
+        def fake(**kwargs):
+            attempts.append(kwargs["temperature_override"])
+            if len(attempts) < 4:
+                return (None, "gemini_service_unavailable:503:high demand", "gemini")
+            return ("recovered", "", "gemini")
+
+        with patch(
+            "gateforge.agent_modelica_l2_plan_replan_engine_v1.llm_repair_model_text",
+            side_effect=fake,
+        ), patch("gateforge.agent_modelica_l2_plan_replan_engine_v1.time.sleep") as sleep_mock:
+            results = llm_repair_model_text_multi(
+                planner_backend="gemini",
+                original_text="x",
+                failure_type="underconstrained_system",
+                expected_stage="check",
+                error_excerpt="",
+                repair_actions=[],
+                model_name="X",
+                num_candidates=1,
+                inter_call_delay_s=0.0,
+                retry_backoff_s=0.0,
+                retry_on_error=True,
+            )
+
+        self.assertEqual(len(attempts), 4)
+        self.assertEqual(results[0]["patched_text"], "recovered")
+        self.assertEqual(results[0]["llm_error"], "")
+        self.assertEqual([call.args[0] for call in sleep_mock.call_args_list], [5.0, 5.0, 5.0])
+
     def test_retry_disabled_does_not_retry(self) -> None:
         from gateforge.agent_modelica_l2_plan_replan_engine_v1 import llm_repair_model_text_multi
         attempts: list[float] = []

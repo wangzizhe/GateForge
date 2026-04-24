@@ -459,7 +459,7 @@ def send_with_budget(
         if not err:
             _record_live_request_success(cfg)
             return text, ""
-        if "_rate_limited" in err:
+        if "_rate_limited" in err or "_service_unavailable" in err:
             stop_reason, _ledger = _record_live_request_429(cfg)
             if stop_reason:
                 return "", stop_reason
@@ -820,9 +820,10 @@ def llm_repair_model_text_multi(
       - Calls are serial to avoid provider rate-limit thrashing.
       - Between consecutive calls a small inter_call_delay_s sleep smooths
         out Gemini-style RPM burst limits.
-      - On non-empty llm_error a single retry is attempted after
-        retry_backoff_s. If the retry also fails, the candidate keeps
-        patched_text=None and the second error message.
+      - On non-empty llm_error, transient errors are retried. Generic errors
+        get one retry; provider service-unavailable errors get a short retry
+        burst to avoid treating temporary 502/503/504 outages as repair
+        failures.
       - Failed candidates (LLM error, empty response) are kept in the result
         with patched_text=None — callers / ranker decide how to handle.
 
@@ -833,8 +834,7 @@ def llm_repair_model_text_multi(
             is used (conservative bookends, diverse middle).
         inter_call_delay_s: Sleep between consecutive LLM calls. Set to 0.0
             in tests to avoid wall-clock cost.
-        retry_on_error: If True, a single retry is attempted on transient
-            LLM error (any non-empty err string).
+        retry_on_error: If True, transient LLM errors are retried.
         retry_backoff_s: Sleep before the retry attempt.
         Other args: same as llm_repair_model_text.
 
@@ -873,25 +873,33 @@ def llm_repair_model_text_multi(
             temperature_override=temp,
         )
         if err and retry_on_error:
-            if retry_backoff_s > 0:
-                time.sleep(retry_backoff_s)
-            patched, err, provider = llm_repair_model_text(
-                planner_backend=planner_backend,
-                original_text=original_text,
-                failure_type=failure_type,
-                expected_stage=expected_stage,
-                error_excerpt=error_excerpt,
-                repair_actions=repair_actions,
-                model_name=model_name,
-                workflow_goal=workflow_goal,
-                current_round=current_round,
-                repair_history=repair_history,
-                domain_knowledge=domain_knowledge,
-                tool_context=tool_context,
-                context_block=context_block,
-                context_block_label=context_block_label,
-                temperature_override=temp,
-            )
+            is_service_unavailable = "_service_unavailable" in err
+            max_retries = 3 if is_service_unavailable else 1
+            backoff = 5.0 if is_service_unavailable else retry_backoff_s
+            for _ in range(max_retries):
+                if backoff > 0:
+                    time.sleep(backoff)
+                patched, err, provider = llm_repair_model_text(
+                    planner_backend=planner_backend,
+                    original_text=original_text,
+                    failure_type=failure_type,
+                    expected_stage=expected_stage,
+                    error_excerpt=error_excerpt,
+                    repair_actions=repair_actions,
+                    model_name=model_name,
+                    workflow_goal=workflow_goal,
+                    current_round=current_round,
+                    repair_history=repair_history,
+                    domain_knowledge=domain_knowledge,
+                    tool_context=tool_context,
+                    context_block=context_block,
+                    context_block_label=context_block_label,
+                    temperature_override=temp,
+                )
+                if not err:
+                    break
+                if not is_service_unavailable:
+                    break
         results.append({
             "candidate_id": idx,
             "patched_text": patched,

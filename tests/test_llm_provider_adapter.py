@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import io
 import os
+import urllib.error
 import unittest
 from unittest import mock
 
-from gateforge.llm_provider_adapter import resolve_provider_adapter
+from gateforge.llm_provider_adapter import GeminiProviderAdapter, LLMProviderConfig, resolve_provider_adapter
 
 
 class LLMProviderAdapterTests(unittest.TestCase):
@@ -86,6 +88,23 @@ class LLMProviderAdapterTests(unittest.TestCase):
         ):
             with self.assertRaisesRegex(ValueError, "missing_llm_model"):
                 resolve_provider_adapter("")
+
+    def test_gemini_503_reports_service_unavailable(self) -> None:
+        adapter = GeminiProviderAdapter()
+        config = LLMProviderConfig(provider_name="gemini", model="gemini-test", api_key="key")
+        error = urllib.error.HTTPError(
+            url="https://example.invalid",
+            code=503,
+            msg="Service Unavailable",
+            hdrs={},
+            fp=io.BytesIO(b'{"error":"high demand"}'),
+        )
+
+        with mock.patch("gateforge.llm_provider_adapter.urllib.request.urlopen", side_effect=error):
+            text, err = adapter.send_text_request("prompt", config)
+
+        self.assertEqual(text, "")
+        self.assertIn("gemini_service_unavailable:503", err)
 
 
 if __name__ == "__main__":

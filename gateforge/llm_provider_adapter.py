@@ -173,10 +173,16 @@ class GeminiProviderAdapter:
         except TimeoutError:
             return "", "gemini_request_timeout"
         except urllib.error.HTTPError as exc:
-            body = exc.read().decode("utf-8", errors="ignore")
-            if int(exc.code) == 429:
+            try:
+                body = exc.read().decode("utf-8", errors="ignore")
+            finally:
+                exc.close()
+            code = int(exc.code)
+            if code == 429:
                 return "", f"gemini_rate_limited:{body[:180]}"
-            return "", f"gemini_http_error:{exc.code}:{body[:180]}"
+            if code in (502, 503, 504):
+                return "", f"gemini_service_unavailable:{code}:{body[:180]}"
+            return "", f"gemini_http_error:{code}:{body[:180]}"
         except urllib.error.URLError as exc:
             return "", f"gemini_url_error:{exc.reason}"
 
@@ -247,10 +253,16 @@ class OpenAIProviderAdapter:
         except TimeoutError:
             return "", "openai_request_timeout"
         except urllib.error.HTTPError as exc:
-            body = exc.read().decode("utf-8", errors="ignore")
-            if int(exc.code) == 429:
+            try:
+                body = exc.read().decode("utf-8", errors="ignore")
+            finally:
+                exc.close()
+            code = int(exc.code)
+            if code == 429:
                 return "", f"openai_rate_limited:{body[:180]}"
-            return "", f"openai_http_error:{exc.code}:{body[:180]}"
+            if code in (502, 503, 504):
+                return "", f"openai_service_unavailable:{code}:{body[:180]}"
+            return "", f"openai_http_error:{code}:{body[:180]}"
         except urllib.error.URLError as exc:
             return "", f"openai_url_error:{exc.reason}"
 
@@ -306,10 +318,16 @@ class QwenProviderAdapter:
         except TimeoutError:
             return "", "qwen_request_timeout"
         except urllib.error.HTTPError as exc:
-            body = exc.read().decode("utf-8", errors="ignore")
-            if int(exc.code) == 429:
+            try:
+                body = exc.read().decode("utf-8", errors="ignore")
+            finally:
+                exc.close()
+            code = int(exc.code)
+            if code == 429:
                 return "", f"qwen_rate_limited:{body[:180]}"
-            return "", f"qwen_http_error:{exc.code}:{body[:180]}"
+            if code in (502, 503, 504):
+                return "", f"qwen_service_unavailable:{code}:{body[:180]}"
+            return "", f"qwen_http_error:{code}:{body[:180]}"
         except urllib.error.URLError as exc:
             return "", f"qwen_url_error:{exc.reason}"
 
@@ -364,10 +382,16 @@ class AnthropicProviderAdapter:
         except TimeoutError:
             return "", "anthropic_request_timeout"
         except urllib.error.HTTPError as exc:
-            body = exc.read().decode("utf-8", errors="ignore")
-            if int(exc.code) == 429:
+            try:
+                body = exc.read().decode("utf-8", errors="ignore")
+            finally:
+                exc.close()
+            code = int(exc.code)
+            if code == 429:
                 return "", f"anthropic_rate_limited:{body[:180]}"
-            return "", f"anthropic_http_error:{exc.code}:{body[:180]}"
+            if code in (502, 503, 504):
+                return "", f"anthropic_service_unavailable:{code}:{body[:180]}"
+            return "", f"anthropic_http_error:{code}:{body[:180]}"
         except urllib.error.URLError as exc:
             return "", f"anthropic_url_error:{exc.reason}"
 
@@ -421,10 +445,16 @@ class MiniMaxProviderAdapter:
         except TimeoutError:
             return "", "minimax_request_timeout"
         except urllib.error.HTTPError as exc:
-            body = exc.read().decode("utf-8", errors="ignore")
-            if int(exc.code) == 429:
+            try:
+                body = exc.read().decode("utf-8", errors="ignore")
+            finally:
+                exc.close()
+            code = int(exc.code)
+            if code == 429:
                 return "", f"minimax_rate_limited:{body[:180]}"
-            return "", f"minimax_http_error:{exc.code}:{body[:180]}"
+            if code in (502, 503, 504):
+                return "", f"minimax_service_unavailable:{code}:{body[:180]}"
+            return "", f"minimax_http_error:{code}:{body[:180]}"
         except urllib.error.URLError as exc:
             return "", f"minimax_url_error:{exc.reason}"
 
