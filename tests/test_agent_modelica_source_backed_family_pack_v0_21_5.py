@@ -99,8 +99,21 @@ class SourceBackedFamilyPackV0215Tests(unittest.TestCase):
     def test_run_source_backed_family_pack_writes_outputs(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
+            source = root / "A.mo"
+            cases = root / "admitted_cases.jsonl"
             family_path = root / "family.jsonl"
             out_dir = root / "out"
+            source.write_text("model A\n  Modelica.Electrical.Analog.Basic.Resistor R1;\nequation\nend A;", encoding="utf-8")
+            cases.write_text(
+                json.dumps(
+                    {
+                        "candidate_id": "case_a",
+                        "source_model_path": str(source),
+                        "source_check_pass": True,
+                    }
+                ),
+                encoding="utf-8",
+            )
             family_path.write_text(
                 "\n".join(
                     [
@@ -112,8 +125,11 @@ class SourceBackedFamilyPackV0215Tests(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            # Use the repository's default source inventory for this integration path.
-            summary = run_source_backed_family_pack(family_candidate_path=family_path, out_dir=out_dir)
+            summary = run_source_backed_family_pack(
+                family_candidate_path=family_path,
+                out_dir=out_dir,
+                source_inventory_paths=[cases],
+            )
 
             self.assertEqual(summary["status"], "PASS")
             self.assertTrue((out_dir / "summary.json").exists())

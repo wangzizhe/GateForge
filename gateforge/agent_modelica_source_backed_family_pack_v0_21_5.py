@@ -198,9 +198,10 @@ def run_source_backed_family_pack(
     *,
     family_candidate_path: Path = DEFAULT_FAMILY_CANDIDATE_PATH,
     out_dir: Path = DEFAULT_OUT_DIR,
+    source_inventory_paths: Iterable[Path] = DEFAULT_ADMITTED_CASE_GLOBS,
 ) -> dict[str, Any]:
     family_candidates = load_jsonl(family_candidate_path)
-    source_inventory = build_source_inventory()
+    source_inventory = build_source_inventory(source_inventory_paths)
     rows = build_source_backed_candidates(
         family_candidates=family_candidates,
         source_inventory=source_inventory,
