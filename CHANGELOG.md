@@ -49,14 +49,14 @@ All notable public changes to this project are documented in this file. Detailed
 - Public validation is summarized at the phase level only.
 - Detailed task counts, pass rates, branch/lane outcomes, and intermediate research conclusions are intentionally not published.
 
-## [v0.2.0] - 2026-03-26
+## [v0.2.6] - 2026-03-28
 
 ### Added
 - Added the public rule-engine, experience, replay, planner-context, cross-domain validation, and difficulty-layer infrastructure for the early Modelica repair evaluation line.
-- Added benchmark fixture preparation, source-viability filtering, diagnostic subtype metadata, and reusable evaluation utilities.
+- Added benchmark fixture preparation, source-viability filtering, diagnostic subtype metadata, difficulty-layer sidecars, and reusable evaluation utilities.
 
 ### Changed
-- Consolidated the internal v0.2.x experiment chain into this public phase entry.
+- Consolidated the internal v0.2.x experiment chain into this public phase closeout.
 - Kept the public record focused on reusable engineering surfaces rather than benchmark-by-benchmark results.
 - Removed detailed comparison deltas, case counts, track-level outcomes, artifact deep links, and attribution traces from the public changelog.
 
@@ -79,7 +79,7 @@ All notable public changes to this project are documented in this file. Detailed
 - Public validation is summarized at the phase level only.
 - Detailed smoke results, preflight metrics, benchmark rates, and intermediate experiment conclusions are intentionally not published.
 
-## [v0.1.0-mvp] - 2026-02-20
+## [v0.1.0] - 2026-02-20
 
 ### Added
 - Initial MVP for agent-in-the-loop Modelica repair workflows.
