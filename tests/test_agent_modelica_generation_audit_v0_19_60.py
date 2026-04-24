@@ -11,6 +11,7 @@ from gateforge.agent_modelica_generation_audit_v0_19_60 import (
     distribution_from_buckets,
     extract_model_name,
     extract_modelica_model_text,
+    load_mutation_distribution,
     run_generation_audit,
     total_variation_distance,
 )
@@ -106,6 +107,12 @@ class GenerationAuditV01960Tests(unittest.TestCase):
 
         self.assertEqual(p, {"ET01": 2 / 3, "ET06": 1 / 3})
         self.assertAlmostEqual(total_variation_distance(p, q), 5 / 12)
+
+    def test_load_mutation_distribution_falls_back_when_artifact_missing(self) -> None:
+        dist = load_mutation_distribution(Path("/definitely/missing/summary.json"))
+
+        self.assertAlmostEqual(sum(dist.values()), 1.0)
+        self.assertEqual(dist["ET17"], 28 / 70)
 
     def test_build_gap_list_flags_missing_and_mapping_gap(self) -> None:
         gaps = build_gap_list(

@@ -21,6 +21,13 @@ from .llm_response import extract_json_object
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_OUT_DIR = REPO_ROOT / "artifacts" / "generation_audit_v0_19_60"
+DEFAULT_MUTATION_BUCKET_COUNTS = {
+    "ET06": 11,
+    "ET07": 12,
+    "ET08": 11,
+    "ET15": 8,
+    "ET17": 28,
+}
 
 MODEL_BLOCK_RE = re.compile(
     r"(?P<body>\bmodel\s+(?P<name>[A-Za-z_][A-Za-z0-9_]*)\b.*?\bend\s+(?P=name)\s*;)",
@@ -312,7 +319,9 @@ def total_variation_distance(p_dist: dict[str, float], q_dist: dict[str, float])
 
 
 def load_mutation_distribution(summary_path: Path = DEFAULT_V059_SUMMARY_PATH) -> dict[str, float]:
-    payload = load_json(summary_path)
+    payload = load_json(summary_path) if summary_path.exists() else {
+        "bucket_counts": DEFAULT_MUTATION_BUCKET_COUNTS
+    }
     counts = payload.get("bucket_counts") or {}
     total = sum(int(v or 0) for v in counts.values())
     if total <= 0:
