@@ -2,6 +2,28 @@
 
 All notable public changes to this project are documented in this file. Detailed experiment results, failure attribution, and internal analysis notes are tracked in private documentation and are intentionally not published here.
 
+## [v0.22.10] - 2026-04-25
+
+### Added
+- Added public infrastructure for the v0.20.x-v0.22.x evaluation line, covering search-density profiling, source-backed task construction, complex repair-target admission, live multi-turn screening, repeatability auditing, and phase synthesis.
+- Added versioned runners and tests for high-quality Modelica error construction workflows that preserve the executor boundary and keep repair decisions inside the Agent/LLM loop.
+- Added synthesis utilities that distinguish one-off repair successes from repeatable benchmark seeds.
+
+### Changed
+- Consolidated the internal v0.20.x, v0.21.x, and v0.22.x research chain into this public phase closeout.
+- Kept the public summary focused on reusable framework and harness outcomes rather than detailed experiment design, task identities, pass-rate tables, or failure-attribution traces.
+- Closed the phase with a framework-first decision: continue hardening the Agent framework, harness, oracle contracts, trajectory schema, and benchmark substrate before considering any large-scale training workflow.
+
+### Phase Summary
+- v0.20.x focused on search-density infrastructure: how candidate generation, candidate diversity, and evaluation surfaces affect the Agent's ability to find viable repairs.
+- v0.21.x focused on source-backed complex tasks: how to build more realistic Modelica repair targets and screen them through live Agent execution without adding hidden repair logic.
+- v0.22.x focused on high-quality error construction: how to identify repeatable, true multi-turn repair seeds using single-point complex refactors and repeatability gates.
+
+### Validation
+- Public validation is summarized at the phase level only.
+- Newly added v0.22.x utilities pass their public `python3 -m unittest` coverage.
+- Detailed run counts, candidate identities, family-level outcomes, and internal promotion rules remain in private documentation.
+
 ## [v0.19.66] - 2026-04-24
 
 ### Added
