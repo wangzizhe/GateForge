@@ -51,7 +51,8 @@ MULTISTEP_PLANNER_CONTRACT_VERSION = "agent_modelica_multistep_planner_contract_
 
 _ENV_KEY_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 _OPENAI_MODEL_HINT_PATTERN = re.compile(r"^(gpt|o[0-9]|chatgpt|gpt-5)", re.IGNORECASE)
-_QWEN_MODEL_HINT_PATTERN = re.compile(r"^(qwen|qwq|deepseek)", re.IGNORECASE)
+_QWEN_MODEL_HINT_PATTERN = re.compile(r"^(qwen|qwq)", re.IGNORECASE)
+_DEEPSEEK_MODEL_HINT_PATTERN = re.compile(r"^(deepseek)", re.IGNORECASE)
 _MINIMAX_MODEL_HINT_PATTERN = re.compile(r"^(minimax)", re.IGNORECASE)
 _TIMESTAMP_PATTERN = re.compile(r"\b\d{4}-\d{2}-\d{2}[T ][0-2]\d:[0-5]\d(?::[0-5]\d)?")
 _TASK_ID_PATTERN = re.compile(r"\b[a-z]+[0-9]+_[a-z0-9_]+\b")
@@ -147,15 +148,18 @@ def resolve_llm_provider(requested_backend: str) -> tuple[str, str, str]:
             "OPENAI_API_KEY",
             "DASHSCOPE_API_KEY",
             "QWEN_API_KEY",
+            "DEEPSEEK_API_KEY",
             "MINIMAX_API_KEY",
             "ANTHROPIC_API_KEY",
             "DASHSCOPE_BASE_URL",
+            "DEEPSEEK_BASE_URL",
             "ANTHROPIC_BASE_URL",
             "LLM_MODEL",
             "GATEFORGE_GEMINI_MODEL",
             "GEMINI_MODEL",
             "OPENAI_MODEL",
             "QWEN_MODEL",
+            "DEEPSEEK_MODEL",
             "MINIMAX_MODEL",
             "LLM_PROVIDER",
             "GATEFORGE_LIVE_PLANNER_BACKEND",
@@ -169,20 +173,23 @@ def resolve_llm_provider(requested_backend: str) -> tuple[str, str, str]:
         str(os.getenv("LLM_MODEL") or "").strip()
         or str(os.getenv("OPENAI_MODEL") or "").strip()
         or str(os.getenv("QWEN_MODEL") or "").strip()
+        or str(os.getenv("DEEPSEEK_MODEL") or "").strip()
         or str(os.getenv("MINIMAX_MODEL") or "").strip()
         or str(os.getenv("GATEFORGE_GEMINI_MODEL") or "").strip()
         or str(os.getenv("GEMINI_MODEL") or "").strip()
     )
     if not model:
         raise ValueError("missing_llm_model")
-    explicit = requested if requested in {"gemini", "openai", "qwen", "minimax"} else ""
+    explicit = requested if requested in {"gemini", "openai", "qwen", "deepseek", "minimax"} else ""
     if not explicit:
         explicit = str(os.getenv("LLM_PROVIDER") or os.getenv("GATEFORGE_LIVE_PLANNER_BACKEND") or "").strip().lower()
-    if explicit not in {"gemini", "openai", "qwen", "minimax"}:
+    if explicit not in {"gemini", "openai", "qwen", "deepseek", "minimax"}:
         if _OPENAI_MODEL_HINT_PATTERN.search(model):
             explicit = "openai"
         elif _QWEN_MODEL_HINT_PATTERN.search(model):
             explicit = "qwen"
+        elif _DEEPSEEK_MODEL_HINT_PATTERN.search(model):
+            explicit = "deepseek"
         elif _MINIMAX_MODEL_HINT_PATTERN.search(model):
             explicit = "minimax"
         elif "gemini" in model.lower():
@@ -202,6 +209,11 @@ def resolve_llm_provider(requested_backend: str) -> tuple[str, str, str]:
         ).strip()
         if not api_key:
             raise ValueError("missing_qwen_api_key")
+        return explicit, model, api_key
+    if explicit == "deepseek":
+        api_key = str(os.getenv("DEEPSEEK_API_KEY") or "").strip()
+        if not api_key:
+            raise ValueError("missing_deepseek_api_key")
         return explicit, model, api_key
     if explicit == "minimax":
         api_key = str(
@@ -227,7 +239,7 @@ def planner_family_for_provider(provider: str) -> str:
     name = str(provider or "").strip().lower()
     if name == "rule":
         return "rule"
-    if name in {"gemini", "openai", "qwen", "minimax"}:
+    if name in {"gemini", "openai", "qwen", "deepseek", "minimax"}:
         return "llm"
     return "unknown"
 
@@ -240,6 +252,7 @@ def planner_adapter_for_provider(provider: str) -> str:
         "gemini": "gateforge_gemini_planner_v1",
         "openai": "gateforge_openai_planner_v1",
         "qwen": "gateforge_qwen_planner_v1",
+        "deepseek": "gateforge_deepseek_planner_v1",
         "minimax": "gateforge_minimax_planner_v1",
     }
     return mapping.get(name, "gateforge_unknown_planner_v1")

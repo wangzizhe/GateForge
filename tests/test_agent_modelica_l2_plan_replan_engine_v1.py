@@ -104,9 +104,9 @@ class TestBootstrapEnvFromRepo(unittest.TestCase):
 class TestResolveLlmProvider(unittest.TestCase):
     def _clear_provider_env(self) -> dict:
         keys = ["GOOGLE_API_KEY", "GEMINI_API_KEY", "OPENAI_API_KEY",
-                "DASHSCOPE_API_KEY", "QWEN_API_KEY", "DASHSCOPE_BASE_URL",
+                "DASHSCOPE_API_KEY", "QWEN_API_KEY", "DEEPSEEK_API_KEY", "DASHSCOPE_BASE_URL", "DEEPSEEK_BASE_URL",
                 "MINIMAX_API_KEY", "ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL", "LLM_MODEL", "GATEFORGE_GEMINI_MODEL", "GEMINI_MODEL",
-                "OPENAI_MODEL", "QWEN_MODEL", "MINIMAX_MODEL", "LLM_PROVIDER", "GATEFORGE_LIVE_PLANNER_BACKEND"]
+                "OPENAI_MODEL", "QWEN_MODEL", "DEEPSEEK_MODEL", "MINIMAX_MODEL", "LLM_PROVIDER", "GATEFORGE_LIVE_PLANNER_BACKEND"]
         prev = {k: os.environ.get(k) for k in keys}
         for k in keys:
             os.environ.pop(k, None)
@@ -208,6 +208,32 @@ class TestResolveLlmProvider(unittest.TestCase):
         finally:
             self._restore_env(prev)
 
+    def test_explicit_deepseek_backend_selected(self) -> None:
+        prev = self._clear_provider_env()
+        os.environ["DEEPSEEK_API_KEY"] = "deepseek-key"
+        os.environ["LLM_MODEL"] = "deepseek-v4-flash"
+        try:
+            with patch("gateforge.agent_modelica_l2_plan_replan_engine_v1.bootstrap_env_from_repo", return_value=0):
+                provider, model, key = resolve_llm_provider("deepseek")
+            self.assertEqual(provider, "deepseek")
+            self.assertEqual(model, "deepseek-v4-flash")
+            self.assertEqual(key, "deepseek-key")
+        finally:
+            self._restore_env(prev)
+
+    def test_infers_deepseek_from_model_name(self) -> None:
+        prev = self._clear_provider_env()
+        os.environ["DEEPSEEK_API_KEY"] = "deepseek-key"
+        os.environ["LLM_MODEL"] = "deepseek-v4-flash"
+        try:
+            with patch("gateforge.agent_modelica_l2_plan_replan_engine_v1.bootstrap_env_from_repo", return_value=0):
+                provider, model, key = resolve_llm_provider("auto")
+            self.assertEqual(provider, "deepseek")
+            self.assertEqual(model, "deepseek-v4-flash")
+            self.assertEqual(key, "deepseek-key")
+        finally:
+            self._restore_env(prev)
+
     def test_missing_model_raises_even_when_provider_key_exists(self) -> None:
         prev = self._clear_provider_env()
         os.environ["GOOGLE_API_KEY"] = "google-key"
@@ -255,6 +281,9 @@ class TestPlannerFamilyAndAdapter(unittest.TestCase):
     def test_qwen_family(self) -> None:
         self.assertEqual(planner_family_for_provider("qwen"), "llm")
 
+    def test_deepseek_family(self) -> None:
+        self.assertEqual(planner_family_for_provider("deepseek"), "llm")
+
     def test_unknown_family(self) -> None:
         self.assertEqual(planner_family_for_provider("mystery"), "unknown")
 
@@ -269,6 +298,9 @@ class TestPlannerFamilyAndAdapter(unittest.TestCase):
 
     def test_qwen_adapter(self) -> None:
         self.assertEqual(planner_adapter_for_provider("qwen"), "gateforge_qwen_planner_v1")
+
+    def test_deepseek_adapter(self) -> None:
+        self.assertEqual(planner_adapter_for_provider("deepseek"), "gateforge_deepseek_planner_v1")
 
     def test_rule_adapter(self) -> None:
         self.assertEqual(planner_adapter_for_provider("rule"), "gateforge_rule_planner_v1")

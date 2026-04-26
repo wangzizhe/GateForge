@@ -27,7 +27,8 @@ ENV_KEY_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 OPENAI_MODEL_HINT_PATTERN = re.compile(r"^(gpt|o[0-9]|chatgpt|gpt-5)", re.IGNORECASE)
 ANTHROPIC_MODEL_HINT_PATTERN = re.compile(r"^(claude)", re.IGNORECASE)
 MINIMAX_MODEL_HINT_PATTERN = re.compile(r"^(minimax)", re.IGNORECASE)
-QWEN_MODEL_HINT_PATTERN = re.compile(r"^(qwen|qwq|deepseek)", re.IGNORECASE)
+QWEN_MODEL_HINT_PATTERN = re.compile(r"^(qwen|qwq)", re.IGNORECASE)
+DEEPSEEK_MODEL_HINT_PATTERN = re.compile(r"^(deepseek)", re.IGNORECASE)
 
 
 def _parse_env_assignment(line: str) -> tuple[str, str] | tuple[None, None]:
@@ -335,6 +336,83 @@ class QwenProviderAdapter:
         return text, ""
 
 
+class DeepSeekProviderAdapter:
+    """Transport adapter for the DeepSeek OpenAI-compatible Chat API."""
+
+    @property
+    def provider_name(self) -> str:
+        return "deepseek"
+
+    @staticmethod
+    def _extract_response_text(payload: dict) -> str:
+        choices = payload.get("choices") if isinstance(payload.get("choices"), list) else []
+        if not choices:
+            return ""
+        message = choices[0].get("message") if isinstance(choices[0], dict) else {}
+        if isinstance(message, dict) and isinstance(message.get("content"), str):
+            return str(message.get("content") or "")
+        return ""
+
+    def send_text_request(
+        self,
+        prompt: str,
+        config: LLMProviderConfig,
+    ) -> tuple[str, str]:
+        base_url = str(
+            config.extra.get("deepseek_base_url")
+            or os.getenv("DEEPSEEK_BASE_URL")
+            or "https://api.deepseek.com"
+        ).strip().rstrip("/")
+        req_payload = {
+            "model": config.model,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": config.temperature,
+            "stream": False,
+        }
+        max_tokens = config.extra.get("max_tokens")
+        if max_tokens not in {None, ""}:
+            try:
+                req_payload["max_tokens"] = int(max_tokens)
+            except Exception:
+                pass
+        thinking = str(config.extra.get("thinking") or "").strip().lower()
+        if thinking in {"enabled", "disabled"}:
+            req_payload["thinking"] = {"type": thinking}
+        response_format = config.extra.get("response_format")
+        if isinstance(response_format, dict):
+            req_payload["response_format"] = response_format
+        req = urllib.request.Request(
+            f"{base_url}/chat/completions",
+            data=json.dumps(req_payload).encode("utf-8"),
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {config.api_key}",
+            },
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=config.timeout_sec) as resp:
+                response_payload = json.loads(resp.read().decode("utf-8"))
+        except TimeoutError:
+            return "", "deepseek_request_timeout"
+        except urllib.error.HTTPError as exc:
+            try:
+                body = exc.read().decode("utf-8", errors="ignore")
+            finally:
+                exc.close()
+            code = int(exc.code)
+            if code == 429:
+                return "", f"deepseek_rate_limited:{body[:180]}"
+            if code in (502, 503, 504):
+                return "", f"deepseek_service_unavailable:{code}:{body[:180]}"
+            return "", f"deepseek_http_error:{code}:{body[:180]}"
+        except urllib.error.URLError as exc:
+            return "", f"deepseek_url_error:{exc.reason}"
+
+        text = self._extract_response_text(response_payload)
+        return text, ""
+
+
 # ---- Anthropic adapter ----
 
 class AnthropicProviderAdapter:
@@ -468,6 +546,7 @@ _ADAPTERS: dict[str, type] = {
     "gemini": GeminiProviderAdapter,
     "openai": OpenAIProviderAdapter,
     "qwen": QwenProviderAdapter,
+    "deepseek": DeepSeekProviderAdapter,
     "anthropic": AnthropicProviderAdapter,
     "minimax": MiniMaxProviderAdapter,
 }
@@ -502,7 +581,9 @@ def resolve_provider_adapter(
             "MINIMAX_API_KEY",
             "DASHSCOPE_API_KEY",
             "QWEN_API_KEY",
+            "DEEPSEEK_API_KEY",
             "DASHSCOPE_BASE_URL",
+            "DEEPSEEK_BASE_URL",
             "ANTHROPIC_BASE_URL",
             "LLM_MODEL",
             "GATEFORGE_GEMINI_MODEL",
@@ -511,6 +592,7 @@ def resolve_provider_adapter(
             "ANTHROPIC_MODEL",
             "MINIMAX_MODEL",
             "QWEN_MODEL",
+            "DEEPSEEK_MODEL",
             "LLM_PROVIDER",
             "GATEFORGE_LIVE_PLANNER_BACKEND",
         }
@@ -529,21 +611,24 @@ def resolve_provider_adapter(
         or str(os.getenv("MINIMAX_MODEL") or "").strip()
         or str(os.getenv("GATEFORGE_GEMINI_MODEL") or "").strip()
         or str(os.getenv("GEMINI_MODEL") or "").strip()
+        or str(os.getenv("DEEPSEEK_MODEL") or "").strip()
     )
     if not model:
         raise ValueError("missing_llm_model")
-    explicit = requested if requested in {"gemini", "openai", "qwen", "anthropic", "minimax"} else ""
+    explicit = requested if requested in {"gemini", "openai", "qwen", "deepseek", "anthropic", "minimax"} else ""
     if not explicit:
         explicit = str(
             os.getenv("LLM_PROVIDER")
             or os.getenv("GATEFORGE_LIVE_PLANNER_BACKEND")
             or ""
         ).strip().lower()
-    if explicit not in {"gemini", "openai", "qwen", "anthropic", "minimax"}:
+    if explicit not in {"gemini", "openai", "qwen", "deepseek", "anthropic", "minimax"}:
         if OPENAI_MODEL_HINT_PATTERN.search(model):
             explicit = "openai"
         elif QWEN_MODEL_HINT_PATTERN.search(model):
             explicit = "qwen"
+        elif DEEPSEEK_MODEL_HINT_PATTERN.search(model):
+            explicit = "deepseek"
         elif ANTHROPIC_MODEL_HINT_PATTERN.search(model):
             explicit = "anthropic"
         elif MINIMAX_MODEL_HINT_PATTERN.search(model):
@@ -561,6 +646,8 @@ def resolve_provider_adapter(
             or os.getenv("QWEN_API_KEY")
             or ""
         ).strip()
+    elif explicit == "deepseek":
+        api_key = str(os.getenv("DEEPSEEK_API_KEY") or "").strip()
     elif explicit == "anthropic":
         api_key = str(os.getenv("ANTHROPIC_API_KEY") or "").strip()
     elif explicit == "minimax":
@@ -593,8 +680,11 @@ def resolve_provider_adapter(
             "dashscope_base_url": str(os.getenv("DASHSCOPE_BASE_URL") or "").strip(),
             "enable_thinking": False if explicit == "qwen" else "",
             "prompt_prefix": QWEN_REPAIR_PROFILE_PROMPT if explicit == "qwen" else "",
+            "deepseek_base_url": str(os.getenv("DEEPSEEK_BASE_URL") or "").strip(),
+            "thinking": "disabled" if explicit == "deepseek" else "",
+            "response_format": {"type": "json_object"} if explicit == "deepseek" else "",
             "anthropic_base_url": str(os.getenv("ANTHROPIC_BASE_URL") or "").strip(),
-            "max_tokens": 8192 if explicit == "minimax" else 1024,
+            "max_tokens": 8192 if explicit in {"minimax", "deepseek"} else 1024,
             "system_prompt": (
                 "You must return a final text block containing only one JSON object "
                 "with keys patched_model_text and rationale."
