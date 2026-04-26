@@ -116,8 +116,19 @@ class PatchSummaryV02713Tests(unittest.TestCase):
             self.assertTrue((out_dir / "canonical_summary.txt").exists())
 
     def test_harness_populates_previous_patch_summary_in_observation(self) -> None:
+        checks = iter([
+            (False, False, "model_check_error"),
+            (True, True, "none"),
+        ])
+
+        def check_fn(_text: str, _model_name: str):
+            return next(checks)
+
+        def repair_fn(**_kwargs):
+            return "model Demo\n  Real x;\nequation\n  x = 0;\nend Demo;\n", "", "deepseek"
+
         case = BUILTIN_CASES[0].copy()
-        result = run_live_case(case, max_rounds=2)
+        result = run_live_case(case, max_rounds=2, check_fn=check_fn, repair_fn=repair_fn)
         observations = result.get("observations", [])
         self.assertGreater(len(observations), 0)
         for obs in observations:
