@@ -1,5 +1,5 @@
 """LLM provider adapter protocol and concrete implementations.
-
+ 
 Abstracts the transport layer (HTTP requests, auth, response parsing) for
 different LLM providers behind a unified interface. Provider-specific wire
 format details are encapsulated in each adapter, keeping the agent core
@@ -19,6 +19,26 @@ import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Protocol
+
+
+# ---- tool-use types ----
+
+@dataclass
+class ToolCall:
+    """A single tool-call request from the LLM."""
+    id: str
+    name: str
+    arguments: dict
+
+
+@dataclass
+class ToolResponse:
+    """Result of a tool-request turn."""
+    text: str
+    tool_calls: list[ToolCall]
+    finish_reason: str
+    usage: dict
+
 
 
 # ---- env bootstrap helpers ----
@@ -132,6 +152,23 @@ class LLMProviderAdapter(Protocol):
 
         Returns:
             Tuple of (response_text, error_string).
+            Empty error string means success.
+        """
+        ...
+
+    def send_tool_request(
+        self,
+        messages: list[dict],
+        tools: list[dict],
+        config: LLMProviderConfig,
+    ) -> tuple[ToolResponse | None, str]:
+        """Send a conversation with tool definitions and return result.
+
+        Implementations should parse either a text-only response or tool-call
+        response from the provider and populate ToolResponse accordingly.
+
+        Returns:
+            Tuple of (ToolResponse | None, error_string).
             Empty error string means success.
         """
         ...
@@ -269,6 +306,48 @@ class OpenAIProviderAdapter:
 
         text = self._extract_response_text(response_payload)
         return text, ""
+
+    def send_tool_request(
+        self,
+        messages: list[dict],
+        tools: list[dict],
+        config: LLMProviderConfig,
+    ) -> tuple[ToolResponse | None, str]:
+        req_payload: dict = {
+            "model": config.model,
+            "input": list(messages),
+            "temperature": config.temperature,
+            "tools": list(tools),
+        }
+        req = urllib.request.Request(
+            "https://api.openai.com/v1/responses",
+            data=json.dumps(req_payload).encode("utf-8"),
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {config.api_key}",
+            },
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=config.timeout_sec) as resp:
+                response_payload = json.loads(resp.read().decode("utf-8"))
+        except TimeoutError:
+            return None, "openai_request_timeout"
+        except urllib.error.HTTPError as exc:
+            try:
+                body = exc.read().decode("utf-8", errors="ignore")
+            finally:
+                exc.close()
+            code = int(exc.code)
+            if code == 429:
+                return None, f"openai_rate_limited:{body[:180]}"
+            if code in (502, 503, 504):
+                return None, f"openai_service_unavailable:{code}:{body[:180]}"
+            return None, f"openai_http_error:{code}:{body[:180]}"
+        except urllib.error.URLError as exc:
+            return None, f"openai_url_error:{exc.reason}"
+
+        return _parse_openai_tool_response(response_payload)
 
 
 class QwenProviderAdapter:
@@ -412,6 +491,62 @@ class DeepSeekProviderAdapter:
         text = self._extract_response_text(response_payload)
         return text, ""
 
+    def send_tool_request(
+        self,
+        messages: list[dict],
+        tools: list[dict],
+        config: LLMProviderConfig,
+    ) -> tuple[ToolResponse | None, str]:
+        base_url = str(
+            config.extra.get("deepseek_base_url")
+            or os.getenv("DEEPSEEK_BASE_URL")
+            or "https://api.deepseek.com"
+        ).strip().rstrip("/")
+        openai_tools = _tools_to_openai_chat(tools)
+        req_payload = {
+            "model": config.model,
+            "messages": list(messages),
+            "tools": openai_tools,
+            "tool_choice": "auto",
+            "temperature": config.temperature,
+            "stream": False,
+        }
+        max_tokens = config.extra.get("max_tokens")
+        if max_tokens not in {None, ""}:
+            try:
+                req_payload["max_tokens"] = int(max_tokens)
+            except Exception:
+                pass
+        req = urllib.request.Request(
+            f"{base_url}/chat/completions",
+            data=json.dumps(req_payload).encode("utf-8"),
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {config.api_key}",
+            },
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=config.timeout_sec) as resp:
+                response_payload = json.loads(resp.read().decode("utf-8"))
+        except TimeoutError:
+            return None, "deepseek_request_timeout"
+        except urllib.error.HTTPError as exc:
+            try:
+                body = exc.read().decode("utf-8", errors="ignore")
+            finally:
+                exc.close()
+            code = int(exc.code)
+            if code == 429:
+                return None, f"deepseek_rate_limited:{body[:180]}"
+            if code in (502, 503, 504):
+                return None, f"deepseek_service_unavailable:{code}:{body[:180]}"
+            return None, f"deepseek_http_error:{code}:{body[:180]}"
+        except urllib.error.URLError as exc:
+            return None, f"deepseek_url_error:{exc.reason}"
+
+        return _parse_chat_tool_response(response_payload)
+
 
 # ---- Anthropic adapter ----
 
@@ -475,6 +610,55 @@ class AnthropicProviderAdapter:
 
         text = self._extract_response_text(response_payload)
         return text, ""
+
+    def send_tool_request(
+        self,
+        messages: list[dict],
+        tools: list[dict],
+        config: LLMProviderConfig,
+    ) -> tuple[ToolResponse | None, str]:
+        anthropic_tools = _tools_to_anthropic(tools)
+        anthropic_messages = _messages_to_anthropic(messages)
+        system_prompt = _extract_system_from_messages(messages)
+        req_payload: dict = {
+            "model": config.model,
+            "max_tokens": int(config.extra.get("max_tokens") or 4096),
+            "messages": anthropic_messages,
+            "tools": anthropic_tools,
+            "temperature": config.temperature,
+        }
+        if system_prompt:
+            req_payload["system"] = system_prompt
+        req = urllib.request.Request(
+            "https://api.anthropic.com/v1/messages",
+            data=json.dumps(req_payload).encode("utf-8"),
+            headers={
+                "Content-Type": "application/json",
+                "x-api-key": config.api_key,
+                "anthropic-version": "2023-06-01",
+            },
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=config.timeout_sec) as resp:
+                response_payload = json.loads(resp.read().decode("utf-8"))
+        except TimeoutError:
+            return None, "anthropic_request_timeout"
+        except urllib.error.HTTPError as exc:
+            try:
+                body = exc.read().decode("utf-8", errors="ignore")
+            finally:
+                exc.close()
+            code = int(exc.code)
+            if code == 429:
+                return None, f"anthropic_rate_limited:{body[:180]}"
+            if code in (502, 503, 504):
+                return None, f"anthropic_service_unavailable:{code}:{body[:180]}"
+            return None, f"anthropic_http_error:{code}:{body[:180]}"
+        except urllib.error.URLError as exc:
+            return None, f"anthropic_url_error:{exc.reason}"
+
+        return _parse_anthropic_tool_response(response_payload)
 
 
 class MiniMaxProviderAdapter:
@@ -541,6 +725,193 @@ class MiniMaxProviderAdapter:
 
 
 # ---- adapter factory ----
+
+def _tools_to_anthropic(tools: list[dict]) -> list[dict]:
+    out: list[dict] = []
+    for t in tools:
+        out.append({
+            "name": str(t.get("name") or ""),
+            "description": str(t.get("description") or ""),
+            "input_schema": t.get("input_schema") or t.get("parameters") or {"type": "object", "properties": {}},
+        })
+    return out
+
+
+def _tools_to_openai_chat(tools: list[dict]) -> list[dict]:
+    out: list[dict] = []
+    for t in tools:
+        item: dict = {
+            "type": "function",
+            "function": {
+                "name": str(t.get("name") or ""),
+                "description": str(t.get("description") or ""),
+                "parameters": t.get("parameters") or t.get("input_schema") or {"type": "object", "properties": {}},
+            },
+        }
+        out.append(item)
+    return out
+
+
+def _messages_to_anthropic(messages: list[dict]) -> list[dict]:
+    out: list[dict] = []
+    for msg in messages:
+        role = str(msg.get("role") or "user")
+        content = msg.get("content")
+        tool_calls_list = msg.get("tool_calls")
+        tool_call_id = msg.get("tool_call_id")
+        if role == "tool" and tool_call_id:
+            out.append({
+                "role": "user",
+                "content": [{
+                    "type": "tool_result",
+                    "tool_use_id": str(tool_call_id),
+                    "content": str(content or ""),
+                }],
+            })
+        elif role == "assistant" and tool_calls_list:
+            content_blocks: list[dict] = []
+            if isinstance(content, str) and content.strip():
+                content_blocks.append({"type": "text", "text": str(content)})
+            for tc in tool_calls_list:
+                content_blocks.append({
+                    "type": "tool_use",
+                    "id": str(tc.get("id") or ""),
+                    "name": str(tc.get("name") or ""),
+                    "input": tc.get("arguments") if isinstance(tc.get("arguments"), dict) else _safe_parse_json(str(tc.get("arguments") or "{}")),
+                })
+            out.append({"role": "assistant", "content": content_blocks})
+        elif role == "system":
+            continue
+        else:
+            out.append({"role": role, "content": [{"type": "text", "text": str(content or "")}]})
+    return out
+
+
+def _extract_system_from_messages(messages: list[dict]) -> str:
+    for msg in messages:
+        if str(msg.get("role") or "") == "system":
+            return str(msg.get("content") or "")
+    return ""
+
+
+def _parse_anthropic_tool_response(payload: dict) -> tuple[ToolResponse, str]:
+    text_parts: list[str] = []
+    tool_calls: list[ToolCall] = []
+    content = payload.get("content") if isinstance(payload.get("content"), list) else []
+    for item in content:
+        if not isinstance(item, dict):
+            continue
+        if item.get("type") == "text" and isinstance(item.get("text"), str):
+            text_parts.append(str(item.get("text")))
+        elif item.get("type") == "tool_use":
+            tool_calls.append(ToolCall(
+                id=str(item.get("id") or ""),
+                name=str(item.get("name") or ""),
+                arguments=item.get("input") if isinstance(item.get("input"), dict) else {},
+            ))
+    text = "\n".join(text_parts).strip()
+    finish_reason = str(payload.get("stop_reason") or "")
+    usage_raw = payload.get("usage") if isinstance(payload.get("usage"), dict) else {}
+    usage = {
+        "input_tokens": int(usage_raw.get("input_tokens") or 0),
+        "output_tokens": int(usage_raw.get("output_tokens") or 0),
+    }
+    usage["total_tokens"] = usage["input_tokens"] + usage["output_tokens"]
+    return ToolResponse(text=text, tool_calls=tool_calls, finish_reason=finish_reason, usage=usage), ""
+
+
+def _parse_chat_tool_response(payload: dict) -> tuple[ToolResponse, str]:
+    choices = payload.get("choices") if isinstance(payload.get("choices"), list) else []
+    text = ""
+    tool_calls: list[ToolCall] = []
+    finish_reason = ""
+    if choices:
+        msg = choices[0].get("message") if isinstance(choices[0], dict) else {}
+        if isinstance(msg.get("content"), str):
+            text = str(msg.get("content") or "")
+        finish_reason = str(choices[0].get("finish_reason") or "")
+        raw_tool_calls = msg.get("tool_calls") if isinstance(msg.get("tool_calls"), list) else []
+        for tc in raw_tool_calls:
+            if not isinstance(tc, dict):
+                continue
+            fn = tc.get("function") if isinstance(tc.get("function"), dict) else {}
+            tool_calls.append(ToolCall(
+                id=str(tc.get("id") or ""),
+                name=str(fn.get("name") or ""),
+                arguments=_safe_parse_json(str(fn.get("arguments") or "{}")),
+            ))
+    usage_raw = payload.get("usage") if isinstance(payload.get("usage"), dict) else {}
+    usage = {
+        "input_tokens": int(usage_raw.get("input_tokens") or int(usage_raw.get("prompt_tokens") or 0)),
+        "output_tokens": int(usage_raw.get("output_tokens") or int(usage_raw.get("completion_tokens") or 0)),
+        "total_tokens": int(usage_raw.get("total_tokens") or 0),
+    }
+    return ToolResponse(text=text, tool_calls=tool_calls, finish_reason=finish_reason, usage=usage), ""
+
+
+def _parse_openai_tool_response(payload: dict) -> tuple[ToolResponse, str]:
+    text = OpenAIProviderAdapter._extract_response_text(payload)
+    tool_calls: list[ToolCall] = []
+    output = payload.get("output") if isinstance(payload.get("output"), list) else []
+    for item in output:
+        if not isinstance(item, dict):
+            continue
+        if item.get("type") == "function_call":
+            tool_calls.append(ToolCall(
+                id=str(item.get("call_id") or item.get("id") or ""),
+                name=str(item.get("name") or ""),
+                arguments=_safe_parse_json(str(item.get("arguments") or "{}")),
+            ))
+        elif item.get("type") == "message":
+            pass
+    finish_reason = str(payload.get("status") or "")
+    usage_raw = payload.get("usage") if isinstance(payload.get("usage"), dict) else {}
+    usage = {
+        "input_tokens": int(usage_raw.get("input_tokens") or 0),
+        "output_tokens": int(usage_raw.get("output_tokens") or 0),
+        "total_tokens": int(usage_raw.get("total_tokens") or 0),
+    }
+    return ToolResponse(text=text, tool_calls=tool_calls, finish_reason=finish_reason, usage=usage), ""
+
+
+def _safe_parse_json(raw: str) -> dict:
+    try:
+        result = json.loads(raw)
+        return result if isinstance(result, dict) else {}
+    except Exception:
+        return {}
+
+
+def _build_openai_tool_messages(
+    system_prompt: str,
+    user_messages: list[dict],
+) -> list[dict]:
+    items: list[dict] = []
+    if system_prompt.strip():
+        items.append({"role": "system", "content": system_prompt})
+    for msg in user_messages:
+        role = str(msg.get("role") or "user")
+        content = msg.get("content")
+        tool_calls_list = msg.get("tool_calls")
+        tool_call_id = msg.get("tool_call_id")
+        if role == "tool" and tool_call_id:
+            items.append({
+                "type": "function_call_output",
+                "call_id": str(tool_call_id),
+                "output": str(content or ""),
+            })
+        elif role == "assistant" and tool_calls_list:
+            for tc in tool_calls_list:
+                items.append({
+                    "type": "function_call",
+                    "call_id": str(tc.get("id") or ""),
+                    "name": str(tc.get("name") or ""),
+                    "arguments": str(tc.get("arguments") or "{}"),
+                })
+        else:
+            items.append({"role": role, "content": str(content or "")})
+    return items
+
 
 _ADAPTERS: dict[str, type] = {
     "gemini": GeminiProviderAdapter,
