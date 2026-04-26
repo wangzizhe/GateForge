@@ -189,6 +189,9 @@ def run_live_case(
                 "patched_text_present": True,
                 "model_changed": attempt["model_changed"],
                 "check_pass_after_patch": check_ok_after,
+                "check_pass": check_ok_after,
+                "input_omc_summary": raw_omc_before[:1200],
+                "post_patch_omc_summary": raw_omc_after[:1200],
                 "omc_summary": raw_omc_after[:1200],
             }
         )

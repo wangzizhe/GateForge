@@ -705,6 +705,23 @@ class TestFormatRepairHistory(unittest.TestCase):
         result = _format_repair_history(history)
         self.assertIn("You made no changes.", result)
 
+    def test_feedback_transition_fields_are_preserved_without_hinting(self) -> None:
+        from gateforge.agent_modelica_l2_plan_replan_engine_v1 import _format_repair_history
+        history = [
+            {
+                "round": 1,
+                "model_changed": True,
+                "check_pass": False,
+                "input_omc_summary": "Error: Wrong number of subscripts in R1Resistance[1].",
+                "post_patch_omc_summary": "Error: Too few equations, under-determined system.",
+            }
+        ]
+        result = _format_repair_history(history)
+        self.assertIn("OMC before this patch: Error: Wrong number of subscripts", result)
+        self.assertIn("OMC after this patch: checkModel FAILED. Error: Too few equations", result)
+        self.assertNotIn("root cause", result.lower())
+        self.assertNotIn("repair hint", result.lower())
+
 
 class TestResolveTemperatureSchedule(unittest.TestCase):
     def test_n1_default_matches_provider_config_default(self) -> None:

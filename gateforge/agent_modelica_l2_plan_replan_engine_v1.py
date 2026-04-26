@@ -539,6 +539,8 @@ def _format_repair_history(history: list[dict] | None) -> str:
       - model_changed: bool
       - check_pass: bool
       - omc_summary: str
+      - input_omc_summary: str
+      - post_patch_omc_summary: str
       - change_summary: str
 
     Returns empty string when history is empty or None.
@@ -551,6 +553,8 @@ def _format_repair_history(history: list[dict] | None) -> str:
         changed = entry.get("model_changed", True)
         check_pass = entry.get("check_pass", False)
         omc_summary = str(entry.get("omc_summary") or "")
+        input_omc_summary = str(entry.get("input_omc_summary") or "")
+        post_patch_omc_summary = str(entry.get("post_patch_omc_summary") or "")
         change_summary = str(entry.get("change_summary") or "")
         result = "checkModel PASSED" if check_pass else "checkModel FAILED"
         action = change_summary if change_summary else (
@@ -558,6 +562,16 @@ def _format_repair_history(history: list[dict] | None) -> str:
         )
         lines.append(f"Attempt {idx} (Round {round_num}):")
         lines.append(f"- {action}")
+        if input_omc_summary or post_patch_omc_summary:
+            if input_omc_summary:
+                lines.append(f"- OMC before this patch: {input_omc_summary}")
+            if post_patch_omc_summary:
+                lines.append(f"- OMC after this patch: {result}. {post_patch_omc_summary}")
+            elif omc_summary:
+                lines.append(f"- OMC after this patch: {result}. {omc_summary}")
+            else:
+                lines.append(f"- OMC after this patch: {result}.")
+            continue
         if omc_summary:
             lines.append(f"- OMC result: {result}. {omc_summary}")
         else:
