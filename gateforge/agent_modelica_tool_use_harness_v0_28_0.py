@@ -204,8 +204,21 @@ def run_tool_use_case(
             "token_used": token_used,
         }
         if resp.tool_calls:
-            assistant_msg: dict = {"role": "assistant", "content": resp.text or ""}
-            tc_list = [{"id": tc.id, "name": tc.name, "arguments": json.dumps(tc.arguments)} for tc in resp.tool_calls]
+            assistant_msg: dict = {"role": "assistant", "content": resp.text or None}
+            reasoning = resp.usage.get("_reasoning_content", "")
+            if reasoning:
+                assistant_msg["reasoning_content"] = reasoning
+            tc_list = [
+                {
+                    "id": tc.id,
+                    "type": "function",
+                    "function": {
+                        "name": tc.name,
+                        "arguments": json.dumps(tc.arguments),
+                    },
+                }
+                for tc in resp.tool_calls
+            ]
             assistant_msg["tool_calls"] = tc_list
             messages.append(assistant_msg)
             for tc in resp.tool_calls:

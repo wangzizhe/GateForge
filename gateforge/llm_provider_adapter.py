@@ -517,6 +517,9 @@ class DeepSeekProviderAdapter:
                 req_payload["max_tokens"] = int(max_tokens)
             except Exception:
                 pass
+        thinking = str(config.extra.get("thinking") or "").strip().lower()
+        if thinking in {"enabled", "disabled"}:
+            req_payload["thinking"] = {"type": thinking}
         req = urllib.request.Request(
             f"{base_url}/chat/completions",
             data=json.dumps(req_payload).encode("utf-8"),
@@ -825,10 +828,13 @@ def _parse_chat_tool_response(payload: dict) -> tuple[ToolResponse, str]:
     text = ""
     tool_calls: list[ToolCall] = []
     finish_reason = ""
+    reasoning = ""
     if choices:
         msg = choices[0].get("message") if isinstance(choices[0], dict) else {}
         if isinstance(msg.get("content"), str):
             text = str(msg.get("content") or "")
+        if isinstance(msg.get("reasoning_content"), str):
+            reasoning = str(msg.get("reasoning_content"))
         finish_reason = str(choices[0].get("finish_reason") or "")
         raw_tool_calls = msg.get("tool_calls") if isinstance(msg.get("tool_calls"), list) else []
         for tc in raw_tool_calls:
@@ -846,7 +852,10 @@ def _parse_chat_tool_response(payload: dict) -> tuple[ToolResponse, str]:
         "output_tokens": int(usage_raw.get("output_tokens") or int(usage_raw.get("completion_tokens") or 0)),
         "total_tokens": int(usage_raw.get("total_tokens") or 0),
     }
-    return ToolResponse(text=text, tool_calls=tool_calls, finish_reason=finish_reason, usage=usage), ""
+    response = ToolResponse(text=text, tool_calls=tool_calls, finish_reason=finish_reason, usage=usage)
+    if reasoning:
+        response.usage["_reasoning_content"] = reasoning  # type: ignore[typeddict-unknown-key]
+    return response, ""
 
 
 def _parse_openai_tool_response(payload: dict) -> tuple[ToolResponse, str]:
