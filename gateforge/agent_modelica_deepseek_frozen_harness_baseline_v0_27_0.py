@@ -12,6 +12,8 @@ from .agent_modelica_omc_workspace_v1 import (
     run_check_and_simulate,
     temporary_workspace,
 )
+from .agent_modelica_behavioral_oracle_v0_27_13 import run_behavioral_oracle
+from .agent_modelica_patch_summary_v0_27_13 import generate_patch_summary
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -44,7 +46,7 @@ end DuplicateEquationMinimal;
     },
 ]
 
-CheckFn = Callable[[str, str], tuple[bool, str]]
+CheckFn = Callable[[str, str], tuple[bool, bool, str]]
 RepairFn = Callable[..., tuple[str | None, str, str]]
 
 
@@ -52,7 +54,17 @@ def _strip_ws(text: str) -> str:
     return re.sub(r"\s+", "", text or "")
 
 
-def run_omc_check(model_text: str, model_name: str) -> tuple[bool, str]:
+def extract_simulation_feedback(raw_output: str) -> str:
+    text = raw_output or ""
+    idx = text.find("record SimulationResult")
+    if idx >= 0:
+        return text[idx:]
+    if "simulation" in text.lower():
+        return text
+    return ""
+
+
+def run_omc_check(model_text: str, model_name: str) -> tuple[bool, bool, str]:
     with temporary_workspace("gf_v0270_live_") as ws:
         workspace = Path(ws)
         layout = prepare_workspace_model_layout(
@@ -65,7 +77,7 @@ def run_omc_check(model_text: str, model_name: str) -> tuple[bool, str]:
             source_qualified_model_name=model_name,
         )
         layout.model_write_path.write_text(model_text, encoding="utf-8")
-        _, output, check_ok, _simulate_ok = run_check_and_simulate(
+        _, output, check_ok, simulate_ok = run_check_and_simulate(
             workspace=workspace,
             model_load_files=list(layout.model_load_files),
             model_name=layout.model_identifier,
@@ -76,7 +88,7 @@ def run_omc_check(model_text: str, model_name: str) -> tuple[bool, str]:
             intervals=5,
             extra_model_loads=[],
         )
-        return bool(check_ok), str(output or "")
+        return bool(check_ok), bool(simulate_ok), str(output or "")
 
 
 def _call_repair(
@@ -123,9 +135,15 @@ def run_live_case(
     attempts: list[dict[str, Any]] = []
     provider_name = ""
     final_verdict = "FAILED"
+    previous_patch_summary = ""
 
     for round_index in range(1, max(1, int(max_rounds)) + 1):
-        check_ok_before, raw_omc_before = check_fn(current_text, model_name)
+        check_ok_before, simulate_ok_before, raw_omc_before = check_fn(current_text, model_name)
+        raw_sim_before = extract_simulation_feedback(raw_omc_before)
+        _behavior_verdict, raw_behavior_before = run_behavioral_oracle(
+            check_ok=check_ok_before, simulate_ok=simulate_ok_before,
+            raw_output=raw_omc_before, model_name=model_name,
+        )
         observation = build_observation_event(
             run_id="v0.27.0_deepseek_frozen_harness_baseline",
             case_id=case_id,
@@ -133,6 +151,9 @@ def run_live_case(
             model_text=current_text,
             workflow_goal=workflow_goal,
             raw_omc_feedback=raw_omc_before,
+            raw_simulation_feedback=raw_sim_before,
+            raw_behavioral_oracle_feedback=raw_behavior_before,
+            previous_patch_summary=previous_patch_summary,
             provider_name=provider_name or "pending",
             model_profile="deepseek-v4-flash",
         )
@@ -172,15 +193,20 @@ def run_live_case(
             "patched_text_present": isinstance(patched_text, str) and bool(str(patched_text).strip()),
             "model_changed": False,
             "check_pass_after_patch": None,
+            "simulate_pass_after_patch": None,
             "raw_omc_after_patch": "",
+            "raw_simulation_after_patch": "",
         }
         if not isinstance(patched_text, str) or not patched_text.strip():
             attempts.append(attempt)
             break
         attempt["model_changed"] = _strip_ws(patched_text) != _strip_ws(current_text)
-        check_ok_after, raw_omc_after = check_fn(patched_text, model_name)
+        previous_patch_summary = generate_patch_summary(current_text, patched_text)
+        check_ok_after, simulate_ok_after, raw_omc_after = check_fn(patched_text, model_name)
         attempt["check_pass_after_patch"] = check_ok_after
+        attempt["simulate_pass_after_patch"] = simulate_ok_after
         attempt["raw_omc_after_patch"] = raw_omc_after
+        attempt["raw_simulation_after_patch"] = extract_simulation_feedback(raw_omc_after)
         attempts.append(attempt)
         repair_history.append(
             {
@@ -193,6 +219,7 @@ def run_live_case(
                 "input_omc_summary": raw_omc_before[:1200],
                 "post_patch_omc_summary": raw_omc_after[:1200],
                 "omc_summary": raw_omc_after[:1200],
+                "change_summary": previous_patch_summary,
             }
         )
         current_text = patched_text

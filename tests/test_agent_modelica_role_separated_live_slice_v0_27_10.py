@@ -49,7 +49,8 @@ class RoleSeparatedLiveSliceV02710Tests(unittest.TestCase):
 
     def test_run_live_slice_reports_role_and_keeps_pass_rate_scoped(self) -> None:
         def check_fn(text: str, _model_name: str):
-            return ("equation" in text), "none" if "equation" in text else "model_check_error"
+            ok = "equation" in text
+            return ok, ok, "none" if ok else "model_check_error"
 
         def repair_fn(**_kwargs):
             return "model Demo\n  Real x;\nequation\n  x = 0;\nend Demo;\n", "", "deepseek"

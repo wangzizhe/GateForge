@@ -65,7 +65,8 @@ class DeepSeekSourceBackedSliceV0271Tests(unittest.TestCase):
 
     def test_run_slice_writes_outputs_with_mocked_live_functions(self) -> None:
         def check_fn(text: str, _model_name: str):
-            return ("equation" in text), "none" if "equation" in text else "model_check_error"
+            ok = "equation" in text
+            return ok, ok, "none" if ok else "model_check_error"
 
         def repair_fn(**_kwargs):
             return "model Demo\n  Real x;\nequation\n  x = 0;\nend Demo;\n", "", "deepseek"

@@ -18,7 +18,8 @@ def _write_jsonl(path: Path, rows: list[dict]) -> None:
 class DeepSeekTransitionHistorySliceV0276Tests(unittest.TestCase):
     def test_run_transition_history_slice_marks_changed_variable(self) -> None:
         def check_fn(text: str, _model_name: str):
-            return ("fixed" in text), "none" if "fixed" in text else "model_check_error"
+            ok = "fixed" in text
+            return ok, ok, "none" if ok else "model_check_error"
 
         seen_history: list[list[dict]] = []
 

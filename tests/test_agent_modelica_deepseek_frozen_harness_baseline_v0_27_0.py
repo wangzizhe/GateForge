@@ -14,8 +14,8 @@ class DeepSeekFrozenHarnessBaselineV0270Tests(unittest.TestCase):
     def test_run_live_case_uses_observation_contract_and_raw_only(self) -> None:
         checks = iter(
             [
-                (False, "model_check_error"),
-                (True, "none"),
+                (False, False, "model_check_error"),
+                (True, True, "none"),
             ]
         )
 
@@ -46,7 +46,8 @@ class DeepSeekFrozenHarnessBaselineV0270Tests(unittest.TestCase):
 
     def test_run_baseline_writes_outputs(self) -> None:
         def check_fn(text: str, _model_name: str):
-            return ("equation" in text), "none" if "equation" in text else "model_check_error"
+            ok = "equation" in text
+            return ok, ok, "none" if ok else "model_check_error"
 
         def repair_fn(**_kwargs):
             return "model Demo\n  Real x;\nequation\n  x = 0;\nend Demo;\n", "", "deepseek"

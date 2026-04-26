@@ -16,7 +16,8 @@ def _write_jsonl(path: Path, rows: list[dict]) -> None:
 class DeepSeekThreeRoundSliceV0273Tests(unittest.TestCase):
     def test_run_three_round_slice_preserves_only_round_budget_change(self) -> None:
         def check_fn(text: str, _model_name: str):
-            return ("fixed" in text), "none" if "fixed" in text else "model_check_error"
+            ok = "fixed" in text
+            return ok, ok, "none" if ok else "model_check_error"
 
         calls: list[int] = []
 
