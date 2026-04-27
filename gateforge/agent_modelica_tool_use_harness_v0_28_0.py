@@ -108,13 +108,25 @@ def get_tool_defs(tool_profile: str = "structural") -> list[dict[str, Any]]:
 
 
 def get_tool_profile_guidance(tool_profile: str = "structural") -> str:
+    lines = []
+    if tool_profile in ("structural", "connector"):
+        lines.append(
+            "Diagnostic tool hints (use when relevant, not required every step):\n"
+            "- After check_model returns under-determined or over-determined errors, "
+            "try get_unmatched_vars for root-cause variable analysis.\n"
+            "- When a variable appears in equations but has no obvious defining equation, "
+            "try who_defines or who_uses to trace its usage.\n"
+            "- If you suspect unused or phantom variables, try declared_but_unused.\n"
+            "- When the equation system is complex or you need to understand variable dependencies, "
+            "try causalized_form to see causal assignment directions.\n"
+        )
     if tool_profile == "connector":
-        return (
-            "If the model uses custom connectors, flow variables, direct connector field equations, "
+        lines.append(
+            "- If the model uses custom connectors, flow variables, direct connector field equations, "
             "or OMC reports connector balance issues, call connector_balance_diagnostic before proposing "
             "connector-related repairs. Use it as diagnostic context only; you must still decide the patch.\n"
         )
-    return ""
+    return "".join(lines)
 
 
 def _strip_ws(text: str) -> str:
@@ -202,12 +214,11 @@ def run_tool_use_case(
     tool_defs = get_tool_defs(tool_profile)
 
     system_prompt = (
-        "You are fixing a Modelica model. You can use tools to check and simulate the model.\n"
+        "You are fixing a Modelica model. You have tools for OMC operations and structural diagnostics.\n"
         "Use check_model to see current compiler output.\n"
         "Use simulate_model to run a simulation.\n"
         "When the model is correct, call submit_final.\n"
         "Keep edits minimal and compile-oriented.\n"
-        "Return patched_model_text through submit_final only.\n"
         f"{get_tool_profile_guidance(tool_profile)}"
     )
     messages: list[dict] = [
