@@ -22,12 +22,16 @@ from .agent_modelica_structural_tools_v0_28_1 import (
     dispatch_structural_tool,
     get_structural_tool_defs,
 )
+from .agent_modelica_connector_balance_tool_v0_29_9 import (
+    dispatch_connector_balance_tool,
+    get_connector_balance_tool_defs,
+)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_OUT_DIR = REPO_ROOT / "artifacts" / "tool_use_harness_v0_28_0"
 DOCKER_IMAGE = "openmodelica/openmodelica:v1.26.1-minimal"
 
-TOOL_DEFS: list[dict[str, Any]] = [
+BASE_TOOL_DEFS: list[dict[str, Any]] = [
     {
         "name": "check_model",
         "description": (
@@ -90,8 +94,27 @@ TOOL_DEFS: list[dict[str, Any]] = [
     },
 ]
 
-# Merge structural tools into the tool set
-TOOL_DEFS = TOOL_DEFS + get_structural_tool_defs()
+# Default profile keeps the v0.28.1 structural tools enabled.
+TOOL_DEFS = BASE_TOOL_DEFS + get_structural_tool_defs()
+CONNECTOR_TOOL_DEFS = TOOL_DEFS + get_connector_balance_tool_defs()
+
+
+def get_tool_defs(tool_profile: str = "structural") -> list[dict[str, Any]]:
+    if tool_profile == "base":
+        return list(BASE_TOOL_DEFS)
+    if tool_profile == "connector":
+        return list(CONNECTOR_TOOL_DEFS)
+    return list(TOOL_DEFS)
+
+
+def get_tool_profile_guidance(tool_profile: str = "structural") -> str:
+    if tool_profile == "connector":
+        return (
+            "If the model uses custom connectors, flow variables, direct connector field equations, "
+            "or OMC reports connector balance issues, call connector_balance_diagnostic before proposing "
+            "connector-related repairs. Use it as diagnostic context only; you must still decide the patch.\n"
+        )
+    return ""
 
 
 def _strip_ws(text: str) -> str:
@@ -124,6 +147,8 @@ def dispatch_tool(name: str, arguments: dict) -> str:
         return str(output or "")
     if name == "submit_final":
         return json.dumps({"status": "submitted", "model_name": model_name})
+    if name == "connector_balance_diagnostic":
+        return dispatch_connector_balance_tool(name, arguments)
     return dispatch_structural_tool(name, arguments)
 
 
@@ -164,6 +189,7 @@ def run_tool_use_case(
     max_steps: int,
     max_token_budget: int,
     planner_backend: str = "auto",
+    tool_profile: str = "structural",
 ) -> dict[str, Any]:
     current_text = str(case["model_text"])
     model_name = str(case["model_name"])
@@ -173,6 +199,7 @@ def run_tool_use_case(
     provider = config.provider_name
     if provider == "rule":
         return _fail_result(case_id, model_name, "rule_backend_selected")
+    tool_defs = get_tool_defs(tool_profile)
 
     system_prompt = (
         "You are fixing a Modelica model. You can use tools to check and simulate the model.\n"
@@ -181,6 +208,7 @@ def run_tool_use_case(
         "When the model is correct, call submit_final.\n"
         "Keep edits minimal and compile-oriented.\n"
         "Return patched_model_text through submit_final only.\n"
+        f"{get_tool_profile_guidance(tool_profile)}"
     )
     messages: list[dict] = [
         {"role": "system", "content": system_prompt},
@@ -198,7 +226,7 @@ def run_tool_use_case(
     provider_error = ""
 
     for step_idx in range(1, max(1, int(max_steps)) + 1):
-        resp, err = adapter.send_tool_request(messages, TOOL_DEFS, config)
+        resp, err = adapter.send_tool_request(messages, tool_defs, config)
         if err:
             provider_error = err
             steps.append({"step": step_idx, "error": err})
@@ -246,6 +274,7 @@ def run_tool_use_case(
                     should_break = True
             step_record["tool_results"] = tool_results
             if should_break:
+                steps.append(step_record)
                 break
         else:
             messages.append({"role": "assistant", "content": resp.text})
@@ -257,7 +286,12 @@ def run_tool_use_case(
 
     if submitted:
         final_model_name = _extract_model_name(final_model) or model_name
-        _, output, check_ok, simulate_ok = _run_omc(final_model, final_model_name)
+        _, output, check_ok, simulate_ok = _run_omc(
+            final_model,
+            final_model_name,
+            stop_time=float(case.get("final_stop_time") or 0.05),
+            intervals=int(case.get("final_intervals") or 5),
+        )
         final_verdict = "PASS" if (check_ok and simulate_ok) else "FAILED"
         steps.append({"step": "final_eval", "check_ok": check_ok, "simulate_ok": simulate_ok, "omc_output": str(output or "")[:2000]})
 
@@ -266,6 +300,7 @@ def run_tool_use_case(
         "model_name": model_name,
         "provider": provider,
         "run_mode": "tool_use",
+        "tool_profile": tool_profile,
         "final_verdict": final_verdict,
         "submitted": submitted,
         "step_count": len(steps),
@@ -301,10 +336,17 @@ def run_tool_use_baseline(
     max_steps: int = 10,
     max_token_budget: int = 32000,
     planner_backend: str = "auto",
+    tool_profile: str = "structural",
 ) -> dict[str, Any]:
     selected = list(cases)[:max(0, int(limit))]
     results = [
-        run_tool_use_case(case, max_steps=max_steps, max_token_budget=max_token_budget, planner_backend=planner_backend)
+        run_tool_use_case(
+            case,
+            max_steps=max_steps,
+            max_token_budget=max_token_budget,
+            planner_backend=planner_backend,
+            tool_profile=tool_profile,
+        )
         for case in selected
     ]
     total = len(results)
@@ -314,6 +356,7 @@ def run_tool_use_baseline(
         "status": "PASS" if total else "REVIEW",
         "analysis_scope": "tool_use_harness_smoke",
         "run_mode": "tool_use",
+        "tool_profile": tool_profile,
         "case_count": total,
         "pass_count": pass_count,
         "discipline": {
