@@ -27,7 +27,7 @@ class CIShardConfigContractTests(unittest.TestCase):
             workflow,
         )
         self.assertIn(
-            'scripts/ci_run_unittest_shard.sh "test_demo_bundle.py,test_demo_runtime_contract.py,test_[j-q]*.py,test_r[!u]*.py,test_runtime_*.py,test_run.py,test_run_[!p]*.py,test_s*.py"',
+            'scripts/ci_run_unittest_shard.sh "test_demo_bundle.py,test_demo_runtime_contract.py,test_dual_layer_mutation_v0_3_5.py,test_[j-q]*.py,test_r[!u]*.py,test_runtime_*.py,test_run.py,test_run_[!p]*.py,test_s*.py"',
             workflow,
         )
         self.assertIn(
