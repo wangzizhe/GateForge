@@ -108,23 +108,22 @@ def get_tool_defs(tool_profile: str = "structural") -> list[dict[str, Any]]:
 
 
 def get_tool_profile_guidance(tool_profile: str = "structural") -> str:
-    lines = []
-    if tool_profile in ("structural", "connector"):
-        lines.append(
-            "Diagnostic tool hints (use when relevant, not required every step):\n"
-            "- After check_model returns under-determined or over-determined errors, "
-            "try get_unmatched_vars for root-cause variable analysis.\n"
-            "- When a variable appears in equations but has no obvious defining equation, "
-            "try who_defines or who_uses to trace its usage.\n"
-            "- If you suspect unused or phantom variables, try declared_but_unused.\n"
-            "- When the equation system is complex or you need to understand variable dependencies, "
-            "try causalized_form to see causal assignment directions.\n"
-        )
+    if tool_profile == "base":
+        return ""
+    lines = [
+        "Diagnostic tools are available for complex cases. Each call costs tokens — "
+        "use only when check_model output alone is insufficient:\n"
+        "- get_unmatched_vars: when check_model reports multiple under-determined errors "
+        "and the root variable is not obvious from the output.\n"
+        "- who_defines / who_uses: when you need to trace a specific variable's defining and referencing equations.\n"
+        "- declared_but_unused: only after you have changed equation references and need to find leftover declarations.\n"
+        "- causalized_form: when the equation system is large (>10 equations) and dependency structure is unclear.\n"
+    ]
     if tool_profile == "connector":
         lines.append(
-            "- If the model uses custom connectors, flow variables, direct connector field equations, "
-            "or OMC reports connector balance issues, call connector_balance_diagnostic before proposing "
-            "connector-related repairs. Use it as diagnostic context only; you must still decide the patch.\n"
+            "- connector_balance_diagnostic: when check_model passes but simulate fails, "
+            "and the model has custom connectors with direct field equations. "
+            "Use it once to diagnose — you must still decide the patch.\n"
         )
     return "".join(lines)
 
