@@ -159,12 +159,13 @@ def run_live_case(
         )
         observation_errors = validate_observation_event(observation)
         observations.append({"event": observation, "validation_errors": observation_errors})
-        if check_ok_before:
+        if check_ok_before and simulate_ok_before:
             final_verdict = "PASS"
             attempts.append(
                 {
                     "round": round_index,
                     "check_pass_before_patch": True,
+                    "simulate_pass_before_patch": True,
                     "llm_called": False,
                     "provider": provider_name,
                     "llm_error": "",
@@ -187,6 +188,7 @@ def run_live_case(
         attempt: dict[str, Any] = {
             "round": round_index,
             "check_pass_before_patch": False,
+            "simulate_pass_before_patch": False,
             "llm_called": True,
             "provider": provider,
             "llm_error": llm_error,
@@ -223,7 +225,7 @@ def run_live_case(
             }
         )
         current_text = patched_text
-        if check_ok_after:
+        if check_ok_after and simulate_ok_after:
             final_verdict = "PASS"
             break
 

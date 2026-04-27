@@ -9,14 +9,14 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_OUT_DIR = REPO_ROOT / "artifacts" / "patch_summary_v0_27_13"
 
 _VAR_DECL_RE = re.compile(
-    r"^\s*(?:(?:input|output|protected|public|discrete|flow|stream)\s+)*"
-    r"(Real|Integer|Boolean|String|parameter|constant)"
+    r"^\s*(?:(?:input|output|protected|public|discrete|flow|stream|parameter|constant)\s+)*"
+    r"(Real|Integer|Boolean|String)"
     r"(?:\s*\[[^\]]*\])?"
     r"\s+(\w+)",
     re.MULTILINE,
 )
 
-_COMPONENT_RE = re.compile(r"^\s*(\w+)\s+(\w+)\s*\(", re.MULTILINE)
+_COMPONENT_RE = re.compile(r"^\s*([\w.]+)\s+(\w+)\s*\(", re.MULTILINE)
 
 _EQUATION_KW_RE = re.compile(r"^\s*((?:initial\s+)?equation)\s*$", re.MULTILINE)
 

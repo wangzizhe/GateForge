@@ -221,14 +221,19 @@ def run_tool_use_case(
             ]
             assistant_msg["tool_calls"] = tc_list
             messages.append(assistant_msg)
+            tool_results = []
+            should_break = False
             for tc in resp.tool_calls:
                 result = dispatch_tool(tc.name, tc.arguments)
                 messages.append({"role": "tool", "tool_call_id": tc.id, "content": result})
+                tool_results.append({"name": tc.name, "result": result[:500]})
                 if tc.name == "submit_final":
                     submitted = True
                     final_model = str(tc.arguments.get("model_text") or current_text)
-                    break
-            step_record["tool_results"] = [{"name": tc.name, "result": dispatch_tool(tc.name, tc.arguments)[:500]} for tc in resp.tool_calls]
+                    should_break = True
+            step_record["tool_results"] = tool_results
+            if should_break:
+                break
         else:
             messages.append({"role": "assistant", "content": resp.text})
         steps.append(step_record)
@@ -239,7 +244,7 @@ def run_tool_use_case(
 
     if submitted:
         _, output, check_ok, simulate_ok = _run_omc(final_model, model_name)
-        final_verdict = "PASS" if check_ok else "FAILED"
+        final_verdict = "PASS" if (check_ok and simulate_ok) else "FAILED"
         steps.append({"step": "final_eval", "check_ok": check_ok, "simulate_ok": simulate_ok, "omc_output": str(output or "")[:2000]})
 
     result = {

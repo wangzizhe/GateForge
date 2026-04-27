@@ -776,11 +776,12 @@ def _messages_to_anthropic(messages: list[dict]) -> list[dict]:
             if isinstance(content, str) and content.strip():
                 content_blocks.append({"type": "text", "text": str(content)})
             for tc in tool_calls_list:
+                tc_name, tc_args = _normalize_tool_call(tc)
                 content_blocks.append({
                     "type": "tool_use",
                     "id": str(tc.get("id") or ""),
-                    "name": str(tc.get("name") or ""),
-                    "input": tc.get("arguments") if isinstance(tc.get("arguments"), dict) else _safe_parse_json(str(tc.get("arguments") or "{}")),
+                    "name": tc_name,
+                    "input": tc_args,
                 })
             out.append({"role": "assistant", "content": content_blocks})
         elif role == "system":
@@ -795,6 +796,24 @@ def _extract_system_from_messages(messages: list[dict]) -> str:
         if str(msg.get("role") or "") == "system":
             return str(msg.get("content") or "")
     return ""
+
+
+def _normalize_tool_call(tc: dict) -> tuple[str, dict]:
+    name = str(tc.get("name") or "")
+    args: dict = {}
+    if not name:
+        fn = tc.get("function") if isinstance(tc.get("function"), dict) else {}
+        name = str(fn.get("name") or "")
+        raw_args = fn.get("arguments")
+        if isinstance(raw_args, dict):
+            args = raw_args
+        elif isinstance(raw_args, str):
+            args = _safe_parse_json(raw_args)
+    if isinstance(tc.get("arguments"), dict):
+        args = tc.get("arguments")
+    elif isinstance(tc.get("arguments"), str) and not args:
+        args = _safe_parse_json(str(tc.get("arguments")))
+    return name, args
 
 
 def _parse_anthropic_tool_response(payload: dict) -> tuple[ToolResponse, str]:
