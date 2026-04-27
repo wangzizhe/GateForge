@@ -53,6 +53,20 @@ PROVIDER_PROFILES: dict[str, dict[str, Any]] = {
         "error_prefixes": ["minimax_rate_limited", "minimax_service_unavailable", "minimax_http_error"],
         "profile_controls": ["temperature", "max_tokens", "system_prompt"],
     },
+    "kimi": {
+        "transport_shape": "openai_compatible_chat_completions",
+        "default_model_hint": "kimi",
+        "response_extraction": "choices[0].message.content",
+        "error_prefixes": ["kimi_rate_limited", "kimi_service_unavailable", "kimi_http_error"],
+        "profile_controls": ["temperature"],
+    },
+    "glm": {
+        "transport_shape": "openai_compatible_chat_completions",
+        "default_model_hint": "glm",
+        "response_extraction": "choices[0].message.content",
+        "error_prefixes": ["glm_rate_limited", "glm_service_unavailable", "glm_http_error"],
+        "profile_controls": ["temperature"],
+    },
 }
 
 DISALLOWED_PROFILE_CAPABILITIES = (

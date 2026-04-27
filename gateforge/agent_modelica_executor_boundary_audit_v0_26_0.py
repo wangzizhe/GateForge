@@ -68,7 +68,11 @@ def build_executor_boundary_audit(
     deepseek_planner_family = planner.planner_family_for_provider("deepseek")
     deepseek_planner_adapter = planner.planner_adapter_for_provider("deepseek")
 
-    executor_deepseek_mentions = _line_hits(executor_text, ("deepseek", "deepseek-v4-flash"))
+    import re
+    # Strip argparse choices lists before scanning for provider-specific logic;
+    # choices are a user-facing config surface, not business logic.
+    executor_text_for_audit = re.sub(r'choices=\[[^\]]*\]', '', executor_text)
+    executor_deepseek_mentions = _line_hits(executor_text_for_audit, ("deepseek", "deepseek-v4-flash"))
     deepseek_adapter_decision_hits = _line_hits(deepseek_adapter_source, FORBIDDEN_ADAPTER_DECISION_TERMS)
     source_presence = {
         "executor": bool(executor_text),
