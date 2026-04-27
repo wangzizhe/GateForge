@@ -542,7 +542,7 @@ def main() -> None:
     parser.add_argument(
         "--planner-backend",
         default="rule",
-        choices=["rule", "openai", "gemini"],
+        choices=["rule", "gemini", "openai", "anthropic", "qwen", "deepseek", "minimax", "kimi", "glm"],
         help="Planner backend: rule (implemented), openai (placeholder), gemini (implemented)",
     )
     parser.add_argument(

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -51,7 +52,7 @@ def build_repair_case(row: dict[str, Any]) -> dict[str, Any] | None:
             "while preserving the original physical modeling intent. Use only the compiler "
             "feedback and the model text; do not assume hidden benchmark metadata."
         ),
-        "planner_backend": "gemini",
+        "planner_backend": str(os.getenv("LLM_PROVIDER") or "").strip(),
         "backend": "openmodelica_docker",
         "admission_source": "omc_complex_single_root_verified",
     }

@@ -203,7 +203,7 @@ def main() -> None:
     parser.add_argument(
         "--planner-backend",
         default="rule",
-        choices=["rule", "gemini", "openai"],
+        choices=["rule", "gemini", "openai", "anthropic", "qwen", "deepseek", "minimax", "kimi", "glm"],
         help="Planner backend for repair proposal generation",
     )
     parser.add_argument("--proposal-id", default=None, help="Optional explicit proposal_id for repaired run")
@@ -284,7 +284,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--retry-fallback-planner-backend",
-        choices=["rule", "gemini", "openai"],
+        choices=["rule", "gemini", "openai", "anthropic", "qwen", "deepseek", "minimax", "kimi", "glm"],
         default="rule",
         help="Planner backend for conservative retry",
     )

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from collections import Counter
 from pathlib import Path
 from typing import Any
@@ -83,8 +84,8 @@ def audit_capability_slice(
         "analysis_scope": "capability_slice_current_harness_audit",
         "slice_plan_artifact": str(DEFAULT_SLICE_PLAN.relative_to(REPO_ROOT)),
         "result_artifact": str(DEFAULT_RESULTS.relative_to(REPO_ROOT)),
-        "provider": "deepseek",
-        "model_profile": "deepseek-v4-flash",
+        "provider": str(os.getenv("LLM_PROVIDER") or "deepseek").strip(),
+        "model_profile": str(os.getenv("LLM_MODEL") or "deepseek-v4-flash").strip(),
         "run_mode": "raw_only",
         "audited_case_count": len(audited),
         "pass_count": pass_count,

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any, Callable
 
@@ -70,7 +71,7 @@ def run_first_turn_probe(
     check_ok, omc_output = check_fn(model_text, model_name)
     context_block, context_label = build_context_block(mode)
     candidates = repair_fn(
-        planner_backend=str(case.get("planner_backend") or "gemini"),
+        planner_backend=str(case.get("planner_backend") or os.getenv("LLM_PROVIDER") or "").strip(),
         original_text=model_text,
         failure_type=str(case.get("failure_type") or "model_check_error"),
         expected_stage=str(case.get("expected_stage") or "check"),

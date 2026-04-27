@@ -79,7 +79,7 @@ def _provider_noise_counts(comparison_summary: dict) -> dict[str, int]:
         error = str(row.get("error") or "").strip().lower()
         if not error:
             continue
-        if "503" in error or "high demand" in error or "gemini_http_error: 503" in error:
+        if "503" in error or "high demand" in error or "_service_unavailable:503" in error:
             key = "provider_503"
         elif "rate_limit" in error or "rate limited" in error:
             key = "rate_limited"

@@ -177,7 +177,7 @@ def main() -> None:
     parser.add_argument(
         "--planner-backend",
         default="rule",
-        choices=["rule", "openai", "gemini"],
+        choices=["rule", "gemini", "openai", "anthropic", "qwen", "deepseek", "minimax", "kimi", "glm"],
         help="Planner backend passed to llm_planner",
     )
     parser.add_argument(

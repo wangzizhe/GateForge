@@ -517,7 +517,7 @@ def _parse_main_args() -> argparse.Namespace:
     parser.add_argument("--simulate-intervals", type=int, default=20)
     parser.add_argument("--backend", choices=["auto", "omc", "openmodelica_docker"], default="auto")
     parser.add_argument("--docker-image", default=os.getenv("GATEFORGE_OM_IMAGE", DEFAULT_DOCKER_IMAGE))
-    parser.add_argument("--planner-backend", choices=["auto", "gemini", "openai", "rule"], default="auto")
+    parser.add_argument("--planner-backend", choices=["auto", "rule", "gemini", "openai", "anthropic", "qwen", "deepseek", "minimax", "kimi", "glm"], default="auto")
     parser.add_argument("--transparent-repair-loop", choices=["on", "off"], default="on")
     parser.add_argument("--remedy-pack-enabled", choices=["on", "off"], default="on")
     parser.add_argument("--capability-intervention-pack-enabled", choices=["on", "off"], default="off")

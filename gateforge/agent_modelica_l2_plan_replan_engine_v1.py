@@ -54,6 +54,8 @@ _OPENAI_MODEL_HINT_PATTERN = re.compile(r"^(gpt|o[0-9]|chatgpt|gpt-5)", re.IGNOR
 _QWEN_MODEL_HINT_PATTERN = re.compile(r"^(qwen|qwq)", re.IGNORECASE)
 _DEEPSEEK_MODEL_HINT_PATTERN = re.compile(r"^(deepseek)", re.IGNORECASE)
 _MINIMAX_MODEL_HINT_PATTERN = re.compile(r"^(minimax)", re.IGNORECASE)
+_KIMI_MODEL_HINT_PATTERN = re.compile(r"^(kimi|moonshot)", re.IGNORECASE)
+_GLM_MODEL_HINT_PATTERN = re.compile(r"^(glm|chatglm|zhipu)", re.IGNORECASE)
 _TIMESTAMP_PATTERN = re.compile(r"\b\d{4}-\d{2}-\d{2}[T ][0-2]\d:[0-5]\d(?::[0-5]\d)?")
 _TASK_ID_PATTERN = re.compile(r"\b[a-z]+[0-9]+_[a-z0-9_]+\b")
 _ABSOLUTE_PATH_PATTERN = re.compile(r"(?:^|[\s:=])/(?:Users|home|tmp|var)/")
@@ -161,6 +163,7 @@ def resolve_llm_provider(requested_backend: str) -> tuple[str, str, str]:
             "QWEN_MODEL",
             "DEEPSEEK_MODEL",
             "MINIMAX_MODEL",
+            "ANTHROPIC_MODEL",
             "LLM_PROVIDER",
             "GATEFORGE_LIVE_PLANNER_BACKEND",
         }
@@ -175,15 +178,16 @@ def resolve_llm_provider(requested_backend: str) -> tuple[str, str, str]:
         or str(os.getenv("QWEN_MODEL") or "").strip()
         or str(os.getenv("DEEPSEEK_MODEL") or "").strip()
         or str(os.getenv("MINIMAX_MODEL") or "").strip()
+        or str(os.getenv("ANTHROPIC_MODEL") or "").strip()
         or str(os.getenv("GATEFORGE_GEMINI_MODEL") or "").strip()
         or str(os.getenv("GEMINI_MODEL") or "").strip()
     )
     if not model:
         raise ValueError("missing_llm_model")
-    explicit = requested if requested in {"gemini", "openai", "qwen", "deepseek", "minimax"} else ""
+    explicit = requested if requested in {"gemini", "openai", "anthropic", "qwen", "deepseek", "minimax", "kimi", "glm"} else ""
     if not explicit:
         explicit = str(os.getenv("LLM_PROVIDER") or os.getenv("GATEFORGE_LIVE_PLANNER_BACKEND") or "").strip().lower()
-    if explicit not in {"gemini", "openai", "qwen", "deepseek", "minimax"}:
+    if explicit not in {"gemini", "openai", "anthropic", "qwen", "deepseek", "minimax", "kimi", "glm"}:
         if _OPENAI_MODEL_HINT_PATTERN.search(model):
             explicit = "openai"
         elif _QWEN_MODEL_HINT_PATTERN.search(model):
@@ -192,6 +196,10 @@ def resolve_llm_provider(requested_backend: str) -> tuple[str, str, str]:
             explicit = "deepseek"
         elif _MINIMAX_MODEL_HINT_PATTERN.search(model):
             explicit = "minimax"
+        elif _KIMI_MODEL_HINT_PATTERN.search(model):
+            explicit = "kimi"
+        elif _GLM_MODEL_HINT_PATTERN.search(model):
+            explicit = "glm"
         elif "gemini" in model.lower():
             explicit = "gemini"
         else:
@@ -224,6 +232,21 @@ def resolve_llm_provider(requested_backend: str) -> tuple[str, str, str]:
         if not api_key:
             raise ValueError("missing_minimax_api_key")
         return explicit, model, api_key
+    if explicit == "anthropic":
+        api_key = str(os.getenv("ANTHROPIC_API_KEY") or "").strip()
+        if not api_key:
+            raise ValueError("missing_anthropic_api_key")
+        return explicit, model, api_key
+    if explicit == "kimi":
+        api_key = str(os.getenv("KIMI_API_KEY") or "").strip()
+        if not api_key:
+            raise ValueError("missing_kimi_api_key")
+        return explicit, model, api_key
+    if explicit == "glm":
+        api_key = str(os.getenv("GLM_API_KEY") or "").strip()
+        if not api_key:
+            raise ValueError("missing_glm_api_key")
+        return explicit, model, api_key
     api_key = str(os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY") or "").strip()
     if not api_key:
         raise ValueError("missing_gemini_api_key")
@@ -239,7 +262,7 @@ def planner_family_for_provider(provider: str) -> str:
     name = str(provider or "").strip().lower()
     if name == "rule":
         return "rule"
-    if name in {"gemini", "openai", "qwen", "deepseek", "minimax"}:
+    if name in {"gemini", "openai", "anthropic", "qwen", "deepseek", "minimax", "kimi", "glm"}:
         return "llm"
     return "unknown"
 
@@ -251,9 +274,12 @@ def planner_adapter_for_provider(provider: str) -> str:
         "rule": "gateforge_rule_planner_v1",
         "gemini": "gateforge_gemini_planner_v1",
         "openai": "gateforge_openai_planner_v1",
+        "anthropic": "gateforge_anthropic_planner_v1",
         "qwen": "gateforge_qwen_planner_v1",
         "deepseek": "gateforge_deepseek_planner_v1",
         "minimax": "gateforge_minimax_planner_v1",
+        "kimi": "gateforge_kimi_planner_v1",
+        "glm": "gateforge_glm_planner_v1",
     }
     return mapping.get(name, "gateforge_unknown_planner_v1")
 

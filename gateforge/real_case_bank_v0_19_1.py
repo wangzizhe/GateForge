@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from .agent_modelica_v0_8_0_common import REPO_ROOT, load_json
@@ -114,7 +115,7 @@ def load_real_case_bank_v191(
                 "expected_stage": expected_stage,
                 "scale": str(row.get("scale") or ""),
                 "workflow_goal": "repair_model",
-                "planner_backend": "gemini",
+                "planner_backend": str(os.getenv("LLM_PROVIDER") or "").strip(),
                 "backend": "openmodelica_docker",
                 "surface_layer_taxonomy_id": surface_tid,
                 "residual_layer_taxonomy_id": residual_tid,

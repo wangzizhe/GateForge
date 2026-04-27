@@ -181,7 +181,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Generate repair_batch pack from repair_tasks summary")
     parser.add_argument("--tasks-summary", required=True, help="repair_tasks summary JSON path")
     parser.add_argument("--pack-id", default="repair_pack_from_tasks_v0", help="Generated pack id")
-    parser.add_argument("--planner-backend", default="rule", choices=["rule", "gemini", "openai"])
+    parser.add_argument("--planner-backend", default="rule", choices=["rule", "gemini", "openai", "anthropic", "qwen", "deepseek", "minimax", "kimi", "glm"])
     parser.add_argument("--policy-profile", default=None, help="Optional policy profile for all generated cases")
     parser.add_argument(
         "--strategy-profile",

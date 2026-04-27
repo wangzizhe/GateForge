@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import re
 from pathlib import Path
 from typing import Any
@@ -134,8 +135,8 @@ def run_role_separated_live_slice(
         "slice_role": slice_role,
         "slice_plan_artifact": str(DEFAULT_SLICE_PLAN.relative_to(REPO_ROOT)),
         "upstream_frozen_harness": str(V0270_OUT_DIR.relative_to(REPO_ROOT)),
-        "provider": "deepseek",
-        "model_profile": "deepseek-v4-flash",
+        "provider": str(os.getenv("LLM_PROVIDER") or "deepseek").strip(),
+        "model_profile": str(os.getenv("LLM_MODEL") or "deepseek-v4-flash").strip(),
         "run_mode": "raw_only",
         "max_rounds": int(max_rounds),
         "case_count": len(results),

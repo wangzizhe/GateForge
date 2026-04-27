@@ -409,7 +409,7 @@ def main() -> None:
     parser.add_argument(
         "--planner-backend",
         default="auto",
-        choices=["auto", "gemini", "openai", "rule"],
+        choices=["auto", "rule", "gemini", "openai", "anthropic", "qwen", "deepseek", "minimax", "kimi", "glm"],
     )
     parser.add_argument("--docker-image", default="openmodelica/openmodelica:v1.26.1-minimal")
     parser.add_argument("--max-rounds", type=int, default=8)

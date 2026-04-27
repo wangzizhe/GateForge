@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from collections import Counter
@@ -55,7 +56,7 @@ def build_repair_case(row: dict[str, Any]) -> dict[str, Any] | None:
             "and simulates again, while preserving the original physical modeling intent. "
             "Use only the model text and compiler feedback; do not assume hidden benchmark metadata."
         ),
-        "planner_backend": "gemini",
+        "planner_backend": str(os.getenv("LLM_PROVIDER") or "").strip(),
         "backend": "openmodelica_docker",
         "admission_source": "omc_engineering_mutation_verified",
     }

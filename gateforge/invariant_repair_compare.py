@@ -134,7 +134,7 @@ def main() -> None:
         default=["default", "industrial_strict"],
         help="Invariant repair profiles to compare",
     )
-    parser.add_argument("--planner-backend", default="rule", choices=["rule", "gemini", "openai"])
+    parser.add_argument("--planner-backend", default="rule", choices=["rule", "gemini", "openai", "anthropic", "qwen", "deepseek", "minimax", "kimi", "glm"])
     parser.add_argument("--baseline", default="auto")
     parser.add_argument("--baseline-index", default="baselines/index.json")
     parser.add_argument("--runtime-threshold", type=float, default=0.2)

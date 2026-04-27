@@ -49,6 +49,8 @@ ANTHROPIC_MODEL_HINT_PATTERN = re.compile(r"^(claude)", re.IGNORECASE)
 MINIMAX_MODEL_HINT_PATTERN = re.compile(r"^(minimax)", re.IGNORECASE)
 QWEN_MODEL_HINT_PATTERN = re.compile(r"^(qwen|qwq)", re.IGNORECASE)
 DEEPSEEK_MODEL_HINT_PATTERN = re.compile(r"^(deepseek)", re.IGNORECASE)
+KIMI_MODEL_HINT_PATTERN = re.compile(r"^(kimi|moonshot)", re.IGNORECASE)
+GLM_MODEL_HINT_PATTERN = re.compile(r"^(glm|chatglm|zhipu)", re.IGNORECASE)
 
 
 def _parse_env_assignment(line: str) -> tuple[str, str] | tuple[None, None]:
@@ -727,6 +729,236 @@ class MiniMaxProviderAdapter:
         return text, ""
 
 
+class KimiProviderAdapter:
+    """Transport adapter for the Kimi (Moonshot) OpenAI-compatible Chat API."""
+
+    @property
+    def provider_name(self) -> str:
+        return "kimi"
+
+    @staticmethod
+    def _extract_response_text(payload: dict) -> str:
+        choices = payload.get("choices") if isinstance(payload.get("choices"), list) else []
+        if not choices:
+            return ""
+        message = choices[0].get("message") if isinstance(choices[0], dict) else {}
+        if isinstance(message, dict) and isinstance(message.get("content"), str):
+            return str(message.get("content") or "")
+        return ""
+
+    def send_text_request(
+        self,
+        prompt: str,
+        config: LLMProviderConfig,
+    ) -> tuple[str, str]:
+        base_url = str(
+            config.extra.get("kimi_base_url")
+            or os.getenv("KIMI_BASE_URL")
+            or "https://api.moonshot.cn/v1"
+        ).strip().rstrip("/")
+        req_payload = {
+            "model": config.model,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": config.temperature,
+            "stream": False,
+        }
+        req = urllib.request.Request(
+            f"{base_url}/chat/completions",
+            data=json.dumps(req_payload).encode("utf-8"),
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {config.api_key}",
+            },
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=config.timeout_sec) as resp:
+                response_payload = json.loads(resp.read().decode("utf-8"))
+        except TimeoutError:
+            return "", "kimi_request_timeout"
+        except urllib.error.HTTPError as exc:
+            try:
+                body = exc.read().decode("utf-8", errors="ignore")
+            finally:
+                exc.close()
+            code = int(exc.code)
+            if code == 429:
+                return "", f"kimi_rate_limited:{body[:180]}"
+            if code in (502, 503, 504):
+                return "", f"kimi_service_unavailable:{code}:{body[:180]}"
+            return "", f"kimi_http_error:{code}:{body[:180]}"
+        except urllib.error.URLError as exc:
+            return "", f"kimi_url_error:{exc.reason}"
+
+        text = self._extract_response_text(response_payload)
+        return text, ""
+
+    def send_tool_request(
+        self,
+        messages: list[dict],
+        tools: list[dict],
+        config: LLMProviderConfig,
+    ) -> tuple[ToolResponse | None, str]:
+        base_url = str(
+            config.extra.get("kimi_base_url")
+            or os.getenv("KIMI_BASE_URL")
+            or "https://api.moonshot.cn/v1"
+        ).strip().rstrip("/")
+        openai_tools = _tools_to_openai_chat(tools)
+        req_payload = {
+            "model": config.model,
+            "messages": list(messages),
+            "tools": openai_tools,
+            "tool_choice": "auto",
+            "temperature": config.temperature,
+            "stream": False,
+        }
+        req = urllib.request.Request(
+            f"{base_url}/chat/completions",
+            data=json.dumps(req_payload).encode("utf-8"),
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {config.api_key}",
+            },
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=config.timeout_sec) as resp:
+                response_payload = json.loads(resp.read().decode("utf-8"))
+        except TimeoutError:
+            return None, "kimi_request_timeout"
+        except urllib.error.HTTPError as exc:
+            try:
+                body = exc.read().decode("utf-8", errors="ignore")
+            finally:
+                exc.close()
+            code = int(exc.code)
+            if code == 429:
+                return None, f"kimi_rate_limited:{body[:180]}"
+            if code in (502, 503, 504):
+                return None, f"kimi_service_unavailable:{code}:{body[:180]}"
+            return None, f"kimi_http_error:{code}:{body[:180]}"
+        except urllib.error.URLError as exc:
+            return None, f"kimi_url_error:{exc.reason}"
+
+        return _parse_chat_tool_response(response_payload)
+
+
+class GLMProviderAdapter:
+    """Transport adapter for the Zhipu GLM OpenAI-compatible Chat API."""
+
+    @property
+    def provider_name(self) -> str:
+        return "glm"
+
+    @staticmethod
+    def _extract_response_text(payload: dict) -> str:
+        choices = payload.get("choices") if isinstance(payload.get("choices"), list) else []
+        if not choices:
+            return ""
+        message = choices[0].get("message") if isinstance(choices[0], dict) else {}
+        if isinstance(message, dict) and isinstance(message.get("content"), str):
+            return str(message.get("content") or "")
+        return ""
+
+    def send_text_request(
+        self,
+        prompt: str,
+        config: LLMProviderConfig,
+    ) -> tuple[str, str]:
+        base_url = str(
+            config.extra.get("glm_base_url")
+            or os.getenv("GLM_BASE_URL")
+            or "https://open.bigmodel.cn/api/paas/v4"
+        ).strip().rstrip("/")
+        req_payload = {
+            "model": config.model,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": config.temperature,
+            "stream": False,
+        }
+        req = urllib.request.Request(
+            f"{base_url}/chat/completions",
+            data=json.dumps(req_payload).encode("utf-8"),
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {config.api_key}",
+            },
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=config.timeout_sec) as resp:
+                response_payload = json.loads(resp.read().decode("utf-8"))
+        except TimeoutError:
+            return "", "glm_request_timeout"
+        except urllib.error.HTTPError as exc:
+            try:
+                body = exc.read().decode("utf-8", errors="ignore")
+            finally:
+                exc.close()
+            code = int(exc.code)
+            if code == 429:
+                return "", f"glm_rate_limited:{body[:180]}"
+            if code in (502, 503, 504):
+                return "", f"glm_service_unavailable:{code}:{body[:180]}"
+            return "", f"glm_http_error:{code}:{body[:180]}"
+        except urllib.error.URLError as exc:
+            return "", f"glm_url_error:{exc.reason}"
+
+        text = self._extract_response_text(response_payload)
+        return text, ""
+
+    def send_tool_request(
+        self,
+        messages: list[dict],
+        tools: list[dict],
+        config: LLMProviderConfig,
+    ) -> tuple[ToolResponse | None, str]:
+        base_url = str(
+            config.extra.get("glm_base_url")
+            or os.getenv("GLM_BASE_URL")
+            or "https://open.bigmodel.cn/api/paas/v4"
+        ).strip().rstrip("/")
+        openai_tools = _tools_to_openai_chat(tools)
+        req_payload = {
+            "model": config.model,
+            "messages": list(messages),
+            "tools": openai_tools,
+            "tool_choice": "auto",
+            "temperature": config.temperature,
+            "stream": False,
+        }
+        req = urllib.request.Request(
+            f"{base_url}/chat/completions",
+            data=json.dumps(req_payload).encode("utf-8"),
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {config.api_key}",
+            },
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=config.timeout_sec) as resp:
+                response_payload = json.loads(resp.read().decode("utf-8"))
+        except TimeoutError:
+            return None, "glm_request_timeout"
+        except urllib.error.HTTPError as exc:
+            try:
+                body = exc.read().decode("utf-8", errors="ignore")
+            finally:
+                exc.close()
+            code = int(exc.code)
+            if code == 429:
+                return None, f"glm_rate_limited:{body[:180]}"
+            if code in (502, 503, 504):
+                return None, f"glm_service_unavailable:{code}:{body[:180]}"
+            return None, f"glm_http_error:{code}:{body[:180]}"
+        except urllib.error.URLError as exc:
+            return None, f"glm_url_error:{exc.reason}"
+
+        return _parse_chat_tool_response(response_payload)
+
+
 # ---- adapter factory ----
 
 def _tools_to_anthropic(tools: list[dict]) -> list[dict]:
@@ -948,6 +1180,8 @@ _ADAPTERS: dict[str, type] = {
     "deepseek": DeepSeekProviderAdapter,
     "anthropic": AnthropicProviderAdapter,
     "minimax": MiniMaxProviderAdapter,
+    "kimi": KimiProviderAdapter,
+    "glm": GLMProviderAdapter,
 }
 
 
@@ -981,9 +1215,13 @@ def resolve_provider_adapter(
             "DASHSCOPE_API_KEY",
             "QWEN_API_KEY",
             "DEEPSEEK_API_KEY",
+            "KIMI_API_KEY",
+            "GLM_API_KEY",
             "DASHSCOPE_BASE_URL",
             "DEEPSEEK_BASE_URL",
             "ANTHROPIC_BASE_URL",
+            "KIMI_BASE_URL",
+            "GLM_BASE_URL",
             "LLM_MODEL",
             "GATEFORGE_GEMINI_MODEL",
             "GEMINI_MODEL",
@@ -1011,17 +1249,19 @@ def resolve_provider_adapter(
         or str(os.getenv("GATEFORGE_GEMINI_MODEL") or "").strip()
         or str(os.getenv("GEMINI_MODEL") or "").strip()
         or str(os.getenv("DEEPSEEK_MODEL") or "").strip()
+        or str(os.getenv("KIMI_MODEL") or "").strip()
+        or str(os.getenv("GLM_MODEL") or "").strip()
     )
     if not model:
         raise ValueError("missing_llm_model")
-    explicit = requested if requested in {"gemini", "openai", "qwen", "deepseek", "anthropic", "minimax"} else ""
+    explicit = requested if requested in {"gemini", "openai", "anthropic", "qwen", "deepseek", "minimax", "kimi", "glm"} else ""
     if not explicit:
         explicit = str(
             os.getenv("LLM_PROVIDER")
             or os.getenv("GATEFORGE_LIVE_PLANNER_BACKEND")
             or ""
         ).strip().lower()
-    if explicit not in {"gemini", "openai", "qwen", "deepseek", "anthropic", "minimax"}:
+    if explicit not in {"gemini", "openai", "anthropic", "qwen", "deepseek", "minimax", "kimi", "glm"}:
         if OPENAI_MODEL_HINT_PATTERN.search(model):
             explicit = "openai"
         elif QWEN_MODEL_HINT_PATTERN.search(model):
@@ -1032,6 +1272,10 @@ def resolve_provider_adapter(
             explicit = "anthropic"
         elif MINIMAX_MODEL_HINT_PATTERN.search(model):
             explicit = "minimax"
+        elif KIMI_MODEL_HINT_PATTERN.search(model):
+            explicit = "kimi"
+        elif GLM_MODEL_HINT_PATTERN.search(model):
+            explicit = "glm"
         elif "gemini" in model.lower():
             explicit = "gemini"
         else:
@@ -1055,6 +1299,10 @@ def resolve_provider_adapter(
             or os.getenv("MINIMAX_API_KEY")
             or ""
         ).strip()
+    elif explicit == "kimi":
+        api_key = str(os.getenv("KIMI_API_KEY") or "").strip()
+    elif explicit == "glm":
+        api_key = str(os.getenv("GLM_API_KEY") or "").strip()
     else:
         api_key = str(
             os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY") or ""
@@ -1083,6 +1331,8 @@ def resolve_provider_adapter(
             "thinking": "disabled" if explicit == "deepseek" else "",
             "response_format": {"type": "json_object"} if explicit == "deepseek" else "",
             "anthropic_base_url": str(os.getenv("ANTHROPIC_BASE_URL") or "").strip(),
+            "kimi_base_url": str(os.getenv("KIMI_BASE_URL") or "").strip(),
+            "glm_base_url": str(os.getenv("GLM_BASE_URL") or "").strip(),
             "max_tokens": 8192 if explicit in {"minimax", "deepseek"} else 1024,
             "system_prompt": (
                 "You must return a final text block containing only one JSON object "

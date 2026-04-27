@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any, Callable
 
@@ -44,7 +45,7 @@ def build_repair_case(row: dict[str, Any]) -> dict[str, Any] | None:
             "Repair the incomplete single-component Modelica refactor so it checks and simulates again. "
             "Use only the model text and compiler feedback. Do not assume hidden benchmark metadata."
         ),
-        "planner_backend": "gemini",
+        "planner_backend": str(os.getenv("LLM_PROVIDER") or "").strip(),
         "backend": "openmodelica_docker",
         "admission_source": "omc_single_point_family_verified",
     }

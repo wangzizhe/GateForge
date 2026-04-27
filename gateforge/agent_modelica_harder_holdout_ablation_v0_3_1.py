@@ -264,7 +264,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Run GateForge-only mini-ablation on the v0.3.1 harder Layer 4 holdout pack.")
     parser.add_argument("--pack", default=DEFAULT_PACK)
     parser.add_argument("--out-dir", default=DEFAULT_OUT_DIR)
-    parser.add_argument("--planner-backend", choices=["auto", "gemini", "openai", "rule"], default="auto")
+    parser.add_argument("--planner-backend", choices=["auto", "rule", "gemini", "openai", "anthropic", "qwen", "deepseek", "minimax", "kimi", "glm"], default="auto")
     parser.add_argument("--max-rounds", type=int, default=3)
     parser.add_argument("--timeout-sec", type=int, default=180)
     parser.add_argument("--experience-source", default=DEFAULT_EXPERIENCE_SOURCE)

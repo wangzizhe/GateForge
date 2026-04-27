@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -24,7 +25,7 @@ def build_canonical_repair_history() -> list[dict[str, Any]]:
     return [
         {
             "round": 1,
-            "provider": "deepseek",
+            "provider": str(os.getenv("LLM_PROVIDER") or "deepseek").strip(),
             "patched_text_present": True,
             "model_changed": True,
             "check_pass": False,

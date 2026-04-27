@@ -238,7 +238,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Run repair pipeline: tasks -> pack -> batch")
     parser.add_argument("--source", required=True, help="Failing run/regression summary JSON path")
     parser.add_argument("--out-dir", default="artifacts/repair_orchestrate", help="Output directory")
-    parser.add_argument("--planner-backend", default="rule", choices=["rule", "gemini", "openai"])
+    parser.add_argument("--planner-backend", default="rule", choices=["rule", "gemini", "openai", "anthropic", "qwen", "deepseek", "minimax", "kimi", "glm"])
     parser.add_argument("--strategy-profile", default="default", help="repair_pack strategy profile")
     parser.add_argument(
         "--compare-strategy-profiles",

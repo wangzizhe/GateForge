@@ -287,7 +287,7 @@ def main() -> None:
     parser.add_argument(
         "--backend",
         default="auto",
-        choices=["auto", "gemini", "openai", "rule"],
+        choices=["auto", "rule", "gemini", "openai", "anthropic", "qwen", "deepseek", "minimax", "kimi", "glm"],
         help="LLM backend",
     )
     parser.add_argument("--docker-image", default="")
