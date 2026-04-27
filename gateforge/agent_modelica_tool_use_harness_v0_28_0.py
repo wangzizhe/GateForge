@@ -256,7 +256,8 @@ def run_tool_use_case(
             break
 
     if submitted:
-        _, output, check_ok, simulate_ok = _run_omc(final_model, model_name)
+        final_model_name = _extract_model_name(final_model) or model_name
+        _, output, check_ok, simulate_ok = _run_omc(final_model, final_model_name)
         final_verdict = "PASS" if (check_ok and simulate_ok) else "FAILED"
         steps.append({"step": "final_eval", "check_ok": check_ok, "simulate_ok": simulate_ok, "omc_output": str(output or "")[:2000]})
 
