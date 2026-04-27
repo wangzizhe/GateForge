@@ -18,6 +18,10 @@ from .llm_provider_adapter import (
     ToolResponse,
     resolve_provider_adapter,
 )
+from .agent_modelica_structural_tools_v0_28_1 import (
+    dispatch_structural_tool,
+    get_structural_tool_defs,
+)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_OUT_DIR = REPO_ROOT / "artifacts" / "tool_use_harness_v0_28_0"
@@ -86,6 +90,9 @@ TOOL_DEFS: list[dict[str, Any]] = [
     },
 ]
 
+# Merge structural tools into the tool set
+TOOL_DEFS = TOOL_DEFS + get_structural_tool_defs()
+
 
 def _strip_ws(text: str) -> str:
     return re.sub(r"\s+", "", text or "")
@@ -104,6 +111,9 @@ def _extract_model_name(text: str) -> str:
 def dispatch_tool(name: str, arguments: dict) -> str:
     model_text = str(arguments.get("model_text") or "")
     model_name = _extract_model_name(model_text) or "model"
+    if name in ("check_model", "simulate_model", "submit_final"):
+        if not model_text.strip():
+            return json.dumps({"error": "model_text required"})
     if name == "check_model":
         _, output, check_ok, _sim = _run_omc(model_text, model_name)
         return str(output or "")
@@ -114,7 +124,7 @@ def dispatch_tool(name: str, arguments: dict) -> str:
         return str(output or "")
     if name == "submit_final":
         return json.dumps({"status": "submitted", "model_name": model_name})
-    return json.dumps({"error": f"unknown_tool:{name}"})
+    return dispatch_structural_tool(name, arguments)
 
 
 def _run_omc(
@@ -224,7 +234,10 @@ def run_tool_use_case(
             tool_results = []
             should_break = False
             for tc in resp.tool_calls:
-                result = dispatch_tool(tc.name, tc.arguments)
+                args = dict(tc.arguments)
+                if not args.get("model_text", "").strip():
+                    args["model_text"] = current_text
+                result = dispatch_tool(tc.name, args)
                 messages.append({"role": "tool", "tool_call_id": tc.id, "content": result})
                 tool_results.append({"name": tc.name, "result": result[:500]})
                 if tc.name == "submit_final":
