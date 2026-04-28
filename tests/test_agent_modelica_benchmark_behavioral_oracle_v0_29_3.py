@@ -54,6 +54,21 @@ class BenchmarkBehavioralOracleV0293Tests(unittest.TestCase):
         self.assertFalse(result["pass"])
         self.assertEqual(result["reason"], "time_constant_miss")
 
+    def test_time_constant_behavior_handles_missing_observation_variable(self) -> None:
+        task = {
+            "verification": {
+                "simulate": {"stop_time": 0.5, "intervals": 100},
+                "behavioral": {
+                    "type": "time_constant",
+                    "expected_tau": 0.1,
+                    "tolerance": 0.08,
+                },
+            }
+        }
+        result = evaluate_benchmark_behavior(task, "model X\nend X;")
+        self.assertFalse(result["pass"])
+        self.assertEqual(result["reason"], "missing_observation_variable_in_task_config")
+
     def test_build_summary_writes_output(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             summary = build_behavioral_oracle_summary(out_dir=Path(tmp))

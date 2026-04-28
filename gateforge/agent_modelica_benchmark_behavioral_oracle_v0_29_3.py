@@ -39,7 +39,7 @@ def evaluate_time_constant_behavior(
         or ""
     )
     if not observation_variable:
-        return build_time_constant_result("behavior_error", "missing_observation_variable_in_task_config")
+        return {"pass": False, "reason": "missing_observation_variable_in_task_config"}
     event_time = float(behavioral.get("event_time") or 0.0)
     stop_time = float(simulate.get("stop_time") or max(0.25, event_time + expected_tau * 6.0))
     intervals = int(simulate.get("intervals") or 600)
