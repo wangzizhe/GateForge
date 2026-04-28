@@ -34,6 +34,14 @@ from .agent_modelica_replaceable_policy_tool_v0_29_18 import (
     dispatch_replaceable_policy_tool,
     get_replaceable_policy_tool_defs,
 )
+from .agent_modelica_candidate_critique_tool_v0_30_0 import (
+    dispatch_candidate_critique_tool,
+    get_candidate_critique_tool_defs,
+)
+from .agent_modelica_structure_strategy_tool_v0_30_10 import (
+    dispatch_structure_strategy_tool,
+    get_structure_strategy_tool_defs,
+)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_OUT_DIR = REPO_ROOT / "artifacts" / "tool_use_harness_v0_28_0"
@@ -111,6 +119,8 @@ SEMANTIC_TOOL_DEFS = BASE_TOOL_DEFS + [
 ]
 REPLACEABLE_TOOL_DEFS = BASE_TOOL_DEFS + get_replaceable_partial_tool_defs()
 REPLACEABLE_POLICY_TOOL_DEFS = REPLACEABLE_TOOL_DEFS + get_replaceable_policy_tool_defs()
+REPLACEABLE_CRITIQUE_TOOL_DEFS = REPLACEABLE_POLICY_TOOL_DEFS + get_candidate_critique_tool_defs()
+REPLACEABLE_STRATEGY_TOOL_DEFS = REPLACEABLE_CRITIQUE_TOOL_DEFS + get_structure_strategy_tool_defs()
 
 
 def get_tool_defs(tool_profile: str = "structural") -> list[dict[str, Any]]:
@@ -128,6 +138,16 @@ def get_tool_defs(tool_profile: str = "structural") -> list[dict[str, Any]]:
         return list(REPLACEABLE_POLICY_TOOL_DEFS)
     if tool_profile == "replaceable_policy_oracle_boundary":
         return list(REPLACEABLE_POLICY_TOOL_DEFS)
+    if tool_profile == "replaceable_policy_candidate_critique":
+        return list(REPLACEABLE_CRITIQUE_TOOL_DEFS)
+    if tool_profile == "replaceable_policy_candidate_critique_required":
+        return list(REPLACEABLE_CRITIQUE_TOOL_DEFS)
+    if tool_profile == "replaceable_policy_candidate_critique_checkpoint":
+        return list(REPLACEABLE_CRITIQUE_TOOL_DEFS)
+    if tool_profile == "replaceable_policy_multicandidate_checkpoint":
+        return list(REPLACEABLE_CRITIQUE_TOOL_DEFS)
+    if tool_profile == "replaceable_policy_structure_plan_checkpoint":
+        return list(REPLACEABLE_STRATEGY_TOOL_DEFS)
     if tool_profile == "connector":
         return list(CONNECTOR_TOOL_DEFS)
     return list(TOOL_DEFS)
@@ -189,6 +209,58 @@ def get_tool_profile_guidance(tool_profile: str = "structural") -> str:
             "Otherwise call submit_final with that exact successful candidate. "
             "The harness will not auto-submit; you must explicitly call submit_final.\n"
         )
+    if tool_profile == "replaceable_policy_candidate_critique":
+        return (
+            "Use transparent candidate critique. If a candidate has passed check_model with simulation success or "
+            "passed simulate_model, and you are unsure whether to submit, call candidate_acceptance_critique with "
+            "omc_passed=true, the explicit task constraints, and your concrete concern. "
+            "The critique tool only evaluates whether your concern is tied to an explicit task/oracle boundary; "
+            "it will not generate a patch, select a candidate, or submit. "
+            "After receiving the critique, you must decide whether to call submit_final yourself.\n"
+        )
+    if tool_profile == "replaceable_policy_candidate_critique_required":
+        return (
+            "Use transparent candidate critique with strict discoverability. "
+            "Whenever check_model or simulate_model shows a successful simulation result for a candidate, you have two choices: "
+            "call submit_final with that same candidate, or call candidate_acceptance_critique before trying any other candidate. "
+            "Do not abandon a successful candidate without first calling candidate_acceptance_critique with omc_passed=true, "
+            "the explicit task constraints, and your concrete concern. "
+            "The critique tool does not generate patches, select candidates, or submit; after it returns, you must decide the next tool call yourself.\n"
+        )
+    if tool_profile == "replaceable_policy_candidate_critique_checkpoint":
+        return (
+            "Use transparent candidate critique with an explicit checkpoint. "
+            "Whenever the harness tells you that a candidate has passed OMC check/simulation evidence, your next action must be one of: "
+            "call submit_final with the same successful candidate, or call candidate_acceptance_critique with omc_passed=true, "
+            "the explicit task constraints, and your concrete concern. "
+            "The checkpoint is advisory and transparent; the harness will not generate patches, select candidates, or submit for you.\n"
+        )
+    if tool_profile == "replaceable_policy_multicandidate_checkpoint":
+        return (
+            "Use transparent multi-candidate discovery with an explicit checkpoint. "
+            "Before giving up on hard replaceable/partial cases, test at least two structurally different repair candidates with check_model "
+            "unless one candidate passes OMC evidence first. Distinct means a different interface/equation placement strategy, not only renaming. "
+            "Call replaceable_partial_diagnostic once to inspect the base/actual structure. "
+            "Call replaceable_partial_policy_check before repeating a patch that moves flow-current equations into a partial constrainedby base "
+            "or duplicates derived flow equations. "
+            "Whenever the harness tells you that a candidate has passed OMC check/simulation evidence, your next action must be one of: "
+            "call submit_final with the same successful candidate, or call candidate_acceptance_critique with omc_passed=true and your concrete concern. "
+            "The harness will not generate patches, select candidates, hide failed attempts, or submit for you.\n"
+        )
+    if tool_profile == "replaceable_policy_structure_plan_checkpoint":
+        return (
+            "Use transparent structural strategy planning with checkpoint discipline. "
+            "Before testing a second candidate, or after two failed candidates, call record_structure_strategies with "
+            "two or three structurally distinct repair strategies and the strategy you will test next. "
+            "Distinct means changing interface/equation placement, connector contract, replaceable/constrainedby structure, "
+            "or flow-equation ownership, not only renaming or formatting. "
+            "Call replaceable_partial_diagnostic once to inspect base/actual structure. "
+            "Call replaceable_partial_policy_check before repeating a patch that moves flow-current equations into a partial constrainedby base "
+            "or duplicates derived flow equations. "
+            "Whenever the harness tells you that a candidate has passed OMC check/simulation evidence, your next action must be one of: "
+            "call submit_final with the same successful candidate, or call candidate_acceptance_critique with omc_passed=true and your concrete concern. "
+            "The strategy tool only records your plan; the harness will not generate patches, select candidates, hide failed attempts, or submit for you.\n"
+        )
     lines = [
         "Diagnostic tools are available for complex cases. Each call costs tokens — "
         "use only when check_model output alone is insufficient:\n"
@@ -223,6 +295,49 @@ def _extract_model_name(text: str) -> str:
     return "model"
 
 
+def _omc_success_result(tool_name: str, result: str) -> bool:
+    if tool_name not in {"check_model", "simulate_model"}:
+        return False
+    text = str(result or "")
+    return 'resultFile = "/workspace/' in text
+
+
+def _checkpoint_enabled(tool_profile: str) -> bool:
+    return tool_profile in {
+        "replaceable_policy_candidate_critique_checkpoint",
+        "replaceable_policy_multicandidate_checkpoint",
+    }
+
+
+def _candidate_checkpoint_message(*, tool_name: str) -> str:
+    return (
+        "Transparent checkpoint: the previous candidate produced successful OMC evidence via "
+        f"{tool_name}. Before testing another candidate or abandoning this one, choose explicitly: "
+        "call submit_final with the same successful model_text, or call candidate_acceptance_critique "
+        "with omc_passed=true, the explicit task constraints, and your concrete concern. "
+        "The harness is not selecting or submitting anything for you."
+    )
+
+
+def _checkpoint_guard_result(tool_name: str) -> str:
+    return json.dumps(
+        {
+            "error": "checkpoint_decision_required",
+            "requested_tool": tool_name,
+            "allowed_tools": ["submit_final", "candidate_acceptance_critique"],
+            "diagnostic_only": True,
+            "auto_submit": False,
+            "candidate_selected": False,
+            "guidance": (
+                "A transparent checkpoint is active because a previous candidate produced successful OMC evidence. "
+                "Call submit_final with that same successful candidate, or call candidate_acceptance_critique with "
+                "omc_passed=true and your concrete concern before using other tools."
+            ),
+        },
+        sort_keys=True,
+    )
+
+
 def dispatch_tool(name: str, arguments: dict) -> str:
     model_text = str(arguments.get("model_text") or "")
     model_name = _extract_model_name(model_text) or "model"
@@ -245,6 +360,10 @@ def dispatch_tool(name: str, arguments: dict) -> str:
         return dispatch_replaceable_partial_tool(name, arguments)
     if name == "replaceable_partial_policy_check":
         return dispatch_replaceable_policy_tool(name, arguments)
+    if name == "candidate_acceptance_critique":
+        return dispatch_candidate_critique_tool(name, arguments)
+    if name == "record_structure_strategies":
+        return dispatch_structure_strategy_tool(name, arguments)
     return dispatch_structural_tool(name, arguments)
 
 
@@ -324,6 +443,8 @@ def run_tool_use_case(
     final_model = current_text
     submitted = False
     provider_error = ""
+    pending_checkpoint = False
+    checkpoint_grace_steps_remaining = 0
 
     for step_idx in range(1, max(1, int(max_steps)) + 1):
         resp, err = adapter.send_tool_request(messages, tool_defs, config)
@@ -361,17 +482,40 @@ def run_tool_use_case(
             messages.append(assistant_msg)
             tool_results = []
             should_break = False
+            checkpoint_messages: list[str] = []
+            checkpoint_guard_violations: list[str] = []
+            checkpoint_decision_seen = False
             for tc in resp.tool_calls:
                 args = dict(tc.arguments)
                 if not args.get("model_text", "").strip():
                     args["model_text"] = current_text
-                result = dispatch_tool(tc.name, args)
+                if pending_checkpoint and tc.name not in {"submit_final", "candidate_acceptance_critique"}:
+                    result = _checkpoint_guard_result(tc.name)
+                    checkpoint_guard_violations.append(tc.name)
+                else:
+                    result = dispatch_tool(tc.name, args)
                 messages.append({"role": "tool", "tool_call_id": tc.id, "content": result})
                 tool_results.append({"name": tc.name, "result": result[:500]})
+                if _checkpoint_enabled(tool_profile) and _omc_success_result(tc.name, result):
+                    checkpoint_messages.append(_candidate_checkpoint_message(tool_name=tc.name))
+                if pending_checkpoint and tc.name in {"submit_final", "candidate_acceptance_critique"}:
+                    checkpoint_decision_seen = True
                 if tc.name == "submit_final":
                     submitted = True
                     final_model = str(tc.arguments.get("model_text") or current_text)
                     should_break = True
+            if checkpoint_decision_seen:
+                pending_checkpoint = False
+            if checkpoint_messages and not should_break:
+                checkpoint_text = "\n".join(checkpoint_messages)
+                messages.append({"role": "user", "content": checkpoint_text})
+                step_record["checkpoint_messages"] = checkpoint_messages
+                pending_checkpoint = True
+                checkpoint_grace_steps_remaining = max(checkpoint_grace_steps_remaining, 2)
+            if checkpoint_guard_violations:
+                messages.append({"role": "user", "content": _candidate_checkpoint_message(tool_name="previous_successful_tool")})
+                step_record["checkpoint_guard_violations"] = checkpoint_guard_violations
+                checkpoint_grace_steps_remaining = max(checkpoint_grace_steps_remaining, 1)
             step_record["tool_results"] = tool_results
             if should_break:
                 steps.append(step_record)
@@ -382,6 +526,10 @@ def run_tool_use_case(
         if submitted:
             break
         if token_used >= max_token_budget:
+            if pending_checkpoint and checkpoint_grace_steps_remaining > 0:
+                checkpoint_grace_steps_remaining -= 1
+                step_record["checkpoint_budget_grace_used"] = True
+                continue
             break
 
     if submitted:
