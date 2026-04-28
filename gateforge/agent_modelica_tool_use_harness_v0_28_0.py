@@ -26,6 +26,14 @@ from .agent_modelica_connector_balance_tool_v0_29_9 import (
     dispatch_connector_balance_tool,
     get_connector_balance_tool_defs,
 )
+from .agent_modelica_replaceable_partial_tool_v0_29_16 import (
+    dispatch_replaceable_partial_tool,
+    get_replaceable_partial_tool_defs,
+)
+from .agent_modelica_replaceable_policy_tool_v0_29_18 import (
+    dispatch_replaceable_policy_tool,
+    get_replaceable_policy_tool_defs,
+)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_OUT_DIR = REPO_ROOT / "artifacts" / "tool_use_harness_v0_28_0"
@@ -97,11 +105,29 @@ BASE_TOOL_DEFS: list[dict[str, Any]] = [
 # Default profile keeps the v0.28.1 structural tools enabled.
 TOOL_DEFS = BASE_TOOL_DEFS + get_structural_tool_defs()
 CONNECTOR_TOOL_DEFS = TOOL_DEFS + get_connector_balance_tool_defs()
+SEMANTIC_TOOL_NAMES = {"get_unmatched_vars", "causalized_form"}
+SEMANTIC_TOOL_DEFS = BASE_TOOL_DEFS + [
+    tool for tool in get_structural_tool_defs() if str(tool.get("name") or "") in SEMANTIC_TOOL_NAMES
+]
+REPLACEABLE_TOOL_DEFS = BASE_TOOL_DEFS + get_replaceable_partial_tool_defs()
+REPLACEABLE_POLICY_TOOL_DEFS = REPLACEABLE_TOOL_DEFS + get_replaceable_policy_tool_defs()
 
 
 def get_tool_defs(tool_profile: str = "structural") -> list[dict[str, Any]]:
     if tool_profile == "base":
         return list(BASE_TOOL_DEFS)
+    if tool_profile == "semantic":
+        return list(SEMANTIC_TOOL_DEFS)
+    if tool_profile == "replaceable":
+        return list(REPLACEABLE_TOOL_DEFS)
+    if tool_profile == "replaceable_policy":
+        return list(REPLACEABLE_POLICY_TOOL_DEFS)
+    if tool_profile == "replaceable_policy_multicandidate":
+        return list(REPLACEABLE_POLICY_TOOL_DEFS)
+    if tool_profile == "replaceable_policy_submit_discipline":
+        return list(REPLACEABLE_POLICY_TOOL_DEFS)
+    if tool_profile == "replaceable_policy_oracle_boundary":
+        return list(REPLACEABLE_POLICY_TOOL_DEFS)
     if tool_profile == "connector":
         return list(CONNECTOR_TOOL_DEFS)
     return list(TOOL_DEFS)
@@ -110,6 +136,59 @@ def get_tool_defs(tool_profile: str = "structural") -> list[dict[str, Any]]:
 def get_tool_profile_guidance(tool_profile: str = "structural") -> str:
     if tool_profile == "base":
         return ""
+    if tool_profile == "semantic":
+        return (
+            "Two diagnostic tools are available for hard semantic Modelica cases. Each call costs tokens; "
+            "use at most one diagnostic pass before trying a repair unless the compiler output is ambiguous:\n"
+            "- get_unmatched_vars: use when check_model reports under-determined systems and the missing variable is not obvious.\n"
+            "- causalized_form: use when acausal equations make dependencies hard to read.\n"
+        )
+    if tool_profile == "replaceable":
+        return (
+            "A replaceable/partial diagnostic tool is available for hard Modelica interface cases. "
+            "Call replaceable_partial_diagnostic once when the model uses replaceable model declarations, "
+            "constrainedby bases, partial model interfaces, or flow-current equations in derived models. "
+            "The tool reports structure and risks only; you must still decide and test the patch.\n"
+        )
+    if tool_profile == "replaceable_policy":
+        return (
+            "Two replaceable/partial diagnostic tools are available. "
+            "Call replaceable_partial_diagnostic once to inspect the base/actual structure. "
+            "Call replaceable_partial_policy_check before repeating a patch that moves flow-current equations into "
+            "a partial constrainedby base or duplicates derived flow equations. "
+            "Both tools are diagnostic-only; they do not generate patches or select candidates.\n"
+        )
+    if tool_profile == "replaceable_policy_multicandidate":
+        return (
+            "Use transparent multi-candidate repair. You must propose and test distinct candidate repairs yourself. "
+            "For hard replaceable/partial cases, try to test at least two structurally different candidates with "
+            "check_model before submit_final, unless the first candidate fully passes and is clearly correct. "
+            "Call replaceable_partial_diagnostic once to inspect the base/actual structure. "
+            "Call replaceable_partial_policy_check before repeating a patch that moves flow-current equations into "
+            "a partial constrainedby base or duplicates derived flow equations. "
+            "The harness will only run tools you call; it will not generate patches, select candidates, or hide failed attempts.\n"
+        )
+    if tool_profile == "replaceable_policy_submit_discipline":
+        return (
+            "Use transparent multi-candidate repair, but preserve submit discipline. "
+            "If a candidate model has already passed check_model with simulation success or has passed simulate_model, "
+            "do not keep exploring speculative alternatives. Call submit_final with that exact successful candidate unless "
+            "you can name a concrete remaining requirement that the tool output did not validate. "
+            "Call replaceable_partial_diagnostic once to inspect the base/actual structure. "
+            "Call replaceable_partial_policy_check before repeating a patch that moves flow-current equations into "
+            "a partial constrainedby base or duplicates derived flow equations. "
+            "The harness will not auto-submit; you must explicitly call submit_final.\n"
+        )
+    if tool_profile == "replaceable_policy_oracle_boundary":
+        return (
+            "Use transparent multi-candidate repair with explicit oracle-boundary discipline. "
+            "If a candidate has passed check_model with simulation success or has passed simulate_model, treat it as "
+            "acceptable for this benchmark unless you can cite a specific task constraint or oracle requirement it violates. "
+            "Do not reject a successful candidate based only on subjective physical concerns that are not stated in the task. "
+            "If you reject a successful candidate, name the exact constraint it violates before trying another candidate. "
+            "Otherwise call submit_final with that exact successful candidate. "
+            "The harness will not auto-submit; you must explicitly call submit_final.\n"
+        )
     lines = [
         "Diagnostic tools are available for complex cases. Each call costs tokens — "
         "use only when check_model output alone is insufficient:\n"
@@ -162,6 +241,10 @@ def dispatch_tool(name: str, arguments: dict) -> str:
         return json.dumps({"status": "submitted", "model_name": model_name})
     if name == "connector_balance_diagnostic":
         return dispatch_connector_balance_tool(name, arguments)
+    if name == "replaceable_partial_diagnostic":
+        return dispatch_replaceable_partial_tool(name, arguments)
+    if name == "replaceable_partial_policy_check":
+        return dispatch_replaceable_policy_tool(name, arguments)
     return dispatch_structural_tool(name, arguments)
 
 
@@ -208,6 +291,7 @@ def run_tool_use_case(
     model_name = str(case["model_name"])
     case_id = str(case["case_id"])
     workflow_goal = str(case.get("workflow_goal") or "")
+    external_context = str(case.get("external_context") or "").strip()
     adapter, config = resolve_provider_adapter(planner_backend)
     provider = config.provider_name
     if provider == "rule":
@@ -226,6 +310,10 @@ def run_tool_use_case(
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": (
             f"Task: {workflow_goal}\n\n"
+            f"External Modelica context:\n-----BEGIN_CONTEXT-----\n{external_context}\n-----END_CONTEXT-----\n\n"
+            if external_context
+            else ""
+        ) + (
             f"Model name: {model_name}\n\n"
             f"Current model:\n-----BEGIN_MODEL-----\n{current_text}\n-----END_MODEL-----\n"
         )},

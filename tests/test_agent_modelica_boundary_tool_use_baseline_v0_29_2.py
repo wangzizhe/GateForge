@@ -7,6 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from gateforge.agent_modelica_boundary_tool_use_baseline_v0_29_2 import (
+    _attach_external_context,
     load_boundary_cases,
     run_boundary_tool_use_baseline,
     task_to_tool_use_case,
@@ -51,6 +52,12 @@ class BoundaryToolUseBaselineV0292Tests(unittest.TestCase):
             cases, errors = load_boundary_cases(task_root=root, case_id_prefix="boundary_")
             self.assertEqual(len(cases), 1)
             self.assertFalse(errors)
+
+    def test_attach_external_context_adds_context_to_cases(self) -> None:
+        cases = [task_to_tool_use_case(_task())]
+        updated = _attach_external_context(cases, "Modelica context")
+        self.assertEqual(updated[0]["external_context"], "Modelica context")
+        self.assertNotEqual(id(cases[0]), id(updated[0]))
 
     def test_run_boundary_tool_use_baseline_writes_outputs(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

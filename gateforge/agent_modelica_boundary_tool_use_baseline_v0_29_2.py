@@ -40,25 +40,51 @@ def task_to_tool_use_case(task: dict[str, Any]) -> dict[str, Any]:
         "difficulty": str(task.get("difficulty") or ""),
         "final_stop_time": float(simulate.get("stop_time") or 0.05),
         "final_intervals": int(simulate.get("intervals") or 5),
+        "external_context": str(task.get("external_context") or ""),
         "benchmark_task": task,
     }
+
+
+def _attach_external_context(cases: list[dict[str, Any]], context_text: str) -> list[dict[str, Any]]:
+    if not context_text.strip():
+        return cases
+    updated: list[dict[str, Any]] = []
+    for case in cases:
+        copy = dict(case)
+        copy["external_context"] = context_text
+        updated.append(copy)
+    return updated
 
 
 def load_boundary_cases(
     *,
     task_root: Path = DEFAULT_TASK_ROOT,
     case_id_prefix: str = "boundary_",
+    case_ids: list[str] | None = None,
+    external_context: str = "",
     limit: int = 0,
 ) -> tuple[list[dict[str, Any]], dict[str, list[str]]]:
-    paths = sorted(task_root.glob(f"{case_id_prefix}*.json")) if task_root.exists() else []
+    wanted = set(case_ids or [])
+    if not task_root.exists():
+        paths: list[Path] = []
+    elif wanted:
+        paths = sorted(task_root / f"{case_id}.json" for case_id in wanted)
+    else:
+        paths = sorted(task_root.glob(f"{case_id_prefix}*.json"))
     cases: list[dict[str, Any]] = []
     errors: dict[str, list[str]] = {}
     for path in paths:
+        if wanted and not path.exists():
+            errors[str(path)] = ["task_file_missing"]
+            continue
         task, task_errors = load_and_validate_task(path)
         if task is None:
             errors[str(path)] = task_errors
             continue
         case_id = str(task.get("case_id") or path.stem)
+        if wanted and case_id not in wanted:
+            errors[case_id] = ["case_id_mismatch"]
+            continue
         if task_errors:
             errors[case_id] = task_errors
             continue
@@ -73,6 +99,8 @@ def run_boundary_tool_use_baseline(
     task_root: Path = DEFAULT_TASK_ROOT,
     out_dir: Path = DEFAULT_OUT_DIR,
     case_id_prefix: str = "boundary_",
+    case_ids: list[str] | None = None,
+    external_context: str = "",
     limit: int = 0,
     max_steps: int = 10,
     max_token_budget: int = 32000,
@@ -83,8 +111,10 @@ def run_boundary_tool_use_baseline(
     cases, load_errors = load_boundary_cases(
         task_root=task_root,
         case_id_prefix=case_id_prefix,
+        case_ids=case_ids,
         limit=limit,
     )
+    cases = _attach_external_context(cases, external_context)
     results = [
         run_tool_use_case(
             case,
@@ -122,6 +152,9 @@ def run_boundary_tool_use_baseline(
         "tool_profile": tool_profile,
         "provider_backend": planner_backend,
         "case_id_prefix": case_id_prefix,
+        "case_ids": list(case_ids or []),
+        "external_context_used": bool(external_context.strip()),
+        "external_context_chars": len(external_context),
         "case_count": len(cases),
         "pass_count": pass_count,
         "fail_count": len(cases) - pass_count,

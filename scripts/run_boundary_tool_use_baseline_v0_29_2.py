@@ -16,23 +16,64 @@ from gateforge.agent_modelica_boundary_tool_use_baseline_v0_29_2 import (
 )
 
 
+def _read_case_ids(path: Path) -> list[str]:
+    if not path.exists():
+        return []
+    ids: list[str] = []
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if line and not line.startswith("#"):
+            ids.append(line)
+    return ids
+
+
+def _read_context(path: Path | None) -> str:
+    if path is None or not path.exists():
+        return ""
+    return path.read_text(encoding="utf-8")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run boundary benchmark cases through the tool-use baseline.")
     parser.add_argument("--task-root", type=Path, default=DEFAULT_TASK_ROOT)
+    parser.add_argument("--case-dir", type=Path, dest="task_root")
     parser.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR)
     parser.add_argument("--case-id-prefix", default="boundary_")
+    parser.add_argument("--case-id", action="append", default=[])
+    parser.add_argument("--case-ids-file", type=Path)
+    parser.add_argument("--context-file", type=Path)
     parser.add_argument("--limit", type=int, default=0)
     parser.add_argument("--max-steps", type=int, default=10)
     parser.add_argument("--max-token-budget", type=int, default=32000)
     parser.add_argument("--planner-backend", default="auto")
-    parser.add_argument("--tool-profile", default="base", choices=["base", "structural", "connector"])
+    parser.add_argument(
+        "--tool-profile",
+        default="base",
+        choices=[
+            "base",
+            "semantic",
+            "replaceable",
+            "replaceable_policy",
+            "replaceable_policy_multicandidate",
+            "replaceable_policy_submit_discipline",
+            "replaceable_policy_oracle_boundary",
+            "structural",
+            "connector",
+        ],
+    )
     parser.add_argument("--summary-version", default="v0.29.4")
     args = parser.parse_args()
+    case_ids = list(args.case_id or [])
+    if args.case_ids_file:
+        case_ids.extend(_read_case_ids(args.case_ids_file))
+    external_context = _read_context(args.context_file)
 
     summary = run_boundary_tool_use_baseline(
         task_root=args.task_root,
         out_dir=args.out_dir,
         case_id_prefix=args.case_id_prefix,
+        case_ids=case_ids,
+        external_context=external_context,
         limit=args.limit,
         max_steps=args.max_steps,
         max_token_budget=args.max_token_budget,
