@@ -62,6 +62,7 @@ def main() -> int:
             "replaceable_policy_candidate_critique_checkpoint",
             "replaceable_policy_multicandidate_checkpoint",
             "replaceable_policy_structure_plan_checkpoint",
+            "replaceable_policy_structure_coverage_checkpoint",
             "structural",
             "connector",
         ],

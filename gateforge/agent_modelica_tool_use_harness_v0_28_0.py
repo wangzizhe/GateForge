@@ -42,6 +42,10 @@ from .agent_modelica_structure_strategy_tool_v0_30_10 import (
     dispatch_structure_strategy_tool,
     get_structure_strategy_tool_defs,
 )
+from .agent_modelica_structure_coverage_tool_v0_31_0 import (
+    dispatch_structure_coverage_tool,
+    get_structure_coverage_tool_defs,
+)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_OUT_DIR = REPO_ROOT / "artifacts" / "tool_use_harness_v0_28_0"
@@ -121,6 +125,7 @@ REPLACEABLE_TOOL_DEFS = BASE_TOOL_DEFS + get_replaceable_partial_tool_defs()
 REPLACEABLE_POLICY_TOOL_DEFS = REPLACEABLE_TOOL_DEFS + get_replaceable_policy_tool_defs()
 REPLACEABLE_CRITIQUE_TOOL_DEFS = REPLACEABLE_POLICY_TOOL_DEFS + get_candidate_critique_tool_defs()
 REPLACEABLE_STRATEGY_TOOL_DEFS = REPLACEABLE_CRITIQUE_TOOL_DEFS + get_structure_strategy_tool_defs()
+REPLACEABLE_COVERAGE_TOOL_DEFS = REPLACEABLE_CRITIQUE_TOOL_DEFS + get_structure_coverage_tool_defs()
 
 
 def get_tool_defs(tool_profile: str = "structural") -> list[dict[str, Any]]:
@@ -148,6 +153,8 @@ def get_tool_defs(tool_profile: str = "structural") -> list[dict[str, Any]]:
         return list(REPLACEABLE_CRITIQUE_TOOL_DEFS)
     if tool_profile == "replaceable_policy_structure_plan_checkpoint":
         return list(REPLACEABLE_STRATEGY_TOOL_DEFS)
+    if tool_profile == "replaceable_policy_structure_coverage_checkpoint":
+        return list(REPLACEABLE_COVERAGE_TOOL_DEFS)
     if tool_profile == "connector":
         return list(CONNECTOR_TOOL_DEFS)
     return list(TOOL_DEFS)
@@ -261,6 +268,18 @@ def get_tool_profile_guidance(tool_profile: str = "structural") -> str:
             "call submit_final with the same successful candidate, or call candidate_acceptance_critique with omc_passed=true and your concrete concern. "
             "The strategy tool only records your plan; the harness will not generate patches, select candidates, hide failed attempts, or submit for you.\n"
         )
+    if tool_profile == "replaceable_policy_structure_coverage_checkpoint":
+        return (
+            "Use transparent structure coverage diagnostics with checkpoint discipline. "
+            "After at least two failed candidate checks, call structure_coverage_diagnostic with the candidate model_text values you already tested. "
+            "Use it to see which structural clusters have been covered, especially flow-equation ownership, partial base structure, "
+            "replaceable/constrainedby declarations, and connector contract shape. "
+            "The coverage tool does not generate patches, choose candidates, or tell you which structure is correct. "
+            "You must still write and test the next candidate yourself. "
+            "Whenever the harness tells you that a candidate has passed OMC check/simulation evidence, your next action must be one of: "
+            "call submit_final with the same successful candidate, or call candidate_acceptance_critique with omc_passed=true and your concrete concern. "
+            "The harness will not generate patches, select candidates, hide failed attempts, or submit for you.\n"
+        )
     lines = [
         "Diagnostic tools are available for complex cases. Each call costs tokens — "
         "use only when check_model output alone is insufficient:\n"
@@ -306,6 +325,7 @@ def _checkpoint_enabled(tool_profile: str) -> bool:
     return tool_profile in {
         "replaceable_policy_candidate_critique_checkpoint",
         "replaceable_policy_multicandidate_checkpoint",
+        "replaceable_policy_structure_coverage_checkpoint",
     }
 
 
@@ -364,6 +384,8 @@ def dispatch_tool(name: str, arguments: dict) -> str:
         return dispatch_candidate_critique_tool(name, arguments)
     if name == "record_structure_strategies":
         return dispatch_structure_strategy_tool(name, arguments)
+    if name == "structure_coverage_diagnostic":
+        return dispatch_structure_coverage_tool(name, arguments)
     return dispatch_structural_tool(name, arguments)
 
 
