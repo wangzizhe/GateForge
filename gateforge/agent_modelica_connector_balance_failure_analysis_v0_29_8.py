@@ -120,7 +120,9 @@ def classify_patch_patterns(model_texts: list[str]) -> dict[str, Any]:
         compact = re.sub(r"\s+", "", text)
         if "iSense" not in text:
             patterns["removed_extra_flow_sensor"] = True
-        if re.search(r"(?<!flow\s+)Real\s+iSense\b", text):
+        # Exclude "flow Real iSense" (with any whitespace) then check for plain "Real iSense".
+        text_without_flow = re.sub(r"\bflow\s+Real\s+iSense\b", "", text)
+        if re.search(r"\bReal\s+iSense\b", text_without_flow):
             patterns["demoted_extra_flow_sensor_to_plain_real"] = True
         if re.search(r"\bReal\s+vSense\b", text):
             patterns["added_extra_potential_sensor"] = True
