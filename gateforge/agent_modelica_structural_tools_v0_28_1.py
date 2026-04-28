@@ -81,12 +81,13 @@ _STRUCTURAL_TOOL_DEFS: list[dict[str, Any]] = [
     {
         "name": "causalized_form",
         "description": (
-            "Convert the model's acausal equations into causal assignment notation. "
-            "Modelica equations have no direction (a=b means the same as b=a), "
-            "but OMC internally assigns a direction during compilation. "
-            "This tool shows equations with their likely causal direction using ':=' notation, "
-            "making the equation system easier to read for diagnosis. "
-            "Use this when you need to understand how variables depend on each other."
+            "Modelica equations are acausal — they have NO direction (a=b and b=a are the same thing). "
+            "This is unlike normal programming where every statement assigns a result to a variable. "
+            "This tool converts equations into causal assignment form using ':=' notation, "
+            "showing which variable OMC would compute from each equation. "
+            "The output looks like familiar code: 'x := y + z' instead of 'x = y + z'. "
+            "Use this when you find the equation system confusing or can't tell which variable "
+            "depends on which — it reveals the hidden dependency structure."
         ),
         "parameters": {
             "type": "object",

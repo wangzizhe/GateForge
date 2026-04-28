@@ -117,7 +117,9 @@ def get_tool_profile_guidance(tool_profile: str = "structural") -> str:
         "and the root variable is not obvious from the output.\n"
         "- who_defines / who_uses: when you need to trace a specific variable's defining and referencing equations.\n"
         "- declared_but_unused: only after you have changed equation references and need to find leftover declarations.\n"
-        "- causalized_form: when the equation system is large (>10 equations) and dependency structure is unclear.\n"
+        "- causalized_form: Modelica equations have no direction — a=b and b=a are the same thing, "
+        "unlike normal programming. This makes dependency relationships hard to read. "
+        "Call causalized_form when you need to see which variable each equation actually computes.\n"
     ]
     if tool_profile == "connector":
         lines.append(
