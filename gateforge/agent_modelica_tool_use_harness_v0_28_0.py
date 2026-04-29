@@ -50,6 +50,10 @@ from .agent_modelica_connector_contract_tool_v0_32_6 import (
     dispatch_connector_contract_tool,
     get_connector_contract_tool_defs,
 )
+from .agent_modelica_connector_flow_semantics_tool_v0_34_15 import (
+    dispatch_connector_flow_semantics_tool,
+    get_connector_flow_semantics_tool_defs,
+)
 from .agent_modelica_final_decision_record_tool_v0_34_13 import (
     dispatch_final_decision_record_tool,
     get_final_decision_record_tool_defs,
@@ -134,6 +138,7 @@ BASE_TOOL_DEFS: list[dict[str, Any]] = [
 TOOL_DEFS = BASE_TOOL_DEFS + get_structural_tool_defs()
 CONNECTOR_TOOL_DEFS = TOOL_DEFS + get_connector_balance_tool_defs()
 CONNECTOR_CONTRACT_TOOL_DEFS = BASE_TOOL_DEFS + get_connector_contract_tool_defs()
+CONNECTOR_FLOW_SEMANTICS_TOOL_DEFS = BASE_TOOL_DEFS + get_connector_flow_semantics_tool_defs()
 SEMANTIC_MEMORY_SELECTION_TOOL_DEFS = BASE_TOOL_DEFS + get_memory_selection_tool_defs()
 REUSABLE_CONTRACT_ORACLE_TOOL_DEFS = BASE_TOOL_DEFS + get_reusable_contract_oracle_tool_defs()
 REUSABLE_CONTRACT_ORACLE_FINAL_DECISION_TOOL_DEFS = (
@@ -189,6 +194,8 @@ def get_tool_defs(tool_profile: str = "structural") -> list[dict[str, Any]]:
         return list(CONNECTOR_TOOL_DEFS)
     if tool_profile == "connector_contract":
         return list(CONNECTOR_CONTRACT_TOOL_DEFS)
+    if tool_profile == "connector_flow_semantics":
+        return list(CONNECTOR_FLOW_SEMANTICS_TOOL_DEFS)
     return list(TOOL_DEFS)
 
 
@@ -352,6 +359,15 @@ def get_tool_profile_guidance(tool_profile: str = "structural") -> str:
             "It is diagnostic-only: it does not generate patches, choose candidates, or submit. "
             "You must still write and test the repair yourself with check_model and submit_final.\n"
         )
+    if tool_profile == "connector_flow_semantics":
+        return (
+            "A connector-flow semantic diagnostic is available. Call connector_flow_semantics_diagnostic after "
+            "OMC reports underdetermined, overdetermined, singular, or balanced-equation-count-without-simulation "
+            "outcomes involving connector flow variables. Pass the candidate model_text and, when available, the "
+            "recent OMC output as omc_output. The tool reports flow-equation patterns and semantic risks only; "
+            "it does not generate patches, choose candidates, or submit. You must still write and test repairs "
+            "yourself with check_model/simulate_model and submit_final.\n"
+        )
     lines = [
         "Diagnostic tools are available for complex cases. Each call costs tokens — "
         "use only when check_model output alone is insufficient:\n"
@@ -480,6 +496,8 @@ def dispatch_tool(name: str, arguments: dict) -> str:
         return dispatch_structure_coverage_tool(name, arguments)
     if name == "connector_contract_diagnostic":
         return dispatch_connector_contract_tool(name, arguments)
+    if name == "connector_flow_semantics_diagnostic":
+        return dispatch_connector_flow_semantics_tool(name, arguments)
     if name == "record_semantic_memory_selection":
         return dispatch_memory_selection_tool(name, arguments)
     if name == "reusable_contract_oracle_diagnostic":

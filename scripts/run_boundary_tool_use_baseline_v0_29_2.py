@@ -70,6 +70,7 @@ def main() -> int:
             "structural",
             "connector",
             "connector_contract",
+            "connector_flow_semantics",
         ],
     )
     parser.add_argument("--summary-version", default="v0.29.4")
