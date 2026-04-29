@@ -201,6 +201,15 @@ class ToolUseHarnessV0280Tests(unittest.TestCase):
         self.assertEqual(get_tool_profile_guidance("base"), "")
         self.assertIn("hard semantic Modelica cases", get_tool_profile_guidance("semantic"))
 
+    def test_connector_contract_profile_is_narrow(self) -> None:
+        names = {t["name"] for t in get_tool_defs("connector_contract")}
+        self.assertIn("check_model", names)
+        self.assertIn("submit_final", names)
+        self.assertIn("connector_contract_diagnostic", names)
+        self.assertNotIn("replaceable_partial_diagnostic", names)
+        self.assertNotIn("connector_balance_diagnostic", names)
+        self.assertIn("diagnostic-only", get_tool_profile_guidance("connector_contract"))
+
     def test_dispatch_unknown_tool_returns_error(self) -> None:
         result = dispatch_tool("nonexistent", {})
         self.assertIn("error", result)

@@ -46,6 +46,10 @@ from .agent_modelica_structure_coverage_tool_v0_31_0 import (
     dispatch_structure_coverage_tool,
     get_structure_coverage_tool_defs,
 )
+from .agent_modelica_connector_contract_tool_v0_32_6 import (
+    dispatch_connector_contract_tool,
+    get_connector_contract_tool_defs,
+)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_OUT_DIR = REPO_ROOT / "artifacts" / "tool_use_harness_v0_28_0"
@@ -117,6 +121,7 @@ BASE_TOOL_DEFS: list[dict[str, Any]] = [
 # Default profile keeps the v0.28.1 structural tools enabled.
 TOOL_DEFS = BASE_TOOL_DEFS + get_structural_tool_defs()
 CONNECTOR_TOOL_DEFS = TOOL_DEFS + get_connector_balance_tool_defs()
+CONNECTOR_CONTRACT_TOOL_DEFS = BASE_TOOL_DEFS + get_connector_contract_tool_defs()
 SEMANTIC_TOOL_NAMES = {"get_unmatched_vars", "causalized_form"}
 SEMANTIC_TOOL_DEFS = BASE_TOOL_DEFS + [
     tool for tool in get_structural_tool_defs() if str(tool.get("name") or "") in SEMANTIC_TOOL_NAMES
@@ -157,6 +162,8 @@ def get_tool_defs(tool_profile: str = "structural") -> list[dict[str, Any]]:
         return list(REPLACEABLE_COVERAGE_TOOL_DEFS)
     if tool_profile == "connector":
         return list(CONNECTOR_TOOL_DEFS)
+    if tool_profile == "connector_contract":
+        return list(CONNECTOR_CONTRACT_TOOL_DEFS)
     return list(TOOL_DEFS)
 
 
@@ -280,6 +287,15 @@ def get_tool_profile_guidance(tool_profile: str = "structural") -> str:
             "call submit_final with the same successful candidate, or call candidate_acceptance_critique with omc_passed=true and your concrete concern. "
             "The harness will not generate patches, select candidates, hide failed attempts, or submit for you.\n"
         )
+    if tool_profile == "connector_contract":
+        return (
+            "A narrow Modelica connector contract diagnostic is available. "
+            "For arrayed connector buses, reusable probe/adapter interfaces, replaceable partial contracts, "
+            "or repeated under/over-constrained flow ownership failures, call connector_contract_diagnostic once. "
+            "It reports semantic risks around connection sets, flow variable ownership, and reusable interface contracts. "
+            "It is diagnostic-only: it does not generate patches, choose candidates, or submit. "
+            "You must still write and test the repair yourself with check_model and submit_final.\n"
+        )
     lines = [
         "Diagnostic tools are available for complex cases. Each call costs tokens — "
         "use only when check_model output alone is insufficient:\n"
@@ -386,6 +402,8 @@ def dispatch_tool(name: str, arguments: dict) -> str:
         return dispatch_structure_strategy_tool(name, arguments)
     if name == "structure_coverage_diagnostic":
         return dispatch_structure_coverage_tool(name, arguments)
+    if name == "connector_contract_diagnostic":
+        return dispatch_connector_contract_tool(name, arguments)
     return dispatch_structural_tool(name, arguments)
 
 

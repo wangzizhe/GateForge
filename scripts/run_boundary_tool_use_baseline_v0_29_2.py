@@ -65,6 +65,7 @@ def main() -> int:
             "replaceable_policy_structure_coverage_checkpoint",
             "structural",
             "connector",
+            "connector_contract",
         ],
     )
     parser.add_argument("--summary-version", default="v0.29.4")
