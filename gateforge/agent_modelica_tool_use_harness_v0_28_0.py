@@ -161,6 +161,8 @@ def get_tool_defs(tool_profile: str = "structural") -> list[dict[str, Any]]:
         return list(REUSABLE_CONTRACT_ORACLE_TOOL_DEFS)
     if tool_profile == "reusable_contract_oracle_final_decision":
         return list(REUSABLE_CONTRACT_ORACLE_FINAL_DECISION_TOOL_DEFS)
+    if tool_profile == "reusable_contract_oracle_submit_checkpoint":
+        return list(REUSABLE_CONTRACT_ORACLE_FINAL_DECISION_TOOL_DEFS)
     if tool_profile == "replaceable":
         return list(REPLACEABLE_TOOL_DEFS)
     if tool_profile == "replaceable_policy":
@@ -221,6 +223,15 @@ def get_tool_profile_guidance(tool_profile: str = "structural") -> str:
             "before continuing search or submitting. The record tool is audit-only: it does not submit, select a "
             "candidate, generate patches, or change the model. If your recorded decision is submit, you must still "
             "call submit_final yourself.\n"
+        )
+    if tool_profile == "reusable_contract_oracle_submit_checkpoint":
+        return (
+            "Use transparent submit discipline with the reusable-contract oracle. If a candidate passes check_model "
+            "with simulation success or passes simulate_model, do not keep searching for a more elegant candidate. "
+            "If the reusable contract is still uncertain, call reusable_contract_oracle_diagnostic on that same "
+            "candidate. Then call record_final_decision_rationale with either concrete blockers or a submit decision. "
+            "If no concrete blocker remains, call submit_final yourself with that same successful model_text. "
+            "The harness will not auto-submit, select candidates, or generate patches.\n"
         )
     if tool_profile == "replaceable":
         return (
@@ -387,10 +398,30 @@ def _checkpoint_enabled(tool_profile: str) -> bool:
         "replaceable_policy_candidate_critique_checkpoint",
         "replaceable_policy_multicandidate_checkpoint",
         "replaceable_policy_structure_coverage_checkpoint",
+        "reusable_contract_oracle_submit_checkpoint",
     }
 
 
-def _candidate_checkpoint_message(*, tool_name: str) -> str:
+def _checkpoint_allowed_tools(tool_profile: str) -> set[str]:
+    if tool_profile == "reusable_contract_oracle_submit_checkpoint":
+        return {
+            "submit_final",
+            "reusable_contract_oracle_diagnostic",
+            "record_final_decision_rationale",
+        }
+    return {"submit_final", "candidate_acceptance_critique"}
+
+
+def _candidate_checkpoint_message(*, tool_name: str, tool_profile: str = "") -> str:
+    if tool_profile == "reusable_contract_oracle_submit_checkpoint":
+        return (
+            "Transparent checkpoint: the previous candidate produced successful OMC evidence via "
+            f"{tool_name}. Before testing another candidate or abandoning this one, choose explicitly: "
+            "call reusable_contract_oracle_diagnostic on the same successful model_text if the reusable contract "
+            "is still uncertain, call record_final_decision_rationale with concrete blockers or a submit decision, "
+            "or call submit_final with the same successful model_text. The harness is not selecting or submitting "
+            "anything for you."
+        )
     return (
         "Transparent checkpoint: the previous candidate produced successful OMC evidence via "
         f"{tool_name}. Before testing another candidate or abandoning this one, choose explicitly: "
@@ -400,19 +431,19 @@ def _candidate_checkpoint_message(*, tool_name: str) -> str:
     )
 
 
-def _checkpoint_guard_result(tool_name: str) -> str:
+def _checkpoint_guard_result(tool_name: str, *, tool_profile: str = "") -> str:
+    allowed_tools = sorted(_checkpoint_allowed_tools(tool_profile))
     return json.dumps(
         {
             "error": "checkpoint_decision_required",
             "requested_tool": tool_name,
-            "allowed_tools": ["submit_final", "candidate_acceptance_critique"],
+            "allowed_tools": allowed_tools,
             "diagnostic_only": True,
             "auto_submit": False,
             "candidate_selected": False,
             "guidance": (
                 "A transparent checkpoint is active because a previous candidate produced successful OMC evidence. "
-                "Call submit_final with that same successful candidate, or call candidate_acceptance_critique with "
-                "omc_passed=true and your concrete concern before using other tools."
+                "Use one of the allowed decision tools before using other tools."
             ),
         },
         sort_keys=True,
@@ -580,16 +611,16 @@ def run_tool_use_case(
                 args = dict(tc.arguments)
                 if not args.get("model_text", "").strip():
                     args["model_text"] = current_text
-                if pending_checkpoint and tc.name not in {"submit_final", "candidate_acceptance_critique"}:
-                    result = _checkpoint_guard_result(tc.name)
+                if pending_checkpoint and tc.name not in _checkpoint_allowed_tools(tool_profile):
+                    result = _checkpoint_guard_result(tc.name, tool_profile=tool_profile)
                     checkpoint_guard_violations.append(tc.name)
                 else:
                     result = dispatch_tool(tc.name, args)
                 messages.append({"role": "tool", "tool_call_id": tc.id, "content": result})
                 tool_results.append({"name": tc.name, "result": result[:500]})
                 if _checkpoint_enabled(tool_profile) and _omc_success_result(tc.name, result):
-                    checkpoint_messages.append(_candidate_checkpoint_message(tool_name=tc.name))
-                if pending_checkpoint and tc.name in {"submit_final", "candidate_acceptance_critique"}:
+                    checkpoint_messages.append(_candidate_checkpoint_message(tool_name=tc.name, tool_profile=tool_profile))
+                if pending_checkpoint and tc.name in _checkpoint_allowed_tools(tool_profile):
                     checkpoint_decision_seen = True
                 if tc.name == "submit_final":
                     submitted = True
@@ -604,7 +635,15 @@ def run_tool_use_case(
                 pending_checkpoint = True
                 checkpoint_grace_steps_remaining = max(checkpoint_grace_steps_remaining, 2)
             if checkpoint_guard_violations:
-                messages.append({"role": "user", "content": _candidate_checkpoint_message(tool_name="previous_successful_tool")})
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": _candidate_checkpoint_message(
+                            tool_name="previous_successful_tool",
+                            tool_profile=tool_profile,
+                        ),
+                    }
+                )
                 step_record["checkpoint_guard_violations"] = checkpoint_guard_violations
                 checkpoint_grace_steps_remaining = max(checkpoint_grace_steps_remaining, 1)
             step_record["tool_results"] = tool_results

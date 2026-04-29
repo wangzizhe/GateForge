@@ -210,6 +210,17 @@ class ToolUseHarnessV0280Tests(unittest.TestCase):
         self.assertNotIn("connector_balance_diagnostic", names)
         self.assertIn("diagnostic-only", get_tool_profile_guidance("connector_contract"))
 
+    def test_reusable_contract_submit_checkpoint_profile_is_transparent(self) -> None:
+        names = {t["name"] for t in get_tool_defs("reusable_contract_oracle_submit_checkpoint")}
+        self.assertIn("check_model", names)
+        self.assertIn("simulate_model", names)
+        self.assertIn("submit_final", names)
+        self.assertIn("reusable_contract_oracle_diagnostic", names)
+        self.assertIn("record_final_decision_rationale", names)
+        guidance = get_tool_profile_guidance("reusable_contract_oracle_submit_checkpoint")
+        self.assertIn("submit discipline", guidance)
+        self.assertIn("will not auto-submit", guidance)
+
     def test_dispatch_unknown_tool_returns_error(self) -> None:
         result = dispatch_tool("nonexistent", {})
         self.assertIn("error", result)

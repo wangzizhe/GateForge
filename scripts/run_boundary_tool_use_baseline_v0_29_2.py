@@ -55,6 +55,7 @@ def main() -> int:
             "semantic_memory_selection",
             "reusable_contract_oracle",
             "reusable_contract_oracle_final_decision",
+            "reusable_contract_oracle_submit_checkpoint",
             "replaceable",
             "replaceable_policy",
             "replaceable_policy_multicandidate",
