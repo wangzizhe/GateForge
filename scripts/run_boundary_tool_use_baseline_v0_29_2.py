@@ -53,6 +53,7 @@ def main() -> int:
             "base",
             "semantic",
             "semantic_memory_selection",
+            "reusable_contract_oracle",
             "replaceable",
             "replaceable_policy",
             "replaceable_policy_multicandidate",
