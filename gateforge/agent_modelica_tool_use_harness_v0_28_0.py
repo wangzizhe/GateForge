@@ -50,6 +50,10 @@ from .agent_modelica_connector_contract_tool_v0_32_6 import (
     dispatch_connector_contract_tool,
     get_connector_contract_tool_defs,
 )
+from .agent_modelica_memory_selection_tool_v0_34_4 import (
+    dispatch_memory_selection_tool,
+    get_memory_selection_tool_defs,
+)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_OUT_DIR = REPO_ROOT / "artifacts" / "tool_use_harness_v0_28_0"
@@ -122,6 +126,7 @@ BASE_TOOL_DEFS: list[dict[str, Any]] = [
 TOOL_DEFS = BASE_TOOL_DEFS + get_structural_tool_defs()
 CONNECTOR_TOOL_DEFS = TOOL_DEFS + get_connector_balance_tool_defs()
 CONNECTOR_CONTRACT_TOOL_DEFS = BASE_TOOL_DEFS + get_connector_contract_tool_defs()
+SEMANTIC_MEMORY_SELECTION_TOOL_DEFS = BASE_TOOL_DEFS + get_memory_selection_tool_defs()
 SEMANTIC_TOOL_NAMES = {"get_unmatched_vars", "causalized_form"}
 SEMANTIC_TOOL_DEFS = BASE_TOOL_DEFS + [
     tool for tool in get_structural_tool_defs() if str(tool.get("name") or "") in SEMANTIC_TOOL_NAMES
@@ -138,6 +143,8 @@ def get_tool_defs(tool_profile: str = "structural") -> list[dict[str, Any]]:
         return list(BASE_TOOL_DEFS)
     if tool_profile == "semantic":
         return list(SEMANTIC_TOOL_DEFS)
+    if tool_profile == "semantic_memory_selection":
+        return list(SEMANTIC_MEMORY_SELECTION_TOOL_DEFS)
     if tool_profile == "replaceable":
         return list(REPLACEABLE_TOOL_DEFS)
     if tool_profile == "replaceable_policy":
@@ -176,6 +183,13 @@ def get_tool_profile_guidance(tool_profile: str = "structural") -> str:
             "use at most one diagnostic pass before trying a repair unless the compiler output is ambiguous:\n"
             "- get_unmatched_vars: use when check_model reports under-determined systems and the missing variable is not obvious.\n"
             "- causalized_form: use when acausal equations make dependencies hard to read.\n"
+        )
+    if tool_profile == "semantic_memory_selection":
+        return (
+            "Semantic memory units may be present in the external context. Before testing a second candidate, "
+            "call record_semantic_memory_selection to record which memory unit you choose to use or reject and why. "
+            "This tool will not retrieve memory, rank memory, generate patches, select candidates, or submit. "
+            "You must still write and test the next candidate yourself.\n"
         )
     if tool_profile == "replaceable":
         return (
@@ -404,6 +418,8 @@ def dispatch_tool(name: str, arguments: dict) -> str:
         return dispatch_structure_coverage_tool(name, arguments)
     if name == "connector_contract_diagnostic":
         return dispatch_connector_contract_tool(name, arguments)
+    if name == "record_semantic_memory_selection":
+        return dispatch_memory_selection_tool(name, arguments)
     return dispatch_structural_tool(name, arguments)
 
 

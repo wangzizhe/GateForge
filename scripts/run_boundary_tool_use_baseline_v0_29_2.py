@@ -52,6 +52,7 @@ def main() -> int:
         choices=[
             "base",
             "semantic",
+            "semantic_memory_selection",
             "replaceable",
             "replaceable_policy",
             "replaceable_policy_multicandidate",
