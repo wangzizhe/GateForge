@@ -48,6 +48,11 @@ class ConnectorFlowSemanticsToolV03415Tests(unittest.TestCase):
         self.assertIn("submit_final", names)
         self.assertIn("connector_flow_semantics_diagnostic", names)
         self.assertIn("diagnostic", get_tool_profile_guidance("connector_flow_semantics"))
+        checkpoint_names = {tool["name"] for tool in get_tool_defs("connector_flow_submit_checkpoint")}
+        self.assertIn("connector_flow_semantics_diagnostic", checkpoint_names)
+        self.assertIn("record_final_decision_rationale", checkpoint_names)
+        self.assertIn("submit_final", checkpoint_names)
+        self.assertIn("submit discipline", get_tool_profile_guidance("connector_flow_submit_checkpoint"))
 
     def test_reports_balanced_without_simulation_success_risk(self) -> None:
         payload = json.loads(

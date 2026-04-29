@@ -139,6 +139,9 @@ TOOL_DEFS = BASE_TOOL_DEFS + get_structural_tool_defs()
 CONNECTOR_TOOL_DEFS = TOOL_DEFS + get_connector_balance_tool_defs()
 CONNECTOR_CONTRACT_TOOL_DEFS = BASE_TOOL_DEFS + get_connector_contract_tool_defs()
 CONNECTOR_FLOW_SEMANTICS_TOOL_DEFS = BASE_TOOL_DEFS + get_connector_flow_semantics_tool_defs()
+CONNECTOR_FLOW_SEMANTICS_FINAL_DECISION_TOOL_DEFS = (
+    CONNECTOR_FLOW_SEMANTICS_TOOL_DEFS + get_final_decision_record_tool_defs()
+)
 SEMANTIC_MEMORY_SELECTION_TOOL_DEFS = BASE_TOOL_DEFS + get_memory_selection_tool_defs()
 REUSABLE_CONTRACT_ORACLE_TOOL_DEFS = BASE_TOOL_DEFS + get_reusable_contract_oracle_tool_defs()
 REUSABLE_CONTRACT_ORACLE_FINAL_DECISION_TOOL_DEFS = (
@@ -196,6 +199,8 @@ def get_tool_defs(tool_profile: str = "structural") -> list[dict[str, Any]]:
         return list(CONNECTOR_CONTRACT_TOOL_DEFS)
     if tool_profile == "connector_flow_semantics":
         return list(CONNECTOR_FLOW_SEMANTICS_TOOL_DEFS)
+    if tool_profile == "connector_flow_submit_checkpoint":
+        return list(CONNECTOR_FLOW_SEMANTICS_FINAL_DECISION_TOOL_DEFS)
     return list(TOOL_DEFS)
 
 
@@ -368,6 +373,16 @@ def get_tool_profile_guidance(tool_profile: str = "structural") -> str:
             "it does not generate patches, choose candidates, or submit. You must still write and test repairs "
             "yourself with check_model/simulate_model and submit_final.\n"
         )
+    if tool_profile == "connector_flow_submit_checkpoint":
+        return (
+            "Use connector-flow diagnostics with transparent submit discipline. Call connector_flow_semantics_diagnostic "
+            "after OMC reports underdetermined, overdetermined, singular, or balanced-equation-count-without-simulation "
+            "outcomes involving connector flow variables. If a candidate then passes check_model with simulation success "
+            "or passes simulate_model, do not keep searching for a more symmetric or elegant candidate unless you can "
+            "name a concrete task constraint it violates. You may run simulate_model once for confirmation, call "
+            "record_final_decision_rationale with concrete blockers or a submit decision, or call submit_final yourself. "
+            "The harness will not auto-submit, select candidates, or generate patches.\n"
+        )
     lines = [
         "Diagnostic tools are available for complex cases. Each call costs tokens — "
         "use only when check_model output alone is insufficient:\n"
@@ -415,6 +430,7 @@ def _checkpoint_enabled(tool_profile: str) -> bool:
         "replaceable_policy_multicandidate_checkpoint",
         "replaceable_policy_structure_coverage_checkpoint",
         "reusable_contract_oracle_submit_checkpoint",
+        "connector_flow_submit_checkpoint",
     }
 
 
@@ -423,6 +439,13 @@ def _checkpoint_allowed_tools(tool_profile: str) -> set[str]:
         return {
             "submit_final",
             "reusable_contract_oracle_diagnostic",
+            "record_final_decision_rationale",
+        }
+    if tool_profile == "connector_flow_submit_checkpoint":
+        return {
+            "submit_final",
+            "simulate_model",
+            "connector_flow_semantics_diagnostic",
             "record_final_decision_rationale",
         }
     return {"submit_final", "candidate_acceptance_critique"}
@@ -437,6 +460,15 @@ def _candidate_checkpoint_message(*, tool_name: str, tool_profile: str = "") -> 
             "is still uncertain, call record_final_decision_rationale with concrete blockers or a submit decision, "
             "or call submit_final with the same successful model_text. The harness is not selecting or submitting "
             "anything for you."
+        )
+    if tool_profile == "connector_flow_submit_checkpoint":
+        return (
+            "Transparent checkpoint: the previous candidate produced successful OMC evidence via "
+            f"{tool_name}. Before testing another candidate or abandoning this one, choose explicitly: "
+            "call simulate_model once for confirmation, call connector_flow_semantics_diagnostic with a concrete "
+            "semantic concern, call record_final_decision_rationale, or call submit_final with the same successful "
+            "model_text. Do not continue searching only for a more symmetric or elegant candidate. The harness is "
+            "not selecting or submitting anything for you."
         )
     return (
         "Transparent checkpoint: the previous candidate produced successful OMC evidence via "

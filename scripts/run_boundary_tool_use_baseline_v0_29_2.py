@@ -71,6 +71,7 @@ def main() -> int:
             "connector",
             "connector_contract",
             "connector_flow_semantics",
+            "connector_flow_submit_checkpoint",
         ],
     )
     parser.add_argument("--summary-version", default="v0.29.4")
