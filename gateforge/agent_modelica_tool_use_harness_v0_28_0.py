@@ -54,6 +54,34 @@ from .agent_modelica_connector_flow_semantics_tool_v0_34_15 import (
     dispatch_connector_flow_semantics_tool,
     get_connector_flow_semantics_tool_defs,
 )
+from .agent_modelica_connector_flow_state_tool_v0_35_9 import (
+    dispatch_connector_flow_state_tool,
+    get_connector_flow_state_tool_defs,
+)
+from .agent_modelica_repair_hypothesis_tool_v0_35_12 import (
+    dispatch_repair_hypothesis_tool,
+    get_repair_hypothesis_tool_defs,
+)
+from .agent_modelica_arrayed_shared_bus_tool_v0_35_18 import (
+    dispatch_arrayed_shared_bus_tool,
+    get_arrayed_shared_bus_tool_defs,
+)
+from .agent_modelica_omc_unmatched_flow_tool_v0_35_20 import (
+    dispatch_omc_unmatched_flow_tool,
+    get_omc_unmatched_flow_tool_defs,
+)
+from .agent_modelica_residual_hypothesis_consistency_tool_v0_35_21 import (
+    dispatch_residual_hypothesis_consistency_tool,
+    get_residual_hypothesis_consistency_tool_defs,
+)
+from .agent_modelica_equation_delta_portfolio_tool_v0_35_26 import (
+    dispatch_equation_delta_portfolio_tool,
+    get_equation_delta_portfolio_tool_defs,
+)
+from .agent_modelica_candidate_preference_tool_v0_35_29 import (
+    dispatch_candidate_preference_tool,
+    get_candidate_preference_tool_defs,
+)
 from .agent_modelica_final_decision_record_tool_v0_34_13 import (
     dispatch_final_decision_record_tool,
     get_final_decision_record_tool_defs,
@@ -142,6 +170,25 @@ CONNECTOR_FLOW_SEMANTICS_TOOL_DEFS = BASE_TOOL_DEFS + get_connector_flow_semanti
 CONNECTOR_FLOW_SEMANTICS_FINAL_DECISION_TOOL_DEFS = (
     CONNECTOR_FLOW_SEMANTICS_TOOL_DEFS + get_final_decision_record_tool_defs()
 )
+CONNECTOR_FLOW_STATE_TOOL_DEFS = BASE_TOOL_DEFS + get_connector_flow_state_tool_defs()
+CONNECTOR_FLOW_HYPOTHESIS_TOOL_DEFS = (
+    CONNECTOR_FLOW_STATE_TOOL_DEFS + get_repair_hypothesis_tool_defs()
+)
+CONNECTOR_FLOW_ARRAYED_BUS_TOOL_DEFS = (
+    CONNECTOR_FLOW_HYPOTHESIS_TOOL_DEFS + get_arrayed_shared_bus_tool_defs()
+)
+CONNECTOR_FLOW_OMC_NAMED_TOOL_DEFS = (
+    CONNECTOR_FLOW_ARRAYED_BUS_TOOL_DEFS + get_omc_unmatched_flow_tool_defs()
+)
+CONNECTOR_FLOW_RESIDUAL_CONSISTENCY_TOOL_DEFS = (
+    CONNECTOR_FLOW_OMC_NAMED_TOOL_DEFS + get_residual_hypothesis_consistency_tool_defs()
+)
+CONNECTOR_FLOW_DELTA_PORTFOLIO_TOOL_DEFS = (
+    CONNECTOR_FLOW_RESIDUAL_CONSISTENCY_TOOL_DEFS + get_equation_delta_portfolio_tool_defs()
+)
+CONNECTOR_FLOW_CANDIDATE_PREFERENCE_TOOL_DEFS = (
+    CONNECTOR_FLOW_DELTA_PORTFOLIO_TOOL_DEFS + get_candidate_preference_tool_defs()
+)
 SEMANTIC_MEMORY_SELECTION_TOOL_DEFS = BASE_TOOL_DEFS + get_memory_selection_tool_defs()
 REUSABLE_CONTRACT_ORACLE_TOOL_DEFS = BASE_TOOL_DEFS + get_reusable_contract_oracle_tool_defs()
 REUSABLE_CONTRACT_ORACLE_FINAL_DECISION_TOOL_DEFS = (
@@ -205,6 +252,28 @@ def get_tool_defs(tool_profile: str = "structural") -> list[dict[str, Any]]:
         return list(CONNECTOR_FLOW_SEMANTICS_TOOL_DEFS)
     if tool_profile == "connector_flow_submit_checkpoint":
         return list(CONNECTOR_FLOW_SEMANTICS_FINAL_DECISION_TOOL_DEFS)
+    if tool_profile == "connector_flow_state_checkpoint":
+        return list(CONNECTOR_FLOW_STATE_TOOL_DEFS)
+    if tool_profile == "connector_flow_hypothesis_checkpoint":
+        return list(CONNECTOR_FLOW_HYPOTHESIS_TOOL_DEFS)
+    if tool_profile == "connector_flow_minimal_contract_checkpoint":
+        return list(CONNECTOR_FLOW_HYPOTHESIS_TOOL_DEFS)
+    if tool_profile == "connector_flow_arrayed_bus_checkpoint":
+        return list(CONNECTOR_FLOW_ARRAYED_BUS_TOOL_DEFS)
+    if tool_profile == "connector_flow_omc_named_checkpoint":
+        return list(CONNECTOR_FLOW_OMC_NAMED_TOOL_DEFS)
+    if tool_profile == "connector_flow_residual_consistency_checkpoint":
+        return list(CONNECTOR_FLOW_RESIDUAL_CONSISTENCY_TOOL_DEFS)
+    if tool_profile == "connector_flow_residual_revision_checkpoint":
+        return list(CONNECTOR_FLOW_RESIDUAL_CONSISTENCY_TOOL_DEFS)
+    if tool_profile == "connector_flow_delta_portfolio_checkpoint":
+        return list(CONNECTOR_FLOW_DELTA_PORTFOLIO_TOOL_DEFS)
+    if tool_profile == "connector_flow_delta_coverage_checkpoint":
+        return list(CONNECTOR_FLOW_DELTA_PORTFOLIO_TOOL_DEFS)
+    if tool_profile == "connector_flow_delta_execution_checkpoint":
+        return list(CONNECTOR_FLOW_DELTA_PORTFOLIO_TOOL_DEFS)
+    if tool_profile == "connector_flow_candidate_preference_checkpoint":
+        return list(CONNECTOR_FLOW_CANDIDATE_PREFERENCE_TOOL_DEFS)
     return list(TOOL_DEFS)
 
 
@@ -404,6 +473,146 @@ def get_tool_profile_guidance(tool_profile: str = "structural") -> str:
             "record_final_decision_rationale with concrete blockers or a submit decision, or call submit_final yourself. "
             "The harness will not auto-submit, select candidates, or generate patches.\n"
         )
+    if tool_profile == "connector_flow_state_checkpoint":
+        return (
+            "Use connector-flow semantic state diagnostics with transparent submit discipline. "
+            "Call connector_flow_state_diagnostic after the first model-check failure to inspect connection sets, "
+            "flow-balance participants, and where flow equations are owned. The diagnostic reports facts only; it "
+            "does not generate patches or choose candidates. If a candidate passes check_model with simulation "
+            "success or passes simulate_model, call submit_final with that same successful model_text unless a "
+            "concrete task requirement remains unvalidated.\n"
+        )
+    if tool_profile == "connector_flow_hypothesis_checkpoint":
+        return (
+            "Use connector-flow semantic state diagnostics plus explicit repair hypothesis recording. "
+            "After the first model-check failure, call connector_flow_state_diagnostic. Before testing a nontrivial "
+            "repair candidate, call record_repair_hypothesis to state the suspected semantic type, target boundary, "
+            "candidate strategy, expected equation-count change, and a different fallback hypothesis. The hypothesis "
+            "tool is audit-only: it does not generate patches, choose candidates, or submit. If a candidate passes "
+            "check_model with simulation success or passes simulate_model, call submit_final with that same successful "
+            "model_text unless a concrete task requirement remains unvalidated.\n"
+        )
+    if tool_profile == "connector_flow_minimal_contract_checkpoint":
+        return (
+            "Use connector-flow semantic state diagnostics plus minimal-contract hypothesis discipline. "
+            "After the first model-check failure, call connector_flow_state_diagnostic. Before testing a nontrivial "
+            "repair candidate, call record_repair_hypothesis. In that hypothesis, avoid assuming that every probe "
+            "pin current must be set to zero. State the minimal equation-count change you expect and why it should "
+            "be enough to close the connector-flow contract without over-constraining the connection sets. The "
+            "hypothesis tool is audit-only: it does not generate patches, choose candidates, or submit. If a "
+            "candidate passes check_model with simulation success or passes simulate_model, call submit_final with "
+            "that same successful model_text unless a concrete task requirement remains unvalidated.\n"
+        )
+    if tool_profile == "connector_flow_arrayed_bus_checkpoint":
+        return (
+            "Use connector-flow semantic state diagnostics plus arrayed shared-bus observation. "
+            "After the first model-check failure, call connector_flow_state_diagnostic and "
+            "arrayed_shared_bus_diagnostic. Before testing a nontrivial repair candidate, call "
+            "record_repair_hypothesis. Treat a large arrayed connection set as one shared flow-balance context, "
+            "not as isolated branch-local connectors. Avoid assuming every probe pin current must be set to zero; "
+            "state the minimal equation-count change you expect and why it should be enough to close the "
+            "connector-flow contract without over-constraining the connection sets. The diagnostics and hypothesis "
+            "tool are audit-only: they do not generate patches, choose candidates, or submit. If a candidate passes "
+            "check_model with simulation success or passes simulate_model, call submit_final with that same "
+            "successful model_text unless a concrete task requirement remains unvalidated.\n"
+        )
+    if tool_profile == "connector_flow_omc_named_checkpoint":
+        return (
+            "Use connector-flow semantic state diagnostics plus compiler-named residual discipline. "
+            "After the first model-check failure, call connector_flow_state_diagnostic, "
+            "arrayed_shared_bus_diagnostic, and omc_unmatched_flow_diagnostic with the recent OMC output. "
+            "When OMC names specific unmatched flow variables, treat those names as stronger evidence than "
+            "symmetry-based guesses. Before testing a nontrivial repair candidate, call record_repair_hypothesis "
+            "and state the minimal equation-count change expected from the compiler-named residual. The diagnostics "
+            "and hypothesis tool are audit-only: they do not generate patches, choose candidates, or submit. If a "
+            "candidate passes check_model with simulation success or passes simulate_model, call submit_final with "
+            "that same successful model_text unless a concrete task requirement remains unvalidated.\n"
+        )
+    if tool_profile == "connector_flow_residual_consistency_checkpoint":
+        return (
+            "Use connector-flow diagnostics plus transparent residual-hypothesis consistency. "
+            "After the first model-check failure, call connector_flow_state_diagnostic, "
+            "arrayed_shared_bus_diagnostic, and omc_unmatched_flow_diagnostic with the recent OMC output. "
+            "Before testing a nontrivial repair candidate, call record_repair_hypothesis, then call "
+            "residual_hypothesis_consistency_check using the same expected equation-count delta and candidate "
+            "strategy. If the consistency check says the delta exceeds compiler-named residuals, revise the "
+            "hypothesis before testing. This is an audit-only critique: it does not generate patches, choose "
+            "candidates, or submit. If a candidate passes check_model with simulation success or passes "
+            "simulate_model, call submit_final with that same successful model_text unless a concrete task "
+            "requirement remains unvalidated.\n"
+        )
+    if tool_profile == "connector_flow_residual_revision_checkpoint":
+        return (
+            "Use connector-flow diagnostics plus strict residual-hypothesis revision discipline. "
+            "After the first model-check failure, call connector_flow_state_diagnostic, "
+            "arrayed_shared_bus_diagnostic, and omc_unmatched_flow_diagnostic with the recent OMC output. "
+            "Before testing a nontrivial repair candidate, call record_repair_hypothesis, then call "
+            "residual_hypothesis_consistency_check using the same expected equation-count delta and candidate "
+            "strategy. If the consistency check says the expected delta exceeds compiler-named residuals, do not "
+            "test that candidate yet. First record a revised repair hypothesis whose expected equation-count delta "
+            "matches the compiler-named residual count, then test that revised candidate. These tools are "
+            "audit-only: they do not generate patches, choose candidates, or submit. If a candidate passes "
+            "check_model with simulation success or passes simulate_model, call submit_final with that same "
+            "successful model_text unless a concrete task requirement remains unvalidated.\n"
+        )
+    if tool_profile == "connector_flow_delta_portfolio_checkpoint":
+        return (
+            "Use connector-flow diagnostics plus explicit candidate portfolio discipline. "
+            "After the first model-check failure, call connector_flow_state_diagnostic, "
+            "arrayed_shared_bus_diagnostic, and omc_unmatched_flow_diagnostic with the recent OMC output. "
+            "Before testing a nontrivial repair candidate, call record_equation_delta_candidate_portfolio with at "
+            "least two structurally distinct candidate strategies and their expected equation-count deltas. Include "
+            "at least one candidate whose expected delta matches the compiler-named residual count, but you must "
+            "still choose, write, and test the candidate yourself. Then call record_repair_hypothesis and "
+            "residual_hypothesis_consistency_check for the selected candidate. These tools are audit-only: they do "
+            "not generate patches, choose candidates, or submit. If a candidate passes check_model with simulation "
+            "success or passes simulate_model, call submit_final with that same successful model_text unless a "
+            "concrete task requirement remains unvalidated.\n"
+        )
+    if tool_profile == "connector_flow_delta_coverage_checkpoint":
+        return (
+            "Use connector-flow diagnostics plus strict equation-delta coverage discipline. "
+            "After the first model-check failure, call connector_flow_state_diagnostic, "
+            "arrayed_shared_bus_diagnostic, and omc_unmatched_flow_diagnostic with the recent OMC output. "
+            "Before testing any nontrivial repair candidate, call record_equation_delta_candidate_portfolio with at "
+            "least two structurally distinct candidate strategies and their expected equation-count deltas. The "
+            "portfolio must include a candidate whose expected equation-count delta exactly matches the compiler-"
+            "named residual count. If your first portfolio does not include that delta, do not test yet; call "
+            "record_equation_delta_candidate_portfolio again with a revised portfolio that includes it. Then call "
+            "record_repair_hypothesis and residual_hypothesis_consistency_check for the selected candidate. These "
+            "tools are audit-only: they do not generate patches, choose candidates, or submit. If a candidate passes "
+            "check_model with simulation success or passes simulate_model, call submit_final with that same "
+            "successful model_text unless a concrete task requirement remains unvalidated.\n"
+        )
+    if tool_profile == "connector_flow_delta_execution_checkpoint":
+        return (
+            "Use connector-flow diagnostics plus strict equation-delta coverage and execution discipline. "
+            "After the first model-check failure, call connector_flow_state_diagnostic, "
+            "arrayed_shared_bus_diagnostic, and omc_unmatched_flow_diagnostic with the recent OMC output. "
+            "Before testing any nontrivial repair candidate, call record_equation_delta_candidate_portfolio with at "
+            "least two structurally distinct candidate strategies. The portfolio must include a candidate whose "
+            "expected equation-count delta exactly matches the compiler-named residual count. Then call "
+            "record_repair_hypothesis and residual_hypothesis_consistency_check for the selected residual-matching "
+            "candidate. Do not stop after recording the hypothesis; test the selected candidate with check_model. "
+            "These tools are audit-only: they do not generate patches, choose candidates, or submit. If a candidate "
+            "passes check_model with simulation success or passes simulate_model, call submit_final with that same "
+            "successful model_text unless a concrete task requirement remains unvalidated.\n"
+        )
+    if tool_profile == "connector_flow_candidate_preference_checkpoint":
+        return (
+            "Use connector-flow diagnostics plus explicit candidate preference discipline. "
+            "After the first model-check failure, call connector_flow_state_diagnostic, "
+            "arrayed_shared_bus_diagnostic, and omc_unmatched_flow_diagnostic with the recent OMC output. "
+            "Before testing any nontrivial repair candidate, call record_equation_delta_candidate_portfolio. The "
+            "portfolio must include a candidate whose expected equation-count delta exactly matches the compiler-"
+            "named residual count. If a residual-matching candidate conflicts with a more symmetric or cleaner "
+            "candidate, call record_candidate_preference_rationale and prefer compiler residual match over style, "
+            "symmetry, or reusable-contract cleanliness for the next test. Then call record_repair_hypothesis and "
+            "residual_hypothesis_consistency_check for that selected candidate, and test it with check_model. These "
+            "tools are audit-only: they do not generate patches, choose candidates, or submit. If a candidate passes "
+            "check_model with simulation success or passes simulate_model, call submit_final with that same "
+            "successful model_text unless a concrete task requirement remains unvalidated.\n"
+        )
     lines = [
         "Diagnostic tools are available for complex cases. Each call costs tokens — "
         "use only when check_model output alone is insufficient:\n"
@@ -454,6 +663,17 @@ def _checkpoint_enabled(tool_profile: str) -> bool:
         "replaceable_policy_structure_coverage_checkpoint",
         "reusable_contract_oracle_submit_checkpoint",
         "connector_flow_submit_checkpoint",
+        "connector_flow_state_checkpoint",
+        "connector_flow_hypothesis_checkpoint",
+        "connector_flow_minimal_contract_checkpoint",
+        "connector_flow_arrayed_bus_checkpoint",
+        "connector_flow_omc_named_checkpoint",
+        "connector_flow_residual_consistency_checkpoint",
+        "connector_flow_residual_revision_checkpoint",
+        "connector_flow_delta_portfolio_checkpoint",
+        "connector_flow_delta_coverage_checkpoint",
+        "connector_flow_delta_execution_checkpoint",
+        "connector_flow_candidate_preference_checkpoint",
     }
 
 
@@ -474,6 +694,104 @@ def _checkpoint_allowed_tools(tool_profile: str) -> set[str]:
             "simulate_model",
             "connector_flow_semantics_diagnostic",
             "record_final_decision_rationale",
+        }
+    if tool_profile == "connector_flow_state_checkpoint":
+        return {"submit_final", "simulate_model", "connector_flow_state_diagnostic"}
+    if tool_profile == "connector_flow_hypothesis_checkpoint":
+        return {
+            "submit_final",
+            "simulate_model",
+            "connector_flow_state_diagnostic",
+            "record_repair_hypothesis",
+        }
+    if tool_profile == "connector_flow_minimal_contract_checkpoint":
+        return {
+            "submit_final",
+            "simulate_model",
+            "connector_flow_state_diagnostic",
+            "record_repair_hypothesis",
+        }
+    if tool_profile == "connector_flow_arrayed_bus_checkpoint":
+        return {
+            "submit_final",
+            "simulate_model",
+            "connector_flow_state_diagnostic",
+            "arrayed_shared_bus_diagnostic",
+            "record_repair_hypothesis",
+        }
+    if tool_profile == "connector_flow_omc_named_checkpoint":
+        return {
+            "submit_final",
+            "simulate_model",
+            "connector_flow_state_diagnostic",
+            "arrayed_shared_bus_diagnostic",
+            "omc_unmatched_flow_diagnostic",
+            "record_repair_hypothesis",
+        }
+    if tool_profile == "connector_flow_residual_consistency_checkpoint":
+        return {
+            "submit_final",
+            "simulate_model",
+            "connector_flow_state_diagnostic",
+            "arrayed_shared_bus_diagnostic",
+            "omc_unmatched_flow_diagnostic",
+            "record_repair_hypothesis",
+            "residual_hypothesis_consistency_check",
+        }
+    if tool_profile == "connector_flow_residual_revision_checkpoint":
+        return {
+            "submit_final",
+            "simulate_model",
+            "connector_flow_state_diagnostic",
+            "arrayed_shared_bus_diagnostic",
+            "omc_unmatched_flow_diagnostic",
+            "record_repair_hypothesis",
+            "residual_hypothesis_consistency_check",
+        }
+    if tool_profile == "connector_flow_delta_portfolio_checkpoint":
+        return {
+            "submit_final",
+            "simulate_model",
+            "connector_flow_state_diagnostic",
+            "arrayed_shared_bus_diagnostic",
+            "omc_unmatched_flow_diagnostic",
+            "record_equation_delta_candidate_portfolio",
+            "record_repair_hypothesis",
+            "residual_hypothesis_consistency_check",
+        }
+    if tool_profile == "connector_flow_delta_coverage_checkpoint":
+        return {
+            "submit_final",
+            "simulate_model",
+            "connector_flow_state_diagnostic",
+            "arrayed_shared_bus_diagnostic",
+            "omc_unmatched_flow_diagnostic",
+            "record_equation_delta_candidate_portfolio",
+            "record_repair_hypothesis",
+            "residual_hypothesis_consistency_check",
+        }
+    if tool_profile == "connector_flow_delta_execution_checkpoint":
+        return {
+            "submit_final",
+            "simulate_model",
+            "connector_flow_state_diagnostic",
+            "arrayed_shared_bus_diagnostic",
+            "omc_unmatched_flow_diagnostic",
+            "record_equation_delta_candidate_portfolio",
+            "record_repair_hypothesis",
+            "residual_hypothesis_consistency_check",
+        }
+    if tool_profile == "connector_flow_candidate_preference_checkpoint":
+        return {
+            "submit_final",
+            "simulate_model",
+            "connector_flow_state_diagnostic",
+            "arrayed_shared_bus_diagnostic",
+            "omc_unmatched_flow_diagnostic",
+            "record_equation_delta_candidate_portfolio",
+            "record_candidate_preference_rationale",
+            "record_repair_hypothesis",
+            "residual_hypothesis_consistency_check",
         }
     return {"submit_final", "candidate_acceptance_critique"}
 
@@ -510,6 +828,94 @@ def _candidate_checkpoint_message(*, tool_name: str, tool_profile: str = "") -> 
             "semantic concern, call record_final_decision_rationale, or call submit_final with the same successful "
             "model_text. Do not continue searching only for a more symmetric or elegant candidate. The harness is "
             "not selecting or submitting anything for you."
+        )
+    if tool_profile == "connector_flow_state_checkpoint":
+        return (
+            "Transparent checkpoint: the previous candidate produced successful OMC evidence via "
+            f"{tool_name}. Before testing another candidate or abandoning this one, either call simulate_model once "
+            "for confirmation, call connector_flow_state_diagnostic with a concrete semantic concern, or call "
+            "submit_final with the same successful model_text. The harness is not selecting or submitting anything "
+            "for you."
+        )
+    if tool_profile == "connector_flow_hypothesis_checkpoint":
+        return (
+            "Transparent checkpoint: the previous candidate produced successful OMC evidence via "
+            f"{tool_name}. Before testing another candidate or abandoning this one, either call simulate_model once "
+            "for confirmation, call record_repair_hypothesis only if a concrete task requirement remains unresolved, "
+            "or call submit_final with the same successful model_text. The harness is not selecting or submitting "
+            "anything for you."
+        )
+    if tool_profile == "connector_flow_minimal_contract_checkpoint":
+        return (
+            "Transparent checkpoint: the previous candidate produced successful OMC evidence via "
+            f"{tool_name}. Before testing another candidate or abandoning this one, either call simulate_model once "
+            "for confirmation, call record_repair_hypothesis only if a concrete task requirement remains unresolved, "
+            "or call submit_final with the same successful model_text. The harness is not selecting or submitting "
+            "anything for you."
+        )
+    if tool_profile == "connector_flow_arrayed_bus_checkpoint":
+        return (
+            "Transparent checkpoint: the previous candidate produced successful OMC evidence via "
+            f"{tool_name}. Before testing another candidate or abandoning this one, either call simulate_model once "
+            "for confirmation, call record_repair_hypothesis only if a concrete task requirement remains unresolved, "
+            "or call submit_final with the same successful model_text. The harness is not selecting or submitting "
+            "anything for you."
+        )
+    if tool_profile == "connector_flow_omc_named_checkpoint":
+        return (
+            "Transparent checkpoint: the previous candidate produced successful OMC evidence via "
+            f"{tool_name}. Before testing another candidate or abandoning this one, either call simulate_model once "
+            "for confirmation, call record_repair_hypothesis only if a concrete task requirement remains unresolved, "
+            "or call submit_final with the same successful model_text. The harness is not selecting or submitting "
+            "anything for you."
+        )
+    if tool_profile == "connector_flow_residual_consistency_checkpoint":
+        return (
+            "Transparent checkpoint: the previous candidate produced successful OMC evidence via "
+            f"{tool_name}. Before testing another candidate or abandoning this one, either call simulate_model once "
+            "for confirmation, call record_repair_hypothesis only if a concrete task requirement remains unresolved, "
+            "or call submit_final with the same successful model_text. The harness is not selecting or submitting "
+            "anything for you."
+        )
+    if tool_profile == "connector_flow_residual_revision_checkpoint":
+        return (
+            "Transparent checkpoint: the previous candidate produced successful OMC evidence via "
+            f"{tool_name}. Before testing another candidate or abandoning this one, either call simulate_model once "
+            "for confirmation, call record_repair_hypothesis only if a concrete task requirement remains unresolved, "
+            "or call submit_final with the same successful model_text. The harness is not selecting or submitting "
+            "anything for you."
+        )
+    if tool_profile == "connector_flow_delta_portfolio_checkpoint":
+        return (
+            "Transparent checkpoint: the previous candidate produced successful OMC evidence via "
+            f"{tool_name}. Before testing another candidate or abandoning this one, either call simulate_model once "
+            "for confirmation, call record_repair_hypothesis only if a concrete task requirement remains unresolved, "
+            "or call submit_final with the same successful model_text. The harness is not selecting or submitting "
+            "anything for you."
+        )
+    if tool_profile == "connector_flow_delta_coverage_checkpoint":
+        return (
+            "Transparent checkpoint: the previous candidate produced successful OMC evidence via "
+            f"{tool_name}. Before testing another candidate or abandoning this one, either call simulate_model once "
+            "for confirmation, call record_repair_hypothesis only if a concrete task requirement remains unresolved, "
+            "or call submit_final with the same successful model_text. The harness is not selecting or submitting "
+            "anything for you."
+        )
+    if tool_profile == "connector_flow_delta_execution_checkpoint":
+        return (
+            "Transparent checkpoint: the previous candidate produced successful OMC evidence via "
+            f"{tool_name}. Before testing another candidate or abandoning this one, either call simulate_model once "
+            "for confirmation, call record_repair_hypothesis only if a concrete task requirement remains unresolved, "
+            "or call submit_final with the same successful model_text. The harness is not selecting or submitting "
+            "anything for you."
+        )
+    if tool_profile == "connector_flow_candidate_preference_checkpoint":
+        return (
+            "Transparent checkpoint: the previous candidate produced successful OMC evidence via "
+            f"{tool_name}. Before testing another candidate or abandoning this one, either call simulate_model once "
+            "for confirmation, call record_repair_hypothesis only if a concrete task requirement remains unresolved, "
+            "or call submit_final with the same successful model_text. The harness is not selecting or submitting "
+            "anything for you."
         )
     return (
         "Transparent checkpoint: the previous candidate produced successful OMC evidence via "
@@ -571,6 +977,20 @@ def dispatch_tool(name: str, arguments: dict) -> str:
         return dispatch_connector_contract_tool(name, arguments)
     if name == "connector_flow_semantics_diagnostic":
         return dispatch_connector_flow_semantics_tool(name, arguments)
+    if name == "connector_flow_state_diagnostic":
+        return dispatch_connector_flow_state_tool(name, arguments)
+    if name == "record_repair_hypothesis":
+        return dispatch_repair_hypothesis_tool(name, arguments)
+    if name == "arrayed_shared_bus_diagnostic":
+        return dispatch_arrayed_shared_bus_tool(name, arguments)
+    if name == "omc_unmatched_flow_diagnostic":
+        return dispatch_omc_unmatched_flow_tool(name, arguments)
+    if name == "residual_hypothesis_consistency_check":
+        return dispatch_residual_hypothesis_consistency_tool(name, arguments)
+    if name == "record_equation_delta_candidate_portfolio":
+        return dispatch_equation_delta_portfolio_tool(name, arguments)
+    if name == "record_candidate_preference_rationale":
+        return dispatch_candidate_preference_tool(name, arguments)
     if name == "record_semantic_memory_selection":
         return dispatch_memory_selection_tool(name, arguments)
     if name == "reusable_contract_oracle_diagnostic":

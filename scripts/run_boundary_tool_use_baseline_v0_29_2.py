@@ -74,6 +74,17 @@ def main() -> int:
             "connector_contract",
             "connector_flow_semantics",
             "connector_flow_submit_checkpoint",
+            "connector_flow_state_checkpoint",
+            "connector_flow_hypothesis_checkpoint",
+            "connector_flow_minimal_contract_checkpoint",
+            "connector_flow_arrayed_bus_checkpoint",
+            "connector_flow_omc_named_checkpoint",
+            "connector_flow_residual_consistency_checkpoint",
+            "connector_flow_residual_revision_checkpoint",
+            "connector_flow_delta_portfolio_checkpoint",
+            "connector_flow_delta_coverage_checkpoint",
+            "connector_flow_delta_execution_checkpoint",
+            "connector_flow_candidate_preference_checkpoint",
         ],
     )
     parser.add_argument("--summary-version", default="v0.29.4")
