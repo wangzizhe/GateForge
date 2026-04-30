@@ -85,6 +85,7 @@ def main() -> int:
             "connector_flow_delta_coverage_checkpoint",
             "connector_flow_delta_execution_checkpoint",
             "connector_flow_candidate_preference_checkpoint",
+            "connector_flow_candidate_implementation_checkpoint",
         ],
     )
     parser.add_argument("--summary-version", default="v0.29.4")
