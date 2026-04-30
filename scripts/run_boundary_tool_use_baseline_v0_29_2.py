@@ -52,6 +52,7 @@ def main() -> int:
         choices=[
             "base",
             "base_submit_checkpoint",
+            "base_candidate_portfolio_checkpoint",
             "semantic",
             "semantic_memory_selection",
             "reusable_contract_oracle",

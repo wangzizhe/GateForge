@@ -163,6 +163,8 @@ def get_tool_defs(tool_profile: str = "structural") -> list[dict[str, Any]]:
         return list(BASE_TOOL_DEFS)
     if tool_profile == "base_submit_checkpoint":
         return list(BASE_TOOL_DEFS)
+    if tool_profile == "base_candidate_portfolio_checkpoint":
+        return list(BASE_TOOL_DEFS)
     if tool_profile == "semantic":
         return list(SEMANTIC_TOOL_DEFS)
     if tool_profile == "semantic_memory_selection":
@@ -215,6 +217,16 @@ def get_tool_profile_guidance(tool_profile: str = "structural") -> str:
             "simulate_model, do not keep exploring speculative alternatives. Call submit_final with that exact "
             "successful candidate unless you can name a concrete remaining requirement that the tool output did not "
             "validate. The harness will not auto-submit, select candidates, or generate patches.\n"
+        )
+    if tool_profile == "base_candidate_portfolio_checkpoint":
+        return (
+            "Use transparent candidate discovery plus submit discipline. After a failed check_model or simulate_model, "
+            "do not repeat the same repair shape with small wording changes. Try a structurally distinct candidate "
+            "before giving up: for example, compare whether the issue belongs in a reusable component contract, a "
+            "local implementation, or the surrounding connection/topology. Test each candidate with OMC yourself. "
+            "If a candidate passes check_model with simulation success or passes simulate_model, call submit_final "
+            "with that exact successful model_text unless you can name a concrete remaining requirement that the "
+            "tool output did not validate. The harness will not auto-submit, select candidates, or generate patches.\n"
         )
     if tool_profile == "semantic":
         return (
@@ -436,6 +448,7 @@ def _omc_success_result(tool_name: str, result: str) -> bool:
 def _checkpoint_enabled(tool_profile: str) -> bool:
     return tool_profile in {
         "base_submit_checkpoint",
+        "base_candidate_portfolio_checkpoint",
         "replaceable_policy_candidate_critique_checkpoint",
         "replaceable_policy_multicandidate_checkpoint",
         "replaceable_policy_structure_coverage_checkpoint",
@@ -446,6 +459,8 @@ def _checkpoint_enabled(tool_profile: str) -> bool:
 
 def _checkpoint_allowed_tools(tool_profile: str) -> set[str]:
     if tool_profile == "base_submit_checkpoint":
+        return {"submit_final"}
+    if tool_profile == "base_candidate_portfolio_checkpoint":
         return {"submit_final"}
     if tool_profile == "reusable_contract_oracle_submit_checkpoint":
         return {
@@ -470,6 +485,13 @@ def _candidate_checkpoint_message(*, tool_name: str, tool_profile: str = "") -> 
             f"{tool_name}. The harness is not selecting or submitting for you. If no concrete requirement remains "
             "unvalidated, call submit_final with the same successful model_text. If a concrete blocker remains, "
             "state it briefly, then call submit_final only after resolving it."
+        )
+    if tool_profile == "base_candidate_portfolio_checkpoint":
+        return (
+            "Transparent checkpoint: the previous candidate produced successful OMC evidence via "
+            f"{tool_name}. The harness is not selecting or submitting for you. Stop exploring alternate structures "
+            "unless a concrete requirement remains unvalidated. Otherwise call submit_final with the same successful "
+            "model_text."
         )
     if tool_profile == "reusable_contract_oracle_submit_checkpoint":
         return (

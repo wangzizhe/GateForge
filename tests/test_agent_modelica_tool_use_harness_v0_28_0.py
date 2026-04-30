@@ -194,6 +194,14 @@ class ToolUseHarnessV0280Tests(unittest.TestCase):
         self.assertIn("transparent submit discipline", guidance)
         self.assertIn("will not auto-submit", guidance)
 
+    def test_base_candidate_portfolio_checkpoint_profile_is_transparent(self) -> None:
+        base_names = {t["name"] for t in BASE_TOOL_DEFS}
+        resolved_names = {t["name"] for t in get_tool_defs("base_candidate_portfolio_checkpoint")}
+        self.assertEqual(base_names, resolved_names)
+        guidance = get_tool_profile_guidance("base_candidate_portfolio_checkpoint")
+        self.assertIn("structurally distinct candidate", guidance)
+        self.assertIn("will not auto-submit", guidance)
+
     def test_semantic_tool_profile_is_narrow(self) -> None:
         names = {t["name"] for t in SEMANTIC_TOOL_DEFS}
         self.assertIn("check_model", names)
