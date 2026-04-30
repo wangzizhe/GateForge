@@ -82,6 +82,10 @@ from .agent_modelica_candidate_preference_tool_v0_35_29 import (
     dispatch_candidate_preference_tool,
     get_candidate_preference_tool_defs,
 )
+from .agent_modelica_candidate_implementation_consistency_tool_v0_35_36 import (
+    dispatch_candidate_implementation_consistency_tool,
+    get_candidate_implementation_consistency_tool_defs,
+)
 from .agent_modelica_final_decision_record_tool_v0_34_13 import (
     dispatch_final_decision_record_tool,
     get_final_decision_record_tool_defs,
@@ -189,6 +193,9 @@ CONNECTOR_FLOW_DELTA_PORTFOLIO_TOOL_DEFS = (
 CONNECTOR_FLOW_CANDIDATE_PREFERENCE_TOOL_DEFS = (
     CONNECTOR_FLOW_DELTA_PORTFOLIO_TOOL_DEFS + get_candidate_preference_tool_defs()
 )
+CONNECTOR_FLOW_CANDIDATE_IMPLEMENTATION_TOOL_DEFS = (
+    CONNECTOR_FLOW_CANDIDATE_PREFERENCE_TOOL_DEFS + get_candidate_implementation_consistency_tool_defs()
+)
 SEMANTIC_MEMORY_SELECTION_TOOL_DEFS = BASE_TOOL_DEFS + get_memory_selection_tool_defs()
 REUSABLE_CONTRACT_ORACLE_TOOL_DEFS = BASE_TOOL_DEFS + get_reusable_contract_oracle_tool_defs()
 REUSABLE_CONTRACT_ORACLE_FINAL_DECISION_TOOL_DEFS = (
@@ -274,6 +281,8 @@ def get_tool_defs(tool_profile: str = "structural") -> list[dict[str, Any]]:
         return list(CONNECTOR_FLOW_DELTA_PORTFOLIO_TOOL_DEFS)
     if tool_profile == "connector_flow_candidate_preference_checkpoint":
         return list(CONNECTOR_FLOW_CANDIDATE_PREFERENCE_TOOL_DEFS)
+    if tool_profile == "connector_flow_candidate_implementation_checkpoint":
+        return list(CONNECTOR_FLOW_CANDIDATE_IMPLEMENTATION_TOOL_DEFS)
     return list(TOOL_DEFS)
 
 
@@ -613,6 +622,22 @@ def get_tool_profile_guidance(tool_profile: str = "structural") -> str:
             "check_model with simulation success or passes simulate_model, call submit_final with that same "
             "successful model_text unless a concrete task requirement remains unvalidated.\n"
         )
+    if tool_profile == "connector_flow_candidate_implementation_checkpoint":
+        return (
+            "Use connector-flow diagnostics plus candidate implementation consistency discipline. "
+            "After the first model-check failure, call connector_flow_state_diagnostic, "
+            "arrayed_shared_bus_diagnostic, and omc_unmatched_flow_diagnostic with the recent OMC output. "
+            "Before testing any nontrivial repair candidate, call record_equation_delta_candidate_portfolio. Then "
+            "call record_repair_hypothesis and residual_hypothesis_consistency_check for the selected candidate. "
+            "Before check_model on that candidate, call candidate_implementation_consistency_check with the exact "
+            "candidate_model_text you intend to test, the same expected_equation_delta, the same strategy, AND the "
+            "raw omc_output from the most recent check_model call (so the tool can verify your delta matches the "
+            "OMC-reported deficit). If the implementation does not match the expected delta OR the deficit check "
+            "fails, revise the candidate yourself before testing. "
+            "These tools are audit-only: they do not generate patches, choose candidates, or submit. If a candidate "
+            "passes check_model with simulation success or passes simulate_model, call submit_final with that same "
+            "successful model_text unless a concrete task requirement remains unvalidated.\n"
+        )
     lines = [
         "Diagnostic tools are available for complex cases. Each call costs tokens — "
         "use only when check_model output alone is insufficient:\n"
@@ -674,6 +699,7 @@ def _checkpoint_enabled(tool_profile: str) -> bool:
         "connector_flow_delta_coverage_checkpoint",
         "connector_flow_delta_execution_checkpoint",
         "connector_flow_candidate_preference_checkpoint",
+        "connector_flow_candidate_implementation_checkpoint",
     }
 
 
@@ -792,6 +818,19 @@ def _checkpoint_allowed_tools(tool_profile: str) -> set[str]:
             "record_candidate_preference_rationale",
             "record_repair_hypothesis",
             "residual_hypothesis_consistency_check",
+        }
+    if tool_profile == "connector_flow_candidate_implementation_checkpoint":
+        return {
+            "submit_final",
+            "simulate_model",
+            "connector_flow_state_diagnostic",
+            "arrayed_shared_bus_diagnostic",
+            "omc_unmatched_flow_diagnostic",
+            "record_equation_delta_candidate_portfolio",
+            "record_candidate_preference_rationale",
+            "record_repair_hypothesis",
+            "residual_hypothesis_consistency_check",
+            "candidate_implementation_consistency_check",
         }
     return {"submit_final", "candidate_acceptance_critique"}
 
@@ -917,6 +956,14 @@ def _candidate_checkpoint_message(*, tool_name: str, tool_profile: str = "") -> 
             "or call submit_final with the same successful model_text. The harness is not selecting or submitting "
             "anything for you."
         )
+    if tool_profile == "connector_flow_candidate_implementation_checkpoint":
+        return (
+            "Transparent checkpoint: the previous candidate produced successful OMC evidence via "
+            f"{tool_name}. Before testing another candidate or abandoning this one, either call simulate_model once "
+            "for confirmation, call record_repair_hypothesis only if a concrete task requirement remains unresolved, "
+            "or call submit_final with the same successful model_text. The harness is not selecting or submitting "
+            "anything for you."
+        )
     return (
         "Transparent checkpoint: the previous candidate produced successful OMC evidence via "
         f"{tool_name}. Before testing another candidate or abandoning this one, choose explicitly: "
@@ -991,6 +1038,8 @@ def dispatch_tool(name: str, arguments: dict) -> str:
         return dispatch_equation_delta_portfolio_tool(name, arguments)
     if name == "record_candidate_preference_rationale":
         return dispatch_candidate_preference_tool(name, arguments)
+    if name == "candidate_implementation_consistency_check":
+        return dispatch_candidate_implementation_consistency_tool(name, arguments)
     if name == "record_semantic_memory_selection":
         return dispatch_memory_selection_tool(name, arguments)
     if name == "reusable_contract_oracle_diagnostic":
