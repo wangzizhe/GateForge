@@ -186,6 +186,14 @@ class ToolUseHarnessV0280Tests(unittest.TestCase):
         self.assertEqual(base_names, resolved_names)
         self.assertNotIn("get_unmatched_vars", resolved_names)
 
+    def test_base_submit_checkpoint_profile_is_transparent(self) -> None:
+        base_names = {t["name"] for t in BASE_TOOL_DEFS}
+        resolved_names = {t["name"] for t in get_tool_defs("base_submit_checkpoint")}
+        self.assertEqual(base_names, resolved_names)
+        guidance = get_tool_profile_guidance("base_submit_checkpoint")
+        self.assertIn("transparent submit discipline", guidance)
+        self.assertIn("will not auto-submit", guidance)
+
     def test_semantic_tool_profile_is_narrow(self) -> None:
         names = {t["name"] for t in SEMANTIC_TOOL_DEFS}
         self.assertIn("check_model", names)

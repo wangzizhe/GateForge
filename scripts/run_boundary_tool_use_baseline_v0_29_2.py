@@ -51,6 +51,7 @@ def main() -> int:
         default="base",
         choices=[
             "base",
+            "base_submit_checkpoint",
             "semantic",
             "semantic_memory_selection",
             "reusable_contract_oracle",
