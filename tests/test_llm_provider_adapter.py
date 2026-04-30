@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import json
 import os
 import urllib.error
 import unittest
@@ -117,6 +118,23 @@ class LLMProviderAdapterTests(unittest.TestCase):
         self.assertEqual(config.provider_name, "deepseek")
         self.assertEqual(config.api_key, "deepseek-test")
 
+    def test_resolve_provider_adapter_detects_kimi_code_env(self) -> None:
+        with mock.patch("gateforge.llm_provider_adapter._bootstrap_env_from_repo", return_value=0), mock.patch.dict(
+            os.environ,
+            {
+                "KIMI_API_KEY": "kimi-test",
+                "LLM_PROVIDER": "kimi",
+                "KIMI_MODEL_NAME": "kimi-k2.6",
+                "KIMI_MODEL_MAX_TOKENS": "4096",
+            },
+            clear=True,
+        ):
+            adapter, config = resolve_provider_adapter("")
+        self.assertEqual(adapter.provider_name, "kimi")
+        self.assertEqual(config.provider_name, "kimi")
+        self.assertEqual(config.model, "kimi-k2.6")
+        self.assertEqual(config.extra.get("max_tokens"), 4096)
+
     def test_resolve_provider_adapter_requires_llm_model(self) -> None:
         with mock.patch("gateforge.llm_provider_adapter._bootstrap_env_from_repo", return_value=0), mock.patch.dict(
             os.environ,
@@ -142,6 +160,53 @@ class LLMProviderAdapterTests(unittest.TestCase):
 
         self.assertEqual(text, "")
         self.assertIn("gemini_service_unavailable:503", err)
+
+    def test_gemini_tool_request_parses_function_call(self) -> None:
+        adapter = GeminiProviderAdapter()
+        config = LLMProviderConfig(provider_name="gemini", model="gemini-test", api_key="key")
+        payload = {
+            "candidates": [
+                {
+                    "finishReason": "STOP",
+                    "content": {
+                        "parts": [
+                            {"text": "Checking the model."},
+                            {"functionCall": {"name": "check_model", "args": {"model_text": "model A end A;"}}},
+                        ]
+                    },
+                }
+            ],
+            "usageMetadata": {
+                "promptTokenCount": 11,
+                "candidatesTokenCount": 7,
+                "totalTokenCount": 18,
+            },
+        }
+
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def read(self):
+                return json.dumps(payload).encode("utf-8")
+
+        with mock.patch("gateforge.llm_provider_adapter.urllib.request.urlopen", return_value=FakeResponse()):
+            response, err = adapter.send_tool_request(
+                [{"role": "system", "content": "sys"}, {"role": "user", "content": "task"}],
+                [{"name": "check_model", "description": "Run OMC", "parameters": {"type": "object", "properties": {}}}],
+                config,
+            )
+
+        self.assertEqual(err, "")
+        self.assertIsNotNone(response)
+        assert response is not None
+        self.assertEqual(response.text, "Checking the model.")
+        self.assertEqual(response.tool_calls[0].name, "check_model")
+        self.assertEqual(response.tool_calls[0].arguments["model_text"], "model A end A;")
+        self.assertEqual(response.usage["total_tokens"], 18)
 
     def test_deepseek_extracts_chat_completion_content(self) -> None:
         payload = {"choices": [{"message": {"content": "{\"patched_model_text\":\"model A end A;\"}"}}]}

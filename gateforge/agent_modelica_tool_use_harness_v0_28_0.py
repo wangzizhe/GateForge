@@ -1134,7 +1134,14 @@ def run_tool_use_case(
         step_record: dict = {
             "step": step_idx,
             "text": resp.text,
-            "tool_calls": [{"name": tc.name, "arguments": tc.arguments} for tc in resp.tool_calls],
+            "tool_calls": [
+                {
+                    "name": tc.name,
+                    "arguments": tc.arguments,
+                    **({"extra": tc.extra} if getattr(tc, "extra", None) else {}),
+                }
+                for tc in resp.tool_calls
+            ],
             "token_used": token_used,
         }
         if resp.tool_calls:
@@ -1150,6 +1157,7 @@ def run_tool_use_case(
                         "name": tc.name,
                         "arguments": json.dumps(tc.arguments),
                     },
+                    **({"extra": tc.extra} if getattr(tc, "extra", None) else {}),
                 }
                 for tc in resp.tool_calls
             ]

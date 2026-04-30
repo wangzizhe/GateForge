@@ -29,6 +29,7 @@ class ToolCall:
     id: str
     name: str
     arguments: dict
+    extra: dict = field(default_factory=dict)
 
 
 @dataclass
@@ -237,6 +238,53 @@ class GeminiProviderAdapter:
                 text = part.get("text", "")
                 break
         return text, ""
+
+    def send_tool_request(
+        self,
+        messages: list[dict],
+        tools: list[dict],
+        config: LLMProviderConfig,
+    ) -> tuple[ToolResponse | None, str]:
+        url = (
+            "https://generativelanguage.googleapis.com/v1beta/models/"
+            f"{config.model}:generateContent?key={urllib.parse.quote(config.api_key)}"
+        )
+        req_payload: dict = {
+            "contents": _messages_to_gemini_contents(messages),
+            "tools": _tools_to_gemini(tools),
+            "generationConfig": {
+                "temperature": config.temperature,
+            },
+        }
+        system_prompt = _extract_system_from_messages(messages)
+        if system_prompt:
+            req_payload["systemInstruction"] = {"parts": [{"text": system_prompt}]}
+        req = urllib.request.Request(
+            url,
+            data=json.dumps(req_payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=config.timeout_sec) as resp:
+                response_payload = json.loads(resp.read().decode("utf-8"))
+        except TimeoutError:
+            return None, "gemini_request_timeout"
+        except urllib.error.HTTPError as exc:
+            try:
+                body = exc.read().decode("utf-8", errors="ignore")
+            finally:
+                exc.close()
+            code = int(exc.code)
+            if code == 429:
+                return None, f"gemini_rate_limited:{body[:180]}"
+            if code in (502, 503, 504):
+                return None, f"gemini_service_unavailable:{code}:{body[:180]}"
+            return None, f"gemini_http_error:{code}:{body[:180]}"
+        except urllib.error.URLError as exc:
+            return None, f"gemini_url_error:{exc.reason}"
+
+        return _parse_gemini_tool_response(response_payload)
 
 
 # ---- OpenAI adapter ----
@@ -987,6 +1035,17 @@ def _tools_to_openai_chat(tools: list[dict]) -> list[dict]:
     return out
 
 
+def _tools_to_gemini(tools: list[dict]) -> list[dict]:
+    declarations: list[dict] = []
+    for t in tools:
+        declarations.append({
+            "name": str(t.get("name") or ""),
+            "description": str(t.get("description") or ""),
+            "parameters": t.get("parameters") or t.get("input_schema") or {"type": "object", "properties": {}},
+        })
+    return [{"functionDeclarations": declarations}]
+
+
 def _messages_to_anthropic(messages: list[dict]) -> list[dict]:
     out: list[dict] = []
     for msg in messages:
@@ -1020,6 +1079,58 @@ def _messages_to_anthropic(messages: list[dict]) -> list[dict]:
             continue
         else:
             out.append({"role": role, "content": [{"type": "text", "text": str(content or "")}]})
+    return out
+
+
+def _messages_to_gemini_contents(messages: list[dict]) -> list[dict]:
+    out: list[dict] = []
+    tool_call_names: dict[str, str] = {}
+    tool_call_extras: dict[str, dict] = {}
+    for msg in messages:
+        role = str(msg.get("role") or "user")
+        if role == "system":
+            continue
+        content = msg.get("content")
+        tool_calls_list = msg.get("tool_calls") if isinstance(msg.get("tool_calls"), list) else []
+        tool_call_id = str(msg.get("tool_call_id") or "")
+        if role == "assistant":
+            parts: list[dict] = []
+            if isinstance(content, str) and content.strip():
+                parts.append({"text": str(content)})
+            for tc in tool_calls_list:
+                if not isinstance(tc, dict):
+                    continue
+                tc_name, tc_args = _normalize_tool_call(tc)
+                tc_id = str(tc.get("id") or "")
+                if tc_id:
+                    tool_call_names[tc_id] = tc_name
+                    extra = tc.get("extra") if isinstance(tc.get("extra"), dict) else {}
+                    if extra:
+                        tool_call_extras[tc_id] = extra
+                function_call_part = {"functionCall": {"name": tc_name, "args": tc_args}}
+                thought_signature = tool_call_extras.get(tc_id, {}).get("thoughtSignature")
+                if isinstance(thought_signature, str) and thought_signature:
+                    function_call_part["thoughtSignature"] = thought_signature
+                parts.append(function_call_part)
+            if parts:
+                out.append({"role": "model", "parts": parts})
+        elif role == "tool" and tool_call_id:
+            name = tool_call_names.get(tool_call_id, tool_call_id)
+            thought_signature = tool_call_extras.get(tool_call_id, {}).get("thoughtSignature")
+            part: dict = {
+                "functionResponse": {
+                    "name": name,
+                    "response": {"result": str(content or "")},
+                }
+            }
+            if isinstance(thought_signature, str) and thought_signature:
+                part["thoughtSignature"] = thought_signature
+            out.append({
+                "role": "user",
+                "parts": [part],
+            })
+        else:
+            out.append({"role": "user", "parts": [{"text": str(content or "")}]})
     return out
 
 
@@ -1134,6 +1245,48 @@ def _parse_openai_tool_response(payload: dict) -> tuple[ToolResponse, str]:
     return ToolResponse(text=text, tool_calls=tool_calls, finish_reason=finish_reason, usage=usage), ""
 
 
+def _parse_gemini_tool_response(payload: dict) -> tuple[ToolResponse, str]:
+    text_parts: list[str] = []
+    tool_calls: list[ToolCall] = []
+    finish_reason = ""
+    candidates = payload.get("candidates") if isinstance(payload.get("candidates"), list) else []
+    if candidates:
+        first = candidates[0] if isinstance(candidates[0], dict) else {}
+        finish_reason = str(first.get("finishReason") or "")
+        content = first.get("content") if isinstance(first.get("content"), dict) else {}
+        parts = content.get("parts") if isinstance(content.get("parts"), list) else []
+        for idx, part in enumerate(parts):
+            if not isinstance(part, dict):
+                continue
+            if isinstance(part.get("text"), str) and not part.get("thought", False):
+                text_parts.append(str(part.get("text") or ""))
+            function_call = part.get("functionCall") if isinstance(part.get("functionCall"), dict) else None
+            if isinstance(function_call, dict):
+                name = str(function_call.get("name") or "")
+                args = function_call.get("args") if isinstance(function_call.get("args"), dict) else {}
+                extra: dict = {}
+                if isinstance(part.get("thoughtSignature"), str):
+                    extra["thoughtSignature"] = str(part.get("thoughtSignature") or "")
+                tool_calls.append(ToolCall(
+                    id=f"gemini_call_{idx}_{name}",
+                    name=name,
+                    arguments=args,
+                    extra=extra,
+                ))
+    usage_raw = payload.get("usageMetadata") if isinstance(payload.get("usageMetadata"), dict) else {}
+    usage = {
+        "input_tokens": int(usage_raw.get("promptTokenCount") or 0),
+        "output_tokens": int(usage_raw.get("candidatesTokenCount") or 0),
+        "total_tokens": int(usage_raw.get("totalTokenCount") or 0),
+    }
+    return ToolResponse(
+        text="\n".join([x for x in text_parts if x.strip()]).strip(),
+        tool_calls=tool_calls,
+        finish_reason=finish_reason,
+        usage=usage,
+    ), ""
+
+
 def _safe_parse_json(raw: str) -> dict:
     try:
         result = json.loads(raw)
@@ -1230,6 +1383,9 @@ def resolve_provider_adapter(
             "MINIMAX_MODEL",
             "QWEN_MODEL",
             "DEEPSEEK_MODEL",
+            "KIMI_MODEL",
+            "KIMI_MODEL_NAME",
+            "KIMI_MODEL_MAX_TOKENS",
             "LLM_PROVIDER",
             "GATEFORGE_LIVE_PLANNER_BACKEND",
         }
@@ -1250,6 +1406,7 @@ def resolve_provider_adapter(
         or str(os.getenv("GEMINI_MODEL") or "").strip()
         or str(os.getenv("DEEPSEEK_MODEL") or "").strip()
         or str(os.getenv("KIMI_MODEL") or "").strip()
+        or str(os.getenv("KIMI_MODEL_NAME") or "").strip()
         or str(os.getenv("GLM_MODEL") or "").strip()
     )
     if not model:
@@ -1333,7 +1490,11 @@ def resolve_provider_adapter(
             "anthropic_base_url": str(os.getenv("ANTHROPIC_BASE_URL") or "").strip(),
             "kimi_base_url": str(os.getenv("KIMI_BASE_URL") or "").strip(),
             "glm_base_url": str(os.getenv("GLM_BASE_URL") or "").strip(),
-            "max_tokens": 8192 if explicit in {"minimax", "deepseek"} else 1024,
+            "max_tokens": (
+                int(os.getenv("KIMI_MODEL_MAX_TOKENS") or "8192")
+                if explicit == "kimi"
+                else 8192 if explicit in {"minimax", "deepseek"} else 1024
+            ),
             "system_prompt": (
                 "You must return a final text block containing only one JSON object "
                 "with keys patched_model_text and rationale."
