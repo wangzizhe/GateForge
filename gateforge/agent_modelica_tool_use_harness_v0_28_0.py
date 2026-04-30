@@ -624,19 +624,12 @@ def get_tool_profile_guidance(tool_profile: str = "structural") -> str:
         )
     if tool_profile == "connector_flow_candidate_implementation_checkpoint":
         return (
-            "Use connector-flow diagnostics plus candidate implementation consistency discipline. "
-            "After the first model-check failure, call connector_flow_state_diagnostic, "
-            "arrayed_shared_bus_diagnostic, and omc_unmatched_flow_diagnostic with the recent OMC output. "
-            "Before testing any nontrivial repair candidate, call record_equation_delta_candidate_portfolio. Then "
-            "call record_repair_hypothesis and residual_hypothesis_consistency_check for the selected candidate. "
-            "Before check_model on that candidate, call candidate_implementation_consistency_check with the exact "
-            "candidate_model_text you intend to test, the same expected_equation_delta, the same strategy, AND the "
-            "raw omc_output from the most recent check_model call (so the tool can verify your delta matches the "
-            "OMC-reported deficit). If the implementation does not match the expected delta OR the deficit check "
-            "fails, revise the candidate yourself before testing. "
-            "These tools are audit-only: they do not generate patches, choose candidates, or submit. If a candidate "
-            "passes check_model with simulation success or passes simulate_model, call submit_final with that same "
-            "successful model_text unless a concrete task requirement remains unvalidated.\n"
+            "After check_model reports under-determined: call connector_flow_state_diagnostic ONCE to understand "
+            "flow ownership before any repair attempt.\n"
+            "Before testing a candidate with check_model: call candidate_implementation_consistency_check with "
+            "candidate_model_text, expected_equation_delta, strategy, AND omc_output. If it says deficit mismatch, "
+            "fix your delta first — don't test a bad candidate.\n"
+            "After check_model succeeds: call record_equation_delta_candidate_portfolio.\n"
         )
     lines = [
         "Diagnostic tools are available for complex cases. Each call costs tokens — "
