@@ -19,6 +19,10 @@ data/private_failure_corpus/
 data/private_ledger/
 benchmarks/private/
 policies/private/
+
 # Project context for AI sessions (private, local only)
 CLAUDE.md
 .claude
+
+# Experiments
+scripts/run_hard_boundary_v4_baseline_v3.py
