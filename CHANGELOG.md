@@ -17,13 +17,6 @@ All notable public changes to this project are documented in this file. Detailed
 - Migrated the default agent architecture from fixed-round passive feedback to autonomous tool-use, with fixed-round retained only as a historical comparison surface.
 - Closed the phase with a readiness-first discipline: all future capability claims require stable execution surfaces, complete artifact chains, and blind validation gates.
 
-### Phase Summary
-- v0.23.x–v0.25.x focused on evaluation surface hardening: harness contracts, trajectory schemas, repeatability protocols, and benchmark substrate governance that make the evaluation surface explicit, versioned, and reproducible.
-- v0.26.x–v0.28.x focused on provider-agnostic architecture and tool-use harness: executor boundary audits, provider profile matrices, observation contracts, and autonomous LLM tool invocation that keep repair decisions inside the Agent/LLM loop.
-- v0.29.x–v0.31.x focused on benchmark standardization and candidate evaluation: behavioral oracle construction, task schema validation, admission gates, and multicandidate critique surfaces.
-- v0.32.x–v0.35.x focused on hard-family expansion and strategy capture: source-backed complex tasks, repair strategy attribution, semantic memory units, and candidate implementation consistency checks.
-- v0.36.x focused on agent readiness closeout: operational release gates, provider stability contracts, evidence role enforcement, and repair report generation.
-
 ### Validation
 - Public validation is summarized at the phase level only.
 - All newly added v0.23.x–v0.36.x public utilities pass their `python3 -m unittest` coverage.
@@ -40,11 +33,6 @@ All notable public changes to this project are documented in this file. Detailed
 - Consolidated the internal v0.20.x, v0.21.x, and v0.22.x research chain into this public phase closeout.
 - Kept the public summary focused on reusable framework and harness outcomes rather than detailed experiment design, task identities, pass-rate tables, or failure-attribution traces.
 - Closed the phase with a framework-first decision: continue hardening the Agent framework, harness, oracle contracts, trajectory schema, and benchmark substrate before considering any large-scale training workflow.
-
-### Phase Summary
-- v0.20.x focused on search-density infrastructure: how candidate generation, candidate diversity, and evaluation surfaces affect the Agent's ability to find viable repairs.
-- v0.21.x focused on source-backed complex tasks: how to build more realistic Modelica repair targets and screen them through live Agent execution without adding hidden repair logic.
-- v0.22.x focused on high-quality error construction: how to identify repeatable, true multi-turn repair seeds using single-point complex refactors and repeatability gates.
 
 ### Validation
 - Public validation is summarized at the phase level only.
