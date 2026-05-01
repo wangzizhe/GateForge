@@ -2,6 +2,34 @@
 
 All notable public changes to this project are documented in this file. Detailed experiment results, failure attribution, and internal analysis notes are tracked in private documentation and are intentionally not published here.
 
+## [v0.36.8] - 2026-05-01
+
+### Added
+- Added public infrastructure for the v0.23.x–v0.36.x evaluation line, covering harness contract freeze, repeatability protocol, benchmark substrate governance, provider-agnostic executor boundary audit, tool-use harness, behavioral oracle benchmarking, transparent candidate critique, semantic memory units, hard-family expansion, repair strategy attribution, candidate implementation consistency, and agent readiness closeout.
+- Added versioned runners, validators, and tests for harness inventory audits, trajectory schemas, oracle contracts, and contract synthesis that preserve the executor boundary.
+- Added repeatability and replay infrastructure: unified repeatability runners, provider noise classification, budget policy gates, and replay harnesses that separate provider instability from agent capability failure.
+- Added provider-agnostic tool-use harness with multi-provider adapter support, enabling LLM-driven structural tool invocation as the default agent architecture.
+- Added benchmark substrate governance and behavioral oracle integration: task schema/loader infrastructure, admission verification, and standardized repair and generation surfaces.
+- Added agent readiness contracts: provider stability gates, evidence role enforcement, artifact completeness checks, blind lint validation, repair report generation, and no-wrapper-repair auditing.
+
+### Changed
+- Consolidated the internal v0.23.x–v0.36.x research chain into this public phase closeout.
+- Migrated the default agent architecture from fixed-round passive feedback to autonomous tool-use, with fixed-round retained only as a historical comparison surface.
+- Kept the public summary focused on reusable framework, harness, oracle, and benchmark substrate outcomes rather than detailed experiment design, task identities, pass-rate tables, or failure-attribution traces.
+- Closed the phase with a readiness-first decision: all future experiments must carry evidence roles, provider status, artifact completeness, blind lint gates, and no-wrapper-repair constraints before any capability claims are recorded.
+
+### Phase Summary
+- v0.23.x–v0.25.x focused on evaluation surface hardening: harness contracts, trajectory schemas, repeatability protocols, and benchmark substrate governance that make the evaluation surface explicit, versioned, and reproducible.
+- v0.26.x–v0.28.x focused on provider-agnostic architecture and tool-use harness: executor boundary audits, provider profile matrices, observation contracts, and autonomous LLM tool invocation that keep repair decisions inside the Agent/LLM loop.
+- v0.29.x–v0.31.x focused on benchmark standardization and candidate evaluation: behavioral oracle construction, task schema validation, admission gates, and multicandidate critique surfaces.
+- v0.32.x–v0.35.x focused on hard-family expansion and strategy capture: source-backed complex tasks, repair strategy attribution, semantic memory units, and candidate implementation consistency checks.
+- v0.36.x focused on agent readiness closeout: operational release gates, provider stability contracts, evidence role enforcement, and repair report generation.
+
+### Validation
+- Public validation is summarized at the phase level only.
+- All newly added v0.23.x–v0.36.x public utilities pass their `python3 -m unittest` coverage.
+- Detailed run counts, candidate identities, family-level outcomes, internal promotion rules, and per-version experiment metrics remain in private documentation.
+
 ## [v0.22.10] - 2026-04-25
 
 ### Added
