@@ -15,8 +15,7 @@ All notable public changes to this project are documented in this file. Detailed
 ### Changed
 - Consolidated the internal v0.23.x–v0.36.x research chain into this public phase closeout.
 - Migrated the default agent architecture from fixed-round passive feedback to autonomous tool-use, with fixed-round retained only as a historical comparison surface.
-- Kept the public summary focused on reusable framework, harness, oracle, and benchmark substrate outcomes rather than detailed experiment design, task identities, pass-rate tables, or failure-attribution traces.
-- Closed the phase with a readiness-first decision: all future experiments must carry evidence roles, provider status, artifact completeness, blind lint gates, and no-wrapper-repair constraints before any capability claims are recorded.
+- Closed the phase with a readiness-first discipline: all future capability claims require stable execution surfaces, complete artifact chains, and blind validation gates.
 
 ### Phase Summary
 - v0.23.x–v0.25.x focused on evaluation surface hardening: harness contracts, trajectory schemas, repeatability protocols, and benchmark substrate governance that make the evaluation surface explicit, versioned, and reproducible.
