@@ -9,7 +9,7 @@ from .agent_modelica_connector_flow_semantics_attribution_v0_34_15 import (
     _has_success,
     _tool_names,
 )
-from .agent_modelica_dyad_ab_summary_v0_29_11 import load_jsonl
+from .agent_modelica_methodology_ab_summary_v0_29_11 import load_jsonl
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_RUN_DIR = REPO_ROOT / "artifacts" / "connector_flow_submit_checkpoint_live_probe_v0_34_16_sem19_run_01"

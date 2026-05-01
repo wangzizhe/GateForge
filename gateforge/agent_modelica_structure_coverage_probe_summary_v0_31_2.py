@@ -8,7 +8,7 @@ from .agent_modelica_candidate_discovery_attribution_v0_30_5 import (
     build_candidate_discovery_attribution,
     write_outputs,
 )
-from .agent_modelica_dyad_ab_summary_v0_29_11 import load_jsonl
+from .agent_modelica_methodology_ab_summary_v0_29_11 import load_jsonl
 
 DEFAULT_RUN_DIR = REPO_ROOT / "artifacts" / "structure_coverage_probe_v0_31_2" / "run_02"
 DEFAULT_OUT_DIR = REPO_ROOT / "artifacts" / "structure_coverage_probe_v0_31_2" / "summary"

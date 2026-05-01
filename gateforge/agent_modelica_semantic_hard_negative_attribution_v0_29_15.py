@@ -4,14 +4,14 @@ import json
 from pathlib import Path
 from typing import Any
 
-from .agent_modelica_dyad_ab_summary_v0_29_11 import load_jsonl
+from .agent_modelica_methodology_ab_summary_v0_29_11 import load_jsonl
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_ARM_DIRS = {
-    "base": REPO_ROOT / "artifacts" / "dyad_ab_v0_29_11" / "arm_a_base_corrected",
-    "structural": REPO_ROOT / "artifacts" / "dyad_ab_v0_29_11" / "arm_b_structural",
-    "connector": REPO_ROOT / "artifacts" / "dyad_ab_v0_29_11" / "arm_c_connector",
-    "semantic": REPO_ROOT / "artifacts" / "dyad_semantic_narrow_v0_29_13" / "semantic_arm",
+    "base": REPO_ROOT / "artifacts" / "methodology_ab_v0_29_11" / "arm_a_base_corrected",
+    "structural": REPO_ROOT / "artifacts" / "methodology_ab_v0_29_11" / "arm_b_structural",
+    "connector": REPO_ROOT / "artifacts" / "methodology_ab_v0_29_11" / "arm_c_connector",
+    "semantic": REPO_ROOT / "artifacts" / "methodology_semantic_narrow_v0_29_13" / "semantic_arm",
 }
 DEFAULT_CASE_IDS = ["sem_06_repl_array_flow", "sem_07_shared_partial_interface"]
 DEFAULT_OUT_DIR = REPO_ROOT / "artifacts" / "semantic_hard_negative_attribution_v0_29_15"

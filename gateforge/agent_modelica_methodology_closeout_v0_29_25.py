@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_OUT_DIR = REPO_ROOT / "artifacts" / "dyad_methodology_closeout_v0_29_25"
+DEFAULT_OUT_DIR = REPO_ROOT / "artifacts" / "methodology_closeout_v0_29_25"
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -18,10 +18,10 @@ def _load_json(path: Path) -> dict[str, Any]:
     return payload if isinstance(payload, dict) else {}
 
 
-def build_dyad_methodology_closeout(*, out_dir: Path = DEFAULT_OUT_DIR) -> dict[str, Any]:
-    dyad_ab = _load_json(REPO_ROOT / "artifacts" / "dyad_ab_v0_29_11" / "summary" / "summary.json")
+def build_methodology_closeout(*, out_dir: Path = DEFAULT_OUT_DIR) -> dict[str, Any]:
+    methodology_ab = _load_json(REPO_ROOT / "artifacts" / "methodology_ab_v0_29_11" / "summary" / "summary.json")
     semantic_repeat = _load_json(
-        REPO_ROOT / "artifacts" / "dyad_semantic_rerun_v0_29_14" / "summary" / "summary.json"
+        REPO_ROOT / "artifacts" / "methodology_semantic_rerun_v0_29_14" / "summary" / "summary.json"
     )
     context_probe = _load_json(
         REPO_ROOT / "artifacts" / "modelica_kb_context_probe_v0_29_17" / "summary" / "summary.json"
@@ -93,9 +93,9 @@ def build_dyad_methodology_closeout(*, out_dir: Path = DEFAULT_OUT_DIR) -> dict[
     summary = {
         "version": "v0.29.25",
         "status": "PASS",
-        "analysis_scope": "dyad_methodology_closeout",
+        "analysis_scope": "methodology_closeout",
         "artifact_inputs": {
-            "dyad_ab_decision": dyad_ab.get("decision", ""),
+            "methodology_ab_decision": methodology_ab.get("decision", ""),
             "semantic_repeat_decision": semantic_repeat.get("decision", ""),
             "context_probe_decision": context_probe.get("decision", ""),
             "policy_probe_decision": policy_probe.get("decision", ""),
@@ -106,7 +106,7 @@ def build_dyad_methodology_closeout(*, out_dir: Path = DEFAULT_OUT_DIR) -> dict[
         },
         "method_classifications": methods,
         "frontier_conclusion": (
-            "Dyad-inspired observation and diagnostic methods are useful research instruments, but v0.29.x does not "
+            "External methodology observation and diagnostic methods are useful research instruments, but v0.29.x does not "
             "support promoting broad structural tools, retrieval blocks, policy warnings, or oracle-boundary prompts "
             "as default capabilities. The strongest substrate outcome is the replaceable/partial/flow-contract family, "
             "where the main frontier is candidate acceptance and submit discipline rather than raw tool availability."

@@ -5,8 +5,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from gateforge.agent_modelica_dyad_trace_attribution_v0_29_12 import (
-    build_dyad_trace_attribution,
+from gateforge.agent_modelica_methodology_trace_attribution_v0_29_12 import (
+    build_methodology_trace_attribution,
     classify_transition,
 )
 
@@ -35,7 +35,7 @@ def _write_jsonl(path: Path, rows: list[dict]) -> None:
             fh.write(json.dumps(row) + "\n")
 
 
-class DyadTraceAttributionV02912Tests(unittest.TestCase):
+class MethodologyTraceAttributionV02912Tests(unittest.TestCase):
     def test_classify_positive_without_connector_diagnostic(self) -> None:
         row = classify_transition(
             base_row=_row("sem_03", "FAILED", ["check_model"]),
@@ -77,7 +77,7 @@ class DyadTraceAttributionV02912Tests(unittest.TestCase):
                     _row("sem_01", "FAILED", ["check_model", "get_unmatched_vars"], tokens=33000),
                 ],
             )
-            summary = build_dyad_trace_attribution(base_dir=base, connector_dir=connector, out_dir=root / "out")
+            summary = build_methodology_trace_attribution(base_dir=base, connector_dir=connector, out_dir=root / "out")
             self.assertEqual(summary["positive_delta_count"], 1)
             self.assertEqual(summary["regression_count"], 1)
             self.assertEqual(summary["decision"], "connector_profile_positive_not_attributable_to_connector_diagnostic")

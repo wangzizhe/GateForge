@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from .agent_modelica_dyad_ab_summary_v0_29_11 import load_jsonl
+from .agent_modelica_methodology_ab_summary_v0_29_11 import load_jsonl
 from .agent_modelica_residual_obedience_attribution_v0_35_22 import _case_row
 from .agent_modelica_sem22_failure_attribution_v0_35_17 import TARGET_CASE_ID
 

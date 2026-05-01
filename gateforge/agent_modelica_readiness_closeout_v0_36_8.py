@@ -33,7 +33,7 @@ def build_readiness_closeout(
             else "GateForge Agent readiness contract still has open gaps."
         ),
         "scope_note": (
-            "This closeout only evaluates harness readiness. It does not reinterpret Dyad methodology, "
+            "This closeout only evaluates harness readiness. It does not reinterpret external methodology, "
             "expand benchmarks, train models, or claim pass-rate gains."
         ),
         "component_summaries": component_summaries,

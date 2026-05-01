@@ -28,7 +28,7 @@ def build_structure_plan_checkpoint_summary(
     out_dir: Path = DEFAULT_OUT_DIR,
 ) -> dict[str, Any]:
     summary = build_candidate_discovery_attribution(run_dirs={"run_01": run_dir}, out_dir=out_dir)
-    from .agent_modelica_dyad_ab_summary_v0_29_11 import load_jsonl
+    from .agent_modelica_methodology_ab_summary_v0_29_11 import load_jsonl
 
     rows = load_jsonl(run_dir / "results.jsonl")
     strategy_call_count = sum(_strategy_call_count(row) for row in rows)

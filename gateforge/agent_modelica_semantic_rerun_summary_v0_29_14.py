@@ -4,10 +4,10 @@ import json
 from pathlib import Path
 from typing import Any
 
-from .agent_modelica_dyad_ab_summary_v0_29_11 import load_jsonl
+from .agent_modelica_methodology_ab_summary_v0_29_11 import load_jsonl
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_RUN_ROOT = REPO_ROOT / "artifacts" / "dyad_semantic_rerun_v0_29_14"
+DEFAULT_RUN_ROOT = REPO_ROOT / "artifacts" / "methodology_semantic_rerun_v0_29_14"
 DEFAULT_OUT_DIR = DEFAULT_RUN_ROOT / "summary"
 
 

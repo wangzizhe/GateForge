@@ -5,7 +5,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from .agent_modelica_dyad_ab_summary_v0_29_11 import load_jsonl
+from .agent_modelica_methodology_ab_summary_v0_29_11 import load_jsonl
 from .agent_modelica_hypothesis_blind_scoring_v0_35_14 import _score_hypothesis, _tool_calls
 
 REPO_ROOT = Path(__file__).resolve().parent.parent

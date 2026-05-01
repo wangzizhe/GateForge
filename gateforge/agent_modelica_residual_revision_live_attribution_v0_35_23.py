@@ -8,7 +8,7 @@ from .agent_modelica_residual_obedience_attribution_v0_35_22 import (
     _case_row,
     write_outputs,
 )
-from .agent_modelica_dyad_ab_summary_v0_29_11 import load_jsonl
+from .agent_modelica_methodology_ab_summary_v0_29_11 import load_jsonl
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_RUN_DIR = REPO_ROOT / "artifacts" / "connector_flow_residual_revision_live_v0_35_23_sem22"

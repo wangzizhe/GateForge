@@ -9,21 +9,21 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
-from gateforge.agent_modelica_dyad_ab_summary_v0_29_11 import (  # noqa: E402
+from gateforge.agent_modelica_methodology_ab_summary_v0_29_11 import (  # noqa: E402
     DEFAULT_OUT_DIR,
-    build_dyad_ab_summary,
+    build_methodology_ab_summary,
 )
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Summarize Dyad methodology A/B result directories.")
+    parser = argparse.ArgumentParser(description="Summarize methodology A/B result directories.")
     parser.add_argument("--base-dir", type=Path, required=True)
     parser.add_argument("--structural-dir", type=Path, required=True)
     parser.add_argument("--connector-dir", type=Path, required=True)
     parser.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR)
     args = parser.parse_args()
 
-    summary = build_dyad_ab_summary(
+    summary = build_methodology_ab_summary(
         arm_dirs={
             "base": args.base_dir,
             "structural": args.structural_dir,

@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from .agent_modelica_candidate_discovery_attribution_v0_30_5 import REPO_ROOT, write_outputs
-from .agent_modelica_dyad_ab_summary_v0_29_11 import load_jsonl
+from .agent_modelica_methodology_ab_summary_v0_29_11 import load_jsonl
 
 DEFAULT_RUN_DIRS = {
     "run_01": REPO_ROOT / "artifacts" / "checkpoint_budget_grace_probe_v0_30_7" / "run_01",

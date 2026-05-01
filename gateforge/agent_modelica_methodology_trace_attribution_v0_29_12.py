@@ -4,12 +4,12 @@ import json
 from pathlib import Path
 from typing import Any
 
-from .agent_modelica_dyad_ab_summary_v0_29_11 import load_jsonl
+from .agent_modelica_methodology_ab_summary_v0_29_11 import load_jsonl
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_BASE_DIR = REPO_ROOT / "artifacts" / "dyad_ab_v0_29_11" / "arm_a_base_corrected"
-DEFAULT_CONNECTOR_DIR = REPO_ROOT / "artifacts" / "dyad_ab_v0_29_11" / "arm_c_connector"
-DEFAULT_OUT_DIR = REPO_ROOT / "artifacts" / "dyad_trace_attribution_v0_29_12"
+DEFAULT_BASE_DIR = REPO_ROOT / "artifacts" / "methodology_ab_v0_29_11" / "arm_a_base_corrected"
+DEFAULT_CONNECTOR_DIR = REPO_ROOT / "artifacts" / "methodology_ab_v0_29_11" / "arm_c_connector"
+DEFAULT_OUT_DIR = REPO_ROOT / "artifacts" / "methodology_trace_attribution_v0_29_12"
 DIAGNOSTIC_TOOLS = {
     "who_defines",
     "who_uses",
@@ -108,7 +108,7 @@ def classify_transition(*, base_row: dict[str, Any], connector_row: dict[str, An
     }
 
 
-def build_dyad_trace_attribution(
+def build_methodology_trace_attribution(
     *,
     base_dir: Path = DEFAULT_BASE_DIR,
     connector_dir: Path = DEFAULT_CONNECTOR_DIR,
@@ -135,7 +135,7 @@ def build_dyad_trace_attribution(
     summary = {
         "version": "v0.29.12",
         "status": "PASS" if case_ids else "REVIEW",
-        "analysis_scope": "dyad_connector_trace_attribution",
+        "analysis_scope": "methodology_connector_trace_attribution",
         "case_count": len(case_ids),
         "changed_case_count": len(changed),
         "positive_delta_count": len(positive),

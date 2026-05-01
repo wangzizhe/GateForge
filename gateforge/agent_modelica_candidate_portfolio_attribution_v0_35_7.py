@@ -9,7 +9,7 @@ from .agent_modelica_base_submit_checkpoint_attribution_v0_35_4 import (
     _checkpoint_message_count,
 )
 from .agent_modelica_connector_flow_family_live_attribution_v0_35_1 import _classify_run
-from .agent_modelica_dyad_ab_summary_v0_29_11 import load_jsonl
+from .agent_modelica_methodology_ab_summary_v0_29_11 import load_jsonl
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_RUN_DIR = REPO_ROOT / "artifacts" / "base_candidate_portfolio_checkpoint_live_v0_35_7"

@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 
 from gateforge.agent_modelica_boundary_tool_use_baseline_v0_29_2 import load_boundary_cases
-from gateforge.agent_modelica_dyad_ab_summary_v0_29_11 import build_dyad_ab_summary
+from gateforge.agent_modelica_methodology_ab_summary_v0_29_11 import build_methodology_ab_summary
 
 
 def _write_results(path: Path, rows: list[dict]) -> None:
@@ -30,7 +30,7 @@ def _task(case_id: str) -> dict:
     }
 
 
-class DyadABSummaryV02911Tests(unittest.TestCase):
+class MethodologyABSummaryV02911Tests(unittest.TestCase):
     def test_load_boundary_cases_supports_case_ids(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -40,7 +40,7 @@ class DyadABSummaryV02911Tests(unittest.TestCase):
             self.assertFalse(errors)
             self.assertEqual([case["case_id"] for case in cases], ["repl_01"])
 
-    def test_build_dyad_ab_summary_reports_fail_to_pass(self) -> None:
+    def test_build_methodology_ab_summary_reports_fail_to_pass(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             base = root / "base"
@@ -59,14 +59,14 @@ class DyadABSummaryV02911Tests(unittest.TestCase):
             )
             _write_results(connector, [{"case_id": "sem_03", "final_verdict": "FAILED", "steps": []}])
 
-            summary = build_dyad_ab_summary(
+            summary = build_methodology_ab_summary(
                 arm_dirs={"base": base, "structural": structural, "connector": connector},
                 out_dir=root / "out",
             )
             self.assertEqual(summary["status"], "PASS")
             self.assertEqual(summary["group_totals"]["sem"]["fail_to_pass"]["structural"], 1)
             self.assertEqual(summary["overall"]["net_delta"]["structural"], 1)
-            self.assertEqual(summary["decision"], "dyad_ab_has_net_positive_delta")
+            self.assertEqual(summary["decision"], "methodology_ab_has_net_positive_delta")
             self.assertTrue((root / "out" / "summary.json").exists())
 
 

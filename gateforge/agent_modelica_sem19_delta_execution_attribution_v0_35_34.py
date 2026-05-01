@@ -8,7 +8,7 @@ from .agent_modelica_delta_execution_live_attribution_v0_35_28 import (
     build_delta_execution_live_attribution,
 )
 from .agent_modelica_delta_portfolio_live_attribution_v0_35_26 import _case_summary
-from .agent_modelica_dyad_ab_summary_v0_29_11 import load_jsonl
+from .agent_modelica_methodology_ab_summary_v0_29_11 import load_jsonl
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_RUN_DIR = REPO_ROOT / "artifacts" / "sem19_delta_execution_live_v0_35_34"
