@@ -626,7 +626,8 @@ def get_tool_profile_guidance(tool_profile: str = "structural") -> str:
         return (
             "After check_model reports under-determined: call connector_flow_state_diagnostic ONCE to understand "
             "flow ownership before any repair attempt.\n"
-            "Before testing a candidate with check_model: call candidate_implementation_consistency_check with "
+            "Before testing a candidate with check_model: call candidate_implementation_consistency_check for "
+            "implementation consistency with "
             "candidate_model_text, expected_equation_delta, strategy, AND omc_output. If it says deficit mismatch, "
             "fix your delta first — don't test a bad candidate.\n"
             "After check_model succeeds: call record_equation_delta_candidate_portfolio.\n"
