@@ -1,0 +1,52 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from gateforge.agent_modelica_semantic_candidate_failure_audit_v0_45_0 import (  # noqa: E402
+    DEFAULT_CALIBRATION,
+    DEFAULT_OUT_DIR,
+    DEFAULT_SIGNAL_AUDIT,
+    DEFAULT_SUBSTRATE,
+    run_semantic_candidate_failure_audit,
+)
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Audit semantic candidate-generation failures.")
+    parser.add_argument("--calibration", type=Path, default=DEFAULT_CALIBRATION)
+    parser.add_argument("--signal-audit", type=Path, default=DEFAULT_SIGNAL_AUDIT)
+    parser.add_argument("--substrate", type=Path, default=DEFAULT_SUBSTRATE)
+    parser.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR)
+    args = parser.parse_args()
+    summary = run_semantic_candidate_failure_audit(
+        calibration_path=args.calibration,
+        signal_audit_path=args.signal_audit,
+        substrate_path=args.substrate,
+        out_dir=args.out_dir,
+    )
+    print(
+        json.dumps(
+            {
+                "status": summary["status"],
+                "semantic_case_count": summary["semantic_case_count"],
+                "failure_mode_counts": summary["failure_mode_counts"],
+                "last_omc_signal_counts": summary["last_omc_signal_counts"],
+            },
+            sort_keys=True,
+        )
+    )
+    return 0 if summary["status"] == "PASS" else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+
