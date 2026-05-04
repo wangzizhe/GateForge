@@ -1147,7 +1147,7 @@ def run_tool_use_case(
         }
         if resp.tool_calls:
             assistant_msg: dict = {"role": "assistant", "content": resp.text or None}
-            reasoning = resp.usage.get("_reasoning_content", "")
+            reasoning = resp.reasoning
             if reasoning:
                 assistant_msg["reasoning_content"] = reasoning
             tc_list = [

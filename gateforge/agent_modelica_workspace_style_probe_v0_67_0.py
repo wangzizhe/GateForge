@@ -243,16 +243,16 @@ def run_workspace_style_case(
 
     system_prompt = (
         "You are fixing a Modelica model using a file workspace.\n\n"
+        "Modelica repair strategy:\n"
+        "1. First run write_and_check_candidate_model with the ORIGINAL model to see compiler output.\n"
+        "2. Deeply analyze the OMC output: count equations vs variables, identify missing/extra equations.\n"
+        "3. Form a complete fix plan BEFORE writing any modified candidate.\n"
+        "4. Write ONE precise candidate per attempt. Do not write multiple untested candidates.\n"
+        "5. If check fails, fully analyze the failure before writing the next candidate.\n"
+        "6. When a candidate passes check, submit it immediately with submit_candidate_model.\n\n"
         "Common Modelica repair patterns:\n"
-        "- Under-determined (fewer equations than variables): add zero-flow equations for unused "
-        "connector flows, e.g. pin.i = 0;\n"
-        "- Over-determined: remove or modify conflicting equations.\n\n"
-        "Workflow per candidate:\n"
-        "1. write_and_check_candidate_model — write candidate + run OMC checkModel.\n"
-        "   The response includes equation/variable balance (under/over-determined).\n"
-        "2. If check passes (BALANCED), call submit_candidate_model.\n"
-        "3. If check fails, analyze the balance and try a different fix.\n\n"
-        "Do NOT write multiple candidates without submitting when one passes.\n"
+        "- Under-determined: add zero-flow equations for unused connector flows (pin.i = 0)\n"
+        "- Over-determined: remove or modify conflicting equations\n\n"
         "The harness will not generate repairs, choose candidates, or submit automatically.\n"
     )
     messages: list[dict[str, Any]] = [
@@ -284,9 +284,11 @@ def run_workspace_style_case(
             steps.append({"step": step_idx, "error": "null_response"})
             break
         token_used += int(resp.usage.get("total_tokens", 0))
+        reasoning_text = resp.reasoning or ""
         step_record = {
             "step": step_idx,
             "text": resp.text,
+            "reasoning": reasoning_text[:3000] if reasoning_text else "",
             "tool_calls": [
                 {"name": tc.name, "arguments": tc.arguments}
                 for tc in resp.tool_calls
@@ -295,6 +297,8 @@ def run_workspace_style_case(
         }
         if resp.tool_calls:
             assistant_msg = {"role": "assistant", "content": resp.text or None}
+            if reasoning_text:
+                assistant_msg["reasoning_content"] = reasoning_text
             assistant_msg["tool_calls"] = [
                 {
                     "id": tc.id,

@@ -39,6 +39,7 @@ class ToolResponse:
     tool_calls: list[ToolCall]
     finish_reason: str
     usage: dict
+    reasoning: str = ""
 
 
 
@@ -1214,9 +1215,7 @@ def _parse_chat_tool_response(payload: dict) -> tuple[ToolResponse, str]:
         "output_tokens": int(usage_raw.get("output_tokens") or int(usage_raw.get("completion_tokens") or 0)),
         "total_tokens": int(usage_raw.get("total_tokens") or 0),
     }
-    response = ToolResponse(text=text, tool_calls=tool_calls, finish_reason=finish_reason, usage=usage)
-    if reasoning:
-        response.usage["_reasoning_content"] = reasoning  # type: ignore[typeddict-unknown-key]
+    response = ToolResponse(text=text, tool_calls=tool_calls, finish_reason=finish_reason, usage=usage, reasoning=reasoning)
     return response, ""
 
 
@@ -1485,7 +1484,7 @@ def resolve_provider_adapter(
             "enable_thinking": False if explicit == "qwen" else "",
             "prompt_prefix": QWEN_REPAIR_PROFILE_PROMPT if explicit == "qwen" else "",
             "deepseek_base_url": str(os.getenv("DEEPSEEK_BASE_URL") or "").strip(),
-            "thinking": "disabled" if explicit == "deepseek" else "",
+            "thinking": "",
             "response_format": {"type": "json_object"} if explicit == "deepseek" else "",
             "anthropic_base_url": str(os.getenv("ANTHROPIC_BASE_URL") or "").strip(),
             "kimi_base_url": str(os.getenv("KIMI_BASE_URL") or "").strip(),
