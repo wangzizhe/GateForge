@@ -24,9 +24,9 @@ WORKSPACE_TOOL_DEFS: list[dict[str, Any]] = [
         "name": "write_and_check_candidate_model",
         "description": (
             "Write a complete candidate Modelica model into the transparent case workspace "
-            "and immediately run OMC checkModel on it. Returns raw compiler output including "
-            "equation counts and any errors. This does not simulate, validate, select, or "
-            "submit the candidate."
+            "and immediately run OMC checkModel AND simulate on it. Returns raw compiler output "
+            "including equation counts, simulation results, and any errors or warnings. "
+            "This does not select or submit the candidate."
         ),
         "parameters": {
             "type": "object",
@@ -36,22 +36,6 @@ WORKSPACE_TOOL_DEFS: list[dict[str, Any]] = [
                 "rationale": {"type": "string", "description": "Brief reason for this candidate."},
             },
             "required": ["candidate_id", "model_text"],
-        },
-    },
-    {
-        "name": "simulate_candidate_model",
-        "description": (
-            "Run OMC simulation on a previously written candidate model. "
-            "Returns simulation output. The workspace stores the model for audit."
-        ),
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "candidate_id": {"type": "string"},
-                "stop_time": {"type": "number"},
-                "intervals": {"type": "integer"},
-            },
-            "required": ["candidate_id"],
         },
     },
     {
@@ -145,6 +129,7 @@ def _dispatch_workspace_tool(
     workspace: Path,
     candidate_paths: dict[str, Path],
     candidate_meta: dict[str, dict[str, Any]],
+    deficit_state: dict[str, int] | None = None,
 ) -> str:
     candidate_id = _safe_candidate_id(str(arguments.get("candidate_id") or "candidate"))
 
@@ -166,14 +151,36 @@ def _dispatch_workspace_tool(
         eq_match = re.search(r"(\d+)\s+equation\(s\)\s+and\s+(\d+)\s+variable\(s\)", str(output or ""))
         eq_count = int(eq_match.group(1)) if eq_match else 0
         var_count = int(eq_match.group(2)) if eq_match else 0
+        current_deficit = 0
+        if eq_count and var_count:
+            current_deficit = var_count - eq_count
+        deficit_delta = ""
+        if deficit_state is not None and isinstance(deficit_state.get("last_deficit"), int):
+            prev = int(deficit_state["last_deficit"])
+            delta = current_deficit - prev
+            if delta < 0:
+                deficit_delta = f" (deficit ↓ by {abs(delta)}: {prev}→{current_deficit})"
+            elif delta > 0:
+                deficit_delta = f" (deficit ↑ by {delta}: {prev}→{current_deficit})"
+            elif prev != current_deficit:
+                deficit_delta = f" (deficit unchanged: {current_deficit})"
+        if deficit_state is not None:
+            deficit_state["last_deficit"] = current_deficit
         eq_balance = f"{eq_count} equations, {var_count} variables"
         if eq_count and var_count:
             if eq_count < var_count:
-                eq_balance += f" — UNDER-DETERMINED (need {var_count - eq_count} more equations)"
+                eq_balance += f" — UNDER-DETERMINED (need {var_count - eq_count} more equations){deficit_delta}"
             elif eq_count > var_count:
-                eq_balance += f" — OVER-DETERMINED ({eq_count - var_count} extra equations)"
+                eq_balance += f" — OVER-DETERMINED ({eq_count - var_count} extra equations){deficit_delta}"
             else:
                 eq_balance += " — BALANCED"
+                sim_output = str(output or "")
+                if "Failed to build model" in sim_output:
+                    eq_balance += " but simulation build FAILED"
+                elif "imbalanced number of equations" in sim_output:
+                    eq_balance += " but simulation has SUBSYSTEM IMBALANCE — structural issue remains"
+                elif 'resultFile = ""' in sim_output:
+                    eq_balance += " but simulation produced no result file"
         return json.dumps(
             {
                 "status": "written_and_checked",
@@ -193,16 +200,6 @@ def _dispatch_workspace_tool(
         return json.dumps({"error": "unknown_candidate_id", "candidate_id": candidate_id}, sort_keys=True)
 
     path = candidate_paths[candidate_id]
-
-    if name == "simulate_candidate_model":
-        output = _run_omc_simulate(
-            workspace=workspace,
-            candidate_path=path,
-            stop_time=float(arguments.get("stop_time") or 0.05),
-            intervals=max(1, int(arguments.get("intervals") or 100)),
-        )
-        candidate_meta.setdefault(candidate_id, {})["last_simulated"] = True
-        return str(output or "")
 
     if name == "submit_candidate_model":
         return json.dumps({"status": "submitted", "candidate_id": candidate_id}, sort_keys=True)
@@ -244,16 +241,25 @@ def run_workspace_style_case(
     system_prompt = (
         "You are fixing a Modelica model using a file workspace.\n\n"
         "Modelica repair strategy:\n"
-        "1. First run write_and_check_candidate_model with the ORIGINAL model to see compiler output.\n"
+        "1. Run write_and_check_candidate_model to write a candidate AND see OMC check+simulate output.\n"
         "2. Deeply analyze the OMC output: count equations vs variables, identify missing/extra equations.\n"
         "3. Form a complete fix plan BEFORE writing any modified candidate.\n"
-        "4. Write ONE precise candidate per attempt. Do not write multiple untested candidates.\n"
-        "5. If check fails, fully analyze the failure before writing the next candidate.\n"
-        "6. When a candidate passes check, submit it immediately with submit_candidate_model.\n\n"
+        "4. Write ONE precise candidate per call. Do not write multiple untested candidates.\n"
+        "5. If check or simulation fails, fully analyze the failure before writing the next candidate.\n"
+        "6. When a candidate passes both check and simulation, submit it with submit_candidate_model.\n\n"
         "Common Modelica repair patterns:\n"
         "- Under-determined: add zero-flow equations for unused connector flows (pin.i = 0)\n"
+        "- For MSL measurement probes (PositivePin p, NegativePin n): set p.i = 0; n.i = 0;\n"
         "- Over-determined: remove or modify conflicting equations\n\n"
-        "The harness will not generate repairs, choose candidates, or submit automatically.\n"
+        "The harness will not generate repairs, choose candidates, or submit automatically.\n\n"
+        "Equation deficit tracking:\n"
+        "- After each check, compare the equation deficit to the PREVIOUS candidate.\n"
+        "- If deficit ↓: your last change was effective — keep it and refine further.\n"
+        "- If deficit ↑ or unchanged: your last change was ineffective — revert it and try a different fix.\n"
+        "- Combine effective changes across attempts. Do NOT restart from the original model each time.\n"
+        "- When a remove change removes equations, also add compensating equations in the SAME candidate.\n"
+        "- Example: removing an unused connector (loses N equations) + adding zero-flow to probe pins (gains M equations) = net M-N.\n"
+        "- The goal is to progressively reduce the deficit from its initial value to zero.\n"
     )
     messages: list[dict[str, Any]] = [
         {"role": "system", "content": system_prompt},
@@ -273,6 +279,7 @@ def run_workspace_style_case(
     token_used = 0
     submitted_id = ""
     provider_error = ""
+    deficit_state: dict[str, int] = {}
 
     for step_idx in range(1, max(1, int(max_steps)) + 1):
         resp, err = adapter.send_tool_request(messages, WORKSPACE_TOOL_DEFS, config)
@@ -316,6 +323,7 @@ def run_workspace_style_case(
                     workspace=case_workspace,
                     candidate_paths=candidate_paths,
                     candidate_meta=candidate_meta,
+                    deficit_state=deficit_state,
                 )
                 messages.append({"role": "tool", "tool_call_id": tc.id, "content": result})
                 tool_results.append({"name": tc.name, "result": result[:500]})
