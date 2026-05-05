@@ -12,6 +12,7 @@ from gateforge.agent_modelica_subagent_isolation_v0_69_0 import (
     SUBAGENT_TOOL_DEFS,
     build_equal_budget_ab_summary,
     build_hard_pack_subagent_readiness_summary,
+    build_multi_subagent_arm_summary,
     build_parallel_subagent_gate_summary,
     build_subagent_isolation_summary,
     dispatch_subagent_repair_mock,
@@ -304,6 +305,35 @@ class SubagentIsolationV069Tests(unittest.TestCase):
         self.assertFalse(hold["parallel_allowed"])
         self.assertTrue(go["parallel_allowed"])
         self.assertTrue(readiness["hard_pack_eval_allowed"])
+
+    def test_multi_subagent_arm_summary_blocks_budget_exceeded(self) -> None:
+        summary = build_multi_subagent_arm_summary(
+            subagent_summaries=[
+                {
+                    "case_id": "case_a",
+                    "artifact_complete": True,
+                    "subagent_verdict": "PASS",
+                    "submitted": True,
+                    "token_used": 10,
+                    "candidate_count": 1,
+                    "artifact_path": "/tmp/a.json",
+                },
+                {
+                    "case_id": "case_a",
+                    "artifact_complete": True,
+                    "subagent_verdict": "FAILED",
+                    "budget_exceeded": True,
+                    "token_used": 20,
+                    "candidate_count": 2,
+                    "artifact_path": "/tmp/b.json",
+                },
+            ],
+            budget_total=96_000,
+        )
+        self.assertEqual(summary["subagent_count"], 2)
+        self.assertEqual(summary["subagent_pass_count"], 1)
+        self.assertEqual(summary["budget_exceeded_count"], 1)
+        self.assertFalse(summary["conclusion_allowed"])
 
 
 if __name__ == "__main__":

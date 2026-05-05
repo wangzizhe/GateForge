@@ -580,6 +580,48 @@ def build_equal_budget_ab_summary(
     }
 
 
+def build_multi_subagent_arm_summary(
+    *,
+    subagent_summaries: list[dict[str, Any]],
+    budget_total: int,
+    summary_version: str = "v0.69.6",
+) -> dict[str, Any]:
+    artifact_complete = bool(subagent_summaries) and all(
+        bool(row.get("artifact_complete")) for row in subagent_summaries
+    )
+    provider_error_count = sum(1 for row in subagent_summaries if row.get("provider_error"))
+    timeout_count = sum(1 for row in subagent_summaries if row.get("timeout"))
+    budget_exceeded_count = sum(1 for row in subagent_summaries if row.get("budget_exceeded"))
+    subagent_pass_count = sum(1 for row in subagent_summaries if row.get("subagent_verdict") == "PASS")
+    submitted_count = sum(1 for row in subagent_summaries if row.get("submitted"))
+    token_used = sum(int(row.get("token_used") or 0) for row in subagent_summaries)
+    candidate_count = sum(int(row.get("candidate_count") or 0) for row in subagent_summaries)
+    case_ids = sorted({str(row.get("case_id") or "") for row in subagent_summaries})
+    return {
+        "version": summary_version,
+        "analysis_scope": "multi_subagent_arm_summary",
+        "evidence_role": "formal_experiment" if artifact_complete else "debug",
+        "status": "PASS" if artifact_complete else "REVIEW",
+        "conclusion_allowed": bool(
+            artifact_complete and provider_error_count == 0 and timeout_count == 0 and budget_exceeded_count == 0
+        ),
+        "artifact_complete": artifact_complete,
+        "case_ids": case_ids,
+        "subagent_count": len(subagent_summaries),
+        "subagent_pass_count": subagent_pass_count,
+        "submitted_count": submitted_count,
+        "provider_error_count": provider_error_count,
+        "timeout_count": timeout_count,
+        "budget_exceeded": bool(budget_exceeded_count),
+        "budget_exceeded_count": budget_exceeded_count,
+        "budget_total": int(budget_total),
+        "token_used": token_used,
+        "candidate_count": candidate_count,
+        "source_summaries": [str(row.get("artifact_path") or "") for row in subagent_summaries],
+        "discipline": _discipline(),
+    }
+
+
 def build_parallel_subagent_gate_summary(
     *,
     equal_budget_summary: dict[str, Any],
