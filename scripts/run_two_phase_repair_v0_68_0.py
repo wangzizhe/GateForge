@@ -37,7 +37,7 @@ def run_two_phase_case(
 
     # Phase 1: harness runs OMC check on initial model
     initial_path = case_workspace / "initial.mo"
-    output, _ = _run_omc_check(workspace=case_workspace, candidate_path=initial_path)
+    output, _, _ = _run_omc_check(workspace=case_workspace, candidate_path=initial_path)
     diags = _extract_omc_diagnostics(str(output or ""))
 
     diagnostics_text = "--- PRE-COMPUTED DIAGNOSTICS ---\n"

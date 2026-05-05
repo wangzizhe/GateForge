@@ -5,10 +5,13 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
+from gateforge.llm_provider_adapter import LLMProviderConfig, ToolCall, ToolResponse
 from gateforge.agent_modelica_workspace_style_probe_v0_67_0 import (
     WORKSPACE_TOOL_DEFS,
     _build_summary,
+    _dispatch_workspace_tool,
     _safe_candidate_id,
     _timeout_result,
     run_workspace_style_case,
@@ -141,6 +144,102 @@ class WorkspaceStyleProbeV067Tests(unittest.TestCase):
             WORKSPACE_TOOL_DEFS[2]["name"],
             "tool list must contain write_and_check_tool",
         )
+
+    def test_summary_reports_invalid_submission_attempts(self) -> None:
+        summary = _build_summary(
+            tasks=[{"case_id": "case_a"}],
+            results=[
+                {
+                    "case_id": "case_a",
+                    "final_verdict": "FAILED",
+                    "provider_error": "",
+                    "harness_timeout": False,
+                    "runner_error": "",
+                    "invalid_submission_attempt_count": 2,
+                    "candidate_files": [],
+                }
+            ],
+        )
+        self.assertEqual(summary["invalid_submission_attempt_count"], 2)
+        self.assertTrue(summary["conclusion_allowed"])
+
+    def test_write_and_batch_candidates_record_simulation_status_and_omc_artifact(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            workspace = Path(td)
+            candidate_paths = {}
+            candidate_meta = {}
+            omc_output = (
+                "Class M has 1 equation(s) and 1 variable(s).\n"
+                "The simulation finished successfully.\n"
+            )
+            with patch(
+                "gateforge.agent_modelica_workspace_style_probe_v0_67_0._run_omc_check",
+                return_value=(omc_output, True, True),
+            ):
+                single = json.loads(_dispatch_workspace_tool(
+                    name="write_and_check_candidate_model",
+                    arguments={"candidate_id": "c1", "model_text": "model M\nequation\nend M;"},
+                    workspace=workspace,
+                    candidate_paths=candidate_paths,
+                    candidate_meta=candidate_meta,
+                ))
+                batch = json.loads(_dispatch_workspace_tool(
+                    name="batch_check_candidates",
+                    arguments={
+                        "candidates": [
+                            {"candidate_id": "c2", "model_text": "model M\nequation\nend M;"}
+                        ]
+                    },
+                    workspace=workspace,
+                    candidate_paths=candidate_paths,
+                    candidate_meta=candidate_meta,
+                ))
+            self.assertTrue(Path(single["omc_output_path"]).exists())
+
+        self.assertTrue(single["check_ok"])
+        self.assertTrue(single["simulate_ok"])
+        self.assertTrue(candidate_meta["c1"]["write_simulate_ok"])
+        self.assertTrue(batch["batch_results"][0]["simulate_ok"])
+        self.assertTrue(candidate_meta["c2"]["write_simulate_ok"])
+
+    def test_invalid_submit_candidate_does_not_count_as_submission(self) -> None:
+        class FakeAdapter:
+            def send_tool_request(self, messages, tools, config):
+                return (
+                    ToolResponse(
+                        text="submit missing candidate",
+                        tool_calls=[
+                            ToolCall(
+                                id="call_1",
+                                name="submit_candidate_model",
+                                arguments={"candidate_id": "missing"},
+                            )
+                        ],
+                        finish_reason="tool_calls",
+                        usage={"total_tokens": 1},
+                    ),
+                    "",
+                )
+
+        case = {
+            "case_id": "case_a",
+            "model_name": "M",
+            "model_text": "model M\nend M;\n",
+            "workflow_goal": "Fix model",
+        }
+        config = LLMProviderConfig(provider_name="mock", model="mock", api_key="mock")
+        with tempfile.TemporaryDirectory() as td:
+            with patch(
+                "gateforge.agent_modelica_workspace_style_probe_v0_67_0.resolve_provider_adapter",
+                return_value=(FakeAdapter(), config),
+            ):
+                result = run_workspace_style_case(case, out_dir=Path(td), max_steps=1)
+
+        self.assertFalse(result["submitted"])
+        self.assertEqual(result["submission_mode"], "none")
+        self.assertEqual(result["invalid_submission_attempt_count"], 1)
+        self.assertEqual(result["submitted_candidate_id"], "")
+        self.assertEqual(result["final_verdict"], "FAILED")
 
 
 if __name__ == "__main__":

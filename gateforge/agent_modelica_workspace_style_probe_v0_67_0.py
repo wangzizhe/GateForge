@@ -145,7 +145,7 @@ def _run_omc_check(
     *,
     workspace: Path,
     candidate_path: Path,
-) -> tuple[str, bool]:
+) -> tuple[str, bool, bool]:
     model_text = candidate_path.read_text(encoding="utf-8")
     model_name = _extract_model_name(model_text)
     layout = prepare_workspace_model_layout(
@@ -155,7 +155,7 @@ def _run_omc_check(
         source_qualified_model_name=model_name,
     )
     layout.model_write_path.write_text(model_text, encoding="utf-8")
-    _, output, check_ok, _simulate_ok = run_check_and_simulate(
+    _, output, check_ok, simulate_ok = run_check_and_simulate(
         workspace=workspace,
         model_load_files=list(layout.model_load_files),
         model_name=layout.model_identifier,
@@ -166,7 +166,7 @@ def _run_omc_check(
         intervals=100,
         extra_model_loads=[],
     )
-    return str(output or ""), bool(check_ok)
+    return str(output or ""), bool(check_ok), bool(simulate_ok)
 
 
 def _run_omc_simulate(
@@ -286,13 +286,17 @@ def _dispatch_workspace_tool(
         path = workspace / f"{candidate_id}.mo"
         path.write_text(model_text, encoding="utf-8")
         candidate_paths[candidate_id] = path
-        output, check_ok = _run_omc_check(workspace=workspace, candidate_path=path)
+        output, check_ok, simulate_ok = _run_omc_check(workspace=workspace, candidate_path=path)
+        omc_output_path = workspace / f"{candidate_id}.omc.txt"
+        omc_output_path.write_text(str(output or ""), encoding="utf-8")
         candidate_meta[candidate_id] = {
             "candidate_id": candidate_id,
             "path": str(path),
             "rationale": str(arguments.get("rationale") or ""),
             "model_name": _extract_model_name(model_text),
             "write_check_ok": bool(check_ok),
+            "write_simulate_ok": bool(simulate_ok),
+            "omc_output_path": str(omc_output_path),
         }
         eq_match = re.search(r"(\d+)\s+equation\(s\)\s+and\s+(\d+)\s+variable\(s\)", str(output or ""))
         eq_count = int(eq_match.group(1)) if eq_match else 0
@@ -333,9 +337,11 @@ def _dispatch_workspace_tool(
                 "candidate_id": candidate_id,
                 "path": str(path),
                 "check_ok": bool(check_ok),
+                "simulate_ok": bool(simulate_ok),
                 "equation_balance": eq_balance,
                 "diagnostics": _extract_omc_diagnostics(str(output or "")),
                 "omc_output": str(output or "")[:3000],
+                "omc_output_path": str(omc_output_path),
                 "auto_repair": False,
                 "auto_submit": False,
                 "candidate_selected": False,
@@ -366,13 +372,17 @@ def _dispatch_workspace_tool(
             path = workspace / f"{cid}.mo"
             path.write_text(model_text, encoding="utf-8")
             candidate_paths[cid] = path
-            output, check_ok = _run_omc_check(workspace=workspace, candidate_path=path)
+            output, check_ok, simulate_ok = _run_omc_check(workspace=workspace, candidate_path=path)
+            omc_output_path = workspace / f"{cid}.omc.txt"
+            omc_output_path.write_text(str(output or ""), encoding="utf-8")
             candidate_meta[cid] = {
                 "candidate_id": cid,
                 "path": str(path),
                 "rationale": str(cand.get("rationale", "")),
                 "model_name": _extract_model_name(model_text),
                 "write_check_ok": bool(check_ok),
+                "write_simulate_ok": bool(simulate_ok),
+                "omc_output_path": str(omc_output_path),
             }
             eq_match = re.search(r"(\d+)\s+equation\(s\)\s+and\s+(\d+)\s+variable\(s\)", str(output or ""))
             eq_count = int(eq_match.group(1)) if eq_match else 0
@@ -381,10 +391,12 @@ def _dispatch_workspace_tool(
                 "candidate_id": cid,
                 "rationale": str(cand.get("rationale", ""))[:80],
                 "check_ok": bool(check_ok),
+                "simulate_ok": bool(simulate_ok),
                 "equations": eq_count,
                 "variables": var_count,
                 "balance": f"{eq_count}eq/{var_count}var",
                 "deficit": var_count - eq_count,
+                "omc_output_path": str(omc_output_path),
             })
         return json.dumps({"batch_results": results, "total": len(results)}, sort_keys=True)
 
@@ -512,6 +524,7 @@ def run_workspace_style_case(
     token_used = 0
     submitted_id = ""
     provider_error = ""
+    invalid_submission_attempts: list[dict[str, Any]] = []
     deficit_state: dict[str, int] = {}
     compaction_done = False
 
@@ -574,9 +587,29 @@ def run_workspace_style_case(
                     deficit_state=deficit_state,
                 )
                 messages.append({"role": "tool", "tool_call_id": tc.id, "content": result})
-                tool_results.append({"name": tc.name, "result": result[:500]})
+                tool_results.append({
+                    "name": tc.name,
+                    "result": result,
+                    "result_preview": result[:500],
+                })
                 if tc.name == "submit_candidate_model":
-                    submitted_id = _safe_candidate_id(str(tc.arguments.get("candidate_id") or ""))
+                    requested_candidate_id = _safe_candidate_id(
+                        str(tc.arguments.get("candidate_id") or "")
+                    )
+                    try:
+                        submit_payload = json.loads(result)
+                    except json.JSONDecodeError:
+                        submit_payload = {}
+                    if (
+                        submit_payload.get("status") == "submitted"
+                        and requested_candidate_id in candidate_paths
+                    ):
+                        submitted_id = requested_candidate_id
+                    else:
+                        invalid_submission_attempts.append({
+                            "candidate_id": requested_candidate_id,
+                            "result": result,
+                        })
             step_record["tool_results"] = tool_results
         else:
             messages.append({"role": "assistant", "content": resp.text})
@@ -624,6 +657,8 @@ def run_workspace_style_case(
         "candidate_files": list(candidate_meta.values()),
         "steps": steps,
         "final_model_text": final_model_text,
+        "invalid_submission_attempt_count": len(invalid_submission_attempts),
+        "invalid_submission_attempts": invalid_submission_attempts,
         "submit_checkpoint_triggered": False,
         "discipline": {
             "deterministic_repair_added": False,
@@ -879,6 +914,9 @@ def _build_summary(
     runner_error_count = sum(1 for row in results if row.get("runner_error"))
     pass_count = sum(1 for row in results if row.get("final_verdict") == "PASS")
     candidate_file_count = sum(len(row.get("candidate_files") or []) for row in results)
+    invalid_submission_attempt_count = sum(
+        int(row.get("invalid_submission_attempt_count") or 0) for row in results
+    )
     checkpoint_triggered_count = sum(1 for row in results if row.get("submit_checkpoint_triggered"))
     checkpoint_pass_count = sum(
         1 for row in results
@@ -912,6 +950,7 @@ def _build_summary(
         "harness_timeout_count": timeout_count,
         "runner_error_count": runner_error_count,
         "candidate_file_count": candidate_file_count,
+        "invalid_submission_attempt_count": invalid_submission_attempt_count,
         "submit_checkpoint_count": checkpoint_triggered_count,
         "submit_checkpoint_pass_count": checkpoint_pass_count,
         "llm_submitted_pass_count": llm_submitted_pass_count,
