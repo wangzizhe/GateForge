@@ -11,7 +11,7 @@ DEFAULT_GATEFORGE_RESULTS = (
     REPO_ROOT / "artifacts" / "solvable_holdout_baseline_v0_61_3_stream" / "results.jsonl"
 )
 DEFAULT_EXTERNAL_RESULTS_DIR = (
-    REPO_ROOT / "artifacts" / "external_agent_opencode_holdout_results_v0_61_0"
+    REPO_ROOT / "artifacts" / "external_agent_holdout_results_v0_61_0"
 )
 DEFAULT_ATTRIBUTION = REPO_ROOT / "artifacts" / "external_agent_attribution_v0_62_0" / "summary.json"
 DEFAULT_OUT_DIR = REPO_ROOT / "artifacts" / "trajectory_diff_v0_64_0"
@@ -156,7 +156,7 @@ def build_trajectory_diff_summary(
         "conclusion_allowed": bool(gateforge_rows and external_rows and attribution_summary),
         "case_count": len(case_rows),
         "paired_difference_count": len(diff_rows),
-        "opencode_trace_limitation": "external_agent_full_step_trace_not_available_final_model_and_summary_only",
+        "external_agent_trace_limitation": "external_agent_full_step_trace_not_available_final_model_and_summary_only",
         "diff_exact_zero_flow_match_count": sum(
             1 for row in diff_rows if row["gateforge_exact_external_zero_flow_targets_seen"]
         ),

@@ -11,10 +11,10 @@ DEFAULT_GATEFORGE_RESULTS = (
     REPO_ROOT / "artifacts" / "solvable_holdout_baseline_v0_61_3_stream" / "results.jsonl"
 )
 DEFAULT_EXTERNAL_RESULTS_DIR = (
-    REPO_ROOT / "artifacts" / "external_agent_opencode_holdout_results_v0_61_0"
+    REPO_ROOT / "artifacts" / "external_agent_holdout_results_v0_61_0"
 )
 DEFAULT_EXTERNAL_VERIFICATION = (
-    REPO_ROOT / "artifacts" / "external_agent_opencode_holdout_verification_v0_61_0" / "summary.json"
+    REPO_ROOT / "artifacts" / "external_agent_holdout_verification_v0_61_0" / "summary.json"
 )
 DEFAULT_OUT_DIR = REPO_ROOT / "artifacts" / "external_agent_attribution_v0_62_0"
 
