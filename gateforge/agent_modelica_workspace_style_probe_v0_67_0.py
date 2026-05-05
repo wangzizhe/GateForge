@@ -49,8 +49,9 @@ WORKSPACE_TOOL_DEFS: list[dict[str, Any]] = [
         "name": "write_and_check_candidate_model",
         "description": (
             "Write a complete candidate Modelica model into the transparent case workspace "
-            "and immediately run OMC checkModel AND simulate on it. Returns raw compiler output "
-            "including equation counts, simulation results, and any errors or warnings. "
+            "and immediately run OMC checkModel AND simulate on it. Returns raw compiler output, "
+            "equation balance summary, and structured diagnostics (unconstrained variables, "
+            "flow sum equations, subsystem imbalance). "
             "This does not select or submit the candidate."
         ),
         "parameters": {
@@ -172,6 +173,47 @@ def _run_omc_simulate(
     return str(output or "")
 
 
+def _extract_omc_diagnostics(output: str) -> dict[str, Any]:
+    diag: dict[str, Any] = {}
+    unconstrained: list[str] = []
+    flow_sums: list[str] = []
+
+    for line in output.splitlines():
+        stripped = line.strip()
+        m_uncon = re.search(r"Variable\s+(\S+)\s+does not have any remaining equation", stripped)
+        if m_uncon:
+            unconstrained.append(m_uncon.group(1))
+
+        m_flow = re.search(r"Equation\s+\d+.*([\w.\[\]]+\s*\+\s*[\w.\[\]]+.*=\s*0\.0)", stripped)
+        if m_flow and not m_flow.group(1).startswith("0.0"):
+            flow_sums.append(m_flow.group(1).strip())
+
+    if unconstrained:
+        diag["unconstrained_variables"] = unconstrained[:10]
+
+    if flow_sums:
+        diag["flow_sum_equations"] = flow_sums[:5]
+
+    subsystem_match = re.search(
+        r"imbalanced number of equations\s*\((\d+)\).*variables\s*\((\d+)\)",
+        output,
+    )
+    if subsystem_match:
+        diag["subsystem_imbalance"] = {
+            "equations": int(subsystem_match.group(1)),
+            "variables": int(subsystem_match.group(2)),
+        }
+
+    if "The simulation finished successfully" in output:
+        diag["simulation"] = "OK"
+    elif "Failed to build model" in output:
+        diag["simulation"] = "BUILD_FAILED"
+    elif 'resultFile = ""' in output:
+        diag["simulation"] = "NO_RESULT"
+
+    return diag
+
+
 def _dispatch_workspace_tool(
     *,
     name: str,
@@ -264,6 +306,7 @@ def _dispatch_workspace_tool(
                 "path": str(path),
                 "check_ok": bool(check_ok),
                 "equation_balance": eq_balance,
+                "diagnostics": _extract_omc_diagnostics(str(output or "")),
                 "omc_output": str(output or "")[:3000],
                 "auto_repair": False,
                 "auto_submit": False,
@@ -330,16 +373,21 @@ def run_workspace_style_case(
         "1. First, explore with list_workspace_files and read_file.\n"
         "2. Plan your repair strategy with update_repair_progress.\n"
         "3. Run write_and_check_candidate_model on the initial model.\n"
-        "3. Deeply analyze: count equations vs variables, identify missing/extra equations.\n"
-        "4. Form a complete fix plan BEFORE writing any modified candidate.\n"
-        "5. Write ONE precise candidate. Do not write multiple untested candidates.\n"
-        "6. When a candidate passes both check and simulation, submit with submit_candidate_model.\n\n"
+        "4. Analyze the diagnostics field: unconstrained_variables tells exactly which pins need equations.\n"
+        "5. Form a complete fix plan BEFORE writing any modified candidate.\n"
+        "6. Write ONE precise candidate. Do not write multiple untested candidates.\n"
+        "7. When a candidate passes both check and simulation, submit with submit_candidate_model.\n\n"
         "Common Modelica repair patterns:\n"
         "- Under-determined: add zero-flow equations for unused connector flows (pin.i = 0)\n"
         "- For MSL measurement probes (PositivePin p, NegativePin n): set p.i = 0; n.i = 0;\n"
         "- Over-determined: remove or modify conflicting equations\n"
         "- Structural: replace custom Pin connectors with MSL PositivePin/NegativePin — "
         "MSL connectors have better OMC compiler support and resolve matching issues\n\n"
+        "Using diagnostics:\n"
+        "- The \"unconstrained_variables\" list shows exactly which pins lack equations. Fix those directly.\n"
+        "- If diagnosis shows subsystem_imbalance: structural mismatch needs a redundant equation "
+        "to help OMC's BLT matching (e.g., add an explicit Ohm's law).\n"
+        "- Cross-reference unconstrained variables with the Flow sum equations to understand topology.\n\n"
         "The harness will not generate repairs, choose candidates, or submit automatically.\n\n"
         "Equation deficit tracking:\n"
         "- After each check, compare the equation deficit to the PREVIOUS candidate.\n"
