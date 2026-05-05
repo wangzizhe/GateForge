@@ -79,14 +79,16 @@ def generate_comparison(
     for cid in all_cases:
         gf_row = gf.get(cid, {})
         oc_row = oc.get(cid, {})
-        gv = format_verdict(gf_row.get("final_verdict", "?"))
-        ov = format_verdict(oc_row.get("final_verdict", "?"))
+        gf_raw = gf_row.get("final_verdict", "?")
+        oc_raw = oc_row.get("final_verdict", "?")
+        gv = format_verdict(gf_raw)
+        ov = format_verdict(oc_raw)
         gf_omc = gf_row.get("step_count", "—")
         oc_omc = oc_row.get("omc_invocation_count", "—")
 
-        if gv == "?":
+        if gf_raw == "?":
             gv = "—"
-        if ov == "?":
+        if oc_raw == "?":
             ov = "—"
 
         if gv == "PASS" and ov == "PASS":

@@ -268,7 +268,9 @@ def _dispatch_workspace_tool(
         file_path = str(arguments.get("path") or "").strip()
         if not file_path:
             return json.dumps({"error": "path required"}, sort_keys=True)
-        full_path = workspace / file_path
+        full_path = (workspace / file_path).resolve()
+        if not str(full_path).startswith(str(workspace.resolve())):
+            return json.dumps({"error": "path traversal denied", "path": file_path}, sort_keys=True)
         if not full_path.exists():
             return json.dumps({"error": "file not found", "path": file_path}, sort_keys=True)
         try:
@@ -341,14 +343,6 @@ def _dispatch_workspace_tool(
             sort_keys=True,
         )
 
-    if candidate_id not in candidate_paths:
-        return json.dumps({"error": "unknown_candidate_id", "candidate_id": candidate_id}, sort_keys=True)
-
-    path = candidate_paths[candidate_id]
-
-    if name == "submit_candidate_model":
-        return json.dumps({"status": "submitted", "candidate_id": candidate_id}, sort_keys=True)
-
     if name == "update_repair_progress":
         todos = arguments.get("todos") if isinstance(arguments.get("todos"), list) else []
         return json.dumps({
@@ -386,6 +380,14 @@ def _dispatch_workspace_tool(
                 "deficit": var_count - eq_count,
             })
         return json.dumps({"batch_results": results, "total": len(results)}, sort_keys=True)
+
+    if candidate_id not in candidate_paths:
+        return json.dumps({"error": "unknown_candidate_id", "candidate_id": candidate_id}, sort_keys=True)
+
+    path = candidate_paths[candidate_id]
+
+    if name == "submit_candidate_model":
+        return json.dumps({"status": "submitted", "candidate_id": candidate_id}, sort_keys=True)
 
     return json.dumps({"error": "unknown_tool", "tool": name}, sort_keys=True)
 
