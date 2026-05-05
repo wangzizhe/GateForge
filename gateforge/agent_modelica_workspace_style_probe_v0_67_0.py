@@ -367,6 +367,13 @@ def _dispatch_workspace_tool(
             path.write_text(model_text, encoding="utf-8")
             candidate_paths[cid] = path
             output, check_ok = _run_omc_check(workspace=workspace, candidate_path=path)
+            candidate_meta[cid] = {
+                "candidate_id": cid,
+                "path": str(path),
+                "rationale": str(cand.get("rationale", "")),
+                "model_name": _extract_model_name(model_text),
+                "write_check_ok": bool(check_ok),
+            }
             eq_match = re.search(r"(\d+)\s+equation\(s\)\s+and\s+(\d+)\s+variable\(s\)", str(output or ""))
             eq_count = int(eq_match.group(1)) if eq_match else 0
             var_count = int(eq_match.group(2)) if eq_match else 0
@@ -640,6 +647,7 @@ def run_workspace_style_case(
             "candidate_selection_added": False,
             "wrapper_auto_submit_added": False,
             "submit_checkpoint_active": submit_checkpoint,
+            "transparent_submit_checkpoint_added": submit_checkpoint,
         },
     }
 
