@@ -39,7 +39,14 @@ def load_opencode_results(dirpath: Path) -> dict[str, dict[str, Any]]:
             row = json.loads(path.read_text(encoding="utf-8"))
         except Exception:
             continue
-        cid = row.get("case_id", "")
+        cid = row.get("case_id", row.get("task", ""))
+        verdict = str(row.get("final_verdict", row.get("status", ""))).upper()
+        if "PASS" in verdict:
+            row["final_verdict"] = "PASS"
+        elif "FAIL" in verdict:
+            row["final_verdict"] = "FAIL"
+        else:
+            row["final_verdict"] = verdict
         if cid:
             results[cid] = row
     return results
