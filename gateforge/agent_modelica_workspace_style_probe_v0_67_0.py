@@ -102,6 +102,32 @@ WORKSPACE_TOOL_DEFS: list[dict[str, Any]] = [
             "required": ["todos"],
         },
     },
+    {
+        "name": "batch_check_candidates",
+        "description": (
+            "Write and check multiple candidate models in one call. "
+            "Use this to test several fix strategies simultaneously and compare results. "
+            "Returns a comparison table showing check_ok, equation balance, and deficit for each."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "candidates": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "candidate_id": {"type": "string"},
+                            "model_text": {"type": "string"},
+                            "rationale": {"type": "string"},
+                        },
+                        "required": ["candidate_id", "model_text"],
+                    },
+                },
+            },
+            "required": ["candidates"],
+        },
+    },
 ]
 
 
@@ -332,6 +358,34 @@ def _dispatch_workspace_tool(
             "in_progress": sum(1 for t in todos if isinstance(t, dict) and t.get("status") == "in_progress"),
             "pending": sum(1 for t in todos if isinstance(t, dict) and t.get("status") == "pending"),
         }, sort_keys=True)
+
+    if name == "batch_check_candidates":
+        candidates = arguments.get("candidates") if isinstance(arguments.get("candidates"), list) else []
+        results: list[dict[str, Any]] = []
+        for cand in candidates[:6]:
+            if not isinstance(cand, dict):
+                continue
+            cid = _safe_candidate_id(str(cand.get("candidate_id") or "batch_candidate"))
+            model_text = str(cand.get("model_text") or "")
+            if not model_text.strip():
+                continue
+            path = workspace / f"{cid}.mo"
+            path.write_text(model_text, encoding="utf-8")
+            candidate_paths[cid] = path
+            output, check_ok = _run_omc_check(workspace=workspace, candidate_path=path)
+            eq_match = re.search(r"(\d+)\s+equation\(s\)\s+and\s+(\d+)\s+variable\(s\)", str(output or ""))
+            eq_count = int(eq_match.group(1)) if eq_match else 0
+            var_count = int(eq_match.group(2)) if eq_match else 0
+            results.append({
+                "candidate_id": cid,
+                "rationale": str(cand.get("rationale", ""))[:80],
+                "check_ok": bool(check_ok),
+                "equations": eq_count,
+                "variables": var_count,
+                "balance": f"{eq_count}eq/{var_count}var",
+                "deficit": var_count - eq_count,
+            })
+        return json.dumps({"batch_results": results, "total": len(results)}, sort_keys=True)
 
     return json.dumps({"error": "unknown_tool", "tool": name}, sort_keys=True)
 

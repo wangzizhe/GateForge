@@ -14,10 +14,10 @@ from gateforge.agent_modelica_workspace_style_probe_v0_67_0 import (
 
 
 class WorkspaceStyleProbeV067Tests(unittest.TestCase):
-    def test_tool_count_is_five(self) -> None:
-        self.assertEqual(len(WORKSPACE_TOOL_DEFS), 5)
+    def test_tool_count_is_six(self) -> None:
+        self.assertEqual(len(WORKSPACE_TOOL_DEFS), 6)
         tool_names = {t["name"] for t in WORKSPACE_TOOL_DEFS}
-        self.assertIn("update_repair_progress", tool_names)
+        self.assertIn("batch_check_candidates", tool_names)
 
     def test_safe_candidate_id_sanitizes_pathlike_text(self) -> None:
         self.assertEqual(_safe_candidate_id("../bad id"), ".._bad_id")
@@ -28,7 +28,7 @@ class WorkspaceStyleProbeV067Tests(unittest.TestCase):
         self.assertTrue(result["harness_timeout"])
         self.assertEqual(result["provider_error"], "")
         self.assertFalse(result["discipline"]["wrapper_auto_submit_added"])
-        self.assertEqual(result["tool_count"], 5)
+        self.assertEqual(result["tool_count"], 6)
 
     def test_timeout_result_audits_existing_candidate_files(self) -> None:
         with tempfile.TemporaryDirectory() as td:
@@ -76,7 +76,7 @@ class WorkspaceStyleProbeV067Tests(unittest.TestCase):
                     "model_name": case["model_name"],
                     "provider": "mock",
                     "run_mode": "workspace_style_tool_use",
-                    "tool_count": 5,
+                    "tool_count": 6,
                     "final_verdict": "PASS",
                     "submitted": True,
                     "submitted_candidate_id": "c1",
@@ -100,7 +100,7 @@ class WorkspaceStyleProbeV067Tests(unittest.TestCase):
                 run_case_fn=fake_run_case,
             )
         self.assertEqual(summary["pass_count"], 1)
-        self.assertEqual(summary["tool_count"], 5)
+        self.assertEqual(summary["tool_count"], 6)
         self.assertTrue(summary["discipline"]["transparent_workspace_enabled"])
         self.assertTrue(summary["discipline"]["merged_write_check_tool"])
         self.assertFalse(summary["discipline"]["wrapper_auto_submit_added"])
