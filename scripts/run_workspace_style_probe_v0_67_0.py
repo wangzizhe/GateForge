@@ -28,7 +28,6 @@ def main() -> int:
     parser.add_argument("--max-token-budget", type=int, default=32000)
     parser.add_argument("--planner-backend", default="auto")
     parser.add_argument("--per-case-timeout-sec", type=int, default=0)
-    parser.add_argument("--submit-checkpoint", action="store_true")
     parser.add_argument("--summary-version", default="v0.67.0")
     args = parser.parse_args()
     summary = run_workspace_style_probe(
@@ -40,7 +39,6 @@ def main() -> int:
         max_token_budget=args.max_token_budget,
         planner_backend=args.planner_backend,
         per_case_timeout_sec=args.per_case_timeout_sec,
-        submit_checkpoint=args.submit_checkpoint,
         summary_version=args.summary_version,
     )
     print(json.dumps(summary, ensure_ascii=False, sort_keys=True))

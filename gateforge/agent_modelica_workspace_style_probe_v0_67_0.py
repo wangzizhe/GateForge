@@ -406,7 +406,6 @@ def run_workspace_style_case(
     max_steps: int = 10,
     max_token_budget: int = 32000,
     planner_backend: str = "auto",
-    submit_checkpoint: bool = False,
     preload_diagnostics: str | None = None,
 ) -> dict[str, Any]:
     case_id = str(case["case_id"])
@@ -587,21 +586,6 @@ def run_workspace_style_case(
 
     final_model_text = ""
     final_verdict = "FAILED"
-    checkpoint_triggered = False
-
-    if not submitted_id and submit_checkpoint:
-        for _cid in candidate_meta:
-            if candidate_meta[_cid].get("write_check_ok"):
-                submitted_id = _cid
-                checkpoint_triggered = True
-                steps.append(
-                    {
-                        "step": "checkpoint_submit",
-                        "candidate_id": submitted_id,
-                        "discipline": "transparent submit checkpoint: LLM finished without submitting; harness found a check-passing candidate and submitted it",
-                    }
-                )
-                break
 
     if submitted_id and submitted_id in candidate_paths:
         final_model_text = candidate_paths[submitted_id].read_text(encoding="utf-8")
@@ -633,44 +617,25 @@ def run_workspace_style_case(
         "final_verdict": final_verdict,
         "submitted": bool(submitted_id),
         "submitted_candidate_id": submitted_id,
-        "submission_mode": "checkpoint" if checkpoint_triggered else ("llm" if submitted_id else "none"),
+        "submission_mode": "llm" if submitted_id else "none",
         "step_count": len(steps),
         "token_used": token_used,
         "provider_error": provider_error,
         "candidate_files": list(candidate_meta.values()),
         "steps": steps,
         "final_model_text": final_model_text,
-        "submit_checkpoint_triggered": checkpoint_triggered,
+        "submit_checkpoint_triggered": False,
         "discipline": {
             "deterministic_repair_added": False,
             "hidden_routing_added": False,
             "candidate_selection_added": False,
             "wrapper_auto_submit_added": False,
-            "submit_checkpoint_active": submit_checkpoint,
-            "transparent_submit_checkpoint_added": submit_checkpoint,
+            "llm_submit_required": True,
         },
     }
 
 
 RunWorkspaceCaseFn = Callable[..., dict[str, Any]]
-
-
-def _run_workspace_style_case_with_checkpoint(
-    case: dict[str, Any],
-    *,
-    out_dir: Path,
-    max_steps: int = 10,
-    max_token_budget: int = 32000,
-    planner_backend: str = "auto",
-) -> dict[str, Any]:
-    return run_workspace_style_case(
-        case,
-        out_dir=out_dir,
-        max_steps=max_steps,
-        max_token_budget=max_token_budget,
-        planner_backend=planner_backend,
-        submit_checkpoint=True,
-    )
 
 
 def _candidate_file_audit(
@@ -729,11 +694,13 @@ def _timeout_result(
         "steps": [],
         "final_model_text": "",
         "submit_checkpoint_triggered": False,
+        "submission_mode": "none",
         "discipline": {
             "deterministic_repair_added": False,
             "hidden_routing_added": False,
             "candidate_selection_added": False,
             "wrapper_auto_submit_added": False,
+            "llm_submit_required": True,
         },
     }
 
@@ -825,7 +792,6 @@ def run_workspace_style_probe(
     planner_backend: str = "auto",
     per_case_timeout_sec: int = 0,
     summary_version: str = "v0.67.0",
-    submit_checkpoint: bool = False,
     run_case_fn: RunWorkspaceCaseFn = run_workspace_style_case,
 ) -> dict[str, Any]:
     wanted = set(case_ids or [])
@@ -834,8 +800,6 @@ def run_workspace_style_probe(
         tasks = [task for task in tasks if str(task.get("case_id") or "") in wanted]
     if limit:
         tasks = tasks[: max(0, int(limit))]
-    if submit_checkpoint and run_case_fn is run_workspace_style_case:
-        run_case_fn = _run_workspace_style_case_with_checkpoint
     out_dir = out_dir.resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
     results_path = out_dir / "results.jsonl"
@@ -936,6 +900,7 @@ def _build_summary(
             and provider_error_count == 0
             and timeout_count == 0
             and runner_error_count == 0
+            and checkpoint_triggered_count == 0
         ),
         "run_mode": "workspace_style_tool_use",
         "tool_count": len(WORKSPACE_TOOL_DEFS),
@@ -950,6 +915,7 @@ def _build_summary(
         "submit_checkpoint_count": checkpoint_triggered_count,
         "submit_checkpoint_pass_count": checkpoint_pass_count,
         "llm_submitted_pass_count": llm_submitted_pass_count,
+        "non_llm_submitted_pass_count": pass_count - llm_submitted_pass_count,
         "case_ids": [str(task.get("case_id") or "") for task in tasks],
         "completed_case_ids": [str(row.get("case_id") or "") for row in results],
         "pass_case_ids": [
@@ -963,6 +929,8 @@ def _build_summary(
             "hidden_routing_added": False,
             "candidate_selection_added": False,
             "wrapper_auto_submit_added": False,
+            "llm_submit_required": True,
+            "live_submit_checkpoint_removed": True,
             "transparent_workspace_enabled": True,
             "merged_write_check_tool": True,
         },

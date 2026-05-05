@@ -4,6 +4,7 @@ import argparse
 import json
 import sys
 from pathlib import Path
+from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
@@ -16,11 +17,8 @@ from gateforge.agent_modelica_workspace_style_probe_v0_67_0 import (
     _extract_model_name,
     _run_omc_check,
     run_workspace_style_case,
-    load_holdout_tasks,
     run_workspace_style_probe,
-    _build_summary,
 )
-from gateforge.agent_modelica_boundary_tool_use_baseline_v0_29_2 import task_to_tool_use_case
 
 
 def run_two_phase_case(
@@ -30,10 +28,8 @@ def run_two_phase_case(
     max_steps: int = 10,
     max_token_budget: int = 32000,
     planner_backend: str = "auto",
-    submit_checkpoint: bool = True,
 ) -> dict[str, Any]:
     case_id = str(case["case_id"])
-    model_name = str(case["model_name"])
     current_text = str(case["model_text"])
     case_workspace = (out_dir / "workspaces" / case_id).resolve()
     case_workspace.mkdir(parents=True, exist_ok=True)
@@ -58,7 +54,6 @@ def run_two_phase_case(
         max_steps=max_steps,
         max_token_budget=max_token_budget,
         planner_backend=planner_backend,
-        submit_checkpoint=submit_checkpoint,
         preload_diagnostics=diagnostics_text,
     )
 
@@ -88,7 +83,6 @@ def main() -> int:
         planner_backend=args.planner_backend,
         per_case_timeout_sec=args.per_case_timeout_sec,
         summary_version=args.summary_version,
-        submit_checkpoint=True,
         run_case_fn=run_two_phase_case,
     )
     print(json.dumps(summary, ensure_ascii=False, sort_keys=True))

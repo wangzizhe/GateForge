@@ -79,6 +79,8 @@ class ExternalAgentAttributionV062Tests(unittest.TestCase):
         self.assertTrue(summary["conclusion_allowed"])
         self.assertEqual(summary["gateforge_pass_count"], 0)
         self.assertEqual(summary["external_verified_pass_count"], 1)
+        self.assertTrue(summary["artifact_complete"])
+        self.assertTrue(summary["conclusion_allowed"])
         self.assertEqual(summary["paired_difference_case_ids"], ["case_a"])
         self.assertEqual(
             summary["gateforge_failure_attribution_counts"]["zero_flow_pattern_underfit"],
@@ -167,8 +169,27 @@ class ExternalAgentAttributionV062Tests(unittest.TestCase):
                 out_dir=out_dir,
             )
             self.assertEqual(summary["case_count"], 1)
+            self.assertTrue(summary["artifact_complete"])
+            self.assertTrue(summary["conclusion_allowed"])
             self.assertTrue((out_dir / "summary.json").exists())
             self.assertTrue((out_dir / "paired_rows.jsonl").exists())
+
+    def test_build_summary_blocks_missing_pairwise_artifacts(self) -> None:
+        summary = build_external_agent_attribution_summary(
+            gateforge_rows=[
+                {"case_id": "case_a", "final_verdict": "PASS", "submitted": True},
+                {"case_id": "case_b", "final_verdict": "FAILED", "submitted": False},
+            ],
+            external_rows=[
+                {"case_id": "case_a", "final_verdict": "PASS", "submitted": True},
+            ],
+            verification_summary={
+                "provider_blocked_count": 0,
+                "rows": [{"case_id": "case_a", "check_ok": True, "simulate_ok": True}],
+            },
+        )
+        self.assertFalse(summary["artifact_complete"])
+        self.assertFalse(summary["conclusion_allowed"])
 
 
 if __name__ == "__main__":

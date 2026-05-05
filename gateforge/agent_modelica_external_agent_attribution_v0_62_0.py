@@ -166,6 +166,13 @@ def build_external_agent_attribution_summary(
 ) -> dict[str, Any]:
     gateforge_by_case = {str(row.get("case_id") or ""): row for row in gateforge_rows}
     verification = _verification_by_case(verification_summary)
+    gateforge_case_ids = {case_id for case_id in gateforge_by_case if case_id}
+    external_case_ids = {
+        str(row.get("case_id") or "")
+        for row in external_rows
+        if str(row.get("case_id") or "")
+    }
+    verification_case_ids = {case_id for case_id in verification if case_id}
 
     paired_rows: list[dict[str, Any]] = []
     for external in external_rows:
@@ -215,19 +222,21 @@ def build_external_agent_attribution_summary(
         repair_pattern_counts[row["repair_pattern"]] = repair_pattern_counts.get(row["repair_pattern"], 0) + 1
 
     provider_blocked_count = int(verification_summary.get("provider_blocked_count") or 0)
+    artifact_complete = bool(
+        gateforge_case_ids
+        and external_case_ids
+        and verification_case_ids
+        and gateforge_case_ids == external_case_ids
+        and external_case_ids <= verification_case_ids
+    )
     return {
         "version": version,
         "analysis_scope": "external_agent_holdout_attribution",
         "evidence_role": "formal_experiment",
-        "artifact_complete": bool(
-            gateforge_rows
-            and external_rows
-            and verification_summary
-            and all(str(r.get("case_id") or "") in external_rows for r in gateforge_rows)
-        ),
+        "artifact_complete": artifact_complete,
         "provider_status": "provider_stable" if provider_blocked_count == 0 else "provider_blocked",
         "provider_error_count": provider_blocked_count,
-        "conclusion_allowed": bool(gateforge_rows and external_rows and provider_blocked_count == 0),
+        "conclusion_allowed": artifact_complete and provider_blocked_count == 0,
         "case_count": len(paired_rows),
         "gateforge_pass_count": sum(1 for row in paired_rows if row["gateforge_verdict"] == "PASS"),
         "external_verified_pass_count": sum(1 for row in paired_rows if row["external_verified_pass"]),

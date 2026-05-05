@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 import json
 import tempfile
 import unittest
@@ -7,8 +8,10 @@ from pathlib import Path
 
 from gateforge.agent_modelica_workspace_style_probe_v0_67_0 import (
     WORKSPACE_TOOL_DEFS,
+    _build_summary,
     _safe_candidate_id,
     _timeout_result,
+    run_workspace_style_case,
     run_workspace_style_probe,
 )
 
@@ -18,6 +21,10 @@ class WorkspaceStyleProbeV067Tests(unittest.TestCase):
         self.assertEqual(len(WORKSPACE_TOOL_DEFS), 6)
         tool_names = {t["name"] for t in WORKSPACE_TOOL_DEFS}
         self.assertIn("batch_check_candidates", tool_names)
+
+    def test_live_submit_checkpoint_is_not_exposed(self) -> None:
+        self.assertNotIn("submit_checkpoint", inspect.signature(run_workspace_style_case).parameters)
+        self.assertNotIn("submit_checkpoint", inspect.signature(run_workspace_style_probe).parameters)
 
     def test_safe_candidate_id_sanitizes_pathlike_text(self) -> None:
         self.assertEqual(_safe_candidate_id("../bad id"), ".._bad_id")
@@ -105,6 +112,28 @@ class WorkspaceStyleProbeV067Tests(unittest.TestCase):
         self.assertTrue(summary["discipline"]["merged_write_check_tool"])
         self.assertFalse(summary["discipline"]["wrapper_auto_submit_added"])
         self.assertEqual(summary["candidate_file_count"], 1)
+
+    def test_summary_blocks_checkpoint_contaminated_results(self) -> None:
+        summary = _build_summary(
+            tasks=[{"case_id": "case_a"}],
+            results=[
+                {
+                    "case_id": "case_a",
+                    "final_verdict": "PASS",
+                    "provider_error": "",
+                    "harness_timeout": False,
+                    "runner_error": "",
+                    "submit_checkpoint_triggered": True,
+                    "submission_mode": "checkpoint",
+                    "candidate_files": [],
+                }
+            ],
+        )
+        self.assertFalse(summary["conclusion_allowed"])
+        self.assertEqual(summary["submit_checkpoint_count"], 1)
+        self.assertEqual(summary["llm_submitted_pass_count"], 0)
+        self.assertEqual(summary["non_llm_submitted_pass_count"], 1)
+        self.assertTrue(summary["discipline"]["llm_submit_required"])
 
     def test_summary_reports_merged_write_check_flag(self) -> None:
         self.assertIn(
