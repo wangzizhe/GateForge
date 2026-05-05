@@ -19,7 +19,7 @@ from gateforge.agent_modelica_trajectory_diff_v0_64_0 import (
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Analyze observable GateForge/OpenCode trajectory differences.")
+    parser = argparse.ArgumentParser(description="Analyze observable GateForge/external agent trajectory differences.")
     parser.add_argument("--gateforge-results", type=Path, default=DEFAULT_GATEFORGE_RESULTS)
     parser.add_argument("--external-results-dir", type=Path, default=DEFAULT_EXTERNAL_RESULTS_DIR)
     parser.add_argument("--attribution", type=Path, default=DEFAULT_ATTRIBUTION)

@@ -269,7 +269,7 @@ def _dispatch_workspace_tool(
         if not file_path:
             return json.dumps({"error": "path required"}, sort_keys=True)
         full_path = (workspace / file_path).resolve()
-        if not str(full_path).startswith(str(workspace.resolve())):
+        if not full_path.is_relative_to(workspace.resolve()):
             return json.dumps({"error": "path traversal denied", "path": file_path}, sort_keys=True)
         if not full_path.exists():
             return json.dumps({"error": "file not found", "path": file_path}, sort_keys=True)
@@ -626,6 +626,7 @@ def run_workspace_style_case(
         "final_verdict": final_verdict,
         "submitted": bool(submitted_id),
         "submitted_candidate_id": submitted_id,
+        "submission_mode": "checkpoint" if checkpoint_triggered else ("llm" if submitted_id else "none"),
         "step_count": len(steps),
         "token_used": token_used,
         "provider_error": provider_error,
@@ -736,9 +737,10 @@ def _case_worker(
     max_steps: int,
     max_token_budget: int,
     planner_backend: str,
+    run_case_fn: RunWorkspaceCaseFn,
 ) -> None:
     try:
-        result = run_workspace_style_case(
+        result = run_case_fn(
             case,
             out_dir=Path(out_dir),
             max_steps=max_steps,
@@ -758,9 +760,10 @@ def _run_case_with_timeout(
     max_token_budget: int,
     planner_backend: str,
     timeout_sec: int,
+    run_case_fn: RunWorkspaceCaseFn,
 ) -> dict[str, Any]:
     if timeout_sec <= 0:
-        return run_workspace_style_case(
+        return run_case_fn(
             case,
             out_dir=out_dir,
             max_steps=max_steps,
@@ -770,7 +773,7 @@ def _run_case_with_timeout(
     queue: mp.Queue = mp.Queue()
     proc = mp.Process(
         target=_case_worker,
-        args=(queue, case, str(out_dir), max_steps, max_token_budget, planner_backend),
+        args=(queue, case, str(out_dir), max_steps, max_token_budget, planner_backend, run_case_fn),
     )
     proc.start()
     proc.join(timeout=max(1, int(timeout_sec)))
@@ -841,7 +844,7 @@ def run_workspace_style_probe(
     )
     for task in tasks:
         case = task_to_tool_use_case(task)
-        if run_case_fn is run_workspace_style_case and per_case_timeout_sec > 0:
+        if per_case_timeout_sec > 0:
             result = _run_case_with_timeout(
                 case,
                 out_dir=out_dir,
@@ -849,6 +852,7 @@ def run_workspace_style_probe(
                 max_token_budget=max_token_budget,
                 planner_backend=planner_backend,
                 timeout_sec=per_case_timeout_sec,
+                run_case_fn=run_case_fn,
             )
         else:
             result = run_case_fn(
@@ -908,6 +912,10 @@ def _build_summary(
         1 for row in results
         if row.get("submit_checkpoint_triggered") and row.get("final_verdict") == "PASS"
     )
+    llm_submitted_pass_count = sum(
+        1 for row in results
+        if row.get("submission_mode") == "llm" and row.get("final_verdict") == "PASS"
+    )
     return {
         "version": summary_version,
         "analysis_scope": "workspace_style_probe_merged_tools",
@@ -933,6 +941,7 @@ def _build_summary(
         "candidate_file_count": candidate_file_count,
         "submit_checkpoint_count": checkpoint_triggered_count,
         "submit_checkpoint_pass_count": checkpoint_pass_count,
+        "llm_submitted_pass_count": llm_submitted_pass_count,
         "case_ids": [str(task.get("case_id") or "") for task in tasks],
         "completed_case_ids": [str(row.get("case_id") or "") for row in results],
         "pass_case_ids": [
