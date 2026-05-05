@@ -344,6 +344,7 @@ def run_workspace_style_case(
     max_token_budget: int = 32000,
     planner_backend: str = "auto",
     submit_checkpoint: bool = False,
+    preload_diagnostics: str | None = None,
 ) -> dict[str, Any]:
     case_id = str(case["case_id"])
     model_name = str(case["model_name"])
@@ -367,47 +368,76 @@ def run_workspace_style_case(
             "candidate_files": [],
         }
 
-    system_prompt = (
-        "You are making a Modelica model work using a file workspace.\n\n"
-        "Strategy: explore → plan → analyze → fix → verify.\n"
-        "1. First, explore with list_workspace_files and read_file.\n"
-        "2. Plan your repair strategy with update_repair_progress.\n"
-        "3. Run write_and_check_candidate_model on the initial model.\n"
-        "4. Analyze the diagnostics field: unconstrained_variables tells exactly which pins need equations.\n"
-        "5. Form a complete fix plan BEFORE writing any modified candidate.\n"
-        "6. Write ONE precise candidate. Do not write multiple untested candidates.\n"
-        "7. When a candidate passes both check and simulation, submit with submit_candidate_model.\n\n"
-        "Common Modelica repair patterns:\n"
-        "- Under-determined: add zero-flow equations for unused connector flows (pin.i = 0)\n"
-        "- For MSL measurement probes (PositivePin p, NegativePin n): set p.i = 0; n.i = 0;\n"
-        "- Over-determined: remove or modify conflicting equations\n"
-        "- Structural: replace custom Pin connectors with MSL PositivePin/NegativePin — "
-        "MSL connectors have better OMC compiler support and resolve matching issues\n\n"
-        "Using diagnostics:\n"
-        "- The \"unconstrained_variables\" list shows exactly which pins lack equations. Fix those directly.\n"
-        "- If diagnosis shows subsystem_imbalance: structural mismatch needs a redundant equation "
-        "to help OMC's BLT matching (e.g., add an explicit Ohm's law).\n"
-        "- Cross-reference unconstrained variables with the Flow sum equations to understand topology.\n\n"
-        "The harness will not generate repairs, choose candidates, or submit automatically.\n\n"
-        "Equation deficit tracking:\n"
-        "- After each check, compare the equation deficit to the PREVIOUS candidate.\n"
-        "- If deficit ↓: your last change was effective — keep it and refine further.\n"
-        "- If deficit ↑ or unchanged: your last change was ineffective — revert it.\n"
-        "- Combine effective changes. Do NOT restart from the original model each time.\n"
-        "- When a remove removes equations, also add compensating equations in the SAME candidate.\n"
-        "- The goal is to progressively reduce the deficit from its initial value to zero.\n"
-    )
+    if preload_diagnostics:
+        system_prompt = (
+            "You are making a Modelica model work.\n"
+            "Pre-computed diagnostics are provided below — no exploration needed.\n"
+            "Strategy: analyze diagnostics → fix → verify.\n"
+            "1. Read the diagnostics to understand exactly which variables lack equations.\n"
+            "2. Write ONE precise candidate with write_and_check_candidate_model.\n"
+            "3. If check or simulation fails, refine and write ONE more candidate.\n"
+            "4. When a candidate passes both, submit with submit_candidate_model.\n\n"
+            "Common Modelica repair patterns:\n"
+            "- Under-determined: add zero-flow equations for unused connector flows (pin.i = 0)\n"
+            "- For MSL measurement probes: set p.i = 0; n.i = 0;\n"
+            "- Over-determined: remove or modify conflicting equations\n"
+            "- Structural mismatch: add redundant equation (e.g., Ohm's law) to help OMC matching\n\n"
+            "Equation deficit tracking:\n"
+            "- After each check, compare the equation deficit to the PREVIOUS candidate.\n"
+            "- If deficit ↓: last change was effective — keep it and refine.\n"
+            "- If deficit ↑ or unchanged: last change was ineffective — revert it.\n"
+            "- Combine effective changes. Do NOT restart from the original model.\n"
+            "- The goal is to progressively reduce the deficit to zero.\n"
+        )
+        env_prefix = (
+            "Pre-computed diagnostics are provided below. No need to explore the workspace.\n\n"
+        )
+    else:
+        system_prompt = (
+            "You are making a Modelica model work using a file workspace.\n\n"
+            "Strategy: explore → plan → analyze → fix → verify.\n"
+            "1. First, explore with list_workspace_files and read_file.\n"
+            "2. Plan your repair strategy with update_repair_progress.\n"
+            "3. Run write_and_check_candidate_model on the initial model.\n"
+            "4. Analyze the diagnostics field: unconstrained_variables tells exactly which pins need equations.\n"
+            "5. Form a complete fix plan BEFORE writing any modified candidate.\n"
+            "6. Write ONE precise candidate. Do not write multiple untested candidates.\n"
+            "7. When a candidate passes both check and simulation, submit with submit_candidate_model.\n\n"
+            "Common Modelica repair patterns:\n"
+            "- Under-determined: add zero-flow equations for unused connector flows (pin.i = 0)\n"
+            "- For MSL measurement probes (PositivePin p, NegativePin n): set p.i = 0; n.i = 0;\n"
+            "- Over-determined: remove or modify conflicting equations\n"
+            "- Structural: replace custom Pin connectors with MSL PositivePin/NegativePin — "
+            "MSL connectors have better OMC compiler support and resolve matching issues\n\n"
+            "Using diagnostics:\n"
+            "- The \"unconstrained_variables\" list shows exactly which pins lack equations. Fix those directly.\n"
+            "- If diagnosis shows subsystem_imbalance: structural mismatch needs a redundant equation "
+            "to help OMC's BLT matching (e.g., add an explicit Ohm's law).\n"
+            "- Cross-reference unconstrained variables with the Flow sum equations to understand topology.\n\n"
+            "The harness will not generate repairs, choose candidates, or submit automatically.\n\n"
+            "Equation deficit tracking:\n"
+            "- After each check, compare the equation deficit to the PREVIOUS candidate.\n"
+            "- If deficit ↓: your last change was effective — keep it and refine further.\n"
+            "- If deficit ↑ or unchanged: your last change was ineffective — revert it.\n"
+            "- Combine effective changes. Do NOT restart from the original model each time.\n"
+            "- When a remove removes equations, also add compensating equations in the SAME candidate.\n"
+            "- The goal is to progressively reduce the deficit from its initial value to zero.\n"
+        )
+        env_prefix = (
+            "Environment: OMC openmodelica:v1.26.1-minimal.\n"
+            "MSL components: Modelica.Electrical.Analog.Interfaces.(PositivePin, NegativePin), "
+            "Modelica.Electrical.Analog.Basic.(Ground, Resistor, Capacitor, Inductor), "
+            "Modelica.Electrical.Analog.Sources.(ConstantVoltage, StepVoltage, ...).\n"
+            "You may replace custom connectors with MSL equivalents to simplify the model.\n\n"
+        )
     messages: list[dict[str, Any]] = [
         {"role": "system", "content": system_prompt},
         {
             "role": "user",
             "content": (
-                f"Environment: OMC openmodelica:v1.26.1-minimal.\n"
-                f"MSL components: Modelica.Electrical.Analog.Interfaces.(PositivePin, NegativePin), "
-                f"Modelica.Electrical.Analog.Basic.(Ground, Resistor, Capacitor, Inductor), "
-                f"Modelica.Electrical.Analog.Sources.(ConstantVoltage, StepVoltage, ...).\n"
-                f"You may replace custom connectors with MSL equivalents to simplify the model.\n\n"
-                f"Task: {workflow_goal}\n\n"
+                f"{env_prefix}"
+                + (f"{preload_diagnostics}\n\n" if preload_diagnostics else "")
+                + f"Task: {workflow_goal}\n\n"
                 f"Model name: {model_name}\n"
                 f"Workspace initial file: initial.mo\n\n"
                 f"Initial model:\n-----BEGIN_MODEL-----\n{current_text}\n-----END_MODEL-----\n"
