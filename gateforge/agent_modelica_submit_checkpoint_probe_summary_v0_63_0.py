@@ -70,7 +70,12 @@ def build_submit_checkpoint_probe_summary(
         if int(submit_slice.get("provider_error_count") or 0) == 0
         and int(remaining_slice.get("provider_error_count") or 0) == 0
         else "provider_unstable",
-        "conclusion_allowed": bool(submit_slice.get("artifact_complete")) and remaining_completed > 0,
+        "conclusion_allowed": bool(
+            submit_slice.get("artifact_complete")
+            and remaining_completed > 0
+            and int(submit_slice.get("provider_error_count") or 0) == 0
+            and int(remaining_slice.get("provider_error_count") or 0) == 0
+        ),
         "source_attribution_counts": attribution_counts,
         "submit_failure_slice_case_count": submit_failure_count,
         "submit_failure_slice_completed_count": submit_slice_completed,

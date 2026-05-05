@@ -219,7 +219,12 @@ def build_external_agent_attribution_summary(
         "version": version,
         "analysis_scope": "external_agent_holdout_attribution",
         "evidence_role": "formal_experiment",
-        "artifact_complete": bool(gateforge_rows and external_rows and verification_summary),
+        "artifact_complete": bool(
+            gateforge_rows
+            and external_rows
+            and verification_summary
+            and all(str(r.get("case_id") or "") in external_rows for r in gateforge_rows)
+        ),
         "provider_status": "provider_stable" if provider_blocked_count == 0 else "provider_blocked",
         "provider_error_count": provider_blocked_count,
         "conclusion_allowed": bool(gateforge_rows and external_rows and provider_blocked_count == 0),

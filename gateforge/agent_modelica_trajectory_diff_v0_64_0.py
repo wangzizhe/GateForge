@@ -153,7 +153,12 @@ def build_trajectory_diff_summary(
         "analysis_scope": "trajectory_diff",
         "evidence_role": "formal_experiment",
         "artifact_complete": bool(gateforge_rows and external_rows and attribution_summary),
-        "conclusion_allowed": bool(gateforge_rows and external_rows and attribution_summary),
+        "conclusion_allowed": bool(
+            gateforge_rows
+            and external_rows
+            and attribution_summary
+            and attribution_summary.get("conclusion_allowed")
+        ),
         "case_count": len(case_rows),
         "paired_difference_count": len(diff_rows),
         "external_agent_trace_limitation": "external_agent_full_step_trace_not_available_final_model_and_summary_only",
