@@ -14,12 +14,12 @@ from gateforge.agent_modelica_workspace_style_probe_v0_67_0 import (
 
 
 class WorkspaceStyleProbeV067Tests(unittest.TestCase):
-    def test_tool_count_is_two(self) -> None:
-        self.assertEqual(len(WORKSPACE_TOOL_DEFS), 2)
+    def test_tool_count_is_four(self) -> None:
+        self.assertEqual(len(WORKSPACE_TOOL_DEFS), 4)
         tool_names = {t["name"] for t in WORKSPACE_TOOL_DEFS}
         self.assertSetEqual(
             tool_names,
-            {"write_and_check_candidate_model", "submit_candidate_model"},
+            {"list_workspace_files", "read_file", "write_and_check_candidate_model", "submit_candidate_model"},
         )
 
     def test_safe_candidate_id_sanitizes_pathlike_text(self) -> None:
@@ -31,7 +31,7 @@ class WorkspaceStyleProbeV067Tests(unittest.TestCase):
         self.assertTrue(result["harness_timeout"])
         self.assertEqual(result["provider_error"], "")
         self.assertFalse(result["discipline"]["wrapper_auto_submit_added"])
-        self.assertEqual(result["tool_count"], 2)
+        self.assertEqual(result["tool_count"], 4)
 
     def test_timeout_result_audits_existing_candidate_files(self) -> None:
         with tempfile.TemporaryDirectory() as td:
@@ -79,7 +79,7 @@ class WorkspaceStyleProbeV067Tests(unittest.TestCase):
                     "model_name": case["model_name"],
                     "provider": "mock",
                     "run_mode": "workspace_style_tool_use",
-                    "tool_count": 2,
+                    "tool_count": 4,
                     "final_verdict": "PASS",
                     "submitted": True,
                     "submitted_candidate_id": "c1",
@@ -103,16 +103,17 @@ class WorkspaceStyleProbeV067Tests(unittest.TestCase):
                 run_case_fn=fake_run_case,
             )
         self.assertEqual(summary["pass_count"], 1)
-        self.assertEqual(summary["tool_count"], 2)
+        self.assertEqual(summary["tool_count"], 4)
         self.assertTrue(summary["discipline"]["transparent_workspace_enabled"])
         self.assertTrue(summary["discipline"]["merged_write_check_tool"])
         self.assertFalse(summary["discipline"]["wrapper_auto_submit_added"])
         self.assertEqual(summary["candidate_file_count"], 1)
 
     def test_summary_reports_merged_write_check_flag(self) -> None:
-        self.assertTrue(
-            WORKSPACE_TOOL_DEFS[0]["name"].startswith("write_and_check"),
-            "tool list must start with the merged write-and-check tool",
+        self.assertIn(
+            "write_and_check",
+            WORKSPACE_TOOL_DEFS[2]["name"],
+            "tool list must contain write_and_check_tool",
         )
 
 

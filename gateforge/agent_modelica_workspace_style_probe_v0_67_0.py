@@ -21,6 +21,31 @@ DOCKER_IMAGE = "openmodelica/openmodelica:v1.26.1-minimal"
 
 WORKSPACE_TOOL_DEFS: list[dict[str, Any]] = [
     {
+        "name": "list_workspace_files",
+        "description": (
+            "List all files in the case workspace directory. Use this to discover "
+            "available models, reference files, and library definitions before writing candidates."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {},
+        },
+    },
+    {
+        "name": "read_file",
+        "description": (
+            "Read the contents of any file in the workspace. Use this to inspect model "
+            "definitions, connector types, and available libraries."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "File path relative to workspace root."},
+            },
+            "required": ["path"],
+        },
+    },
+    {
         "name": "write_and_check_candidate_model",
         "description": (
             "Write a complete candidate Modelica model into the transparent case workspace "
@@ -133,6 +158,32 @@ def _dispatch_workspace_tool(
 ) -> str:
     candidate_id = _safe_candidate_id(str(arguments.get("candidate_id") or "candidate"))
 
+    if name == "list_workspace_files":
+        items: list[dict[str, Any]] = []
+        if workspace.exists():
+            for p in sorted(workspace.rglob("*")):
+                if p.is_file():
+                    rel = str(p.relative_to(workspace))
+                    items.append({
+                        "path": rel,
+                        "size": p.stat().st_size,
+                        "type": p.suffix,
+                    })
+        return json.dumps({"files": items}, sort_keys=True)
+
+    if name == "read_file":
+        file_path = str(arguments.get("path") or "").strip()
+        if not file_path:
+            return json.dumps({"error": "path required"}, sort_keys=True)
+        full_path = workspace / file_path
+        if not full_path.exists():
+            return json.dumps({"error": "file not found", "path": file_path}, sort_keys=True)
+        try:
+            content = full_path.read_text(encoding="utf-8")
+        except Exception:
+            content = full_path.read_text(encoding="latin-1")
+        return content
+
     if name == "write_and_check_candidate_model":
         model_text = str(arguments.get("model_text") or "")
         if not model_text.strip():
@@ -239,26 +290,28 @@ def run_workspace_style_case(
         }
 
     system_prompt = (
-        "You are fixing a Modelica model using a file workspace.\n\n"
-        "Modelica repair strategy:\n"
-        "1. Run write_and_check_candidate_model to write a candidate AND see OMC check+simulate output.\n"
-        "2. Deeply analyze the OMC output: count equations vs variables, identify missing/extra equations.\n"
-        "3. Form a complete fix plan BEFORE writing any modified candidate.\n"
-        "4. Write ONE precise candidate per call. Do not write multiple untested candidates.\n"
-        "5. If check or simulation fails, fully analyze the failure before writing the next candidate.\n"
-        "6. When a candidate passes both check and simulation, submit it with submit_candidate_model.\n\n"
+        "You are making a Modelica model work using a file workspace.\n\n"
+        "Strategy: explore → analyze → fix → verify.\n"
+        "1. First, explore the workspace with list_workspace_files and read_file.\n"
+        "   Discover available model files, connector types, and library definitions.\n"
+        "2. Run write_and_check_candidate_model on the initial model to see compiler output.\n"
+        "3. Deeply analyze: count equations vs variables, identify missing/extra equations.\n"
+        "4. Form a complete fix plan BEFORE writing any modified candidate.\n"
+        "5. Write ONE precise candidate. Do not write multiple untested candidates.\n"
+        "6. When a candidate passes both check and simulation, submit with submit_candidate_model.\n\n"
         "Common Modelica repair patterns:\n"
         "- Under-determined: add zero-flow equations for unused connector flows (pin.i = 0)\n"
         "- For MSL measurement probes (PositivePin p, NegativePin n): set p.i = 0; n.i = 0;\n"
-        "- Over-determined: remove or modify conflicting equations\n\n"
+        "- Over-determined: remove or modify conflicting equations\n"
+        "- Structural: replace custom Pin connectors with MSL PositivePin/NegativePin — "
+        "MSL connectors have better OMC compiler support and resolve matching issues\n\n"
         "The harness will not generate repairs, choose candidates, or submit automatically.\n\n"
         "Equation deficit tracking:\n"
         "- After each check, compare the equation deficit to the PREVIOUS candidate.\n"
         "- If deficit ↓: your last change was effective — keep it and refine further.\n"
-        "- If deficit ↑ or unchanged: your last change was ineffective — revert it and try a different fix.\n"
-        "- Combine effective changes across attempts. Do NOT restart from the original model each time.\n"
-        "- When a remove change removes equations, also add compensating equations in the SAME candidate.\n"
-        "- Example: removing an unused connector (loses N equations) + adding zero-flow to probe pins (gains M equations) = net M-N.\n"
+        "- If deficit ↑ or unchanged: your last change was ineffective — revert it.\n"
+        "- Combine effective changes. Do NOT restart from the original model each time.\n"
+        "- When a remove removes equations, also add compensating equations in the SAME candidate.\n"
         "- The goal is to progressively reduce the deficit from its initial value to zero.\n"
     )
     messages: list[dict[str, Any]] = [
@@ -266,6 +319,11 @@ def run_workspace_style_case(
         {
             "role": "user",
             "content": (
+                f"Environment: OMC openmodelica:v1.26.1-minimal.\n"
+                f"MSL components: Modelica.Electrical.Analog.Interfaces.(PositivePin, NegativePin), "
+                f"Modelica.Electrical.Analog.Basic.(Ground, Resistor, Capacitor, Inductor), "
+                f"Modelica.Electrical.Analog.Sources.(ConstantVoltage, StepVoltage, ...).\n"
+                f"You may replace custom connectors with MSL equivalents to simplify the model.\n\n"
                 f"Task: {workflow_goal}\n\n"
                 f"Model name: {model_name}\n"
                 f"Workspace initial file: initial.mo\n\n"
