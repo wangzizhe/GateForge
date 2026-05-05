@@ -26,8 +26,8 @@ def load_gateforge_results(path: Path) -> dict[str, dict[str, Any]]:
     return results
 
 
-def load_opencode_results(dirpath: Path) -> dict[str, dict[str, Any]]:
-    """Load OpenCode results from a directory of .json files."""
+def load_external_agent_results(dirpath: Path) -> dict[str, dict[str, Any]]:
+    """Load external agent results from a directory of .json files."""
     results: dict[str, dict[str, Any]] = {}
     if not dirpath.exists():
         return results
@@ -65,9 +65,9 @@ def generate_comparison(
     lines: list[str] = []
     all_cases = sorted(set(gf.keys()) | set(oc.keys()))
 
-    lines.append("# GateForge vs OpenCode Comparison Report")
+    lines.append("# GateForge vs External Agent Comparison Report")
     lines.append("")
-    lines.append("| Case | GateForge | OpenCode | Δ | GF OMC | OC OMC | Notes |")
+    lines.append("| Case | GateForge | Ext Agent | Δ | GF OMC | Ext OMC | Notes |")
     lines.append("|------|-----------|----------|---|--------|--------|-------|")
 
     gf_pass = 0
@@ -119,28 +119,28 @@ def generate_comparison(
     lines.append("")
     oc_tested = len(oc)
     lines.append(f"**GateForge**: {gf_pass}/{total} PASS")
-    lines.append(f"**OpenCode**: {oc_pass}/{oc_tested} tested ({oc_pass}/{total} of all cases)")
+    lines.append(f"**External Agent**: {oc_pass}/{oc_tested} tested ({oc_pass}/{total} of all cases)")
 
     return "\n".join(lines)
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Compare GateForge and OpenCode results.")
+    parser = argparse.ArgumentParser(description="Compare GateForge and external agent results.")
     parser.add_argument("--gateforge", type=Path, required=True,
                         help="Path to GateForge results.jsonl")
-    parser.add_argument("--opencode", type=Path, required=True,
-                        help="Directory of OpenCode result .json files")
+    parser.add_argument("--external-agent", type=Path, required=True,
+                        help="Directory of external agent result .json files", dest="ext_dir")
     parser.add_argument("--out", type=Path, default=None,
                         help="Write markdown report to file")
     args = parser.parse_args()
 
     gf = load_gateforge_results(args.gateforge)
-    oc = load_opencode_results(args.opencode)
+    oc = load_external_agent_results(args.ext_dir)
 
     if not gf:
         print(f"Warning: No GateForge results found in {args.gateforge}", file=sys.stderr)
     if not oc:
-        print(f"Warning: No OpenCode results found in {args.opencode}", file=sys.stderr)
+        print(f"Warning: No external agent results found in {args.ext_dir}", file=sys.stderr)
 
     report = generate_comparison(gf, oc)
     if args.out:
