@@ -76,6 +76,31 @@ WORKSPACE_TOOL_DEFS: list[dict[str, Any]] = [
             "required": ["candidate_id"],
         },
     },
+    {
+        "name": "update_repair_progress",
+        "description": (
+            "Track your repair progress with a structured task list. "
+            "Use this to plan your repair strategy, mark completed analysis steps, "
+            "and track which fixes have been attempted. Helps prevent thrashing."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "todos": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "content": {"type": "string", "description": "Task description."},
+                            "status": {"type": "string", "enum": ["pending", "in_progress", "completed", "cancelled"]},
+                        },
+                        "required": ["content", "status"],
+                    },
+                },
+            },
+            "required": ["todos"],
+        },
+    },
 ]
 
 
@@ -255,6 +280,16 @@ def _dispatch_workspace_tool(
     if name == "submit_candidate_model":
         return json.dumps({"status": "submitted", "candidate_id": candidate_id}, sort_keys=True)
 
+    if name == "update_repair_progress":
+        todos = arguments.get("todos") if isinstance(arguments.get("todos"), list) else []
+        return json.dumps({
+            "status": "recorded",
+            "todo_count": len(todos),
+            "completed": sum(1 for t in todos if isinstance(t, dict) and t.get("status") == "completed"),
+            "in_progress": sum(1 for t in todos if isinstance(t, dict) and t.get("status") == "in_progress"),
+            "pending": sum(1 for t in todos if isinstance(t, dict) and t.get("status") == "pending"),
+        }, sort_keys=True)
+
     return json.dumps({"error": "unknown_tool", "tool": name}, sort_keys=True)
 
 
@@ -291,10 +326,10 @@ def run_workspace_style_case(
 
     system_prompt = (
         "You are making a Modelica model work using a file workspace.\n\n"
-        "Strategy: explore → analyze → fix → verify.\n"
-        "1. First, explore the workspace with list_workspace_files and read_file.\n"
-        "   Discover available model files, connector types, and library definitions.\n"
-        "2. Run write_and_check_candidate_model on the initial model to see compiler output.\n"
+        "Strategy: explore → plan → analyze → fix → verify.\n"
+        "1. First, explore with list_workspace_files and read_file.\n"
+        "2. Plan your repair strategy with update_repair_progress.\n"
+        "3. Run write_and_check_candidate_model on the initial model.\n"
         "3. Deeply analyze: count equations vs variables, identify missing/extra equations.\n"
         "4. Form a complete fix plan BEFORE writing any modified candidate.\n"
         "5. Write ONE precise candidate. Do not write multiple untested candidates.\n"
@@ -338,6 +373,7 @@ def run_workspace_style_case(
     submitted_id = ""
     provider_error = ""
     deficit_state: dict[str, int] = {}
+    compaction_done = False
 
     for step_idx in range(1, max(1, int(max_steps)) + 1):
         resp, err = adapter.send_tool_request(messages, WORKSPACE_TOOL_DEFS, config)
@@ -350,6 +386,20 @@ def run_workspace_style_case(
             break
         token_used += int(resp.usage.get("total_tokens", 0))
         reasoning_text = resp.reasoning or ""
+
+        if not compaction_done and token_used > max_token_budget * 0.85 and len(steps) >= 3:
+            compaction_done = True
+            summary_parts: list[str] = [f"Candidate history ({len(candidate_meta)} attempted):"]
+            for _cid, meta in candidate_meta.items():
+                ck = "✓" if bool(meta.get("write_check_ok")) else "✗"
+                summary_parts.append(f"  {_cid}: check={ck}")
+            summary_parts.append(f"Current deficit: {deficit_state.get('last_deficit', 'unknown')}")
+            messages.append({
+                "role": "system",
+                "content": "--- SESSION SUMMARY ---\n" + "\n".join(summary_parts) + "\nFocus on remaining deficit. Combine effective changes.",
+            })
+            steps.append({"step": f"{step_idx}_compaction", "summary": summary_parts})
+
         step_record = {
             "step": step_idx,
             "text": resp.text,
