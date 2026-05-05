@@ -55,6 +55,8 @@ def load_external_agent_results(dirpath: Path) -> dict[str, dict[str, Any]]:
 def format_verdict(v: str) -> str:
     if v == "PASS":
         return "PASS"
+    if "TIMEOUT" in v or "INTERRUPTED" in v:
+        return "FAIL"
     return "FAIL"
 
 
@@ -90,7 +92,7 @@ def generate_comparison(
         if gv == "PASS" and ov == "PASS":
             delta = "="
         elif gv == "FAIL" and ov == "PASS":
-            delta = "← OC"
+            delta = "← Ext"
         elif gv == "PASS" and ov == "FAIL":
             delta = "GF →"
         elif gv == "FAIL" and ov == "FAIL":
@@ -103,11 +105,15 @@ def generate_comparison(
         notes = ""
         if delta == "—" and ov == "—":
             notes = "not tested"
-        elif delta == "← OC":
+        elif delta == "← Ext":
             oc_notes = oc_row.get("notes", "")[:80]
             notes = oc_notes if oc_notes else ""
         elif delta == "✗":
             notes = "both FAIL"
+        elif delta == "GF →" and "TIMEOUT" in str(oc_row.get("final_verdict", "")):
+            notes = "ext agent interrupted"
+        elif delta == "GF →" and "INTERRUPTED" in str(oc_row.get("final_verdict", "")):
+            notes = "ext agent interrupted"
 
         if gv == "PASS":
             gf_pass += 1
@@ -117,9 +123,11 @@ def generate_comparison(
         lines.append(f"| {cid} | {gv} | {ov} | {delta} | {gf_omc} | {oc_omc} | {notes} |")
 
     lines.append("")
-    oc_tested = len(oc)
+    timeout_count = sum(1 for cid, oc_row in oc.items() 
+                        if "TIMEOUT" in str(oc_row.get("final_verdict", "")).upper()
+                        or "INTERRUPTED" in str(oc_row.get("final_verdict", "")).upper())
     lines.append(f"**GateForge**: {gf_pass}/{total} PASS")
-    lines.append(f"**External Agent**: {oc_pass}/{oc_tested} tested ({oc_pass}/{total} of all cases)")
+    lines.append(f"**External Agent**: {oc_pass}/{total} PASS ({timeout_count} interrupted/FAIL within budget)")
 
     return "\n".join(lines)
 
