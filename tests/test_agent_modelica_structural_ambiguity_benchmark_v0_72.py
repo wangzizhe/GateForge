@@ -7,9 +7,11 @@ from pathlib import Path
 
 from gateforge.agent_modelica_structural_ambiguity_benchmark_v0_72_0 import (
     build_second_generation_structural_ambiguity_variants,
+    build_medium_hard_pack,
     build_structural_ambiguity_seed_candidates,
     build_structural_ambiguity_variants,
     summarize_budget_calibration,
+    summarize_budget_repeatability,
 )
 
 
@@ -80,6 +82,55 @@ class StructuralAmbiguityBenchmarkV072Tests(unittest.TestCase):
             )
             self.assertEqual(summary["budget_sensitive_case_ids"], ["case_a"])
             self.assertEqual(summary["calibration_status_counts"]["budget_sensitive_medium_hard"], 1)
+
+    def test_summarize_budget_repeatability_marks_same_budget_pass_fail_unstable(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            low_a = root / "low_a.jsonl"
+            low_b = root / "low_b.jsonl"
+            high = root / "high.jsonl"
+            low_a.write_text(json.dumps({"case_id": "case_a", "final_verdict": "FAILED"}) + "\n", encoding="utf-8")
+            low_b.write_text(json.dumps({"case_id": "case_a", "final_verdict": "PASS"}) + "\n", encoding="utf-8")
+            high.write_text(json.dumps({"case_id": "case_a", "final_verdict": "PASS"}) + "\n", encoding="utf-8")
+            summary = summarize_budget_repeatability(
+                result_paths_by_run={"32k_initial": low_a, "32k_repeat": low_b, "64k": high},
+                out_dir=root / "repeatability",
+            )
+            self.assertEqual(summary["unstable_case_ids"], ["case_a"])
+            self.assertEqual(summary["repeatability_status_counts"]["unstable_medium_candidate"], 1)
+
+    def test_build_medium_hard_pack_excludes_unstable_cases(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            tasks = root / "tasks.jsonl"
+            tasks.write_text(
+                "\n".join(
+                    [
+                        json.dumps({"case_id": "stable_case", "registry_family": "f"}),
+                        json.dumps({"case_id": "unstable_case", "registry_family": "f"}),
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            repeatability = root / "repeatability.json"
+            repeatability.write_text(
+                json.dumps(
+                    {
+                        "repeatable_budget_sensitive_case_ids": ["stable_case"],
+                        "unstable_case_ids": ["unstable_case"],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            summary = build_medium_hard_pack(
+                task_paths=[tasks],
+                repeatability_summary_paths=[repeatability],
+                out_dir=root / "pack",
+            )
+            self.assertEqual(summary["medium_hard_case_ids"], ["stable_case"])
+            self.assertEqual(summary["unstable_case_ids"], ["unstable_case"])
+            self.assertTrue(summary["conclusion_allowed"])
 
 
 if __name__ == "__main__":

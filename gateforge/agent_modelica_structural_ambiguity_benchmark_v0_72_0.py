@@ -10,6 +10,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_OUT_DIR = REPO_ROOT / "artifacts" / "structural_ambiguity_seed_candidates_v0_72_0"
 DEFAULT_VARIANT_OUT_DIR = REPO_ROOT / "artifacts" / "structural_ambiguity_variants_v0_73_4"
 DEFAULT_SECOND_GEN_OUT_DIR = REPO_ROOT / "artifacts" / "structural_ambiguity_second_gen_v0_74_1"
+DEFAULT_MEDIUM_HARD_PACK_OUT_DIR = REPO_ROOT / "artifacts" / "structural_ambiguity_medium_hard_pack_v0_75_5"
 
 
 def write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -358,6 +359,171 @@ def summarize_budget_calibration(
     }
     write_json(out_dir / "summary.json", summary)
     return summary
+
+
+def summarize_budget_repeatability(
+    *,
+    result_paths_by_run: dict[str, Path],
+    out_dir: Path,
+    summary_version: str = "v0.75.3",
+) -> dict[str, Any]:
+    by_case_budget: dict[str, dict[str, list[dict[str, Any]]]] = {}
+    for run_label, path in result_paths_by_run.items():
+        budget_label = _canonical_budget_label(str(run_label))
+        for row in load_jsonl(path):
+            case_id = str(row.get("case_id") or "")
+            if not case_id:
+                continue
+            by_case_budget.setdefault(case_id, {}).setdefault(budget_label, []).append(
+                {
+                    "run_label": str(run_label),
+                    "final_verdict": str(row.get("final_verdict") or ""),
+                    "provider_error": str(row.get("provider_error") or ""),
+                    "harness_timeout": bool(row.get("harness_timeout")),
+                    "submitted": bool(row.get("submitted")),
+                    "token_used": int(row.get("token_used") or 0),
+                    "candidate_count": len(row.get("candidate_files") or []),
+                }
+            )
+    rows: list[dict[str, Any]] = []
+    for case_id, budget_rows in sorted(by_case_budget.items()):
+        budget_summaries: dict[str, dict[str, Any]] = {}
+        has_unstable_budget = False
+        clean_statuses: list[str] = []
+        for budget_label, runs in sorted(budget_rows.items(), key=lambda item: _budget_sort_key(item[0])):
+            clean_runs = [
+                run for run in runs if not run["provider_error"] and not run["harness_timeout"]
+            ]
+            pass_count = sum(1 for run in clean_runs if run["final_verdict"] == "PASS")
+            fail_count = sum(1 for run in clean_runs if run["final_verdict"] != "PASS")
+            if pass_count and fail_count:
+                budget_status = "unstable"
+                has_unstable_budget = True
+            elif pass_count:
+                budget_status = "all_pass"
+            elif fail_count:
+                budget_status = "all_fail"
+            else:
+                budget_status = "blocked"
+            clean_statuses.append(budget_status)
+            budget_summaries[budget_label] = {
+                "budget_status": budget_status,
+                "run_count": len(runs),
+                "clean_run_count": len(clean_runs),
+                "pass_count": pass_count,
+                "fail_count": fail_count,
+                "blocked_count": len(runs) - len(clean_runs),
+                "runs": runs,
+            }
+        if has_unstable_budget:
+            repeatability_status = "unstable_medium_candidate"
+        elif "all_fail" in clean_statuses and "all_pass" in clean_statuses:
+            repeatability_status = "repeatable_budget_sensitive_medium_hard"
+        elif clean_statuses and all(status == "all_pass" for status in clean_statuses):
+            repeatability_status = "solved_at_all_clean_budgets"
+        elif clean_statuses and all(status == "all_fail" for status in clean_statuses):
+            repeatability_status = "failed_at_all_clean_budgets"
+        else:
+            repeatability_status = "blocked_or_incomplete"
+        rows.append(
+            {
+                "case_id": case_id,
+                "repeatability_status": repeatability_status,
+                "budget_summaries": budget_summaries,
+            }
+        )
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / "budget_repeatability_cases.jsonl").write_text(
+        "".join(json.dumps(row, sort_keys=True) + "\n" for row in rows),
+        encoding="utf-8",
+    )
+    status_counts = Counter(row["repeatability_status"] for row in rows)
+    summary = {
+        "version": summary_version,
+        "analysis_scope": "budget_repeatability_summary",
+        "status": "PASS" if rows else "REVIEW",
+        "artifact_complete": bool(rows),
+        "case_count": len(rows),
+        "repeatability_status_counts": dict(sorted(status_counts.items())),
+        "repeatable_budget_sensitive_case_ids": [
+            row["case_id"]
+            for row in rows
+            if row["repeatability_status"] == "repeatable_budget_sensitive_medium_hard"
+        ],
+        "unstable_case_ids": [
+            row["case_id"] for row in rows if row["repeatability_status"] == "unstable_medium_candidate"
+        ],
+        "scope_note": (
+            "This stricter repeatability summary groups repeated runs by canonical budget. A case is not "
+            "repeatable medium-hard if the same budget contains both PASS and FAIL clean runs."
+        ),
+    }
+    write_json(out_dir / "summary.json", summary)
+    return summary
+
+
+def build_medium_hard_pack(
+    *,
+    task_paths: list[Path],
+    repeatability_summary_paths: list[Path],
+    out_dir: Path = DEFAULT_MEDIUM_HARD_PACK_OUT_DIR,
+    summary_version: str = "v0.75.5",
+) -> dict[str, Any]:
+    tasks_by_case: dict[str, dict[str, Any]] = {}
+    for task_path in task_paths:
+        for task in load_jsonl(task_path):
+            case_id = str(task.get("case_id") or "")
+            if case_id:
+                tasks_by_case[case_id] = task
+    repeatable_ids: set[str] = set()
+    unstable_ids: set[str] = set()
+    for summary_path in repeatability_summary_paths:
+        if not summary_path.exists():
+            continue
+        payload = json.loads(summary_path.read_text(encoding="utf-8"))
+        repeatable_ids.update(str(case_id) for case_id in payload.get("repeatable_budget_sensitive_case_ids") or [])
+        unstable_ids.update(str(case_id) for case_id in payload.get("unstable_case_ids") or [])
+    pack_tasks = [tasks_by_case[case_id] for case_id in sorted(repeatable_ids) if case_id in tasks_by_case]
+    out_dir.mkdir(parents=True, exist_ok=True)
+    tasks_path = out_dir / "tasks.jsonl"
+    tasks_path.write_text(
+        "".join(json.dumps(task, sort_keys=True) + "\n" for task in pack_tasks),
+        encoding="utf-8",
+    )
+    family_counts = Counter(str(task.get("registry_family") or "") for task in pack_tasks)
+    summary = {
+        "version": summary_version,
+        "analysis_scope": "structural_ambiguity_medium_hard_pack",
+        "status": "PASS" if pack_tasks else "REVIEW",
+        "artifact_complete": bool(pack_tasks) and len(pack_tasks) == len(repeatable_ids),
+        "evidence_role": "formal_experiment",
+        "conclusion_allowed": bool(pack_tasks) and len(pack_tasks) == len(repeatable_ids),
+        "pack_task_count": len(pack_tasks),
+        "tasks_path": str(tasks_path),
+        "medium_hard_case_ids": [str(task.get("case_id") or "") for task in pack_tasks],
+        "unstable_case_ids": sorted(unstable_ids - repeatable_ids),
+        "family_counts": dict(sorted(family_counts.items())),
+        "pack_policy": (
+            "Only cases with strict repeatable budget-sensitive status are included. Same-budget PASS/FAIL cases "
+            "remain unstable and are excluded."
+        ),
+        "benchmark_layer": "medium_hard_budget_sensitive",
+    }
+    write_json(out_dir / "summary.json", summary)
+    return summary
+
+
+def _canonical_budget_label(run_label: str) -> str:
+    for token in str(run_label).split("_"):
+        if token.endswith("k") and token[:-1].isdigit():
+            return token
+    return str(run_label)
+
+
+def _budget_sort_key(budget_label: str) -> tuple[int, str]:
+    if budget_label.endswith("k") and budget_label[:-1].isdigit():
+        return (int(budget_label[:-1]), budget_label)
+    return (10**9, budget_label)
 
 
 def build_structural_ambiguity_variants(
