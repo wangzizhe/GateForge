@@ -7,6 +7,7 @@ from pathlib import Path
 
 from gateforge.agent_modelica_structural_ambiguity_benchmark_v0_72_0 import (
     build_structural_ambiguity_seed_candidates,
+    build_structural_ambiguity_variants,
     summarize_budget_calibration,
 )
 
@@ -29,6 +30,20 @@ class StructuralAmbiguityBenchmarkV072Tests(unittest.TestCase):
             prompt_text = "\n".join(row["description"] for row in rows).lower()
             self.assertNotIn("correct fix", prompt_text)
             self.assertNotIn("root cause", prompt_text)
+
+    def test_build_structural_ambiguity_variants_extends_budget_sensitive_families(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            summary = build_structural_ambiguity_variants(out_dir=Path(tmp) / "variants")
+            self.assertEqual(summary["task_count"], 4)
+            self.assertEqual(summary["family_counts"]["balanced_structural_singularity"], 2)
+            self.assertEqual(summary["family_counts"]["mixed_over_under_constraint"], 2)
+            rows = [
+                json.loads(line)
+                for line in Path(summary["tasks_path"]).read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+            self.assertTrue(all(row["registry_bundle"] == "v0.72_structural_ambiguity_candidates" for row in rows))
+            self.assertTrue(any("rank loss" in row["title"].lower() for row in rows))
 
     def test_summarize_budget_calibration_detects_budget_sensitive_cases(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

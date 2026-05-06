@@ -8,6 +8,7 @@ from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_OUT_DIR = REPO_ROOT / "artifacts" / "structural_ambiguity_seed_candidates_v0_72_0"
+DEFAULT_VARIANT_OUT_DIR = REPO_ROOT / "artifacts" / "structural_ambiguity_variants_v0_73_4"
 
 
 def write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -352,6 +353,164 @@ def summarize_budget_calibration(
         "scope_note": (
             "Budget-sensitive cases are not yet formal hard benchmark seeds. They are medium-hard substrate "
             "candidates that need repeatability if used for capability comparisons."
+        ),
+    }
+    write_json(out_dir / "summary.json", summary)
+    return summary
+
+
+def build_structural_ambiguity_variants(
+    *,
+    out_dir: Path = DEFAULT_VARIANT_OUT_DIR,
+) -> dict[str, Any]:
+    tasks = [
+        _task(
+            case_id="balanced_singularity_variant_01_weighted_projection_rank_loss",
+            family="balanced_structural_singularity",
+            title="Repair weighted projection rank loss",
+            description=(
+                "A weighted projection was refactored into total and contrast outputs. Restore a compileable and "
+                "simulatable model while preserving the weighted projection workflow."
+            ),
+            constraints=[
+                "Keep model name unchanged.",
+                "Keep all four state components.",
+                "Preserve total, weighted, and contrast outputs.",
+            ],
+            initial_model="""
+model BalancedSingularityVariantWeightedProjectionRankLoss
+  Real state[4];
+  Real total;
+  Real weighted;
+  Real contrast;
+equation
+  state[1] + state[2] + state[3] + state[4] = 1 + time;
+  2 * state[1] + 2 * state[2] + 2 * state[3] + 2 * state[4] = 2 + 2 * time;
+  total = state[1] + state[2] + state[3] + state[4];
+  weighted = state[1] + 2 * state[2] + 3 * state[3] + 4 * state[4];
+  contrast = state[1] - state[4];
+end BalancedSingularityVariantWeightedProjectionRankLoss;
+""",
+        ),
+        _task(
+            case_id="balanced_singularity_variant_02_coupled_summary_rank_loss",
+            family="balanced_structural_singularity",
+            title="Repair coupled summary rank loss",
+            description=(
+                "A coupled summary workflow was introduced for two latent signals. Restore a compileable and "
+                "simulatable model while preserving sum, scaled sum, and differential outputs."
+            ),
+            constraints=[
+                "Keep model name unchanged.",
+                "Keep both latent signals.",
+                "Preserve the three exported observation signals.",
+            ],
+            initial_model="""
+model BalancedSingularityVariantCoupledSummaryRankLoss
+  Real left;
+  Real right;
+  Real sumSignal;
+  Real scaledSum;
+  Real differenceSignal;
+equation
+  left + right = 1 + sin(time);
+  3 * left + 3 * right = 3 + 3 * sin(time);
+  sumSignal = left + right;
+  scaledSum = 3 * left + 3 * right;
+  differenceSignal = left - right;
+end BalancedSingularityVariantCoupledSummaryRankLoss;
+""",
+        ),
+        _task(
+            case_id="mixed_constraint_variant_01_windowed_residual_conflict",
+            family="mixed_over_under_constraint",
+            title="Repair windowed residual projection conflict",
+            description=(
+                "A windowed residual projection mixed local and aggregate constraints. Restore a compileable and "
+                "simulatable model while preserving all residual and window outputs."
+            ),
+            constraints=[
+                "Keep model name unchanged.",
+                "Keep the four-element residual workflow.",
+                "Preserve local residuals and window aggregate outputs.",
+            ],
+            initial_model="""
+model MixedConstraintVariantWindowedResidualConflict
+  parameter Integer n = 4;
+  Real source[n];
+  Real estimate[n];
+  Real residual[n];
+  Real windowA;
+  Real windowB;
+equation
+  for i in 1:n loop
+    source[i] = i * cos(time);
+    estimate[i] = source[i];
+  end for;
+  residual[1] = source[1] - estimate[1];
+  residual[2] = source[2] - estimate[2];
+  residual[3] = source[3] - estimate[3];
+  windowA = residual[1] + residual[2];
+  windowB = residual[3] + residual[4];
+  windowA = 0;
+  residual[1] + residual[2] = 0;
+end MixedConstraintVariantWindowedResidualConflict;
+""",
+        ),
+        _task(
+            case_id="mixed_constraint_variant_02_hierarchical_residual_conflict",
+            family="mixed_over_under_constraint",
+            title="Repair hierarchical residual projection conflict",
+            description=(
+                "A hierarchical residual projection introduced both element-level and aggregate constraints. "
+                "Restore a compileable and simulatable model while preserving the hierarchy outputs."
+            ),
+            constraints=[
+                "Keep model name unchanged.",
+                "Keep all residual hierarchy signals.",
+                "Do not remove the aggregate projection workflow.",
+            ],
+            initial_model="""
+model MixedConstraintVariantHierarchicalResidualConflict
+  Real source[3];
+  Real estimate[3];
+  Real residual[3];
+  Real localTotal;
+  Real globalTotal;
+equation
+  for i in 1:3 loop
+    source[i] = i + sin(time);
+    estimate[i] = source[i];
+  end for;
+  residual[1] = source[1] - estimate[1];
+  residual[2] = source[2] - estimate[2];
+  localTotal = residual[1] + residual[2];
+  globalTotal = localTotal + residual[3];
+  globalTotal = 0;
+  localTotal = 0;
+end MixedConstraintVariantHierarchicalResidualConflict;
+""",
+        ),
+    ]
+    out_dir.mkdir(parents=True, exist_ok=True)
+    tasks_path = out_dir / "tasks.jsonl"
+    tasks_path.write_text(
+        "".join(json.dumps(task, sort_keys=True) + "\n" for task in tasks),
+        encoding="utf-8",
+    )
+    family_counts = Counter(str(task["registry_family"]) for task in tasks)
+    summary = {
+        "version": "v0.73.4",
+        "analysis_scope": "structural_ambiguity_variant_build",
+        "status": "PASS",
+        "artifact_complete": True,
+        "task_count": len(tasks),
+        "tasks_path": str(tasks_path),
+        "family_counts": dict(sorted(family_counts.items())),
+        "case_ids": [str(task["case_id"]) for task in tasks],
+        "scope_note": (
+            "Variants extend the two budget-sensitive v0.72 patterns. They require admission, baseline, and "
+            "budget calibration before benchmark use."
         ),
     }
     write_json(out_dir / "summary.json", summary)
