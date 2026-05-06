@@ -11,6 +11,9 @@ DEFAULT_OUT_DIR = REPO_ROOT / "artifacts" / "structural_ambiguity_seed_candidate
 DEFAULT_VARIANT_OUT_DIR = REPO_ROOT / "artifacts" / "structural_ambiguity_variants_v0_73_4"
 DEFAULT_SECOND_GEN_OUT_DIR = REPO_ROOT / "artifacts" / "structural_ambiguity_second_gen_v0_74_1"
 DEFAULT_MEDIUM_HARD_PACK_OUT_DIR = REPO_ROOT / "artifacts" / "structural_ambiguity_medium_hard_pack_v0_75_5"
+DEFAULT_STABLE_PATTERN_EXPANSION_OUT_DIR = (
+    REPO_ROOT / "artifacts" / "structural_ambiguity_stable_pattern_expansion_v0_76_0"
+)
 
 
 def write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -28,6 +31,7 @@ def _task(
     initial_model: str,
     stop_time: float = 0.1,
     intervals: int = 100,
+    registry_bundle: str = "v0.72_structural_ambiguity_candidates",
 ) -> dict[str, Any]:
     return {
         "case_id": case_id,
@@ -43,7 +47,7 @@ def _task(
         "verification_command": "Run model check first, then simulation when model check succeeds.",
         "dataset_split": "holdout",
         "registry_family": family,
-        "registry_bundle": "v0.72_structural_ambiguity_candidates",
+        "registry_bundle": registry_bundle,
     }
 
 
@@ -508,6 +512,250 @@ def build_medium_hard_pack(
             "remain unstable and are excluded."
         ),
         "benchmark_layer": "medium_hard_budget_sensitive",
+    }
+    write_json(out_dir / "summary.json", summary)
+    return summary
+
+
+def build_stable_pattern_expansion_variants(
+    *,
+    out_dir: Path = DEFAULT_STABLE_PATTERN_EXPANSION_OUT_DIR,
+) -> dict[str, Any]:
+    bundle = "v0.76_structural_ambiguity_stable_pattern_expansion"
+    tasks = [
+        _task(
+            case_id="residual_projection_03_three_window_overlap_closure",
+            family="residual_projection_closure_conflict",
+            title="Repair three-window residual closure conflict",
+            description=(
+                "A residual projection workflow now has three overlapping windows and one aggregate closure. "
+                "Restore a compileable and simulatable model while preserving residual, window, and aggregate signals."
+            ),
+            constraints=[
+                "Keep model name unchanged.",
+                "Keep all five residual elements.",
+                "Preserve all three window outputs and the aggregate output.",
+            ],
+            initial_model="""
+model ResidualProjectionThreeWindowOverlapClosure
+  Real source[5];
+  Real estimate[5];
+  Real residual[5];
+  Real window[3];
+  Real aggregate;
+equation
+  for i in 1:5 loop
+    source[i] = i * sin(time);
+    estimate[i] = source[i];
+  end for;
+  residual[1] = source[1] - estimate[1];
+  residual[2] = source[2] - estimate[2];
+  residual[3] = source[3] - estimate[3];
+  window[1] = residual[1] + residual[2];
+  window[2] = residual[2] + residual[3];
+  window[3] = residual[3] + residual[4];
+  aggregate = window[1] + window[2] + window[3] + residual[5];
+  aggregate = 0;
+  window[1] = 0;
+end ResidualProjectionThreeWindowOverlapClosure;
+""",
+            registry_bundle=bundle,
+        ),
+        _task(
+            case_id="residual_projection_04_nested_window_closure_conflict",
+            family="residual_projection_closure_conflict",
+            title="Repair nested window residual closure conflict",
+            description=(
+                "A nested residual projection combines local window closures with a global aggregate. Restore a "
+                "compileable and simulatable model while preserving the nested residual workflow."
+            ),
+            constraints=[
+                "Keep model name unchanged.",
+                "Keep the four-element residual workflow.",
+                "Preserve local, bridge, and global outputs.",
+            ],
+            initial_model="""
+model ResidualProjectionNestedWindowClosureConflict
+  Real source[4];
+  Real estimate[4];
+  Real residual[4];
+  Real local;
+  Real bridge;
+  Real global;
+equation
+  for i in 1:4 loop
+    source[i] = i * cos(time);
+    estimate[i] = source[i];
+  end for;
+  residual[1] = source[1] - estimate[1];
+  residual[2] = source[2] - estimate[2];
+  local = residual[1] + residual[2];
+  bridge = local + residual[3];
+  global = bridge + residual[4];
+  global = 0;
+  local = 0;
+end ResidualProjectionNestedWindowClosureConflict;
+""",
+            registry_bundle=bundle,
+        ),
+        _task(
+            case_id="residual_projection_05_dual_aggregate_closure_conflict",
+            family="residual_projection_closure_conflict",
+            title="Repair dual aggregate residual closure conflict",
+            description=(
+                "A residual projection exposes two aggregate outputs over shared residual elements. Restore a "
+                "compileable and simulatable model while preserving both aggregate outputs."
+            ),
+            constraints=[
+                "Keep model name unchanged.",
+                "Keep the shared residual projection.",
+                "Preserve both aggregate outputs and the residual array.",
+            ],
+            initial_model="""
+model ResidualProjectionDualAggregateClosureConflict
+  Real source[4];
+  Real estimate[4];
+  Real residual[4];
+  Real aggregateA;
+  Real aggregateB;
+equation
+  for i in 1:4 loop
+    source[i] = i + sin(time);
+    estimate[i] = source[i];
+  end for;
+  residual[1] = source[1] - estimate[1];
+  residual[2] = source[2] - estimate[2];
+  aggregateA = residual[1] + residual[2] + residual[3];
+  aggregateB = residual[2] + residual[3] + residual[4];
+  aggregateA = 0;
+  residual[1] + residual[2] = 0;
+end ResidualProjectionDualAggregateClosureConflict;
+""",
+            registry_bundle=bundle,
+        ),
+        _task(
+            case_id="mixed_constraint_03_segmented_residual_projection_conflict",
+            family="mixed_over_under_constraint",
+            title="Repair segmented residual projection conflict",
+            description=(
+                "A segmented residual projection mixes segment-level closures and an aggregate residual output. "
+                "Restore a compileable and simulatable model while keeping the segment workflow."
+            ),
+            constraints=[
+                "Keep model name unchanged.",
+                "Keep all segment outputs.",
+                "Preserve the residual and aggregate projection workflow.",
+            ],
+            initial_model="""
+model MixedConstraintSegmentedResidualProjectionConflict
+  Real source[4];
+  Real estimate[4];
+  Real residual[4];
+  Real segmentA;
+  Real segmentB;
+  Real aggregate;
+equation
+  for i in 1:4 loop
+    source[i] = i * sin(time);
+    estimate[i] = source[i];
+  end for;
+  residual[1] = source[1] - estimate[1];
+  residual[2] = source[2] - estimate[2];
+  segmentA = residual[1] + residual[2];
+  segmentB = residual[3] + residual[4];
+  aggregate = segmentA + segmentB;
+  aggregate = 0;
+  segmentA = 0;
+end MixedConstraintSegmentedResidualProjectionConflict;
+""",
+            registry_bundle=bundle,
+        ),
+        _task(
+            case_id="mixed_constraint_04_projection_delta_closure_conflict",
+            family="mixed_over_under_constraint",
+            title="Repair projection delta closure conflict",
+            description=(
+                "A projection refactor introduced delta outputs and aggregate closure equations over shared latent "
+                "states. Restore a compileable and simulatable model while preserving both delta outputs."
+            ),
+            constraints=[
+                "Keep model name unchanged.",
+                "Keep all latent states.",
+                "Preserve total, delta, and aggregate outputs.",
+            ],
+            initial_model="""
+model MixedConstraintProjectionDeltaClosureConflict
+  Real state[4];
+  Real total;
+  Real deltaA;
+  Real deltaB;
+  Real aggregate;
+equation
+  state[1] + state[2] + state[3] + state[4] = 1 + time;
+  2 * state[1] + 2 * state[2] + 2 * state[3] + 2 * state[4] = 2 + 2 * time;
+  total = state[1] + state[2] + state[3] + state[4];
+  deltaA = state[1] - state[3];
+  deltaB = state[2] - state[4];
+  aggregate = deltaA + deltaB;
+  aggregate = 0;
+end MixedConstraintProjectionDeltaClosureConflict;
+""",
+            registry_bundle=bundle,
+        ),
+        _task(
+            case_id="mixed_constraint_05_window_balance_projection_conflict",
+            family="mixed_over_under_constraint",
+            title="Repair window balance projection conflict",
+            description=(
+                "A window balance projection combines duplicated balance equations with exposed observer outputs. "
+                "Restore a compileable and simulatable model while keeping all observer outputs."
+            ),
+            constraints=[
+                "Keep model name unchanged.",
+                "Keep all latent states.",
+                "Preserve balance, skew, and observer outputs.",
+            ],
+            initial_model="""
+model MixedConstraintWindowBalanceProjectionConflict
+  Real state[3];
+  Real balance;
+  Real skew;
+  Real observer;
+equation
+  state[1] + state[2] + state[3] = 1 + sin(time);
+  4 * state[1] + 4 * state[2] + 4 * state[3] = 4 + 4 * sin(time);
+  balance = state[1] + state[2] - state[3];
+  skew = state[1] - 2 * state[2] + state[3];
+  observer = balance + skew;
+end MixedConstraintWindowBalanceProjectionConflict;
+""",
+            registry_bundle=bundle,
+        ),
+    ]
+    out_dir.mkdir(parents=True, exist_ok=True)
+    tasks_path = out_dir / "tasks.jsonl"
+    tasks_path.write_text(
+        "".join(json.dumps(task, sort_keys=True) + "\n" for task in tasks),
+        encoding="utf-8",
+    )
+    family_counts = Counter(str(task["registry_family"]) for task in tasks)
+    summary = {
+        "version": "v0.76.0",
+        "analysis_scope": "structural_ambiguity_stable_pattern_expansion_build",
+        "status": "PASS",
+        "artifact_complete": True,
+        "task_count": len(tasks),
+        "tasks_path": str(tasks_path),
+        "family_counts": dict(sorted(family_counts.items())),
+        "case_ids": [str(task["case_id"]) for task in tasks],
+        "source_pattern_case_ids": [
+            "mixed_constraint_01_residual_projection_conflict",
+            "residual_projection_01_two_window_closure_conflict",
+        ],
+        "scope_note": (
+            "These candidates expand only around stable strict medium-hard patterns. They require OMC admission, "
+            "budget calibration, and strict repeatability before benchmark promotion."
+        ),
     }
     write_json(out_dir / "summary.json", summary)
     return summary

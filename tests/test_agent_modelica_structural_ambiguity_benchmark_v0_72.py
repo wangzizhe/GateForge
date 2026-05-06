@@ -10,6 +10,7 @@ from gateforge.agent_modelica_structural_ambiguity_benchmark_v0_72_0 import (
     build_medium_hard_pack,
     build_structural_ambiguity_seed_candidates,
     build_structural_ambiguity_variants,
+    build_stable_pattern_expansion_variants,
     summarize_budget_calibration,
     summarize_budget_repeatability,
 )
@@ -131,6 +132,24 @@ class StructuralAmbiguityBenchmarkV072Tests(unittest.TestCase):
             self.assertEqual(summary["medium_hard_case_ids"], ["stable_case"])
             self.assertEqual(summary["unstable_case_ids"], ["unstable_case"])
             self.assertTrue(summary["conclusion_allowed"])
+
+    def test_build_stable_pattern_expansion_variants_extends_strict_medium_hard_patterns(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            summary = build_stable_pattern_expansion_variants(out_dir=Path(tmp) / "expansion")
+            self.assertEqual(summary["task_count"], 6)
+            self.assertEqual(summary["family_counts"]["mixed_over_under_constraint"], 3)
+            self.assertEqual(summary["family_counts"]["residual_projection_closure_conflict"], 3)
+            rows = [
+                json.loads(line)
+                for line in Path(summary["tasks_path"]).read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+            self.assertTrue(
+                all(row["registry_bundle"] == "v0.76_structural_ambiguity_stable_pattern_expansion" for row in rows)
+            )
+            prompt_text = "\n".join(row["description"] for row in rows).lower()
+            self.assertNotIn("correct fix", prompt_text)
+            self.assertNotIn("root cause", prompt_text)
 
 
 if __name__ == "__main__":
