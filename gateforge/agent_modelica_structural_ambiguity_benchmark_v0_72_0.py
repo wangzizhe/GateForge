@@ -17,6 +17,9 @@ DEFAULT_STABLE_PATTERN_EXPANSION_OUT_DIR = (
 DEFAULT_RESIDUAL_CLOSURE_EXPANSION_OUT_DIR = (
     REPO_ROOT / "artifacts" / "structural_ambiguity_residual_closure_expansion_v0_77_0"
 )
+DEFAULT_SHIFTED_CLOSURE_EXPANSION_OUT_DIR = (
+    REPO_ROOT / "artifacts" / "structural_ambiguity_shifted_closure_expansion_v0_78_0"
+)
 
 
 def write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -1031,6 +1034,276 @@ end ResidualProjectionCascadeDeltaResidualConflict;
         ],
         "scope_note": (
             "These candidates expand around the stable residual projection closure pattern. They require OMC "
+            "admission, budget calibration, and strict repeatability before benchmark promotion."
+        ),
+    }
+    write_json(out_dir / "summary.json", summary)
+    return summary
+
+
+def build_shifted_closure_expansion_variants(
+    *,
+    out_dir: Path = DEFAULT_SHIFTED_CLOSURE_EXPANSION_OUT_DIR,
+) -> dict[str, Any]:
+    bundle = "v0.78_structural_ambiguity_shifted_closure_expansion"
+    tasks = [
+        _task(
+            case_id="residual_projection_12_staggered_window_terminal_closure",
+            family="residual_projection_closure_conflict",
+            title="Repair staggered window terminal closure",
+            description=(
+                "A shifted residual projection uses staggered windows and a terminal closure. Restore a compileable "
+                "and simulatable model while preserving the staggered window workflow."
+            ),
+            constraints=[
+                "Keep model name unchanged.",
+                "Keep all staggered window outputs.",
+                "Preserve residual and terminal outputs.",
+            ],
+            initial_model="""
+model ResidualProjectionStaggeredWindowTerminalClosure
+  Real source[6];
+  Real estimate[6];
+  Real residual[6];
+  Real windowA[2];
+  Real windowB[2];
+  Real terminal;
+equation
+  for i in 1:6 loop
+    source[i] = i * sin(time);
+    estimate[i] = source[i];
+  end for;
+  residual[1] = source[1] - estimate[1];
+  residual[2] = source[2] - estimate[2];
+  residual[3] = source[3] - estimate[3];
+  for i in 1:2 loop
+    windowA[i] = residual[i] + residual[i + 1];
+    windowB[i] = residual[i + 2] + residual[i + 3];
+  end for;
+  terminal = windowA[1] + windowA[2] + windowB[1] + windowB[2] + residual[6];
+  terminal = 0;
+  windowA[2] = 0;
+end ResidualProjectionStaggeredWindowTerminalClosure;
+""",
+            registry_bundle=bundle,
+        ),
+        _task(
+            case_id="residual_projection_13_dual_terminal_shifted_closure",
+            family="residual_projection_closure_conflict",
+            title="Repair dual terminal shifted closure",
+            description=(
+                "A shifted residual projection exposes two terminal outputs over overlapping windows. Restore a "
+                "compileable and simulatable model while preserving both terminal outputs."
+            ),
+            constraints=[
+                "Keep model name unchanged.",
+                "Keep the overlapping shifted windows.",
+                "Preserve both terminal outputs.",
+            ],
+            initial_model="""
+model ResidualProjectionDualTerminalShiftedClosure
+  Real source[6];
+  Real estimate[6];
+  Real residual[6];
+  Real window[4];
+  Real terminalA;
+  Real terminalB;
+equation
+  for i in 1:6 loop
+    source[i] = i + sin(time);
+    estimate[i] = source[i];
+  end for;
+  residual[1] = source[1] - estimate[1];
+  residual[2] = source[2] - estimate[2];
+  residual[3] = source[3] - estimate[3];
+  for i in 1:4 loop
+    window[i] = residual[i] + residual[i + 1];
+  end for;
+  terminalA = window[1] + window[3] + residual[6];
+  terminalB = window[2] + window[4];
+  terminalA = 0;
+  terminalB = 0;
+end ResidualProjectionDualTerminalShiftedClosure;
+""",
+            registry_bundle=bundle,
+        ),
+        _task(
+            case_id="residual_projection_14_ladder_window_closure_conflict",
+            family="residual_projection_closure_conflict",
+            title="Repair ladder window residual closure conflict",
+            description=(
+                "A residual ladder projection combines adjacent windows, bridge windows, and a final closure. "
+                "Restore a compileable and simulatable model while preserving the ladder outputs."
+            ),
+            constraints=[
+                "Keep model name unchanged.",
+                "Keep adjacent and bridge window outputs.",
+                "Preserve the final ladder closure output.",
+            ],
+            initial_model="""
+model ResidualProjectionLadderWindowClosureConflict
+  Real source[5];
+  Real estimate[5];
+  Real residual[5];
+  Real adjacent[3];
+  Real bridge[2];
+  Real finalClosure;
+equation
+  for i in 1:5 loop
+    source[i] = i * cos(time);
+    estimate[i] = source[i];
+  end for;
+  residual[1] = source[1] - estimate[1];
+  residual[2] = source[2] - estimate[2];
+  for i in 1:3 loop
+    adjacent[i] = residual[i] + residual[i + 1];
+  end for;
+  bridge[1] = adjacent[1] + adjacent[2];
+  bridge[2] = adjacent[2] + adjacent[3];
+  finalClosure = bridge[1] + bridge[2] + residual[5];
+  finalClosure = 0;
+  adjacent[1] = 0;
+end ResidualProjectionLadderWindowClosureConflict;
+""",
+            registry_bundle=bundle,
+        ),
+        _task(
+            case_id="residual_projection_15_rolling_sum_terminal_conflict",
+            family="residual_projection_closure_conflict",
+            title="Repair rolling sum terminal residual conflict",
+            description=(
+                "A rolling residual projection exposes a rolling sum and terminal signal over shared residuals. "
+                "Restore a compileable and simulatable model while keeping the rolling outputs."
+            ),
+            constraints=[
+                "Keep model name unchanged.",
+                "Keep all rolling sum outputs.",
+                "Preserve residual and terminal signals.",
+            ],
+            initial_model="""
+model ResidualProjectionRollingSumTerminalConflict
+  Real source[6];
+  Real estimate[6];
+  Real residual[6];
+  Real rolling[3];
+  Real terminal;
+equation
+  for i in 1:6 loop
+    source[i] = i + cos(time);
+    estimate[i] = source[i];
+  end for;
+  residual[1] = source[1] - estimate[1];
+  residual[2] = source[2] - estimate[2];
+  residual[3] = source[3] - estimate[3];
+  for i in 1:3 loop
+    rolling[i] = residual[i] + residual[i + 1] + residual[i + 2];
+  end for;
+  terminal = rolling[1] + rolling[2] + rolling[3] + residual[6];
+  terminal = 0;
+  rolling[1] + rolling[2] = 0;
+end ResidualProjectionRollingSumTerminalConflict;
+""",
+            registry_bundle=bundle,
+        ),
+        _task(
+            case_id="residual_projection_16_split_shifted_bridge_closure",
+            family="residual_projection_closure_conflict",
+            title="Repair split shifted bridge closure",
+            description=(
+                "A split shifted residual projection has two bridge paths and a shared closure. Restore a "
+                "compileable and simulatable model while preserving both bridge paths."
+            ),
+            constraints=[
+                "Keep model name unchanged.",
+                "Keep both shifted bridge paths.",
+                "Preserve residual, bridge, and shared closure outputs.",
+            ],
+            initial_model="""
+model ResidualProjectionSplitShiftedBridgeClosure
+  Real source[6];
+  Real estimate[6];
+  Real residual[6];
+  Real bridgeA;
+  Real bridgeB;
+  Real shared;
+equation
+  for i in 1:6 loop
+    source[i] = i * sin(time);
+    estimate[i] = source[i];
+  end for;
+  residual[1] = source[1] - estimate[1];
+  residual[2] = source[2] - estimate[2];
+  residual[3] = source[3] - estimate[3];
+  bridgeA = residual[1] + residual[3] + residual[5];
+  bridgeB = residual[2] + residual[4] + residual[6];
+  shared = bridgeA + bridgeB;
+  shared = 0;
+  bridgeA = 0;
+end ResidualProjectionSplitShiftedBridgeClosure;
+""",
+            registry_bundle=bundle,
+        ),
+        _task(
+            case_id="residual_projection_17_offset_window_chain_closure",
+            family="residual_projection_closure_conflict",
+            title="Repair offset window chain closure",
+            description=(
+                "An offset residual window chain links local windows into a final closure output. Restore a "
+                "compileable and simulatable model while preserving the offset window chain."
+            ),
+            constraints=[
+                "Keep model name unchanged.",
+                "Keep all offset window outputs.",
+                "Preserve chain and final closure outputs.",
+            ],
+            initial_model="""
+model ResidualProjectionOffsetWindowChainClosure
+  Real source[5];
+  Real estimate[5];
+  Real residual[5];
+  Real local[3];
+  Real chain;
+  Real finalClosure;
+equation
+  for i in 1:5 loop
+    source[i] = i + sin(time);
+    estimate[i] = source[i];
+  end for;
+  residual[1] = source[1] - estimate[1];
+  residual[2] = source[2] - estimate[2];
+  for i in 1:3 loop
+    local[i] = residual[i] + residual[i + 2];
+  end for;
+  chain = local[1] + local[2] + local[3];
+  finalClosure = chain + residual[4] + residual[5];
+  finalClosure = 0;
+  local[1] = 0;
+end ResidualProjectionOffsetWindowChainClosure;
+""",
+            registry_bundle=bundle,
+        ),
+    ]
+    out_dir.mkdir(parents=True, exist_ok=True)
+    tasks_path = out_dir / "tasks.jsonl"
+    tasks_path.write_text(
+        "".join(json.dumps(task, sort_keys=True) + "\n" for task in tasks),
+        encoding="utf-8",
+    )
+    family_counts = Counter(str(task["registry_family"]) for task in tasks)
+    summary = {
+        "version": "v0.78.0",
+        "analysis_scope": "structural_ambiguity_shifted_closure_expansion_build",
+        "status": "PASS",
+        "artifact_complete": True,
+        "task_count": len(tasks),
+        "tasks_path": str(tasks_path),
+        "family_counts": dict(sorted(family_counts.items())),
+        "case_ids": [str(task["case_id"]) for task in tasks],
+        "source_pattern_case_ids": [
+            "residual_projection_09_shifted_index_closure_conflict",
+        ],
+        "scope_note": (
+            "These candidates expand around the stable shifted-index residual closure pattern. They require OMC "
             "admission, budget calibration, and strict repeatability before benchmark promotion."
         ),
     }

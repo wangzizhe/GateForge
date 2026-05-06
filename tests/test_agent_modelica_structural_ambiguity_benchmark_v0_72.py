@@ -9,6 +9,7 @@ from gateforge.agent_modelica_structural_ambiguity_benchmark_v0_72_0 import (
     build_second_generation_structural_ambiguity_variants,
     build_medium_hard_pack,
     build_residual_closure_expansion_variants,
+    build_shifted_closure_expansion_variants,
     build_structural_ambiguity_seed_candidates,
     build_structural_ambiguity_variants,
     build_stable_pattern_expansion_variants,
@@ -166,6 +167,24 @@ class StructuralAmbiguityBenchmarkV072Tests(unittest.TestCase):
                 all(row["registry_bundle"] == "v0.77_structural_ambiguity_residual_closure_expansion" for row in rows)
             )
             self.assertTrue(all(row["registry_family"] == "residual_projection_closure_conflict" for row in rows))
+            prompt_text = "\n".join(row["description"] for row in rows).lower()
+            self.assertNotIn("correct fix", prompt_text)
+            self.assertNotIn("root cause", prompt_text)
+
+    def test_build_shifted_closure_expansion_variants_focuses_shifted_pattern(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            summary = build_shifted_closure_expansion_variants(out_dir=Path(tmp) / "shifted")
+            self.assertEqual(summary["task_count"], 6)
+            self.assertEqual(summary["family_counts"], {"residual_projection_closure_conflict": 6})
+            rows = [
+                json.loads(line)
+                for line in Path(summary["tasks_path"]).read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+            self.assertTrue(
+                all(row["registry_bundle"] == "v0.78_structural_ambiguity_shifted_closure_expansion" for row in rows)
+            )
+            self.assertEqual(summary["source_pattern_case_ids"], ["residual_projection_09_shifted_index_closure_conflict"])
             prompt_text = "\n".join(row["description"] for row in rows).lower()
             self.assertNotIn("correct fix", prompt_text)
             self.assertNotIn("root cause", prompt_text)
