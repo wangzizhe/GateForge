@@ -9,6 +9,7 @@ from typing import Any
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_OUT_DIR = REPO_ROOT / "artifacts" / "structural_ambiguity_seed_candidates_v0_72_0"
 DEFAULT_VARIANT_OUT_DIR = REPO_ROOT / "artifacts" / "structural_ambiguity_variants_v0_73_4"
+DEFAULT_SECOND_GEN_OUT_DIR = REPO_ROOT / "artifacts" / "structural_ambiguity_second_gen_v0_74_1"
 
 
 def write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -511,6 +512,166 @@ end MixedConstraintVariantHierarchicalResidualConflict;
         "scope_note": (
             "Variants extend the two budget-sensitive v0.72 patterns. They require admission, baseline, and "
             "budget calibration before benchmark use."
+        ),
+    }
+    write_json(out_dir / "summary.json", summary)
+    return summary
+
+
+def build_second_generation_structural_ambiguity_variants(
+    *,
+    out_dir: Path = DEFAULT_SECOND_GEN_OUT_DIR,
+) -> dict[str, Any]:
+    tasks = [
+        _task(
+            case_id="projection_closure_01_four_state_two_observer_rank_loss",
+            family="projection_closure_rank_loss",
+            title="Repair four-state two-observer rank loss",
+            description=(
+                "A projection workflow exposes two observer signals from four latent states. Restore a compileable "
+                "and simulatable model while preserving both observer signals and the latent-state workflow."
+            ),
+            constraints=[
+                "Keep model name unchanged.",
+                "Keep the four latent states.",
+                "Preserve both observer outputs.",
+                "Do not collapse the latent-state workflow into direct observer assignments.",
+            ],
+            initial_model="""
+model ProjectionClosureFourStateTwoObserverRankLoss
+  Real state[4];
+  Real total;
+  Real weighted;
+  Real observerA;
+  Real observerB;
+equation
+  state[1] + state[2] + state[3] + state[4] = 1 + time;
+  2 * state[1] + 2 * state[2] + 2 * state[3] + 2 * state[4] = 2 + 2 * time;
+  total = state[1] + state[2] + state[3] + state[4];
+  weighted = state[1] + 2 * state[2] + 3 * state[3] + 4 * state[4];
+  observerA = state[1] - state[3];
+  observerB = state[2] - state[4];
+end ProjectionClosureFourStateTwoObserverRankLoss;
+""",
+        ),
+        _task(
+            case_id="projection_closure_02_three_state_redundant_summary",
+            family="projection_closure_rank_loss",
+            title="Repair three-state redundant summary projection",
+            description=(
+                "A three-state projection was refactored into redundant summary and two independent observations. "
+                "Restore a compileable and simulatable model while preserving all observations."
+            ),
+            constraints=[
+                "Keep model name unchanged.",
+                "Keep the three latent states.",
+                "Preserve summary, contrast, and skew observations.",
+            ],
+            initial_model="""
+model ProjectionClosureThreeStateRedundantSummary
+  Real state[3];
+  Real summary;
+  Real contrast;
+  Real skew;
+equation
+  state[1] + state[2] + state[3] = 1 + sin(time);
+  3 * state[1] + 3 * state[2] + 3 * state[3] = 3 + 3 * sin(time);
+  summary = state[1] + state[2] + state[3];
+  contrast = state[1] - state[3];
+  skew = state[1] - 2 * state[2] + state[3];
+end ProjectionClosureThreeStateRedundantSummary;
+""",
+        ),
+        _task(
+            case_id="residual_projection_01_two_window_closure_conflict",
+            family="residual_projection_closure_conflict",
+            title="Repair two-window residual closure conflict",
+            description=(
+                "A residual projection workflow uses two overlapping windows and one aggregate closure. Restore a "
+                "compileable and simulatable model while preserving residual, window, and aggregate signals."
+            ),
+            constraints=[
+                "Keep model name unchanged.",
+                "Keep all residual elements.",
+                "Preserve both window outputs and the aggregate output.",
+            ],
+            initial_model="""
+model ResidualProjectionTwoWindowClosureConflict
+  Real source[4];
+  Real estimate[4];
+  Real residual[4];
+  Real windowA;
+  Real windowB;
+  Real aggregate;
+equation
+  for i in 1:4 loop
+    source[i] = i * sin(time);
+    estimate[i] = source[i];
+  end for;
+  residual[1] = source[1] - estimate[1];
+  residual[2] = source[2] - estimate[2];
+  windowA = residual[1] + residual[2];
+  windowB = residual[2] + residual[3];
+  aggregate = windowA + windowB + residual[4];
+  aggregate = 0;
+  windowA = 0;
+end ResidualProjectionTwoWindowClosureConflict;
+""",
+        ),
+        _task(
+            case_id="residual_projection_02_nested_projection_conflict",
+            family="residual_projection_closure_conflict",
+            title="Repair nested residual projection conflict",
+            description=(
+                "A nested residual projection mixes local residual definitions with aggregate closure equations. "
+                "Restore a compileable and simulatable model while keeping local and global residual outputs."
+            ),
+            constraints=[
+                "Keep model name unchanged.",
+                "Keep the nested residual projection structure.",
+                "Preserve local and global residual outputs.",
+            ],
+            initial_model="""
+model ResidualProjectionNestedProjectionConflict
+  Real source[3];
+  Real estimate[3];
+  Real residual[3];
+  Real local[2];
+  Real global;
+equation
+  for i in 1:3 loop
+    source[i] = i + cos(time);
+    estimate[i] = source[i];
+  end for;
+  residual[1] = source[1] - estimate[1];
+  local[1] = residual[1] + residual[2];
+  local[2] = residual[2] + residual[3];
+  global = local[1] + local[2];
+  global = 0;
+  local[1] = 0;
+end ResidualProjectionNestedProjectionConflict;
+""",
+        ),
+    ]
+    out_dir.mkdir(parents=True, exist_ok=True)
+    tasks_path = out_dir / "tasks.jsonl"
+    tasks_path.write_text(
+        "".join(json.dumps(task, sort_keys=True) + "\n" for task in tasks),
+        encoding="utf-8",
+    )
+    family_counts = Counter(str(task["registry_family"]) for task in tasks)
+    summary = {
+        "version": "v0.74.1",
+        "analysis_scope": "second_generation_structural_ambiguity_variant_build",
+        "status": "PASS",
+        "artifact_complete": True,
+        "task_count": len(tasks),
+        "tasks_path": str(tasks_path),
+        "family_counts": dict(sorted(family_counts.items())),
+        "case_ids": [str(task["case_id"]) for task in tasks],
+        "construction_hypothesis": (
+            "Second-generation variants preserve the need for an additional independent projection/closure "
+            "constraint after initial structural diagnosis."
         ),
     }
     write_json(out_dir / "summary.json", summary)

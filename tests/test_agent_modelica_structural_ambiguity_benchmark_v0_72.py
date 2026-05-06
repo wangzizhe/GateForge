@@ -6,6 +6,7 @@ import unittest
 from pathlib import Path
 
 from gateforge.agent_modelica_structural_ambiguity_benchmark_v0_72_0 import (
+    build_second_generation_structural_ambiguity_variants,
     build_structural_ambiguity_seed_candidates,
     build_structural_ambiguity_variants,
     summarize_budget_calibration,
@@ -44,6 +45,20 @@ class StructuralAmbiguityBenchmarkV072Tests(unittest.TestCase):
             ]
             self.assertTrue(all(row["registry_bundle"] == "v0.72_structural_ambiguity_candidates" for row in rows))
             self.assertTrue(any("rank loss" in row["title"].lower() for row in rows))
+
+    def test_build_second_generation_structural_ambiguity_variants_targets_projection_closure(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            summary = build_second_generation_structural_ambiguity_variants(out_dir=Path(tmp) / "second")
+            self.assertEqual(summary["task_count"], 4)
+            self.assertEqual(summary["family_counts"]["projection_closure_rank_loss"], 2)
+            self.assertEqual(summary["family_counts"]["residual_projection_closure_conflict"], 2)
+            rows = [
+                json.loads(line)
+                for line in Path(summary["tasks_path"]).read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+            self.assertTrue(all("closure" in row["registry_family"] for row in rows))
+            self.assertTrue(all("correct fix" not in row["description"].lower() for row in rows))
 
     def test_summarize_budget_calibration_detects_budget_sensitive_cases(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
