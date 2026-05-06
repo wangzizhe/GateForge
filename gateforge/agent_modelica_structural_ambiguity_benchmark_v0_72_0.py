@@ -14,6 +14,9 @@ DEFAULT_MEDIUM_HARD_PACK_OUT_DIR = REPO_ROOT / "artifacts" / "structural_ambigui
 DEFAULT_STABLE_PATTERN_EXPANSION_OUT_DIR = (
     REPO_ROOT / "artifacts" / "structural_ambiguity_stable_pattern_expansion_v0_76_0"
 )
+DEFAULT_RESIDUAL_CLOSURE_EXPANSION_OUT_DIR = (
+    REPO_ROOT / "artifacts" / "structural_ambiguity_residual_closure_expansion_v0_77_0"
+)
 
 
 def write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -755,6 +758,280 @@ end MixedConstraintWindowBalanceProjectionConflict;
         "scope_note": (
             "These candidates expand only around stable strict medium-hard patterns. They require OMC admission, "
             "budget calibration, and strict repeatability before benchmark promotion."
+        ),
+    }
+    write_json(out_dir / "summary.json", summary)
+    return summary
+
+
+def build_residual_closure_expansion_variants(
+    *,
+    out_dir: Path = DEFAULT_RESIDUAL_CLOSURE_EXPANSION_OUT_DIR,
+) -> dict[str, Any]:
+    bundle = "v0.77_structural_ambiguity_residual_closure_expansion"
+    tasks = [
+        _task(
+            case_id="residual_projection_06_cascaded_window_closure_conflict",
+            family="residual_projection_closure_conflict",
+            title="Repair cascaded window residual closure conflict",
+            description=(
+                "A cascaded residual projection exposes local windows, a bridge signal, and a global aggregate. "
+                "Restore a compileable and simulatable model while preserving the cascade workflow."
+            ),
+            constraints=[
+                "Keep model name unchanged.",
+                "Keep all residual elements.",
+                "Preserve local window, bridge, and aggregate outputs.",
+            ],
+            initial_model="""
+model ResidualProjectionCascadedWindowClosureConflict
+  Real source[5];
+  Real estimate[5];
+  Real residual[5];
+  Real local[2];
+  Real bridge;
+  Real aggregate;
+equation
+  for i in 1:5 loop
+    source[i] = i * sin(time);
+    estimate[i] = source[i];
+  end for;
+  residual[1] = source[1] - estimate[1];
+  residual[2] = source[2] - estimate[2];
+  local[1] = residual[1] + residual[2];
+  local[2] = residual[2] + residual[3];
+  bridge = local[1] + local[2] + residual[4];
+  aggregate = bridge + residual[5];
+  aggregate = 0;
+  local[1] = 0;
+end ResidualProjectionCascadedWindowClosureConflict;
+""",
+            registry_bundle=bundle,
+        ),
+        _task(
+            case_id="residual_projection_07_cross_coupled_window_closure",
+            family="residual_projection_closure_conflict",
+            title="Repair cross-coupled residual window closure",
+            description=(
+                "A residual projection uses cross-coupled windows over shared residual elements. Restore a "
+                "compileable and simulatable model while preserving all window outputs."
+            ),
+            constraints=[
+                "Keep model name unchanged.",
+                "Keep the cross-coupled window structure.",
+                "Preserve all residual and aggregate outputs.",
+            ],
+            initial_model="""
+model ResidualProjectionCrossCoupledWindowClosure
+  Real source[5];
+  Real estimate[5];
+  Real residual[5];
+  Real windowA;
+  Real windowB;
+  Real windowC;
+  Real aggregate;
+equation
+  for i in 1:5 loop
+    source[i] = i + sin(time);
+    estimate[i] = source[i];
+  end for;
+  residual[1] = source[1] - estimate[1];
+  residual[2] = source[2] - estimate[2];
+  residual[3] = source[3] - estimate[3];
+  windowA = residual[1] + residual[3];
+  windowB = residual[2] + residual[4];
+  windowC = residual[3] + residual[5];
+  aggregate = windowA + windowB + windowC;
+  aggregate = 0;
+  windowA + windowB = 0;
+end ResidualProjectionCrossCoupledWindowClosure;
+""",
+            registry_bundle=bundle,
+        ),
+        _task(
+            case_id="residual_projection_08_dual_stage_observer_closure",
+            family="residual_projection_closure_conflict",
+            title="Repair dual-stage residual observer closure",
+            description=(
+                "A dual-stage residual observer exposes stage summaries and observer signals. Restore a "
+                "compileable and simulatable model while preserving both stages."
+            ),
+            constraints=[
+                "Keep model name unchanged.",
+                "Keep both observer stages.",
+                "Preserve stage, observer, and aggregate outputs.",
+            ],
+            initial_model="""
+model ResidualProjectionDualStageObserverClosure
+  Real source[4];
+  Real estimate[4];
+  Real residual[4];
+  Real stage[2];
+  Real observer[2];
+  Real aggregate;
+equation
+  for i in 1:4 loop
+    source[i] = i * cos(time);
+    estimate[i] = source[i];
+  end for;
+  residual[1] = source[1] - estimate[1];
+  residual[2] = source[2] - estimate[2];
+  stage[1] = residual[1] + residual[2];
+  stage[2] = residual[3] + residual[4];
+  observer[1] = stage[1] - stage[2];
+  observer[2] = stage[1] + stage[2];
+  aggregate = observer[1] + observer[2];
+  aggregate = 0;
+  stage[1] = 0;
+end ResidualProjectionDualStageObserverClosure;
+""",
+            registry_bundle=bundle,
+        ),
+        _task(
+            case_id="residual_projection_09_shifted_index_closure_conflict",
+            family="residual_projection_closure_conflict",
+            title="Repair shifted-index residual closure conflict",
+            description=(
+                "A shifted-index residual projection links adjacent windows and a terminal aggregate. Restore a "
+                "compileable and simulatable model while preserving the shifted-index workflow."
+            ),
+            constraints=[
+                "Keep model name unchanged.",
+                "Keep all shifted windows.",
+                "Preserve residual and terminal aggregate outputs.",
+            ],
+            initial_model="""
+model ResidualProjectionShiftedIndexClosureConflict
+  Real source[6];
+  Real estimate[6];
+  Real residual[6];
+  Real window[4];
+  Real terminal;
+equation
+  for i in 1:6 loop
+    source[i] = i + cos(time);
+    estimate[i] = source[i];
+  end for;
+  residual[1] = source[1] - estimate[1];
+  residual[2] = source[2] - estimate[2];
+  residual[3] = source[3] - estimate[3];
+  residual[4] = source[4] - estimate[4];
+  for i in 1:4 loop
+    window[i] = residual[i] + residual[i + 1];
+  end for;
+  terminal = window[1] + window[2] + window[3] + window[4] + residual[6];
+  terminal = 0;
+  window[2] = 0;
+end ResidualProjectionShiftedIndexClosureConflict;
+""",
+            registry_bundle=bundle,
+        ),
+        _task(
+            case_id="residual_projection_10_multi_output_balance_closure",
+            family="residual_projection_closure_conflict",
+            title="Repair multi-output residual balance closure",
+            description=(
+                "A residual projection exposes left, center, right, and global balance outputs over shared "
+                "residual elements. Restore a compileable and simulatable model while preserving all outputs."
+            ),
+            constraints=[
+                "Keep model name unchanged.",
+                "Keep the multi-output balance workflow.",
+                "Preserve all residual, local, and global outputs.",
+            ],
+            initial_model="""
+model ResidualProjectionMultiOutputBalanceClosure
+  Real source[5];
+  Real estimate[5];
+  Real residual[5];
+  Real left;
+  Real center;
+  Real right;
+  Real global;
+equation
+  for i in 1:5 loop
+    source[i] = i * sin(time);
+    estimate[i] = source[i];
+  end for;
+  residual[1] = source[1] - estimate[1];
+  residual[2] = source[2] - estimate[2];
+  residual[3] = source[3] - estimate[3];
+  left = residual[1] + residual[2];
+  center = residual[2] + residual[3] + residual[4];
+  right = residual[4] + residual[5];
+  global = left + center + right;
+  global = 0;
+  center = 0;
+end ResidualProjectionMultiOutputBalanceClosure;
+""",
+            registry_bundle=bundle,
+        ),
+        _task(
+            case_id="residual_projection_11_cascade_delta_residual_conflict",
+            family="residual_projection_closure_conflict",
+            title="Repair cascade delta residual closure conflict",
+            description=(
+                "A cascade of delta residual signals feeds two closure outputs and one aggregate. Restore a "
+                "compileable and simulatable model while preserving the cascade delta workflow."
+            ),
+            constraints=[
+                "Keep model name unchanged.",
+                "Keep all cascade delta signals.",
+                "Preserve both closure outputs and the aggregate output.",
+            ],
+            initial_model="""
+model ResidualProjectionCascadeDeltaResidualConflict
+  Real source[5];
+  Real estimate[5];
+  Real residual[5];
+  Real delta[3];
+  Real closureA;
+  Real closureB;
+  Real aggregate;
+equation
+  for i in 1:5 loop
+    source[i] = i + sin(time);
+    estimate[i] = source[i];
+  end for;
+  residual[1] = source[1] - estimate[1];
+  residual[2] = source[2] - estimate[2];
+  residual[3] = source[3] - estimate[3];
+  delta[1] = residual[2] - residual[1];
+  delta[2] = residual[3] - residual[2];
+  delta[3] = residual[4] - residual[3];
+  closureA = delta[1] + delta[2];
+  closureB = delta[2] + delta[3] + residual[5];
+  aggregate = closureA + closureB;
+  aggregate = 0;
+  closureA = 0;
+end ResidualProjectionCascadeDeltaResidualConflict;
+""",
+            registry_bundle=bundle,
+        ),
+    ]
+    out_dir.mkdir(parents=True, exist_ok=True)
+    tasks_path = out_dir / "tasks.jsonl"
+    tasks_path.write_text(
+        "".join(json.dumps(task, sort_keys=True) + "\n" for task in tasks),
+        encoding="utf-8",
+    )
+    family_counts = Counter(str(task["registry_family"]) for task in tasks)
+    summary = {
+        "version": "v0.77.0",
+        "analysis_scope": "structural_ambiguity_residual_closure_expansion_build",
+        "status": "PASS",
+        "artifact_complete": True,
+        "task_count": len(tasks),
+        "tasks_path": str(tasks_path),
+        "family_counts": dict(sorted(family_counts.items())),
+        "case_ids": [str(task["case_id"]) for task in tasks],
+        "source_pattern_case_ids": [
+            "residual_projection_01_two_window_closure_conflict",
+            "residual_projection_04_nested_window_closure_conflict",
+        ],
+        "scope_note": (
+            "These candidates expand around the stable residual projection closure pattern. They require OMC "
+            "admission, budget calibration, and strict repeatability before benchmark promotion."
         ),
     }
     write_json(out_dir / "summary.json", summary)
