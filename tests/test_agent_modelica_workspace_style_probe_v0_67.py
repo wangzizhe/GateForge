@@ -11,6 +11,7 @@ from gateforge.llm_provider_adapter import LLMProviderConfig, ToolCall, ToolResp
 from gateforge.agent_modelica_workspace_style_probe_v0_67_0 import (
     WORKSPACE_TOOL_DEFS,
     _build_summary,
+    _build_workspace_system_prompt,
     _dispatch_workspace_tool,
     _safe_candidate_id,
     _timeout_result,
@@ -29,6 +30,51 @@ class WorkspaceStyleProbeV067Tests(unittest.TestCase):
         self.assertNotIn("submit_checkpoint", inspect.signature(run_workspace_style_case).parameters)
         self.assertNotIn("submit_checkpoint", inspect.signature(run_workspace_style_probe).parameters)
 
+    def test_default_benchmark_prompt_contains_no_repair_direction_hints(self) -> None:
+        prompt = _build_workspace_system_prompt(preload_diagnostics=False)
+        lowered = prompt.lower()
+        banned = [
+            "p.i = 0",
+            "n.i = 0",
+            "zero-flow",
+            "positivepin",
+            "negativepin",
+            "ohm",
+            "replace custom",
+            "common modelica repair patterns",
+            "fix those directly",
+            "no exploration needed",
+            "focus on remaining deficit",
+            "combine effective changes",
+            "equation balance summary",
+            "structured diagnostics",
+        ]
+
+        for phrase in banned:
+            self.assertNotIn(phrase, lowered)
+
+    def test_workspace_tools_do_not_advertise_wrapper_diagnostics(self) -> None:
+        text = json.dumps(WORKSPACE_TOOL_DEFS).lower()
+        banned = [
+            "equation balance summary",
+            "structured diagnostics",
+            "unconstrained variables",
+            "flow sum equations",
+            "subsystem imbalance",
+        ]
+
+        for phrase in banned:
+            self.assertNotIn(phrase, text)
+
+    def test_preloaded_diagnostic_prompt_is_observation_only(self) -> None:
+        prompt = _build_workspace_system_prompt(preload_diagnostics=True)
+        lowered = prompt.lower()
+
+        self.assertIn("observations", lowered)
+        self.assertIn("decide the repair strategy yourself", lowered)
+        self.assertNotIn("p.i = 0", lowered)
+        self.assertNotIn("no exploration needed", lowered)
+
     def test_safe_candidate_id_sanitizes_pathlike_text(self) -> None:
         self.assertEqual(_safe_candidate_id("../bad id"), ".._bad_id")
 
@@ -46,9 +92,9 @@ class WorkspaceStyleProbeV067Tests(unittest.TestCase):
             workspace = root / "workspaces" / "case_a"
             workspace.mkdir(parents=True)
             (workspace / "candidate1.mo").write_text("model M\nend M;\n", encoding="utf-8")
-            (workspace / "M.mo").write_text("model M\nend M;\n", encoding="utf-8")
+            (workspace / "P.System.mo").write_text("within P;\nmodel System\nend System;\n", encoding="utf-8")
             result = _timeout_result(
-                {"case_id": "case_a", "model_name": "M"},
+                {"case_id": "case_a", "model_name": "P.System"},
                 timeout_sec=7,
                 out_dir=root,
             )
@@ -198,9 +244,78 @@ class WorkspaceStyleProbeV067Tests(unittest.TestCase):
 
         self.assertTrue(single["check_ok"])
         self.assertTrue(single["simulate_ok"])
+        self.assertNotIn("equation_balance", single)
+        self.assertNotIn("diagnostics", single)
         self.assertTrue(candidate_meta["c1"]["write_simulate_ok"])
         self.assertTrue(batch["batch_results"][0]["simulate_ok"])
+        self.assertNotIn("deficit", batch["batch_results"][0])
+        self.assertNotIn("balance", batch["batch_results"][0])
         self.assertTrue(candidate_meta["c2"]["write_simulate_ok"])
+
+    def test_runner_does_not_inject_compaction_guidance(self) -> None:
+        class FakeAdapter:
+            def __init__(self) -> None:
+                self.messages_seen: list[list[dict]] = []
+
+            def send_tool_request(self, messages, tools, config):
+                self.messages_seen.append(list(messages))
+                return (
+                    ToolResponse(
+                        text="continue",
+                        tool_calls=[],
+                        finish_reason="stop",
+                        usage={"total_tokens": 10},
+                    ),
+                    "",
+                )
+
+        adapter = FakeAdapter()
+        case = {
+            "case_id": "case_a",
+            "model_name": "M",
+            "model_text": "model M\nend M;\n",
+            "workflow_goal": "Fix model",
+        }
+        config = LLMProviderConfig(provider_name="mock", model="mock", api_key="mock")
+        with tempfile.TemporaryDirectory() as td:
+            with patch(
+                "gateforge.agent_modelica_workspace_style_probe_v0_67_0.resolve_provider_adapter",
+                return_value=(adapter, config),
+            ):
+                run_workspace_style_case(case, out_dir=Path(td), max_steps=4, max_token_budget=20)
+
+        visible_text = "\n".join(
+            str(message.get("content") or "")
+            for batch in adapter.messages_seen
+            for message in batch
+        ).lower()
+        self.assertNotIn("session summary", visible_text)
+        self.assertNotIn("focus on remaining deficit", visible_text)
+        self.assertNotIn("combine effective changes", visible_text)
+
+    def test_candidate_checks_use_explicit_target_model_name(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            workspace = Path(td)
+            candidate_paths = {}
+            candidate_meta = {}
+            with patch(
+                "gateforge.agent_modelica_workspace_style_probe_v0_67_0._run_omc_check",
+                return_value=("Class P.System has 1 equation(s) and 1 variable(s).", True, True),
+            ) as mock_check:
+                _dispatch_workspace_tool(
+                    name="write_and_check_candidate_model",
+                    arguments={
+                        "candidate_id": "c1",
+                        "model_text": "within P;\nmodel Adapter\nend Adapter;\nwithin P;\nmodel System\nend System;",
+                    },
+                    workspace=workspace,
+                    candidate_paths=candidate_paths,
+                    candidate_meta=candidate_meta,
+                    target_model_name="P.System",
+                )
+
+        self.assertEqual(mock_check.call_args.kwargs["target_model_name"], "P.System")
+        self.assertEqual(candidate_meta["c1"]["model_name"], "P.System")
 
     def test_invalid_submit_candidate_does_not_count_as_submission(self) -> None:
         class FakeAdapter:
@@ -240,6 +355,66 @@ class WorkspaceStyleProbeV067Tests(unittest.TestCase):
         self.assertEqual(result["invalid_submission_attempt_count"], 1)
         self.assertEqual(result["submitted_candidate_id"], "")
         self.assertEqual(result["final_verdict"], "FAILED")
+
+    def test_final_submission_uses_omc_parser_flags(self) -> None:
+        class FakeAdapter:
+            def send_tool_request(self, messages, tools, config):
+                if len([m for m in messages if m.get("role") == "tool"]) == 0:
+                    return (
+                        ToolResponse(
+                            text="write candidate",
+                            tool_calls=[
+                                ToolCall(
+                                    id="call_1",
+                                    name="write_and_check_candidate_model",
+                                    arguments={"candidate_id": "c1", "model_text": "model M\nend M;"},
+                                )
+                            ],
+                            finish_reason="tool_calls",
+                            usage={"total_tokens": 1},
+                        ),
+                        "",
+                    )
+                return (
+                    ToolResponse(
+                        text="submit candidate",
+                        tool_calls=[
+                            ToolCall(
+                                id="call_2",
+                                name="submit_candidate_model",
+                                arguments={"candidate_id": "c1"},
+                            )
+                        ],
+                        finish_reason="tool_calls",
+                        usage={"total_tokens": 1},
+                    ),
+                    "",
+                )
+
+        case = {
+            "case_id": "case_a",
+            "model_name": "M",
+            "model_text": "model M\nend M;\n",
+            "workflow_goal": "Fix model",
+        }
+        config = LLMProviderConfig(provider_name="mock", model="mock", api_key="mock")
+        with tempfile.TemporaryDirectory() as td:
+            with patch(
+                "gateforge.agent_modelica_workspace_style_probe_v0_67_0.resolve_provider_adapter",
+                return_value=(FakeAdapter(), config),
+            ), patch(
+                "gateforge.agent_modelica_workspace_style_probe_v0_67_0._run_omc_check",
+                return_value=("record SimulationResult\nThe simulation finished successfully.", True, True),
+            ), patch(
+                "gateforge.agent_modelica_workspace_style_probe_v0_67_0._run_omc_simulate",
+                return_value=("record SimulationResult\nThe simulation finished successfully.", False, True),
+            ):
+                result = run_workspace_style_case(case, out_dir=Path(td), max_steps=2)
+
+        self.assertTrue(result["submitted"])
+        self.assertEqual(result["final_verdict"], "FAILED")
+        final_eval = [step for step in result["steps"] if step.get("step") == "final_eval"][0]
+        self.assertFalse(final_eval["check_ok"])
 
 
 if __name__ == "__main__":

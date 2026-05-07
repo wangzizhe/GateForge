@@ -1094,11 +1094,11 @@ def run_tool_use_case(
     tool_defs = get_tool_defs(tool_profile)
 
     system_prompt = (
-        "You are fixing a Modelica model. You have tools for OMC operations and structural diagnostics.\n"
+        "You are fixing a Modelica model using transparent tool calls.\n"
         "Use check_model to see current compiler output.\n"
         "Use simulate_model to run a simulation.\n"
         "When the model is correct, call submit_final.\n"
-        "Keep edits minimal and compile-oriented.\n"
+        "Infer the repair from the model text, task text, compiler output, and simulation output.\n"
         f"{get_tool_profile_guidance(tool_profile)}"
     )
     messages: list[dict] = [

@@ -22,11 +22,17 @@ def _extract_model_name(model_text: str, fallback: str) -> str:
 def task_to_tool_use_case(task: dict[str, Any]) -> dict[str, Any]:
     model_text = str(task.get("initial_model") or "")
     case_id = str(task.get("case_id") or "")
+    engineering_metadata = task.get("engineering_metadata") if isinstance(task.get("engineering_metadata"), dict) else {}
+    target_model_name = (
+        str(task.get("model_name") or "").strip()
+        or str(engineering_metadata.get("qualified_model_name") or "").strip()
+        or _extract_model_name(model_text, case_id or "model")
+    )
     verification = task.get("verification") if isinstance(task.get("verification"), dict) else {}
     simulate = verification.get("simulate") if isinstance(verification.get("simulate"), dict) else {}
     return {
         "case_id": case_id,
-        "model_name": _extract_model_name(model_text, case_id or "model"),
+        "model_name": target_model_name,
         "model_text": model_text,
         "workflow_goal": "\n".join(
             part

@@ -44,6 +44,22 @@ class BoundaryToolUseBaselineV0292Tests(unittest.TestCase):
         self.assertEqual(case["final_stop_time"], 0.2)
         self.assertEqual(case["final_intervals"], 200)
 
+    def test_task_to_tool_use_case_uses_qualified_engineering_model_name(self) -> None:
+        task = _task()
+        task["initial_model"] = (
+            "within P;\n"
+            "model Adapter\n"
+            "end Adapter;\n"
+            "within P;\n"
+            "model System\n"
+            "end System;\n"
+        )
+        task["engineering_metadata"] = {"qualified_model_name": "P.System"}
+
+        case = task_to_tool_use_case(task)
+
+        self.assertEqual(case["model_name"], "P.System")
+
     def test_load_boundary_cases_filters_prefix(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
