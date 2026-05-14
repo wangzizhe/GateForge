@@ -5,17 +5,22 @@ on:
   push:
     branches:
       - main
-      - public-clean
 
 jobs:
-  public-core:
+  public-test-suite:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
-      - name: Run public core tests
+          python-version: ${{ matrix.python-version }}
+      - name: Compile public Python sources
+        run: python -m compileall gateforge tests scripts
+      - name: Run public unit tests
         run: |
           python -m unittest \
             tests.test_llm_provider_adapter \
@@ -26,3 +31,10 @@ jobs:
             tests.test_ci_runner_contract \
             tests.test_ci_shard_config_contract \
             -v
+      - name: Guard public tree against internal markers
+        run: |
+          pattern='assets''_private|CHANGELOG''_INTERNAL|CLEAN''_SOURCE''_BACKED|BENCHMARK''_LEDGER|internal''_docs|task_[0-9]{3,}'
+          if git grep -n -E "$pattern" -- . ':!.github/workflows/ci.yml' ':!.gitignore'; then
+            echo "Internal marker found in public tree"
+            exit 1
+          fi
