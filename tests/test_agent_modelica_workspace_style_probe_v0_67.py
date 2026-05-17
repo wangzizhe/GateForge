@@ -9,6 +9,8 @@ from unittest.mock import patch
 
 from gateforge.llm_provider_adapter import LLMProviderConfig, ToolCall, ToolResponse
 from gateforge.agent_modelica_workspace_style_probe_v0_67_0 import (
+    LONG_RUN_900S_PROFILE,
+    RUN_PROFILES,
     WORKSPACE_TOOL_DEFS,
     _build_summary,
     _build_workspace_system_prompt,
@@ -349,11 +351,40 @@ class AgentModelicaWorkspaceStyleProbeV067Tests(unittest.TestCase):
         self.assertTrue(summary["discipline"]["merged_write_check_tool"])
         self.assertFalse(summary["discipline"]["wrapper_auto_submit_added"])
         self.assertEqual(summary["candidate_file_count"], 1)
+        self.assertEqual(summary["run_profile"], "custom")
+        self.assertEqual(summary["max_steps"], 10)
+        self.assertEqual(summary["per_case_timeout_sec"], 0)
         recorded_model_text = result_row["steps"][0]["tool_calls"][0]["arguments"]["model_text"]
         self.assertIsInstance(recorded_model_text, dict)
         self.assertEqual(recorded_model_text["candidate_id"], "c1")
         self.assertEqual(recorded_model_text["char_count"], len(result_row["final_model_text"]))
         self.assertNotIn("Real x", json.dumps(result_row["steps"][0]["tool_calls"][0]["arguments"]))
+
+    def test_summary_records_run_profile_metadata(self) -> None:
+        profile = RUN_PROFILES[LONG_RUN_900S_PROFILE]
+        summary = _build_summary(
+            tasks=[{"case_id": "case_a"}],
+            results=[
+                {
+                    "case_id": "case_a",
+                    "final_verdict": "PASS",
+                    "provider_error": "",
+                    "harness_timeout": False,
+                    "runner_error": "",
+                    "submission_mode": "llm",
+                    "candidate_files": [],
+                }
+            ],
+            run_profile=LONG_RUN_900S_PROFILE,
+            max_steps=profile["max_steps"],
+            max_token_budget=profile["max_token_budget"],
+            per_case_timeout_sec=profile["per_case_timeout_sec"],
+        )
+
+        self.assertEqual(summary["run_profile"], LONG_RUN_900S_PROFILE)
+        self.assertEqual(summary["max_steps"], 100)
+        self.assertEqual(summary["per_case_timeout_sec"], 900)
+        self.assertEqual(summary["max_token_budget"], 999999999)
 
     def test_summary_blocks_checkpoint_contaminated_results(self) -> None:
         summary = _build_summary(

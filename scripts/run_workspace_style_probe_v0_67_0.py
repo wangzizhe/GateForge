@@ -12,6 +12,8 @@ if str(REPO_ROOT) not in sys.path:
 from gateforge.agent_modelica_workspace_style_probe_v0_67_0 import (
     DEFAULT_OUT_DIR,
     DEFAULT_TASKS,
+    DEFAULT_RUN_PROFILE,
+    RUN_PROFILES,
     run_workspace_style_probe,
 )
 
@@ -29,7 +31,21 @@ def main() -> int:
     parser.add_argument("--planner-backend", default="auto")
     parser.add_argument("--per-case-timeout-sec", type=int, default=0)
     parser.add_argument("--summary-version", default="v0.67.0")
+    parser.add_argument(
+        "--run-profile",
+        choices=sorted(RUN_PROFILES),
+        default=DEFAULT_RUN_PROFILE,
+        help="Named run profile. Explicit CLI flags override profile defaults.",
+    )
     args = parser.parse_args()
+    profile = RUN_PROFILES.get(str(args.run_profile), {})
+    if profile:
+        if args.max_steps == parser.get_default("max_steps"):
+            args.max_steps = int(profile.get("max_steps", args.max_steps))
+        if args.max_token_budget == parser.get_default("max_token_budget"):
+            args.max_token_budget = int(profile.get("max_token_budget", args.max_token_budget))
+        if args.per_case_timeout_sec == parser.get_default("per_case_timeout_sec"):
+            args.per_case_timeout_sec = int(profile.get("per_case_timeout_sec", args.per_case_timeout_sec))
     summary = run_workspace_style_probe(
         tasks_path=args.tasks,
         out_dir=args.out_dir,
@@ -40,6 +56,7 @@ def main() -> int:
         planner_backend=args.planner_backend,
         per_case_timeout_sec=args.per_case_timeout_sec,
         summary_version=args.summary_version,
+        run_profile=str(args.run_profile),
     )
     print(json.dumps(summary, ensure_ascii=False, sort_keys=True))
     return 0

@@ -25,6 +25,16 @@ DEFAULT_OUT_DIR = REPO_ROOT / "artifacts" / "workspace_style_probe_v0_67_0"
 DOCKER_IMAGE = "openmodelica/openmodelica:v1.26.1-minimal"
 RUN_PROFILE = "public_modelica_repair"
 PRODUCT_REPAIR_PROFILE = "product_repair_disabled"
+DEFAULT_RUN_PROFILE = "custom"
+LONG_RUN_900S_PROFILE = "long_run_900s"
+RUN_PROFILES: dict[str, dict[str, Any]] = {
+    DEFAULT_RUN_PROFILE: {},
+    LONG_RUN_900S_PROFILE: {
+        "max_steps": 100,
+        "max_token_budget": 999999999,
+        "per_case_timeout_sec": 900,
+    },
+}
 MAX_WORKSPACE_LIST_FILES = 200
 MAX_WORKSPACE_SEARCH_FILES = 5000
 MAX_WORKSPACE_SEARCH_RESULTS = 50
@@ -1440,6 +1450,7 @@ def run_workspace_style_probe(
     planner_backend: str = "auto",
     per_case_timeout_sec: int = 0,
     summary_version: str = "v0.67.0",
+    run_profile: str = DEFAULT_RUN_PROFILE,
     run_case_fn: RunWorkspaceCaseFn = run_workspace_style_case,
 ) -> dict[str, Any]:
     wanted = set(case_ids or [])
@@ -1460,6 +1471,9 @@ def run_workspace_style_probe(
                 results=[],
                 summary_version=summary_version,
                 max_token_budget=max_token_budget,
+                run_profile=run_profile,
+                max_steps=max_steps,
+                per_case_timeout_sec=per_case_timeout_sec,
             ),
             indent=2,
             sort_keys=True,
@@ -1507,6 +1521,9 @@ def run_workspace_style_probe(
                     results=results,
                     summary_version=summary_version,
                     max_token_budget=max_token_budget,
+                    run_profile=run_profile,
+                    max_steps=max_steps,
+                    per_case_timeout_sec=per_case_timeout_sec,
                 ),
                 indent=2,
                 sort_keys=True,
@@ -1522,6 +1539,9 @@ def run_workspace_style_probe(
                     results=[],
                     summary_version=summary_version,
                     max_token_budget=max_token_budget,
+                    run_profile=run_profile,
+                    max_steps=max_steps,
+                    per_case_timeout_sec=per_case_timeout_sec,
                 ),
                 indent=2,
                 sort_keys=True,
@@ -1538,6 +1558,9 @@ def _build_summary(
     results: list[dict[str, Any]],
     summary_version: str = "v0.67.0",
     max_token_budget: int = 0,
+    run_profile: str = DEFAULT_RUN_PROFILE,
+    max_steps: int = 10,
+    per_case_timeout_sec: int = 0,
 ) -> dict[str, Any]:
     provider_error_count = sum(1 for row in results if row.get("provider_error"))
     timeout_count = sum(1 for row in results if row.get("harness_timeout"))
@@ -1600,6 +1623,9 @@ def _build_summary(
             and checkpoint_triggered_count == 0
         ),
         "run_mode": "workspace_style_tool_use",
+        "run_profile": str(run_profile or DEFAULT_RUN_PROFILE),
+        "max_steps": int(max_steps),
+        "per_case_timeout_sec": int(per_case_timeout_sec or 0),
         "tool_count": len(WORKSPACE_TOOL_DEFS),
         "case_count": len(tasks),
         "completed_case_count": len(results),
