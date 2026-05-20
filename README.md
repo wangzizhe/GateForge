@@ -6,13 +6,13 @@
   <a href="LICENSE" style="text-decoration:none;"><img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="License" /></a>&nbsp;
   <a href="https://www.python.org/" style="text-decoration:none;"><img src="https://img.shields.io/badge/python-%3E%3D3.10-3776AB.svg" alt="Python >= 3.10" /></a>
 </p>
-<p align="center" style="margin: 0.75rem auto 1rem; max-width: 920px; padding: 0.75rem 1rem; border: 1px solid #d0d7de; border-radius: 8px; background: #f6f8fa;">
-  <strong>AI Agents for Physical Systems Modeling</strong>
+<p align="center" style="margin: 0.75rem auto 1rem; max-width: 920px; padding: 0.75rem 1rem; border: 1px solid #d0d7de; border-radius: 8px; background: #f6f8fa; font-size: 1.25rem;">
+  <strong>AI Agent for Physical Systems Modeling</strong>
 </p>
 
 ## Agentic Modelica Workflow Benchmark
 
-Benchmark snapshot as of May 20, 2026.
+*Benchmark snapshot as of May 20, 2026.*
 
 Both agents use the same foundation model and are evaluated under the same benchmark and wall-clock conditions.
 

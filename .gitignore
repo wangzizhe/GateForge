@@ -14,4 +14,5 @@ assets_private/
 assets_internal/
 examples_private/
 CLAUDE.md
+PUBLIC_REPO_POLICY.md
 .claude/
