@@ -10,6 +10,28 @@
   <strong>AI Agents for Physical Systems Modeling</strong>
 </p>
 
+## Agentic Modelica Workflow Benchmark
+
+Benchmark snapshot as of May 20, 2026.
+
+Both agents use the same foundation model and are evaluated under the same benchmark and wall-clock conditions.
+
+GateForge outperforms OpenCode by +10 solved tasks overall, with gains concentrated in medium and hard Modelica workflows.
+
+| Agent | Total | easy | medium | hard |
+| --- | ---: | ---: | ---: | ---: |
+| GateForge | 130/132 | 21/21 | 56/56 | 53/55 |
+| OpenCode | 120/132 | 21/21 | 50/56 | 42/55 |
+
+GateForge used about 40% fewer tokens and finished about 30% faster.
+
+| Agent | tokens | wall time |
+| --- | ---: | ---: |
+| GateForge | ~39.7M | ~14,658s |
+| OpenCode | ~66.1M | ~20,843s |
+
+Comparisons with additional AI agents, such as Codex and Claude Code, will follow.
+
 ## Legal Notice
 
 Without prior written permission, no content on this site may be used for AI model training, fine-tuning, evaluation, or dataset construction.

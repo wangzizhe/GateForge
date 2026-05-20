@@ -2,6 +2,32 @@
 
 All notable public changes to this project are documented in this file. Detailed experiment results, failure attribution, and internal analysis notes are tracked in private documentation and are intentionally not published here.
 
+## [v0.138.199] - 2026-05-20
+
+### Added
+- Added named run profiles for reproducible workspace evaluations.
+- Added evaluation overlay utilities for adjusted result comparisons.
+- Added external failure taxonomy utilities for baseline analysis.
+- Added tests for run-profile metadata, overlay summaries, and external failure classification.
+
+### Changed
+- Improved public evaluation summaries with explicit run-profile and timeout metadata.
+- Documented GateForge and OpenCode benchmark comparison with the same base model:
+
+| Agent | Total | easy | medium | hard |
+| --- | ---: | ---: | ---: | ---: |
+| GateForge | 130/132 | 21/21 | 56/56 | 53/55 |
+| OpenCode | 120/132 | 21/21 | 50/56 | 42/55 |
+
+| Agent | tokens | wall time |
+| --- | ---: | ---: |
+| GateForge | ~39.7M | ~14,658s |
+| OpenCode | ~66.1M | ~20,843s |
+
+### Validation
+- Public unit tests for the updated workspace runner and evaluation utilities pass under `python3 -m unittest`.
+- Detailed benchmark assets, run counts, task identities, model/provider details, and failure attribution traces remain private until a dedicated benchmark or paper release.
+
 ## [v0.36.8] - 2026-05-01
 
 ### Added
