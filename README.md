@@ -12,25 +12,27 @@
 
 ## Agentic Modelica Workflow Benchmark
 
-*Benchmark snapshot as of May 20, 2026.*
+*Benchmark snapshot as of May 21, 2026.*
 
-Both agents use the same foundation model and are evaluated under the same benchmark and wall-clock conditions.
+All agents use the same foundation model family and are evaluated under the same benchmark and wall-clock conditions.
 
-GateForge outperforms OpenCode by +10 solved tasks overall, with gains concentrated in medium and hard Modelica workflows.
+GateForge outperforms both general-purpose agent baselines overall, with the strongest margin on medium and hard Modelica workflows. 
 
 | Agent | Total | easy | medium | hard |
 | --- | ---: | ---: | ---: | ---: |
 | GateForge | 130/132 | 21/21 | 56/56 | 53/55 |
-| OpenCode | 120/132 | 21/21 | 50/56 | 42/55 |
+| Claude Code | 123/132 | 21/21 | 55/56 | 47/55 |
+| OpenCode | 120/132 | 21/21 | 50/56 | 49/55 |
 
-GateForge used about 40% fewer tokens and finished about 30% faster.
+GateForge solved more tasks than both baselines. Compared with OpenCode, it used fewer tokens and finished faster; compared with Claude Code, it finished faster while solving more cases.
 
-| Agent | tokens | wall time |
+| Agent | reported tokens* | wall time |
 | --- | ---: | ---: |
 | GateForge | ~39.7M | ~14,658s |
+| Claude Code | ~15.9M | ~35,191s |
 | OpenCode | ~66.1M | ~20,843s |
 
-Comparisons with additional AI agents, such as Codex and Claude Code, will follow.
+*Reported tokens are runner-reported estimates; GateForge records provider usage directly, while other runners may omit local context management, compression, retries, or tool-output handling costs.
 
 ## Legal Notice
 
