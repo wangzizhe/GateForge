@@ -242,9 +242,12 @@ WORKSPACE_TOOL_DEFS: list[dict[str, Any]] = [
         "name": "write_and_check_candidate_model",
         "description": (
             "Write a complete candidate Modelica model into the transparent case workspace "
-            "and immediately run OMC checkModel AND simulate on it. Returns raw compiler output, "
-            "basic pass flags, and the raw compiler-output artifact path. "
-            "This does not select or submit the candidate."
+            "and immediately run OMC checkModel AND simulate with the task's final-evaluation "
+            "simulation settings. Returns raw compiler output, basic pass flags, and the "
+            "raw compiler-output artifact path. "
+            "This does not select candidates. If you explicitly choose this candidate "
+            "as final, set submit_if_passes=true; the harness submits it only if the "
+            "same accepted simulation policy used by final evaluation passes."
         ),
         "parameters": {
             "type": "object",
@@ -252,6 +255,14 @@ WORKSPACE_TOOL_DEFS: list[dict[str, Any]] = [
                 "candidate_id": {"type": "string", "description": "Short candidate identifier."},
                 "model_text": {"type": "string", "description": "Complete Modelica model source."},
                 "rationale": {"type": "string", "description": "Brief reason for this candidate."},
+                "submit_if_passes": {
+                    "type": "boolean",
+                    "description": (
+                        "Set true only when you explicitly choose this candidate as final. "
+                        "The harness submits it only if the accepted final-evaluation "
+                        "policy passes, including warning-pass simulation outcomes."
+                    ),
+                },
             },
             "required": ["candidate_id", "model_text"],
         },
@@ -768,6 +779,54 @@ def _run_omc_simulate(
     return str(output or ""), bool(check_ok), bool(simulate_ok)
 
 
+def _omc_policy_metadata(
+    output: str,
+    *,
+    check_ok: bool,
+    simulate_ok: bool,
+) -> dict[str, Any]:
+    """Normalize OMC output into the acceptance policy used by final eval."""
+    text = str(output or "")
+    lower = text.lower()
+    result_match = re.search(r'resultfile\s*=\s*"([^"]*)"', text, flags=re.IGNORECASE)
+    has_result_file = bool(result_match and result_match.group(1).strip())
+    success_message = "the simulation finished successfully" in lower
+    fatal_markers = (
+        "simulation execution failed",
+        "error occurred while solving",
+        "division by zero",
+        "integrator failed",
+    )
+    fatal_failure = any(marker in lower for marker in fatal_markers)
+    warning_markers = [
+        marker
+        for marker, token in (
+            ("assertion", "assertion"),
+            ("invalid_root", "invalid root"),
+            ("min_max_warning", "min/max"),
+        )
+        if token in lower
+    ]
+    accepted_simulate_ok = bool(
+        simulate_ok
+        or (check_ok and has_result_file and success_message and not fatal_failure)
+    )
+    if simulate_ok:
+        simulation_status = "clean_pass"
+    elif accepted_simulate_ok:
+        simulation_status = "warning_pass"
+    else:
+        simulation_status = "fail"
+    return {
+        "accepted_check_ok": bool(check_ok),
+        "accepted_simulate_ok": bool(accepted_simulate_ok),
+        "policy_pass": bool(check_ok and accepted_simulate_ok),
+        "strict_simulate_ok": bool(simulate_ok),
+        "simulation_status": simulation_status,
+        "simulation_warning_markers": warning_markers,
+    }
+
+
 def _dispatch_workspace_tool(
     *,
     name: str,
@@ -830,6 +889,7 @@ def _dispatch_workspace_tool(
 
     if name == "write_and_check_candidate_model":
         model_text = str(arguments.get("model_text") or "")
+        submit_if_passes_requested = bool(arguments.get("submit_if_passes"))
         if not model_text.strip():
             return json.dumps({"error": "model_text required"}, sort_keys=True)
         path = workspace / f"{candidate_id}.mo"
@@ -843,27 +903,56 @@ def _dispatch_workspace_tool(
         )
         omc_output_path = workspace / f"{candidate_id}.omc.txt"
         omc_output_path.write_text(str(output or ""), encoding="utf-8")
+        policy_meta = _omc_policy_metadata(
+            output,
+            check_ok=bool(check_ok),
+            simulate_ok=bool(simulate_ok),
+        )
+        auto_submitted_after_llm_request = bool(
+            submit_if_passes_requested and policy_meta["policy_pass"]
+        )
         candidate_meta[candidate_id] = {
             "candidate_id": candidate_id,
             "path": str(path),
             "rationale": str(arguments.get("rationale") or ""),
             "model_name": str(target_model_name or "").strip() or _extract_model_name(model_text),
-            "write_check_ok": bool(check_ok),
-            "write_simulate_ok": bool(simulate_ok),
+            "write_check_ok": bool(policy_meta["accepted_check_ok"]),
+            "write_simulate_ok": bool(policy_meta["accepted_simulate_ok"]),
+            "write_raw_check_ok": bool(check_ok),
+            "write_raw_simulate_ok": bool(simulate_ok),
+            "write_policy_pass": bool(policy_meta["policy_pass"]),
+            "write_strict_simulate_ok": bool(policy_meta["strict_simulate_ok"]),
+            "write_simulation_status": str(policy_meta["simulation_status"]),
+            "write_simulation_warning_markers": list(policy_meta["simulation_warning_markers"]),
             "omc_output_path": str(omc_output_path),
+            "submit_if_passes_requested": submit_if_passes_requested,
+            "auto_submitted_after_llm_request": auto_submitted_after_llm_request,
         }
         return json.dumps(
             {
-                "status": "written_and_checked",
+                "status": (
+                    "submitted_after_pass"
+                    if auto_submitted_after_llm_request
+                    else "written_and_checked"
+                ),
                 "candidate_id": candidate_id,
                 "path": str(path),
-                "check_ok": bool(check_ok),
-                "simulate_ok": bool(simulate_ok),
+                "check_ok": bool(policy_meta["accepted_check_ok"]),
+                "simulate_ok": bool(policy_meta["accepted_simulate_ok"]),
+                "raw_check_ok": bool(check_ok),
+                "raw_simulate_ok": bool(simulate_ok),
+                "accepted_simulate_ok": bool(policy_meta["accepted_simulate_ok"]),
+                "policy_pass": bool(policy_meta["policy_pass"]),
+                "strict_simulate_ok": bool(policy_meta["strict_simulate_ok"]),
+                "simulation_status": str(policy_meta["simulation_status"]),
+                "simulation_warning_markers": list(policy_meta["simulation_warning_markers"]),
                 "omc_output": str(output or "")[:3000],
                 "omc_output_path": str(omc_output_path),
                 "auto_repair": False,
                 "auto_submit": False,
                 "candidate_selected": False,
+                "submit_if_passes_requested": submit_if_passes_requested,
+                "auto_submitted_after_llm_request": auto_submitted_after_llm_request,
             },
             sort_keys=True,
         )
@@ -899,20 +988,37 @@ def _dispatch_workspace_tool(
             )
             omc_output_path = workspace / f"{cid}.omc.txt"
             omc_output_path.write_text(str(output or ""), encoding="utf-8")
+            policy_meta = _omc_policy_metadata(
+                output,
+                check_ok=bool(check_ok),
+                simulate_ok=bool(simulate_ok),
+            )
             candidate_meta[cid] = {
                 "candidate_id": cid,
                 "path": str(path),
                 "rationale": str(cand.get("rationale", "")),
                 "model_name": str(target_model_name or "").strip() or _extract_model_name(model_text),
-                "write_check_ok": bool(check_ok),
-                "write_simulate_ok": bool(simulate_ok),
+                "write_check_ok": bool(policy_meta["accepted_check_ok"]),
+                "write_simulate_ok": bool(policy_meta["accepted_simulate_ok"]),
+                "write_raw_check_ok": bool(check_ok),
+                "write_raw_simulate_ok": bool(simulate_ok),
+                "write_policy_pass": bool(policy_meta["policy_pass"]),
+                "write_strict_simulate_ok": bool(policy_meta["strict_simulate_ok"]),
+                "write_simulation_status": str(policy_meta["simulation_status"]),
+                "write_simulation_warning_markers": list(policy_meta["simulation_warning_markers"]),
                 "omc_output_path": str(omc_output_path),
             }
             results.append({
                 "candidate_id": cid,
                 "rationale": str(cand.get("rationale", ""))[:80],
-                "check_ok": bool(check_ok),
-                "simulate_ok": bool(simulate_ok),
+                "check_ok": bool(policy_meta["accepted_check_ok"]),
+                "simulate_ok": bool(policy_meta["accepted_simulate_ok"]),
+                "raw_check_ok": bool(check_ok),
+                "raw_simulate_ok": bool(simulate_ok),
+                "policy_pass": bool(policy_meta["policy_pass"]),
+                "strict_simulate_ok": bool(policy_meta["strict_simulate_ok"]),
+                "simulation_status": str(policy_meta["simulation_status"]),
+                "simulation_warning_markers": list(policy_meta["simulation_warning_markers"]),
                 "omc_output_path": str(omc_output_path),
             })
         return json.dumps({"batch_results": results, "total": len(results)}, sort_keys=True)
@@ -987,6 +1093,7 @@ def run_workspace_style_case(
     steps: list[dict[str, Any]] = []
     token_used = 0
     submitted_id = ""
+    submission_mode = "none"
     provider_error = ""
     stop_reason = "max_steps_exhausted"
     budget_exceeded_at_step = 0
@@ -1081,11 +1188,26 @@ def run_workspace_style_case(
                         and requested_candidate_id in candidate_paths
                     ):
                         submitted_id = requested_candidate_id
+                        submission_mode = "llm"
                     else:
                         invalid_submission_attempts.append({
                             "candidate_id": requested_candidate_id,
                             "result": result,
                         })
+                if tc.name == "write_and_check_candidate_model":
+                    try:
+                        write_payload = json.loads(result)
+                    except json.JSONDecodeError:
+                        write_payload = {}
+                    requested_candidate_id = _safe_candidate_id(
+                        str(tc.arguments.get("candidate_id") or "")
+                    )
+                    if (
+                        write_payload.get("status") == "submitted_after_pass"
+                        and requested_candidate_id in candidate_paths
+                    ):
+                        submitted_id = requested_candidate_id
+                        submission_mode = "llm_submit_if_passes"
             step_record["tool_results"] = tool_results
             _write_case_status(
                 case_workspace,
@@ -1114,6 +1236,9 @@ def run_workspace_style_case(
 
     final_model_text = ""
     final_verdict = "FAILED"
+    final_simulation_status = ""
+    final_strict_simulate_ok = False
+    final_simulation_warning_markers: list[str] = []
 
     if submitted_id and submitted_id in candidate_paths:
         _write_case_status(
@@ -1132,13 +1257,27 @@ def run_workspace_style_case(
             target_model_name=model_name,
             external_library_context=external_library_context,
         )
-        final_verdict = "PASS" if check_ok and simulate_ok else "FAILED"
+        final_policy_meta = _omc_policy_metadata(
+            final_output,
+            check_ok=bool(check_ok),
+            simulate_ok=bool(simulate_ok),
+        )
+        final_simulation_status = str(final_policy_meta["simulation_status"])
+        final_strict_simulate_ok = bool(final_policy_meta["strict_simulate_ok"])
+        final_simulation_warning_markers = list(final_policy_meta["simulation_warning_markers"])
+        final_verdict = "PASS" if final_policy_meta["policy_pass"] else "FAILED"
         steps.append(
             {
                 "step": "final_eval",
                 "candidate_id": submitted_id,
-                "check_ok": check_ok,
-                "simulate_ok": simulate_ok,
+                "check_ok": bool(final_policy_meta["accepted_check_ok"]),
+                "simulate_ok": bool(final_policy_meta["accepted_simulate_ok"]),
+                "raw_check_ok": bool(check_ok),
+                "raw_simulate_ok": bool(simulate_ok),
+                "policy_pass": bool(final_policy_meta["policy_pass"]),
+                "strict_simulate_ok": final_strict_simulate_ok,
+                "simulation_status": final_simulation_status,
+                "simulation_warning_markers": final_simulation_warning_markers,
                 "omc_output": str(final_output or "")[:2000],
             }
         )
@@ -1182,9 +1321,12 @@ def run_workspace_style_case(
         "run_mode": "workspace_style_tool_use",
         "tool_count": len(WORKSPACE_TOOL_DEFS),
         "final_verdict": final_verdict,
+        "final_simulation_status": final_simulation_status,
+        "final_strict_simulate_ok": final_strict_simulate_ok,
+        "final_simulation_warning_markers": final_simulation_warning_markers,
         "submitted": bool(submitted_id),
         "submitted_candidate_id": submitted_id,
-        "submission_mode": "llm" if submitted_id else "none",
+        "submission_mode": submission_mode if submitted_id else "none",
         "step_count": len(steps),
         "token_used": token_used,
         "wall_time_sec": round(time.monotonic() - case_started_at, 3),
@@ -1250,10 +1392,21 @@ def _candidate_file_audit(
         if omc_output_path.exists():
             output = omc_output_path.read_text(encoding="utf-8", errors="replace")
             check_ok, simulate_ok = extract_om_success_flags(output)
+            policy_meta = _omc_policy_metadata(
+                output,
+                check_ok=bool(check_ok),
+                simulate_ok=bool(simulate_ok),
+            )
             row.update(
                 {
-                    "write_check_ok": bool(check_ok),
-                    "write_simulate_ok": bool(simulate_ok),
+                    "write_check_ok": bool(policy_meta["accepted_check_ok"]),
+                    "write_simulate_ok": bool(policy_meta["accepted_simulate_ok"]),
+                    "write_raw_check_ok": bool(check_ok),
+                    "write_raw_simulate_ok": bool(simulate_ok),
+                    "write_policy_pass": bool(policy_meta["policy_pass"]),
+                    "write_strict_simulate_ok": bool(policy_meta["strict_simulate_ok"]),
+                    "write_simulation_status": str(policy_meta["simulation_status"]),
+                    "write_simulation_warning_markers": list(policy_meta["simulation_warning_markers"]),
                     "omc_output_path": str(omc_output_path),
                 }
             )

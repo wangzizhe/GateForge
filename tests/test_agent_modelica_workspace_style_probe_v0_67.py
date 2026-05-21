@@ -499,6 +499,101 @@ class AgentModelicaWorkspaceStyleProbeV067Tests(unittest.TestCase):
         self.assertNotIn("balance", batch["batch_results"][0])
         self.assertTrue(candidate_meta["c2"]["write_simulate_ok"])
 
+    def test_candidate_warning_pass_uses_final_policy(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            workspace = Path(td)
+            candidate_paths = {}
+            candidate_meta = {}
+            warning_output = (
+                "Check of M completed successfully.\n"
+                "Class M has 1 equation(s) and 1 variable(s).\n"
+                "record SimulationResult\n"
+                '    resultFile = "/workspace/M_res.mat",\n'
+                '    messages = "LOG_ASSERT | warning | assertion failed during initialization: Invalid root\\n'
+                'LOG_SUCCESS | info | The simulation finished successfully."\n'
+                "end SimulationResult;\n"
+            )
+            with patch(
+                "gateforge.agent_modelica_workspace_style_probe_v0_67_0._run_omc_check",
+                return_value=(warning_output, True, False),
+            ):
+                single = json.loads(_dispatch_workspace_tool(
+                    name="write_and_check_candidate_model",
+                    arguments={"candidate_id": "c1", "model_text": "model M\nequation\nend M;"},
+                    workspace=workspace,
+                    candidate_paths=candidate_paths,
+                    candidate_meta=candidate_meta,
+                ))
+
+        self.assertTrue(single["check_ok"])
+        self.assertTrue(single["simulate_ok"])
+        self.assertTrue(single["policy_pass"])
+        self.assertFalse(single["strict_simulate_ok"])
+        self.assertEqual(single["simulation_status"], "warning_pass")
+        self.assertFalse(single["raw_simulate_ok"])
+        self.assertTrue(candidate_meta["c1"]["write_simulate_ok"])
+        self.assertTrue(candidate_meta["c1"]["write_policy_pass"])
+        self.assertEqual(candidate_meta["c1"]["write_simulation_status"], "warning_pass")
+
+    def test_submit_if_passes_accepts_warning_pass_policy(self) -> None:
+        class FakeAdapter:
+            def send_tool_request(self, messages, tools, config):
+                return (
+                    ToolResponse(
+                        text="write warning-pass candidate",
+                        tool_calls=[
+                            ToolCall(
+                                id="call_1",
+                                name="write_and_check_candidate_model",
+                                arguments={
+                                    "candidate_id": "c1",
+                                    "model_text": "model M\nend M;",
+                                    "submit_if_passes": True,
+                                },
+                            )
+                        ],
+                        finish_reason="tool_calls",
+                        usage={"total_tokens": 1},
+                    ),
+                    "",
+                )
+
+        warning_output = (
+            "Check of M completed successfully.\n"
+            "Class M has 1 equation(s) and 1 variable(s).\n"
+            "record SimulationResult\n"
+            '    resultFile = "/workspace/M_res.mat",\n'
+            '    messages = "LOG_ASSERT | warning | assertion failed during initialization: Invalid root\\n'
+            'LOG_SUCCESS | info | The simulation finished successfully."\n'
+            "end SimulationResult;\n"
+        )
+        case = {
+            "case_id": "case_a",
+            "model_name": "M",
+            "model_text": "model M\nend M;\n",
+            "workflow_goal": "Fix model",
+        }
+        config = LLMProviderConfig(provider_name="mock", model="mock", api_key="mock")
+        with tempfile.TemporaryDirectory() as td:
+            with patch(
+                "gateforge.agent_modelica_workspace_style_probe_v0_67_0.resolve_provider_adapter",
+                return_value=(FakeAdapter(), config),
+            ), patch(
+                "gateforge.agent_modelica_workspace_style_probe_v0_67_0._run_omc_check",
+                return_value=(warning_output, True, False),
+            ), patch(
+                "gateforge.agent_modelica_workspace_style_probe_v0_67_0._run_omc_simulate",
+                return_value=(warning_output, True, False),
+            ):
+                result = run_workspace_style_case(case, out_dir=Path(td), max_steps=1)
+
+        self.assertTrue(result["submitted"])
+        self.assertEqual(result["submitted_candidate_id"], "c1")
+        self.assertEqual(result["submission_mode"], "llm_submit_if_passes")
+        self.assertEqual(result["final_verdict"], "PASS")
+        self.assertEqual(result["final_simulation_status"], "warning_pass")
+        self.assertFalse(result["final_strict_simulate_ok"])
+
     def test_runner_does_not_inject_compaction_guidance(self) -> None:
         class FakeAdapter:
             def __init__(self) -> None:
